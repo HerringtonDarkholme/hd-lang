@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2830 | 11 | 4 | 2845 |
+| 2831 | 10 | 4 | 2845 |
 
 ## By Chapter
 
@@ -20,7 +20,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 348 | 4 | 0 | 352 |
 | `lang/05-expressions.md` | 277 | 0 | 0 | 277 |
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
-| `lang/07-functions.md` | 129 | 1 | 0 | 130 |
+| `lang/07-functions.md` | 130 | 0 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 356 | 3 | 0 | 359 |
 | `lang/10-modules.md` | 254 | 0 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1064 | 11 | 0 | 1075 |
+| `typing/invalid` | 1065 | 10 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,17 +75,16 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 11 |
+| `fail:no-diagnostic` | 10 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (11)</summary>
+<details><summary><code>fail:no-diagnostic</code> (10)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
@@ -2275,6 +2274,7 @@ typing/invalid/row-parameter-propagates-callback-requirement.hd
 typing/invalid/row-parameter-unmarked.hd
 typing/invalid/row-slot-bare-alias-argument.hd
 typing/invalid/row-slot-bare-context.hd
+typing/invalid/row-slot-bare-explicit-argument.hd
 typing/invalid/row-slot-bare-function-type.hd
 typing/invalid/row-subsumption-missing-key.hd
 typing/invalid/row-union-if-nested-lists.hd

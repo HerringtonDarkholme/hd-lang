@@ -44,6 +44,7 @@ mod entry_point;
 mod error_derive_run;
 mod error_markers;
 mod exit;
+mod explicit_row_slot;
 mod explicit_type_arguments_run;
 mod extra_trait_members;
 mod fact_eval_run;

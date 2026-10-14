@@ -458,6 +458,29 @@ impl Ck<'_, '_> {
             );
             self.err(Code::ArgumentCount, n, &msg);
         }
+        // `fn.generic.explicit.row-dollar`: the slot of a row parameter
+        // takes a row type argument written after `$`. A bare key or row
+        // alias there is a kind error; an inferred or poisoned slot stays
+        // to inference or its own error.
+        for (i, g) in sig.generics.iter().enumerate() {
+            let Some(t) = explicit.get(i) else {
+                continue;
+            };
+            if !g.row {
+                continue;
+            }
+            let row_like = matches!(
+                pool.get(*t),
+                TyData::Row(_) | TyData::Infer(_) | TyData::Poison
+            );
+            if !row_like {
+                let msg = format!(
+                    "the slot of row parameter `${}` takes a row type argument written after `$`, as in `::[$ ...]`",
+                    self.cx.names.text(g.name)
+                );
+                self.err(Code::GenericKindMismatch, n, &msg);
+            }
+        }
         sig.generics
             .iter()
             .enumerate()
