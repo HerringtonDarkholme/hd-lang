@@ -96,22 +96,22 @@ impl Cli:
                         written = before
                         attached = .Some(after)
                     .None => pass
-            match self.find(written):
+            option := match self.find(written):
                 .None => return .Err(CliError.UnknownOption(written))
-                .Some(option) =>
-                    if !option.takes_value:
-                        if attached.is_some():
-                            return .Err(CliError.UnexpectedValue(option.name))
-                        if !flags.contains(option.name):
-                            flags.push(option.name)
-                    else:
-                        match attached:
-                            .Some(value) => values[option.name] = value
-                            .None =>
-                                if index >= arguments.len():
-                                    return .Err(CliError.MissingValue(option.name))
-                                values[option.name] = arguments[index]
-                                index = index + 1
+                .Some(found) => found
+            if !option.takes_value:
+                if attached.is_some():
+                    return .Err(CliError.UnexpectedValue(option.name))
+                if !flags.contains(option.name):
+                    flags.push(option.name)
+            else:
+                match attached:
+                    .Some(value) => values[option.name] = value
+                    .None =>
+                        if index >= arguments.len():
+                            return .Err(CliError.MissingValue(option.name))
+                        values[option.name] = arguments[index]
+                        index = index + 1
         # A set `help` flag skips the missing-positional check (r-std-cli.error.help).
         if positionals.len() < self.positionals.len() && !flags.contains("help"):
             return .Err(CliError.MissingPositional(self.positionals[positionals.len()].name))

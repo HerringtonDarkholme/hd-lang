@@ -311,3 +311,5 @@ says that the check covered syntax only.
 | 2026-10-14 | #37 qualified decorator probe | api | `use std as std` for a fully qualified marker | `unknown-module: no module named ``` | partly | construct the qualified case through a dependency root instead | muse |
 | 2026-10-14 | #37 qualified decorator probe | syntax | `use ext as external`, then `use ext` | `syntax-error: expected a line ending, found 'ext'` | yes | use the dependency-root form `use dep.pkg` | muse |
 | 2026-10-14 | #37 qualified decorator probe | syntax | `pub use std.ops.num_suffix` in the dependency fixture | `syntax-error: only the grouped use form accepts 'pub'; write 'pub use module.{Name}'` | yes | write `pub use std.ops.{num_suffix}` (and likewise for `str_prefix`) | muse |
+| 2026-10-14 | #164 cli.hd flatten | type | `option := match self.find(written): .Some(option) => option` (arm binds the same name as the outer `:=`) | `unknown-name: 'option' is not defined` at every later use | yes | rename the arm binding (`found`) so only the outer `:=` introduces `option` | muse |
+
