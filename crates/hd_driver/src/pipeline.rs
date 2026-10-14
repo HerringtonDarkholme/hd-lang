@@ -51,10 +51,18 @@ fn check_distinct(rows: &[Row]) -> Result<(), String> {
 
 /// Every row of the table, validated.
 fn validate_table() -> Result<Vec<Row>, String> {
+    validate_table_of(pipeline)
+}
+
+/// Every row of `table`, validated: [`validate_table`] on the real table,
+/// or on a retuned one in tests.
+fn validate_table_of(
+    table: fn(EngineTarget, OptLevel) -> &'static Pipeline,
+) -> Result<Vec<Row>, String> {
     let mut rows = Vec::new();
     for target in EngineTarget::ALL {
         for level in OptLevel::ALL {
-            let passes = pipeline(target, level);
+            let passes = table(target, level);
             let lowering = Lowering::of(target);
             let key =
                 content_key(passes, lowering).map_err(|e| format!("{target:?} {level:?}: {e}"))?;
@@ -87,7 +95,7 @@ pub(crate) fn key(target: EngineTarget, level: OptLevel) -> Hash128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Row, check_distinct, content_key, key, validate_table};
+    use super::{Row, check_distinct, content_key, key, validate_table, validate_table_of};
     use hd_base::{EngineTarget, OptLevel};
     use hd_opt::passes::{Knob, OPTIMIZED, Pipeline, pipeline};
     use hd_wasm::Lowering;
@@ -110,6 +118,29 @@ mod tests {
             },
         ],
     };
+
+    /// The real table with `TUNED` as `V8`'s optimized row.
+    fn v8_retuned(target: EngineTarget, level: OptLevel) -> &'static Pipeline {
+        match (target, level) {
+            (EngineTarget::V8, OptLevel::Optimized) => &TUNED,
+            _ => pipeline(target, level),
+        }
+    }
+
+    /// A knob change moves only the key of the row that holds it: every
+    /// other row, `Browser` included, keeps its key.
+    #[test]
+    fn a_knob_changes_only_its_own_pipelines_key() {
+        let changed = (EngineTarget::V8, OptLevel::Optimized);
+        assert!(!TUNED.same_content(pipeline(changed.0, changed.1)));
+        let before = validate_table().expect("valid table");
+        let after = validate_table_of(v8_retuned).expect("valid retuned table");
+        assert_eq!(before.len(), after.len());
+        for (a, b) in before.iter().zip(&after) {
+            assert_eq!(a.at, b.at);
+            assert_eq!(a.key == b.key, a.at != changed, "{:?}", a.at);
+        }
+    }
 
     #[test]
     fn the_table_validates() {

@@ -27,7 +27,8 @@ E1 and their measurements), [codegen.md](codegen.md) §12 to §13, and
 | Engine choice | `crates/hd_cli/src/engine.rs` `from_env` (:264), `run(kind, release, ..)` (:272); `hd_run_wasmtime` `EngineConfig::pipeline(release)` (`engine.rs` :33) | Chosen after compile, used only to run. `hd build` takes no `--engine` |
 | Conformance | `HD_CONFORMANCE_PIPELINE` (`crates/hd_driver/tests/conformance.rs` :622), `HD_CONFORMANCE_ENGINE` modes (:587) | Compare mode builds once and runs that build on both engines |
 
-Status: jobs (a), (b1), (b2), (c1), (c2) and (d) of §6 are done, so the
+Status: **the plan of #162 is complete.** Jobs (a), (b1), (b2), (c1),
+(c2), (d) and (e) of §6 are done, so the
 A1, A2, E1, pipeline-choice, engine-choice and conformance rows above
 describe the code before them. A1 and A2 are
 now the body passes `value_flow`, `devirt_known` and `closure_spec` in
@@ -86,6 +87,13 @@ to 7): V8 dev 374 to 358 ms (-4.3%), release 298 to 285 ms (-4.4%),
 Wasm 8712 / 7786 bytes as before E1; wasmtime dev 1684 to 1672 ms,
 release 745 to 738 ms, byte-identical Wasm (noise). Results in
 closure-calls.md §7.
+
+After (e), the knobs are measured (§8). `max_insts` 64 and `max_depth`
+2 stay on every target, and `closure_spec` stays on: 128/2 emits the
+same bench Wasm as 64/2, and 32/1 or no A2 loses most of A2's gain on
+both engines. So the table keeps one shared `OPTIMIZED` row. A test in
+`hd_driver::pipeline` retunes one row and checks that only that row's
+key moves.
 
 ## 1. Crates And Boundaries
 
@@ -259,7 +267,7 @@ in `hd_run_wasmtime`.
 | `V8` (Node) | dev | none | `liveness` | none | closure code typed | V8 tiers by itself |
 | `Wasmtime` | dev | none | `liveness` | none | closure code abstract (E1) | Cranelift `None` |
 | `Browser` | dev | none | `liveness` | none | as `V8` (Q2) | the browser's |
-| `V8` | optimized | `value_flow`, `devirt_known`, `closure_spec` | the declared stubs, `liveness` | `closure_spec`: `max_insts` 64, `max_depth` 2 (job (e) measures) | typed | none |
+| `V8` | optimized | `value_flow`, `devirt_known`, `closure_spec` | the declared stubs, `liveness` | `closure_spec`: `max_insts` 64, `max_depth` 2 (measured in §8) | typed | none |
 | `Wasmtime` | optimized | same | same | 64, 2 | abstract (E1) | Cranelift `Speed` |
 | `Browser` | optimized | same | same | as `V8` | as `V8` | the browser's |
 
@@ -427,3 +435,74 @@ c1 and c2 split job (c) the same way.
    **Recommendation:** yes. Job (e) sets knobs and pass lists per target
    by the E8 rule, records the measurements here, and asks only when the
    rule and the numbers disagree.
+
+## 8. Knob Measurements (Job e)
+
+Measured 2026-10-14 on the runtime suite (`bench/runtime/progs`, six
+programs) with `hd build --release`, a fresh cache per build. Each
+variant is a dev `hd` binary whose `OPTIMIZED` row was edited, built
+and copied; the source was restored, and no override switch was
+committed. V8 runs `node host/run.mjs`. Wasmtime runs `hd --release
+--engine wasmtime FILE.wasm`; the cwasm is cached after the warmup, so
+it times the run, not Cranelift. Each round takes each variant's p50
+of 7 runs (V8) or 5 runs (wasmtime) after a warmup, rotating the
+variant order. The cells are the median of three rounds.
+
+### 8.1 V8 release (`--engine node`)
+
+Load average 7.7 at the start, then 3.7 to 4.6.
+
+| Program | A2 off | 32/1 | 64/2 (today) | 128/2 |
+| --- | ---: | ---: | ---: | ---: |
+| closures | 323 ms | 331 ms | 292 ms | 289 ms |
+| int-loop | 1629 ms | 1656 ms | 1655 ms | 1648 ms |
+| list-sort | 1052 ms | 1031 ms | 1039 ms | 1034 ms |
+| map-count | 37 ms | 37 ms | 40 ms | 38 ms |
+| string-build | 2485 ms | 2570 ms | 2532 ms | 2518 ms |
+| trait-dispatch | 796 ms | 796 ms | 797 ms | 789 ms |
+| closures Wasm | 7774 B | 7781 B | 7786 B | 7786 B, identical to 64/2 |
+| total Wasm, six programs | 37540 B | 37547 B | 37552 B | 37552 B |
+| total compile, six builds | 346 ms | 359 ms | 349 ms | 370 ms |
+
+### 8.2 Wasmtime release (`--engine wasmtime`)
+
+Load average 5.6 at the start, peaking at 13.7.
+
+| Program | A2 off | 32/1 | 64/2 (today) | 128/2 |
+| --- | ---: | ---: | ---: | ---: |
+| closures | 1152 ms | 1020 ms | 781 ms | 781 ms |
+| int-loop | 974 ms | 973 ms | 971 ms | 976 ms |
+| list-sort | 463 ms | 461 ms | 464 ms | 475 ms |
+| map-count | 24 ms | 24 ms | 24 ms | 25 ms |
+| string-build | 167 ms | 166 ms | 166 ms | 166 ms |
+| trait-dispatch | 663 ms | 668 ms | 664 ms | 665 ms |
+| closures Wasm | 7776 B | 7776 B | 7767 B | 7767 B, identical to 64/2 |
+| total Wasm, six programs | 37547 B | 37547 B | 37538 B | 37538 B |
+
+### 8.3 Notes
+
+- Only closures changes with the knobs. The other five programs emit
+  byte-identical Wasm in every variant, so their spread is noise:
+  within 3.5%, and int-loop's first round with A2 off hit 2332 ms.
+- Compile time is noise: 55 to 72 ms per build in every variant. One
+  wasmtime run showed about 320 ms for closures in three variants
+  during the load peak. A rerun gave 61 to 125 ms for every variant.
+- Conformance, optimized `V8` digests against 64/2: 128/2 changes 2 of
+  1048 modules (the test programs of `list-group-by` and
+  `list-sorted-by-key`). 32/1 changes 9.
+
+### 8.4 Decision
+
+The E8 rule (codegen.md §12.8) keeps a budget only if it buys at least
+5% speed per 10% size.
+
+| Choice | V8 | Wasmtime | Verdict |
+| --- | --- | --- | --- |
+| A2 on (64/2) against off | -9.6% time on closures for +12 B (+0.15%) | -32% time for -9 B | keep A2 on both targets (Q4: no pass is turned off) |
+| 128/2 against 64/2 | same Wasm on the suite; 2 corpus modules change | same Wasm | no measured gain, so the larger budget is not taken |
+| 32/1 against 64/2 | +13% time, -5 B | +31% time, +9 B | loses most of A2's gain; rejected |
+
+So `V8`, `Browser` and `Wasmtime` all keep `max_insts` 64 and
+`max_depth` 2. The table keeps one shared `OPTIMIZED` row. A target
+whose measured best differs would get its own `Pipeline` static in
+`hd_opt::passes::pipeline`.

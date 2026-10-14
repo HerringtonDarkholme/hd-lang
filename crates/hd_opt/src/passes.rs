@@ -464,8 +464,11 @@ pub static OPTIMIZED: Pipeline = Pipeline {
     link: &["drop_dead", "fold", "leb_compact", "compact_names"],
     // `closure_spec`'s bounds (closure-calls.md §3.1): bodies of at most
     // 64 TIR instructions, and a specialized instance requested from
-    // inside a specialized instance is the last. Job (e) of
-    // opt-pipeline.md §6 measures them per target.
+    // inside a specialized instance is the last. Measured per target in
+    // job (e) of #162 (opt-pipeline.md §8): 128/2 emits
+    // the same runtime-bench Wasm as 64/2, while 32/1 and no
+    // `closure_spec` lose most of A2's gain on V8 and wasmtime alike, so
+    // every target shares these values.
     knobs: &[
         Knob {
             pass: "closure_spec",
@@ -483,7 +486,9 @@ pub static OPTIMIZED: Pipeline = Pipeline {
 /// The pipeline of each (target, level) (opt-pipeline.md §3.1). The match
 /// is total with no wildcard, so a new target or level does not compile
 /// until it has a row (validator check 1). Every target has the same rows
-/// today.
+/// today: job (e) of #162 measured `closure_spec`'s knobs on V8 and
+/// wasmtime and found one best value for both. A target whose best values
+/// differ gets its own `Pipeline` static here.
 #[must_use]
 pub const fn pipeline(target: EngineTarget, level: OptLevel) -> &'static Pipeline {
     match (target, level) {
