@@ -90,17 +90,23 @@ pub trait UdpSocket:
 
 1. r[std-net.handles.decl] `std.net` declares `TcpStream`, `TcpListener`, `Datagram`, and `UdpSocket` as above. Code imports them, as in `use std.net.TcpStream`.
 2. r[std-net.handles.closable] Each handle is a closable handle by [Closable Handles](../lang/10-modules.md#closable-handles), so every operation after `close` returns `.Err(ResourceError.Disposed)`.
-3. r[std-net.read] `read!(max)` waits for at least one byte, and returns at most `max` bytes. At the end of the stream, it returns an empty list.
-4. r[std-net.write] `write!(bytes)` completes once every byte is written.
-5. r[std-net.accept] `accept!()` waits for the next connection, and returns its stream.
-6. r[std-net.send-to] `send_to!(host, port, bytes)` sends `bytes` as one datagram to `host` and `port`.
-7. r[std-net.send-to.grant] The grant covers each `send_to!` by its own address, as it covers `connect!`.
-8. r[std-net.receive] `receive!(max)` waits for one datagram, and returns at most `max` of its bytes, with the sender's host and port.
-9. r[std-net.datagram.traits] `Datagram` implements `Eq` and `Debug`.
+3. r[std-net.close.release] `close` on a `TcpStream` releases its socket at once, as a full close of both directions.
+4. r[std-net.close.pending] An operation that is pending on a `TcpStream` when it closes completes with `.Err(ResourceError.Disposed)`.
+5. r[std-net.read] `read!(max)` waits for at least one byte, and returns at most `max` bytes. At the end of the stream, it returns an empty list.
+6. r[std-net.write] `write!(bytes)` completes once every byte is written.
+7. r[std-net.accept] `accept!()` waits for the next connection, and returns its stream.
+8. r[std-net.send-to] `send_to!(host, port, bytes)` sends `bytes` as one datagram to `host` and `port`.
+9. r[std-net.send-to.grant] The grant covers each `send_to!` by its own address, as it covers `connect!`.
+10. r[std-net.receive] `receive!(max)` waits for one datagram, and returns at most `max` of its bytes, with the sender's host and port.
+11. r[std-net.cancel.read] Cancelling the suspension of `read!` or `receive!` keeps the bytes it has not returned for the next `read!` or `receive!` on that handle.
+12. r[std-net.datagram.traits] `Datagram` implements `Eq` and `Debug`.
 
 > **Why.** A socket stays open across calls, so it is a handle, as a file
 > handle is. Closing it follows the existing closable handle rules, with
 > no new mechanism.
+>
+> A full close frees the descriptor at once, so a program that opens many
+> short connections does not run out of them.
 
 ## Net Providers
 

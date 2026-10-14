@@ -179,11 +179,11 @@ file of its own.
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |
 | [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or`, `counts`, `Set`, `Deque`, and `Heap` |
-| [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, the host trait `ConsoleInput`, and `read_line!` |
-| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, and the providers `MapArgs` and `MapEnv` |
+| [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` |
+| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, the providers `MapArgs` and `MapEnv`, and the rules every host operation follows |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
-| [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess` |
+| [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
 | [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, `send!` and `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
 | [`net.md`](net.md) | `std.net` | `std-net` | the host trait `Net` for DNS lookup, TCP, and UDP; the handles `TcpStream`, `TcpListener`, and `UdpSocket`; `Datagram` and `NetError` |
 | [`sys.md`](sys.md) | `std.sys` | `std-sys` | the host trait `Sys`, `SysError`, and the provider `MapSys` |

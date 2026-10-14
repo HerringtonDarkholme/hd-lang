@@ -7,7 +7,9 @@ ordinary hd over the language tier:
 
 - the `Display` text of `ProcessError`;
 - the traits of `ExitCode` and `ProcessOutput`;
-- the test provider `ScriptedProcess`.
+- the test provider `ScriptedProcess`;
+- what a child process inherits, the status a signal leaves, and what
+  cancelling `run!` does.
 
 The language tier keeps what the compiler and the test runner name:
 
@@ -89,6 +91,26 @@ tests:
 > **Why.** Every host capability trait has a deterministic provider
 > beside it, so a test never touches the host. A constructor keeps the
 > fields private, as `BufferConsole::new` and `ManualClock::new` do.
+
+## Child Processes
+
+A program that `run!` starts on the host is a child of the program that
+calls it:
+
+```hd
+use std.process.{Process, ProcessError}
+
+fn killed!(tool: string) -> Result[bool, ProcessError] $ Process:
+    output := $.use(Process).run!(tool, [], "")?
+    .Ok(output.status == 128 + 9)   # SIGKILL, signal 9, ended the tool
+```
+
+1. r[std-process.child.inherit] A child inherits the program's environment and working directory, and the host adds nothing to either.
+2. r[std-process.child.signal] When a signal ends a child, its `status` is 128 plus the signal number.
+3. r[std-process.cancel] Cancelling the suspension of `run!` kills the child and its process group.
+
+> **Why.** 128 plus the signal number is the shell's convention, so a
+> status reads the same in hd and in a shell script.
 
 See also: [Processes](../lang/10-modules.md#processes),
 [Running Executables](testing.md#running-executables).

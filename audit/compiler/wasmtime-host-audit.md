@@ -130,6 +130,23 @@ only add crates. The fix plan below needs none of them.
 | [`cli.repl.cancel`](../../spec/cli/command-line.md#r-cli.repl.cancel) (Stop while waiting on the host runs `defer`) | a Stop during a blocking host call is seen after the call returns and reports `stopped`, not `cancelled` (`host/call.rs:401`, `instance.rs:269-295`) |
 | [`module.process.other`](../../spec/lang/10-modules.md#r-module.process.other) ("cannot start") | output over 1 GiB after the child started becomes `Other` (`core/workers.rs:121-123`, `core/process.rs:72-83`) |
 
+Std rules written from S1-S12 (owner-approved 2026-10-13) that the
+wasmtime host does not meet yet. `KNOWN_FAILURES.tsv` cannot list them:
+it holds parse-phase fixture paths only, and the corpus test fails on a
+row it does not see. Each fix job removes its rows here.
+
+| Rule | wasmtime behavior | Fix job |
+| --- | --- | --- |
+| [`std-host.op.wait`](../../spec/std/host.md#r-std-host.op.wait), [`std-fs.special-file`](../../spec/std/fs.md#r-std-fs.special-file) | `Fs`, `Process`, `Http` and `Net` calls block the whole instance | F1-F6 |
+| [`std-process.cancel`](../../spec/std/process.md#r-std-process.cancel) | cancel is not seen until the child exits; a deadline kills the child, not its process group | F3 |
+| [`std-http.send.cancel.close`](../../spec/std/http.md#r-std-http.send.cancel.close) | a request cannot be aborted, so its connection is never closed early | F4 |
+| [`std-net.cancel.read`](../../spec/std/net.md#r-std-net.cancel.read), [`std-net.close.pending`](../../spec/std/net.md#r-std-net.close.pending) | no `Net` operation is ever pending, so neither can be observed | F2 |
+| [`std-net.close.release`](../../spec/std/net.md#r-std-net.close.release) | `close` shuts down only the write half and keeps the socket (`net/ops.rs:30-33`) | F5 |
+| [`std-host.op.heap`](../../spec/std/host.md#r-std-host.op.heap), [`std-host.op.heap.exhausted`](../../spec/std/host.md#r-std-host.op.heap.exhausted), [`std-host.op.heap.no-other-cap`](../../spec/std/host.md#r-std-host.op.heap.no-other-cap) | `Http` bodies, `Process` output and `Net` inboxes are outside `--max-heap`; `Process` output has its own 1 GiB cap | F7 |
+| [`std-console.host.visible`](../../spec/std/console.md#r-std-console.host.visible) | output is held until exit, a stderr write or `read_line!` (flush probe) | F0 |
+| [`std-http.url.non-ascii`](../../spec/std/http.md#r-std-http.url.non-ascii), [`std-http.url.no-normalize`](../../spec/std/http.md#r-std-http.url.no-normalize) | `url` maps a non-ASCII host through IDNA instead of returning `InvalidUrl` | F8 |
+| [`std-process.child.signal`](../../spec/std/process.md#r-std-process.child.signal) | a signal-killed child reports 128, without the signal number (`core/pipes.rs:145,149`) | none yet: needs a job |
+
 ### Questions For The Owner (std spec only)
 
 Each proposes a std-spec item. None is applied. Files are `spec/std/`.

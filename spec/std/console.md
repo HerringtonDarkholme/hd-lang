@@ -6,6 +6,7 @@ This chapter defines the part of `std.console` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - `eprintln`, which writes a line to standard error;
+- when the host's console output becomes visible;
 - the host capability trait `ConsoleInput`, and the helper `read_line!`;
 - the traits of `ConsoleError`;
 - the test providers `BufferConsole` and `ScriptedInput`.
@@ -45,6 +46,30 @@ pub fn main() -> void:
 > **Why.** Standard error is a second stream of the same console, so it
 > is a second method of `Console`, not a second trait. A program that
 > prints needs one requirement for both streams.
+
+## Host Output
+
+The host's `Console` provider writes each line out before the program
+waits on the host:
+
+```hd
+use std.console.eprintln
+use std.time.{Clock, sleep}
+
+fn main!() -> void $ Console + Clock:
+    println("working")   # visible before the sleep starts
+    sleep!(2s)
+    eprintln("done")     # after "working", on standard error
+```
+
+1. r[std-console.host.visible] Each completed `write_line!` or `write_error_line!` of the host's `Console` provider reaches its host stream before the program next waits on the host or ends.
+2. r[std-console.host.order] The host's `Console` provider keeps standard output and standard error in their relative order: their lines reach the host in call order.
+
+> **Note.** So a `println` or `eprintln` line is visible before the next
+> host wait, such as a `sleep!` or a `send!`.
+
+> **Why.** A program that prints progress and then waits on a slow
+> request shows the progress first.
 
 ## Console Input
 

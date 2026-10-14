@@ -7,7 +7,9 @@ over the language tier:
 
 - the host capability traits `Args` and `Env`;
 - the helpers `args` and `env`;
-- `MapArgs` and `MapEnv`, their deterministic providers.
+- `MapArgs` and `MapEnv`, their deterministic providers;
+- what every host operation does while it waits, when it is cancelled,
+  and with the data it holds.
 
 Which provider a command binds for each trait is CLI tier
 ([Host Capabilities](../cli/command-line.md#host-capabilities)).
@@ -97,6 +99,40 @@ tests:
 > **Why.** A test states every argument and variable that the code under
 > test reads, so nothing leaks in from the machine that runs it. Effect's
 > `ConfigProvider.fromMap` serves tests the same way.
+
+## Host Operations
+
+A host operation is a bang method call that the host completes, such as
+`send!` on the host's `Http` provider. While one waits, the instance runs
+its other tasks:
+
+```hd
+use std.http.{Http, HttpError, Response, get}
+use std.task.all
+
+fn both!(left: string, right: string) -> (Result[Response, HttpError], Result[Response, HttpError]) $ Http:
+    all!(get(left), get(right))   # both requests wait at the same time
+```
+
+1. r[std-host.op.wait] A bang host method that waits lets the instance run its other tasks until it completes.
+2. r[std-host.op.no-order] Independent host operations that complete together have no defined order, so the instance may resume their tasks in any order.
+3. r[std-host.op.cancel] Cancelling the suspension of a pending host operation ends that operation. Each trait states what the operation leaves behind, as the table below lists.
+4. r[std-host.op.cancel.write] A cancelled host operation that writes may have happened, in whole or in part.
+5. r[std-host.op.heap] Data that the host holds for a host operation counts against the heap limit of [`cli.limit.heap`](../cli/command-line.md#r-cli.limit.heap). Such data includes an `Http` body, `Process` output, and socket data the program has not read.
+6. r[std-host.op.heap.exhausted] A host operation whose data would pass that limit panics. Panic: `heap-exhausted`.
+7. r[std-host.op.heap.no-other-cap] No other fixed limit caps that data.
+
+| Trait | A cancelled operation leaves |
+| --- | --- |
+| `Process` | no child: it and its process group are killed, by [`std-process.cancel`](process.md#r-std-process.cancel) |
+| `Http` | no connection: it is closed, by [`std-http.send.cancel.close`](http.md#r-std-http.send.cancel.close) |
+| `Net` | the bytes not yet returned, for the next read, by [`std-net.cancel.read`](net.md#r-std-net.cancel.read) |
+| `FsWrite` | possibly a partial file, by [`std-fs.cancel.write`](fs.md#r-std-fs.cancel.write) |
+
+> **Why.** A `race!` timeout around a host call is portable only when
+> the call lets the timer run. Completions that arrive together may
+> reach the instance in one batch, so no program may rely on their order.
+> A host buffer is memory the program asked for, so one budget covers it.
 
 See also: [Program Arguments](../cli/command-line.md#program-arguments),
 [Entry Arguments](../lang/10-modules.md#entry-arguments).

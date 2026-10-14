@@ -8,6 +8,7 @@ over the language tier:
 - the host capability trait `Http`, and the helpers `send!` and `get!`;
 - the data types `Request` and `Response`, and the enums `Method` and
   `HttpError`;
+- which request URLs are valid;
 - `ScriptedHttp`, the deterministic provider of `Http`;
 - what the playground binds for `Http`, and how a `block_on` call waits
   there.
@@ -48,9 +49,32 @@ pub data Response:
 1. r[std-http.types.decl] `std.http` declares `Method`, `Request`, and `Response` as above. Code imports them, as in `use std.http.{Request, Response}`.
 2. r[std-http.types.traits] `Method`, `Request`, and `Response` implement `Eq` and `Debug`.
 3. r[std-http.request.defaults] A `Request` that gives only `url` is a `Get` with no headers, an empty body, and the provider's default timeout.
-4. r[std-http.headers.pairs] Headers are a list of name and value pairs, so a repeated header such as `Set-Cookie` keeps every value, in order.
-5. r[std-http.response.header] `Response` has the method `header(self, name: string) -> string?`. It returns the first value whose name equals `name`, ignoring ASCII case.
-6. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
+4. r[std-http.request.default-timeout] A provider that sends requests to a host has a default timeout of 30 seconds.
+5. r[std-http.headers.pairs] Headers are a list of name and value pairs, so a repeated header such as `Set-Cookie` keeps every value, in order.
+6. r[std-http.headers.case] Header names compare ignoring ASCII case, so a provider may change the case of a response header's name.
+7. r[std-http.headers.order] In a response, only the values of one name keep their order. Headers of different names may come in any order.
+8. r[std-http.response.header] `Response` has the method `header(self, name: string) -> string?`. It returns the first value whose name equals `name`, ignoring ASCII case.
+9. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
+
+## URLs
+
+A request URL is an RFC 3986 URL, so its host is plain ASCII:
+
+```hd
+use std.http.{Http, HttpError, Response, get}
+
+fn shop!() -> Result[Response, HttpError] $ Http:
+    _ := get!("https://bücher.example/")         # .Err(HttpError.InvalidUrl(url))
+    get!("https://xn--bcher-kva.example/")       # the same host in punycode
+```
+
+1. r[std-http.url.valid] A request URL is valid when it is an absolute `http` or `https` URL by RFC 3986, with an ASCII host.
+2. r[std-http.url.non-ascii] A URL whose host holds a non-ASCII character is invalid, so `send!` returns `.Err(HttpError.InvalidUrl(url))` for it.
+3. r[std-http.url.grant] A grant matches a request by its URL host, in lowercase ASCII.
+4. r[std-http.url.no-normalize] A provider maps the host no other way: no IDNA mapping and no lookalike normalization.
+
+> **Why.** An ASCII-only host leaves one spelling for each host, so a
+> grant and the request it covers always compare the same text.
 
 ## Http Errors
 
@@ -104,11 +128,13 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 3. r[std-http.send.status] Every status, 404 and 500 included, is an `.Ok` response, and the caller reads it from `status`.
 4. r[std-http.send.redirect] `send!` follows up to 10 redirects.
 5. r[std-http.send.timeout] A `timeout` of `.None` means the provider's default. A request that takes longer than its timeout completes with `.Err(HttpError.Timeout)`.
-6. r[std-http.send.cancel] Cancelling the suspension of `send!` aborts the request, by [`req.cancel.external-abort`](../lang/11-requirements-and-suspension.md#r-req.cancel.external-abort).
-7. r[std-http.send.mut] `send!` takes `mut self`, so `Http` is a mutable requirement trait, and a provider may record what it sends.
-8. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
-9. r[std-http.helper.send] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `send!(request)` on the `Http` provider that covers the call.
-10. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.
+6. r[std-http.send.timeout.whole] A timeout covers the whole request, every redirect included.
+7. r[std-http.send.cancel] Cancelling the suspension of `send!` aborts the request, by [`req.cancel.external-abort`](../lang/11-requirements-and-suspension.md#r-req.cancel.external-abort).
+8. r[std-http.send.cancel.close] Aborting a request closes its connection.
+9. r[std-http.send.mut] `send!` takes `mut self`, so `Http` is a mutable requirement trait, and a provider may record what it sends.
+10. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
+11. r[std-http.helper.send] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `send!(request)` on the `Http` provider that covers the call.
+12. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.
 
 > **Why.** A status is data about a request that worked, as with `fetch`
 > and Go, and as a non-zero exit status is for `Process`. Header pairs

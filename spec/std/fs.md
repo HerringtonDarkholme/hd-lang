@@ -86,10 +86,13 @@ pub trait FsWrite:
 5. r[std-fs.write.remove] `remove!` removes the file or the empty directory at `path`.
 6. r[std-fs.write.rename] `rename!` moves the entry at `from` to `to`.
 7. r[std-fs.write.mut] Each `FsWrite` method takes `mut self`, so `FsWrite` is a mutable requirement trait, and `FsRead` is a readonly one.
+8. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
 
 ## Suspension
 
 1. r[std-fs.suspends] File system access is I/O, so every method of `FsRead` and `FsWrite` is a bang method.
+2. r[std-fs.special-file] A read of a special file, such as a FIFO, a device, or a named pipe, lets other tasks run while it waits, by [`std-host.op.wait`](host.md#r-std-host.op.wait).
+3. r[std-fs.special-file.deadline] Such a read has no other deadline guarantee.
 
 ```text
 use std.fs.FsRead
