@@ -25,12 +25,11 @@ impl dyn Error:
         let errors: mut List[dyn Error] = [self]
         let next = self.cause()
         while true:
-            match next:
-                .Some(cause) =>
-                    errors.push(cause)
-                    next = cause.cause()
-                .None =>
-                    return errors
+            cause := match next:
+                .Some(cause) => cause
+                .None => return errors
+            errors.push(cause)
+            next = cause.cause()
 
     # The last error of `self.chain()` (r-std-error.root-cause).
     ## Returns the last error of the cause chain.
