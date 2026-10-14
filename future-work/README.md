@@ -30,9 +30,9 @@ Research and direction outside the specification:
 
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
-- [NonEscapable Types And Lifetimes: Design Study](NONESCAPE_LIFETIME_DESIGN.md)
-  tests whether hd needs a NonEscapable category and lifetimes (#163),
-  compares five languages, and proposes three shapes with owner questions.
+- [NonEscapable Types And Lifetimes: Design](NONESCAPE_LIFETIME_DESIGN.md)
+  states the round-2 NonEscapable design as numbered rules (#163), with a
+  stress-test suite, a checker cost model, and owner questions.
 - [Standard Library Calls](STDLIB_CALLS.md) logs every stdlib design
   choice the owner did not make explicitly, with its status, for the
   stdlib audit.
