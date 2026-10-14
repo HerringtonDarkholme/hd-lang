@@ -322,7 +322,30 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                 }
-                "intrinsic" => {}
+                "intrinsic" => {
+                    // `trait.impl.intrinsic.std-only`: only the standard
+                    // library sees the name `intrinsic`.
+                    if !self.in_std() {
+                        self.diags.error(
+                            Code::UnknownName,
+                            span,
+                            "`intrinsic` names no binding outside the standard library",
+                        );
+                    }
+                }
+                "from" | "source" => {
+                    // Outside an error type each is an ordinary decorator
+                    // (`annot.error.marker.outside`): it must resolve.
+                    if self.scope_item(&deco.name, items).is_none() {
+                        self.diags.error(
+                            Code::UnknownName,
+                            span,
+                            &format!("`@{}` names no binding", deco.name),
+                        );
+                    } else if !self.target_allowed(&deco.name, k, items) {
+                        self.target_error(span, "the value's fact type does not allow this target");
+                    }
+                }
                 name => {
                     if !self.target_allowed(name, k, items) {
                         self.target_error(span, "the value's fact type does not allow this target");

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2837 | 4 | 4 | 2845 |
+| 2839 | 2 | 4 | 2845 |
 
 ## By Chapter
 
@@ -22,10 +22,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
 | `lang/07-functions.md` | 130 | 0 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
-| `lang/09-traits.md` | 358 | 1 | 0 | 359 |
+| `lang/09-traits.md` | 359 | 0 | 0 | 359 |
 | `lang/10-modules.md` | 254 | 0 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 258 | 1 | 0 | 259 |
-| `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
+| `lang/14-annotations.md` | 152 | 1 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 29 | 0 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1071 | 4 | 0 | 1075 |
+| `typing/invalid` | 1073 | 2 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,15 +75,13 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 4 |
+| `fail:no-diagnostic` | 2 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (4)</summary>
+<details><summary><code>fail:no-diagnostic</code> (2)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
-- `typing/invalid/intrinsic-method-user.hd`
-- `typing/invalid/error-marker-outside.hd`
 
 </details>
 
@@ -1726,6 +1724,7 @@ typing/invalid/error-from-type-parameter.hd
 typing/invalid/error-hand-written-display.hd
 typing/invalid/error-hand-written-from.hd
 typing/invalid/error-implementation-local-type.hd
+typing/invalid/error-marker-outside.hd
 typing/invalid/error-message-before-enum.hd
 typing/invalid/error-message-not-display.hd
 typing/invalid/error-message-self.hd
@@ -1866,6 +1865,7 @@ typing/invalid/integration-test-private-name.hd
 typing/invalid/integration-test-tests-block.hd
 typing/invalid/integration-tests-root-use.hd
 typing/invalid/interpolation-without-display.hd
+typing/invalid/intrinsic-method-user.hd
 typing/invalid/invalid-map-key.hd
 typing/invalid/invalid-member-line.hd
 typing/invalid/it-each-name-clash.hd

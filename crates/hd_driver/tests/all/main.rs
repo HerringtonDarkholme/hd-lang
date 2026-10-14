@@ -25,6 +25,7 @@ mod copy_update_run;
 mod crlf_run;
 mod dbg_release;
 mod declaration_checks;
+mod decorator_misplaced;
 mod default_args_run;
 mod delegation_run;
 mod derivation_line_drift;
