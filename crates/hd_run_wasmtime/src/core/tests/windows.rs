@@ -62,7 +62,7 @@ fn no_limit_process_preserves_binary_output_input_and_exit_status() {
             std::env::current_exe().unwrap().to_str().unwrap(),
             &fixture_args("child_echo", None),
             &input,
-            1 << 30,
+            u64::MAX,
         ))
         .unwrap();
         // libtest prints a short preamble before running the fixture.
@@ -82,7 +82,7 @@ fn no_limit_process_preserves_output_when_the_child_closes_stdin() {
             std::env::current_exe().unwrap().to_str().unwrap(),
             &fixture_args("child_exit", None),
             &vec![0; 262_144],
-            1 << 30,
+            u64::MAX,
         ))
         .unwrap();
         assert!(out.ends_with(b"early stdout"));
@@ -113,7 +113,7 @@ fn abort_kills_a_descendant_holding_the_pipes() {
             std::env::current_exe().unwrap().to_str().unwrap(),
             &args,
             &vec![0; 262_144],
-            1 << 30,
+            u64::MAX,
         ),
     );
     // Generous setup bound under load.

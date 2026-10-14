@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -6,6 +7,7 @@ use ureq::unversioned::transport::{Connector, RustlsConnector};
 use url::Url;
 
 use crate::codec::{Dec, Enc};
+use crate::limits::{HeapExhausted, Ledger, Reservation};
 
 use super::client::granted_url;
 use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
@@ -20,7 +22,15 @@ pub(crate) struct Request {
     timeout: i64,
 }
 
+/// The most bytes of a response body one read takes.
+const BODY_CHUNK: usize = 16 * 1024;
+
 impl Request {
+    /// The bytes of the body, which the request holds until it ends.
+    pub(crate) fn body_len(&self) -> usize {
+        self.body.len()
+    }
+
     pub(crate) fn timeout(&self) -> Duration {
         Duration::from_millis(u64::try_from(self.timeout).unwrap_or(0))
     }
@@ -58,6 +68,36 @@ pub(crate) struct Response {
     status: u16,
     headers: Headers,
     body: Vec<u8>,
+    /// The heap the body holds.
+    held: Reservation,
+}
+
+impl Response {
+    /// The response with its body's heap released, for `.finish` to copy.
+    pub(crate) fn released(mut self) -> Response {
+        drop(self.held.take());
+        self
+    }
+}
+
+/// Why a request ended with no response.
+#[derive(Debug)]
+pub(crate) enum Ended {
+    Failed(Failure),
+    /// The body would pass the heap budget (`std-host.op.heap.exhausted`).
+    HeapExhausted,
+}
+
+impl From<Failure> for Ended {
+    fn from(failure: Failure) -> Ended {
+        Ended::Failed(failure)
+    }
+}
+
+impl From<HeapExhausted> for Ended {
+    fn from(_: HeapExhausted) -> Ended {
+        Ended::HeapExhausted
+    }
 }
 
 #[derive(Debug)]
@@ -105,19 +145,21 @@ pub(crate) fn encode(response: Result<Response, Failure>) -> Enc {
 
 /// Sends `request`, following its redirects, each rechecked against
 /// `grants` before any DNS or I/O, until `deadline`. It blocks, so it runs
-/// on the blocking pool; `cancel` ends it at once.
+/// on the blocking pool; `cancel` ends it at once. Each response body is
+/// charged to `ledger` as it is read.
 pub(crate) fn send(
     mut request: Request,
     grants: &Grants,
     deadline: Option<Instant>,
     cancel: &Cancel,
-) -> Result<Response, Failure> {
+    ledger: &Arc<Ledger>,
+) -> Result<Response, Ended> {
     for redirects in 0..=10 {
         let url = granted_url(&request.url, grants)?;
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-            return Err(Failure::Timeout);
+            return Err(Failure::Timeout.into());
         }
-        let got = once(&url, &request, deadline, cancel)?;
+        let got = once(&url, &request, deadline, cancel, ledger)?;
         let location = got
             .headers
             .iter()
@@ -132,7 +174,7 @@ pub(crate) fn send(
             .map_err(|_| Failure::Other("Invalid URL".into()))?
             .into();
         if redirects == 10 {
-            return Err(Failure::TooManyRedirects(request.url));
+            return Err(Failure::TooManyRedirects(request.url).into());
         }
         if got.status == 303 || (matches!(got.status, 301 | 302) && request.method == "POST") {
             request.method = "GET".into();
@@ -147,7 +189,8 @@ fn once(
     request: &Request,
     deadline: Option<Instant>,
     cancel: &Cancel,
-) -> Result<Response, Failure> {
+    ledger: &Arc<Ledger>,
+) -> Result<Response, Ended> {
     let method = if request.method.is_empty() {
         "GET".into()
     } else if is_token(&request.method) {
@@ -156,7 +199,8 @@ fn once(
         return Err(Failure::Other(format!(
             "Method must be a valid HTTP token [\"{}\"]",
             request.method
-        )));
+        ))
+        .into());
     };
     let raw = outgoing(url, &method, &request.headers, &request.body)?;
     let captured = Arc::new(Mutex::new(None));
@@ -216,11 +260,7 @@ fn once(
         .map_err(|e| Failure::Other(e.to_string()))?;
     let mut response = agent.run(internal).map_err(|e| failure(&e, url))?;
     let status = response.status().as_u16();
-    let body = response
-        .body_mut()
-        .with_config()
-        .read_to_vec()
-        .map_err(|e| failure(&e, url))?;
+    let (body, held) = read_body(response.body_mut(), url, ledger)?;
     let headers = captured
         .lock()
         .map_err(|_| Failure::Other("the Http header lock is poisoned".into()))?
@@ -230,7 +270,32 @@ fn once(
         status,
         headers,
         body,
+        held,
     })
+}
+
+/// Reads the whole body, reserving each chunk before keeping it, so a body
+/// past the heap budget stops the read. No other limit applies
+/// (`std-host.op.heap.no-other-cap`).
+fn read_body(
+    body: &mut ureq::Body,
+    url: &Url,
+    ledger: &Arc<Ledger>,
+) -> Result<(Vec<u8>, Reservation), Ended> {
+    let mut reader = body.with_config().reader();
+    let mut bytes = Vec::new();
+    let mut held = Reservation::empty(ledger);
+    let mut chunk = vec![0; BODY_CHUNK];
+    loop {
+        let n = match reader.read(&mut chunk) {
+            Ok(0) => return Ok((bytes, held)),
+            Ok(n) => n,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(failure(&ureq::Error::from(error), url).into()),
+        };
+        held.grow(n)?;
+        bytes.extend_from_slice(&chunk[..n]);
+    }
 }
 
 fn failure(error: &ureq::Error, url: &Url) -> Failure {

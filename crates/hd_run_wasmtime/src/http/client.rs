@@ -9,7 +9,12 @@
 //! of the request's connection through its cancel slot
 //! (`connector::Cancel`): the blocked request ends at once, and the server
 //! reads the end of the connection (`std-http.send.cancel.close`).
+//!
+//! The request body and the response body count against the program's
+//! heap budget (`std-host.op.heap`): a body past it ends the request, and
+//! `.finish` panics `heap-exhausted`.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use hd_run::Grants;
@@ -17,9 +22,11 @@ use url::Url;
 
 use crate::codec::Enc;
 use crate::host::Stop;
+use crate::limits::{Ledger, Reservation};
+use crate::reactor::Done;
 
 use super::connector::Cancel;
-use super::request::{Failure, Request, Response, encode, send};
+use super::request::{Ended, Failure, Request, Response, encode, send};
 
 /// What `.start` decides.
 pub(crate) enum Start {
@@ -37,6 +44,10 @@ pub(crate) struct Job {
     request: Request,
     grants: Grants,
     deadline: Option<Instant>,
+    /// The heap budget the response body is charged to.
+    ledger: Arc<Ledger>,
+    /// The heap the request body holds.
+    held: Reservation,
 }
 
 /// What the task delivers: the response or the failure, or why the
@@ -44,8 +55,12 @@ pub(crate) struct Job {
 pub(crate) type Sent = Result<Result<Response, Failure>, String>;
 
 /// `send.start`'s checks, in the Node host's order: the URL and its
-/// grant, then the timeout.
-pub(crate) fn start(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Start> {
+/// grant, then the timeout. A request body past the heap budget panics.
+pub(crate) fn start(
+    bytes: &[u8],
+    grants: &Grants,
+    ledger: &Arc<Ledger>,
+) -> wasmtime::Result<Start> {
     let started = Instant::now();
     let request = Request::decode(bytes)?;
     if let Err(failure) = granted_url(&request.url, grants) {
@@ -55,10 +70,13 @@ pub(crate) fn start(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Start> {
     if timeout.is_zero() {
         return Ok(Start::Ready(encode(Err(Failure::Timeout))));
     }
+    let held = ledger.reserve(request.body_len())?;
     Ok(Start::Run(Job {
         request,
         grants: grants.clone(),
         deadline: started.checked_add(timeout),
+        ledger: Arc::clone(ledger),
+        held,
     }))
 }
 
@@ -69,18 +87,30 @@ pub(crate) fn not_run(error: &str) -> Enc {
 
 impl Job {
     /// The task: sends the request on the blocking pool. Dropping it before
-    /// the request ends cancels the request.
-    pub(crate) async fn run(self) -> Sent {
+    /// the request ends cancels the request. `Done::Exhausted` when the
+    /// response body would pass the heap budget.
+    pub(crate) async fn run(self) -> Done {
         let cancel = Cancel::default();
         let _abort = CancelOnDrop(cancel.clone());
         let Self {
             request,
             grants,
             deadline,
+            ledger,
+            held,
         } = self;
-        tokio::task::spawn_blocking(move || send(request, &grants, deadline, &cancel))
-            .await
-            .map_err(|error| format!("the Http request stopped: {error}"))
+        let sent = tokio::task::spawn_blocking(move || {
+            let sent = send(request, &grants, deadline, &cancel, &ledger);
+            drop(held);
+            sent
+        })
+        .await;
+        match sent {
+            Ok(Err(Ended::HeapExhausted)) => Done::Exhausted,
+            Ok(Ok(response)) => Done::Http(Ok(Ok(response))),
+            Ok(Err(Ended::Failed(failure))) => Done::Http(Ok(Err(failure))),
+            Err(error) => Done::Http(Err(format!("the Http request stopped: {error}"))),
+        }
     }
 }
 
@@ -94,10 +124,10 @@ impl Drop for CancelOnDrop {
     }
 }
 
-/// `send.finish`'s result.
+/// `send.finish`'s result. The body's heap is released first.
 pub(crate) fn finish(sent: Sent) -> wasmtime::Result<Enc> {
-    sent.map(encode)
-        .map_err(|error| Stop::Internal(error).into())
+    let response = sent.map_err(Stop::Internal)?;
+    Ok(encode(response.map(Response::released)))
 }
 
 pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Url, Failure> {
@@ -114,13 +144,15 @@ pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Url, Failure> 
 
 #[cfg(test)]
 mod tests {
-    use super::{Job, Start, start};
+    use super::{Job, Start, finish, start};
     use crate::http::connector::Cancel;
     use crate::http::request::{Request, outgoing, send as send_blocking};
     use crate::http::test_support::{
-        bounded_accept, finished, offload, read_request, request, response, send, server,
-        write_response,
+        bounded_accept, delivered, finished, offload, read_request, request, response, send,
+        server, unlimited, write_response,
     };
+    use crate::limits::Ledger;
+    use crate::reactor::Done;
     use crate::reactor::Reactor;
     use hd_run::Grants;
     use std::io::Read;
@@ -129,9 +161,46 @@ mod tests {
     use std::time::{Duration, Instant};
     use url::Url;
 
+    /// `std-host.op.heap`: the request body and the response body count
+    /// against the heap budget. A response body past it ends the request
+    /// with `heap-exhausted`, and one within it is released at `.finish`.
+    #[test]
+    fn bodies_count_against_the_heap() {
+        let ledger = Ledger::new(1000);
+        let r = request("POST", "http://127.0.0.1:1/", &vec![], &[0; 1001], 1000);
+        let error = start(r.done(), &Grants::default(), &ledger)
+            .err()
+            .expect("the request body passes the budget");
+        assert!(crate::limits::is_heap_exhausted(&error));
+        for (length, exhausted) in [(1001, true), (1000, false)] {
+            let mut raw =
+                format!("HTTP/1.1 200 OK\r\nContent-Length: {length}\r\n\r\n").into_bytes();
+            raw.resize(raw.len() + length, b'x');
+            let (url, server) = server(raw);
+            let r = request("GET", &url, &vec![], &[], 5000);
+            let Start::Run(job) = start(r.done(), &Grants::default(), &ledger).unwrap() else {
+                panic!("the request is sent");
+            };
+            let mut reactor = Reactor::new(None);
+            let h = offload(&mut reactor, job);
+            let done = delivered(&mut reactor, h);
+            let _ = server.join();
+            if exhausted {
+                assert!(matches!(done, Done::Exhausted));
+            } else {
+                assert_eq!(ledger.charged(), 1000);
+                let Done::Http(sent) = done else {
+                    panic!("the request has a response");
+                };
+                assert_eq!(response(finish(sent).unwrap().done()).2.len(), 1000);
+            }
+            assert_eq!(ledger.charged(), 0);
+        }
+    }
+
     /// A started request that will be sent.
     fn job(bytes: &[u8]) -> Job {
-        match start(bytes, &Grants::default()).unwrap() {
+        match start(bytes, &Grants::default(), &unlimited()).unwrap() {
             Start::Run(job) => job,
             Start::Ready(e) => panic!("the request is not sent: {:?}", e.done()),
         }
@@ -261,6 +330,7 @@ mod tests {
             &Grants::default(),
             Some(Instant::now() + Duration::from_secs(1)),
             &cancel,
+            &unlimited(),
         );
         assert!(result.is_err());
         assert_eq!(

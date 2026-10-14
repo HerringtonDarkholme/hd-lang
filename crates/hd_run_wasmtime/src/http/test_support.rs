@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use socket2::{Domain, Protocol, Socket, Type};
@@ -7,6 +8,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 use hd_run::Grants;
 
 use crate::codec::{Dec, Enc};
+use crate::limits::Ledger;
 use crate::reactor::{Done, Reactor, Work};
 
 use super::Headers;
@@ -16,21 +18,32 @@ use super::headers::header_end;
 /// Offloads `job` onto the `hd-io` runtime, as `send.start` does, and
 /// returns the operation's handle.
 pub(crate) fn offload(reactor: &mut Reactor, job: Job) -> i32 {
-    reactor
-        .offload(async move { Done::Http(job.run().await) })
-        .expect("offloads")
+    reactor.offload(job.run()).expect("offloads")
+}
+
+/// A heap budget with no maximum.
+pub(crate) fn unlimited() -> Arc<Ledger> {
+    Ledger::new(u64::MAX)
 }
 
 /// Waits for the operation `h` to complete and takes its result, as
 /// `block` and `send.finish` do.
 pub(crate) fn finished(reactor: &mut Reactor, h: i32) -> Sent {
+    match delivered(reactor, h) {
+        Done::Http(sent) => sent,
+        _ => panic!("the request has no result"),
+    }
+}
+
+/// Waits for the operation `h` to complete and takes what it delivered.
+pub(crate) fn delivered(reactor: &mut Reactor, h: i32) -> Done {
     let mut out = Vec::new();
     // An earlier `due` may already have completed `h` with another handle.
     while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
         assert!(reactor.wait(), "the request is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
-        Some(Work::Offloaded(Some(Done::Http(sent)))) => sent,
+        Some(Work::Offloaded(Some(done))) => done,
         _ => panic!("the request has no result"),
     }
 }
@@ -38,7 +51,7 @@ pub(crate) fn finished(reactor: &mut Reactor, h: i32) -> Sent {
 /// `send.start` then, when it sends the request, `send.finish`: the
 /// encoded result.
 pub(crate) fn send(bytes: &[u8], grants: &Grants) -> Enc {
-    match start(bytes, grants).expect("the request decodes") {
+    match start(bytes, grants, &unlimited()).expect("the request decodes") {
         Start::Ready(e) => e,
         Start::Run(job) => {
             let mut reactor = Reactor::new(None);

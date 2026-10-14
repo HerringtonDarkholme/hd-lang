@@ -1,6 +1,5 @@
-use super::{offload, request, run};
+use super::{exhausts, offload, request, run};
 use crate::reactor::Reactor;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -72,17 +71,17 @@ fn process_captures_both_streams_exit_code_and_signal() {
         "/bin/sh",
         &shell("printf out; printf err >&2; exit 7"),
         &[],
-        1 << 30,
+        u64::MAX,
     ))
     .unwrap();
     assert_eq!(out, b"out");
     assert_eq!(err, b"err");
     assert_eq!(status, 7);
-    let (_, _, status) = run(request("/bin/sh", &shell("kill -TERM $$"), &[], 1 << 30)).unwrap();
+    let (_, _, status) = run(request("/bin/sh", &shell("kill -TERM $$"), &[], u64::MAX)).unwrap();
     assert_eq!(status, 143);
-    let (_, _, status) = run(request("/bin/sh", &shell("kill -KILL $$"), &[], 1 << 30)).unwrap();
+    let (_, _, status) = run(request("/bin/sh", &shell("kill -KILL $$"), &[], u64::MAX)).unwrap();
     assert_eq!(status, 137);
-    let (_, _, status) = run(request("/bin/sh", &shell("exit 3"), &[], 1 << 30)).unwrap();
+    let (_, _, status) = run(request("/bin/sh", &shell("exit 3"), &[], u64::MAX)).unwrap();
     assert_eq!(status, 3);
 }
 
@@ -95,7 +94,7 @@ fn process_drains_output_while_writing_input_and_preserves_early_exit() {
         "/bin/sh",
         &shell(script),
         &vec![0; 262_144],
-        1 << 30,
+        u64::MAX,
     ))
     .unwrap();
     assert_eq!(status, 0);
@@ -107,7 +106,7 @@ fn process_drains_output_while_writing_input_and_preserves_early_exit() {
         "/bin/sh",
         &shell("exec 0<&-; printf out; printf err >&2; exit 7"),
         &vec![0; 262_144],
-        1 << 30,
+        u64::MAX,
     ))
     .unwrap();
     assert_eq!(out, b"out");
@@ -115,22 +114,45 @@ fn process_drains_output_while_writing_input_and_preserves_early_exit() {
     assert_eq!(status, 7);
 }
 
+/// `std-host.op.heap`: both outputs count against one heap budget, and an
+/// endless writer ends at it.
 #[test]
-fn output_cap_is_aggregate_and_stops_an_infinite_writer() {
+fn output_heap_is_aggregate_and_stops_an_infinite_writer() {
     let both = shell("printf 12345; printf 67890 >&2");
     let (out, err, _) = run(request("/bin/sh", &both, &[], 10)).unwrap();
     assert_eq!(out, b"12345");
     assert_eq!(err, b"67890");
-    let err = run(request("/bin/sh", &both, &[], 9)).unwrap_err();
-    assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
-    let err = run(request("/bin/sh", &shell("yes"), &[], 8192)).unwrap_err();
-    assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
+    assert!(exhausts(request("/bin/sh", &both, &[], 9)));
+    assert!(exhausts(request("/bin/sh", &shell("yes"), &[], 8192)));
+}
+
+/// `std-host.op.heap.exhausted`: a child that prints past the heap budget
+/// is killed, and the run releases what it reserved.
+#[test]
+fn output_past_the_heap_kills_the_child_and_releases_its_reservation() {
+    let path = pid_path("heap-child");
+    let args = vec![
+        "-c".into(),
+        "printf '%s' \"$$\" > \"$1\"; exec yes".into(),
+        "hd-heap-test".into(),
+        path.to_str().unwrap().into(),
+    ];
+    let request = request("/bin/sh", &args, &[], 1 << 20);
+    let ledger = std::sync::Arc::clone(&request.ledger);
+    assert!(exhausts(request));
+    let pids = read_pids(&path, 1);
+    let child_gone = gone(pids[0]);
+    release(&pids);
+    std::fs::remove_file(&path).unwrap();
+    assert!(child_gone, "the child outlived the run");
+    assert_eq!(ledger.charged(), 0);
 }
 
 /// The descendant keeps the quiet input and error pipes open; the output
-/// past the cap kills the whole group, so the run ends and so does it.
+/// past the heap budget kills the whole group, so the run ends and so does
+/// it.
 #[test]
-fn output_cap_kills_a_descendant_holding_quiet_pipes() {
+fn output_past_the_heap_kills_a_descendant_holding_quiet_pipes() {
     let path = pid_path("cap-descendant");
     let script = "exec 3<&0; sleep 30 0<&3 1>/dev/null & \
                   printf '%s' \"$!\" > \"$1\"; \
@@ -143,7 +165,7 @@ fn output_cap_kills_a_descendant_holding_quiet_pipes() {
     ];
     let (tx, rx) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
-        let _ = tx.send(run(request("/bin/sh", &args, &vec![0; 262_144], 8)));
+        let _ = tx.send(exhausts(request("/bin/sh", &args, &vec![0; 262_144], 8)));
     });
     let result = rx.recv_timeout(Duration::from_secs(10));
     let pids = read_pids(&path, 1);
@@ -151,10 +173,7 @@ fn output_cap_kills_a_descendant_holding_quiet_pipes() {
     release(&pids);
     std::fs::remove_file(&path).unwrap();
     worker.join().unwrap();
-    assert_eq!(
-        result.unwrap().unwrap_err().kind(),
-        io::ErrorKind::FileTooLarge
-    );
+    assert!(result.unwrap(), "the output passes the heap budget");
     assert!(descendant_gone, "the descendant outlived the run");
 }
 
@@ -172,7 +191,7 @@ fn abort_kills_the_process_group_and_reaps_the_child() {
         path.to_str().unwrap().into(),
     ];
     let mut reactor = Reactor::new(None);
-    let h = offload(&mut reactor, request("/bin/sh", &args, &[], 1 << 30));
+    let h = offload(&mut reactor, request("/bin/sh", &args, &[], u64::MAX));
     let pids = read_pids(&path, 2);
     let started = Instant::now();
     assert!(reactor.remove(h).is_some(), "the abort ends the run");
@@ -204,7 +223,7 @@ fn abort_after_the_child_exits_kills_a_descendant_holding_the_pipes() {
     let mut reactor = Reactor::new(None);
     let h = offload(
         &mut reactor,
-        request("/bin/sh", &args, &vec![0; 262_144], 1 << 30),
+        request("/bin/sh", &args, &vec![0; 262_144], u64::MAX),
     );
     let pids = read_pids(&path, 1);
     let mut out = Vec::new();
@@ -238,7 +257,7 @@ fn no_shebang_executable_uses_rust_standard_spawning_behavior() {
         path.to_str().unwrap(),
         &["argument".into()],
         &[],
-        1 << 30,
+        u64::MAX,
     ));
     std::fs::remove_file(&path).unwrap();
     if let Ok(expected) = expected {

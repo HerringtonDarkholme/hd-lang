@@ -61,8 +61,6 @@ pub struct Host {
     pub(crate) interrupt: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) memory_bytes: u64,
     timeout_millis: Option<i64>,
-    pub(crate) output_overflow: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
-    pub(crate) output_budget: Option<(std::sync::Arc<std::sync::atomic::AtomicUsize>, usize)>,
     /// A REPL session's journal (live-execution.md §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
     pub(crate) journal: Option<hd_run::journal::Recorder>,
@@ -101,7 +99,7 @@ impl Host {
             grants,
             noticed: HashSet::new(),
             net: net::Client::default(),
-            heap: crate::limits::HeapBudget::new(memory_bytes),
+            heap: crate::limits::HeapBudget::new(crate::limits::Ledger::new(memory_bytes)),
             deadline,
             fixture: crate::profiles::State::default(),
             testing: None,
@@ -110,8 +108,6 @@ impl Host {
             interrupt: None,
             memory_bytes,
             timeout_millis: None,
-            output_overflow: None,
-            output_budget: None,
             journal: None,
             replay: None,
             muted: false,
@@ -133,12 +129,14 @@ impl Host {
     /// Readies this host for a new store, as a session's rebuild makes one:
     /// the store's memory and heap are new, nothing is pending, and the
     /// journal starts again as `journal`. The streams, standard input and open
-    /// sockets stay: they are the world outside the store.
+    /// sockets stay: they are the world outside the store. So does the heap
+    /// ledger, which what the sockets hold is still charged to; the old
+    /// store's memory is released from it.
     pub(crate) fn restart(&mut self, journal: hd_run::journal::Recorder) {
         self.flush();
         self.memory = None;
         self.reported = false;
-        self.heap = crate::limits::HeapBudget::new(self.memory_bytes);
+        self.heap = crate::limits::HeapBudget::new(std::sync::Arc::clone(self.heap.ledger()));
         self.drop_pending();
         self.journal = Some(journal);
         self.replay = None;
@@ -193,25 +191,6 @@ impl Host {
             .is_some_and(|deadline| Instant::now() >= deadline)
         {
             return Err(Stop::TimeLimit.into());
-        }
-        // Console stdout is held until a flush. Count it before it reaches the
-        // capture sink as well, otherwise an endless write-only child could
-        // evade the shared stdout/stderr cap.
-        if self.output_budget.as_ref().is_some_and(|(count, limit)| {
-            count
-                .load(std::sync::atomic::Ordering::Relaxed)
-                .saturating_add(self.out.len())
-                > *limit
-        }) && let Some(flag) = &self.output_overflow
-        {
-            flag.store(true, std::sync::atomic::Ordering::Relaxed);
-        }
-        if self
-            .output_overflow
-            .as_ref()
-            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
-        {
-            return Err(Stop::Internal("process output exceeds the host limit".into()).into());
         }
         Ok(())
     }

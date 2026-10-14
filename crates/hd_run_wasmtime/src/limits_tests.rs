@@ -1,4 +1,4 @@
-use super::{HeapBudget, is_heap_exhausted};
+use super::{HeapBudget, Ledger, is_heap_exhausted};
 use wasm_encoder::{
     CodeSection, ExportKind, ExportSection, Function, FunctionSection, Instruction as I,
     MemorySection, MemoryType, Module, StorageType, TypeSection, ValType,
@@ -20,7 +20,7 @@ fn engine(custom_pages: bool, gc_initial: u64) -> Engine {
 }
 
 fn store(engine: &Engine, cap: u64) -> Store<HeapBudget> {
-    let mut store = Store::new(engine, HeapBudget::new(cap));
+    let mut store = Store::new(engine, HeapBudget::new(Ledger::new(cap)));
     store.limiter(|budget| budget);
     store
 }
@@ -234,14 +234,41 @@ fn initial_gc_allocation_is_limited_before_allocation() {
 
 #[test]
 fn zero_cap_and_unlimited_budget_have_no_hidden_default() {
-    let mut empty = HeapBudget::new(0);
+    let mut empty = HeapBudget::new(Ledger::new(0));
     assert!(empty.memory_growing(0, 0, None).unwrap());
     assert!(is_heap_exhausted(
         &empty.memory_growing(0, 1, None).unwrap_err()
     ));
-    let mut unlimited = HeapBudget::new(u64::MAX);
+    let mut unlimited = HeapBudget::new(Ledger::new(u64::MAX));
     assert!(unlimited.memory_growing(0, usize::MAX, None).unwrap());
     assert_eq!(unlimited.charged, usize::MAX as u64);
+}
+
+/// `std-host.op.heap`: a host operation's reservation and the store's
+/// memory count against one maximum, and both release what they charged.
+#[test]
+fn reservations_and_memory_share_one_ledger() {
+    const PAGE_BYTES: usize = 1 << 16;
+    let ledger = Ledger::new(3 * PAGE);
+    let mut budget = HeapBudget::new(ledger.clone());
+    assert!(budget.memory_growing(0, 2 * PAGE_BYTES, None).unwrap());
+    let mut held = ledger.reserve(PAGE_BYTES).unwrap();
+    assert!(ledger.reserve(1).is_err());
+    assert!(is_heap_exhausted(
+        &budget
+            .memory_growing(2 * PAGE_BYTES, 2 * PAGE_BYTES + 1, None)
+            .unwrap_err()
+    ));
+    assert!(held.grow(1).is_err());
+    held.shrink(10);
+    let mut other = ledger.reserve(10).unwrap();
+    other.shrink(4);
+    held.absorb(other);
+    assert_eq!(ledger.charged(), 3 * PAGE - 4);
+    drop(held);
+    assert_eq!(ledger.charged(), 2 * PAGE);
+    drop(budget);
+    assert_eq!(ledger.charged(), 0);
 }
 
 #[test]

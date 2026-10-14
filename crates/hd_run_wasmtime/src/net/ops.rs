@@ -4,6 +4,12 @@
 //! from the socket until they complete, so aborting one leaves the bytes,
 //! the connection or the datagram in the kernel for the next call
 //! (`std-net.cancel.read`).
+//!
+//! What a task holds counts against the program's heap budget
+//! (`std-host.op.heap`): a write's or a send's payload from `.start`, and a
+//! read or receive buffer, reserved once the socket is readable. A buffer
+//! past the budget ends the operation, and `.finish` panics
+//! `heap-exhausted`.
 
 use std::io;
 use std::net::{Ipv6Addr, Shutdown, SocketAddr};
@@ -13,6 +19,7 @@ use super::CHUNK;
 use super::client::NetError;
 use super::socket::{Bound, End, Stream, Udp, bind, connect_attempts, resolve, socket_error};
 use super::validate::ip_literal;
+use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Reactor;
 
 /// An operation that `.start` checked and that now waits.
@@ -31,11 +38,13 @@ pub(crate) enum Job {
         stream: Arc<Stream>,
         handle: i64,
         max: usize,
+        ledger: Arc<Ledger>,
     },
     Write {
         stream: Arc<Stream>,
         handle: i64,
         bytes: Vec<u8>,
+        held: Reservation,
     },
     Accept {
         listener: Arc<tokio::net::TcpListener>,
@@ -47,11 +56,13 @@ pub(crate) enum Job {
         host: String,
         port: u16,
         bytes: Vec<u8>,
+        held: Reservation,
     },
     Receive {
         socket: Arc<Udp>,
         handle: i64,
         max: usize,
+        ledger: Arc<Ledger>,
     },
 }
 
@@ -70,18 +81,21 @@ pub(crate) enum Got {
     /// The operation ended because its handle closed
     /// (`std-net.close.pending`).
     Disposed,
-    /// A read's bytes from the stream with handle `handle`.
+    /// A read's bytes from the stream with handle `handle`, and the heap
+    /// they hold.
     Bytes {
         handle: i64,
         bytes: Vec<u8>,
+        held: Reservation,
     },
     /// A whole datagram from the socket with handle `handle`, which
-    /// `.finish` cuts to `max` bytes.
+    /// `.finish` cuts to `max` bytes, and the heap it holds.
     Datagram {
         handle: i64,
         bytes: Vec<u8>,
         max: usize,
         peer: SocketAddr,
+        held: Reservation,
     },
 }
 
@@ -130,13 +144,16 @@ impl Job {
     /// Runs the job as a task of the reactor, owned by its handle.
     pub(crate) fn offload(self, reactor: &mut Reactor) -> Result<i32, String> {
         let owner = self.handle().map(|handle| (OWNER, handle));
-        reactor.offload_for(
-            owner,
-            async move { crate::reactor::Done::Net(self.run().await) },
-        )
+        reactor.offload_for(owner, async move {
+            self.run()
+                .await
+                .map_or(crate::reactor::Done::Exhausted, crate::reactor::Done::Net)
+        })
     }
 
-    pub(crate) async fn run(self) -> Done {
+    /// Runs the operation: its result, or `HeapExhausted` when its buffer
+    /// would pass the heap budget.
+    pub(crate) async fn run(self) -> Result<Done, HeapExhausted> {
         let resource = self.resource();
         let result = match self {
             Job::Lookup(host) => lookup(&host).await,
@@ -146,10 +163,24 @@ impl Job {
                 stream,
                 handle,
                 max,
-            } => read(&stream, max)
-                .await
-                .map(|bytes| Got::Bytes { handle, bytes }),
-            Job::Write { stream, bytes, .. } => write(&stream, &bytes).await.map(|()| Got::None),
+                ledger,
+            } => read(&stream, max, &ledger)
+                .await?
+                .map(|(bytes, held)| Got::Bytes {
+                    handle,
+                    bytes,
+                    held,
+                }),
+            Job::Write {
+                stream,
+                bytes,
+                held,
+                ..
+            } => {
+                let written = write(&stream, &bytes).await;
+                drop(held);
+                written.map(|()| Got::None)
+            }
             Job::Accept { listener, .. } => match listener.accept().await {
                 Ok((socket, _)) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
                 Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
@@ -159,20 +190,29 @@ impl Job {
                 host,
                 port,
                 bytes,
+                held,
                 ..
-            } => send_to(&socket, &host, port, &bytes).await,
+            } => {
+                let sent = send_to(&socket, &host, port, &bytes).await;
+                drop(held);
+                sent
+            }
             Job::Receive {
                 socket,
                 handle,
                 max,
-            } => receive(&socket).await.map(|(bytes, peer)| Got::Datagram {
-                handle,
-                bytes,
-                max,
-                peer,
-            }),
+                ledger,
+            } => receive(&socket, &ledger)
+                .await?
+                .map(|(bytes, peer, held)| Got::Datagram {
+                    handle,
+                    bytes,
+                    max,
+                    peer,
+                    held,
+                }),
         };
-        Done { resource, result }
+        Ok(Done { resource, result })
     }
 }
 
@@ -244,34 +284,43 @@ async fn open(udp: bool, host: &str, port: u16) -> Result<Got, NetError> {
     }
 }
 
-/// At least one byte and at most `max`, or an empty list at the end. The
-/// buffer is made only once the socket is readable, so a waiting read
-/// holds none.
-pub(crate) async fn read(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
+/// At least one byte and at most `max`, or an empty list at the end, with
+/// the heap the bytes hold. The buffer is reserved and made only once the
+/// socket is readable, so a waiting read holds none.
+pub(crate) async fn read(
+    stream: &Stream,
+    max: usize,
+    ledger: &Arc<Ledger>,
+) -> Result<Result<(Vec<u8>, Reservation), NetError>, HeapExhausted> {
     let mut bytes = Vec::new();
+    let mut held = Reservation::empty(ledger);
+    let at_end = |end| Ok(ended(end).map(|bytes| (bytes, Reservation::empty(ledger))));
     loop {
         if let Some(end) = stream.state().end.clone() {
-            return ended(end);
+            return at_end(end);
         }
         if let Err(error) = stream.socket.readable().await {
-            return Err(stream_failed(stream, &error, "read"));
+            return Ok(Err(stream_failed(stream, &error, "read")));
         }
-        bytes.resize(max.min(CHUNK), 0);
+        let size = max.min(CHUNK);
+        held.grow(size.saturating_sub(bytes.len()))?;
+        bytes.resize(size, 0);
         match stream.socket.try_read(&mut bytes) {
             Ok(0) => {
                 let end = stream.state().end.get_or_insert(End::Eof).clone();
-                return ended(end);
+                return at_end(end);
             }
             Ok(n) => {
                 bytes.truncate(n);
-                return Ok(bytes);
+                held.shrink(size - n);
+                return Ok(Ok((bytes, held)));
             }
             Err(error)
                 if matches!(
                     error.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
                 ) => {}
-            Err(error) => return Err(stream_failed(stream, &error, "read")),
+            Err(error) => return Ok(Err(stream_failed(stream, &error, "read"))),
         }
     }
 }
@@ -340,26 +389,35 @@ async fn send_to(socket: &Udp, host: &str, port: u16, bytes: &[u8]) -> Result<Go
     }
 }
 
-/// The next whole datagram and its sender. As `read`, the buffer is made
-/// only once a datagram is there.
-async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+/// A received datagram: its bytes, its sender, and the heap it holds.
+type Datagram = (Vec<u8>, SocketAddr, Reservation);
+
+/// The next whole datagram and its sender. As `read`, the buffer is
+/// reserved and made only once a datagram is there.
+async fn receive(
+    socket: &Udp,
+    ledger: &Arc<Ledger>,
+) -> Result<Result<Datagram, NetError>, HeapExhausted> {
     let mut bytes = Vec::new();
+    let mut held = Reservation::empty(ledger);
     loop {
         if let Err(error) = socket.socket.readable().await {
-            return Err(socket_error(&error, "recvmsg", None, "", 0));
+            return Ok(Err(socket_error(&error, "recvmsg", None, "", 0)));
         }
+        held.grow(CHUNK.saturating_sub(bytes.len()))?;
         bytes.resize(CHUNK, 0);
         match socket.socket.try_recv_from(&mut bytes) {
             Ok((n, peer)) => {
                 bytes.truncate(n);
-                return Ok((bytes, peer));
+                held.shrink(CHUNK - n);
+                return Ok(Ok((bytes, peer, held)));
             }
             Err(error)
                 if matches!(
                     error.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
                 ) => {}
-            Err(error) => return Err(socket_error(&error, "recvmsg", None, "", 0)),
+            Err(error) => return Ok(Err(socket_error(&error, "recvmsg", None, "", 0))),
         }
     }
 }

@@ -10,13 +10,17 @@
 //! its process group, on Windows its Job object (audit §5.3 Q1). The
 //! child is reaped only after both output pipes close, so its process
 //! group ID cannot be reused while the group can still be killed.
+//!
+//! The child's input and the output kept so far count against the
+//! program's heap budget (`std-host.op.heap`). Output that would pass it
+//! kills the group the same way, and `.finish` panics `heap-exhausted`.
 
 use std::future::{Future, poll_fn};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::process::{ExitStatus, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::task::Poll;
 
 use hd_run::Grants;
@@ -24,9 +28,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 
 use crate::codec::{Dec, Enc};
+use crate::limits::{HeapExhausted, Ledger, Reservation};
+use crate::reactor::Done;
 
-/// The most output the host keeps for one run, over both streams.
-const OUTPUT_LIMIT: usize = 1 << 30;
+/// The most bytes one read of an output pipe takes.
+const PIPE_CHUNK: usize = 8192;
 
 /// What `.start` decides.
 pub(crate) enum Start {
@@ -43,23 +49,31 @@ pub(crate) struct Request {
     pub(crate) argv: Vec<String>,
     pub(crate) input: Vec<u8>,
     pub(crate) cwd: Option<PathBuf>,
-    /// The most output kept over both streams; past it the run fails.
-    pub(crate) limit: usize,
+    /// The heap budget the output is charged to.
+    pub(crate) ledger: Arc<Ledger>,
+    /// The heap the input holds.
+    pub(crate) held: Reservation,
 }
 
 /// A child's standard output, standard error and status.
 pub(crate) type Output = (Vec<u8>, Vec<u8>, i64);
 
-/// What the task delivers: the program, for the error text, and how its
-/// run ended.
+/// What the task delivers: the program, for the error text, how its run
+/// ended, and the heap its output holds.
 pub(crate) struct Ran {
     name: String,
     result: io::Result<Output>,
+    held: Reservation,
 }
 
 /// `run.start`'s checks, in the Node host's order: the grant, the empty
-/// name, then NUL bytes.
-pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Result<Start> {
+/// name, then NUL bytes. An input past the heap budget panics.
+pub(crate) fn start(
+    bytes: &[u8],
+    grants: &Grants,
+    cwd: Option<&Path>,
+    ledger: &Arc<Ledger>,
+) -> wasmtime::Result<Start> {
     let mut d = Dec::new(bytes);
     let name = d.str()?;
     let argv = d.strings()?;
@@ -77,12 +91,14 @@ pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmti
         e.leb(1).leb(3).str(&message);
         return Ok(Start::Refused(e));
     }
+    let held = ledger.reserve(input.len())?;
     Ok(Start::Run(Request {
         name,
         argv,
         input,
         cwd: cwd.map(Path::to_path_buf),
-        limit: OUTPUT_LIMIT,
+        ledger: Arc::clone(ledger),
+        held,
     }))
 }
 
@@ -96,18 +112,35 @@ pub(crate) fn not_run(name: &str, error: &str) -> Enc {
 }
 
 impl Request {
-    /// The task: runs the child to its end.
-    pub(crate) async fn run(self) -> Ran {
-        let result = run_child(&self).await;
-        Ran {
+    /// The task: runs the child to its end. `Done::Exhausted` when its
+    /// output would pass the heap budget; the group is killed then.
+    pub(crate) async fn run(self) -> Done {
+        let mut held = Reservation::empty(&self.ledger);
+        let result = run_child(&self, &mut held).await;
+        // The input's heap: the child has ended, so nothing holds it now.
+        drop(self.held);
+        if result.as_ref().is_err_and(is_exhausted) {
+            return Done::Exhausted;
+        }
+        Done::Process(Ran {
             name: self.name,
             result,
-        }
+            held,
+        })
     }
 }
 
-/// `run.finish`'s result: the output, or why the program did not run.
+/// Whether a run failed because its output would pass the heap budget.
+fn is_exhausted(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(<dyn std::error::Error + Send + Sync>::is::<HeapExhausted>)
+}
+
+/// `run.finish`'s result: the output, or why the program did not run. The
+/// output's heap is released first.
 pub(crate) fn finish(ran: Ran) -> Enc {
+    drop(ran.held);
     let mut e = Enc::default();
     match ran.result {
         Ok((out, err, status)) => {
@@ -148,8 +181,9 @@ fn validate_process(name: &str, argv: &[String]) -> Option<String> {
 }
 
 /// Spawns the child, feeds its input while draining both outputs, and
-/// reaps it once both outputs close. Output past `limit` kills the group.
-async fn run_child(request: &Request) -> io::Result<Output> {
+/// reaps it once both outputs close. Output that `held` cannot reserve
+/// kills the group.
+async fn run_child(request: &Request, held: &mut Reservation) -> io::Result<Output> {
     let mut command = Command::new(&request.name);
     command
         .args(&request.argv)
@@ -166,13 +200,18 @@ async fn run_child(request: &Request) -> io::Result<Output> {
     let mut child = command.spawn()?;
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let mut group = Group::new(child);
-    let count = AtomicUsize::new(0);
+    let (mut out_held, mut err_held) = (
+        Reservation::empty(&request.ledger),
+        Reservation::empty(&request.ledger),
+    );
     let piped = pipes(
         feed(stdin, &request.input),
-        drain(stdout, &count, request.limit),
-        drain(stderr, &count, request.limit),
+        drain(stdout, &mut out_held),
+        drain(stderr, &mut err_held),
     )
     .await;
+    held.absorb(out_held);
+    held.absorb(err_held);
     match piped {
         Ok((written, out, err)) => {
             let status = group.reap().await?;
@@ -202,27 +241,26 @@ async fn feed(stdin: Option<ChildStdin>, input: &[u8]) -> io::Result<()> {
     stdin.write_all(input).await
 }
 
-/// Reads one output to its end. `count` is the bytes read over both
-/// outputs; past `limit` the read fails with `FileTooLarge`.
+/// Reads one output to its end, reserving each chunk in `held` before
+/// keeping it. A chunk past the heap budget fails the read with
+/// `HeapExhausted`.
 async fn drain(
     pipe: Option<impl AsyncRead + Unpin>,
-    count: &AtomicUsize,
-    limit: usize,
+    held: &mut Reservation,
 ) -> io::Result<Vec<u8>> {
     let Some(mut pipe) = pipe else {
         return Ok(Vec::new());
     };
     let mut bytes = Vec::new();
+    let mut chunk = vec![0; PIPE_CHUNK];
     loop {
-        // Read straight into the output, with no buffer in the task.
-        bytes.reserve(8192);
-        let n = pipe.read_buf(&mut bytes).await?;
+        let n = pipe.read(&mut chunk).await?;
         if n == 0 {
             return Ok(bytes);
         }
-        if count.fetch_add(n, Ordering::Relaxed).saturating_add(n) > limit {
-            return Err(io::ErrorKind::FileTooLarge.into());
-        }
+        held.grow(n)
+            .map_err(|error| io::Error::new(io::ErrorKind::OutOfMemory, error))?;
+        bytes.extend_from_slice(&chunk[..n]);
     }
 }
 

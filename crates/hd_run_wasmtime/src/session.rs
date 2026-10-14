@@ -275,6 +275,13 @@ impl WasmtimeSession {
         self.run.store.data().waiting()
     }
 
+    /// The heap that host operations hold now: what the ledger counts past
+    /// the store's own memory. The test that reads it runs Unix programs.
+    #[cfg(all(test, unix))]
+    pub(crate) fn heap_held(&self) -> u64 {
+        self.run.store.data().heap.held()
+    }
+
     /// Starts a new journal, or with `on` false records none from now on:
     /// for measuring what recording costs.
     #[cfg(test)]

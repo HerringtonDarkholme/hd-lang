@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::codec::{Dec, Enc};
+use crate::limits::Ledger;
 use crate::reactor::{Done, Reactor, Work};
 use hd_run::Grants;
 
@@ -46,6 +48,8 @@ pub(crate) enum Started {
 pub(crate) struct Net {
     pub(crate) client: Client,
     pub(crate) reactor: Reactor,
+    /// The heap budget, with no maximum.
+    pub(crate) ledger: Arc<Ledger>,
     /// The operations completed and not finished or aborted yet.
     completed: HashSet<i32>,
 }
@@ -55,6 +59,7 @@ impl Net {
         Self {
             client: Client::default(),
             reactor: Reactor::new(None),
+            ledger: Ledger::new(u64::MAX),
             completed: HashSet::new(),
         }
     }
@@ -66,14 +71,19 @@ impl Net {
         bytes: &[u8],
         grants: &Grants,
     ) -> wasmtime::Result<Started> {
-        Ok(match self.client.start(method, params, bytes, grants)? {
-            Start::Ready(e) => Started::Ready(e),
-            Start::Closed { reply, handle } => {
-                super::ops::dispose(&mut self.reactor, handle);
-                Started::Ready(reply)
-            }
-            Start::Run(job) => Started::Pending(job.offload(&mut self.reactor).unwrap()),
-        })
+        Ok(
+            match self
+                .client
+                .start(method, params, bytes, grants, &self.ledger)?
+            {
+                Start::Ready(e) => Started::Ready(e),
+                Start::Closed { reply, handle } => {
+                    super::ops::dispose(&mut self.reactor, handle);
+                    Started::Ready(reply)
+                }
+                Start::Run(job) => Started::Pending(job.offload(&mut self.reactor).unwrap()),
+            },
+        )
     }
 
     /// Waits until pending operation `h` completes.

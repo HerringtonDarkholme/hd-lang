@@ -1,6 +1,7 @@
 use super::process::{Output, Request, Start, finish, start};
 use super::{random, sys_read};
 use crate::codec::Enc;
+use crate::limits::{Ledger, Reservation};
 use crate::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
 use std::io;
@@ -10,37 +11,46 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 
-/// A request for `name` with `argv` and `input`, keeping at most `limit`
-/// bytes of output.
-fn request(name: &str, argv: &[String], input: &[u8], limit: usize) -> Request {
+/// A request for `name` with `argv` and `input`, under a heap budget of
+/// `limit` bytes for its output.
+fn request(name: &str, argv: &[String], input: &[u8], limit: u64) -> Request {
+    let ledger = Ledger::new(limit);
     Request {
         name: name.into(),
         argv: argv.to_vec(),
         input: input.to_vec(),
         cwd: None,
-        limit,
+        held: Reservation::empty(&ledger),
+        ledger,
     }
 }
 
 /// Offloads the run of `request` onto the `hd-io` runtime, as `.start`
 /// does, and returns the operation's handle.
 fn offload(reactor: &mut Reactor, request: Request) -> i32 {
-    reactor
-        .offload(async move { Done::Process(request.run().await) })
-        .expect("offloads")
+    reactor.offload(request.run()).expect("offloads")
 }
 
 /// Waits for the operation `h` to complete and takes its result, as
 /// `block` and `.finish` do.
-fn finished(reactor: &mut Reactor, h: i32) -> super::process::Ran {
+fn finished(reactor: &mut Reactor, h: i32) -> Done {
     let mut out = Vec::new();
     // An earlier `due` may already have completed `h` with another handle.
     while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
         assert!(reactor.wait(), "the run is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
-        Some(Work::Offloaded(Some(Done::Process(ran)))) => ran,
+        Some(Work::Offloaded(Some(done))) => done,
         _ => panic!("the run has no result"),
+    }
+}
+
+/// The run of a finished operation.
+fn ran(done: Done) -> super::process::Ran {
+    match done {
+        Done::Process(ran) => ran,
+        Done::Exhausted => panic!("the output passed the heap budget"),
+        _ => panic!("the operation is not a run"),
     }
 }
 
@@ -48,17 +58,25 @@ fn finished(reactor: &mut Reactor, h: i32) -> super::process::Ran {
 fn run(request: Request) -> io::Result<Output> {
     let mut reactor = Reactor::new(None);
     let h = offload(&mut reactor, request);
-    finished(&mut reactor, h).into_result()
+    ran(finished(&mut reactor, h)).into_result()
+}
+
+/// Whether `request`'s output passes its heap budget.
+#[cfg(unix)]
+fn exhausts(request: Request) -> bool {
+    let mut reactor = Reactor::new(None);
+    let h = offload(&mut reactor, request);
+    matches!(finished(&mut reactor, h), Done::Exhausted)
 }
 
 /// `run.start` then, when it runs a child, `run.finish`: the encoded result.
 fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
-    match start(bytes, grants, None).expect("the arguments decode") {
+    match start(bytes, grants, None, &Ledger::new(u64::MAX)).expect("the arguments decode") {
         Start::Refused(e) => e.into_bytes(),
         Start::Run(request) => {
             let mut reactor = Reactor::new(None);
             let h = offload(&mut reactor, request);
-            finish(finished(&mut reactor, h)).into_bytes()
+            finish(ran(finished(&mut reactor, h))).into_bytes()
         }
     }
 }

@@ -144,17 +144,8 @@ pub(crate) fn call(
             }
         },
         Kind::Fs { finish: true, .. } => {
-            let h = handle(int_arg(params, 0)?);
-            let Some(op) = caller.data_mut().reactor.remove(h) else {
-                return Err(
-                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
-                );
-            };
-            let Work::Offloaded(Some(Done::Fs(encoded))) = op.work else {
-                return Err(Stop::Contract(
-                    "a finish of an operation that is not completed".into(),
-                )
-                .into());
+            let Done::Fs(encoded) = finished(caller, params)? else {
+                return Err(not_completed());
             };
             Ret::encoded(encoded)
         }
@@ -193,6 +184,7 @@ pub(crate) fn call(
                         environment,
                         host.deadline(),
                         host.memory_bytes,
+                        host.heap.ledger(),
                     )? {
                         crate::test_engine::Start::Ready(e) => Ret::ready(e)?,
                         crate::test_engine::Start::Run(run) => {
@@ -205,14 +197,11 @@ pub(crate) fn call(
                 }
                 environment => {
                     let cwd = environment.as_ref().map(|e| e.cwd.as_path());
-                    match core::process::start(&b, &host.grants, cwd)? {
+                    match core::process::start(&b, &host.grants, cwd, host.heap.ledger())? {
                         core::process::Start::Refused(e) => Ret::ready(e)?,
                         core::process::Start::Run(request) => {
                             let name = request.name.clone();
-                            match host
-                                .reactor
-                                .offload(async move { Done::Process(request.run().await) })
-                            {
+                            match host.reactor.offload(request.run()) {
                                 Ok(h) => Ret::pair(1, h),
                                 Err(error) => Ret::ready(core::process::not_run(&name, &error))?,
                             }
@@ -221,56 +210,30 @@ pub(crate) fn call(
                 }
             }
         }
-        Kind::ProcessFinish => {
-            let h = handle(int_arg(params, 0)?);
-            let Some(op) = caller.data_mut().reactor.remove(h) else {
-                return Err(
-                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
-                );
-            };
-            match op.work {
-                Work::Offloaded(Some(Done::Process(ran))) => {
-                    Ret::encoded(core::process::finish(ran))
-                }
-                // A test child that ran into the time limit ends the case.
-                Work::Offloaded(Some(Done::Child(None))) => return Err(Stop::TimeLimit.into()),
-                Work::Offloaded(Some(Done::Child(Some(encoded)))) => Ret::encoded(encoded),
-                _ => {
-                    return Err(Stop::Contract(
-                        "a finish of an operation that is not completed".into(),
-                    )
-                    .into());
-                }
+        Kind::ProcessFinish => match finished(caller, params)? {
+            Done::Process(ran) => Ret::encoded(core::process::finish(ran)),
+            // A test child that ran into the time limit ends the case.
+            Done::Child(None, _) => return Err(Stop::TimeLimit.into()),
+            Done::Child(Some(encoded), held) => {
+                drop(held);
+                Ret::encoded(encoded)
             }
-        }
+            _ => return Err(not_completed()),
+        },
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
-            match http::client::start(&b, &host.grants)? {
+            match http::client::start(&b, &host.grants, host.heap.ledger())? {
                 http::client::Start::Ready(e) => Ret::ready(e)?,
-                http::client::Start::Run(job) => {
-                    match host
-                        .reactor
-                        .offload(async move { Done::Http(job.run().await) })
-                    {
-                        Ok(h) => Ret::pair(1, h),
-                        Err(error) => Ret::ready(http::client::not_run(&error))?,
-                    }
-                }
+                http::client::Start::Run(job) => match host.reactor.offload(job.run()) {
+                    Ok(h) => Ret::pair(1, h),
+                    Err(error) => Ret::ready(http::client::not_run(&error))?,
+                },
             }
         }
         Kind::HttpFinish => {
-            let h = handle(int_arg(params, 0)?);
-            let Some(op) = caller.data_mut().reactor.remove(h) else {
-                return Err(
-                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
-                );
-            };
-            let Work::Offloaded(Some(Done::Http(sent))) = op.work else {
-                return Err(Stop::Contract(
-                    "a finish of an operation that is not completed".into(),
-                )
-                .into());
+            let Done::Http(sent) = finished(caller, params)? else {
+                return Err(not_completed());
             };
             Ret::encoded(http::client::finish(sent)?)
         }
@@ -287,7 +250,10 @@ pub(crate) fn call(
                 None => Vec::new(),
             };
             let host = caller.data_mut();
-            match host.net.start(method, &args, &b, &host.grants)? {
+            match host
+                .net
+                .start(method, &args, &b, &host.grants, host.heap.ledger())?
+            {
                 net::client::Start::Ready(e) if close => Ret::encoded(e),
                 net::client::Start::Ready(e) => Ret::ready(e)?,
                 net::client::Start::Closed { reply, handle } => {
@@ -304,17 +270,8 @@ pub(crate) fn call(
             }
         }
         Kind::NetFinish => {
-            let h = handle(int_arg(params, 0)?);
-            let Some(op) = caller.data_mut().reactor.remove(h) else {
-                return Err(
-                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
-                );
-            };
-            let Work::Offloaded(Some(Done::Net(done))) = op.work else {
-                return Err(Stop::Contract(
-                    "a finish of an operation that is not completed".into(),
-                )
-                .into());
+            let Done::Net(done) = finished(caller, params)? else {
+                return Err(not_completed());
             };
             Ret::encoded(caller.data_mut().net.finish(done)?)
         }
@@ -498,6 +455,25 @@ pub(crate) fn call(
     };
     caller.data().check_deadline()?;
     Ok(result)
+}
+
+/// Takes the result of the offloaded operation whose handle is the first
+/// argument, for its `.finish`. An operation whose data would have passed
+/// the heap budget panics `heap-exhausted` (`std-host.op.heap.exhausted`).
+fn finished(caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Done> {
+    let h = handle(int_arg(params, 0)?);
+    let Some(op) = caller.data_mut().reactor.remove(h) else {
+        return Err(Stop::Contract("a finish of an operation that is not pending".into()).into());
+    };
+    match op.work {
+        Work::Offloaded(Some(Done::Exhausted)) => Err(crate::limits::HeapExhausted.into()),
+        Work::Offloaded(Some(done)) => Ok(done),
+        _ => Err(not_completed()),
+    }
+}
+
+fn not_completed() -> wasmtime::Error {
+    Stop::Contract("a finish of an operation that is not completed".into()).into()
 }
 
 /// A variable's value; a name the environment cannot hold is unset.

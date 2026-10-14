@@ -264,6 +264,7 @@ fn start_child(
         environment,
         deadline,
         64 << 20,
+        &crate::limits::Ledger::new(u64::MAX),
     )
     .unwrap()
     {
@@ -282,7 +283,7 @@ fn finished_child(reactor: &mut Reactor, h: i32) -> Option<crate::codec::Enc> {
         assert!(reactor.wait(), "the child is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
-        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded)))) => encoded,
+        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded, _)))) => encoded,
         _ => panic!("the child has no result"),
     }
 }
@@ -317,6 +318,46 @@ fn named_child_external_process_uses_case_cwd_without_changing_parent() {
     assert_eq!(inner.str().unwrap(), "");
     assert_eq!(inner.zz().unwrap(), 0);
     assert_eq!(std::env::current_dir().unwrap(), parent);
+}
+
+/// `std-host.op.heap`: a test child's output counts against the parent's
+/// heap budget. Output past it interrupts the child and its `.finish`
+/// panics; output within it stays charged until `.finish` takes it.
+#[cfg(unix)]
+#[test]
+fn a_childs_output_counts_against_the_parents_heap() {
+    use crate::limits::Ledger;
+    let environment = environment_with(Body::ProcessCwd, std::env::current_dir().unwrap());
+    for (max, exhausted) in [(4, true), (u64::MAX, false)] {
+        let ledger = Ledger::new(max);
+        let super::Start::Run(run) = super::start(
+            child_arguments().done(),
+            &Grants::default(),
+            &environment,
+            None,
+            64 << 20,
+            &ledger,
+        )
+        .unwrap() else {
+            panic!("the child starts");
+        };
+        let mut reactor = Reactor::new(None);
+        let h = reactor.offload(run.wait()).unwrap();
+        let mut out = Vec::new();
+        while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
+            assert!(reactor.wait(), "the child is pending");
+        }
+        match reactor.remove(h).map(|op| op.work) {
+            Some(Work::Offloaded(Some(crate::reactor::Done::Exhausted))) => assert!(exhausted),
+            Some(Work::Offloaded(Some(crate::reactor::Done::Child(Some(_), held)))) => {
+                assert!(!exhausted);
+                assert!(ledger.charged() > 0, "the output is charged");
+                drop(held);
+            }
+            _ => panic!("the child has no result"),
+        }
+        assert_eq!(ledger.charged(), 0);
+    }
 }
 
 /// Two children that take about a second each run at the same time, as
