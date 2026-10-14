@@ -100,6 +100,9 @@ pub struct Counters {
     /// Per stage: the `graph` parts (`Coherence`, `InitOrder`,
     /// `HeaderCheck`) this run computed instead of reading their entries.
     pub parts_computed: BTreeMap<&'static str, usize>,
+    /// How many body-unit pass runs collection's planner made
+    /// (opt-pipeline.md §2.2): 0 in a pipeline with no body pass.
+    pub body_passes: usize,
 }
 
 impl Counters {

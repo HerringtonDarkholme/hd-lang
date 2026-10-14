@@ -1011,8 +1011,6 @@ struct Run<'a> {
     planner: hd_opt::planner::PipelinePlanner,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
-    /// Whether the optimized pipeline runs ([`Packages::optimized`]).
-    optimized: bool,
     /// Per package, in the table's order: whether it is fetched, so not
     /// the user's own code (`module.dbg.own-code`).
     fetched: Vec<bool>,
@@ -1461,7 +1459,6 @@ fn build_packages_inner(
         profile,
         pipeline,
         planner,
-        optimized: packages.optimized,
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
@@ -1576,6 +1573,7 @@ fn build_packages_inner(
     }
     let _finish = ObservedStage::new(observer, Stage::PackageResult);
     let mut counters = lock(&run.counters).clone();
+    counters.body_passes = run.planner.pass_runs();
     counters.sort();
     let report = lock(&run.report).clone();
     let diags = std::mem::take(&mut *lock(&run.diags));
@@ -7486,9 +7484,6 @@ impl ProgramEnv for Env<'_> {
     }
     fn build_profile(&self) -> BuildProfile {
         self.run.build_profile
-    }
-    fn optimized(&self) -> bool {
-        self.run.optimized
     }
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body> {
         // `dbg`'s printing bodies (spec/lang/10-modules.md "Debug Printing"):

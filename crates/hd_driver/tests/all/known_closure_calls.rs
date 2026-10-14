@@ -11,13 +11,19 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
+use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// The Wasm of the program `main`, through the optimized pipeline or the
 /// dev one.
 fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
+    build_of(main, optimized).wasm.expect("wasm")
+}
+
+/// The build of the program `main`, through the optimized pipeline or the
+/// dev one.
+fn build_of(main: &str, optimized: bool) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
     let store = crate::warm_store();
@@ -41,7 +47,7 @@ fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
         },
     );
     assert!(out.diags.is_empty(), "{}", out.render());
-    out.wasm.expect("wasm")
+    out
 }
 
 /// The debug names of the functions a module defines.
@@ -225,6 +231,34 @@ fn a_suspending_closure_is_constructed_directly_and_polled_as_before() {
     assert_eq!(opt_calls, dev_calls + 1, "one direct call more");
     assert_eq!(run("susp-dev", &dev), "42\n");
     assert_eq!(run("susp-opt", &opt), "42\n");
+}
+
+/// A program the other tests do not build, so collection runs for it in
+/// both pipelines even with a warm store.
+const PLANNED: &str = "\
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+fn planned() -> i32:
+    let g = fn(x: i32) -> i32: x * 3
+    g(1) + apply(fn(x: i32) -> i32: x + 4, +2)
+
+pub fn main() -> void $ Console:
+    println(planned())
+";
+
+/// Dev collection does no plan work: the dev pipeline has no body-unit
+/// pass, so its planner returns at once for every body and no pass runs.
+/// The optimized pipeline runs its body passes on the same program.
+#[test]
+fn dev_collection_runs_no_body_pass() {
+    let dev = build_of(PLANNED, false);
+    let opt = build_of(PLANNED, true);
+    assert_eq!(dev.counters.body_passes, 0, "dev");
+    assert!(opt.counters.body_passes > 0, "optimized");
+    let (dev, opt) = (dev.wasm.expect("wasm"), opt.wasm.expect("wasm"));
+    assert_eq!(run("planned-dev", &dev), "9\n");
+    assert_eq!(run("planned-opt", &opt), "9\n");
 }
 
 /// `apply_twice` calls its parameter in its own body: the optimized

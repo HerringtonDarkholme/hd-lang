@@ -78,6 +78,12 @@ impl ValueFlow {
         flow
     }
 
+    /// How many parameters the item has.
+    #[must_use]
+    pub fn param_count(&self) -> usize {
+        self.params.len()
+    }
+
     /// Whether item parameter `p` is called in sub-body `k` or in a sub
     /// nested in it, with no generic local function's body on the way: the
     /// calls an instance of `k` specialized on `p` makes direct, itself or

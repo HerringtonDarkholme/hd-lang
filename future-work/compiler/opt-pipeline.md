@@ -27,6 +27,17 @@ E1 and their measurements), [codegen.md](codegen.md) §12 to §13, and
 | Engine choice | `crates/hd_cli/src/engine.rs` `from_env` (:264), `run(kind, release, ..)` (:272); `hd_run_wasmtime` `EngineConfig::pipeline(release)` (`engine.rs` :33) | Chosen after compile, used only to run. `hd build` takes no `--engine` |
 | Conformance | `HD_CONFORMANCE_PIPELINE` (`crates/hd_driver/tests/conformance.rs` :622), `HD_CONFORMANCE_ENGINE` modes (:587) | Compare mode builds once and runs that build on both engines |
 
+Status: jobs (a), (b1) and (b2) of §6 are done, so the A1, A2 and
+pipeline-choice rows above describe the code before them. A1 and A2 are
+now the body passes `value_flow`, `devirt_known` and `closure_spec` in
+`hd_opt` (`passes.rs`, `planner.rs`); collection applies their plans by
+rules 1 to 4 of §2.2 and reads no pipeline flag. Until job (e), the
+`closure_spec` bounds are the constants `SPEC_MAX_INSTS` (64) and
+`SPEC_MAX_DEPTH` (2) in `hd_opt::passes`; `PipelinePlanner` gives the
+depth to collection as `spec_depth` (0 for a pipeline without
+`closure_spec`). The build's `Counters::body_passes` counts body-pass runs:
+0 in dev, which a test in `known_closure_calls.rs` checks.
+
 ## 1. Crates And Boundaries
 
 ### 1.1 Who owns what
@@ -120,7 +131,7 @@ pub struct BodyPlan {
 }
 pub trait Planner: Sync {
     fn plan(&self, def: DefId, body: &Body, env: &dyn ProgramEnv) -> Option<Arc<BodyPlan>>;
-    fn spec_depth(&self) -> u32;                  // today's COPY_MAX_DEPTH
+    fn spec_depth(&self) -> u32;                  // was COPY_MAX_DEPTH
 }
 ```
 
@@ -172,7 +183,7 @@ plan's jobs).
   not stored. Cost: `value_flow` plus the two decisions are linear in
   instructions and locals, an estimated 5 to 20 ns per instruction per
   pass (tiering.md §1). That is 1 to 5 ms for the 10k-line application,
-  against about 640 ms of Cranelift. Today `Flow::new` runs once per
+  against about 640 ms of Cranelift. Before job (b2), `Flow::new` ran once per
   *instance* scanned (every A2 copy and every carried sub-body
   included), so the memo is no slower and usually faster. A disk entry
   would save at most those few ms per edit, and its lookup costs a hash

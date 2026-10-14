@@ -7,7 +7,7 @@
 use hd_base::{DefId, Fuel, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_mono::plan::Source;
-use hd_tir::ir::{Body, Tag};
+use hd_tir::ir::{Body, Callee, Tag};
 
 use crate::value_flow::ValueFlow;
 
@@ -68,7 +68,34 @@ pub struct BodyFacts {
     pub value_flow: Option<ValueFlow>,
     /// `FactId::KnownCallees`: per `CallValue`, its callee's source.
     pub known_callees: Vec<(u32, Source)>,
+    /// `FactId::ClosureSpec`.
+    pub closure_spec: ClosureSpec,
 }
+
+/// What `closure_spec` decides for one body (option A2 of
+/// closure-calls.md), in the shape of `hd_mono::plan::BodyPlan`.
+#[derive(Default)]
+pub struct ClosureSpec {
+    /// Per `CallValue` of an item parameter: `Source::Param` of it.
+    pub param_calls: Vec<(u32, Source)>,
+    /// Per `Call` of an item: each argument's source, where any has one.
+    pub spec_args: Vec<(u32, Vec<Option<Source>>)>,
+    /// Per `Closure`: the item parameters its sub-body calls, where any.
+    pub carry: Vec<(u32, Vec<u32>)>,
+    /// This body as a callee: the parameters it calls, itself or in a
+    /// closure it creates; `None` when it may not be specialized.
+    pub spec_params: Option<Vec<bool>>,
+}
+
+/// `closure_spec`'s bound on the bodies it specializes: at most this many
+/// TIR instructions, their sub-bodies included (closure-calls.md §3.1,
+/// owner Q2). Job (e) of opt-pipeline.md §6 makes it a pipeline knob.
+pub const SPEC_MAX_INSTS: usize = 64;
+
+/// `closure_spec`'s nesting bound, which the planner gives collection as
+/// `spec_depth`: a specialized instance requested from inside a
+/// specialized instance is the last (closure-calls.md §3.1).
+pub const SPEC_MAX_DEPTH: u32 = 2;
 
 /// The summary bits of `body` that body-unit passes gate on: a `Call`
 /// sets `HAS_CALL` and a `CallValue` sets `HAS_DYN_CALL`. Every other bit
@@ -164,6 +191,82 @@ fn devirt_known(
     Ok(PassOutcome::Done)
 }
 
+/// `closure_spec`, option A2 of closure-calls.md: a small callee that calls
+/// a parameter is worth one instance per closure literal passed for it,
+/// in which the parameter's calls are direct.
+///
+/// - As a callee, the body's `spec_params` are the parameters it calls,
+///   itself or in a closure it creates (`ValueFlow::called_under` sub 0).
+///   None for a body over [`SPEC_MAX_INSTS`], an intrinsic, a suspending
+///   function, or one that calls no parameter.
+/// - Per `Call` of an item, each argument's source: a value made in the
+///   call's sub-body (`ValueFlow::made`) or a parameter passed on
+///   unchanged (`ValueFlow::param`).
+/// - Per `Closure`, the parameters its sub-body calls, which a specialized
+///   instance carries into it.
+/// - Per `CallValue` of a parameter, `Source::Param`, which is direct in an
+///   instance specialized on it.
+fn closure_spec(
+    cx: &BodyCx<'_>,
+    facts: &mut BodyFacts,
+    fuel: &mut Fuel,
+) -> StageResult<PassOutcome> {
+    let Some(flow) = &facts.value_flow else {
+        return Ok(PassOutcome::Skipped);
+    };
+    charge_body(cx.body, fuel)?;
+    let (body, env, def) = (cx.body, cx.env, cx.def);
+    let n = flow.param_count();
+    let at = |i: usize| u32::try_from(i).expect("insts");
+    let mut spec = ClosureSpec::default();
+    if body.len() <= SPEC_MAX_INSTS && env.intrinsic(def).is_none() && !env.suspends(def) {
+        let called: Vec<bool> = (0..n)
+            .map(|p| flow.called_under(u32::try_from(p).expect("params"), 0))
+            .collect();
+        spec.spec_params = called.contains(&true).then_some(called);
+    }
+    for i in 0..body.len() {
+        let [a, b] = body.data[i];
+        match body.tags[i] {
+            Tag::CallValue => {
+                if let Some(p) = flow.param(body, a) {
+                    spec.param_calls.push((at(i), Source::Param(p)));
+                }
+            }
+            Tag::Call
+                if matches!(
+                    Callee::from_words(body.record(a)),
+                    Some(Callee::Item { .. })
+                ) =>
+            {
+                let rec = body.record(b);
+                let sources: Vec<Option<Source>> = rec[..rec.len().saturating_sub(3)]
+                    .iter()
+                    .map(|&w| match flow.made(body, w, i) {
+                        Some(m) => Some(Source::Made(at(m))),
+                        None => flow.param(body, w).map(Source::Param),
+                    })
+                    .collect();
+                if sources.iter().any(Option::is_some) {
+                    spec.spec_args.push((at(i), sources));
+                }
+            }
+            Tag::Closure => {
+                let listed: Vec<u32> = (0..n)
+                    .map(|p| u32::try_from(p).expect("params"))
+                    .filter(|&p| flow.called_under(p, a))
+                    .collect();
+                if !listed.is_empty() {
+                    spec.carry.push((at(i), listed));
+                }
+            }
+            _ => {}
+        }
+    }
+    facts.closure_spec = spec;
+    Ok(PassOutcome::Done)
+}
+
 fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
     if cx.gate & gate::HAS_SUSPEND == 0 {
         Ok(PassOutcome::Skipped)
@@ -207,15 +310,6 @@ pub static PASSES: &[PassSpec] = &[
         Instance(not_yet)
     ),
     pass!(
-        "closure_spec",
-        TirDecision,
-        [UseCounts],
-        [ClosureSpec],
-        gate::HAS_CLOSURE,
-        Optional,
-        Instance(not_yet)
-    ),
-    pass!(
         "value_flow",
         TirAnalysis,
         [],
@@ -232,6 +326,15 @@ pub static PASSES: &[PassSpec] = &[
         gate::HAS_DYN_CALL,
         Optional,
         Body(devirt_known)
+    ),
+    pass!(
+        "closure_spec",
+        TirDecision,
+        [ValueFlow],
+        [ClosureSpec],
+        gate::HAS_CALL | gate::HAS_DYN_CALL,
+        Optional,
+        Body(closure_spec)
     ),
     pass!(
         "escape",
@@ -280,8 +383,8 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "value_flow",
         "use_counts",
         "inline_plan",
-        "closure_spec",
         "devirt_known",
+        "closure_spec",
         "escape",
         "scalar_replace",
         "liveness",
@@ -366,7 +469,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 22_771_714_890_862_924_033_644_553_952_768_316_268,
+            optimized, 298_124_435_747_538_449_458_102_683_681_946_358_977,
             "optimized"
         );
     }
