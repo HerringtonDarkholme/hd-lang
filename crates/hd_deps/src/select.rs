@@ -124,7 +124,8 @@ pub struct Edited<'a> {
 /// The manifest in `dir` when it declares a package, from `edited` when
 /// that replaces it.
 fn package_manifest(dir: &Path, edited: Option<Edited<'_>>) -> Option<Manifest> {
-    let replaced = edited.filter(|e| std::fs::canonicalize(e.dir).ok().as_deref() == Some(dir));
+    let replaced =
+        edited.filter(|e| hd_base::path::canonicalize(e.dir).ok().as_deref() == Some(dir));
     let text = match replaced {
         Some(e) => e.text.to_owned(),
         None => std::fs::read_to_string(dir.join("hd.toml")).ok()?,
@@ -174,7 +175,7 @@ fn local_edges(dir: &Path, m: &Manifest, member: bool, toolchain: &str) -> Vec<E
             continue;
         }
         let target = match &r.path {
-            Some(p) => std::fs::canonicalize(dir.join(p))
+            Some(p) => hd_base::path::canonicalize(dir.join(p))
                 .ok()
                 .filter(|d| package_manifest(d, None).is_some())
                 .map(Target::Local),
@@ -291,7 +292,7 @@ pub fn select_edited(
     let mut nodes: Vec<Node> = Vec::new();
     let mut local_index: HashMap<PathBuf, usize> = HashMap::new();
     for dir in members {
-        let Ok(dir) = std::fs::canonicalize(dir) else {
+        let Ok(dir) = hd_base::path::canonicalize(dir) else {
             continue;
         };
         if local_index.contains_key(&dir) {
@@ -857,6 +858,34 @@ mod tests {
                 let bad = select(&members, &sum, mode, &mut fake, "9.9.9");
                 assert_eq!(codes(&bad), [(Some(Code::SumMismatch), 5)], "{key}");
             }
+        }
+    }
+
+    /// Local package directories are spelled as `hd_base::path::canonicalize`
+    /// spells them (no Windows verbatim prefix), so a caller that compares
+    /// them with a path it canonicalized the same way finds them.
+    #[test]
+    fn local_packages_are_named_by_their_plain_canonical_directory() {
+        let dir = temp("plain");
+        let root = root_package(&dir, "[dependencies]\nlib = { path = \"../lib\" }\n");
+        write(&dir, "lib/hd.toml", "[package]\nname = \"lib\"\n");
+        let mut fake = Fake::new(&dir);
+        let sel = select(
+            std::slice::from_ref(&root),
+            &Sum::default(),
+            Mode::Record,
+            &mut fake,
+            "9.9.9",
+        );
+        assert_eq!(codes(&sel), []);
+        let want = [
+            hd_base::path::canonicalize(&root).expect("app"),
+            hd_base::path::canonicalize(dir.join("lib")).expect("lib"),
+        ];
+        let dirs: Vec<_> = sel.packages.iter().map(|p| p.dir.clone()).collect();
+        assert_eq!(dirs, want);
+        for p in &sel.packages {
+            assert!(!p.dir.to_string_lossy().starts_with(r"\\?\"));
         }
     }
 

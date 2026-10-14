@@ -491,7 +491,7 @@ impl Scratch {
             ID.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&dir).unwrap();
-        Self(fs::canonicalize(dir).unwrap())
+        Self(hd_run::canonicalize(dir).unwrap())
     }
 
     pub fn at(&self, name: &str) -> PathBuf {

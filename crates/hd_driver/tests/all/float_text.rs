@@ -131,7 +131,7 @@ fn display_f32(x: f32) -> String {
 /// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
     let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mjs");
-    let float = std::fs::canonicalize(float).expect("float.mjs");
+    let float = hd_run::canonicalize(float).expect("float.mjs");
     let script = r#"const { shortest, fixed, parse, lower, upper } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));

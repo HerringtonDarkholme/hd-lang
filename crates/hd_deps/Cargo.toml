@@ -7,6 +7,7 @@ rust-version.workspace = true
 description = "Dependency fetching: version selection, git, the version cache, tree hashes and hd.sum"
 
 [dependencies]
+hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
 hd_project = { path = "../hd_project" }
 sha2 = { version = "0.10", default-features = false }

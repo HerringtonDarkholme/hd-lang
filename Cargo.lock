@@ -626,6 +626,7 @@ dependencies = [
 name = "hd_deps"
 version = "0.0.0"
 dependencies = [
+ "hd_base",
  "hd_diag",
  "hd_project",
  "hd_testkit",

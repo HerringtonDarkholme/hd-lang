@@ -6,6 +6,7 @@
 //! `append` is the workspace's one audited `unsafe` module.
 
 pub mod append;
+pub mod path;
 pub mod stable;
 pub mod unsupported;
 pub mod wire;

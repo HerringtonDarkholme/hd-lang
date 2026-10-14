@@ -6,6 +6,8 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use hd_base::path::canonicalize;
+
 /// One trait's value in a table or a flag (`cli.cap.value.*`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GrantValue {
@@ -36,38 +38,6 @@ pub struct Grants {
 
 /// The traits whose scope entries are paths.
 const PATH_KEYS: &[&str] = &["FsRead", "FsWrite"];
-
-/// A path without Windows' verbatim prefix: `\\?\D:\x` is `D:\x` and
-/// `\\?\UNC\host\share` is `\\host\share`. Other text is unchanged.
-/// Node, Wasmtime and the user all write a path without it, so a path that
-/// `std::fs::canonicalize` made must lose it before it is compared, shown
-/// or put in a URL.
-fn strip_verbatim(text: &str) -> Option<String> {
-    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
-        return Some(format!(r"\\{rest}"));
-    }
-    let rest = text.strip_prefix(r"\\?\")?;
-    let b = rest.as_bytes();
-    (b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':').then(|| rest.to_owned())
-}
-
-/// `path` without the verbatim prefix (see [`strip_verbatim`]).
-#[must_use]
-pub fn plain_path(path: PathBuf) -> PathBuf {
-    match path.to_str().and_then(strip_verbatim) {
-        Some(plain) => PathBuf::from(plain),
-        None => path,
-    }
-}
-
-/// `std::fs::canonicalize` with no verbatim prefix on Windows: the path
-/// the user, Node and a grant entry all spell.
-///
-/// # Errors
-/// The error of `std::fs::canonicalize`.
-pub fn canonicalize(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
-    std::fs::canonicalize(path).map(plain_path)
-}
 
 /// A path with `..` and `.` resolved and symbolic links followed as far as
 /// the path exists, so no path escapes a granted directory
@@ -301,7 +271,7 @@ pub fn env_notice(name: &str) -> String {
 mod tests {
     use std::path::Path;
 
-    use super::{GrantValue, Grants, Limit, env_notice, plain_path};
+    use super::{GrantValue, Grants, Limit, env_notice};
 
     fn kv(key: &str, v: GrantValue) -> (String, GrantValue) {
         (key.to_owned(), v)
@@ -309,21 +279,6 @@ mod tests {
 
     fn scopes(list: &[&str]) -> GrantValue {
         GrantValue::Scopes(list.iter().map(|s| (*s).to_owned()).collect())
-    }
-
-    #[test]
-    fn a_verbatim_prefix_is_stripped() {
-        for (from, to) in [
-            (r"\\?\D:\a\hd\host\node.mjs", r"D:\a\hd\host\node.mjs"),
-            (r"\\?\c:\", r"c:\"),
-            (r"\\?\UNC\srv\share\x", r"\\srv\share\x"),
-            (r"\\?\Volume{1}\x", r"\\?\Volume{1}\x"),
-            (r"D:\a\b", r"D:\a\b"),
-            ("/tmp/a", "/tmp/a"),
-            ("", ""),
-        ] {
-            assert_eq!(plain_path(from.into()), Path::new(to), "{from}");
-        }
     }
 
     #[test]
