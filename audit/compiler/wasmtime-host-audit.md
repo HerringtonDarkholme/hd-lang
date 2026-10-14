@@ -449,3 +449,9 @@ These are the three probes from the top of this audit.
 
 Not in this plan: the Node host's `race!` hang past `--time-limit` (probe
 above) belongs to the Node reference, which is being retired.
+
+### 5.4 Findings after T4
+
+| Finding | Effect | Fix |
+| --- | --- | --- |
+| macOS abort on a handled signal (`mach_msg failed with 268451845`) | wasmtime's Mach-port exception thread waits with `MACH_RCV_INTERRUPT` and calls `abort()` when a signal interrupts it (`wasmtime-49.0.2/src/runtime/vm/sys/unix/machports.rs`, `handler_thread`). tokio's process driver handles SIGCHLD since T2, and `hd_cli` handles SIGINT (`ctrlc`). Any child exit or Ctrl-C that the kernel gave to that thread killed the process: the parity binary failed 2 runs in 16. `tests/child_signals.rs` routes SIGCHLD to that thread and aborted 30 runs in 30 | `wasmtime_config` sets `macos_use_mach_ports(false)`: guest faults use signal handlers, as on Linux, and no helper thread exists. The trap handler is process-wide, so the bare `Config` in `limits_tests.rs` sets it too. After: `child_signals` passes 30 in 30, the parity binary 16 in 16. `guard_page_fault_is_a_trap` checks that a linear-memory fault is still a trap. Cost: a Mach-port crash reporter such as Breakpad would see guest faults before wasmtime does and report them as crashes; the CLI links none |

@@ -9,7 +9,10 @@ const PAGE: u64 = 1 << 16;
 
 fn engine(custom_pages: bool, gc_initial: u64) -> Engine {
     let mut config = Config::new();
+    // The process-wide trap handler must match `wasmtime_config`'s, or
+    // whichever engine comes second panics.
     config
+        .macos_use_mach_ports(false)
         .collector(wasmtime::Collector::Copying)
         .gc_heap_initial_size(gc_initial)
         .wasm_custom_page_sizes(custom_pages);

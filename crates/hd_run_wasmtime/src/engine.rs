@@ -147,6 +147,12 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
         .collector(wasmtime::Collector::Copying)
         .gc_heap_initial_size(config.gc_heap_initial)
         .epoch_interruption(true)
+        // Guest faults use signal handlers on macOS too, as on Linux. The
+        // Mach-port handler thread aborts the process when any handled
+        // signal (tokio's SIGCHLD for `Process.run!`, Ctrl-C) lands on it
+        // (#160, `tests/child_signals.rs`). The trap handler is
+        // process-wide: every engine in the process must agree.
+        .macos_use_mach_ports(false)
         // A panic report lists every frame (cli.test.report.frame), not
         // wasmtime's default twenty. A frame takes at least 16 bytes of the
         // Wasm stack (a return address and a frame pointer), so this bound

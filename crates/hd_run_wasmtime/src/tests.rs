@@ -396,3 +396,68 @@ fn refuses_what_is_not_wasm_and_imports_not_on_wasmtime() {
         "{msg}"
     );
 }
+
+/// A load past the end of linear memory hits a guard page. The trap
+/// handler (signals on every Unix, #160) turns the fault into the
+/// `memory access out of bounds` trap; the process survives.
+#[test]
+fn guard_page_fault_is_a_trap() {
+    use wasm_encoder::{
+        CodeSection, ExportKind, ExportSection, Function, FunctionSection, Instruction as I,
+        MemArg, MemorySection, MemoryType, Module as Wasm, TypeSection, ValType,
+    };
+
+    let mut types = TypeSection::new();
+    types.ty().function([], []);
+    types.ty().function([ValType::I32], [ValType::I32]);
+    let mut functions = FunctionSection::new();
+    functions.function(0).function(1);
+    let mut memory = MemorySection::new();
+    memory.memory(MemoryType {
+        minimum: 1,
+        maximum: Some(1),
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    });
+    let mut exports = ExportSection::new();
+    exports.export("hd.x", ExportKind::Memory, 0);
+    exports.export("hd.init", ExportKind::Func, 0);
+    exports.export("hd.poll", ExportKind::Func, 1);
+    let mut init = Function::new([]);
+    init.instruction(&I::I32Const(1 << 20))
+        .instruction(&I::I32Load(MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: 0,
+        }))
+        .instruction(&I::Drop)
+        .instruction(&I::End);
+    let mut poll = Function::new([]);
+    poll.instruction(&I::I32Const(0)).instruction(&I::End);
+    let mut code = CodeSection::new();
+    code.function(&init).function(&poll);
+    let mut wasm = Wasm::new();
+    wasm.section(&types)
+        .section(&functions)
+        .section(&memory)
+        .section(&exports)
+        .section(&code);
+    let ran = crate::run_captured(
+        EngineConfig::default(),
+        &wasm.finish(),
+        &hd_run::HostSetup {
+            providers: Vec::new(),
+            grants: hd_run::Grants::default(),
+            limits: hd_run::Limits::default(),
+            args: Vec::new(),
+            program: "guard-page-fault".into(),
+        },
+    )
+    .expect("run");
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stderr),
+        "internal error: memory access out of bounds\n"
+    );
+    assert_eq!(ran.status, 3);
+}
