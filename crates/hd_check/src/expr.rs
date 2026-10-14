@@ -3503,11 +3503,6 @@ impl Ck<'_, '_> {
         };
         Ok((self.b.emit(Tag::ProviderGet, at, NONE, pt, n.index()), pt))
     }
-
-    /// Whether trait `a` has `b` among its supertraits.
-    pub(crate) fn trait_extends(&self, a: hd_base::DefId, b: hd_base::DefId, depth: u32) -> bool {
-        crate::body::trait_extends(self.cx.lookup, self.pool(), a, b, depth)
-    }
 }
 
 /// The source parts of a closure: a `fn(...)` expression's, or a trailing

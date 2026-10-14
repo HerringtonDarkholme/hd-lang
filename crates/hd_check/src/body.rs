@@ -587,6 +587,56 @@ pub(crate) fn trait_extends(
     })
 }
 
+/// The arguments `from[from_args]` inherits for transitive supertrait
+/// `to`: each step's supertrait parameters filled from the child's
+/// arguments, as `fill_trait_args` fills them, but with no `Self` to
+/// fill (`trait.dyn.widen`). `None` when `to` is no supertrait of `from`.
+pub(crate) fn supertrait_args(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    from: DefId,
+    from_args: TyList,
+    to: DefId,
+    depth: u32,
+) -> Option<TyList> {
+    if from == to {
+        return Some(from_args);
+    }
+    if depth > 16 {
+        return None;
+    }
+    let Some(ItemData::Trait(t)) = lookup.item(from).map(|i| &i.data) else {
+        return None;
+    };
+    let known = pool.list_items(from_args);
+    for s in &t.supers {
+        let TyData::TraitValue { def, args, .. } = pool.get(*s) else {
+            continue;
+        };
+        let filled = pool.list(
+            &pool
+                .list_items(args)
+                .iter()
+                .map(|a| {
+                    pool.subst(*a, &|p: ParamRef| {
+                        if p.owner != from || p.index == 0 {
+                            return None;
+                        }
+                        known.get(usize::from(p.index) - 1).copied()
+                    })
+                })
+                .collect::<Vec<_>>(),
+        );
+        if def == to {
+            return Some(filled);
+        }
+        if let Some(found) = supertrait_args(lookup, pool, def, filled, to, depth + 1) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 /// Whether `key` may not be a requirement key: `Inspectable` itself, or a
 /// trait with it among its supertraits (`req.key.inspectable`).
 pub(crate) fn is_inspectable_key(
@@ -1310,14 +1360,30 @@ impl Ck<'_, '_> {
             }
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
-        if let (TyData::TraitValue { def: to, .. }, TyData::TraitValue { def: from, .. }) =
-            (pool.get(ws), pool.get(gs))
+        if let (
+            TyData::TraitValue { def: to, .. },
+            TyData::TraitValue {
+                def: from,
+                args: from_args,
+                ..
+            },
+        ) = (pool.get(ws), pool.get(gs))
             && to != from
-            && self.trait_extends(from, to, 0)
+            && let Some(widened) = supertrait_args(self.cx.lookup, pool, from, from_args, to, 0)
         {
-            return self
-                .b
-                .coerce(Coercion::Supertrait, NONE, r, want, n.index());
+            // The widening holds only when the inherited supertrait
+            // arguments fit the target's (`trait.dyn.widen`); otherwise
+            // the value reports below, as a mismatch.
+            let widened = pool.intern_ty(&TyData::TraitValue {
+                def: to,
+                args: widened,
+                bindings: vec![],
+            });
+            if self.can_unify(widened, ws) {
+                return self
+                    .b
+                    .coerce(Coercion::Supertrait, NONE, r, want, n.index());
+            }
         }
         if let TyData::TraitValue { def, args, .. } = pool.get(ws)
             && !open
