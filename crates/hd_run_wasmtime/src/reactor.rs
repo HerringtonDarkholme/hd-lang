@@ -76,7 +76,14 @@ pub struct Op {
     /// An offloaded operation's task, until it delivers: aborted when the
     /// operation ends first.
     task: Option<Task>,
+    /// The resource whose handle this operation is on, so closing it can
+    /// end its pending operations (`dispose_owned`).
+    owner: Option<Owner>,
 }
+
+/// A resource that owns pending operations: the capability's name and the
+/// resource's handle.
+pub type Owner = (&'static str, i64);
 
 /// An offloaded operation's running task.
 struct Task {
@@ -214,6 +221,7 @@ impl Reactor {
                 work,
                 completed: false,
                 task: None,
+                owner: None,
             },
         );
         h
@@ -261,8 +269,19 @@ impl Reactor {
     where
         F: Future<Output = Done> + Send + 'static,
     {
+        self.offload_for(None, work)
+    }
+
+    /// `offload` for an operation on the resource `owner`.
+    pub fn offload_for<F>(&mut self, owner: Option<Owner>, work: F) -> Result<i32, String>
+    where
+        F: Future<Output = Done> + Send + 'static,
+    {
         let runtime = crate::io_runtime::handle()?;
         let h = self.start(None, Work::Offloaded(None));
+        if let Some(op) = self.ops.get_mut(&h) {
+            op.owner = owner;
+        }
         let inbox = Arc::clone(&self.inbox);
         let (sender, ended) = channel();
         let task = runtime.spawn(Tracked {
@@ -503,6 +522,42 @@ impl Reactor {
             }
         }
         Some(op)
+    }
+
+    /// Completes every offloaded operation on `resource` that the program has
+    /// not finished with the result `done` makes: each task is aborted and
+    /// its work dropped before this returns, so whatever the work held (a
+    /// socket) is released. A result a task delivered and the program has
+    /// not taken is replaced.
+    pub fn dispose_owned(&mut self, resource: Owner, mut done: impl FnMut() -> Done) {
+        let ending: Vec<i32> = self
+            .ops
+            .iter()
+            .filter(|(_, op)| op.owner == Some(resource))
+            .map(|(h, _)| *h)
+            .collect();
+        for h in &ending {
+            if let Some(task) = self.ops.get(h).and_then(|op| op.task.as_ref()) {
+                task.abort();
+                task.ended();
+            }
+        }
+        let mut queue = self
+            .inbox
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        queue.done.retain(|(h, _)| !ending.contains(h));
+        drop(queue);
+        for h in ending {
+            if let Some(op) = self.ops.get_mut(&h) {
+                op.task = None;
+                op.work = Work::Offloaded(Some(done()));
+                if !op.completed {
+                    self.ready.push((now_ns(), h));
+                }
+            }
+        }
     }
 
     /// Ends every operation, as `abort` ends one: a session's input that

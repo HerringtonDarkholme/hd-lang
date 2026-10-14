@@ -68,11 +68,11 @@ impl Net {
     ) -> wasmtime::Result<Started> {
         Ok(match self.client.start(method, params, bytes, grants)? {
             Start::Ready(e) => Started::Ready(e),
-            Start::Run(job) => Started::Pending(
-                self.reactor
-                    .offload(async move { Done::Net(job.run().await) })
-                    .unwrap(),
-            ),
+            Start::Closed { reply, handle } => {
+                super::ops::dispose(&mut self.reactor, handle);
+                Started::Ready(reply)
+            }
+            Start::Run(job) => Started::Pending(job.offload(&mut self.reactor).unwrap()),
         })
     }
 

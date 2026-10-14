@@ -25,14 +25,19 @@ enum Entry {
     Stream(Arc<Stream>),
     Listener(Arc<tokio::net::TcpListener>),
     Udp(Arc<Udp>),
-    /// Closed, so every later operation is `Disposed`. A stream keeps its
-    /// socket, with only its write half shut, until the instance ends.
-    Closed(Option<Arc<Stream>>),
+    /// Closed, so every later operation is `Disposed`. Its socket is gone.
+    Closed,
 }
 
 /// What a `.start` does: complete at once, or wait for `Job`.
 pub(crate) enum Start {
     Ready(Enc),
+    /// `close` of socket `handle`, answered by `reply`: the caller then
+    /// ends the operations pending on the handle (`ops::dispose`).
+    Closed {
+        reply: Enc,
+        handle: i64,
+    },
     Run(Job),
 }
 
@@ -72,7 +77,7 @@ impl Client {
     /// aborted task still holds it.
     pub(crate) fn stop(&mut self) {
         for entry in self.handles.values() {
-            if let Entry::Stream(stream) | Entry::Closed(Some(stream)) = entry {
+            if let Entry::Stream(stream) = entry {
                 stream.shutdown(Shutdown::Both);
             }
         }
@@ -104,7 +109,7 @@ impl Client {
         let entry = if resource {
             match self.handles.get(&scalar(0)?) {
                 None => return ready(Outcome::Unknown),
-                Some(Entry::Closed(_)) => return ready(Outcome::Disposed),
+                Some(Entry::Closed) => return ready(Outcome::Disposed),
                 Some(entry) => Some(entry),
             }
         } else {
@@ -171,12 +176,14 @@ impl Client {
                 }
                 Job::Write {
                     stream: Arc::clone(stream),
+                    handle: scalar(0)?,
                     bytes: d.bytes()?.to_vec(),
                 }
             }
-            ("TcpListener.accept", Some(Entry::Listener(listener))) => {
-                Job::Accept(Arc::clone(listener))
-            }
+            ("TcpListener.accept", Some(Entry::Listener(listener))) => Job::Accept {
+                listener: Arc::clone(listener),
+                handle: scalar(0)?,
+            },
             ("UdpSocket.send_to", Some(entry)) => {
                 let host = d.str()?;
                 let bytes = d.bytes()?.to_vec();
@@ -190,6 +197,7 @@ impl Client {
                 };
                 Job::Send {
                     socket: Arc::clone(socket),
+                    handle: scalar(0)?,
                     host,
                     port,
                     bytes,
@@ -208,8 +216,12 @@ impl Client {
                 }
             }
             ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
-                self.close(scalar(0)?);
-                return ready(Outcome::Ok(Value::None));
+                let handle = scalar(0)?;
+                self.close(handle);
+                return Ok(Start::Closed {
+                    reply: encode(Outcome::Ok(Value::None), true)?,
+                    handle,
+                });
             }
             (
                 "TcpStream.read" | "TcpStream.write" | "TcpListener.accept" | "UdpSocket.receive",
@@ -220,18 +232,15 @@ impl Client {
         Ok(Start::Run(job))
     }
 
-    /// `close` keeps a stream's socket and shuts only its write half; a
-    /// listener's or a UDP socket's is dropped.
+    /// `close` shuts a stream's both directions and drops the handle's
+    /// socket from the table; an operation still pending holds the last
+    /// reference until the caller ends it, so the descriptor goes then
+    /// (`std-net.close.release`).
     fn close(&mut self, handle: i64) {
-        let closed = match self.handles.remove(&handle) {
-            Some(Entry::Stream(stream)) => {
-                stream.shutdown(Shutdown::Write);
-                Some(stream)
-            }
-            Some(Entry::Closed(stream)) => stream,
-            _ => None,
-        };
-        self.handles.insert(handle, Entry::Closed(closed));
+        if let Some(Entry::Stream(stream)) = self.handles.get(&handle) {
+            stream.shutdown(Shutdown::Both);
+        }
+        self.handles.insert(handle, Entry::Closed);
     }
 
     /// The `.finish` of a completed operation: a new socket gets its handle
@@ -240,6 +249,7 @@ impl Client {
         let outcome = match done.result {
             Err(error) => Outcome::Error(error),
             Ok(Got::None) => Outcome::Ok(Value::None),
+            Ok(Got::Disposed) => Outcome::Disposed,
             Ok(Got::Addresses(addresses)) => Outcome::Ok(Value::Addresses(addresses)),
             Ok(Got::Opened(opened)) => Outcome::Ok(Value::Handle(self.open(opened))),
             Ok(Got::Bytes { bytes, .. }) => Outcome::Ok(Value::Bytes(bytes)),
@@ -356,6 +366,7 @@ fn encode(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
 
 #[cfg(test)]
 mod tests {
+    use super::Entry;
     use crate::codec::{Dec, Enc};
     use crate::host::Stop;
     use crate::net::test_support::{Net, Started, host_args, result_bytes};
@@ -363,6 +374,7 @@ mod tests {
     use socket2::Socket;
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, TcpStream, UdpSocket};
+    use std::sync::Arc;
     use std::sync::mpsc;
     use std::thread;
     use std::time::{Duration, Instant};
@@ -695,6 +707,110 @@ mod tests {
         net.client.stop();
         assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
         net.abort(waiting);
+    }
+
+    fn disposed() -> &'static [u8] {
+        &[1, 1]
+    }
+
+    /// `std-net.close.release` and `std-net.close.pending`: `close` ends a
+    /// waiting read with `Disposed`, drops the socket at once, and the peer
+    /// reads the end at once.
+    #[test]
+    fn close_ends_a_waiting_read_and_releases_the_socket() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut net = Net::new();
+        let handle = net.opened("connect", listener.local_addr().unwrap().port());
+        let (mut peer, _) = listener.accept().unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let socket = match net.client.handles.get(&handle) {
+            Some(Entry::Stream(stream)) => Arc::downgrade(stream),
+            _ => panic!("a stream handle"),
+        };
+        let waiting = pending(read(&mut net, handle, 1));
+        let close = net
+            .start("TcpStream.close", &[handle], &[], &Grants::default())
+            .unwrap();
+        assert_eq!(ready(close).done(), &[0]);
+        assert!(socket.upgrade().is_none(), "the socket is dropped");
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+        net.wait_for(waiting);
+        assert_eq!(net.finish(waiting).done(), disposed());
+        assert!(!net.reactor.waiting());
+        for method in ["TcpStream.read", "TcpStream.close"] {
+            assert_eq!(
+                net.call(method, &[handle, 1], &[], &Grants::default())
+                    .unwrap()
+                    .done(),
+                disposed()
+            );
+        }
+    }
+
+    /// A read and a write both pending, and a read that completed before
+    /// its `.finish`, all end with `Disposed`.
+    #[test]
+    fn close_disposes_every_operation_not_yet_finished() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut net = Net::new();
+        let handle = net.opened("connect", listener.local_addr().unwrap().port());
+        let (mut peer, _) = listener.accept().unwrap();
+        let completed = pending(read(&mut net, handle, 8));
+        peer.write_all(b"abc").unwrap();
+        net.wait_for(completed);
+        let waiting = pending(read(&mut net, handle, 8));
+        net.call("TcpStream.close", &[handle], &[], &Grants::default())
+            .unwrap();
+        for op in [completed, waiting] {
+            net.wait_for(op);
+            assert_eq!(net.finish(op).done(), disposed());
+        }
+        assert!(!net.reactor.waiting());
+    }
+
+    /// A closed listener ends its waiting accept with `Disposed` and frees
+    /// its port, so a new `listen!` on it succeeds.
+    #[test]
+    fn close_ends_a_waiting_accept_and_frees_the_port() {
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let mut net = Net::new();
+        let listener = net.opened("listen", port);
+        let accept = pending(
+            net.start("TcpListener.accept", &[listener], &[], &Grants::default())
+                .unwrap(),
+        );
+        net.call("TcpListener.close", &[listener], &[], &Grants::default())
+            .unwrap();
+        net.wait_for(accept);
+        assert_eq!(net.finish(accept).done(), disposed());
+        assert!(TcpStream::connect(("127.0.0.1", port)).is_err());
+        let again = net.opened("listen", port);
+        assert_ne!(again, listener);
+        net.client.stop();
+    }
+
+    #[test]
+    fn close_ends_a_waiting_receive_and_frees_the_port() {
+        let mut net = Net::new();
+        let socket = net.opened("bind_udp", 0);
+        let port = match net.client.handles.get(&socket) {
+            Some(Entry::Udp(udp)) => udp.socket.local_addr().unwrap().port(),
+            _ => panic!("a udp handle"),
+        };
+        let receive = pending(
+            net.start("UdpSocket.receive", &[socket, 8], &[], &Grants::default())
+                .unwrap(),
+        );
+        net.call("UdpSocket.close", &[socket], &[], &Grants::default())
+            .unwrap();
+        net.wait_for(receive);
+        assert_eq!(net.finish(receive).done(), disposed());
+        UdpSocket::bind(("127.0.0.1", port)).unwrap();
     }
 
     #[test]

@@ -13,6 +13,7 @@ use super::CHUNK;
 use super::client::NetError;
 use super::socket::{Bound, End, Stream, Udp, bind, connect_attempts, resolve, socket_error};
 use super::validate::ip_literal;
+use crate::reactor::Reactor;
 
 /// An operation that `.start` checked and that now waits.
 pub(crate) enum Job {
@@ -33,11 +34,16 @@ pub(crate) enum Job {
     },
     Write {
         stream: Arc<Stream>,
+        handle: i64,
         bytes: Vec<u8>,
     },
-    Accept(Arc<tokio::net::TcpListener>),
+    Accept {
+        listener: Arc<tokio::net::TcpListener>,
+        handle: i64,
+    },
     Send {
         socket: Arc<Udp>,
+        handle: i64,
         host: String,
         port: u16,
         bytes: Vec<u8>,
@@ -61,6 +67,9 @@ pub(crate) enum Got {
     Addresses(Vec<String>),
     /// A new socket, which `.finish` puts in the handle table.
     Opened(Opened),
+    /// The operation ended because its handle closed
+    /// (`std-net.close.pending`).
+    Disposed,
     /// A read's bytes from the stream with handle `handle`.
     Bytes {
         handle: i64,
@@ -82,12 +91,48 @@ pub(crate) enum Opened {
     Udp(Udp),
 }
 
+/// The owner name of a socket's pending operations in the reactor.
+const OWNER: &str = "Net";
+
+/// `close` of socket `handle`: every operation still pending on it ends
+/// with `Disposed`, and its task drops the socket it held
+/// (`std-net.close.pending`).
+pub(crate) fn dispose(reactor: &mut Reactor, handle: i64) {
+    reactor.dispose_owned((OWNER, handle), || {
+        crate::reactor::Done::Net(Done {
+            resource: true,
+            result: Ok(Got::Disposed),
+        })
+    });
+}
+
 impl Job {
     /// Whether the operation is a handle's.
     pub(crate) fn resource(&self) -> bool {
         !matches!(
             self,
             Job::Lookup(_) | Job::Connect { .. } | Job::Bind { .. }
+        )
+    }
+
+    /// The handle the operation is on, for `close` to find it.
+    fn handle(&self) -> Option<i64> {
+        match self {
+            Job::Lookup(_) | Job::Connect { .. } | Job::Bind { .. } => None,
+            Job::Read { handle, .. }
+            | Job::Write { handle, .. }
+            | Job::Accept { handle, .. }
+            | Job::Send { handle, .. }
+            | Job::Receive { handle, .. } => Some(*handle),
+        }
+    }
+
+    /// Runs the job as a task of the reactor, owned by its handle.
+    pub(crate) fn offload(self, reactor: &mut Reactor) -> Result<i32, String> {
+        let owner = self.handle().map(|handle| (OWNER, handle));
+        reactor.offload_for(
+            owner,
+            async move { crate::reactor::Done::Net(self.run().await) },
         )
     }
 
@@ -104,8 +149,8 @@ impl Job {
             } => read(&stream, max)
                 .await
                 .map(|bytes| Got::Bytes { handle, bytes }),
-            Job::Write { stream, bytes } => write(&stream, &bytes).await.map(|()| Got::None),
-            Job::Accept(listener) => match listener.accept().await {
+            Job::Write { stream, bytes, .. } => write(&stream, &bytes).await.map(|()| Got::None),
+            Job::Accept { listener, .. } => match listener.accept().await {
                 Ok((socket, _)) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
                 Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
             },
@@ -114,6 +159,7 @@ impl Job {
                 host,
                 port,
                 bytes,
+                ..
             } => send_to(&socket, &host, port, &bytes).await,
             Job::Receive {
                 socket,

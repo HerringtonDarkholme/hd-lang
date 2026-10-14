@@ -175,7 +175,8 @@ const ops = {
     };
   },
   close: ({ h }) => {
-    if (h.kind === "stream") h.socket.end();
+    // std-net.close.release: a full close of both directions.
+    if (h.kind === "stream") h.socket.destroy();
     else if (h.kind === "listener") h.server.close();
     else h.socket.close();
     h.closed = true;

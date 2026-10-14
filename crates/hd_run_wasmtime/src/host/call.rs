@@ -241,12 +241,13 @@ pub(crate) fn call(
             match host.net.start(method, &args, &b, &host.grants)? {
                 net::client::Start::Ready(e) if close => Ret::encoded(e),
                 net::client::Start::Ready(e) => Ret::ready(e)?,
+                net::client::Start::Closed { reply, handle } => {
+                    net::ops::dispose(&mut host.reactor, handle);
+                    Ret::encoded(reply)
+                }
                 net::client::Start::Run(job) => {
                     let resource = job.resource();
-                    match host
-                        .reactor
-                        .offload(async move { Done::Net(job.run().await) })
-                    {
+                    match job.offload(&mut host.reactor) {
                         Ok(h) => Ret::pair(1, h),
                         Err(error) => Ret::ready(net::client::not_run(&error, resource)?)?,
                     }
