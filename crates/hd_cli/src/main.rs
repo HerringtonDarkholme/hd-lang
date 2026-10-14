@@ -29,7 +29,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{BuildProfile, Clock, Executor, Goal, Host, Output};
+use hd_driver::{BuildProfile, Clock, Executor, Goal, Host, OptLevel, Output};
 use hd_run::{HostSetup, Outcome};
 
 use crate::report::Reporter;
@@ -325,20 +325,29 @@ pub(crate) fn build_goal_with(
     build_goal_in(
         program,
         goal,
-        (profile, profile == BuildProfile::Release),
+        (profile, level_of(profile == BuildProfile::Release)),
         doc_scopes,
         rep,
     )
 }
 
+/// The optimization level `--release` selects (`cli.profile.pipeline.one`).
+pub(crate) const fn level_of(release: bool) -> OptLevel {
+    if release {
+        OptLevel::Optimized
+    } else {
+        OptLevel::Dev
+    }
+}
+
 /// [`build_goal_with`], with the pipeline chosen apart from the profile:
 /// `hd test --release` builds checked and runs the optimized pipeline
-/// (`cli.profile.pipeline.one`). `profile_and_pipeline` is the build
-/// profile and whether the pipeline is the optimized one.
+/// (`cli.profile.pipeline.one`). `(profile, level)` is the build profile
+/// and the optimization level.
 pub(crate) fn build_goal_in(
     program: &disk::Program,
     goal: &Goal,
-    (profile, optimized): (BuildProfile, bool),
+    (profile, level): (BuildProfile, OptLevel),
     doc_scopes: bool,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
@@ -354,9 +363,14 @@ pub(crate) fn build_goal_in(
         clock: &clock,
         executor: executor(),
     };
+    // Every build path tunes for the default engine's target (`V8`) until
+    // job (c2) of opt-pipeline.md §6 passes in the engine of the run: `hd
+    // run`, `hd FILE`, `hd test` and its executables, and `hd build
+    // --engine`. All targets build the same bytes until job (d).
     let packages = hd_driver::Packages {
         build_profile: profile,
-        optimized,
+        target: hd_driver::EngineTarget::default(),
+        level,
         doc_scopes,
         ..program.packages()
     };
@@ -376,13 +390,17 @@ fn compile(
     profile: BuildProfile,
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
-    compile_in(program, (profile, profile == BuildProfile::Release), rep)
+    compile_in(
+        program,
+        (profile, level_of(profile == BuildProfile::Release)),
+        rep,
+    )
 }
 
 /// [`compile`], with the pipeline chosen apart from the profile.
 fn compile_in(
     program: &disk::Program,
-    pipeline: (BuildProfile, bool),
+    pipeline: (BuildProfile, OptLevel),
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
     let goal = Goal::Program {

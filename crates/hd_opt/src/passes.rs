@@ -4,7 +4,9 @@
 //! The other named passes are declared; their bodies report not
 //! implemented, except `liveness`, which suspension lowering owns.
 
-use hd_base::{DefId, Fuel, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{
+    DefId, EngineTarget, Fuel, Hash128, NotImplemented, OptLevel, StableHasher, Stage, StageResult,
+};
 use hd_mono::ProgramEnv;
 use hd_mono::plan::Source;
 use hd_tir::ir::{Body, Callee, Tag};
@@ -47,6 +49,35 @@ pub enum FactId {
     KnownCallees,
 }
 
+impl FactId {
+    /// Whether body-unit passes write the fact, before and during
+    /// collection, which reads it through `hd_mono::plan::BodyPlan`.
+    /// Every other fact is an instance fact, written at emission.
+    #[must_use]
+    pub const fn is_body(self) -> bool {
+        match self {
+            Self::ValueFlow | Self::KnownCallees | Self::ClosureSpec => true,
+            Self::UseCounts | Self::InlinePlan | Self::Liveness | Self::Escape => false,
+        }
+    }
+}
+
+/// A tuning knob a pass declares (opt-pipeline.md §2.1): its name and the
+/// inclusive range of values a pipeline may give it.
+pub struct Param {
+    pub name: &'static str,
+    pub min: u32,
+    pub max: u32,
+}
+
+/// A pipeline's value for one knob of one of its passes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Knob {
+    pub pass: &'static str,
+    pub name: &'static str,
+    pub value: u32,
+}
+
 /// What a pass sees: one instance.
 pub struct InstanceCx {
     pub gate: u8,
@@ -59,6 +90,20 @@ pub struct BodyCx<'a> {
     pub def: DefId,
     pub body: &'a Body,
     pub env: &'a dyn ProgramEnv,
+    /// The running pass's knobs, from the pipeline.
+    pub params: &'a [(&'static str, u32)],
+}
+
+impl BodyCx<'_> {
+    /// The value of the running pass's knob `name`. A validated pipeline
+    /// gives every declared knob a value.
+    #[must_use]
+    pub fn param(&self, name: &str) -> u32 {
+        self.params
+            .iter()
+            .find(|p| p.0 == name)
+            .map_or_else(|| panic!("knob `{name}` has no value"), |p| p.1)
+    }
 }
 
 /// The facts body-unit passes write for one body.
@@ -86,16 +131,6 @@ pub struct ClosureSpec {
     /// closure it creates; `None` when it may not be specialized.
     pub spec_params: Option<Vec<bool>>,
 }
-
-/// `closure_spec`'s bound on the bodies it specializes: at most this many
-/// TIR instructions, their sub-bodies included (closure-calls.md §3.1,
-/// owner Q2). Job (e) of opt-pipeline.md §6 makes it a pipeline knob.
-pub const SPEC_MAX_INSTS: usize = 64;
-
-/// `closure_spec`'s nesting bound, which the planner gives collection as
-/// `spec_depth`: a specialized instance requested from inside a
-/// specialized instance is the last (closure-calls.md §3.1).
-pub const SPEC_MAX_DEPTH: u32 = 2;
 
 /// The summary bits of `body` that body-unit passes gate on: a `Call`
 /// sets `HAS_CALL` and a `CallValue` sets `HAS_DYN_CALL`. Every other bit
@@ -136,6 +171,8 @@ pub struct PassSpec {
     pub gate: u8,
     pub required_by: Requirement,
     pub run: Run,
+    /// The knobs the pass reads; a pipeline holding it gives each a value.
+    pub params: &'static [Param],
 }
 
 /// A declared pass with no body yet changes nothing (tiering.md §6): it
@@ -197,8 +234,9 @@ fn devirt_known(
 ///
 /// - As a callee, the body's `spec_params` are the parameters it calls,
 ///   itself or in a closure it creates (`ValueFlow::called_under` sub 0).
-///   None for a body over [`SPEC_MAX_INSTS`], an intrinsic, a suspending
-///   function, or one that calls no parameter.
+///   None for a body over the `max_insts` knob (TIR instructions, their
+///   sub-bodies included; closure-calls.md §3.1, owner Q2), an intrinsic,
+///   a suspending function, or one that calls no parameter.
 /// - Per `Call` of an item, each argument's source: a value made in the
 ///   call's sub-body (`ValueFlow::made`) or a parameter passed on
 ///   unchanged (`ValueFlow::param`).
@@ -219,7 +257,8 @@ fn closure_spec(
     let n = flow.param_count();
     let at = |i: usize| u32::try_from(i).expect("insts");
     let mut spec = ClosureSpec::default();
-    if body.len() <= SPEC_MAX_INSTS && env.intrinsic(def).is_none() && !env.suspends(def) {
+    let max_insts = cx.param("max_insts") as usize;
+    if body.len() <= max_insts && env.intrinsic(def).is_none() && !env.suspends(def) {
         let called: Vec<bool> = (0..n)
             .map(|p| flow.called_under(u32::try_from(p).expect("params"), 0))
             .collect();
@@ -277,6 +316,9 @@ fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
 
 macro_rules! pass {
     ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident($run:expr)) => {
+        pass!($name, $level, [$($r),*], [$($w),*], $gate, $req, $unit($run), [])
+    };
+    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident($run:expr), [$($p:ident: $min:literal..=$max:literal),*]) => {
         PassSpec {
             name: $name,
             version: 1,
@@ -286,6 +328,7 @@ macro_rules! pass {
             gate: $gate,
             required_by: Requirement::$req,
             run: Run::$unit($run),
+            params: &[$(Param { name: stringify!($p), min: $min, max: $max }),*],
         }
     };
 }
@@ -334,7 +377,8 @@ pub static PASSES: &[PassSpec] = &[
         [ClosureSpec],
         gate::HAS_CALL | gate::HAS_DYN_CALL,
         Optional,
-        Body(closure_spec)
+        Body(closure_spec),
+        [max_insts: 1..=4096, max_depth: 1..=8]
     ),
     pass!(
         "escape",
@@ -365,17 +409,45 @@ pub static PASSES: &[PassSpec] = &[
     ),
 ];
 
-/// A pipeline (§6.3): TIR passes per instance, link passes per program.
+/// A pipeline (§6.3): body and instance passes in order, link passes per
+/// program, and the values of their passes' knobs.
 pub struct Pipeline {
+    /// A label for messages; not content, so never hashed.
     pub name: &'static str,
     pub tir: &'static [&'static str],
     pub link: &'static [&'static str],
+    pub knobs: &'static [Knob],
+}
+
+impl Pipeline {
+    /// The value this pipeline gives knob `name` of pass `pass`.
+    #[must_use]
+    pub fn knob(&self, pass: &str, name: &str) -> Option<u32> {
+        self.knobs
+            .iter()
+            .find(|k| k.pass == pass && k.name == name)
+            .map(|k| k.value)
+    }
+
+    /// Whether `self` and `other` hold the same passes in the same order
+    /// with the same knob values: what the pipeline hash covers.
+    #[must_use]
+    pub fn same_content(&self, other: &Self) -> bool {
+        self.tir == other.tir
+            && self.link == other.link
+            && self.tir.iter().filter_map(|n| spec(n)).all(|s| {
+                s.params
+                    .iter()
+                    .all(|p| self.knob(s.name, p.name) == other.knob(s.name, p.name))
+            })
+    }
 }
 
 pub static DEV: Pipeline = Pipeline {
     name: "dev",
     tir: &["liveness"],
     link: &["fold"],
+    knobs: &[],
 };
 pub static OPTIMIZED: Pipeline = Pipeline {
     name: "optimized",
@@ -390,18 +462,93 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "liveness",
     ],
     link: &["drop_dead", "fold", "leb_compact", "compact_names"],
+    // `closure_spec`'s bounds (closure-calls.md §3.1): bodies of at most
+    // 64 TIR instructions, and a specialized instance requested from
+    // inside a specialized instance is the last. Job (e) of
+    // opt-pipeline.md §6 measures them per target.
+    knobs: &[
+        Knob {
+            pass: "closure_spec",
+            name: "max_insts",
+            value: 64,
+        },
+        Knob {
+            pass: "closure_spec",
+            name: "max_depth",
+            value: 2,
+        },
+    ],
 };
+
+/// The pipeline of each (target, level) (opt-pipeline.md §3.1). The match
+/// is total with no wildcard, so a new target or level does not compile
+/// until it has a row (validator check 1). Every target has the same rows
+/// today.
+#[must_use]
+pub const fn pipeline(target: EngineTarget, level: OptLevel) -> &'static Pipeline {
+    match (target, level) {
+        (EngineTarget::V8 | EngineTarget::Wasmtime | EngineTarget::Browser, OptLevel::Dev) => &DEV,
+        (
+            EngineTarget::V8 | EngineTarget::Wasmtime | EngineTarget::Browser,
+            OptLevel::Optimized,
+        ) => &OPTIMIZED,
+    }
+}
 
 pub(crate) fn spec(name: &str) -> Option<&'static PassSpec> {
     PASSES.iter().find(|p| p.name == name)
 }
 
-/// The startup validator (§6.2): each read is produced earlier, and every
-/// required pass is present. Returns the pipeline hash on success.
-pub fn validate(p: &Pipeline) -> Result<hd_base::Hash128, String> {
+/// Validator check 3: every knob belongs to a pass of the pipeline that
+/// declares it, lies within the declared range, and every declared knob of
+/// every pass present has exactly one value.
+fn check_knobs(p: &Pipeline) -> Result<(), String> {
+    for k in p.knobs {
+        if !p.tir.contains(&k.pass) {
+            return Err(format!("knob `{}.{}` for an absent pass", k.pass, k.name));
+        }
+        let s = spec(k.pass).ok_or_else(|| format!("unknown pass `{}`", k.pass))?;
+        let param = s
+            .params
+            .iter()
+            .find(|d| d.name == k.name)
+            .ok_or_else(|| format!("pass `{}` declares no knob `{}`", k.pass, k.name))?;
+        if !(param.min..=param.max).contains(&k.value) {
+            return Err(format!(
+                "knob `{}.{}` = {} is outside {}..={}",
+                k.pass, k.name, k.value, param.min, param.max
+            ));
+        }
+    }
+    for s in p.tir.iter().filter_map(|n| spec(n)) {
+        for d in s.params {
+            let n = p
+                .knobs
+                .iter()
+                .filter(|k| k.pass == s.name && k.name == d.name)
+                .count();
+            if n != 1 {
+                return Err(format!(
+                    "knob `{}.{}` has {n} values; it needs one",
+                    s.name, d.name
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The startup validator (§6.2, opt-pipeline.md §3.2): each read is
+/// produced earlier, every required pass is present, a body-unit pass
+/// reads only body facts and only body-unit passes write them (check 2),
+/// and the knobs are complete and in range (check 3). Returns the pass
+/// hash on success (opt-pipeline.md §3.3): each pass's name, version and
+/// knob values in order, then the link passes. The pipeline's name and
+/// the target it serves are not hashed, only content.
+pub fn validate(p: &Pipeline) -> Result<Hash128, String> {
     let mut produced: Vec<FactId> = Vec::new();
     let mut h = StableHasher::new("pipeline");
-    h.str(p.name);
+    h.u32(u32::try_from(p.tir.len()).map_err(|_| "too many passes")?);
     for name in p.tir {
         let s = spec(name).ok_or_else(|| format!("unknown pass `{name}`"))?;
         if let Some(missing) = s.reads.iter().find(|r| !produced.contains(r)) {
@@ -409,9 +556,20 @@ pub fn validate(p: &Pipeline) -> Result<hd_base::Hash128, String> {
                 "pass `{name}` reads {missing:?} before any pass writes it"
             ));
         }
+        let body = matches!(s.run, Run::Body(_));
+        if body && let Some(f) = s.reads.iter().find(|f| !f.is_body()) {
+            return Err(format!("body pass `{name}` reads the instance fact {f:?}"));
+        }
+        if !body && let Some(f) = s.writes.iter().find(|f| f.is_body()) {
+            return Err(format!("instance pass `{name}` writes the body fact {f:?}"));
+        }
         produced.extend_from_slice(s.writes);
         h.str(s.name);
         h.u32(s.version);
+        for d in s.params {
+            h.str(d.name);
+            h.u32(p.knob(s.name, d.name).unwrap_or_default());
+        }
     }
     for s in PASSES
         .iter()
@@ -421,13 +579,30 @@ pub fn validate(p: &Pipeline) -> Result<hd_base::Hash128, String> {
             return Err(format!("required pass `{}` missing", s.name));
         }
     }
+    check_knobs(p)?;
+    h.u32(u32::try_from(p.link.len()).map_err(|_| "too many link passes")?);
+    for name in p.link {
+        h.str(name);
+    }
     Ok(h.finish())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DEV, InstanceCx, OPTIMIZED, PASSES, PassOutcome, Pipeline, Run, validate};
-    use hd_base::Fuel;
+    use super::{
+        DEV, InstanceCx, Knob, OPTIMIZED, PASSES, PassOutcome, Pipeline, Run, pipeline, validate,
+    };
+    use hd_base::{EngineTarget, Fuel, OptLevel};
+
+    /// `OPTIMIZED` with other knob values.
+    fn optimized_with(knobs: &'static [Knob]) -> Pipeline {
+        Pipeline {
+            name: "optimized",
+            tir: OPTIMIZED.tir,
+            link: OPTIMIZED.link,
+            knobs,
+        }
+    }
 
     #[test]
     fn declared_passes_without_a_body_are_skipped_not_errors() {
@@ -450,26 +625,125 @@ mod tests {
             name: "bad",
             tir: &["escape", "liveness"],
             link: &[],
+            knobs: &[],
         };
         assert!(validate(&bad).is_err());
         let missing = Pipeline {
             name: "missing",
             tir: &[],
             link: &[],
+            knobs: &[],
         };
         assert!(validate(&missing).is_err());
     }
 
+    /// Check 2: an instance fact is no input to a body pass.
+    #[test]
+    fn a_body_pass_reading_an_instance_fact_fails() {
+        for p in PASSES.iter().filter(|p| matches!(p.run, Run::Body(_))) {
+            assert!(p.reads.iter().all(|f| f.is_body()), "{}", p.name);
+        }
+        for p in PASSES.iter().filter(|p| matches!(p.run, Run::Instance(_))) {
+            assert!(p.writes.iter().all(|f| !f.is_body()), "{}", p.name);
+        }
+    }
+
+    /// Check 3: knobs are complete, known and in range.
+    #[test]
+    fn knobs_out_of_range_missing_or_unknown_fail() {
+        let zero_depth = optimized_with(&[
+            Knob {
+                pass: "closure_spec",
+                name: "max_insts",
+                value: 64,
+            },
+            Knob {
+                pass: "closure_spec",
+                name: "max_depth",
+                value: 0,
+            },
+        ]);
+        let err = validate(&zero_depth).expect_err("max_depth 0");
+        assert!(err.contains("outside"), "{err}");
+        let missing = optimized_with(&[Knob {
+            pass: "closure_spec",
+            name: "max_insts",
+            value: 64,
+        }]);
+        let err = validate(&missing).expect_err("no max_depth");
+        assert!(err.contains("needs one"), "{err}");
+        let unknown = Pipeline {
+            name: "dev",
+            tir: DEV.tir,
+            link: DEV.link,
+            knobs: &[Knob {
+                pass: "liveness",
+                name: "max_insts",
+                value: 1,
+            }],
+        };
+        let err = validate(&unknown).expect_err("liveness has no knob");
+        assert!(err.contains("declares no knob"), "{err}");
+        let absent = Pipeline {
+            name: "dev",
+            tir: DEV.tir,
+            link: DEV.link,
+            knobs: &[Knob {
+                pass: "closure_spec",
+                name: "max_insts",
+                value: 64,
+            }],
+        };
+        let err = validate(&absent).expect_err("closure_spec is absent");
+        assert!(err.contains("absent pass"), "{err}");
+    }
+
+    /// The pass hash is content: a knob value changes it, the name does not.
+    #[test]
+    fn the_pass_hash_covers_knobs_not_the_name() {
+        let renamed = Pipeline {
+            name: "other",
+            ..optimized_with(OPTIMIZED.knobs)
+        };
+        assert!(renamed.same_content(&OPTIMIZED));
+        assert_eq!(validate(&renamed), validate(&OPTIMIZED));
+        let wider = optimized_with(&[
+            Knob {
+                pass: "closure_spec",
+                name: "max_insts",
+                value: 128,
+            },
+            Knob {
+                pass: "closure_spec",
+                name: "max_depth",
+                value: 2,
+            },
+        ]);
+        assert!(!wider.same_content(&OPTIMIZED));
+        assert_ne!(validate(&wider), validate(&OPTIMIZED));
+    }
+
+    #[test]
+    fn every_target_has_a_valid_row_per_level() {
+        for target in EngineTarget::ALL {
+            assert_eq!(pipeline(target, OptLevel::Dev).name, DEV.name);
+            assert_eq!(pipeline(target, OptLevel::Optimized).name, OPTIMIZED.name);
+        }
+    }
+
+    /// A change to these values changes every code key. Job (c1) changed
+    /// both: the hash dropped the pipeline name and gained the knob values
+    /// and the link passes.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
         let optimized = validate(&OPTIMIZED).expect("optimized validates").0;
         assert_eq!(
-            dev, 237_331_321_808_658_408_736_501_902_528_458_987_524,
+            dev, 226_259_624_280_722_390_681_558_611_773_950_027_154,
             "dev"
         );
         assert_eq!(
-            optimized, 298_124_435_747_538_449_458_102_683_681_946_358_977,
+            optimized, 330_691_483_972_706_326_208_015_789_976_348_292_894,
             "optimized"
         );
     }

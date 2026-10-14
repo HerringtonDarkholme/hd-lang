@@ -18,8 +18,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
-pub use hd_base::BuildProfile;
 use hd_base::wire::{Reader, Writer};
+pub use hd_base::{BuildProfile, EngineTarget, OptLevel};
 use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
@@ -48,6 +48,7 @@ use hd_wasm::Code as WasmCode;
 
 pub mod bench;
 pub mod diagnostics;
+mod pipeline;
 mod positions;
 mod report;
 
@@ -1128,11 +1129,17 @@ pub struct Packages<'a> {
     /// `cli.profile.release`). Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
-    /// Whether the optimized pipeline (`hd_opt::passes::OPTIMIZED`) runs instead of
-    /// the dev one (`cli.profile.pipeline.one`). `--release` selects it for
-    /// a program, and `hd test --release` for a test run, whose build
-    /// profile stays checked. It is part of every code key.
-    pub optimized: bool,
+    /// The engine the build is tuned for (opt-pipeline.md §5). With
+    /// `level` it selects the pipeline (`hd_opt::passes::pipeline`) and the
+    /// lowering (`hd_wasm::Lowering::of`), whose content, not the target's
+    /// name, is part of every code key. The default is the default engine's
+    /// target, `V8` (Node).
+    pub target: EngineTarget,
+    /// Whether the optimized pipeline runs instead of the dev one
+    /// (`cli.profile.pipeline.one`). `--release` selects it for a program,
+    /// and `hd test --release` for a test run, whose build profile stays
+    /// checked.
+    pub level: OptLevel,
     /// Whether the output holds each root-package module's scope
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
@@ -1420,13 +1427,11 @@ fn build_packages_inner(
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
-    let passes = if packages.optimized {
-        &hd_opt::passes::OPTIMIZED
-    } else {
-        &hd_opt::passes::DEV
-    };
-    let pipeline = hd_opt::passes::validate(passes).unwrap_or_default();
-    let planner = hd_opt::planner::PipelinePlanner::new(passes);
+    let pipeline = pipeline::key(packages.target, packages.level);
+    let planner = hd_opt::planner::PipelinePlanner::new(hd_opt::passes::pipeline(
+        packages.target,
+        packages.level,
+    ));
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
     let profile = packages.profile.clone().unwrap_or_else(|| {

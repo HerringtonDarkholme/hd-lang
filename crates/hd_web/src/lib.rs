@@ -159,6 +159,8 @@ impl Session {
         }
         // One file outside the `src` layout is a single-file program, as
         // `hd FILE.hd` builds a file with no `hd.toml` above it.
+        // The target is the default engine's (`V8`) until job (c2) of
+        // opt-pipeline.md §6 sets `Browser` here and for REPL inputs.
         let packages = Packages {
             single_file: count == 1 && Root::of(entry).0 == Root::Flat,
             ..Packages::default()

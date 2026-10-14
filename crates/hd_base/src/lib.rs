@@ -92,6 +92,41 @@ impl BuildProfile {
     }
 }
 
+/// The engine a build is tuned for (opt-pipeline.md §1.1). Every target
+/// emits standard Wasm GC that every engine runs; a target only tunes
+/// speed. It is not the output format (`wasm32-gc`), and its name is in no
+/// key: only the pipeline content it selects is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum EngineTarget {
+    /// V8, as Node runs it: the default engine's target.
+    #[default]
+    V8,
+    /// Wasmtime (Cranelift).
+    Wasmtime,
+    /// A web browser's engine: the playground and the web compiler.
+    Browser,
+}
+
+impl EngineTarget {
+    /// Every target, for tables that must cover them all.
+    pub const ALL: [Self; 3] = [Self::V8, Self::Wasmtime, Self::Browser];
+}
+
+/// How much a build optimizes (opt-pipeline.md §3.1): the dev pipeline, or
+/// the optimized one that `--release` selects. It is apart from the
+/// [`BuildProfile`]: `hd test --release` builds checked and optimized.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum OptLevel {
+    #[default]
+    Dev,
+    Optimized,
+}
+
+impl OptLevel {
+    /// Every level, for tables that must cover them all.
+    pub const ALL: [Self; 2] = [Self::Dev, Self::Optimized];
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Span {
     pub file: FileId,

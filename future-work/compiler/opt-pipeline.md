@@ -27,16 +27,32 @@ E1 and their measurements), [codegen.md](codegen.md) §12 to §13, and
 | Engine choice | `crates/hd_cli/src/engine.rs` `from_env` (:264), `run(kind, release, ..)` (:272); `hd_run_wasmtime` `EngineConfig::pipeline(release)` (`engine.rs` :33) | Chosen after compile, used only to run. `hd build` takes no `--engine` |
 | Conformance | `HD_CONFORMANCE_PIPELINE` (`crates/hd_driver/tests/conformance.rs` :622), `HD_CONFORMANCE_ENGINE` modes (:587) | Compare mode builds once and runs that build on both engines |
 
-Status: jobs (a), (b1) and (b2) of §6 are done, so the A1, A2 and
+Status: jobs (a), (b1), (b2) and (c1) of §6 are done, so the A1, A2 and
 pipeline-choice rows above describe the code before them. A1 and A2 are
 now the body passes `value_flow`, `devirt_known` and `closure_spec` in
 `hd_opt` (`passes.rs`, `planner.rs`); collection applies their plans by
-rules 1 to 4 of §2.2 and reads no pipeline flag. Until job (e), the
-`closure_spec` bounds are the constants `SPEC_MAX_INSTS` (64) and
-`SPEC_MAX_DEPTH` (2) in `hd_opt::passes`; `PipelinePlanner` gives the
-depth to collection as `spec_depth` (0 for a pipeline without
-`closure_spec`). The build's `Counters::body_passes` counts body-pass runs:
-0 in dev, which a test in `known_closure_calls.rs` checks.
+rules 1 to 4 of §2.2 and reads no pipeline flag. The build's
+`Counters::body_passes` counts body-pass runs: 0 in dev, which a test in
+`known_closure_calls.rs` checks.
+
+After (c1), `hd_base` has `EngineTarget` and `OptLevel`, and
+`Packages` has `target` and `level` instead of `optimized`.
+`hd_opt::passes::pipeline(target, level)` is the §3.1 table as a total
+`match`; every target has the dev row `DEV` and the optimized row
+`OPTIMIZED`. `hd_wasm::Lowering::of(target)` has one field,
+`closure_code`, abstract for every target; nothing reads it yet, since
+job (d) threads it into `Layouts`. `closure_spec`'s bounds are now
+pipeline knobs (`PassSpec::params` declares them with their ranges,
+`Pipeline::knobs` gives the values): `max_insts` 64 and `max_depth` 2 in
+`OPTIMIZED`. `PipelinePlanner` reads them, and gives `max_depth` to
+collection as `spec_depth` (0 for a pipeline without `closure_spec`).
+Job (e) keeps only the measurement and the choice of values. The
+pipeline key is `hd_driver::pipeline::key`: the pass hash (names,
+versions and knob values of the passes, then the link passes; no
+pipeline or target name) combined with `Lowering::hash`. Validator checks
+1 to 4 of §3.2 run once per process and in unit tests. Every build path
+still tunes for the default engine's target, `V8`; each such path has a
+note for job (c2).
 
 ## 1. Crates And Boundaries
 

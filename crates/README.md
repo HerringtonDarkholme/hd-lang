@@ -15,7 +15,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 
 | Crate | Role and direct workspace dependencies | Design |
 | --- | --- | --- |
-| `hd_base` | IDs, spans, hashes, fuel, and shared low-level values; leaf crate | [Core data structures](../future-work/compiler/data-structures.md#3-core-data-structures) |
+| `hd_base` | IDs, spans, hashes, fuel, and shared low-level values such as the build profile, engine target and optimization level; leaf crate | [Core data structures](../future-work/compiler/data-structures.md#3-core-data-structures) |
 | `hd_intern` | Interned strings and stable paths; `hd_base` | [Interners](../future-work/compiler/data-structures.md#33-interners) |
 | `hd_diag` | Diagnostic codes and records; `hd_base` | [Diagnostic records](../future-work/compiler/data-structures.md#38-diagnostic-records), [diagnostics](../future-work/compiler/checking-and-tir.md#414-diagnostics) |
 | `hd_syntax` | Lexer, layout, parser, green tree, and skeletons; `hd_base`, `hd_diag`, `hd_intern` | [Front-half stages](../future-work/compiler/syntax.md#4-front-half-stages) |
@@ -27,8 +27,8 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_tir` | Typed IR, builder, verifier, printer, and wire form; `hd_base`, `hd_intern`, `hd_types` | [TIR](../future-work/compiler/checking-and-tir.md#41311-the-typed-ir-tir), [TIR storage](../future-work/compiler/data-structures.md#318-tir) |
 | `hd_check` | Body checking, exhaustiveness, facts, coherence, and initialization; `hd_base`, `hd_diag`, `hd_intern`, `hd_resolve`, `hd_syntax`, `hd_tir`, `hd_types` | [Body checking](../future-work/compiler/checking-and-tir.md#413-body-checking), [type checking](../future-work/compiler/type-checking.md), [trait solving](../future-work/compiler/trait-solver.md) |
 | `hd_mono` | Reachable-instance collection and monomorphization, applying body plans (`hd_mono::plan`); `hd_base`, `hd_tir`, `hd_types` | [Monomorphization and merging](../future-work/compiler/codegen.md#13-monomorphization-and-merging) |
-| `hd_opt` | Pass manager: pass declarations, body-unit passes and the planner collection applies, pipelines as data, and the pipeline hash; `hd_base`, `hd_mono`, `hd_tir` | [Optimization pipelines](../future-work/compiler/opt-pipeline.md) |
-| `hd_wasm` | Wasm GC emission and linking; `hd_base`, `hd_host_abi`, `hd_mono`, `hd_tir`, `hd_types` | [Emitting from TIR](../future-work/compiler/codegen.md#12-emitting-from-tir), [Wasm layout](../future-work/compiler/wasm-layout.md) |
+| `hd_opt` | Pass manager: pass declarations, body-unit passes and the planner collection applies, pipelines as data keyed by (engine target, level) with their knobs, the validator, and the pass hash; `hd_base`, `hd_mono`, `hd_tir` | [Optimization pipelines](../future-work/compiler/opt-pipeline.md) |
+| `hd_wasm` | Wasm GC emission and linking, and each engine target's lowering profile (`Lowering`); `hd_base`, `hd_host_abi`, `hd_mono`, `hd_tir`, `hd_types` | [Emitting from TIR](../future-work/compiler/codegen.md#12-emitting-from-tir), [Wasm layout](../future-work/compiler/wasm-layout.md) |
 | `hd_cache` | Cache keys, entry framing, memory store, and optional disk store; `hd_base` | [Cache](../future-work/compiler/cache.md#5-cache) |
 | `hd_deps` | Remote dependencies for `hd_cli`: version selection, fetching with `git`, the version cache, tree hashes, and `hd.sum`; `hd_diag`, `hd_project` | [Dependencies](../spec/cli/command-line.md#dependencies) |
 | `hd_run` | Engine-neutral program loading and run outcomes; `hd_base`, `hd_cache`, `hd_wasm` | [Runtime](../future-work/compiler/runtime-and-host.md#16-runtime), [execution engines](../future-work/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |

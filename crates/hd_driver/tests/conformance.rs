@@ -40,8 +40,8 @@ use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
-    Dependency, Executor, Goal, Host, NoClock, Output, Packages, PipelineReport, ScenarioHold,
-    build_packages,
+    Dependency, Executor, Goal, Host, NoClock, OptLevel, Output, Packages, PipelineReport,
+    ScenarioHold, build_packages,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -285,7 +285,14 @@ fn build_sources(
             })
             .collect(),
         profile: profile(fixture),
-        optimized: optimized_pipeline(),
+        // The default engine's target (`V8`) for every engine mode, until
+        // job (c2) of opt-pipeline.md §6 builds each engine pass for its
+        // own target.
+        level: if optimized_pipeline() {
+            OptLevel::Optimized
+        } else {
+            OptLevel::Dev
+        },
         ..Packages::default()
     };
     build_packages(&host, "fixture", &packages, goal)

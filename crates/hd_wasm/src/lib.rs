@@ -15,6 +15,7 @@ pub mod asm;
 pub mod boundary;
 pub mod emit;
 pub mod layout;
+pub mod lowering;
 pub mod map;
 pub mod meta;
 pub mod pow;
@@ -38,6 +39,7 @@ pub use emit::{
     HoldStub, emit, emit_adapter, emit_erased, emit_thunk, entry, scenario_entry, script_entry,
     test_entry,
 };
+pub use lowering::Lowering;
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.

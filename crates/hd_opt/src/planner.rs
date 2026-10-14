@@ -9,16 +9,18 @@ use hd_mono::ProgramEnv;
 use hd_mono::plan::{BodyPlan, Planner};
 use hd_tir::ir::Body;
 
-use crate::passes::{
-    BodyCx, BodyFacts, PassOutcome, Pipeline, Run, SPEC_MAX_DEPTH, body_gate, spec,
-};
+use crate::passes::{BodyCx, BodyFacts, PassOutcome, Pipeline, Run, body_gate, spec};
 
 type BodyRun = fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> hd_base::StageResult<PassOutcome>;
 
-/// The body-unit passes of one pipeline, in its order, with their gates.
+/// A body pass of a pipeline: its gate, its body, its knob values.
+type BodyStep = (u8, BodyRun, Vec<(&'static str, u32)>);
+
+/// The body-unit passes of one pipeline, in its order, with their gates
+/// and knobs.
 pub struct PipelinePlanner {
-    passes: Vec<(u8, BodyRun)>,
-    /// `Planner::spec_depth`: `closure_spec`'s nesting bound when the
+    passes: Vec<BodyStep>,
+    /// `Planner::spec_depth`: `closure_spec`'s `max_depth` knob when the
     /// pipeline holds it, else 0, so no specialized instance is made.
     spec_depth: u32,
     /// How many body-pass runs `plan` made, for the build's counters.
@@ -26,23 +28,35 @@ pub struct PipelinePlanner {
 }
 
 impl PipelinePlanner {
-    /// The planner of `p`: its body-unit passes. A pipeline with none, such
-    /// as `DEV`, plans nothing.
+    /// The planner of `p`, a pipeline that validates
+    /// (`crate::passes::validate`): its body-unit passes. A pipeline with
+    /// none, such as `DEV`, plans nothing.
+    ///
+    /// # Panics
+    ///
+    /// If a body pass's knob has no value in `p`, which validation rules out.
     #[must_use]
     pub fn new(p: &Pipeline) -> Self {
+        let knob = |pass: &str, name: &str| {
+            p.knob(pass, name)
+                .unwrap_or_else(|| panic!("pipeline `{}` gives `{pass}.{name}` no value", p.name))
+        };
         let passes = p
             .tir
             .iter()
             .filter_map(|name| {
                 let s = spec(name)?;
                 match s.run {
-                    Run::Body(run) => Some((s.gate, run)),
+                    Run::Body(run) => {
+                        let params = s.params.iter().map(|d| (d.name, knob(s.name, d.name)));
+                        Some((s.gate, run, params.collect()))
+                    }
                     Run::Instance(_) => None,
                 }
             })
             .collect();
         let spec_depth = if p.tir.contains(&"closure_spec") {
-            SPEC_MAX_DEPTH
+            knob("closure_spec", "max_depth")
         } else {
             0
         };
@@ -70,11 +84,16 @@ impl Planner for PipelinePlanner {
             return None;
         }
         let summary = body_gate(body);
-        let cx = BodyCx { def, body, env };
         let mut facts = BodyFacts::default();
         let mut fuel = Fuel::new(Fuel::BODY_DEFAULT);
-        for &(gate, run) in &self.passes {
+        for &(gate, run, ref params) in &self.passes {
             if gate == 0 || summary & gate != 0 {
+                let cx = BodyCx {
+                    def,
+                    body,
+                    env,
+                    params,
+                };
                 self.runs.fetch_add(1, Ordering::Relaxed);
                 run(&cx, &mut facts, &mut fuel).ok()?;
             }
@@ -100,7 +119,7 @@ impl Planner for PipelinePlanner {
 #[cfg(test)]
 mod tests {
     use super::PipelinePlanner;
-    use crate::passes::{DEV, OPTIMIZED, SPEC_MAX_DEPTH};
+    use crate::passes::{DEV, OPTIMIZED};
     use hd_mono::plan::Planner;
 
     #[test]
@@ -110,6 +129,9 @@ mod tests {
         assert_eq!(dev.spec_depth(), 0);
         let optimized = PipelinePlanner::new(&OPTIMIZED);
         assert_eq!(optimized.passes.len(), 3);
-        assert_eq!(optimized.spec_depth(), SPEC_MAX_DEPTH);
+        assert_eq!(
+            Some(optimized.spec_depth()),
+            OPTIMIZED.knob("closure_spec", "max_depth")
+        );
     }
 }

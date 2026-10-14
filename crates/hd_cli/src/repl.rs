@@ -454,6 +454,8 @@ fn build_input(
         clock: &clock,
         executor: crate::executor(),
     };
+    // The target is the default engine's (`V8`) until job (c2) of
+    // opt-pipeline.md §6 sets `Wasmtime`, the REPL's only engine.
     let packages = hd_driver::Packages {
         build_profile: BuildProfile::Checked,
         session: Some(built),

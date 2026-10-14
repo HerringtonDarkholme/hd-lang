@@ -11,7 +11,9 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
+use hd_driver::{
+    EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages, build_packages,
+};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -22,20 +24,35 @@ fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
 }
 
 /// The build of the program `main`, through the optimized pipeline or the
-/// dev one.
+/// dev one, for the default engine's target.
 fn build_of(main: &str, optimized: bool) -> Output {
+    let level = if optimized {
+        OptLevel::Optimized
+    } else {
+        OptLevel::Dev
+    };
+    build_for(main, EngineTarget::default(), level, &crate::warm_store())
+}
+
+/// The build of the program `main` for `target` at `level`, over `store`.
+fn build_for(
+    main: &str,
+    target: EngineTarget,
+    level: OptLevel,
+    store: &dyn hd_cache::CacheStore,
+) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,
-        store: &store,
+        store,
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
-        optimized,
+        target,
+        level,
         ..Packages::default()
     };
     let out = build_packages(
@@ -274,6 +291,21 @@ fn run() -> i32:
 pub fn main() -> void $ Console:
     println(run())
 ";
+
+/// Every target has the same pipeline content at each level today, so the
+/// same bytes (opt-pipeline.md §3.3), until job (d) gives targets their
+/// own lowering. Each build has its own store, so none is a cache hit.
+#[test]
+fn every_target_builds_the_same_module_at_each_level() {
+    for level in OptLevel::ALL {
+        let fresh = hd_cache::MemoryStore::default;
+        let v8 = build_for(SPECIALIZED, EngineTarget::V8, level, &fresh()).wasm;
+        for target in [EngineTarget::Wasmtime, EngineTarget::Browser] {
+            let other = build_for(SPECIALIZED, target, level, &fresh()).wasm;
+            assert_eq!(other, v8, "{target:?} {level:?}");
+        }
+    }
+}
 
 #[test]
 fn a_callee_is_copied_per_literal_and_calls_it_directly_in_the_copy() {

@@ -214,7 +214,8 @@ impl Program {
             profile: None,
             single_file: self.single_file,
             build_profile: BuildProfile::Checked,
-            optimized: false,
+            target: hd_driver::EngineTarget::default(),
+            level: hd_driver::OptLevel::Dev,
             doc_scopes: false,
             session: None,
         }
