@@ -8,7 +8,7 @@ use url::Url;
 use crate::codec::{Dec, Enc};
 
 use super::client::granted_url;
-use super::connector::{HttpResolver, HttpTcpConnector};
+use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
 use super::transport::RawConnector;
 use super::{Headers, is_token};
 
@@ -103,17 +103,21 @@ pub(crate) fn encode(response: Result<Response, Failure>) -> Enc {
     e
 }
 
+/// Sends `request`, following its redirects, each rechecked against
+/// `grants` before any DNS or I/O, until `deadline`. It blocks, so it runs
+/// on the blocking pool; `cancel` ends it at once.
 pub(crate) fn send(
     mut request: Request,
     grants: &Grants,
     deadline: Option<Instant>,
+    cancel: &Cancel,
 ) -> Result<Response, Failure> {
     for redirects in 0..=10 {
         let url = granted_url(&request.url, grants)?;
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             return Err(Failure::Timeout);
         }
-        let got = once(&url, &request, deadline)?;
+        let got = once(&url, &request, deadline, cancel)?;
         let location = got
             .headers
             .iter()
@@ -138,7 +142,12 @@ pub(crate) fn send(
     unreachable!("the eleventh redirect returns above")
 }
 
-fn once(url: &Url, request: &Request, deadline: Option<Instant>) -> Result<Response, Failure> {
+fn once(
+    url: &Url,
+    request: &Request,
+    deadline: Option<Instant>,
+    cancel: &Cancel,
+) -> Result<Response, Failure> {
     let method = if request.method.is_empty() {
         "GET".into()
     } else if is_token(&request.method) {
@@ -155,6 +164,7 @@ fn once(url: &Url, request: &Request, deadline: Option<Instant>) -> Result<Respo
     let connector = HttpTcpConnector {
         deadline,
         candidates: candidates.clone(),
+        cancel: cancel.clone(),
     }
     .chain(RustlsConnector::default())
     .chain(RawConnector {
@@ -349,14 +359,9 @@ fn check_credentials(value: &str) -> Result<(), Failure> {
 mod tests {
     use super::{Failure, Request, encode, outgoing};
     use crate::codec::{Dec, Enc};
-    use crate::host::Stop;
-    use crate::http::Client;
-    use crate::http::client::spawn_worker;
-    use crate::http::test_support::{bounded_accept, read_request, request, write_response};
+    use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
-    use std::io::Read;
     use std::net::TcpListener;
-    use std::time::{Duration, Instant};
     use url::Url;
 
     #[test]
@@ -390,7 +395,6 @@ mod tests {
         let deny = Grants {
             limits: vec![("Http".into(), Limit::Deny)],
         };
-        let mut client = Client::default();
         let r = request(
             "bad method",
             "http://127.0.0.1:1/",
@@ -398,20 +402,17 @@ mod tests {
             &[],
             0,
         );
-        let result = client.send(r.done(), &deny).unwrap();
+        let result = send(r.done(), &deny);
         let mut expected = Enc::default();
         expected.leb(1).leb(0).str("127.0.0.1");
         assert_eq!(result.done(), expected.done());
         let r = request("GET", "relative", &vec![], &[], 0);
-        let result = client.send(r.done(), &deny).unwrap();
+        let result = send(r.done(), &deny);
         let mut expected = Enc::default();
         expected.leb(1).leb(1).str("relative");
         assert_eq!(result.done(), expected.done());
         let r = request("GET", "http://127.0.0.1:1/", &vec![], &[], 0);
-        assert_eq!(
-            client.send(r.done(), &Grants::default()).unwrap().done(),
-            [1, 5]
-        );
+        assert_eq!(send(r.done(), &Grants::default()).done(), [1, 5]);
     }
 
     #[test]
@@ -462,7 +463,7 @@ mod tests {
             limits: vec![("Http".into(), Limit::Entries(vec![address.to_string()]))],
         };
         let r = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
-        let encoded = Client::default().send(r.done(), &grant).unwrap();
+        let encoded = send(r.done(), &grant);
         let mut expected = Enc::default();
         expected.leb(1).leb(0).str("127.0.0.1");
         assert_eq!(encoded.done(), expected.done());
@@ -471,70 +472,5 @@ mod tests {
             std::io::ErrorKind::WouldBlock
         );
         server.join().unwrap();
-    }
-
-    #[test]
-    fn program_deadline_caps_headers_body_tls_and_final_worker_drop() {
-        for (tls, partial_body) in [(false, false), (false, true), (true, false)] {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            let address = listener.local_addr().unwrap();
-            let (release, released) = std::sync::mpsc::channel();
-            let (ready, arrived) = std::sync::mpsc::channel();
-            let server = std::thread::spawn(move || {
-                let mut stream = bounded_accept(&listener);
-                if tls {
-                    stream
-                        .set_read_timeout(Some(Duration::from_secs(2)))
-                        .unwrap();
-                    assert_eq!(stream.read(&mut [0; 1]).unwrap(), 1);
-                } else {
-                    read_request(&mut stream);
-                    if partial_body {
-                        write_response(
-                            &mut stream,
-                            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nx",
-                        )
-                        .unwrap();
-                    }
-                }
-                ready.send(()).unwrap();
-                let _ = released.recv_timeout(Duration::from_secs(2));
-            });
-            let scheme = if tls { "https" } else { "http" };
-            let request = request(
-                "GET",
-                &format!("{scheme}://{address}/"),
-                &vec![],
-                &[],
-                30_000,
-            );
-            let mut client = Client {
-                worker: Some(spawn_worker().unwrap()),
-            };
-            let start = Instant::now();
-            let outcome = client.send_until(
-                request.done(),
-                &Grants::default(),
-                Some(start + Duration::from_millis(100)),
-            );
-            drop(client);
-            let elapsed = start.elapsed();
-            let ready = arrived.recv_timeout(Duration::from_secs(1));
-            let _ = release.send(());
-            let joined = server.join();
-            // Cleanup precedes assertions, including a missing connection
-            // or fixture phase when the program deadline fires early.
-            joined.unwrap();
-            ready.unwrap();
-            let error = outcome.err().expect("program deadline traps");
-            assert!(matches!(
-                error.downcast_ref::<Stop>(),
-                Some(Stop::TimeLimit)
-            ));
-            assert!(
-                elapsed < Duration::from_millis(500),
-                "caller and final drop use program budget"
-            );
-        }
     }
 }

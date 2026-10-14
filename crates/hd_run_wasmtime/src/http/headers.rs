@@ -208,8 +208,7 @@ pub(crate) fn response_pairs(bytes: &[u8]) -> Result<(u16, Headers), ureq::Error
 #[cfg(test)]
 mod tests {
     use super::{HeaderScan, framing, response_pairs};
-    use crate::http::Client;
-    use crate::http::test_support::{request, response, server};
+    use crate::http::test_support::{request, response, send, server};
     use hd_run::Grants;
 
     #[test]
@@ -341,9 +340,7 @@ mod tests {
         wire.extend_from_slice(&body);
         let (url, server) = server(wire);
         let r = request("GET", &url, &vec![], &[], 5000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         let (status, headers, received) = response(encoded.done());
         assert_eq!(status, 200);
         assert_eq!(headers.len(), 151);
@@ -365,9 +362,7 @@ mod tests {
         wire.extend_from_slice(b"Content-Length: 0\r\n\r\n");
         let (url, server) = server(wire);
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         let (status, headers, body) = response(encoded.done());
         assert_eq!(status, 200);
         assert_eq!(headers.len(), 1001);

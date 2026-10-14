@@ -227,17 +227,14 @@ impl Transport for RawTransport {
 #[cfg(test)]
 mod tests {
     use crate::codec::Dec;
-    use crate::http::Client;
-    use crate::http::test_support::{request, server};
+    use crate::http::test_support::{request, send, server};
     use hd_run::Grants;
 
     #[test]
     fn incomplete_response_body_is_a_connect_error() {
         let (url, server) = server(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabc".to_vec());
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         let mut d = Dec::new(encoded.done());
         assert_eq!(d.leb().unwrap(), 1);
         assert_eq!(d.leb().unwrap(), 3);

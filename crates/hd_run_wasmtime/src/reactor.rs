@@ -41,6 +41,8 @@ pub enum Done {
     Process(crate::core::process::Ran),
     /// A `Net` operation's result.
     Net(crate::net::Done),
+    /// `Http.send!`: the response or the failure.
+    Http(crate::http::client::Sent),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),

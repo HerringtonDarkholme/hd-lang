@@ -1,6 +1,8 @@
-//! The default Http provider, on one lazy shared client thread (§20.4).
-//! Requests finish inside send.start, as the Node worker's synchronous
-//! reply does. Each redirect rechecks the URL's grant before DNS or I/O.
+//! The default Http provider: each `send!` is one task on the `hd-io`
+//! runtime, which sends the request on the runtime's blocking pool
+//! (`client.rs`), so the program runs its other tasks meanwhile and a
+//! cancel closes the connection. Each redirect rechecks the URL's grant
+//! before DNS or I/O.
 //!
 //! ureq supplies TCP, TLS, deadlines and response-body framing. Its
 //! `HeaderMap` cannot retain raw header spelling and order, so a plaintext
@@ -17,8 +19,6 @@ pub(crate) mod request;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub(crate) mod transport;
-
-pub use client::Client;
 
 /// Exchange headers: name and value pairs, in wire order.
 pub(crate) type Headers = Vec<(String, String)>;

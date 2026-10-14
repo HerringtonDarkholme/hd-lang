@@ -1,10 +1,11 @@
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::{Arc, Mutex, mpsc};
+use std::io::{Read, Write};
+use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, mpsc};
 use std::time::{Duration, Instant};
 
 use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
 use ureq::unversioned::transport::{
-    Buffers, ConnectionDetails, Connector, NextTimeout, TcpConnector, Transport,
+    Buffers, ConnectionDetails, Connector, LazyBuffers, NextTimeout, Transport,
 };
 
 type Candidates = Arc<Mutex<Option<Vec<SocketAddr>>>>;
@@ -114,6 +115,7 @@ fn resolve_lookup(
 pub(crate) struct HttpTcpConnector {
     pub(crate) deadline: Option<Instant>,
     pub(crate) candidates: Candidates,
+    pub(crate) cancel: Cancel,
 }
 
 impl Connector<()> for HttpTcpConnector {
@@ -145,46 +147,112 @@ impl Connector<()> for HttpTcpConnector {
             total,
             || started.elapsed(),
             |address, budget| {
-                let mut addrs = ResolvedSocketAddrs::from_fn(|_| address);
-                addrs.push(address);
-                let mut timeout = details.timeout;
-                timeout.after = budget.map_or(
-                    ureq::unversioned::transport::time::Duration::NotHappening,
-                    Into::into,
-                );
-                let candidate = ConnectionDetails {
-                    uri: details.uri,
-                    addrs,
-                    config: details.config,
-                    request_level: details.request_level,
-                    resolver: details.resolver,
-                    now: (details.current_time)(),
-                    timeout,
-                    current_time: details.current_time.clone(),
-                    run_connector: details.run_connector.clone(),
-                };
-                TcpConnector::default()
-                    .connect(&candidate, None::<()>)
-                    .map(|transport| {
-                        transport.map(|t| {
-                            Box::new(DeadlineTransport {
-                                inner: Box::new(t),
-                                deadline: self.deadline,
-                            }) as Box<dyn Transport>
-                        })
-                    })
+                self.cancel.check()?;
+                let stream = match budget {
+                    Some(budget) => TcpStream::connect_timeout(&address, budget),
+                    None => TcpStream::connect(address),
+                }
+                .map_err(|error| match error.kind() {
+                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock => {
+                        ureq::Error::Timeout(ureq::Timeout::Connect)
+                    }
+                    _ => ureq::Error::Io(error),
+                })?;
+                if details.config.no_delay() {
+                    stream.set_nodelay(true)?;
+                }
+                self.cancel.register(&stream)?;
+                Ok(Some(Box::new(SocketTransport {
+                    stream,
+                    buffers: LazyBuffers::new(
+                        details.config.input_buffer_size(),
+                        details.config.output_buffer_size(),
+                    ),
+                    deadline: self.deadline,
+                    cancel: self.cancel.clone(),
+                    read_timeout: None,
+                    write_timeout: None,
+                }) as Box<dyn Transport>))
             },
         )
     }
 }
 
-#[derive(Debug)]
-struct DeadlineTransport {
-    inner: Box<dyn Transport>,
-    deadline: Option<Instant>,
+/// A request's cancel slot (`std-http.send.cancel.close`): a clone of the
+/// socket of the connection the request uses now. The request blocks on
+/// the `hd-io` runtime's blocking pool, so a cancel cannot drop it; it
+/// shuts the socket down both ways instead, which ends the request's
+/// blocked read or write at once and sends the server its end of input.
+/// A connection made after the cancel is closed as soon as it is made.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Cancel(Arc<Mutex<Slot>>);
+
+#[derive(Debug, Default)]
+struct Slot {
+    cancelled: bool,
+    stream: Option<TcpStream>,
 }
 
-impl DeadlineTransport {
+impl Cancel {
+    fn slot(&self) -> MutexGuard<'_, Slot> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn cancel(&self) {
+        let mut slot = self.slot();
+        slot.cancelled = true;
+        if let Some(stream) = slot.stream.take() {
+            let _ = stream.shutdown(Shutdown::Both);
+        }
+    }
+
+    fn check(&self) -> Result<(), ureq::Error> {
+        if self.slot().cancelled {
+            return Err(cancelled());
+        }
+        Ok(())
+    }
+
+    /// Keeps a clone of `stream` for `cancel`, or refuses it when the
+    /// request is already cancelled, so the caller drops it.
+    fn register(&self, stream: &TcpStream) -> Result<(), ureq::Error> {
+        let clone = stream.try_clone()?;
+        let mut slot = self.slot();
+        if slot.cancelled {
+            return Err(cancelled());
+        }
+        slot.stream = Some(clone);
+        Ok(())
+    }
+}
+
+fn cancelled() -> ureq::Error {
+    ureq::Error::Io(std::io::Error::new(
+        std::io::ErrorKind::ConnectionAborted,
+        "the request was cancelled",
+    ))
+}
+
+/// The connection's socket, used as ureq's own TCP transport uses it
+/// (ureq does not export that one), with every wait capped by the
+/// whole-request deadline (`std-http.send.timeout.whole`). Its clone in
+/// the cancel slot goes when it does, so the connection closes then.
+struct SocketTransport {
+    stream: TcpStream,
+    buffers: LazyBuffers,
+    deadline: Option<Instant>,
+    cancel: Cancel,
+    read_timeout: Option<Duration>,
+    write_timeout: Option<Duration>,
+}
+
+impl std::fmt::Debug for SocketTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SocketTransport").finish_non_exhaustive()
+    }
+}
+
+impl SocketTransport {
     fn cap(&self, mut timeout: NextTimeout) -> Result<NextTimeout, ureq::Error> {
         if let Some(deadline) = self.deadline {
             let remaining = deadline.saturating_duration_since(Instant::now());
@@ -203,27 +271,81 @@ impl DeadlineTransport {
     }
 }
 
-impl Transport for DeadlineTransport {
+/// Sets a socket timeout only when it changes, as ureq's transport does.
+fn set_timeout(
+    stream: &TcpStream,
+    current: &mut Option<Duration>,
+    timeout: NextTimeout,
+    set: fn(&TcpStream, Option<Duration>) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let wanted = timeout.not_zero().map(|duration| *duration);
+    if wanted != *current {
+        set(stream, wanted)?;
+        *current = wanted;
+    }
+    Ok(())
+}
+
+/// A socket error as ureq's transport reports it: a read or write that
+/// passed its timeout is a timeout of the wait's kind.
+fn socket_error(error: std::io::Error, timeout: NextTimeout) -> ureq::Error {
+    match error.kind() {
+        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock => {
+            ureq::Error::Timeout(timeout.reason)
+        }
+        _ => ureq::Error::Io(error),
+    }
+}
+
+impl Transport for SocketTransport {
     fn buffers(&mut self) -> &mut dyn Buffers {
-        self.inner.buffers()
+        &mut self.buffers
     }
 
     fn transmit_output(&mut self, amount: usize, timeout: NextTimeout) -> Result<(), ureq::Error> {
         let timeout = self.cap(timeout)?;
-        self.inner.transmit_output(amount, timeout)
+        set_timeout(
+            &self.stream,
+            &mut self.write_timeout,
+            timeout,
+            TcpStream::set_write_timeout,
+        )?;
+        let output = &self.buffers.output()[..amount];
+        self.stream
+            .write_all(output)
+            .map_err(|error| socket_error(error, timeout))
     }
 
     fn await_input(&mut self, timeout: NextTimeout) -> Result<bool, ureq::Error> {
         let timeout = self.cap(timeout)?;
-        self.inner.maybe_await_input(timeout)
+        set_timeout(
+            &self.stream,
+            &mut self.read_timeout,
+            timeout,
+            TcpStream::set_read_timeout,
+        )?;
+        let input = self.buffers.input_append_buf();
+        let amount = self
+            .stream
+            .read(input)
+            .map_err(|error| socket_error(error, timeout))?;
+        self.buffers.input_appended(amount);
+        Ok(amount > 0)
     }
 
+    /// Whether the connection can take another request: the server sent
+    /// nothing unasked and has not closed it.
     fn is_open(&mut self) -> bool {
-        self.inner.is_open()
+        let mut byte = [0];
+        let idle = self.stream.set_nonblocking(true).is_ok()
+            && matches!(self.stream.read(&mut byte), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock);
+        idle && self.stream.set_nonblocking(false).is_ok()
     }
+}
 
-    fn is_tls(&self) -> bool {
-        self.inner.is_tls()
+impl Drop for SocketTransport {
+    fn drop(&mut self) {
+        self.cancel.slot().stream = None;
     }
 }
 
@@ -400,6 +522,7 @@ mod tests {
         let connector = HttpTcpConnector {
             deadline,
             candidates: candidates.clone(),
+            cancel: super::Cancel::default(),
         }
         .chain(RustlsConnector::default());
         let config = ureq::Agent::config_builder()

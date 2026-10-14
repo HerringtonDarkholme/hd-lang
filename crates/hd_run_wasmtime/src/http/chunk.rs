@@ -193,8 +193,7 @@ impl ChunkScan {
 mod tests {
     use super::ChunkScan;
     use crate::codec::Enc;
-    use crate::http::Client;
-    use crate::http::test_support::{request, response, server};
+    use crate::http::test_support::{request, response, send, server};
     use hd_run::Grants;
 
     #[test]
@@ -229,9 +228,7 @@ mod tests {
         wire.extend_from_slice(raw);
         let (url, server) = server(wire);
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         assert_eq!(response(encoded.done()).2, b"abcde");
         server.join().unwrap();
     }
@@ -245,9 +242,7 @@ mod tests {
         wire.extend_from_slice(b"yes\r\n\r\n");
         let (url, server) = server(wire);
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         let (status, headers, body) = response(encoded.done());
         assert_eq!(status, 200);
         assert_eq!(headers, [("Transfer-Encoding".into(), "chunked".into())]);
@@ -261,9 +256,7 @@ mod tests {
             b"HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n".to_vec(),
         );
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         assert_eq!(
             response(encoded.done()),
             (
@@ -277,9 +270,7 @@ mod tests {
         let (url, server) =
             server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n".to_vec());
         let r = request("GET", &url, &vec![], &[], 1000);
-        let encoded = Client::default()
-            .send(r.done(), &Grants::default())
-            .unwrap();
+        let encoded = send(r.done(), &Grants::default());
         let mut expected = Enc::default();
         expected
             .leb(1)

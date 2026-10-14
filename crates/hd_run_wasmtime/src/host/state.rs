@@ -6,8 +6,8 @@ use hd_run::{Grants, Outcome};
 use wasmtime::Memory;
 
 use super::{Control, Stop};
+use crate::net;
 use crate::reactor::{Done, Reactor, Work};
-use crate::{http, net};
 
 /// Where a run's standard streams go: the process's own, or buffers a
 /// caller reads afterwards.
@@ -49,7 +49,6 @@ pub struct Host {
     pub(crate) program: String,
     pub(crate) grants: Grants,
     pub(crate) noticed: HashSet<String>,
-    pub(crate) http: http::Client,
     pub(crate) net: net::Client,
     pub(crate) heap: crate::limits::HeapBudget,
     deadline: Option<Instant>,
@@ -101,7 +100,6 @@ impl Host {
             program,
             grants,
             noticed: HashSet::new(),
-            http: http::Client::default(),
             net: net::Client::default(),
             heap: crate::limits::HeapBudget::new(memory_bytes),
             deadline,
@@ -134,8 +132,8 @@ impl Host {
 
     /// Readies this host for a new store, as a session's rebuild makes one:
     /// the store's memory and heap are new, nothing is pending, and the
-    /// journal starts again as `journal`. The streams, standard input, open
-    /// sockets and HTTP clients stay: they are the world outside the store.
+    /// journal starts again as `journal`. The streams, standard input and open
+    /// sockets stay: they are the world outside the store.
     pub(crate) fn restart(&mut self, journal: hd_run::journal::Recorder) {
         self.flush();
         self.memory = None;
@@ -256,10 +254,9 @@ impl Host {
         }
     }
 
-    /// Releases sockets and HTTP worker guards even for a retained instance.
+    /// Releases sockets even for a retained instance.
     fn close(&mut self) {
         self.net.stop();
-        self.http = http::Client::default();
     }
 
     /// Writes the held standard output once it passes `HELD_OUTPUT_BOUND`, so

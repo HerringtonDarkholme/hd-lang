@@ -1360,3 +1360,215 @@ fn a_rebuilt_session_makes_no_network_call() {
         assert_eq!(text(&io.out), shown);
     });
 }
+
+/// The session inputs that declare `fetch!` over the `Http` provider and
+/// `nap!`, a 100 ms sleep.
+const HTTP_INPUTS: [&str; 3] = [
+    "use std.http.{Http, HttpError, get}\nuse std.task.{all, race}\nuse std.time.{Clock, ms, sleep}\n",
+    "fn fetch!(url: string) -> string $ Http:\n    match get!(url):\n        .Ok(r) => \"status ${r.status}\"\n        .Err(e) => \"${e}\"\n",
+    "fn nap!() -> string $ Clock:\n    sleep!(ms(100))\n    \"timeout\"\n",
+];
+
+/// A server that reads one request and then answers nothing: it reports
+/// when the request arrived, then whether the client closed the
+/// connection within 10 s.
+fn silent_server() -> (
+    String,
+    std::sync::mpsc::Receiver<()>,
+    std::thread::JoinHandle<bool>,
+) {
+    use std::io::Read;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let url = format!("http://{}/", listener.local_addr().expect("an address"));
+    let (arrived, arrival) = std::sync::mpsc::channel();
+    let server = std::thread::spawn(move || {
+        let (mut peer, _) = listener.accept().expect("accepts");
+        peer.set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .expect("sets a timeout");
+        let mut request = Vec::new();
+        while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+            let mut bytes = [0; 1024];
+            match peer.read(&mut bytes) {
+                Ok(0) | Err(_) => return false,
+                Ok(count) => request.extend_from_slice(&bytes[..count]),
+            }
+        }
+        let _ = arrived.send(());
+        matches!(peer.read(&mut [0; 1]), Ok(0))
+    });
+    (url, arrival, server)
+}
+
+/// `std-http.send.cancel` and `std-http.send.cancel.close`: a `race!` of
+/// `send!` against a 100 ms sleep ends with the sleep, and the server
+/// reads the end of the connection. The request's own timeout is 30 s.
+#[test]
+fn a_race_ends_a_send_at_its_timeout_and_closes_the_connection() {
+    use std::time::{Duration, Instant};
+    let (url, _arrival, server) = silent_server();
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in HTTP_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&format!("race!(fetch(\"{url}\"), nap())\n"));
+        let started = Instant::now();
+        assert_eq!(repl.run(built), Outcome::Exit(0), "{}", text(&io.err));
+        let took = started.elapsed();
+        assert_eq!(text(&io.out), "\"timeout\" : string\n");
+        assert!(took < Duration::from_secs(5), "the race waited: {took:?}");
+    });
+    assert!(
+        server.join().expect("the server"),
+        "the connection stayed open"
+    );
+}
+
+/// `std-host.op.wait`: `all!` of two `send!` to a server that answers
+/// only once both requests have arrived. One request after the other
+/// would reach its 10 s timeout instead.
+#[test]
+fn all_sends_two_requests_at_the_same_time() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let url = format!("http://{}/", listener.local_addr().expect("an address"));
+    let server = std::thread::spawn(move || {
+        let mut peers = Vec::new();
+        for _ in 0..2 {
+            let (mut peer, _) = listener.accept().expect("accepts");
+            peer.set_read_timeout(Some(std::time::Duration::from_secs(10)))
+                .expect("sets a timeout");
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                let mut bytes = [0; 1024];
+                let count = peer.read(&mut bytes).expect("reads");
+                assert_ne!(count, 0, "the request arrives whole");
+                request.extend_from_slice(&bytes[..count]);
+            }
+            peers.push(peer);
+        }
+        for mut peer in peers {
+            peer.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .expect("writes");
+        }
+    });
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in HTTP_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let request = format!("Request {{ url: \"{url}\", timeout: .Some(s(10)) }}");
+        assert_eq!(
+            repl.input(&format!(
+                "use std.http.{{Request, send}}\nuse std.time.s\nfn timed!() -> string $ Http:\n    match send!({request}):\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
+            )),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        assert_eq!(
+            repl.input("all!(timed(), timed())\n"),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        assert_eq!(
+            text(&io.out),
+            "(\"status 200\", \"status 200\") : (string, string)\n"
+        );
+    });
+    server.join().expect("the server");
+}
+
+/// `cli.repl.cancel` and `std-http.send.cancel.close`: a Stop while an
+/// input waits on `send!` cancels the input at once, and the server reads
+/// the end of the connection.
+#[test]
+fn a_stop_during_send_cancels_the_input_and_closes_the_connection() {
+    use std::time::{Duration, Instant};
+    let (url, arrival, server) = silent_server();
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in HTTP_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&format!("x := fetch!(\"{url}\")\n"));
+        let stopping = {
+            let stopper = stopper.clone();
+            std::thread::spawn(move || {
+                let arrived = arrival.recv_timeout(Duration::from_secs(10)).is_ok();
+                let until = Instant::now() + Duration::from_secs(10);
+                while !stopper.waiting() && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                stopper.stop();
+                arrived
+            })
+        };
+        let started = Instant::now();
+        let outcome = repl.run(built);
+        let took = started.elapsed();
+        assert!(stopping.join().expect("the stopping thread"), "no request");
+        assert_eq!(outcome, Outcome::Exit(3));
+        assert_eq!(text(&io.err), "cancelled\n");
+        assert!(
+            took < Duration::from_secs(10),
+            "the cancel waited: {took:?}"
+        );
+        assert!(!repl.session.pending(), "the send is still pending");
+    });
+    assert!(
+        server.join().expect("the server"),
+        "the connection stayed open"
+    );
+}
+
+/// `cli.repl.host.once`: a rebuilt session serves `send!` from its journal
+/// and makes no request: the server sees one, and the output shown later
+/// is the first run's.
+#[test]
+fn a_rebuilt_session_sends_no_request_again() {
+    use std::io::{Read, Write};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let url = format!("http://{}/", listener.local_addr().expect("an address"));
+    let requests = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&requests);
+    // Detached: it waits in `accept` until the test binary ends.
+    std::thread::spawn(move || {
+        for mut peer in listener.incoming().flatten() {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let _ = peer.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+            let _ = peer.read(&mut [0; 4096]);
+            let _ = peer.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi");
+        }
+    });
+    let mut inputs: Vec<String> = HTTP_INPUTS.iter().map(|s| (*s).to_owned()).collect();
+    inputs.push(format!("out := fetch!(\"{url}\")\n"));
+    inputs.push("out\n".to_owned());
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let shown = text(&io.out);
+        assert!(shown.contains("\"status 200\""), "{shown}");
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert_eq!(
+            rebuilt,
+            crate::Rebuilt {
+                kept: (0..=5).collect(),
+                ..crate::Rebuilt::default()
+            }
+        );
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(requests.load(Ordering::SeqCst), 1, "sent again");
+        assert_eq!(text(&io.out), "", "a replayed input printed again");
+        assert_eq!(repl.input("out\n"), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), shown);
+    });
+}

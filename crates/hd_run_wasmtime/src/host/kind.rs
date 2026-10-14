@@ -21,13 +21,13 @@ pub(crate) enum Kind {
     ProcessStart,
     ProcessFinish,
     HttpStart,
+    HttpFinish,
     Net {
         method: &'static str,
         input: Option<usize>,
         close: bool,
     },
     NetFinish,
-    NeverFinish,
     RandomNext,
     RandomFill,
     Sys(&'static str),
@@ -92,8 +92,8 @@ impl Kind {
             Self::Fixture { finish: true, .. }
             | Self::Fs { finish: true, .. }
             | Self::ProcessFinish
+            | Self::HttpFinish
             | Self::NetFinish
-            | Self::NeverFinish
             | Self::WriteLineFinish
             | Self::ReadLineFinish
             | Self::SleepFinish => Record::Finish,
@@ -250,7 +250,7 @@ impl Kind {
         }
         Some(match (module, name) {
             ("hd:Http", "send.start") => Kind::HttpStart,
-            ("hd:Http", "send.finish") => Kind::NeverFinish,
+            ("hd:Http", "send.finish") => Kind::HttpFinish,
             ("hd:Process", "run.start") => Kind::ProcessStart,
             ("hd:Process", "run.finish") => Kind::ProcessFinish,
             ("hd:Random", "next_u64") => Kind::RandomNext,

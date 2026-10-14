@@ -10,7 +10,7 @@ use crate::codec::Enc;
 use crate::prim;
 use crate::profiles;
 use crate::reactor::{Done, NS_PER_MS, Work, now_ns};
-use crate::{core, fs, net};
+use crate::{core, fs, http, net};
 
 pub(crate) fn call(
     kind: Kind,
@@ -143,7 +143,7 @@ pub(crate) fn call(
                 }
             }
         },
-        Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
+        Kind::Fs { finish: true, .. } => {
             return Err(
                 Stop::Contract("a finish of an operation that is not pending".into()).into(),
             );
@@ -222,8 +222,33 @@ pub(crate) fn call(
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
-            let e = host.http.send_until(&b, &host.grants, host.deadline())?;
-            Ret::ready(e)?
+            match http::client::start(&b, &host.grants)? {
+                http::client::Start::Ready(e) => Ret::ready(e)?,
+                http::client::Start::Run(job) => {
+                    match host
+                        .reactor
+                        .offload(async move { Done::Http(job.run().await) })
+                    {
+                        Ok(h) => Ret::pair(1, h),
+                        Err(error) => Ret::ready(http::client::not_run(&error))?,
+                    }
+                }
+            }
+        }
+        Kind::HttpFinish => {
+            let h = handle(int_arg(params, 0)?);
+            let Some(op) = caller.data_mut().reactor.remove(h) else {
+                return Err(
+                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
+                );
+            };
+            let Work::Offloaded(Some(Done::Http(sent))) = op.work else {
+                return Err(Stop::Contract(
+                    "a finish of an operation that is not completed".into(),
+                )
+                .into());
+            };
+            Ret::encoded(http::client::finish(sent)?)
         }
         Kind::Net {
             method,

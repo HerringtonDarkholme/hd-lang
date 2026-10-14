@@ -5,11 +5,6 @@ use hd_run::Limit;
 use std::fmt::Write;
 use std::time::Duration;
 
-// These fixtures deliberately keep the shared Http worker busy. Serialize
-// them so one case cannot expire in the other's queue before reaching the
-// wire behavior it is intended to check.
-static DEADLINE_FIXTURES: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
 fn request(
     method: u64,
     url: &str,
@@ -79,7 +74,7 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
     });
     let mut p = Program::new();
     for status in [200, 404, 500] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(0, &server.url(&format!("/{status}")), &[], b"", None),
@@ -118,7 +113,7 @@ fn http_all_methods_custom_host_request_pairs_and_framing() {
         } else {
             b"ok".as_slice()
         };
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(
@@ -132,7 +127,7 @@ fn http_all_methods_custom_host_request_pairs_and_framing() {
         );
     }
     // Explicit body framing must not receive a second Content-Length.
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(
@@ -183,7 +178,7 @@ fn http_redirect_method_rewrites_and_body_preservation() {
     });
     let mut p = Program::new();
     for (status, method) in [(301, 2), (302, 2), (303, 3), (307, 2), (308, 2), (301, 3)] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(
@@ -230,13 +225,13 @@ fn http_initial_and_redirect_grants_cover_host_and_port() {
         )
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &target.url("/secret"), &[], b"", None),
         error(0, "127.0.0.1"),
     );
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &from.url("/redirect"), &[], b"", None),
@@ -274,7 +269,7 @@ fn http_redirect_limit_precedes_next_hop_grant() {
         )
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &server.url("/0"), &[], b"", None),
@@ -313,7 +308,7 @@ fn http_exactly_ten_redirects_reach_the_successful_response() {
         (bytes, Duration::ZERO)
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &server.url("/0"), &[], b"", None),
@@ -334,7 +329,7 @@ fn http_invalid_urls_and_zero_or_negative_timeout() {
         "http://[bad/",
         "http://127.0.0.1:99999/",
     ] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(0, url, &[], b"", None),
@@ -342,7 +337,7 @@ fn http_invalid_urls_and_zero_or_negative_timeout() {
         );
     }
     for timeout in [0, -1] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(0, "http://127.0.0.1:9/", &[], b"", Some(timeout)),
@@ -362,7 +357,7 @@ fn http_delayed_response_times_out() {
         )
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &server.url("/slow"), &[], b"", Some(30)),
@@ -373,7 +368,6 @@ fn http_delayed_response_times_out() {
 
 #[test]
 fn http_timeout_budget_is_shared_across_redirect_hops() {
-    let _deadline = DEADLINE_FIXTURES.lock().unwrap();
     let scratch = Scratch::new();
     // Generous margins under load: each hop (2 s) fits well within the 3 s
     // whole-request budget (1 s margin), while their sum (4 s) exceeds it by
@@ -401,7 +395,7 @@ fn http_timeout_budget_is_shared_across_redirect_hops() {
     let mut p = Program::new();
     // Each individual response fits within 3 s, but their cumulative delay
     // exceeds it. Resetting the timeout at the redirect would return Ok.
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &from.url("/start"), &[], b"", Some(3000)),
@@ -420,7 +414,7 @@ fn http_timeout_budget_is_shared_across_redirect_hops() {
         || {},
     );
     // Prove both engines reached the delayed second hop rather than timing
-    // out in a worker queue or before the redirect was followed.
+    // out before the redirect was followed.
     assert_eq!(
         from.seen
             .lock()
@@ -449,7 +443,6 @@ fn http_timeout_still_applies_after_response_headers_arrive() {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    let _deadline = DEADLINE_FIXTURES.lock().unwrap();
     let scratch = Scratch::new();
     let headers_sent = Arc::new(AtomicUsize::new(0));
     let recorded = headers_sent.clone();
@@ -478,7 +471,7 @@ fn http_timeout_still_applies_after_response_headers_arrive() {
         let _ = peer.write_all(b"late");
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(
@@ -505,7 +498,7 @@ fn http_refused_connection_keeps_node_message() {
     let port = reservation.address.port();
     let url = format!("http://127.0.0.1:{port}/");
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &url, &[], b"", None),
@@ -559,7 +552,7 @@ fn http_invalid_method_and_headers_keep_exact_validation_errors() {
         .leb(0)
         .0;
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         invalid_method,
@@ -575,7 +568,7 @@ fn http_invalid_method_and_headers_keep_exact_validation_errors() {
             "Invalid character in header content [\"X-Test\"]",
         ),
     ] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(0, url, &headers, b"", None),
@@ -595,6 +588,8 @@ fn tls_program(url: &str) -> Program {
         &[ValType::I32],
         &[ValType::I32, ValType::I32],
     );
+    let block = p.import("hd:rt", "block", &[], &[ValType::I32]);
+    let finish = p.import("hd:Http", "send.finish", &[ValType::I32], &[ValType::I32]);
     p.load_args(&bytes);
     p.instructions(&[
         I::I32Const(i32::try_from(bytes.len()).unwrap()),
@@ -603,7 +598,12 @@ fn tls_program(url: &str) -> Program {
         I::LocalSet(1),
         I::LocalGet(1),
         I::If(BlockType::Empty),
-        I::Unreachable,
+        // The only pending operation, so the first batch holds it.
+        I::Call(block),
+        I::Drop,
+        I::LocalGet(0),
+        I::Call(finish),
+        I::LocalSet(0),
         I::End,
         I::LocalGet(0),
         I::I32Const(3),
@@ -718,7 +718,7 @@ fn http_chunked_request_response_and_informational_response_are_exact() {
         (b"HTTP/1.1 100 Continue\r\nX-Interim: discarded\r\n\r\nHTTP/1.1 200 Test\r\nTransfer-Encoding: chunked\r\nX-Final: retained\r\n\r\n2\r\n\0\xff\r\n2\r\nab\r\n0\r\n\r\n".to_vec(), Duration::ZERO)
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(
@@ -759,7 +759,7 @@ fn http_bodyless_statuses_and_redirect_without_location_are_responses() {
     });
     let mut p = Program::new();
     for status in [204, 302, 304] {
-        p.call(
+        p.call_waiting(
             "hd:Http",
             "send",
             request(0, &server.url(&format!("/{status}")), &[], b"", None),
@@ -791,17 +791,82 @@ fn http_malformed_response_and_redirect_location_preserve_error_text() {
         (bytes, Duration::ZERO)
     });
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &server.url("/response"), &[], b"", None),
         error(3, "Parse Error: Invalid header token"),
     );
-    p.call(
+    p.call_waiting(
         "hd:Http",
         "send",
         request(0, &server.url("/redirect"), &[], b"", None),
         error(7, "Invalid URL"),
     );
     assert_program(&scratch, p, vec![], || {});
+}
+
+/// `std-host.op.wait` across instances (`hd test --jobs 2`): two instances
+/// each send a request to a server that answers only once both requests
+/// have arrived. One queued behind the other would reach its 10 s timeout
+/// instead.
+#[test]
+fn http_two_instances_send_at_the_same_time() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let mut peers = Vec::new();
+        for _ in 0..2 {
+            let (mut peer, _) = listener.accept().unwrap();
+            peer.set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                let mut bytes = [0; 1024];
+                let count = peer.read(&mut bytes).unwrap();
+                assert_ne!(count, 0, "the request arrives whole");
+                request.extend_from_slice(&bytes[..count]);
+            }
+            peers.push(peer);
+        }
+        for mut peer in peers {
+            peer.write_all(&raw(200, &[("Content-Length", "0")], b""))
+                .unwrap();
+        }
+    });
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &url, &[], b"", Some(10_000)),
+        response(200, &[("Content-Length", "0")], b""),
+    );
+    let (wasm, expected) = p.finish(7);
+    let instances: Vec<_> = (0..2)
+        .map(|_| {
+            let wasm = wasm.clone();
+            std::thread::spawn(move || {
+                let setup = hd_run::HostSetup {
+                    providers: vec![],
+                    grants: hd_run::Grants::default(),
+                    limits: hd_run::Limits::default(),
+                    args: vec![],
+                    program: String::new(),
+                };
+                hd_run_wasmtime::run_captured(
+                    hd_run_wasmtime::EngineConfig::default(),
+                    &wasm,
+                    &setup,
+                )
+                .unwrap()
+            })
+        })
+        .collect();
+    for instance in instances {
+        let result = instance.join().unwrap();
+        assert_eq!(result.status, 7);
+        assert_eq!(String::from_utf8_lossy(&result.stderr), expected);
+    }
+    server.join().unwrap();
 }

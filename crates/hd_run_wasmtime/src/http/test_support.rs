@@ -4,10 +4,48 @@ use std::time::{Duration, Instant};
 
 use socket2::{Domain, Protocol, Socket, Type};
 
+use hd_run::Grants;
+
 use crate::codec::{Dec, Enc};
+use crate::reactor::{Done, Reactor, Work};
 
 use super::Headers;
+use super::client::{Job, Sent, Start, finish, start};
 use super::headers::header_end;
+
+/// Offloads `job` onto the `hd-io` runtime, as `send.start` does, and
+/// returns the operation's handle.
+pub(crate) fn offload(reactor: &mut Reactor, job: Job) -> i32 {
+    reactor
+        .offload(async move { Done::Http(job.run().await) })
+        .expect("offloads")
+}
+
+/// Waits for the operation `h` to complete and takes its result, as
+/// `block` and `send.finish` do.
+pub(crate) fn finished(reactor: &mut Reactor, h: i32) -> Sent {
+    let mut out = Vec::new();
+    while !reactor.due(&mut out).contains(&h) {
+        assert!(reactor.wait(), "the request is pending");
+    }
+    match reactor.remove(h).map(|op| op.work) {
+        Some(Work::Offloaded(Some(Done::Http(sent)))) => sent,
+        _ => panic!("the request has no result"),
+    }
+}
+
+/// `send.start` then, when it sends the request, `send.finish`: the
+/// encoded result.
+pub(crate) fn send(bytes: &[u8], grants: &Grants) -> Enc {
+    match start(bytes, grants).expect("the request decodes") {
+        Start::Ready(e) => e,
+        Start::Run(job) => {
+            let mut reactor = Reactor::new(None);
+            let h = offload(&mut reactor, job);
+            finish(finished(&mut reactor, h)).expect("the request ends")
+        }
+    }
+}
 
 pub(crate) fn request(
     method: &str,
