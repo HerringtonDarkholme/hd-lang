@@ -15,7 +15,7 @@ use hd_types::solver::{
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
-use crate::body::{Ck, RowFrame, unsupported};
+use crate::body::{Ck, ExpectPosition, RowFrame, unsupported};
 use crate::call::{Args, TraitTarget, subst_owner};
 
 /// Everything a trial may change, as lengths and the few values that are
@@ -341,7 +341,7 @@ impl Ck<'_, '_> {
             (bang, want),
         )?;
         if let Some(w) = want.filter(|w| *w != Ty::VOID) {
-            self.coerce(r, t, w, n, "result");
+            self.coerce(r, t, w, n, "result", ExpectPosition::General);
         }
         for g in residual {
             self.require_ref(g, n)?;

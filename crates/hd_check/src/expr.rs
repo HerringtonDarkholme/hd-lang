@@ -14,7 +14,7 @@ use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
-use crate::body::{Ck, OpenSub, unsupported};
+use crate::body::{Ck, ExpectPosition, OpenSub, unsupported};
 
 /// What the base of a `**` is (`expr.power.*`).
 #[derive(Clone, Copy)]
@@ -596,7 +596,7 @@ impl Ck<'_, '_> {
             }
             Some(TokenKind::Bang | TokenKind::Tilde) => {
                 if op == Some(TokenKind::Bang) {
-                    self.expect(t, Ty::BOOL, *e, "operand");
+                    self.expect(t, Ty::BOOL, *e, "operand", ExpectPosition::Operand);
                 }
                 (self.b.prim(PrimOp::Not as u32, &[r], t, n.index()), t)
             }
@@ -636,12 +636,12 @@ impl Ck<'_, '_> {
         };
         if matches!(op, TokenKind::AndAnd | TokenKind::OrOr) {
             let (a, at) = self.expr(*l, Some(Ty::BOOL))?;
-            self.expect(at, Ty::BOOL, *l, "operand");
+            self.expect(at, Ty::BOOL, *l, "operand", ExpectPosition::Operand);
             let m = self.b.open_block();
             let mut rhs = None;
             self.short_circuit(n, (*l, *r), op == TokenKind::AndAnd, |ck| {
                 let (c, ct) = ck.expr(*r, Some(Ty::BOOL))?;
-                ck.expect(ct, Ty::BOOL, *r, "operand");
+                ck.expect(ct, Ty::BOOL, *r, "operand", ExpectPosition::Operand);
                 rhs = Some(c);
                 Ok(())
             })?;
@@ -852,7 +852,7 @@ impl Ck<'_, '_> {
                 && me.infer.kind_of(pool, x) == Some(VarKind::General)
         };
         if general(self, at) && self.numeric(ct) && !shift {
-            self.expect(at, ct, n, "operand");
+            self.expect(at, ct, n, "operand", ExpectPosition::Operand);
         }
         // `expr.op.primitive.types`: a primitive left operand with a
         // non-primitive right operand is the operator trait's call, so
@@ -870,7 +870,7 @@ impl Ck<'_, '_> {
             if shift {
                 let _ = self.unsigned_count(ct, rn, "a shift count", true);
             } else {
-                mixed = self.expect(ct, at, rn, "operand");
+                mixed = self.expect(ct, at, rn, "operand", ExpectPosition::Operand);
             }
             // `expr.bit.non-integer-no-impl`: bitwise operators and shifts
             // take integers.
@@ -891,7 +891,7 @@ impl Ck<'_, '_> {
         }
         // Strings: `+` and `==` are built in; others go through traits.
         if ats == Ty::STRING && matches!(prim, PrimOp::Add | PrimOp::Eq | PrimOp::Ne) {
-            self.expect(ct, Ty::STRING, rn, "operand");
+            self.expect(ct, Ty::STRING, rn, "operand", ExpectPosition::Operand);
             let (iop, t) = if prim == PrimOp::Add {
                 (IntrinsicOp::StrConcat, Ty::STRING)
             } else {
@@ -1115,7 +1115,7 @@ impl Ck<'_, '_> {
         let rejected = match base {
             PowerBase::Int => !self.unsigned_count(ct, *r, "an exponent", false),
             PowerBase::Float => {
-                self.expect(ct, at, *r, "operand");
+                self.expect(ct, at, *r, "operand", ExpectPosition::Operand);
                 false
             }
             PowerBase::Poison => false,
@@ -1625,7 +1625,7 @@ impl Ck<'_, '_> {
         let got = self.strip_mut(ktt);
         let p = match pool.get(got) {
             TyData::Prim(p) if kt == usize_t && p.is_unsigned() && p != Prim::Usize => p,
-            _ => return self.coerce(kr, ktt, kt, key, "index"),
+            _ => return self.coerce(kr, ktt, kt, key, "index", ExpectPosition::General),
         };
         let at = key.index();
         if p != Prim::U64 {
@@ -1681,7 +1681,7 @@ impl Ck<'_, '_> {
             let w = wants.get(i).copied().flatten().or(rest_item);
             let (r, t) = self.expr(*e, w)?;
             let r = match w {
-                Some(w) => self.coerce(r, t, w, *e, "tuple element"),
+                Some(w) => self.coerce(r, t, w, *e, "tuple element", ExpectPosition::General),
                 None => r,
             };
             refs.push(r);
@@ -1726,9 +1726,14 @@ impl Ck<'_, '_> {
             }
         };
         let tail = match (&tail, want_rest) {
-            (Some((r, t, operand)), Some(rest)) => {
-                Some(self.coerce(*r, *t, rest, *operand, "tuple spread"))
-            }
+            (Some((r, t, operand)), Some(rest)) => Some(self.coerce(
+                *r,
+                *t,
+                rest,
+                *operand,
+                "tuple spread",
+                ExpectPosition::General,
+            )),
             (Some((r, _, _)), None) => Some(*r),
             (None, _) => None,
         };
@@ -1830,7 +1835,15 @@ impl Ck<'_, '_> {
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
                     // `expr.list.spread.expected`, `expr.list.spread.inferred`.
-                    if this.coerce(r, item, elem, operand, "list spread") != r {
+                    if this.coerce(
+                        r,
+                        item,
+                        elem,
+                        operand,
+                        "list spread",
+                        ExpectPosition::General,
+                    ) != r
+                    {
                         return unsupported("a list spread that converts its elements");
                     }
                     spreads.push(u32::try_from(k).unwrap_or(0));
@@ -1838,7 +1851,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let (r, t) = this.expr(*e, Some(elem))?;
-                refs.push(this.coerce(r, t, elem, *e, "list element"));
+                refs.push(this.coerce(r, t, elem, *e, "list element", ExpectPosition::General));
             }
             // An element type solved from the elements alone is their readonly
             // view, as before permissions were tracked in inference. This keeps
@@ -1895,9 +1908,9 @@ impl Ck<'_, '_> {
                         return unsupported("a map entry shape");
                     };
                     let (kr, kt) = this.expr(*ke, Some(k))?;
-                    refs.push(this.coerce(kr, kt, k, *ke, "map key"));
+                    refs.push(this.coerce(kr, kt, k, *ke, "map key", ExpectPosition::General));
                     let (vr, vt) = this.expr(*ve, Some(v))?;
-                    refs.push(this.coerce(vr, vt, v, *ve, "map value"));
+                    refs.push(this.coerce(vr, vt, v, *ve, "map value", ExpectPosition::General));
                 }
                 // A key type an expected map type did not fix meets the key
                 // bound here (types.map-key.declared-bound).
@@ -2117,7 +2130,7 @@ impl Ck<'_, '_> {
                 ft
             };
             let ft = self.infer.resolve(pool, ft);
-            vals[i] = self.coerce(r, t, ft, *a, "field");
+            vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             seen[i] = true;
         }
         let targ_list = pool.list(&targs);
@@ -2203,7 +2216,7 @@ impl Ck<'_, '_> {
         };
         let clause = Src::child(e, SyntaxKind::ElseClause);
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
-        self.expect(ct, Ty::BOOL, cond, "condition");
+        self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
         let (when_true, when_false) = self.take_cond_flow(cond);
         // `flow.if.value.else`: an `if` used where a value is required
         // must have an `else`. A function-body tail is exempt: there the
@@ -2239,7 +2252,17 @@ impl Ck<'_, '_> {
                     } else {
                         // A nested site that restarted wider has a type of
                         // its own, which then joins this site's.
-                        (Some(this.coerce(r, t, result, nested, "result")), t)
+                        (
+                            Some(this.coerce(
+                                r,
+                                t,
+                                result,
+                                nested,
+                                "result",
+                                ExpectPosition::General,
+                            )),
+                            t,
+                        )
                     }
                 } else {
                     let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
@@ -2279,7 +2302,7 @@ impl Ck<'_, '_> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
-        self.expect(ct, Ty::BOOL, cond, "condition");
+        self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
         let (when_true, when_false) = self.take_cond_flow(cond);
         self.loops.push((lp, result));
         let tb = self.b.open_block();
@@ -2791,9 +2814,9 @@ impl Ck<'_, '_> {
                     return unsupported("a map comprehension entry");
                 };
                 let (kr, kt) = self.expr(*k, Some(args[0]))?;
-                let kr = self.coerce(kr, kt, args[0], *k, "map key");
+                let kr = self.coerce(kr, kt, args[0], *k, "map key", ExpectPosition::General);
                 let (vr, vt) = self.expr(*v, Some(args[1]))?;
-                let vr = self.coerce(vr, vt, args[1], *v, "map value");
+                let vr = self.coerce(vr, vt, args[1], *v, "map value", ExpectPosition::General);
                 let rec = self.b.refs_record(&[a, kr, vr]);
                 self.b.emit(
                     Tag::Intrinsic,
@@ -2804,7 +2827,7 @@ impl Ck<'_, '_> {
                 );
             } else {
                 let (r, t) = self.expr(last, Some(args[0]))?;
-                let r = self.coerce(r, t, args[0], last, "element");
+                let r = self.coerce(r, t, args[0], last, "element", ExpectPosition::General);
                 let rec = self.b.refs_record(&[a, r]);
                 self.b.emit(
                     Tag::Intrinsic,
@@ -2831,7 +2854,7 @@ impl Ck<'_, '_> {
                     return unsupported("a comprehension `if` shape");
                 };
                 let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
-                self.expect(ct, Ty::BOOL, cond, "condition");
+                self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
                 let tb = self.b.open_block();
                 self.clauses(rest, last, acc, args, n)?;
                 let then = self.b.close_block(tb, None, Ty::VOID, c.index());
@@ -3097,7 +3120,10 @@ impl Ck<'_, '_> {
             self.block_value(e, Some(ret))?
         } else {
             let (r, t) = self.expr(e, Some(ret))?;
-            (Some(self.coerce(r, t, ret, e, "result")), ret)
+            (
+                Some(self.coerce(r, t, ret, e, "result", ExpectPosition::General)),
+                ret,
+            )
         };
         let root = self.b.close_block(blk, tail, ret, n.index());
         self.loops = saved_loops;
@@ -3205,13 +3231,13 @@ impl Ck<'_, '_> {
                 let pr = self.b.refs_record(&[Ref(1), Ref(0)]);
                 let ev = self.b.emit(Tag::Payload, r.0, pr, et, n.index());
                 let ev = if self.can_unify(et, ret_e) {
-                    self.expect(et, ret_e, *e, "error");
+                    self.expect(et, ret_e, *e, "error", ExpectPosition::General);
                     ev
                 } else if self.erases_into(et, ret_e)? {
                     // Into an erased error such as `dyn Error` that the
                     // error's type implements: a trait-value coercion
                     // (`expr.try.convert.assignable`, `expr.try.test.converts`).
-                    self.coerce(ev, et, ret_e, *e, "error")
+                    self.coerce(ev, et, ret_e, *e, "error", ExpectPosition::General)
                 } else {
                     let from = self.cx.names.known.from;
                     let tref = hd_types::solver::TraitRef {
@@ -3306,7 +3332,7 @@ impl Ck<'_, '_> {
         for f in &fields {
             let (r, t) = self.expr(*f, Some(et))?;
             bound_tys.push(t);
-            refs.push(self.coerce(r, t, et, *f, "range bound"));
+            refs.push(self.coerce(r, t, et, *f, "range bound", ExpectPosition::Operand));
         }
         // Bounds that are all literals take the expected element type.
         if let Some(bw) = bound_want
@@ -3317,7 +3343,7 @@ impl Ck<'_, '_> {
                 .kind_of(pool, e)
                 .is_some_and(|k| k.literal_default().is_some())
         {
-            self.expect(e, bw, fields[0], "range bound");
+            self.expect(e, bw, fields[0], "range bound", ExpectPosition::Operand);
         }
         // `expr.range.bound.integer`: the element type is an integer type.
         // The one error lands on the first bound that is not.
@@ -3403,7 +3429,7 @@ impl Ck<'_, '_> {
             }
             // The provider becomes a trait value of its key
             // (`req.with.type`), so codegen converts nothing later.
-            let r = self.coerce(r, t, key, *vn, "provider");
+            let r = self.coerce(r, t, key, *vn, "provider", ExpectPosition::General);
             pairs.push(Ref(key.0));
             pairs.push(r);
             self.check_key_collision(entry, &[key], &keys, &visible);

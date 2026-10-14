@@ -16,7 +16,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink};
 use hd_types::{Prim, Ty, TyData, VarKind};
 
-use crate::body::{Ck, unsupported};
+use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::call::subst_owner;
 
 /// One row of a decision: its pattern (none: matches anything), whether
@@ -141,7 +141,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::LiteralPattern => {
                 let (r, lt) = self.pattern_literal(p, Some(t))?;
-                self.expect(lt, t, p, "pattern");
+                self.expect(lt, t, p, "pattern", ExpectPosition::General);
                 // `types.literal.int-range`.
                 if self.b.const_of(r).is_some() && p.children().next().is_none() {
                     let neg = self.cx.src.tkind(self.cx.src.first(p)) == Some(TokenKind::Minus);
@@ -153,7 +153,7 @@ impl Ck<'_, '_> {
                 for b in [bounds.lo, bounds.hi].into_iter().flatten() {
                     let before = self.diags.len();
                     let (r, lt) = self.bound_literal(b, t)?;
-                    self.expect(lt, t, p, "pattern");
+                    self.expect(lt, t, p, "pattern", ExpectPosition::General);
                     if self.diags.len() != before {
                         // One `type-mismatch` per pattern.
                         break;
@@ -165,7 +165,7 @@ impl Ck<'_, '_> {
                 }
             }
             SyntaxKind::TuplePattern if p.children().next().is_none() => {
-                self.expect(t, Ty::VOID, p, "pattern");
+                self.expect(t, Ty::VOID, p, "pattern", ExpectPosition::General);
             }
             SyntaxKind::TuplePattern => {
                 let subs: Vec<NodeRef<'_>> = p.children().collect();
@@ -190,7 +190,7 @@ impl Ck<'_, '_> {
                             elems: pool.list(&vs),
                             rest: None,
                         });
-                        self.expect(tt, t, p, "pattern");
+                        self.expect(tt, t, p, "pattern", ExpectPosition::General);
                         (vs, None)
                     }
                     _ => {
@@ -776,7 +776,10 @@ impl Ck<'_, '_> {
             }
         };
         let (r, t) = match annot {
-            Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
+            Some(a) => (
+                self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),
+                a,
+            ),
             None => (r, t),
         };
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
@@ -939,7 +942,7 @@ impl Ck<'_, '_> {
                         };
                         let gb = this.b.open_block();
                         let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
-                        this.expect(gt, Ty::BOOL, ge, "guard");
+                        this.expect(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
                         Some(this.b.close_block(gb, Some(gr), Ty::BOOL, g.index()))
                     }
                     None => None,

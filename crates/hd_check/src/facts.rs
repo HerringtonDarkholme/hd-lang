@@ -26,7 +26,7 @@ use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
-use crate::body::{BodyCx, Ck, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, new_ck, unsupported};
 use crate::call::{Args, subst_owner};
 use crate::structure::FactLines;
 use crate::ty::Named;
@@ -204,7 +204,7 @@ pub fn check_fact_list(
             } else {
                 ck.expr(e, None)?
             };
-            refs.push(ck.coerce(r, t, elem, e, "fact"));
+            refs.push(ck.coerce(r, t, elem, e, "fact", ExpectPosition::General));
         }
     }
     let rec = ck.b.refs_record(&refs);
@@ -316,7 +316,7 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let mark = self.diags.mark();
-        let r = self.coerce(r, t, want, e, "member line list");
+        let r = self.coerce(r, t, want, e, "member line list", ExpectPosition::General);
         if self.diags.errors_since(mark) > 0 {
             return Ok(None);
         }
@@ -540,7 +540,7 @@ impl Ck<'_, '_> {
         if self.diags.len() != before {
             return Ok(None);
         }
-        let r = self.coerce(r, t, want, e, "fact");
+        let r = self.coerce(r, t, want, e, "fact", ExpectPosition::General);
         Ok((self.diags.len() == before).then_some((r, want)))
     }
 

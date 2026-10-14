@@ -20,7 +20,7 @@ use hd_tir::ir::{BodyKind, Ref, TirSink};
 use hd_types::solver::TraitRef;
 use hd_types::{RowData, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, Ck, RowFrame, new_ck};
+use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, new_ck};
 use crate::call::Args;
 use crate::expr::literal_text;
 
@@ -438,7 +438,7 @@ fn check_case(
         ck.move_to(cx.src.span(e).lo);
         let want = timeout_ty(cx);
         let (r, t) = ck.expr(e, Some(want))?;
-        let r = ck.coerce(r, t, want, e, "argument");
+        let r = ck.coerce(r, t, want, e, "argument", ExpectPosition::General);
         ck.report_timeout(r, e);
         ck.move_to(cx.src.span(node).lo);
     }
@@ -639,7 +639,7 @@ fn check_registration(
     ck.close_literals(start);
     ck.close_open_params(0);
     ck.close_ref_params(0);
-    let r = ck.coerce(r, t, ret, e, "result");
+    let r = ck.coerce(r, t, ret, e, "result", ExpectPosition::General);
     let root = ck.b.close_block(blk, Some(r), ret, e.index());
     let mut used = match ck.rows.first() {
         Some(RowFrame::Profile { used, .. }) => used.clone(),

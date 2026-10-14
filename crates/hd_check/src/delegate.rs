@@ -19,7 +19,7 @@ use hd_tir::ir::{BodyKind, Callee, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 
-use crate::body::{BodyCx, Ck, new_ck};
+use crate::body::{BodyCx, Ck, ExpectPosition, new_ck};
 use crate::newtype::Conversion;
 
 /// The bodies of the forwarding methods of the implementation `imp`,
@@ -251,7 +251,14 @@ impl Forwarder<'_> {
             choice,
         };
         let (r, rt) = ck.emit_call(&callee, &refs, ret, tsig.suspends, tsig.suspends, node);
-        let r = ck.coerce(r, rt, ret, node, "a forwarded result");
+        let r = ck.coerce(
+            r,
+            rt,
+            ret,
+            node,
+            "a forwarded result",
+            ExpectPosition::General,
+        );
         let (r, ret) = match &conv {
             Some(conv) => (conv.apply(&mut ck, r, (ret, sig_ret), node)?, sig_ret),
             None => (r, ret),

@@ -16,7 +16,7 @@ use hd_tir::ir::{
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
-use crate::body::{Ck, unsupported};
+use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::ty::Named;
 
 /// The methods of the items a body sees, by name (built once per module).
@@ -712,7 +712,7 @@ impl Ck<'_, '_> {
         if !self.can_unify(inner, to) {
             return None;
         }
-        self.expect(inner, to, arg, "conversion");
+        self.expect(inner, to, arg, "conversion", ExpectPosition::General);
         let result = if self.is_composite(to) && self.has_mut_access(t) {
             self.pool().intern_ty(&TyData::Mut(to))
         } else {
@@ -779,7 +779,7 @@ impl Ck<'_, '_> {
             )
             && self.can_unify(t, to)
         {
-            self.expect(t, to, *e, "conversion");
+            self.expect(t, to, *e, "conversion", ExpectPosition::General);
             return Ok((r, to));
         }
         Ok((self.b.prim(PrimOp::Conv as u32, &[r], to, n.index()), to))
@@ -931,7 +931,7 @@ impl Ck<'_, '_> {
                 let w = ps.get(i).copied();
                 let (r, t) = self.expr(*e, w)?;
                 refs.push(match w {
-                    Some(w) => self.coerce(r, t, w, *e, "argument"),
+                    Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
                 });
             }
@@ -945,7 +945,7 @@ impl Ck<'_, '_> {
                 );
                 let (r, t) = self.trailing_closure(block, w)?;
                 if takes {
-                    refs.push(self.coerce(r, t, w, block, "argument"));
+                    refs.push(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
                 }
             }
             refs
@@ -1019,7 +1019,7 @@ impl Ck<'_, '_> {
             }
         };
         let (r, t) = self.arg_value(spread, Some(input))?;
-        let r = self.coerce(r, t, input, spread, "argument");
+        let r = self.coerce(r, t, input, spread, "argument", ExpectPosition::General);
         let solved = self.infer.resolve(pool, input);
         match pool.get(solved) {
             TyData::Tuple { elems, rest } => {
@@ -1132,7 +1132,7 @@ impl Ck<'_, '_> {
                 let w = item_wants[i - nfixed];
                 let (r, t) = self.arg_value(*e, w)?;
                 let r = match w {
-                    Some(w) => self.coerce(r, t, w, *e, "argument"),
+                    Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
                 };
                 items.push((r, w.unwrap_or(t)));
@@ -1184,7 +1184,7 @@ impl Ck<'_, '_> {
                     ) {
                         r
                     } else {
-                        self.coerce(r, t, w, *e, what)
+                        self.coerce(r, t, w, *e, what, ExpectPosition::General)
                     }
                 }
                 None => r,
@@ -1271,7 +1271,7 @@ impl Ck<'_, '_> {
                 slots[i] = Some(r);
                 continue;
             }
-            slots[i] = Some(self.coerce(r, t, w, *e, what2));
+            slots[i] = Some(self.coerce(r, t, w, *e, what2, ExpectPosition::General));
         }
         if let Some(block) = args.trailing {
             // A block the callee cannot take is still checked, against
@@ -1291,7 +1291,8 @@ impl Ck<'_, '_> {
                     self.err(Code::DuplicateArgument, block, &msg);
                 } else {
                     let (r, t) = self.trailing_closure(block, w)?;
-                    slots[last] = Some(self.coerce(r, t, w, block, "argument"));
+                    slots[last] =
+                        Some(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
                 }
             } else {
                 let w = self.trailing_param(None, name, n);
@@ -1416,7 +1417,7 @@ impl Ck<'_, '_> {
             elems: pool.list(&tys),
             rest: None,
         });
-        self.expect(tt, lt, n, "argument");
+        self.expect(tt, lt, n, "argument", ExpectPosition::General);
         let rec = self.b.refs_record(&refs);
         Ok(self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index()))
     }
@@ -1496,7 +1497,7 @@ impl Ck<'_, '_> {
         // (`expr.call.spread.at-vararg`), passed through without a copy.
         if let Some(lt) = lt {
             if let Some(rest) = tail_ty {
-                let tail = self.coerce(r, t, rest, e, "argument");
+                let tail = self.coerce(r, t, rest, e, "argument", ExpectPosition::General);
                 let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
                 let tuple = self.strip_mut(lt);
                 slots[nfixed] = Some(self.rest_tuple_value(tuple, &refs, Some(tail), e));
@@ -1520,7 +1521,7 @@ impl Ck<'_, '_> {
                 );
                 return Ok(());
             }
-            slots[nfixed] = Some(self.coerce(r, t, lt, e, "argument"));
+            slots[nfixed] = Some(self.coerce(r, t, lt, e, "argument", ExpectPosition::General));
             return Ok(());
         }
         // Before fixed parameters: a tuple of the remaining inputs
@@ -1550,13 +1551,14 @@ impl Ck<'_, '_> {
                     let idx = u32::try_from(k).unwrap_or(0);
                     let g = self.b.emit(Tag::TupleGet, r.0, idx, et, e.index());
                     let w = self.normalize_deep(tys[i])?;
-                    slots[i] = Some(self.coerce(g, et, w, e, "argument"));
+                    slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));
                 }
                 if let Some(rest) = rest {
                     let idx = u32::try_from(elems.len()).unwrap_or(0);
                     let g = self.b.emit(Tag::TupleGet, r.0, idx, rest, e.index());
                     let w = self.normalize_deep(tys[nfixed])?;
-                    slots[nfixed] = Some(self.coerce(g, rest, w, e, "argument"));
+                    slots[nfixed] =
+                        Some(self.coerce(g, rest, w, e, "argument", ExpectPosition::General));
                 }
             }
             TyData::Adt { def, .. } if def == list => {
@@ -1598,7 +1600,7 @@ impl Ck<'_, '_> {
             let w = ps.get(i).copied();
             let (r, t) = self.expr(*e, w)?;
             let r = match w {
-                Some(w) => self.coerce(r, t, w, *e, "argument"),
+                Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                 None => r,
             };
             if let Some(s) = slots.get_mut(i) {
@@ -1858,7 +1860,7 @@ impl Ck<'_, '_> {
                 };
                 let it = subst_owner(pool, def, pool.list_items(targs), inner);
                 let (r, rt) = self.expr(*e, Some(it))?;
-                let r = self.coerce(r, rt, it, *e, "argument");
+                let r = self.coerce(r, rt, it, *e, "argument", ExpectPosition::General);
                 // A newtype over a composite carries its base value's
                 // permission (types.newtype.construct-permission).
                 let t = if self.is_composite(rt) && self.has_mut_access(rt) {
@@ -2350,7 +2352,9 @@ impl Ck<'_, '_> {
             let ft = fields.get(i).copied();
             let (r, rt) = self.expr(*e, ft)?;
             match (ft, slots.get_mut(i)) {
-                (Some(ft), Some(slot)) => *slot = Some(self.coerce(r, rt, ft, *e, "payload")),
+                (Some(ft), Some(slot)) => {
+                    *slot = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
+                }
                 _ => extra = true,
             }
         }
@@ -2369,7 +2373,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let (r, rt) = self.expr(*e, Some(ft))?;
-            slots[i] = Some(self.coerce(r, rt, ft, *e, "payload"));
+            slots[i] = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
         }
         if extra || (!named_bad && slots.iter().any(Option::is_none)) {
             let msg = format!("`{name}` takes {} values", fields.len());
@@ -2477,7 +2481,7 @@ impl Ck<'_, '_> {
                         let t = self.ctor(def, &explicit)?;
                         let t = match want {
                             Some(w) if self.can_unify(w, t) => {
-                                self.expect(t, w, n, "variant");
+                                self.expect(t, w, n, "variant", ExpectPosition::General);
                                 t
                             }
                             _ => t,
@@ -3740,7 +3744,7 @@ impl Ck<'_, '_> {
         for (i, (r, at, an)) in args.iter().enumerate() {
             let w = sig.params.get(i + 1).map(|p| inst(p.1));
             refs.push(match w {
-                Some(w) => self.coerce(*r, *at, w, *an, "operand"),
+                Some(w) => self.coerce(*r, *at, w, *an, "operand", ExpectPosition::Operand),
                 None => *r,
             });
         }

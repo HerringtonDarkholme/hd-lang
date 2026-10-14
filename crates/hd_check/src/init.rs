@@ -17,7 +17,7 @@ use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
 
-use crate::body::{BodyCx, Ck, RowFrame, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, new_ck, unsupported};
 
 type Set = std::collections::HashSet<hd_base::LocalId>;
 
@@ -641,7 +641,10 @@ impl Ck<'_, '_> {
             None => self.expr(rhs, annot)?,
         };
         let (r, t) = match annot {
-            Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
+            Some(a) => (
+                self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),
+                a,
+            ),
             None => (r, t),
         };
         // The binding forms' views (types.bind.short, types.bind.let-mut-infer).
@@ -760,7 +763,7 @@ impl Ck<'_, '_> {
             let w = params.get(i).map(|p| p.1);
             let (r, t) = self.expr(*e, w)?;
             if let (Some(w), Some(s)) = (w, slots.get_mut(i)) {
-                *s = Some(self.coerce(r, t, w, *e, "argument"));
+                *s = Some(self.coerce(r, t, w, *e, "argument", ExpectPosition::General));
             }
         }
         for (pname, e) in &args.named {
@@ -778,7 +781,8 @@ impl Ck<'_, '_> {
                 continue;
             }
             let (r, t) = self.expr(*e, Some(params[i].1))?;
-            slots[i] = Some(self.coerce(r, t, params[i].1, *e, "argument"));
+            slots[i] =
+                Some(self.coerce(r, t, params[i].1, *e, "argument", ExpectPosition::General));
         }
         let defaults: Vec<Option<NodeRef<'_>>> = decl
             .children()
@@ -829,7 +833,7 @@ impl Ck<'_, '_> {
             self.rows.pop();
             let (r, t) = checked?;
             self.scopes.pop();
-            out.push(self.coerce(r, t, params[i].1, e, "default"));
+            out.push(self.coerce(r, t, params[i].1, e, "default", ExpectPosition::General));
         }
         Ok(out)
     }

@@ -12,7 +12,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Ty, TyData, VarKind};
 
-use crate::body::{Ck, unsupported};
+use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::call::Args;
 use crate::expr::{normalize_line_endings, strip_piece};
 
@@ -220,7 +220,7 @@ impl Ck<'_, '_> {
                 pieces.push(self.b.const_str(&std::mem::take(&mut cur)));
                 let (r, ty) = self.expr(e, Some(elem))?;
                 let ty = self.default_literal(ty, elem);
-                values.push(self.coerce(r, ty, elem, e, "argument"));
+                values.push(self.coerce(r, ty, elem, e, "argument", ExpectPosition::General));
             }
             let raw = strip_piece(self.cx.src.text(t), k).to_owned();
             let mut parts = Vec::new();
@@ -243,7 +243,14 @@ impl Ck<'_, '_> {
                         };
                         pieces.push(self.b.const_str(&std::mem::take(&mut cur)));
                         let ty = self.default_literal(ty, elem);
-                        values.push(self.coerce(r, ty, elem, n, "argument"));
+                        values.push(self.coerce(
+                            r,
+                            ty,
+                            elem,
+                            n,
+                            "argument",
+                            ExpectPosition::General,
+                        ));
                     }
                 }
             }

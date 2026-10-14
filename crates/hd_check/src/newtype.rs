@@ -16,7 +16,7 @@ use hd_tir::Body;
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Prim, Ty, TyData};
 
-use crate::body::{BodyCx, Ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, unsupported};
 use crate::delegate::{Forwarded, Forwarder};
 
 /// One problem with a derived newtype's forwarding: the derived
@@ -148,7 +148,14 @@ impl Conversion {
         let at = node.index();
         let (f, t) = (ck.strip_mut(from), ck.strip_mut(to));
         if f == t {
-            return Ok(ck.coerce(r, from, to, node, "a forwarded value"));
+            return Ok(ck.coerce(
+                r,
+                from,
+                to,
+                node,
+                "a forwarded value",
+                ExpectPosition::General,
+            ));
         }
         if self.is_unwrap(f, t) {
             return Ok(ck.b.emit(Tag::Field, r.0, 0, to, at));
@@ -158,7 +165,14 @@ impl Conversion {
             let fresh = pool.intern_ty(&TyData::Mut(t));
             let rec = ck.b.refs_record(&[r]);
             let made = ck.b.emit(Tag::NewData, NONE, rec, fresh, at);
-            return Ok(ck.coerce(made, fresh, to, node, "a wrapped value"));
+            return Ok(ck.coerce(
+                made,
+                fresh,
+                to,
+                node,
+                "a wrapped value",
+                ExpectPosition::General,
+            ));
         }
         let known = ck.cx.names.known;
         match (pool.get(f), pool.get(t)) {
@@ -276,6 +290,13 @@ impl Conversion {
         let body = ck.b.close_block(lb, None, Ty::VOID, at);
         ck.b.close_loop(lp, body, Ty::VOID, at);
         let o = ck.b.get(out_l, out_ty, at);
-        Ok(ck.coerce(o, out_ty, list_to, node, "a rewrapped list"))
+        Ok(ck.coerce(
+            o,
+            out_ty,
+            list_to,
+            node,
+            "a rewrapped list",
+            ExpectPosition::General,
+        ))
     }
 }

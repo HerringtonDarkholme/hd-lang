@@ -147,6 +147,17 @@ pub(crate) struct OpenSub {
     pub depth: usize,
 }
 
+/// Which mismatch errors an `expect` reports: a binary operator operand
+/// or range bound is checked symmetrically, so it reports mixed integer
+/// signedness instead of a plain mismatch, and never implicit narrowing.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ExpectPosition {
+    /// A binary operator operand or range bound.
+    Operand,
+    /// Any other position.
+    General,
+}
+
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// The body's local pool: its types that hold inference variables.
@@ -920,7 +931,7 @@ pub fn check_default(
         }
     }
     let (r, t) = ck.expr(expr, Some(ty))?;
-    let r = ck.coerce(r, t, ty, expr, "default");
+    let r = ck.coerce(r, t, ty, expr, "default", ExpectPosition::General);
     let root = ck.b.close_block(blk, Some(r), ty, expr.index());
     ck.finish(root)
 }
@@ -1324,7 +1335,16 @@ impl Ck<'_, '_> {
 
     /// Unifies `got` with `want`, inserting the coercions of
     /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
-    pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
+    /// `position` flows to `expect`, selecting its error codes.
+    pub(crate) fn coerce(
+        &mut self,
+        r: Ref,
+        got: Ty,
+        want: Ty,
+        n: NodeRef<'_>,
+        what: &str,
+        position: ExpectPosition,
+    ) -> Ref {
         let pool = self.pool();
         let target = want;
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
@@ -1361,7 +1381,7 @@ impl Ck<'_, '_> {
             && self.injects_into(gs, ws)
         {
             if !self.check_upgrade(got, inner, n, what) {
-                self.expect(got, inner, n, what);
+                self.expect(got, inner, n, what, position);
             }
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
@@ -1430,10 +1450,10 @@ impl Ck<'_, '_> {
             let r = self
                 .b
                 .coerce(Coercion::SuspendFnToCtor, NONE, r, lowered, n.index());
-            return self.coerce(r, lowered, target, n, what);
+            return self.coerce(r, lowered, target, n, what, position);
         }
         let before = self.diags.len();
-        self.expect(got, want, n, what);
+        self.expect(got, want, n, what, position);
         // A row parameter inside a type argument takes its solution from
         // the argument's nested row, exactly (`types.variance.function`).
         if self.diags.len() == before && !joined {
@@ -1496,7 +1516,19 @@ impl Ck<'_, '_> {
     }
 
     /// Reports a mismatch and returns whether it did.
-    pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> bool {
+    ///
+    /// `position` selects the error codes: a binary operator operand or
+    /// range bound reports mixed integer signedness instead of a plain
+    /// mismatch, and never implicit narrowing. It is a separate
+    /// parameter so renaming a message label cannot change the code.
+    pub(crate) fn expect(
+        &mut self,
+        got: Ty,
+        want: Ty,
+        n: NodeRef<'_>,
+        what: &str,
+        position: ExpectPosition,
+    ) -> bool {
         let pool = self.pool();
         if got == Ty::NEVER || want == Ty::NEVER {
             return false;
@@ -1507,7 +1539,7 @@ impl Ck<'_, '_> {
             self.infer.rollback(snap);
             // `types.num.narrowing`: a value of a wider type of the same
             // numeric family where a narrower one is expected.
-            if !matches!(what, "operand" | "range bound") && self.narrows(got, want) {
+            if position != ExpectPosition::Operand && self.narrows(got, want) {
                 let msg = format!(
                     "converting to a narrower type in {what}: expected {}, found {}; write the conversion",
                     self.show(want),
@@ -1530,12 +1562,11 @@ impl Ck<'_, '_> {
             let msg = format!("in {what}: expected {want_s}, found {got_s}");
             // `types.num.binary.no-mix`, `expr.range.bound.signedness`: a
             // signed and an unsigned integer operand do not mix.
-            let code =
-                if matches!(what, "operand" | "range bound") && self.mixes_signedness(got, want) {
-                    Code::MixedSignedness
-                } else {
-                    Code::TypeMismatch
-                };
+            let code = if position == ExpectPosition::Operand && self.mixes_signedness(got, want) {
+                Code::MixedSignedness
+            } else {
+                Code::TypeMismatch
+            };
             self.err(code, n, &msg);
             return true;
         }
@@ -2002,7 +2033,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let r = match want {
-                    Some(w) => self.coerce(r, t, w, e, "result"),
+                    Some(w) => self.coerce(r, t, w, e, "result", ExpectPosition::General),
                     None => r,
                 };
                 tail = Some(r);
@@ -2525,7 +2556,7 @@ impl Ck<'_, '_> {
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
                     let (r, t) = self.expr(*e, Some(ret))?;
-                    self.coerce(r, t, ret, *e, "return")
+                    self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
                 } else {
                     Ref(NONE)
                 };
@@ -2552,7 +2583,8 @@ impl Ck<'_, '_> {
                 let v = match (kids.first(), bt) {
                     (Some(e), Some(want)) => {
                         let (r, t) = self.expr(*e, Some(want))?;
-                        self.coerce(r, t, want, *e, "break value").0
+                        self.coerce(r, t, want, *e, "break value", ExpectPosition::General)
+                            .0
                     }
                     (Some(e), None) => {
                         self.err(
@@ -2654,7 +2686,7 @@ impl Ck<'_, '_> {
                         return unsupported("compound assignment to a top-level binding");
                     }
                     let (r, t) = self.expr(*rhs, Some(ty))?;
-                    let v = self.coerce(r, t, ty, *rhs, "assignment");
+                    let v = self.coerce(r, t, ty, *rhs, "assignment", ExpectPosition::General);
                     let a = self.b.refs_record(&[Ref(def.raw())]);
                     self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
                     return Ok(());
@@ -2685,7 +2717,7 @@ impl Ck<'_, '_> {
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(lt))?;
-                        self.coerce(r, t, lt, *rhs, "assignment")
+                        self.coerce(r, t, lt, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let (cur, _) = self.read_local(l, depth, *lhs);
@@ -2741,11 +2773,11 @@ impl Ck<'_, '_> {
                         let (cr, ct) = self.copy_value((r, t), *rhs);
                         let want = self.field_access(pt, &fname, ft);
                         self.check_upgrade(ct, want, *rhs, "assignment");
-                        self.coerce(cr, ct, ft, *rhs, "assignment")
+                        self.coerce(cr, ct, ft, *rhs, "assignment", ExpectPosition::General)
                     }
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;
-                        self.coerce(r, t, ft, *rhs, "assignment")
+                        self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let cur = self.b.emit(Tag::Field, br.0, idx, ft, lhs.index());
@@ -2790,7 +2822,7 @@ impl Ck<'_, '_> {
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(vt))?;
-                        self.coerce(r, t, vt, *rhs, "assignment")
+                        self.coerce(r, t, vt, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let rec = self.b.refs_record(&[br, kr]);

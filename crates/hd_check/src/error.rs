@@ -33,7 +33,7 @@ use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, Ck, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, new_ck, unsupported};
 
 /// The error type a body is generated for.
 struct Target<'s, 't> {
@@ -169,7 +169,7 @@ impl Target<'_, '_> {
                 } else {
                     let fresh = cx.names.pool.intern_ty(&TyData::Mut(ret));
                     let r = ck.b.emit(Tag::NewData, NONE, rec, fresh, at.index());
-                    ck.coerce(r, fresh, ret, at, "a conversion")
+                    ck.coerce(r, fresh, ret, at, "a conversion", ExpectPosition::General)
                 }
             }
         };
@@ -297,7 +297,14 @@ impl Target<'_, '_> {
                 let checked = ck.expr(msg, Some(Ty::STRING));
                 ck.scopes.pop();
                 let (r, t) = checked?;
-                Ok(ck.coerce(r, t, Ty::STRING, msg, "an error message"))
+                Ok(ck.coerce(
+                    r,
+                    t,
+                    Ty::STRING,
+                    msg,
+                    "an error message",
+                    ExpectPosition::General,
+                ))
             }
             (Message::Transparent, Some([f])) => {
                 let node = v.members[0].node;
@@ -345,7 +352,7 @@ impl Target<'_, '_> {
             let r = self.read(ck, p, vi, 0, t);
             let error = ck.cx.names.known.error;
             let (c, ct) = ck.trait_call(error, "cause", r, t, &[], node)?;
-            return Ok(ck.coerce(c, ct, ret, node, "a cause"));
+            return Ok(ck.coerce(c, ct, ret, node, "a cause", ExpectPosition::General));
         }
         let Some(c) = v.cause() else {
             return Ok(no_cause(ck, v.node));
@@ -375,8 +382,8 @@ impl Target<'_, '_> {
         if let TyData::Option(inner) = pool.get(t) {
             let tb = ck.b.open_block();
             let u = ck.b.emit(Tag::Unwrap, r.0, NONE, inner, node.index());
-            let d = ck.coerce(u, inner, erased, node, "a cause");
-            let s = ck.coerce(d, erased, ret, node, "a cause");
+            let d = ck.coerce(u, inner, erased, node, "a cause", ExpectPosition::General);
+            let s = ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General);
             let then = ck.b.close_block(tb, Some(s), ret, node.index());
             let eb = ck.b.open_block();
             let n = no_cause(ck, node);
@@ -384,7 +391,7 @@ impl Target<'_, '_> {
             let rec = ck.b.refs_record(&[Ref(1), then, other]);
             return Ok(ck.b.emit(Tag::SwitchTag, r.0, rec, ret, node.index()));
         }
-        let d = ck.coerce(r, t, erased, node, "a cause");
-        Ok(ck.coerce(d, erased, ret, node, "a cause"))
+        let d = ck.coerce(r, t, erased, node, "a cause", ExpectPosition::General);
+        Ok(ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General))
     }
 }
