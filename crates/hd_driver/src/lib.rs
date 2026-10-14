@@ -1007,6 +1007,8 @@ struct Run<'a> {
     toolchain: Hash128,
     package_key: Hash128,
     pipeline: Hash128,
+    /// The pipeline's body-unit passes, which collection applies.
+    planner: hd_opt::planner::PipelinePlanner,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// Whether the optimized pipeline runs ([`Packages::optimized`]).
@@ -1420,12 +1422,13 @@ fn build_packages_inner(
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
-    let pipeline = hd_opt::passes::validate(if packages.optimized {
+    let passes = if packages.optimized {
         &hd_opt::passes::OPTIMIZED
     } else {
         &hd_opt::passes::DEV
-    })
-    .unwrap_or_default();
+    };
+    let pipeline = hd_opt::passes::validate(passes).unwrap_or_default();
+    let planner = hd_opt::planner::PipelinePlanner::new(passes);
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
     let profile = packages.profile.clone().unwrap_or_else(|| {
@@ -1457,6 +1460,7 @@ fn build_packages_inner(
         package_key: root_package_key(package, packages.profile.as_deref()),
         profile,
         pipeline,
+        planner,
         optimized: packages.optimized,
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
@@ -6005,6 +6009,7 @@ impl Run<'_> {
                 &extra,
                 &prelude.refs,
                 session,
+                &self.planner,
             ),
         ) else {
             return;

@@ -9,6 +9,7 @@
 
 pub mod erased;
 pub mod layout;
+pub mod plan;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -27,6 +28,7 @@ pub use crate::layout::Sub;
 use crate::layout::{
     A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, a1_class, canon, instance_key,
 };
+use crate::plan::{BodyPlan, Planner, Source};
 
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
@@ -125,8 +127,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// emitted integer arithmetic checks overflow and shift counts.
     fn build_profile(&self) -> BuildProfile;
     /// Whether the build runs the optimized pipeline
-    /// (`hd_opt::passes::OPTIMIZED`) instead of the dev one: collection and
-    /// emission read it to pick optimizations such as known-closure calls.
+    /// (`hd_opt::passes::OPTIMIZED`) instead of the dev one: collection
+    /// reads it for option A2 of closure-calls.md.
     fn optimized(&self) -> bool;
 }
 
@@ -877,6 +879,11 @@ struct Cx<'a> {
     /// else which of its parameters its own body calls (closure-calls.md
     /// §3.1). Built once per item.
     copyable: HashMap<DefId, Option<Vec<bool>>>,
+    /// The pipeline's body-unit passes (`plan`).
+    planner: &'a dyn Planner,
+    /// Each body's plan, once per build: by item, and by self type for a
+    /// compiler-supplied body.
+    plans: HashMap<(DefId, Option<Ty>), Option<Arc<BodyPlan>>>,
 }
 
 /// A call that option A2 may specialize, in the instance being scanned.
@@ -1841,6 +1848,16 @@ impl Cx<'_> {
         Ok(Some(Target::MapKey { hash, eq }))
     }
 
+    /// The plan of `body`, the body of `def` or the one supplied for it at
+    /// self type `supplied`: asked of the planner once per build.
+    fn plan(&mut self, def: DefId, supplied: Option<Ty>, body: &Body) -> Option<Arc<BodyPlan>> {
+        let (planner, env) = (self.planner, self.env);
+        self.plans
+            .entry((def, supplied))
+            .or_insert_with(|| planner.plan(def, body, env))
+            .clone()
+    }
+
     fn scan(&mut self, id: InstId) -> StageResult<()> {
         let (item, sub, args) = (
             self.out.table.item[id.idx()],
@@ -1858,9 +1875,8 @@ impl Cx<'_> {
         let supplied = pool
             .list_items(args)
             .first()
-            .and_then(|t| self.out.supplied.get(&(item, *t)))
-            .cloned();
-        let Some(body) = supplied.as_deref().or(env.body(item)) else {
+            .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
+        let Some(body) = supplied.as_ref().map(|s| &*s.1).or(env.body(item)) else {
             return err("an instance whose item has no TIR");
         };
         let mut calls = HashMap::new();
@@ -1905,8 +1921,14 @@ impl Cx<'_> {
             Sub::Body(_) | Sub::Adapter => {}
         }
         let hidden = hidden_insts(body, sub);
-        // Options A1 and A2 (closure-calls.md) run in the optimized
-        // pipeline only, and never in a thunk.
+        // A thunk emits one instruction and takes no plan.
+        let plan = if only.is_none() {
+            self.plan(item, supplied.as_ref().map(|s| s.0), body)
+        } else {
+            None
+        };
+        // Option A2 (closure-calls.md) runs in the optimized pipeline only,
+        // and never in a thunk.
         let flow = (env.optimized()
             && only.is_none()
             && body
@@ -2197,8 +2219,11 @@ impl Cx<'_> {
                 _ => {}
             }
         }
+        if let Some(plan) = &plan {
+            direct_calls(body, plan, sub, hidden.as_deref(), &known, &mut calls);
+        }
         if let Some(flow) = &flow {
-            known_closures(body, flow, sub, hidden.as_deref(), &known, &mut calls);
+            known_params(body, flow, sub, hidden.as_deref(), &known, &mut calls);
         }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
@@ -2278,7 +2303,7 @@ const COPY_MAX_INSTS: usize = 64;
 /// last (closure-calls.md §3.1); past it, calls use the plain instance.
 const COPY_MAX_DEPTH: u32 = 2;
 
-/// What options A1 and A2 of closure-calls.md read of a body's data flow.
+/// What option A2 of closure-calls.md reads of a body's data flow.
 struct Flow {
     /// Per local: how many `LocalSet`s write it, and the last one's value.
     sets: Vec<(u32, u32)>,
@@ -2423,16 +2448,60 @@ impl Flow {
     }
 }
 
-/// Options A1 and A2 of closure-calls.md, in the optimized pipeline: each
-/// `CallValue` whose callee is a known closure records
-/// `Target::KnownClosure` with its code instance. The callee is a value made
-/// in the same sub-body (`Flow::made`, A1), or, in an instance specialized
-/// on `known` (A2), a parameter its caller always passes that literal for:
-/// read in the instance's own sub-body `sub`, its body or a closure that
-/// carries it. The value and the callee have the same type (the caller
-/// checked it for a parameter), so the code instance has the signature a
-/// `call_ref` would use.
-fn known_closures(
+/// Collection rule 1 of opt-pipeline.md §2.2, direct calls: each
+/// `CallValue` the plan gives a callee source records
+/// `Target::KnownClosure` when that source is a known closure in the
+/// instance being scanned. A `Made` source is one when its instruction's
+/// target is a closure's code instance. A `Param` source is one, in the
+/// instance's own sub-body `sub`, when `known` holds that parameter.
+fn direct_calls(
+    body: &Body,
+    plan: &BodyPlan,
+    sub: Sub,
+    hidden: Option<&[bool]>,
+    known: &[(u32, Hash128)],
+    calls: &mut HashMap<u32, Target>,
+) {
+    let subs = plan
+        .direct
+        .iter()
+        .any(|d| matches!(d.1, Source::Param(_)))
+        .then(|| body.inst_subs());
+    for &(ix, source) in &plan.direct {
+        let i = ix as usize;
+        if body.tags.get(i) != Some(&Tag::CallValue)
+            || hidden.is_some_and(|h| h[i])
+            || calls.contains_key(&ix)
+        {
+            continue;
+        }
+        let key = match source {
+            Source::Made(m) => match calls.get(&m) {
+                Some(&Target::Closure(key)) => key,
+                _ => continue,
+            },
+            Source::Param(p) => {
+                let own = subs
+                    .as_ref()
+                    .is_some_and(|s| matches!(sub, Sub::Body(k) if u32::from(k) == s[i]));
+                match known.iter().find(|k| k.0 == p) {
+                    Some(&(_, key)) if own => key,
+                    _ => continue,
+                }
+            }
+        };
+        calls.insert(ix, Target::KnownClosure(key));
+    }
+}
+
+/// Option A2 of closure-calls.md, in the optimized pipeline: each
+/// `CallValue` whose callee is a parameter its caller always passes a
+/// known closure for, in an instance specialized on `known`, records
+/// `Target::KnownClosure` with its code instance. The parameter is read in
+/// the instance's own sub-body `sub`, its body or a closure that carries
+/// it. The value and the callee have the same type (the caller checked
+/// it), so the code instance has the signature a `call_ref` would use.
+fn known_params(
     body: &Body,
     flow: &Flow,
     sub: Sub,
@@ -2448,23 +2517,12 @@ fn known_closures(
         if calls.contains_key(&ix) {
             continue;
         }
-        let callee = body.data[i][0];
-        let key = if let Some(made) = flow.made(body, callee, i) {
-            match calls.get(&u32::try_from(made).expect("insts")) {
-                Some(&Target::Closure(key)) => key,
-                _ => continue,
-            }
-        } else if let Some(p) = flow.param(body, callee)
+        if let Some(p) = flow.param(body, body.data[i][0])
             && matches!(sub, Sub::Body(k) if u32::from(k) == flow.subs[i])
+            && let Some(&(_, key)) = known.iter().find(|k| k.0 == p)
         {
-            match known.iter().find(|k| k.0 == p) {
-                Some(&(_, key)) => key,
-                None => continue,
-            }
-        } else {
-            continue;
-        };
-        calls.insert(ix, Target::KnownClosure(key));
+            calls.insert(ix, Target::KnownClosure(key));
+        }
     }
 }
 
@@ -2592,6 +2650,8 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// are function references the module holds though its code takes none:
 /// each item's adapter instance at its type arguments, as a REPL
 /// session's prelude holds them for later inputs (repl-plan.md job C8).
+/// `planner` holds the pipeline's body-unit passes, whose plans
+/// collection applies (`plan`).
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -2601,6 +2661,7 @@ pub fn collect(
     extra: &[(DefId, TyList)],
     refs: &[(DefId, TyList)],
     session: Option<Session<'_>>,
+    planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
         pool,
@@ -2621,6 +2682,8 @@ pub fn collect(
         session,
         externs: HashMap::new(),
         copyable: HashMap::new(),
+        planner,
+        plans: HashMap::new(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {

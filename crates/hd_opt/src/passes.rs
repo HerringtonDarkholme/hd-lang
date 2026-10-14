@@ -1,8 +1,15 @@
 //! The pass manager (tiering.md §6): pass declarations, pipelines as data,
-//! and the startup validator. The named passes are declared; their bodies
-//! report not implemented, except `liveness`, which suspension lowering owns.
+//! and the startup validator. Body-unit passes (opt-pipeline.md §2.1) run
+//! per generic body and feed collection through `crate::planner`.
+//! The other named passes are declared; their bodies report not
+//! implemented, except `liveness`, which suspension lowering owns.
 
-use hd_base::{Fuel, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{DefId, Fuel, NotImplemented, StableHasher, Stage, StageResult};
+use hd_mono::ProgramEnv;
+use hd_mono::plan::Source;
+use hd_tir::ir::{Body, Tag};
+
+use crate::value_flow::ValueFlow;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Level {
@@ -36,7 +43,8 @@ pub enum FactId {
     Liveness,
     Escape,
     ClosureSpec,
-    KnownVtables,
+    ValueFlow,
+    KnownCallees,
 }
 
 /// What a pass sees: one instance.
@@ -44,9 +52,52 @@ pub struct InstanceCx {
     pub gate: u8,
 }
 
+/// What a body-unit pass sees: one generic body, before and during
+/// collection (opt-pipeline.md §2.1).
+pub struct BodyCx<'a> {
+    /// The item whose body it is (or for which the compiler generated it).
+    pub def: DefId,
+    pub body: &'a Body,
+    pub env: &'a dyn ProgramEnv,
+}
+
+/// The facts body-unit passes write for one body.
+#[derive(Default)]
+pub struct BodyFacts {
+    /// `FactId::ValueFlow`.
+    pub value_flow: Option<ValueFlow>,
+    /// `FactId::KnownCallees`: per `CallValue`, its callee's source.
+    pub known_callees: Vec<(u32, Source)>,
+}
+
+/// The summary bits of `body` that body-unit passes gate on: a `Call`
+/// sets `HAS_CALL` and a `CallValue` sets `HAS_DYN_CALL`. Every other bit
+/// is set, so a gate on it never skips a pass.
+#[must_use]
+pub fn body_gate(body: &Body) -> u8 {
+    let mut g = !(gate::HAS_CALL | gate::HAS_DYN_CALL);
+    for t in &body.tags {
+        match t {
+            Tag::Call => g |= gate::HAS_CALL,
+            Tag::CallValue => g |= gate::HAS_DYN_CALL,
+            _ => {}
+        }
+    }
+    g
+}
+
 pub enum PassOutcome {
     Done,
     Skipped,
+}
+
+/// A pass body, by the unit it runs on.
+#[derive(Clone, Copy)]
+pub enum Run {
+    /// Per generic body, before and during collection.
+    Body(fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> StageResult<PassOutcome>),
+    /// Per instance, at emission.
+    Instance(fn(&mut InstanceCx, &mut Fuel) -> StageResult<PassOutcome>),
 }
 
 pub struct PassSpec {
@@ -57,7 +108,7 @@ pub struct PassSpec {
     pub writes: &'static [FactId],
     pub gate: u8,
     pub required_by: Requirement,
-    pub run: fn(&mut InstanceCx, &mut Fuel) -> StageResult<PassOutcome>,
+    pub run: Run,
 }
 
 /// A declared pass with no body yet changes nothing (tiering.md §6): it
@@ -70,6 +121,49 @@ fn not_yet(_: &mut InstanceCx, fuel: &mut Fuel) -> StageResult<PassOutcome> {
     }
 }
 
+/// One fuel step per instruction a body-unit pass walks.
+fn charge_body(body: &Body, fuel: &mut Fuel) -> StageResult<()> {
+    if fuel.charge(body.len() as u64) {
+        Ok(())
+    } else {
+        Err(NotImplemented::new(Stage::Collect, "pass budget"))
+    }
+}
+
+/// `value_flow`: the body's data flow (`ValueFlow`).
+fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<PassOutcome> {
+    charge_body(cx.body, fuel)?;
+    facts.value_flow = Some(ValueFlow::new(cx.body));
+    Ok(PassOutcome::Done)
+}
+
+/// `devirt_known`, option A1 of closure-calls.md: each `CallValue` whose
+/// callee is a closure value made in the call's own sub-body
+/// (`ValueFlow::made`) has that instruction as its callee's source.
+/// Collection makes the call direct where that instruction is a closure.
+fn devirt_known(
+    cx: &BodyCx<'_>,
+    facts: &mut BodyFacts,
+    fuel: &mut Fuel,
+) -> StageResult<PassOutcome> {
+    let Some(flow) = &facts.value_flow else {
+        return Ok(PassOutcome::Skipped);
+    };
+    charge_body(cx.body, fuel)?;
+    let body = cx.body;
+    for i in 0..body.len() {
+        if body.tags[i] != Tag::CallValue {
+            continue;
+        }
+        if let Some(made) = flow.made(body, body.data[i][0], i) {
+            let at = u32::try_from(i).expect("insts");
+            let made = u32::try_from(made).expect("insts");
+            facts.known_callees.push((at, Source::Made(made)));
+        }
+    }
+    Ok(PassOutcome::Done)
+}
+
 fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
     if cx.gate & gate::HAS_SUSPEND == 0 {
         Ok(PassOutcome::Skipped)
@@ -79,7 +173,7 @@ fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
 }
 
 macro_rules! pass {
-    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $run:expr) => {
+    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident($run:expr)) => {
         PassSpec {
             name: $name,
             version: 1,
@@ -88,7 +182,7 @@ macro_rules! pass {
             writes: &[$(FactId::$w),*],
             gate: $gate,
             required_by: Requirement::$req,
-            run: $run,
+            run: Run::$unit($run),
         }
     };
 }
@@ -101,7 +195,7 @@ pub static PASSES: &[PassSpec] = &[
         [UseCounts],
         0,
         Optional,
-        not_yet
+        Instance(not_yet)
     ),
     pass!(
         "inline_plan",
@@ -110,7 +204,7 @@ pub static PASSES: &[PassSpec] = &[
         [InlinePlan],
         gate::HAS_CALL,
         Optional,
-        not_yet
+        Instance(not_yet)
     ),
     pass!(
         "closure_spec",
@@ -119,16 +213,25 @@ pub static PASSES: &[PassSpec] = &[
         [ClosureSpec],
         gate::HAS_CLOSURE,
         Optional,
-        not_yet
+        Instance(not_yet)
+    ),
+    pass!(
+        "value_flow",
+        TirAnalysis,
+        [],
+        [ValueFlow],
+        gate::HAS_CALL | gate::HAS_DYN_CALL,
+        Optional,
+        Body(value_flow)
     ),
     pass!(
         "devirt_known",
         TirDecision,
-        [],
-        [KnownVtables],
+        [ValueFlow],
+        [KnownCallees],
         gate::HAS_DYN_CALL,
         Optional,
-        not_yet
+        Body(devirt_known)
     ),
     pass!(
         "escape",
@@ -137,7 +240,7 @@ pub static PASSES: &[PassSpec] = &[
         [Escape],
         gate::HAS_ALLOC,
         Optional,
-        not_yet
+        Instance(not_yet)
     ),
     pass!(
         "scalar_replace",
@@ -146,7 +249,7 @@ pub static PASSES: &[PassSpec] = &[
         [],
         gate::HAS_ALLOC,
         Optional,
-        not_yet
+        Instance(not_yet)
     ),
     pass!(
         "liveness",
@@ -155,7 +258,7 @@ pub static PASSES: &[PassSpec] = &[
         [Liveness],
         gate::HAS_SUSPEND,
         WhenGate,
-        liveness
+        Instance(liveness)
     ),
 ];
 
@@ -174,6 +277,7 @@ pub static DEV: Pipeline = Pipeline {
 pub static OPTIMIZED: Pipeline = Pipeline {
     name: "optimized",
     tir: &[
+        "value_flow",
         "use_counts",
         "inline_plan",
         "closure_spec",
@@ -185,7 +289,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
     link: &["drop_dead", "fold", "leb_compact", "compact_names"],
 };
 
-fn spec(name: &str) -> Option<&'static PassSpec> {
+pub(crate) fn spec(name: &str) -> Option<&'static PassSpec> {
     PASSES.iter().find(|p| p.name == name)
 }
 
@@ -219,14 +323,17 @@ pub fn validate(p: &Pipeline) -> Result<hd_base::Hash128, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEV, InstanceCx, OPTIMIZED, PASSES, PassOutcome, Pipeline, validate};
+    use super::{DEV, InstanceCx, OPTIMIZED, PASSES, PassOutcome, Pipeline, Run, validate};
     use hd_base::Fuel;
 
     #[test]
     fn declared_passes_without_a_body_are_skipped_not_errors() {
         for p in PASSES.iter().filter(|p| p.name != "liveness") {
+            let Run::Instance(run) = p.run else {
+                continue;
+            };
             let mut cx = InstanceCx { gate: u8::MAX };
-            let out = (p.run)(&mut cx, &mut Fuel::new(8));
+            let out = run(&mut cx, &mut Fuel::new(8));
             assert!(matches!(out, Ok(PassOutcome::Skipped)), "{}", p.name);
         }
     }
@@ -259,7 +366,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 232_743_628_527_099_006_283_500_193_153_310_344_021,
+            optimized, 22_771_714_890_862_924_033_644_553_952_768_316_268,
             "optimized"
         );
     }

@@ -4,11 +4,12 @@ version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The pass manager: pass declarations, pipelines as data, and the pipeline hash"
+description = "The pass manager: pass declarations, body-unit passes, pipelines as data, and the pipeline hash"
 
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_mono = { path = "../hd_mono" }
+hd_tir = { path = "../hd_tir" }
 
 [lints]
 workspace = true

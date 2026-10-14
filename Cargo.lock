@@ -724,6 +724,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_mono",
+ "hd_tir",
 ]
 
 [[package]]
