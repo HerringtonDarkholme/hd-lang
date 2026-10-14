@@ -79,7 +79,11 @@ fn process_captures_both_streams_exit_code_and_signal() {
     assert_eq!(err, b"err");
     assert_eq!(status, 7);
     let (_, _, status) = run(request("/bin/sh", &shell("kill -TERM $$"), &[], 1 << 30)).unwrap();
-    assert_eq!(status, 128);
+    assert_eq!(status, 143);
+    let (_, _, status) = run(request("/bin/sh", &shell("kill -KILL $$"), &[], 1 << 30)).unwrap();
+    assert_eq!(status, 137);
+    let (_, _, status) = run(request("/bin/sh", &shell("exit 3"), &[], 1 << 30)).unwrap();
+    assert_eq!(status, 3);
 }
 
 #[test]

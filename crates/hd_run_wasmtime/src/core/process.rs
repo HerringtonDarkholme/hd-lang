@@ -15,7 +15,7 @@ use std::future::{Future, poll_fn};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::Poll;
 
@@ -288,8 +288,9 @@ impl Group {
         }
     }
 
-    /// Waits for the child to exit and reaps it: its status, 128 for a
-    /// child a signal ended. Descendants still running are left running.
+    /// Waits for the child to exit and reaps it: its status, 128 plus the
+    /// signal number for a child a signal ended. Descendants still running
+    /// are left running.
     async fn reap(&mut self) -> io::Result<i64> {
         let Some(child) = &mut self.child else {
             return Err(io::Error::other("the child was already reaped"));
@@ -297,8 +298,18 @@ impl Group {
         let status = child.wait().await?;
         self.child = None;
         self.tree.release();
-        Ok(i64::from(status.code().unwrap_or(128)))
+        Ok(status_value(status))
     }
+}
+
+/// The status a program sees: the exit code, or on Unix 128 plus the number
+/// of the signal that ended the child (`std-process.child.signal`).
+fn status_value(status: ExitStatus) -> i64 {
+    #[cfg(unix)]
+    if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status) {
+        return 128 + i64::from(signal);
+    }
+    i64::from(status.code().unwrap_or(128))
 }
 
 impl Drop for Group {

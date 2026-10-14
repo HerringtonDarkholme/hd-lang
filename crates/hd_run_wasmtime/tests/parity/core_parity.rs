@@ -627,6 +627,8 @@ fn process_scope_is_exact_and_refusal_precedes_lookup() {
     );
 }
 
+// A SIGTERM-ended child reports 143, 128 plus the signal
+// (`std-process.child.signal`), on both hosts.
 #[cfg(unix)]
 #[test]
 fn process_signal_status_and_permission_denied() {
@@ -640,7 +642,7 @@ fn process_signal_status_and_permission_denied() {
         "hd:Process",
         "run",
         process_args("node", &["-e", "process.kill(process.pid,'SIGTERM')"], b""),
-        Enc::default().leb(0).str("").str("").leb(256).0,
+        Enc::default().leb(0).str("").str("").leb(286).0,
     );
     p.call_waiting(
         "hd:Process",

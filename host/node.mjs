@@ -28,7 +28,14 @@ import {
 import { spawnSync } from "node:child_process";
 import { isIP } from "node:net";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
-import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
+import {
+  arch as osArch,
+  availableParallelism,
+  constants as osConstants,
+  hostname,
+  platform,
+  tmpdir,
+} from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
 import {
   createCoreHost,
@@ -552,7 +559,9 @@ function processImports({ argsOf, grant, env, ready }) {
       if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
       return e.leb(1).leb(PROC.Other).str(String(r.error.message));
     }
-    const status = r.status ?? 128;
+    // std-process.child.signal: a child ended by a signal reports 128 plus
+    // the signal number.
+    const status = r.status ?? 128 + (osConstants.signals[r.signal] ?? 0);
     return e.leb(0).str(r.stdout.toString("utf8")).str(r.stderr.toString("utf8")).zz(status);
   };
   return waiting({
