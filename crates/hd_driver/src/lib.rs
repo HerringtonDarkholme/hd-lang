@@ -5205,6 +5205,25 @@ impl Run<'_> {
             lines.write(&mut dw, diags.primary[i].lo);
             lines.write(&mut dw, diags.primary[i].hi);
             dw.str(diags.get_text(diags.message[i]));
+            // The row's fix-its (entry layout 6): each title, safety,
+            // and its edits as spans with replacement text.
+            let fixes = diags.fixes[i];
+            dw.u32(fixes.len);
+            for f in fixes.start..fixes.start + fixes.len {
+                let f = f as usize;
+                dw.str(diags.get_text(diags.fix_title[f]));
+                dw.u8(match diags.fix_safety[f] {
+                    hd_diag::FixSafety::Exact => 0,
+                    hd_diag::FixSafety::Suggestion => 1,
+                });
+                let edits = diags.fix_edits[f];
+                dw.u32(edits.len);
+                for e in &diags.edits[edits.range()] {
+                    lines.write(&mut dw, e.span.lo);
+                    lines.write(&mut dw, e.span.hi);
+                    dw.str(diags.get_text(e.text));
+                }
+            }
         }
         let mut tw = Writer::default();
         let mut content = hd_base::StableHasher::new("tir-content");
@@ -5431,6 +5450,28 @@ impl Run<'_> {
                 &msg,
                 None,
             );
+            // The row's fix-its (entry layout 6).
+            for _ in 0..r.count() {
+                let title = r.str();
+                let safety = match r.u8() {
+                    0 => hd_diag::FixSafety::Exact,
+                    _ => hd_diag::FixSafety::Suggestion,
+                };
+                let mut edits = Vec::new();
+                for _ in 0..r.count() {
+                    let (lo, hi) = (lines.read(&mut r), lines.read(&mut r));
+                    let text = r.str();
+                    edits.push((
+                        Span {
+                            file: FileId::from_raw(u32_of(m)),
+                            lo,
+                            hi,
+                        },
+                        text,
+                    ));
+                }
+                buf.add_fix(title, safety, &edits);
+            }
         }
         let has_errors = buf.has_errors();
         lock(&self.diags).append(&buf);

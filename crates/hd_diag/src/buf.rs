@@ -132,8 +132,8 @@ impl DiagBuf {
         self.push(code, Severity::Error, primary, message, None);
     }
 
-    /// Appends another buffer's diagnostics (messages only; this run's
-    /// stages attach no labels or fixes after parsing).
+    /// Appends another buffer's diagnostics, fix-its included (labels
+    /// stay behind: this run's stages attach no labels after parsing).
     pub fn append(&mut self, other: &DiagBuf) {
         for i in 0..other.len() {
             self.push(
@@ -143,6 +143,19 @@ impl DiagBuf {
                 other.get_text(other.message[i]),
                 other.root[i],
             );
+            let fixes = other.fixes[i];
+            for f in fixes.start..fixes.start + fixes.len {
+                let f = f as usize;
+                let edits: Vec<(Span, &str)> = other.edits[other.fix_edits[f].range()]
+                    .iter()
+                    .map(|e| (e.span, other.get_text(e.text)))
+                    .collect();
+                self.add_fix(
+                    other.get_text(other.fix_title[f]),
+                    other.fix_safety[f],
+                    &edits,
+                );
+            }
         }
     }
 

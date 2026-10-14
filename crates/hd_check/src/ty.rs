@@ -2,7 +2,7 @@
 //! as headers, read through the module scope, the item's type parameters
 //! and the closure's interfaces. An `_` is a fresh variable.
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, Span, StageResult};
 use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, HeadKind, ItemData, Src};
@@ -319,6 +319,16 @@ impl Ck<'_, '_> {
                 let name = self.cx.names.display_name(def);
                 let msg = format!("`{name}` is a trait, not a type");
                 self.err(Code::TraitUsedAsType, n, &msg);
+                let span = self.cx.src.span(n);
+                let at = Span {
+                    hi: span.lo,
+                    ..span
+                };
+                self.diags.add_fix(
+                    "insert `dyn` before the trait name",
+                    hd_diag::FixSafety::Exact,
+                    &[(at, "dyn ")],
+                );
                 return Ok(Ty::POISON);
             }
             // A written trait value omits its defaulted trailing arguments

@@ -1877,6 +1877,15 @@ impl Lower<'_, '_, '_> {
             HeadKind::Trait => {
                 let msg = format!("`{}` is a trait, not a type", self.names.display_name(def));
                 self.diags.error(Code::TraitUsedAsType, span, &msg);
+                let at = Span {
+                    hi: span.lo,
+                    ..span
+                };
+                self.diags.add_fix(
+                    "insert `dyn` before the trait name",
+                    hd_diag::FixSafety::Exact,
+                    &[(at, "dyn ")],
+                );
                 Ty::POISON
             }
             HeadKind::Fn | HeadKind::Impl => {
