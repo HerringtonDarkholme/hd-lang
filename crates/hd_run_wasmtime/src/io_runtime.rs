@@ -22,9 +22,6 @@ pub fn io_started() -> bool {
 }
 
 /// The runtime's handle, starting its thread on the first call.
-// Its first caller is `Reactor::offload`, test-only until a capability
-// moves onto the runtime (wasmtime-host-audit.md §5, T2).
-#[cfg(test)]
 pub(crate) fn handle() -> Result<&'static Handle, String> {
     RUNTIME
         .get_or_init(|| {

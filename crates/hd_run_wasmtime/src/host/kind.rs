@@ -19,6 +19,7 @@ pub(crate) enum Kind {
         finish: bool,
     },
     ProcessStart,
+    ProcessFinish,
     HttpStart,
     Net {
         method: &'static str,
@@ -89,6 +90,7 @@ impl Kind {
             Self::Abort => Record::Abort,
             Self::Fixture { finish: true, .. }
             | Self::Fs { finish: true, .. }
+            | Self::ProcessFinish
             | Self::NeverFinish
             | Self::WriteLineFinish
             | Self::ReadLineFinish
@@ -248,7 +250,7 @@ impl Kind {
             ("hd:Http", "send.start") => Kind::HttpStart,
             ("hd:Http", "send.finish") => Kind::NeverFinish,
             ("hd:Process", "run.start") => Kind::ProcessStart,
-            ("hd:Process", "run.finish") => Kind::NeverFinish,
+            ("hd:Process", "run.finish") => Kind::ProcessFinish,
             ("hd:Random", "next_u64") => Kind::RandomNext,
             ("hd:Random", "fill") => Kind::RandomFill,
             ("hd:Sys", "os") => Kind::Sys("os"),

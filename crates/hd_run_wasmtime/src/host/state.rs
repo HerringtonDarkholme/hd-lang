@@ -227,7 +227,12 @@ impl Host {
                 return None;
             }
             Control::Exit { status, close } => (status, close),
-            Control::Trap { close } => (3, close),
+            // A trapped run's pending operations can never finish: end
+            // them, so a child it started is killed before the run ends.
+            Control::Trap { close } => {
+                self.reactor.drop_all();
+                (3, close)
+            }
         };
         self.flush();
         if close {

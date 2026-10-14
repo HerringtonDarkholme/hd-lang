@@ -60,7 +60,7 @@ Run with a cold `--features wasmtime` dev build in
 | `hd:rt` `block` (`block_on`) | loops on the reactor (`host/call.rs:258-266`) | main | run | cut | wakes | OK |
 | `Random`, `Sys`, `Env`, `Args` | plain, fast syscalls | main | n/a | n/a | n/a | OK |
 | `FsRead`, `FsWrite` | blocks inside `.start` (`host/call.rs:151-175`) | main | blocked | regular files: checked before and after only; FIFOs and Windows pipes: polled every 50 ms (`fs/io.rs:69-213`); no deadline means `read_to_end` with no bound (`fs/io.rs:83-87`) | flag seen only after the call returns, then `stopped`, not `cancelled` | Partially: fast for small local files; a FIFO, a slow disk or NFS blocks the whole program |
-| `Process.run!` | blocks inside `.start` (`host/call.rs:176-196`) | three pipe threads per run plus main polling every 50 ms (`core/workers.rs:70-249`) | blocked (probe: `all!` 2.10 s) | kills the child, not its descendants | ignored until the child exits | Blocks the whole program |
+| `Process.run!` | suspends since T2: `.start` checks the grant and arguments, then one `hd-io` task spawns the child in its own process group and handles its three pipes together (`core/process.rs`) | `hd-io` thread | run (probe: `all!` 1.07 s in both orders) | a `time-limit` trap ends every pending operation (`Control::Trap` → `drop_all`), which kills the child's group | abort kills the process group (Unix) or the Job object (Windows), then reaps the child; a REPL Stop prints `cancelled` | OK |
 | `Http.send!` | blocks inside `.start` (`host/call.rs:197-202`) | one process-wide worker thread (`http/client.rs:121-133`); concurrent instances (`hd test --jobs`) queue behind each other | blocked | request timeout (default 30 s, `http/request.rs:45`) or deadline; with neither, `recv()` with no bound (`http/client.rs:68-72`) | ignored; `race!` cannot cancel (`std-http.send.cancel` is never reachable) | Blocks the whole program |
 | `Net` (all methods) | blocks inside `.start` (`host/call.rs:203-224`) | one worker per instance, busy-polling nonblocking sockets every 5 ms (`net/state.rs:56-77`, `net/mod.rs:30`) | blocked (probe: `race!` timeout never fires) | cut; with no deadline, `recv()` with no bound (`net/client.rs:240-243`) | ignored; in the REPL Ctrl-C does nothing, since `ctrlc` replaced SIGINT (`hd_cli/src/repl.rs:164`) and the REPL sets no time limit (`repl.rs:372`) | Blocks the whole program |
 | `TestRunner` / `PropertyRunner` | plain, small fs work | main | n/a | checked after `snapshot_check` and `start` | n/a | OK |
@@ -132,7 +132,7 @@ reverses that: §4 adds tokio and counts the crates it adds and removes.
 | [`req.cancel.external-abort`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort), [`std-http.send.cancel`](../../spec/std/http.md#r-std-http.send.cancel) | met only because nothing is ever pending; `race!` cannot cancel a request, a child process or a socket wait |
 | [`req.waker.arrange`](../../spec/lang/11-requirements-and-suspension.md#r-req.waker.arrange) with [`req.schedule.all-unfinished`](../../spec/lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished) | `all!` children run one after another: the first blocking start holds the rest |
 | [`cli.repl.cancel`](../../spec/cli/command-line.md#r-cli.repl.cancel) (Stop while waiting on the host runs `defer`) | a Stop during a blocking host call is seen after the call returns and reports `stopped`, not `cancelled` (`host/call.rs:401`, `instance.rs:269-295`) |
-| [`module.process.other`](../../spec/lang/10-modules.md#r-module.process.other) ("cannot start") | output over 1 GiB after the child started becomes `Other` (`core/workers.rs:121-123`, `core/process.rs:72-83`) |
+| [`module.process.other`](../../spec/lang/10-modules.md#r-module.process.other) ("cannot start") | output over 1 GiB after the child started becomes `Other` (`core/process.rs`, `drain` and `finish`) |
 
 Std rules written from S1-S12 (owner-approved 2026-10-13) that the
 wasmtime host does not meet yet. `KNOWN_FAILURES.tsv` cannot list them:
@@ -141,8 +141,8 @@ row it does not see. Each fix job removes its rows here.
 
 | Rule | wasmtime behavior | Fix job |
 | --- | --- | --- |
-| [`std-host.op.wait`](../../spec/std/host.md#r-std-host.op.wait), [`std-fs.special-file`](../../spec/std/fs.md#r-std-fs.special-file) | `Fs`, `Process`, `Http` and `Net` calls block the whole instance | T2, T4, T6, T7, T8 |
-| [`std-process.cancel`](../../spec/std/process.md#r-std-process.cancel) | cancel is not seen until the child exits; a deadline kills the child, not its process group | T2 (Windows: question Q1) |
+| [`std-host.op.wait`](../../spec/std/host.md#r-std-host.op.wait), [`std-fs.special-file`](../../spec/std/fs.md#r-std-fs.special-file) | `Fs`, `Http` and `Net` calls, and test-engine child programs, block the whole instance (`Process` suspends since T2) | T4, T6, T7, T8 |
+| [`std-process.cancel`](../../spec/std/process.md#r-std-process.cancel) | met since T2. On Windows the abort closes the child's Job object (`win32job`, the owner's answer to Q1). A process the child starts before the host assigns it to the job, right after spawn, is outside the job and survives | Windows window: open |
 | [`std-http.send.cancel.close`](../../spec/std/http.md#r-std-http.send.cancel.close) | a request cannot be aborted, so its connection is never closed early | T6 |
 | [`std-net.cancel.read`](../../spec/std/net.md#r-std-net.cancel.read), [`std-net.close.pending`](../../spec/std/net.md#r-std-net.close.pending) | no `Net` operation is ever pending, so neither can be observed | T4 (`cancel.read`), T5 (`close.pending`) |
 | [`std-net.close.release`](../../spec/std/net.md#r-std-net.close.release) | `close` shuts down only the write half and keeps the socket (`net/ops.rs:30-33`) | T5 |
@@ -264,7 +264,8 @@ All paths below are under `crates/hd_run_wasmtime/src`.
   `rustix::process::kill_process_group(pgid, KILL)` and then
   `child.wait().await`, so the child is reaped, not left to tokio's
   best-effort orphan reaper (`kill_on_drop` caveats, docs.rs). On
-  Windows, killing the group needs a Job object (question Q1).
+  Windows the child is assigned to a kill-on-close Job object
+  (`win32job`, the owner's answer to Q1), and the abort closes it.
 - **Http:** the request runs on the blocking pool. Abort calls
   `shutdown(Both)` on a clone of the request's `TcpStream`, kept in a
   cancel slot. ureq's blocked read then fails at once, and the
@@ -347,7 +348,8 @@ Today (from §2): 126 external crates on macOS and 129 on Windows.
 | drop direct `libc` use (`net/socket.rs:148` and `fs/io.rs` go with the polling) | 0: tokio and mio use it | 0 | T12 |
 | `socket2`: keep it direct only for dual-stack UDP `set_only_v6` and the listen backlog, which tokio's `TcpSocket` lacks | 0: tokio's `net` depends on it | 0 | T4 |
 | drop `interprocess` (+ doctest-file, recvmsg, widestring) and `winapi-util` | 0 | −4 to −5 | T7 |
-| **Estimated total** | **≈102 (−24)** | **≈101 (−28)** | |
+| add `win32job =2.0.3` (Windows only; Q1): it brings `windows 0.61` and its family (windows-core, -collections, -future, -implement, -interface, -numerics, -result, -strings, -threading, windows-link 0.1) and `thiserror 1` | 0 | +14 | T2 |
+| **Estimated total** | **≈102 (−24)** | **≈115 (−14)** | |
 
 Build time is not measured for tokio. Its features here are small, and
 removing url+ICU saves about 24 s of summed crate time (§2). T1 and T12
@@ -394,7 +396,7 @@ WAT, functions and build time before and after.
 | --- | --- | --- | --- | --- |
 | F0 | | | Flush held Console output before host waits | done (0b6309e9); flush probe green |
 | T1 | opus | | Add tokio (features of §4.7) and the lazy `hd-io` runtime. Generalize the reactor inbox to `(handle, Done)`, with `Reactor::offload(future) -> handle`, a stored abort handle, a ready list for `due`, and `drop_all` and `Control::Abort` aborting tasks. No capability moves yet. Mark engines-and-test-runner.md §20.6 Q1 and runtime-and-host.md §17.5 as superseded by §4 here | done in "Add the lazy hd-io tokio runtime and offloaded reactor ops"; external crates 126 → 130 on macOS, 129 → 132 on Windows. `Reactor::offload` stays test-only until T2 gives it a caller |
-| T2 | opus | T1 | `Process.run!` on `tokio::process`: own process group, concurrent stdin/stdout/stderr, abort kills the group and reaps, real `run.finish` kind. Delete `core/workers.rs` and the pipe parts of `core/pipes.rs` | probe 2 takes ~1 s in both orders; `race!(run!("sh", ["-c", "sleep 5 & sleep 5"]), sleep!(100ms))` returns at ~0.1 s and `pgrep` finds no `sleep`; a REPL Ctrl-C during `run!` prints `cancelled`; a replayed session input with `run!` spawns nothing |
+| T2 | opus | T1 | `Process.run!` on `tokio::process`: own process group, concurrent stdin/stdout/stderr, abort kills the group and reaps, real `run.finish` kind. Delete `core/workers.rs` and the pipe parts of `core/pipes.rs` | done in "Run Process.run! as an hd-io task that kills its group on abort": probe 2 takes 1.07-1.10 s in both orders; the `race!` probe prints `timeout` at 0.15 s and `pgrep` finds no `sleep 5`; a REPL Stop prints `cancelled` and the child is gone; a rebuilt session runs no child again. An abort returns once its task is dropped, and a trap ends every pending operation. Windows uses a Job object (+14 crates, Q1) |
 | T3 | sonnet | T2 | `std-process.child.signal`: status is 128 + `ExitStatusExt::signal()` on Unix (`core/pipes.rs:145,149`) | `run!("sh", ["-c", "kill -TERM $$"])` reports status 143; a normal exit is unchanged |
 | T4 | opus | T1 | `Net` on tokio: handle table on the host side with tasks per operation (lookup, connect with Node family order and a 250 ms per-candidate timeout, listen, bind_udp, read, write, accept, send_to, receive), real finish kinds. Delete the worker, `arrivals` and the DNS thread. `close` keeps today's meaning until T5 | probe 3 prints `timeout` at ~0.5 s; `all!(accept!, connect!)` on loopback completes in one program; cancelling `read!` and then reading again returns the first bytes (`std-net.cancel.read`); a REPL Ctrl-C during `accept!` prints `cancelled`; an idle program with an open listener uses no CPU |
 | T5 | sonnet | T4 | `std-net.close.release` and `std-net.close.pending`: `close` aborts the handle's pending tasks, completes them with `Disposed`, and drops both halves | after `close`, the open-descriptor count (`lsof -p`, or `/proc/self/fd`) is back to baseline and the peer reads EOF at once; `race!` over a pending `read!` and a `close` yields `Disposed` |
@@ -442,7 +444,7 @@ These are the three probes from the top of this audit.
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| Q1 | On Windows, `std-process.cancel` asks to kill the child's process group. That needs a Job object, which means `unsafe` FFI. The crate is `#![forbid(unsafe_code)]`, and the only approved `unsafe` is in `hd_cli` and `hd_web`. The other way is a new crate. | Kill the direct child only on Windows for now (tokio `kill`), and keep a §3 row for the gap. Revisit when Windows CI runs the process tests. |
+| Q1 | On Windows, `std-process.cancel` asks to kill the child's process group. That needs a Job object, which means `unsafe` FFI. The crate is `#![forbid(unsafe_code)]`, and the only approved `unsafe` is in `hd_cli` and `hd_web`. The other way is a new crate. | Answered 2026-10-14: add a Job-object crate. T2 uses `win32job =2.0.3` (released May 2025). No Job-object crate on `windows-sys` was found: `process-wrap` and `kill_tree` also use `windows`, and `command-group` uses `winapi`. |
 | Q2 | Keep Http on ureq, with a blocking-pool thread per in-flight request, or move to hyper on tokio? | Keep ureq (§4.6): no new crates, and the redirect, grant and candidate code stays. hyper adds about 8 crates and rewrites about 1,000 lines for concurrency the CLI does not need. |
 
 Not in this plan: the Node host's `race!` hang past `--time-limit` (probe

@@ -57,14 +57,19 @@ hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 
 [target.'cfg(windows)'.dependencies]
+# `Process.run!` puts each child in a Job object that kills the child and
+# its descendants when it closes (`std-process.cancel`), as a process
+# group kill does on Unix (wasmtime-host-audit.md §5.3 Q1).
+win32job = "=2.0.3"
 interprocess = { version = "=2.4.4", default-features = false }
 winapi-util = "=0.1.11"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", default-features = false, features = ["fs", "poll"] }
-# Wasmtime's initial Unix mmap allocation reports this concrete errno type.
-rustix = { version = "=1.1.5", default-features = false, features = ["std"] }
+# Wasmtime's initial Unix mmap allocation reports this concrete errno type;
+# `process` kills a child's process group (`core/process.rs`).
+rustix = { version = "=1.1.5", default-features = false, features = ["process", "std"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Regression watchdogs must release deliberately blocked child fixtures.

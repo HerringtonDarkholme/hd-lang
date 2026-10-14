@@ -1,4 +1,5 @@
-use super::super::{run_process, run_process_with_limit_and_deadline};
+use super::{offload, request, run};
+use crate::reactor::Reactor;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -57,11 +58,12 @@ fn bounded(test: impl FnOnce() + Send + 'static) {
 fn no_limit_process_preserves_binary_output_input_and_exit_status() {
     bounded(|| {
         let input = vec![b'x'; 262_144];
-        let (out, err, status) = run_process(
+        let (out, err, status) = run(request(
             std::env::current_exe().unwrap().to_str().unwrap(),
             &fixture_args("child_echo", None),
             &input,
-        )
+            1 << 30,
+        ))
         .unwrap();
         // libtest prints a short preamble before running the fixture.
         // The payload itself must remain binary-exact, not normalized.
@@ -76,11 +78,12 @@ fn no_limit_process_preserves_binary_output_input_and_exit_status() {
 #[test]
 fn no_limit_process_preserves_output_when_the_child_closes_stdin() {
     bounded(|| {
-        let (out, err, status) = run_process(
+        let (out, err, status) = run(request(
             std::env::current_exe().unwrap().to_str().unwrap(),
             &fixture_args("child_exit", None),
             &vec![0; 262_144],
-        )
+            1 << 30,
+        ))
         .unwrap();
         assert!(out.ends_with(b"early stdout"));
         assert_eq!(err, b"early stderr");
@@ -88,8 +91,12 @@ fn no_limit_process_preserves_output_when_the_child_closes_stdin() {
     });
 }
 
+/// `std-process.cancel`: the child exits while its descendant keeps the
+/// quiet pipes open, so the run stays pending. Aborting it closes the
+/// child's Job object, which kills the descendant: it never sees the
+/// release file and never writes its `closed` marker.
 #[test]
-fn deadline_closes_quiet_pipes_inherited_after_the_direct_child_exits() {
+fn abort_kills_a_descendant_holding_the_pipes() {
     let path = std::env::temp_dir().join(format!(
         "hd-process-windows-descendant-{}-{}",
         std::process::id(),
@@ -99,33 +106,30 @@ fn deadline_closes_quiet_pipes_inherited_after_the_direct_child_exits() {
             .as_nanos()
     ));
     let args = fixture_args("child_descendant", Some(&path));
-    let start = Instant::now();
-    let deadline = start + Duration::from_secs(2);
-    let (tx, rx) = std::sync::mpsc::channel();
-    let worker = std::thread::spawn(move || {
-        let result = run_process_with_limit_and_deadline(
+    let mut reactor = Reactor::new(None);
+    let h = offload(
+        &mut reactor,
+        request(
             std::env::current_exe().unwrap().to_str().unwrap(),
             &args,
             &vec![0; 262_144],
-            8192,
-            Some(deadline),
-        );
-        let _ = tx.send(result);
-    });
-    let result = rx.recv_timeout(Duration::from_secs(10));
-    let elapsed = start.elapsed();
-    let ready = path.with_extension("ready").is_file();
-    // Release only our own descendant even if cancellation regresses.
-    // It polls this file and also has an independent eight-second
-    // watchdog. No taskkill quoting or unsafe handle APIs are needed.
-    std::fs::write(&path, []).unwrap();
-    worker.join().unwrap();
-    // Generous cleanup bound under load; the deadline itself (2 s) is
-    // the behaviour under test.
-    let cleanup_deadline = Instant::now() + Duration::from_secs(5);
-    while !path.with_extension("closed").is_file() && Instant::now() < cleanup_deadline {
+            1 << 30,
+        ),
+    );
+    // Generous setup bound under load.
+    let until = Instant::now() + Duration::from_secs(10);
+    while !path.with_extension("ready").is_file() && Instant::now() < until {
         std::thread::sleep(Duration::from_millis(5));
     }
+    let ready = path.with_extension("ready").is_file();
+    let started = Instant::now();
+    reactor.remove(h);
+    let aborted = started.elapsed();
+    // Release the descendant: a live one writes `closed` within
+    // milliseconds; a killed one never does. It also has an independent
+    // eight-second watchdog.
+    std::fs::write(&path, []).unwrap();
+    std::thread::sleep(Duration::from_secs(1));
     let closed = path.with_extension("closed").is_file();
     let _ = std::fs::remove_file(path.with_extension("ready"));
     let _ = std::fs::remove_file(path.with_extension("closed"));
@@ -134,11 +138,8 @@ fn deadline_closes_quiet_pipes_inherited_after_the_direct_child_exits() {
         ready,
         "fixture failed to create its inherited-pipe descendant"
     );
-    assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
-    // Generous completion bound: the 2 s program deadline is the
-    // behaviour under test; the 5 s wall bound only proves no hang.
-    assert!(elapsed < Duration::from_secs(5));
-    assert!(closed, "fixture descendant did not acknowledge cleanup");
+    assert!(!closed, "the descendant outlived the abort");
+    assert!(aborted < Duration::from_secs(5), "{aborted:?}");
 }
 
 #[test]

@@ -9,7 +9,7 @@ use super::{Control, Host, Stop};
 use crate::codec::Enc;
 use crate::prim;
 use crate::profiles;
-use crate::reactor::{NS_PER_MS, Work, now_ns};
+use crate::reactor::{Done, NS_PER_MS, Work, now_ns};
 use crate::{core, fs};
 
 pub(crate) fn call(
@@ -175,24 +175,49 @@ pub(crate) fn call(
         }
         Kind::ProcessStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
-            let host = caller.data();
-            let e = match &host.environment {
-                Some(environment) if host.testing.is_some() => crate::test_engine::process(
-                    &b,
-                    &host.grants,
-                    environment,
-                    host.deadline(),
-                    host.memory_bytes,
-                )?,
-                Some(environment) => core::process_with_deadline_at(
-                    &b,
-                    &host.grants,
-                    host.deadline(),
-                    &environment.cwd,
-                )?,
-                None => core::process_with_deadline(&b, &host.grants, host.deadline())?,
+            let host = caller.data_mut();
+            match &host.environment {
+                Some(environment) if host.testing.is_some() => {
+                    Ret::ready(crate::test_engine::process(
+                        &b,
+                        &host.grants,
+                        environment,
+                        host.deadline(),
+                        host.memory_bytes,
+                    )?)?
+                }
+                environment => {
+                    let cwd = environment.as_ref().map(|e| e.cwd.as_path());
+                    match core::process::start(&b, &host.grants, cwd)? {
+                        core::process::Start::Refused(e) => Ret::ready(e)?,
+                        core::process::Start::Run(request) => {
+                            let name = request.name.clone();
+                            match host
+                                .reactor
+                                .offload(async move { Done::Process(request.run().await) })
+                            {
+                                Ok(h) => Ret::pair(1, h),
+                                Err(error) => Ret::ready(core::process::not_run(&name, &error))?,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Kind::ProcessFinish => {
+            let h = handle(int_arg(params, 0)?);
+            let Some(op) = caller.data_mut().reactor.remove(h) else {
+                return Err(
+                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
+                );
             };
-            Ret::ready(e)?
+            let Work::Offloaded(Some(Done::Process(ran))) = op.work else {
+                return Err(Stop::Contract(
+                    "a finish of an operation that is not completed".into(),
+                )
+                .into());
+            };
+            Ret::encoded(core::process::finish(ran))
         }
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;

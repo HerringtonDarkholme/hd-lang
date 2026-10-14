@@ -225,6 +225,49 @@ impl Program {
         self.expected.push(expected);
     }
 
+    /// Like `call`, for a method whose `.start` may also be pending: then
+    /// it waits in `block` and takes the result from `.finish`.
+    pub fn call_waiting(
+        &mut self,
+        module: &str,
+        method: &str,
+        args: impl AsRef<[u8]>,
+        expected: Vec<u8>,
+    ) {
+        let args = args.as_ref();
+        let start = self.import(
+            module,
+            &format!("{method}.start"),
+            &[ValType::I32],
+            &[ValType::I32, ValType::I32],
+        );
+        let block = self.import("hd:rt", "block", &[], &[ValType::I32]);
+        let finish = self.import(
+            module,
+            &format!("{method}.finish"),
+            &[ValType::I32],
+            &[ValType::I32],
+        );
+        self.load_args(args);
+        self.instructions(&[
+            I::I32Const(i32::try_from(args.len()).unwrap()),
+            I::Call(start),
+            I::LocalSet(0),
+            I::LocalSet(1),
+            I::LocalGet(1),
+            I::If(BlockType::Empty),
+            // The only pending operation, so the first batch holds it.
+            I::Call(block),
+            I::Drop,
+            I::LocalGet(0),
+            I::Call(finish),
+            I::LocalSet(0),
+            I::End,
+        ]);
+        self.dump();
+        self.expected.push(expected);
+    }
+
     pub fn sys(&mut self, method: &str) {
         let index = self.import("hd:Sys", method, &[], &[ValType::I32]);
         self.instructions(&[I::Call(index), I::LocalSet(0)]);

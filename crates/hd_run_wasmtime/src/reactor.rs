@@ -9,10 +9,13 @@
 //! completion: a timer's deadline or a delivery, whichever comes first.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::future::Future;
 use std::io::BufRead;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use tokio::task::AbortHandle;
@@ -34,6 +37,8 @@ pub type Line = Result<Option<String>, ()>;
 /// Each capability that moves onto the `hd-io` runtime adds its variant
 /// (wasmtime-host-audit.md §5, T2-T7).
 pub enum Done {
+    /// `Process.run!`: how the child's run ended.
+    Process(crate::core::process::Ran),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),
@@ -68,7 +73,44 @@ pub struct Op {
     completed: bool,
     /// An offloaded operation's task, until it delivers: aborted when the
     /// operation ends first.
-    task: Option<AbortHandle>,
+    task: Option<Task>,
+}
+
+/// An offloaded operation's running task.
+struct Task {
+    abort: AbortHandle,
+    /// Disconnected once the task's work is dropped, when it ends or is
+    /// aborted.
+    ended: Receiver<()>,
+}
+
+impl Task {
+    fn abort(&self) {
+        self.abort.abort();
+    }
+
+    /// Waits until the aborted task's work is dropped, so whatever its drop
+    /// does (killing a child, for one) has happened when an abort returns.
+    /// The `hd-io` thread never waits on a program thread, so this cannot
+    /// deadlock.
+    fn ended(&self) {
+        let _ = self.ended.recv();
+    }
+}
+
+/// A task's work, then the sender that `Task::ended` waits on: fields drop
+/// in order, so the sender goes only after the work.
+struct Tracked<F> {
+    work: Pin<Box<F>>,
+    _ended: Sender<()>,
+}
+
+impl<F: Future> Future for Tracked<F> {
+    type Output = F::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<F::Output> {
+        self.work.as_mut().poll(cx)
+    }
 }
 
 /// What other threads delivered and the reactor has not taken yet.
@@ -211,25 +253,30 @@ impl Reactor {
     /// runtime, which starts on the first call. The task delivers its
     /// `Done` into the inbox, to complete at the next `due`; ending the
     /// operation first (`remove`, `drop_all`) aborts the task, and a
-    /// result it delivered too late is dropped.
-    // Test-only until a capability moves onto the runtime
-    // (wasmtime-host-audit.md §5, T2).
-    #[cfg(test)]
+    /// result it delivered too late is dropped. An abort returns once the
+    /// task's work is dropped.
     pub fn offload<F>(&mut self, work: F) -> Result<i32, String>
     where
-        F: std::future::Future<Output = Done> + Send + 'static,
+        F: Future<Output = Done> + Send + 'static,
     {
         let runtime = crate::io_runtime::handle()?;
         let h = self.start(None, Work::Offloaded(None));
         let inbox = Arc::clone(&self.inbox);
-        let task = runtime.spawn(async move {
-            let done = work.await;
-            let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
-            queue.done.push((h, done));
-            inbox.ready.notify_all();
+        let (sender, ended) = channel();
+        let task = runtime.spawn(Tracked {
+            work: Box::pin(async move {
+                let done = work.await;
+                let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
+                queue.done.push((h, done));
+                inbox.ready.notify_all();
+            }),
+            _ended: sender,
         });
         if let Some(op) = self.ops.get_mut(&h) {
-            op.task = Some(task.abort_handle());
+            op.task = Some(Task {
+                abort: task.abort_handle(),
+                ended,
+            });
         }
         Ok(h)
     }
@@ -442,6 +489,7 @@ impl Reactor {
         }
         if let Some(task) = &op.task {
             task.abort();
+            task.ended();
         }
         Some(op)
     }
@@ -466,9 +514,15 @@ impl Reactor {
             .clear();
     }
 
+    /// Aborts every pending task, then waits until each one's work is
+    /// dropped.
     fn abort_tasks(&self) {
-        for task in self.ops.values().filter_map(|op| op.task.as_ref()) {
+        let tasks = || self.ops.values().filter_map(|op| op.task.as_ref());
+        for task in tasks() {
             task.abort();
+        }
+        for task in tasks() {
+            task.ended();
         }
     }
 }

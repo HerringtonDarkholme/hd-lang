@@ -517,13 +517,13 @@ fn process_binary_input_lossy_outputs_status_and_missing_program() {
     let scratch = Scratch::new();
     let mut p = Program::new();
     let script = "const fs=require('node:fs');process.stdout.write(fs.readFileSync(0));process.stderr.write(Buffer.from([255,0,195,169]));process.exitCode=23";
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("node", &["-e", script], &[0, 255, 195, 169]),
         Enc::default().leb(0).str("\0�é").str("�\0é").leb(46).0,
     );
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("hd-missing-program-parity-778811", &[], b""),
@@ -539,7 +539,7 @@ fn process_drains_both_pipes_while_child_waits_for_large_input() {
     let script = "const fs=require('node:fs');fs.writeSync(1,Buffer.alloc(70000,65));fs.writeSync(2,Buffer.alloc(70000,66));const b=fs.readFileSync(0);fs.writeSync(1,String(b.length))";
     let input = vec![42; 100_000];
     let out = format!("{}100000", "A".repeat(70_000));
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("node", &["-e", script], &input),
@@ -557,7 +557,7 @@ fn process_drains_both_pipes_while_child_waits_for_large_input() {
 #[test]
 fn process_child_closing_stdin_retains_output_and_status() {
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args(
@@ -601,19 +601,19 @@ fn filesystem_sparse_file_size_bound_matches_node() {
 fn process_scope_is_exact_and_refusal_precedes_lookup() {
     let scratch = Scratch::new();
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("node", &["-e", "process.stdout.write('ok')"], b""),
         Enc::default().leb(0).str("ok").str("").leb(0).0,
     );
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("hd-missing-program-parity-778811", &[], b""),
         vec![1, 2],
     );
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("node-other", &[], b""),
@@ -636,13 +636,13 @@ fn process_signal_status_and_permission_denied() {
     fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o600)).unwrap();
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args("node", &["-e", "process.kill(process.pid,'SIGTERM')"], b""),
         Enc::default().leb(0).str("").str("").leb(256).0,
     );
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args(path(&script), &[], b""),
@@ -680,7 +680,7 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
             .leb(3)
             .str(&format!("cannot run {:?}: {error}", path(&script))),
     };
-    p.call(
+    p.call_waiting(
         "hd:Process",
         "run",
         process_args(path(&script), &["argument with spaces"], b""),
@@ -707,7 +707,7 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
 #[test]
 fn process_invalid_names_and_arguments_return_typed_errors() {
     let mut p = Program::new();
-    p.call("hd:Process", "run", process_args("", &[], b""), vec![1, 0]);
+    p.call_waiting("hd:Process", "run", process_args("", &[], b""), vec![1, 0]);
     for (name, args, message) in [
         ("a\0b", vec![], "program name contains a NUL byte"),
         (

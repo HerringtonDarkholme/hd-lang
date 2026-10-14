@@ -1133,3 +1133,136 @@ fn a_long_session_rebuild_is_timed() {
         );
     });
 }
+
+/// The session inputs that declare a `run!` over the `Process` provider.
+#[cfg(unix)]
+const PROCESS_INPUTS: [&str; 2] = [
+    "use std.process.{Process, ProcessError, ProcessOutput}\n",
+    "fn run!(program: string, args: List[string]) -> Result[ProcessOutput, ProcessError] $ Process:\n    $.use(Process).run!(program, args, \"\")\n",
+];
+
+/// A private temporary path for a session test's fixture.
+#[cfg(unix)]
+fn fixture_path(label: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "hd-session-{label}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the clock is past the epoch")
+            .as_nanos()
+    ))
+}
+
+/// `cli.repl.cancel` and `std-process.cancel`: a Stop while an input
+/// waits on `run!` cancels the input at once, and the child is killed
+/// and reaped.
+#[cfg(unix)]
+#[test]
+fn a_stop_during_run_cancels_the_input_and_kills_the_child() {
+    use nix::errno::Errno;
+    use nix::sys::signal::{Signal, kill};
+    use nix::unistd::Pid;
+    use std::time::{Duration, Instant};
+    let path = fixture_path("stop-run");
+    let input = format!(
+        "x := run!(\"/bin/sh\", [\"-c\", \"echo $$ > {}; exec sleep 30\"])\n",
+        path.display()
+    );
+    let mut child = None;
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in PROCESS_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&input);
+        // Stop once the input waits and the child has started.
+        let pid = {
+            let path = path.clone();
+            move || {
+                std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|pid| pid.trim().parse::<i32>().ok())
+                    .filter(|pid| *pid > 1)
+                    .map(Pid::from_raw)
+            }
+        };
+        let stopping = {
+            let (stopper, pid) = (stopper.clone(), pid.clone());
+            std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(10);
+                while !(stopper.waiting() && pid().is_some()) && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                stopper.stop();
+            })
+        };
+        let started = Instant::now();
+        let outcome = repl.run(built);
+        let took = started.elapsed();
+        stopping.join().expect("the stopping thread");
+        child = pid();
+        assert_eq!(outcome, Outcome::Exit(3));
+        assert_eq!(text(&io.err), "cancelled\n");
+        assert!(
+            took < Duration::from_secs(10),
+            "the cancel waited: {took:?}"
+        );
+        assert!(!repl.session.pending(), "the run is still pending");
+    });
+    let _ = std::fs::remove_file(&path);
+    let child = child.expect("the child started");
+    let until = Instant::now() + Duration::from_secs(10);
+    let mut gone = false;
+    while !gone && Instant::now() < until {
+        gone = kill(child, None) == Err(Errno::ESRCH);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    if !gone {
+        let _ = kill(child, Signal::SIGKILL);
+    }
+    assert!(gone, "the child outlived the cancel");
+}
+
+/// `cli.repl.host.once`: a rebuilt session serves `run!` from its journal
+/// and spawns nothing: the child's one line in the file stays one line,
+/// and the output shown later is the first run's.
+#[cfg(unix)]
+#[test]
+fn a_rebuilt_session_runs_no_child_again() {
+    let path = fixture_path("rebuild-run");
+    let script = format!("printf ran >> {}; printf out", path.display());
+    let mut inputs: Vec<String> = PROCESS_INPUTS.iter().map(|s| (*s).to_owned()).collect();
+    inputs.push(format!(
+        "out := run!(\"/bin/sh\", [\"-c\", \"{script}\"])\n"
+    ));
+    inputs.push("out\n".to_owned());
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the child ran"),
+            "ran"
+        );
+        let shown = text(&io.out);
+        assert!(shown.contains("stdout: \"out\""), "{shown}");
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert_eq!(
+            rebuilt,
+            crate::Rebuilt {
+                kept: (0..=4).collect(),
+                ..crate::Rebuilt::default()
+            }
+        );
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(std::fs::read_to_string(&path).expect("reads"), "ran");
+        assert_eq!(text(&io.out), "", "a replayed input printed again");
+        assert_eq!(repl.input("out\n"), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), shown);
+    });
+    let _ = std::fs::remove_file(&path);
+}

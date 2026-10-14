@@ -15,11 +15,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::windows::fs::{FileExt, OpenOptionsExt};
 use std::os::windows::io::OwnedHandle;
-use std::process::Stdio;
 
-use interprocess::os::windows::named_pipe::{
-    DuplexPipeStream, PipeListener, PipeListenerOptions, pipe_mode,
-};
+use interprocess::os::windows::named_pipe::{DuplexPipeStream, pipe_mode};
+#[cfg(test)]
+use interprocess::os::windows::named_pipe::{PipeListener, PipeListenerOptions};
 use windows_sys::Win32::Foundation::{
     ERROR_BROKEN_PIPE, ERROR_NO_DATA, ERROR_PIPE_NOT_CONNECTED, GENERIC_READ, GENERIC_WRITE,
 };
@@ -78,19 +77,9 @@ impl Pipe {
         result?;
         Ok(Self(file))
     }
-
-    /// Creates a private pipe for a child. Only the parent end polls; the
-    /// child receives a directional, synchronous, blocking stdio handle.
-    /// `parent_reads` is true for stdout/stderr and false for stdin.
-    ///
-    /// # Errors
-    /// Returns the random-source or OS error if pipe setup fails.
-    pub fn child_pair(parent_reads: bool) -> io::Result<(Self, Stdio)> {
-        let (parent, child) = pair(&private_name()?, parent_reads)?;
-        Ok((parent, Stdio::from(child)))
-    }
 }
 
+#[cfg(test)]
 fn private_name() -> io::Result<String> {
     let mut nonce = [0u8; 16];
     getrandom::fill(&mut nonce).map_err(io::Error::other)?;
@@ -101,6 +90,7 @@ fn private_name() -> io::Result<String> {
     ))
 }
 
+#[cfg(test)]
 fn pair(path: &str, parent_reads: bool) -> io::Result<(Pipe, File)> {
     if !parent_reads {
         return stdin_pair();
@@ -126,6 +116,7 @@ fn pair(path: &str, parent_reads: bool) -> io::Result<(Pipe, File)> {
     Ok((Pipe(parent), child))
 }
 
+#[cfg(test)]
 fn stdin_pair() -> io::Result<(Pipe, File)> {
     // std's Windows implementation calls synchronous CreatePipe. Its writer
     // may close directly after writing: Microsoft's redirected-stdio example

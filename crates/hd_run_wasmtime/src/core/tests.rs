@@ -1,11 +1,66 @@
-use super::{process, random, sys_read};
+use super::process::{Output, Request, Start, finish, start};
+use super::{random, sys_read};
 use crate::codec::Enc;
+use crate::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
+use std::io;
 
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
 mod windows;
+
+/// A request for `name` with `argv` and `input`, keeping at most `limit`
+/// bytes of output.
+fn request(name: &str, argv: &[String], input: &[u8], limit: usize) -> Request {
+    Request {
+        name: name.into(),
+        argv: argv.to_vec(),
+        input: input.to_vec(),
+        cwd: None,
+        limit,
+    }
+}
+
+/// Offloads the run of `request` onto the `hd-io` runtime, as `.start`
+/// does, and returns the operation's handle.
+fn offload(reactor: &mut Reactor, request: Request) -> i32 {
+    reactor
+        .offload(async move { Done::Process(request.run().await) })
+        .expect("offloads")
+}
+
+/// Waits for the operation `h` to complete and takes its result, as
+/// `block` and `.finish` do.
+fn finished(reactor: &mut Reactor, h: i32) -> super::process::Ran {
+    let mut out = Vec::new();
+    while !reactor.due(&mut out).contains(&h) {
+        assert!(reactor.wait(), "the run is pending");
+    }
+    match reactor.remove(h).map(|op| op.work) {
+        Some(Work::Offloaded(Some(Done::Process(ran)))) => ran,
+        _ => panic!("the run has no result"),
+    }
+}
+
+/// Runs `request` to its end through the reactor.
+fn run(request: Request) -> io::Result<Output> {
+    let mut reactor = Reactor::new(None);
+    let h = offload(&mut reactor, request);
+    finished(&mut reactor, h).into_result()
+}
+
+/// `run.start` then, when it runs a child, `run.finish`: the encoded result.
+fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
+    match start(bytes, grants, None).expect("the arguments decode") {
+        Start::Refused(e) => e.into_bytes(),
+        Start::Run(request) => {
+            let mut reactor = Reactor::new(None);
+            let h = offload(&mut reactor, request);
+            finish(finished(&mut reactor, h)).into_bytes()
+        }
+    }
+}
 
 #[test]
 fn random_returns_the_requested_number_of_bytes() {
@@ -42,11 +97,8 @@ fn process_grant_precedes_spawn_and_missing_program_is_not_found() {
     let grants = Grants {
         limits: vec![("Process".into(), Limit::Entries(vec![]))],
     };
-    assert_eq!(process(args.done(), &grants).unwrap().done(), [1, 2]);
-    assert_eq!(
-        process(args.done(), &Grants::default()).unwrap().done(),
-        [1, 0]
-    );
+    assert_eq!(process(args.done(), &grants), [1, 2]);
+    assert_eq!(process(args.done(), &Grants::default()), [1, 0]);
 }
 
 #[test]
@@ -68,18 +120,15 @@ fn process_invalid_names_and_arguments_are_typed_errors() {
         let mut error = Enc::default();
         error.leb(1).leb(3).str(expected);
         assert_eq!(
-            process(args.done(), &Grants::default()).unwrap().done(),
-            error.done()
+            process(args.done(), &Grants::default()),
+            error.done().to_vec()
         );
         let denied = Grants {
             limits: vec![("Process".into(), Limit::Deny)],
         };
-        assert_eq!(process(args.done(), &denied).unwrap().done(), [1, 2]);
+        assert_eq!(process(args.done(), &denied), [1, 2]);
     }
     let mut args = Enc::default();
     args.str("").leb(0).bytes(&[]);
-    assert_eq!(
-        process(args.done(), &Grants::default()).unwrap().done(),
-        [1, 0]
-    );
+    assert_eq!(process(args.done(), &Grants::default()), [1, 0]);
 }

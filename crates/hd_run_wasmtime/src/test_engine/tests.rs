@@ -58,7 +58,9 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
         }
         Body::ProcessCwd => {
             imports.import("hd:Process", "run.start", EntityType::Function(6));
-            2
+            imports.import("hd:rt", "block", EntityType::Function(1));
+            imports.import("hd:Process", "run.finish", EntityType::Function(5));
+            4
         }
         _ => 1,
     };
@@ -98,7 +100,12 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     init.instruction(&I::I32Const(48))
         .instruction(&I::GlobalSet(0))
         .instruction(&I::End);
-    let mut poll = Function::new([]);
+    // `ProcessCwd` keeps a start's status and value in locals 1 and 2.
+    let mut poll = Function::new(if matches!(body, Body::ProcessCwd) {
+        vec![(2, ValType::I32)]
+    } else {
+        vec![]
+    });
     match body {
         Body::Counter => {
             poll.instruction(&I::GlobalGet(0))
@@ -137,10 +144,21 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
                 .instruction(&I::Drop);
         }
         Body::ProcessCwd => {
+            // A pending run waits in `block`, then `.finish` gives its result.
             poll.instruction(&I::I32Const(i32::try_from(pwd_arguments().len()).unwrap()))
                 .instruction(&I::Call(1))
-                .instruction(&I::Call(0))
-                .instruction(&I::Drop);
+                .instruction(&I::LocalSet(2))
+                .instruction(&I::LocalSet(1))
+                .instruction(&I::LocalGet(1))
+                .instruction(&I::If(BlockType::Empty))
+                .instruction(&I::Call(2))
+                .instruction(&I::Drop)
+                .instruction(&I::LocalGet(2))
+                .instruction(&I::Call(3))
+                .instruction(&I::LocalSet(2))
+                .instruction(&I::End)
+                .instruction(&I::LocalGet(2))
+                .instruction(&I::Call(0));
         }
     }
     poll.instruction(&I::I32Const(if matches!(body, Body::ExitThree) {
