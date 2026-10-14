@@ -76,6 +76,110 @@ impl Ck<'_, '_> {
         false
     }
 
+    /// Whether matching the rows' keys has two distinct solutions
+    /// (`types.infer.ambiguous`): inference must not silently commit to
+    /// one. Counts complete bijections by backtracking, each pair
+    /// trial-unified and rolled back, deduplicated by the solutions they
+    /// give the inference variables. Pure: callers commit afterwards.
+    fn ambiguous_row_fit(&mut self, got_keys: &[Ty], want_keys: &[Ty]) -> bool {
+        let mut vars = Vec::new();
+        for k in got_keys.iter().chain(want_keys) {
+            self.collect_infer(*k, &mut vars, 0);
+        }
+        if vars.is_empty() {
+            return false;
+        }
+        let mut used = vec![false; want_keys.len()];
+        let mut solutions = Vec::new();
+        self.count_row_matchings(got_keys, want_keys, 0, &mut used, &vars, &mut solutions);
+        solutions.len() >= 2
+    }
+
+    /// The inference variables a key mentions, in first-seen order.
+    fn collect_infer(&self, t: Ty, vars: &mut Vec<Ty>, depth: u32) {
+        if depth > 32 || vars.contains(&t) {
+            return;
+        }
+        let pool = self.pool();
+        match pool.get(t) {
+            TyData::Infer(_) => vars.push(t),
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                for a in pool.list_items(args).iter().copied() {
+                    self.collect_infer(a, vars, depth + 1);
+                }
+            }
+            TyData::Option(i) | TyData::Mut(i) => self.collect_infer(i, vars, depth + 1),
+            TyData::Tuple { elems, rest } => {
+                for e in pool.list_items(elems).iter().copied().chain(rest) {
+                    self.collect_infer(e, vars, depth + 1);
+                }
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                for p in pool.list_items(params).iter().copied() {
+                    self.collect_infer(p, vars, depth + 1);
+                }
+                self.collect_infer(result, vars, depth + 1);
+                for k in pool.row_data(row).keys {
+                    self.collect_infer(k, vars, depth + 1);
+                }
+            }
+            TyData::Row(row) | TyData::Context(row) => {
+                for k in pool.row_data(row).keys {
+                    self.collect_infer(k, vars, depth + 1);
+                }
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                self.collect_infer(self_ty, vars, depth + 1);
+                for a in pool.list_items(args).iter().copied() {
+                    self.collect_infer(a, vars, depth + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Counts distinct solutions for matching `got[index..]` against the
+    /// unused `want` keys, stopping at two.
+    fn count_row_matchings(
+        &mut self,
+        got: &[Ty],
+        want: &[Ty],
+        index: usize,
+        used: &mut [bool],
+        vars: &[Ty],
+        solutions: &mut Vec<Vec<Ty>>,
+    ) {
+        if solutions.len() >= 2 {
+            return;
+        }
+        if index == got.len() {
+            let pool = self.pool();
+            let solution: Vec<Ty> = vars.iter().map(|v| self.infer.resolve(pool, *v)).collect();
+            if !solutions.contains(&solution) {
+                solutions.push(solution);
+            }
+            return;
+        }
+        let pool = self.pool();
+        for (j, w) in want.iter().enumerate() {
+            if used[j] {
+                continue;
+            }
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, got[index], *w).is_ok() {
+                used[j] = true;
+                self.count_row_matchings(got, want, index + 1, used, vars, solutions);
+                used[j] = false;
+            }
+            self.infer.rollback(snap);
+        }
+    }
+
     /// Whether two requirement rows are the same row after resolution
     /// (`types.fn.same`): each lists only keys the other supplies, with the
     /// same row parameters. A row variable still open is a key that only
@@ -479,6 +583,35 @@ impl Ck<'_, '_> {
             return;
         }
         let mut missing = Vec::new();
+        // Inference with two solutions for the keys is `ambiguous-type`,
+        // not a silent first match (`types.infer.ambiguous`). Only pure
+        // key bijections count: no row variables, no row parameters, and
+        // the same count, so subsumption and open rows keep their paths.
+        let bare_var = |k: &Ty| matches!(pool.get(*k), TyData::Infer(_));
+        if g.keys.len() == w.keys.len()
+            && (g.keys.iter().any(|k| pool.has_infer(*k))
+                || w.keys.iter().any(|k| pool.has_infer(*k)))
+            && g.params.is_empty()
+            && w.params.is_empty()
+            && !g.keys.iter().any(bare_var)
+            && !w.keys.iter().any(bare_var)
+            && self.ambiguous_row_fit(&g.keys, &w.keys)
+        {
+            self.err(
+                Code::AmbiguousType,
+                n,
+                "these requirement keys fit two ways; write the type arguments explicitly",
+            );
+            for k in g.keys.iter().chain(&w.keys) {
+                let mut vars = Vec::new();
+                self.collect_infer(*k, &mut vars, 0);
+                for v in vars {
+                    self.infer
+                        .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);
+                }
+            }
+            return;
+        }
         for k in &g.keys {
             if matches!(pool.get(*k), TyData::Infer(_)) {
                 // An open row variable in the value's own row: the least

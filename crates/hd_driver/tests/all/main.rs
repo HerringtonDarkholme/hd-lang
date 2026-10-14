@@ -2,6 +2,7 @@
 //! compiler from relinking and from starting a process for each file.
 //! `conformance.rs` stays a separate target (CI runs it on its own).
 
+mod ambiguous_row_fit;
 mod annotation_member_names;
 mod arity_generic_run;
 mod assoc_call_qualified;

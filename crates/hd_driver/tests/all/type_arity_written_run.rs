@@ -148,3 +148,20 @@ fn use_it(tagged: Tagged[i32]) -> i32: 0
 ";
     assert_eq!(codes_of(signature), vec![Code::UnsatisfiedTraitBound]);
 }
+
+/// A default that misses its parameter's bound reports at the
+/// declaration, even with no use (`types.generic.default.bound`,
+/// `types.generic.default.checked-once`).
+#[test]
+fn a_default_missing_its_bound_reports_at_the_declaration() {
+    let signature = "\
+trait Blank:
+    fn blank() -> Self
+
+data Plain: pass
+
+fn empty[C < Blank = Plain]() -> C:
+    C::blank()
+";
+    assert_eq!(codes_of(signature), vec![Code::UnsatisfiedTraitBound]);
+}

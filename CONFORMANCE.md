@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2835 | 6 | 4 | 2845 |
+| 2837 | 4 | 4 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 350 | 2 | 0 | 352 |
+| `lang/04-type-system.md` | 352 | 0 | 0 | 352 |
 | `lang/05-expressions.md` | 277 | 0 | 0 | 277 |
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
 | `lang/07-functions.md` | 130 | 0 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1069 | 6 | 0 | 1075 |
+| `typing/invalid` | 1071 | 4 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,17 +75,15 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 6 |
+| `fail:no-diagnostic` | 4 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (6)</summary>
+<details><summary><code>fail:no-diagnostic</code> (4)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
-- `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/ambiguous-requirement-key-solution.hd`
 
 </details>
 
@@ -1452,6 +1450,7 @@ typing/invalid/ambiguous-default-methods.hd
 typing/invalid/ambiguous-method-two-traits.hd
 typing/invalid/ambiguous-projection-binding.hd
 typing/invalid/ambiguous-projection.hd
+typing/invalid/ambiguous-requirement-key-solution.hd
 typing/invalid/ambiguous-row-pattern.hd
 typing/invalid/ambiguous-trait-method.hd
 typing/invalid/annotate-before-function.hd
@@ -2430,6 +2429,7 @@ typing/invalid/tuple-vararg-no-auto-spread.hd
 typing/invalid/two-payload-variant-as-function-value.hd
 typing/invalid/type-alias-as-key.hd
 typing/invalid/type-argument-list-too-long.hd
+typing/invalid/type-default-bound.hd
 typing/invalid/type-default-impl-mismatch.hd
 typing/invalid/type-default-kind.hd
 typing/invalid/type-default-later-parameter.hd

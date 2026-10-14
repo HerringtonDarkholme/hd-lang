@@ -423,6 +423,25 @@ impl<'a> ItemCheck<'_, 'a> {
         for b in gens.iter().filter(|g| !g.row).flat_map(|g| &g.bounds) {
             self.check_bound(*b)?;
         }
+        // A default satisfies its parameter's bounds
+        // (`types.generic.default.bound`); only certain failures report,
+        // at the header.
+        for g in gens.iter().filter(|g| !g.row) {
+            let Some(d) = g.default else {
+                continue;
+            };
+            for b in &g.bounds {
+                if self.fails(d, *b)? {
+                    let message = format!(
+                        "the default {} does not implement {}",
+                        self.show(d),
+                        self.show(*b)
+                    );
+                    self.report(0, Code::UnsatisfiedTraitBound, message);
+                    break;
+                }
+            }
+        }
         match &it.data {
             ItemData::Trait(t) => {
                 for s in &t.supers {
@@ -865,13 +884,26 @@ impl<'a> ItemCheck<'_, 'a> {
                                     .then(|| args_v.get(usize::from(p.index)).copied())?
                             });
                             if self.fails(a, b)? {
-                                let message = format!(
-                                    "{} does not implement {} in `{}`",
-                                    self.show(a),
-                                    self.show(b),
-                                    self.cx.names.display_name(self.item)
-                                );
-                                self.report(slot, Code::UnsatisfiedTraitBound, message);
+                                // A use filled from a default reports at
+                                // its declaration, once
+                                // (`checked-once`): the declaration check
+                                // above runs for interface and private
+                                // items alike.
+                                let filled = g.default.is_some_and(|d| {
+                                    a == pool.subst(d, &|p: ParamRef| {
+                                        (p.owner == def)
+                                            .then(|| args_v.get(usize::from(p.index)).copied())?
+                                    })
+                                });
+                                if !filled {
+                                    let message = format!(
+                                        "{} does not implement {} in `{}`",
+                                        self.show(a),
+                                        self.show(b),
+                                        self.cx.names.display_name(self.item)
+                                    );
+                                    self.report(slot, Code::UnsatisfiedTraitBound, message);
+                                }
                                 missed = true;
                                 // One error per argument that misses a bound.
                                 break;
