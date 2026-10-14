@@ -11,7 +11,7 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import { createCoreHost, createSession, Enc, HostContract } from "./core.mjs";
+import { createCoreHost, createSession, Enc, HostContract, isAsciiUrl } from "./core.mjs";
 
 // `Method`'s variants (std.http), by index, as the wire names them.
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
@@ -53,6 +53,7 @@ const headerPairs = (text) =>
 export function browserSend({ method, url, headers, body, timeout }) {
   let parsed;
   try {
+    if (!isAsciiUrl(url)) return { error: "InvalidUrl", text: url };
     parsed = new URL(url);
   } catch {
     return { error: "InvalidUrl", text: url };

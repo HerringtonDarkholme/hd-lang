@@ -80,6 +80,17 @@ const wasmFrames = (e) =>
 export const timeLimitReport = (ms) =>
   `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
 
+// Whether `text` can be an `Http` request URL (std-http.url.valid,
+// .non-ascii, .no-normalize): RFC 3986 has no space, control or non-ASCII
+// character, and a provider does not percent-decode or IDNA-map a host.
+// `new URL` does both, so a program's URL is checked before it is parsed;
+// a host is written in punycode.
+export const isAsciiUrl = (text) => {
+  if (!/^[\x21-\x7e]*$/.test(text)) return false;
+  const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(text)?.[1] ?? "";
+  return !authority.slice(authority.lastIndexOf("@") + 1).includes("%");
+};
+
 // A program's capability grant as `hd` resolved it (Grant Precedence):
 // each trait with a limit maps to `false`, a total deny, or the list of its
 // scope entries, whose paths are absolute and resolved; a trait it leaves

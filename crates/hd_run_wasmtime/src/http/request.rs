@@ -4,13 +4,13 @@ use std::time::{Duration, Instant};
 
 use hd_run::Grants;
 use ureq::unversioned::transport::{Connector, RustlsConnector};
-use url::Url;
 
 use crate::codec::{Dec, Enc};
 use crate::limits::{HeapExhausted, Ledger, Reservation};
 
 use super::client::granted_url;
 use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
+use super::target::{Target, resolve};
 use super::transport::RawConnector;
 use super::{Headers, is_token};
 
@@ -168,11 +168,18 @@ pub(crate) fn send(
         if !matches!(got.status, 301 | 302 | 303 | 307 | 308) || location.is_none() {
             return Ok(got);
         }
-        // Node catches a malformed Location as Other, not InvalidUrl.
-        request.url = url
-            .join(location.unwrap_or_default())
-            .map_err(|_| Failure::Other("Invalid URL".into()))?
-            .into();
+        let location = location.unwrap_or_default();
+        // A character outside printable ASCII is no RFC 3986 URL
+        // (`std-http.url.valid`). Node catches a malformed Location as
+        // Other, not InvalidUrl.
+        if !location.bytes().all(|b| b.is_ascii_graphic()) {
+            return Err(Failure::InvalidUrl(location.into()).into());
+        }
+        let next = resolve(&request.url, location);
+        if next.parse::<ureq::http::Uri>().is_err() {
+            return Err(Failure::Other("Invalid URL".into()).into());
+        }
+        request.url = next;
         if redirects == 10 {
             return Err(Failure::TooManyRedirects(request.url).into());
         }
@@ -185,7 +192,7 @@ pub(crate) fn send(
 }
 
 fn once(
-    url: &Url,
+    url: &Target,
     request: &Request,
     deadline: Option<Instant>,
     cancel: &Cancel,
@@ -239,22 +246,18 @@ fn once(
             lookup: None,
         },
     );
-    let mut target = url.clone();
     // Node's raw headers skip automatic Basic Authorization. URL-to-HTTP
     // options still validates percent-encoded credentials before sending.
-    for credential in [target.username(), target.password().unwrap_or_default()] {
+    for credential in &url.credentials {
         check_credentials(credential)?;
     }
-    let _ = target.set_username("");
-    let _ = target.set_password(None);
-    target.set_fragment(None);
     // The raw transport writes the actual method/body. HEAD is the one
     // method whose response-body framing differs; no ureq request body
     // means its stricter method/content-length checks cannot alter Node's
     // wire request (including explicit framing supplied by the caller).
     let internal = ureq::http::Request::builder()
         .method(if method == "HEAD" { "HEAD" } else { "GET" })
-        .uri(target.as_str())
+        .uri(url.uri())
         .header("connection", "close")
         .body(())
         .map_err(|e| Failure::Other(e.to_string()))?;
@@ -279,7 +282,7 @@ fn once(
 /// (`std-host.op.heap.no-other-cap`).
 fn read_body(
     body: &mut ureq::Body,
-    url: &Url,
+    url: &Target,
     ledger: &Arc<Ledger>,
 ) -> Result<(Vec<u8>, Reservation), Ended> {
     let mut reader = body.with_config().reader();
@@ -298,8 +301,8 @@ fn read_body(
     }
 }
 
-fn failure(error: &ureq::Error, url: &Url) -> Failure {
-    let host = url.host_str().unwrap_or_default().trim_matches(['[', ']']);
+fn failure(error: &ureq::Error, url: &Target) -> Failure {
+    let host = url.host.as_str();
     match error {
         ureq::Error::Timeout(_) => Failure::Timeout,
         ureq::Error::HostNotFound => Failure::Dns(host.into()),
@@ -311,10 +314,7 @@ fn failure(error: &ureq::Error, url: &Url) -> Failure {
             Failure::Tls(e.to_string())
         }
         ureq::Error::Io(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
-            Failure::Connect(format!(
-                "connect ECONNREFUSED {host}:{}",
-                url.port_or_known_default().unwrap_or(80)
-            ))
+            Failure::Connect(format!("connect ECONNREFUSED {host}:{}", url.port))
         }
         ureq::Error::Io(e) => Failure::Connect(e.to_string()),
         _ => Failure::Connect(error.to_string()),
@@ -329,7 +329,7 @@ fn latin1(value: &str) -> Option<Vec<u8>> {
 }
 
 pub(crate) fn outgoing(
-    url: &Url,
+    url: &Target,
     method: &str,
     headers: &Headers,
     body: &[u8],
@@ -355,8 +355,7 @@ pub(crate) fn outgoing(
         pairs.push(("Content-Length".into(), body.len().to_string()));
     }
     if !has(&pairs, "host") {
-        let authority = &url[url::Position::BeforeHost..url::Position::AfterPort];
-        pairs.insert(0, ("Host".into(), authority.into()));
+        pairs.insert(0, ("Host".into(), url.authority.clone()));
     }
     if !has(&pairs, "connection") {
         pairs.push(("Connection".into(), "close".into()));
@@ -378,7 +377,7 @@ pub(crate) fn outgoing(
                 .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
                 .any(|word| word.eq_ignore_ascii_case("chunked"))
     });
-    let target = &url[url::Position::BeforePath..url::Position::AfterQuery];
+    let target = &url.path_and_query;
     let mut raw = format!("{method} {target} HTTP/1.1\r\n").into_bytes();
     for (name, value) in pairs {
         raw.extend_from_slice(name.as_bytes());
@@ -424,10 +423,10 @@ fn check_credentials(value: &str) -> Result<(), Failure> {
 mod tests {
     use super::{Failure, Request, encode, outgoing};
     use crate::codec::{Dec, Enc};
+    use crate::http::target::Target;
     use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
     use std::net::TcpListener;
-    use url::Url;
 
     #[test]
     fn request_codec_and_errors_use_the_node_variant_order() {
@@ -480,9 +479,89 @@ mod tests {
         assert_eq!(send(r.done(), &Grants::default()).done(), [1, 5]);
     }
 
+    /// `std-http.url.valid`, `.non-ascii`, `.grant`, `.no-normalize`.
+    #[test]
+    fn a_non_ascii_host_is_invalid_and_a_grant_matches_the_lowercase_host() {
+        let deny = Grants {
+            limits: vec![("Http".into(), Limit::Deny)],
+        };
+        let denied = |url: &str| {
+            let r = request("GET", url, &vec![], &[], 1000);
+            send(r.done(), &deny).done().to_vec()
+        };
+        let encoded = |variant: u64, text: &str| {
+            let mut expected = Enc::default();
+            expected.leb(1).leb(variant).str(text);
+            expected.done().to_vec()
+        };
+        let url = "http://b\u{fc}cher.example/";
+        assert_eq!(denied(url), encoded(1, url));
+        let url = "http://b%C3%BCcher.example/";
+        assert_eq!(denied(url), encoded(1, url));
+        let url = "http://xn--bcher-kva.example/";
+        assert_eq!(denied(url), encoded(0, "xn--bcher-kva.example"));
+        assert_eq!(denied("HTTP://LocalHost:1/"), encoded(0, "localhost"));
+        let only = Grants {
+            limits: vec![("Http".into(), Limit::Entries(vec!["Example.COM".into()]))],
+        };
+        let r = request("GET", "http://EXAMPLE.com:1/", &vec![], &[], 0);
+        assert_eq!(send(r.done(), &only).done(), [1, 5]);
+        let r = request("GET", "http://example.org:1/", &vec![], &[], 0);
+        assert_eq!(send(r.done(), &only).done(), encoded(0, "example.org"));
+    }
+
+    fn redirecting(location: &'static [u8]) -> (String, std::thread::JoinHandle<Vec<u8>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/a/b/c?x", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let mut stream = bounded_accept(&listener);
+            let first = read_request(&mut stream);
+            let mut head = b"HTTP/1.1 302 Found\r\nLocation: ".to_vec();
+            head.extend_from_slice(location);
+            head.extend_from_slice(b"\r\nContent-Length: 0\r\n\r\n");
+            write_response(&mut stream, &head).unwrap();
+            if location.starts_with(b"..") {
+                let mut stream = bounded_accept(&listener);
+                let second = read_request(&mut stream);
+                write_response(&mut stream, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .unwrap();
+                return [first, second].concat();
+            }
+            first
+        });
+        (url, server)
+    }
+
+    #[test]
+    fn a_relative_location_joins_by_rfc_3986_and_drops_dot_segments() {
+        let (url, server) = redirecting(b"../d/./e?y#frag");
+        let r = request("GET", &url, &vec![], &[], 2000);
+        assert_eq!(send(r.done(), &Grants::default()).done()[0], 0);
+        let wire = String::from_utf8(server.join().unwrap()).unwrap();
+        assert!(wire.starts_with("GET /a/b/c?x HTTP/1.1\r\n"), "{wire}");
+        assert!(wire.contains("GET /a/d/e?y HTTP/1.1\r\n"), "{wire}");
+    }
+
+    #[test]
+    fn a_redirect_to_a_non_ascii_host_is_invalid_and_a_malformed_one_is_other() {
+        for (location, variant) in [
+            (&b"http://b\xc3\xbccher.example/"[..], 1),
+            (&b"/a b"[..], 1),
+            (&b"http://[bad/"[..], 7),
+        ] {
+            let (url, server) = redirecting(location);
+            let r = request("GET", &url, &vec![], &[], 2000);
+            let encoded = send(r.done(), &Grants::default());
+            let mut d = Dec::new(encoded.done());
+            assert_eq!(d.leb().unwrap(), 1);
+            assert_eq!(d.leb().unwrap(), variant, "{location:?}");
+            server.join().unwrap();
+        }
+    }
+
     #[test]
     fn outgoing_preserves_authority_header_pairs_latin1_and_framing() {
-        let url = Url::parse("http://[::1]:8080/p?q#fragment").unwrap();
+        let url = Target::parse("http://[::1]:8080/p?q#fragment").unwrap();
         let headers = vec![
             ("X-First".into(), "one".into()),
             ("x-Second".into(), "é".into()),

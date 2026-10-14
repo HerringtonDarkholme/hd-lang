@@ -16,6 +16,7 @@ pub(crate) mod client;
 pub(crate) mod connector;
 pub(crate) mod headers;
 pub(crate) mod request;
+pub(crate) mod target;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub(crate) mod transport;

@@ -18,6 +18,7 @@
 //   `Timeout` (std-http.send.timeout).
 import http from "node:http";
 import https from "node:https";
+import { isAsciiUrl } from "./core.mjs";
 import { workerData } from "node:worker_threads";
 import { createGrant } from "./node.mjs";
 
@@ -109,6 +110,7 @@ async function send(r) {
   for (let redirects = 0; ; redirects++) {
     let u;
     try {
+      if (!isAsciiUrl(url)) return err("InvalidUrl", url);
       u = new URL(url);
     } catch {
       return err("InvalidUrl", url);
@@ -122,6 +124,8 @@ async function send(r) {
     if (got.error || ![301, 302, 303, 307, 308].includes(got.status) || location === undefined) {
       return got;
     }
+    // A Location outside printable ASCII is no RFC 3986 URL.
+    if (!isAsciiUrl(location)) return err("InvalidUrl", location);
     url = new URL(location, u).href;
     if (redirects === REDIRECTS) return err("TooManyRedirects", url);
     if (got.status === 303 || ((got.status === 301 || got.status === 302) && method === "POST")) {

@@ -18,7 +18,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use hd_run::Grants;
-use url::Url;
 
 use crate::codec::Enc;
 use crate::host::Stop;
@@ -27,6 +26,7 @@ use crate::reactor::Done;
 
 use super::connector::Cancel;
 use super::request::{Ended, Failure, Request, Response, encode, send};
+use super::target::Target;
 
 /// What `.start` decides.
 pub(crate) enum Start {
@@ -130,14 +130,10 @@ pub(crate) fn finish(sent: Sent) -> wasmtime::Result<Enc> {
     Ok(encode(response.map(Response::released)))
 }
 
-pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Url, Failure> {
-    let url = Url::parse(value).map_err(|_| Failure::InvalidUrl(value.into()))?;
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
-        return Err(Failure::InvalidUrl(value.into()));
-    }
-    let host = url.host_str().unwrap_or_default().trim_matches(['[', ']']);
-    if !grants.covers_host("Http", host, url.port_or_known_default()) {
-        return Err(Failure::NotGranted(host.into()));
+pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Target, Failure> {
+    let url = Target::parse(value).ok_or_else(|| Failure::InvalidUrl(value.into()))?;
+    if !grants.covers_host("Http", &url.host, Some(url.port)) {
+        return Err(Failure::NotGranted(url.host));
     }
     Ok(url)
 }
@@ -147,6 +143,7 @@ mod tests {
     use super::{Job, Start, finish, start};
     use crate::http::connector::Cancel;
     use crate::http::request::{Request, outgoing, send as send_blocking};
+    use crate::http::target::Target;
     use crate::http::test_support::{
         bounded_accept, delivered, finished, offload, read_request, request, response, send,
         server, unlimited, write_response,
@@ -159,7 +156,6 @@ mod tests {
     use std::net::TcpListener;
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
-    use url::Url;
 
     /// `std-host.op.heap`: the request body and the response body count
     /// against the heap budget. A response body past it ends the request
@@ -390,7 +386,7 @@ mod tests {
         let wire = server.join().unwrap();
         assert_eq!(
             wire,
-            outgoing(&Url::parse(&url).unwrap(), "GET", &vec![], &[]).unwrap()
+            outgoing(&Target::parse(&url).unwrap(), "GET", &vec![], &[]).unwrap()
         );
     }
 
@@ -409,7 +405,7 @@ mod tests {
             assert_eq!(
                 server.join().unwrap(),
                 outgoing(
-                    &Url::parse(&url).unwrap(),
+                    &Target::parse(&url).unwrap(),
                     method,
                     &headers,
                     b"request-body"

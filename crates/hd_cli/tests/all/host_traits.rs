@@ -584,6 +584,8 @@ pub fn main!() -> void $ Console + Http + Args:
     println(show!(send!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() })))
     println(show!(get!(\"http://example.com/\")))
     println(show!(get!(\"ftp://127.0.0.1/\")))
+    println(show!(get!(\"http://bücher.example/\")))
+    println(show!(get!(\"http://xn--bcher-kva.EXAMPLE/\")))
 ";
 
 /// `Http` (`std-http.send.*`, `cli.cap.scope.host`, `.redirect`): a
@@ -610,7 +612,9 @@ fn http_sends_requests_inside_the_grant() {
              HttpError.Timeout\n\
              201 got abc Option.None 2\n\
              HttpError.NotGranted(host=\"example.com\")\n\
-             HttpError.InvalidUrl(url=\"ftp://127.0.0.1/\")\n"
+             HttpError.InvalidUrl(url=\"ftp://127.0.0.1/\")\n\
+             HttpError.InvalidUrl(url=\"http://bücher.example/\")\n\
+             HttpError.NotGranted(host=\"xn--bcher-kva.example\")\n"
         )
     );
     assert!(out.status.success());

@@ -3,6 +3,10 @@
 
 import type { End } from "./journal.mjs";
 
+/** Whether text can be an `Http` request URL: printable ASCII, and no
+ * percent-encoded host (std-http.url.valid). */
+export function isAsciiUrl(text: string): boolean;
+
 export interface Sink {
   out(text: string): void;
   err(text: string): void;

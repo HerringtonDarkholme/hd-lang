@@ -328,6 +328,8 @@ fn http_invalid_urls_and_zero_or_negative_timeout() {
         "ftp://127.0.0.1/x",
         "http://[bad/",
         "http://127.0.0.1:99999/",
+        "http://b\u{fc}cher.example/",
+        "http://b%C3%BCcher.example/",
     ] {
         p.call_waiting(
             "hd:Http",
