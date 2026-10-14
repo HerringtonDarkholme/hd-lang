@@ -95,6 +95,37 @@ jobs:
       - name: Test
         run: cargo test --release --workspace --all-features -- --skip specification_conformance_does_not_regress
 
+  # The wasmtime host has code per operating system (process groups, Job
+  # objects, pipes), so its crates are also checked and tested on Windows
+  # and macOS. Linux is covered by the jobs above.
+  hosts:
+    name: Host crates on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      # The parity tests compare with the Node host.
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Lint host crates
+        run: cargo clippy -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime --all-targets -- -D warnings
+
+      - name: Test host crates
+        run: cargo test --release -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime
+
   # Split from the tests so the longest suite overlaps with the rest.
   conformance:
     name: Driver conformance
