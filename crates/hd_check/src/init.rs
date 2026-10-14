@@ -584,7 +584,7 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let Some((pat, ty_node, rhs)) = binding else {
-            self.stmt(s)?;
+            self.stmt(s, false)?;
             return Ok(());
         };
         self.top_binding(s, pat, ty_node, rhs).map(|_| ())

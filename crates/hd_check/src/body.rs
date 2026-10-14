@@ -273,6 +273,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub loop_else: Option<(NodeRefIdx, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
+    /// Whether the function omits its result type: its result is
+    /// inferred, never `void` by declaration, so a final value is not a
+    /// `void-final` error even when checking runs with a `void` want.
+    pub result_omitted: bool,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -473,6 +477,7 @@ pub(crate) fn new_ck<'a, 'c>(
         bare_step: false,
         loop_else: None,
         fn_body: None,
+        result_omitted: false,
         fn_body_tail: None,
         written_row: None,
         let_view: None,
@@ -855,6 +860,7 @@ pub(crate) fn check_fn_body(
         return unsupported("a function without a body");
     };
     ck.fn_body = Some(body.index());
+    ck.result_omitted = Src::type_child(node).is_none();
     ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);
     // `types.lct.sites`: an omitted result type joins the final value and
     // the `return` operands, and starts over when an optional one widens
@@ -2043,7 +2049,7 @@ impl Ck<'_, '_> {
                 ty = want.unwrap_or(t);
                 continue;
             }
-            let t = self.stmt(s)?;
+            let t = self.stmt(s, last && !value && self.fn_body == Some(block.index()))?;
             diverged |= t == Ty::NEVER;
             if matches!(
                 s.kind(),
@@ -2158,13 +2164,13 @@ impl Ck<'_, '_> {
     }
 
     /// One statement; its type is `never` when it cannot complete.
-    pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
+    pub(crate) fn stmt(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
         let span = self.cx.src.span(s);
         let start = self.infer.var_count();
         let open = self.open_params.len();
         let refs = self.ref_params.len();
         let waiting = self.pending.len();
-        let r = self.stmt_node(s).map_err(|e| e.at(span));
+        let r = self.stmt_node(s, void_tail).map_err(|e| e.at(span));
         // A `break` value joins with the loop's other values, so its class
         // stays open until the join (`types.literal.local.form.join-open`).
         if s.kind() != SyntaxKind::BreakStmt {
@@ -2507,7 +2513,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn stmt_node(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
+    fn stmt_node(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
         self.charge()?;
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         match s.kind() {
@@ -2524,6 +2530,29 @@ impl Ck<'_, '_> {
                 }
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
+                // `fn.body.void-final`: a `void` function rejects a
+                // non-`void` final expression. An omitted result is
+                // inferred, never `void` by declaration, and poison
+                // already reported. A must-use value and a `debug` call
+                // have their own discard diagnostics below.
+                if void_tail
+                    && !self.result_omitted
+                    && t != Ty::VOID
+                    && t != Ty::NEVER
+                    && !self.pool().has_poison(t)
+                    && !self.must_use(t)
+                    && !self.is_prelude_debug_call(*e)
+                {
+                    let open = matches!(self.pool().get(t), TyData::Infer(_))
+                        && !matches!(
+                            self.infer.kind_of(self.pool(), t),
+                            Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
+                        );
+                    if !open {
+                        let msg = format!("in result: expected void, found {}", self.show(t));
+                        self.err(Code::TypeMismatch, *e, &msg);
+                    }
+                }
                 if self.must_use(t) {
                     let msg = format!(
                         "a {} value is discarded; handle it or write `_ := ...`",
