@@ -1,0 +1,3 @@
+# Git fast-import streams are fed to git byte-exact: CRLF would corrupt
+# their ref names and data lengths.
+*.fi -text

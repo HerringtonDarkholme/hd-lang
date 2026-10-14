@@ -306,6 +306,25 @@ mod tests {
         assert_eq!(g.limit("Console"), None);
     }
 
+    /// Contract shared with `resolvePath` in `host/node.mjs`: the nearest
+    /// existing ancestor is resolved by the OS and the rest appended, so
+    /// a grant entry and an accessed path that do not exist yet agree.
+    #[test]
+    fn resolve_path_resolves_the_existing_ancestor_and_appends_the_rest() {
+        let dir = std::env::temp_dir();
+        let real = hd_base::path::canonicalize(&dir).expect("temp dir");
+        assert_eq!(super::resolve_path(&dir), real);
+        assert_eq!(
+            super::resolve_path(&dir.join("hd-no-such").join("x").join("..").join("y.txt")),
+            real.join("hd-no-such").join("y.txt")
+        );
+        // `..` cannot leave a granted directory through the new tail.
+        let g = Grants::resolve(&[kv("FsWrite", scopes(&["out/"]))], &dir, &[], &dir);
+        assert!(g.covers_path("FsWrite", Path::new("out/new/a.txt"), &dir));
+        assert!(!g.covers_path("FsWrite", Path::new("out/../top.txt"), &dir));
+        assert!(!g.covers_path("FsWrite", Path::new("out-other/a.txt"), &dir));
+    }
+
     #[test]
     fn hosts_names_and_the_env_notice() {
         let here = Path::new("/");

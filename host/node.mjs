@@ -54,12 +54,14 @@ export { Deadlock, Dec, EndCase, Enc, timeLimitReport };
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory
 // (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the Rust side.
+// `realpathSync.native`, like Rust's canonicalize, asks the OS, so on Windows
+// both expand 8.3 short names (RUNNER~1) and agree on the drive letter case.
 export function resolvePath(path) {
   const rest = [];
   let base = resolve(path);
   for (;;) {
     try {
-      return join(realpathSync(base), ...rest.reverse());
+      return join(realpathSync.native(base), ...rest.reverse());
     } catch {
       const parent = dirname(base);
       if (parent === base) return resolve(path);
