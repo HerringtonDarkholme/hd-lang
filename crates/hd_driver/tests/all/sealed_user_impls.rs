@@ -180,6 +180,7 @@ impl Inspectable for (i32, string)
     sealed_once(
         "use std.core.AnyRef
 use std.function.Tuple
+use std.structure.Structure
 
 impl[T < Tuple] AnyRef for T by Structure
 ",

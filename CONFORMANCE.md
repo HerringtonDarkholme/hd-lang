@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2839 | 2 | 4 | 2845 |
+| 2840 | 1 | 4 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 359 | 0 | 0 | 359 |
 | `lang/10-modules.md` | 254 | 0 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 258 | 1 | 0 | 259 |
-| `lang/14-annotations.md` | 152 | 1 | 0 | 153 |
+| `lang/14-annotations.md` | 153 | 0 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 29 | 0 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1073 | 2 | 0 | 1075 |
+| `typing/invalid` | 1074 | 1 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,13 +75,12 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 2 |
+| `fail:no-diagnostic` | 1 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (2)</summary>
+<details><summary><code>fail:no-diagnostic</code> (1)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
-- `typing/invalid/structure-without-use.hd`
 
 </details>
 
@@ -2342,6 +2341,7 @@ typing/invalid/string-repeat-negative-literal.hd
 typing/invalid/string-slice-negative-offset.hd
 typing/invalid/structure-implementation.hd
 typing/invalid/structure-outside-template.hd
+typing/invalid/structure-without-use.hd
 typing/invalid/supertrait-binding-conflict.hd
 typing/invalid/supertrait-binding-mismatch.hd
 typing/invalid/supertrait-binding-unknown.hd

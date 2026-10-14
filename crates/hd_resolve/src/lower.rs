@@ -3037,6 +3037,32 @@ impl Lower<'_, '_, '_> {
             .position(|t| self.src.tkind(*t) == Some(TokenKind::Ident) && self.src.text(*t) == "by")
             .and_then(|i| toks.get(i + 1))
             .map(|t| self.src.text(*t).to_owned());
+        // `annot.block.structure-use`: `by Structure` must name
+        // `std.structure.Structure`, imported with `use` like any other
+        // name.
+        if by.as_deref() == Some("Structure") && self.r.frozen.is_none() {
+            let names_std = matches!(
+                self.scope.lookup(self.sym("Structure")),
+                Some(Binding {
+                    kind: BindingKind::Item,
+                    value,
+                }) if DefId::from_raw(value) == self.names.known.structure
+            );
+            if !names_std {
+                let at = toks
+                    .iter()
+                    .position(|t| {
+                        self.src.tkind(*t) == Some(TokenKind::Ident)
+                            && self.src.text(*t) == "Structure"
+                    })
+                    .map_or_else(|| self.src.span(n), |i| self.src.token_span(toks[i]));
+                self.diags.error(
+                    Code::UnknownTrait,
+                    at,
+                    "`Structure` is unknown without `use std.structure.Structure`",
+                );
+            }
+        }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         // An inherent implementation cannot target a tuple or a transparent
         // alias, whichever package owns the type it names

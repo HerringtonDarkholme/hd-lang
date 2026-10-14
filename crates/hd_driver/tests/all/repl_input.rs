@@ -1197,9 +1197,9 @@ fn blocks_across_inputs_with_different_lines_drift() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let decl = "data Row:\n    total: i32 = 0\n    id: i32 = 0\n";
-    let eq = "impl Eq for Row by Structure:\n    total = pass\n";
-    let hash = "impl Hash for Row by Structure:\n    id = pass\n";
-    let same = "impl Hash for Row by Structure:\n    total = pass\n";
+    let eq = "use std.structure.Structure\n\nimpl Eq for Row by Structure:\n    total = pass\n";
+    let hash = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    id = pass\n";
+    let same = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    total = pass\n";
     // Different lines warn on the later block, which still joins.
     let mut r = repl(&store);
     r.input(1, decl);

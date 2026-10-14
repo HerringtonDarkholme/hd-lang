@@ -11,6 +11,7 @@ mod assoc_validation;
 mod bare_trait_body;
 mod binding_chain_run;
 mod block_decorator;
+mod by_structure_import;
 mod call_place_run;
 mod cancel_suspension_run;
 mod char_escapes_run;

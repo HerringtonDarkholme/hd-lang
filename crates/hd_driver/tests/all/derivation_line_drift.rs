@@ -44,7 +44,7 @@ fn errors(out: &Output) -> Vec<Code> {
         .collect()
 }
 
-const PRELUDE: &str = "trait Show:\n    fn show(self) -> string\n\ntrait Count:\n    fn count() -> i32\n\ndata Session:\n    id: i64\n    cache: i64 = 0\n\n";
+const PRELUDE: &str = "use std.structure.Structure\n\ntrait Show:\n    fn show(self) -> string\n\ntrait Count:\n    fn count() -> i32\n\ndata Session:\n    id: i64\n    cache: i64 = 0\n\n";
 
 #[test]
 fn blocks_with_different_lines_warn_on_the_later_block() {
