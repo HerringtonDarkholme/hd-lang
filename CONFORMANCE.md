@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2828 | 13 | 4 | 2845 |
+| 2830 | 11 | 4 | 2845 |
 
 ## By Chapter
 
@@ -17,10 +17,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 347 | 5 | 0 | 352 |
+| `lang/04-type-system.md` | 348 | 4 | 0 | 352 |
 | `lang/05-expressions.md` | 277 | 0 | 0 | 277 |
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
-| `lang/07-functions.md` | 128 | 2 | 0 | 130 |
+| `lang/07-functions.md` | 129 | 1 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 356 | 3 | 0 | 359 |
 | `lang/10-modules.md` | 254 | 0 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1062 | 13 | 0 | 1075 |
+| `typing/invalid` | 1064 | 11 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,18 +75,16 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 13 |
+| `fail:no-diagnostic` | 11 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (13)</summary>
+<details><summary><code>fail:no-diagnostic</code> (11)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/function-type-rest-not-list.hd`
-- `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
@@ -1783,6 +1781,7 @@ typing/invalid/function-result-type-mismatch.hd
 typing/invalid/function-type-non-tuple-inputs.hd
 typing/invalid/function-type-orphan-impl.hd
 typing/invalid/function-type-overlapping-impl.hd
+typing/invalid/function-type-rest-not-list.hd
 typing/invalid/function-type-row-unknown-trait-nested.hd
 typing/invalid/function-type-unbounded-inputs.hd
 typing/invalid/function-typed-field-method-call.hd
@@ -2494,6 +2493,7 @@ typing/invalid/usize-u32-operand.hd
 typing/invalid/vararg-function-value-arity.hd
 typing/invalid/vararg-function-value-list.hd
 typing/invalid/vararg-rest-distinct.hd
+typing/invalid/vararg-type-not-collection.hd
 typing/invalid/variance-contravariant-target-result.hd
 typing/invalid/variance-covariant-target-parameter.hd
 typing/invalid/variance-position.hd

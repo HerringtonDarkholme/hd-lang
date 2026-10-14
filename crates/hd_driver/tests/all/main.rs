@@ -175,6 +175,7 @@ mod unread_must_use_binding;
 mod unsigned_comparison;
 mod unsolved_call_parameter;
 mod unsolved_scrutinee;
+mod vararg_invalid;
 mod vararg_value_run;
 mod variance_representation;
 mod variant_binding_names;

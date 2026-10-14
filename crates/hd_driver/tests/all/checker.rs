@@ -956,7 +956,7 @@ fn defaults_must_not_be_followed_by_a_required_parameter() {
     for ok in [
         "fn f(a: i32 = 1, b: i32 = 2) -> i32: a + b",
         "fn f(a: i32, b: i32 = 2) -> i32: a + b",
-        "fn f(a: i32 = 1, rest...: i32) -> i32: a",
+        "fn f(a: i32 = 1, rest...: List[i32]) -> i32: a",
         "fn f(a: i32 = 1, body: fn() -> void) -> i32: a",
         "fn f[A = i32, B = i64](v: A) -> A: v",
         "fn f[A, B = i64](v: A) -> A: v",

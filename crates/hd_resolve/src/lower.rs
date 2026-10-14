@@ -2104,9 +2104,19 @@ impl Lower<'_, '_, '_> {
                         if after {
                             result = t;
                         } else {
-                            // `fn.type.vararg-rest`: a rest element is a
-                            // `List`, and the inputs' last.
                             inputs = if c.kind() == SyntaxKind::RestType {
+                                // `types.tuple.rest.list`: a rest element
+                                // is a `List`.
+                                let list = self.names.known.list;
+                                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
+                                    && t != Ty::POISON
+                                {
+                                    self.diags.error(
+                                        Code::TypeMismatch,
+                                        self.src.span(c),
+                                        "a rest element's type must be a `List`",
+                                    );
+                                }
                                 Inputs::Rest
                             } else {
                                 Inputs::Fixed
@@ -2538,6 +2548,24 @@ impl Lower<'_, '_, '_> {
                     self.prelude_shadow(p, &name);
                 }
                 let ty = self.ty(Src::type_child(p), &gn);
+                // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
+                // tuple type, or a type parameter bounded by `Tuple`,
+                // under `mut` as elsewhere.
+                if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
+                    let inner = match self.names.pool.get(ty) {
+                        TyData::Mut(i) => i,
+                        _ => ty,
+                    };
+                    let list = self.names.known.list;
+                    let is_list = matches!(self.names.pool.get(inner), TyData::Adt { def, .. } if def == list);
+                    if !is_list && inner != Ty::POISON && !self.inputs_tuple(inner, &gn) {
+                        self.diags.error(
+                            Code::TypeMismatch,
+                            self.src.span(p),
+                            "a vararg's type must be a `List`, a tuple type, or a type parameter bounded by `Tuple`",
+                        );
+                    }
+                }
                 params.push((self.sym(&name), ty));
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
