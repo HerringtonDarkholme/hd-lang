@@ -14,9 +14,14 @@
 //! Neither mode rewrites the report or falls back after a wasmtime error.
 //! Both need the `wasmtime` feature (`cargo test --features wasmtime`).
 //! `HD_CONFORMANCE_PIPELINE=optimized` builds every case through the
-//! optimized pipeline (`passes::OPTIMIZED`) instead of the dev one, with
+//! optimized pipeline (`hd_opt::passes::OPTIMIZED`) instead of the dev one, with
 //! the checked build profile, and never rewrites the report; the cases
 //! that pass today must still pass. `dev` is the default.
+//! `HD_CONFORMANCE_WASM_DIGEST=record|check` records the hash of every
+//! Wasm module a runtime case runs, per case and profile, in
+//! `target/conformance-wasm-digests-<pipeline>.tsv`, or compares the run
+//! with that saved file and fails on any difference. It proves a refactor
+//! leaves the emitted code byte-identical; it needs the full runtime suite.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
 
@@ -683,6 +688,60 @@ struct RuntimeStats {
 static RUNTIME_STATS: Mutex<BTreeMap<&str, RuntimeStats>> = Mutex::new(BTreeMap::new());
 static WASMTIME_DIFFS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+static WASM_DIGESTS: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+
+/// Notes the digest of the module `case` runs under `profile`, for
+/// `HD_CONFORMANCE_WASM_DIGEST`.
+fn note_wasm_digest(case: &Case, wasm: &[u8], profile: Option<&str>) {
+    if selection_env("HD_CONFORMANCE_WASM_DIGEST").is_none() {
+        return;
+    }
+    let digest = format!("{:032x}", hd_base::hash128(wasm).0);
+    let key = format!("{}\t{}", case.path, profile.unwrap_or("-"));
+    let mut digests = WASM_DIGESTS.lock().expect("digest lock");
+    if let Some(old) = digests.insert(key.clone(), digest.clone()) {
+        assert_eq!(old, digest, "{key}: one case built two different modules");
+    }
+}
+
+/// Records or checks the digests noted by this run
+/// (`HD_CONFORMANCE_WASM_DIGEST=record|check`).
+fn finish_wasm_digests() {
+    let Some(mode) = selection_env("HD_CONFORMANCE_WASM_DIGEST") else {
+        return;
+    };
+    let pipeline = if optimized_pipeline() {
+        "optimized"
+    } else {
+        "dev"
+    };
+    let file = root().join(format!("target/conformance-wasm-digests-{pipeline}.tsv"));
+    let mut text = String::new();
+    for (key, digest) in WASM_DIGESTS.lock().expect("digest lock").iter() {
+        writeln!(text, "{key}\t{digest}").expect("write to a string");
+    }
+    match mode.as_str() {
+        "record" => std::fs::write(&file, text).expect("write the digest file"),
+        "check" => {
+            let saved = std::fs::read_to_string(&file)
+                .unwrap_or_else(|_| panic!("record {} first", file.display()));
+            let old: BTreeSet<&str> = saved.lines().collect();
+            let new: BTreeSet<&str> = text.lines().collect();
+            let changed: Vec<String> = old
+                .symmetric_difference(&new)
+                .map(|line| (*line).to_owned())
+                .collect();
+            assert!(
+                changed.is_empty(),
+                "Wasm digests differ from {}:\n{}",
+                file.display(),
+                changed.join("\n")
+            );
+        }
+        other => panic!("unknown HD_CONFORMANCE_WASM_DIGEST: {other}"),
+    }
+}
+
 /// Runs only the selected engines. A failed wasmtime setup/run is an
 /// error, never an implicit Node fallback.
 fn run_program(
@@ -691,6 +750,7 @@ fn run_program(
     serial: usize,
     profile: Option<&str>,
 ) -> std::io::Result<Ran> {
+    note_wasm_digest(case, wasm, profile);
     let mode = engine_mode();
     let node = if mode == EngineMode::WasmtimeOnly {
         None
@@ -1922,6 +1982,7 @@ fn specification_conformance_does_not_regress() {
     let started = Instant::now();
     let results = run_all(&cases, &store);
     let elapsed = started.elapsed();
+    finish_wasm_digests();
     if mode != EngineMode::Node || selected_tier.is_some() {
         report_runtime(&cases, &results, elapsed);
     }

@@ -249,4 +249,18 @@ mod tests {
         };
         assert!(validate(&missing).is_err());
     }
+
+    #[test]
+    fn pipeline_hashes_are_pinned() {
+        let dev = validate(&DEV).expect("dev validates").0;
+        let optimized = validate(&OPTIMIZED).expect("optimized validates").0;
+        assert_eq!(
+            dev, 237_331_321_808_658_408_736_501_902_528_458_987_524,
+            "dev"
+        );
+        assert_eq!(
+            optimized, 232_743_628_527_099_006_283_500_193_153_310_344_021,
+            "optimized"
+        );
+    }
 }

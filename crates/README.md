@@ -27,6 +27,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_tir` | Typed IR, builder, verifier, printer, and wire form; `hd_base`, `hd_intern`, `hd_types` | [TIR](../future-work/compiler/checking-and-tir.md#41311-the-typed-ir-tir), [TIR storage](../future-work/compiler/data-structures.md#318-tir) |
 | `hd_check` | Body checking, exhaustiveness, facts, coherence, and initialization; `hd_base`, `hd_diag`, `hd_intern`, `hd_resolve`, `hd_syntax`, `hd_tir`, `hd_types` | [Body checking](../future-work/compiler/checking-and-tir.md#413-body-checking), [type checking](../future-work/compiler/type-checking.md), [trait solving](../future-work/compiler/trait-solver.md) |
 | `hd_mono` | Reachable-instance collection and monomorphization; `hd_base`, `hd_tir`, `hd_types` | [Monomorphization and merging](../future-work/compiler/codegen.md#13-monomorphization-and-merging) |
+| `hd_opt` | Pass manager: pass declarations, pipelines as data, and the pipeline hash; `hd_base`, `hd_mono` | [Optimization pipelines](../future-work/compiler/opt-pipeline.md) |
 | `hd_wasm` | Wasm GC emission and linking; `hd_base`, `hd_host_abi`, `hd_mono`, `hd_tir`, `hd_types` | [Emitting from TIR](../future-work/compiler/codegen.md#12-emitting-from-tir), [Wasm layout](../future-work/compiler/wasm-layout.md) |
 | `hd_cache` | Cache keys, entry framing, memory store, and optional disk store; `hd_base` | [Cache](../future-work/compiler/cache.md#5-cache) |
 | `hd_deps` | Remote dependencies for `hd_cli`: version selection, fetching with `git`, the version cache, tree hashes, and `hd.sum`; `hd_diag`, `hd_project` | [Dependencies](../spec/cli/command-line.md#dependencies) |
@@ -46,6 +47,7 @@ In dependency order, the main path is:
 source
   -> hd_syntax -> hd_project -> hd_resolve
   -> hd_check  -> hd_tir     -> hd_mono -> hd_wasm
+                                    \-> hd_opt
   -> hd_driver -> hd_run     -> hd_cli/Node
 ```
 

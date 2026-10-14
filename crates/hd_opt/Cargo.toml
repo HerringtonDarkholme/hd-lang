@@ -1,0 +1,14 @@
+[package]
+name = "hd_opt"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "The pass manager: pass declarations, pipelines as data, and the pipeline hash"
+
+[dependencies]
+hd_base = { path = "../hd_base" }
+hd_mono = { path = "../hd_mono" }
+
+[lints]
+workspace = true

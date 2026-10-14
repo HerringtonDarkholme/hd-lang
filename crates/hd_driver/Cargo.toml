@@ -24,6 +24,7 @@ hd_diag = { path = "../hd_diag" }
 hd_host_abi = { path = "../hd_host_abi" }
 hd_intern = { path = "../hd_intern" }
 hd_mono = { path = "../hd_mono" }
+hd_opt = { path = "../hd_opt" }
 hd_project = { path = "../hd_project" }
 hd_resolve = { path = "../hd_resolve" }
 hd_run_wasmtime = { path = "../hd_run_wasmtime", optional = true }

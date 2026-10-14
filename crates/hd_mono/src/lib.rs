@@ -9,7 +9,6 @@
 
 pub mod erased;
 pub mod layout;
-pub mod passes;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -126,7 +125,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// emitted integer arithmetic checks overflow and shift counts.
     fn build_profile(&self) -> BuildProfile;
     /// Whether the build runs the optimized pipeline
-    /// ([`passes::OPTIMIZED`]) instead of the dev one: collection and
+    /// (`hd_opt::passes::OPTIMIZED`) instead of the dev one: collection and
     /// emission read it to pick optimizations such as known-closure calls.
     fn optimized(&self) -> bool;
 }

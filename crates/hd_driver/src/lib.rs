@@ -1128,7 +1128,7 @@ pub struct Packages<'a> {
     /// `cli.profile.release`). Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
-    /// Whether the optimized pipeline (`passes::OPTIMIZED`) runs instead of
+    /// Whether the optimized pipeline (`hd_opt::passes::OPTIMIZED`) runs instead of
     /// the dev one (`cli.profile.pipeline.one`). `--release` selects it for
     /// a program, and `hd test --release` for a test run, whose build
     /// profile stays checked. It is part of every code key.
@@ -1420,10 +1420,10 @@ fn build_packages_inner(
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
-    let pipeline = hd_mono::passes::validate(if packages.optimized {
-        &hd_mono::passes::OPTIMIZED
+    let pipeline = hd_opt::passes::validate(if packages.optimized {
+        &hd_opt::passes::OPTIMIZED
     } else {
-        &hd_mono::passes::DEV
+        &hd_opt::passes::DEV
     })
     .unwrap_or_default();
     let paths = PathTable::new();

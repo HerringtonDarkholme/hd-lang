@@ -671,6 +671,7 @@ dependencies = [
  "hd_host_abi",
  "hd_intern",
  "hd_mono",
+ "hd_opt",
  "hd_project",
  "hd_resolve",
  "hd_run",
@@ -715,6 +716,14 @@ dependencies = [
  "hd_base",
  "hd_tir",
  "hd_types",
+]
+
+[[package]]
+name = "hd_opt"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_mono",
 ]
 
 [[package]]
