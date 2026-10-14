@@ -67,18 +67,16 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
         escaped := bytes_at(text, index + 1)
         index = index + 2
         if escaped == 117:
-            match unicode_escape(text, index):
-                .Some(found) =>
-                    pieces.push(found.text)
-                    index = found.end
-                .None =>
-                    return .Err(EscapeError { position: backslash })
+            found := match unicode_escape(text, index):
+                .Some(hit) => hit
+                .None => return .Err(EscapeError { position: backslash })
+            pieces.push(found.text)
+            index = found.end
         else:
-            match simple_escape(escaped):
-                .Some(meaning) =>
-                    pieces.push(meaning)
-                .None =>
-                    return .Err(EscapeError { position: backslash })
+            meaning := match simple_escape(escaped):
+                .Some(hit) => hit
+                .None => return .Err(EscapeError { position: backslash })
+            pieces.push(meaning)
         plain = index
     pieces.push(bytes_slice(text, plain, size))
     .Ok(join(pieces, ""))
