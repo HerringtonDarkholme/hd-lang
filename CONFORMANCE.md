@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2825 | 16 | 4 | 2845 |
+| 2826 | 15 | 4 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 128 | 2 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 355 | 4 | 0 | 359 |
-| `lang/10-modules.md` | 253 | 1 | 4 | 258 |
+| `lang/10-modules.md` | 254 | 0 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 258 | 1 | 0 | 259 |
 | `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1059 | 16 | 0 | 1075 |
+| `typing/invalid` | 1060 | 15 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,10 +75,10 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 16 |
+| `fail:no-diagnostic` | 15 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (16)</summary>
+<details><summary><code>fail:no-diagnostic</code> (15)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
@@ -93,7 +93,6 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
-- `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 
@@ -2287,6 +2286,7 @@ typing/invalid/row-union-other-parts.hd
 typing/invalid/same-depth-promotion-conflict.hd
 typing/invalid/same-module-private-field-not-promoted.hd
 typing/invalid/same-module-private-method-not-promoted.hd
+typing/invalid/script-test-init-requirement.hd
 typing/invalid/script-top-level-bang-call.hd
 typing/invalid/sealed-member-written-in-impl.hd
 typing/invalid/self-receiver-is-readonly.hd

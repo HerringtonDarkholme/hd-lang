@@ -3798,8 +3798,19 @@ impl Run<'_> {
             Goal::Tests { .. } | Goal::ReplInput { .. } => None,
             Goal::Analyze | Goal::CheckTests => Some("main"),
         };
+        // A test run runs no entry behavior, so a module under test is
+        // not an entry module in it, even when it is a script
+        // (`module.init.tests.no-entry`): under `CheckTests`, which
+        // checks as a test run checks, a module with a `tests:` block
+        // has requirement-free top-level initialization.
+        let under_test = matches!(self.goal, Goal::CheckTests)
+            && src
+                .root()
+                .children()
+                .any(|c| c.kind() == hd_syntax::SyntaxKind::TestsBlock);
         let entry = input
-            || (module.package == 0
+            || (!under_test
+                && module.package == 0
                 && entry_name.is_some_and(|e| {
                     module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
                 }));
