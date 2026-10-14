@@ -53,6 +53,11 @@ pub enum VT {
     Eq,
     /// `(ref $T)` or `(ref null $T)`.
     Ref(Arc<WTy>, bool),
+    /// `funcref`, nullable: a closure's code field (wasm-layout.md §15.2
+    /// "closure"). Reading an abstract funcref from a GC object skips
+    /// wasmtime's type lookup and subtype check; calls cast it to the
+    /// final code type first.
+    Func,
 }
 
 /// A Wasm heap type, described by structure (hd needs no nominal Wasm
@@ -158,6 +163,7 @@ impl VT {
             VT::F64 => 3,
             VT::Eq => 4,
             VT::Ref(..) => 5,
+            VT::Func => 6,
         }
     }
 }
@@ -255,6 +261,7 @@ impl VT {
                 w.u8(if *n { 6 } else { 5 });
                 t.encode(w);
             }
+            VT::Func => w.u8(7),
         }
     }
     fn decode(r: &mut Reader<'_>, depth: u8) -> Option<VT> {
@@ -269,6 +276,7 @@ impl VT {
             4 => VT::Eq,
             5 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), false),
             6 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), true),
+            7 => VT::Func,
             _ => return None,
         })
     }
@@ -998,6 +1006,7 @@ enum RVal {
     F64,
     Eq,
     Ref(u32, bool),
+    Func,
 }
 
 impl Types {
@@ -1013,6 +1022,7 @@ impl Types {
             VT::F64 => RVal::F64,
             VT::Eq => RVal::Eq,
             VT::Ref(t, n) => RVal::Ref(self.target(t, inner), *n),
+            VT::Func => RVal::Func,
         }
     }
     fn target(&mut self, t: &WTy, inner: &mut dyn FnMut(u32) -> Option<u32>) -> u32 {
@@ -1137,6 +1147,7 @@ fn rval_type(v: RVal) -> ValType {
             nullable,
             heap_type: HeapType::Concrete(i),
         }),
+        RVal::Func => ValType::Ref(RefType::FUNCREF),
     }
 }
 
@@ -1647,6 +1658,7 @@ pub fn link(
                 ty: wasm_encoder::AbstractHeapType::Eq,
             }),
             VT::Ref(t, _) => ConstExpr::ref_null(HeapType::Concrete(types.of(t))),
+            VT::Func => ConstExpr::ref_null(HeapType::FUNC),
         };
         globals.global(
             GlobalType {

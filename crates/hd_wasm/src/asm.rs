@@ -243,6 +243,9 @@ impl Asm {
             }
             VT::Eq => self.ref_null_eq(),
             VT::Ref(t, _) => self.ref_null(t),
+            VT::Func => {
+                self.s().ref_null(HeapType::FUNC);
+            }
         }
     }
     /// Converts the value on top of the stack from `from` to `to`: an
@@ -282,6 +285,7 @@ impl Asm {
                 VT::F32 => head.push(0x7d),
                 VT::F64 => head.push(0x7c),
                 VT::Eq => head.push(0x6d),
+                VT::Func => head.push(0x70),
                 VT::Ref(t, nullable) => {
                     head.push(if *nullable { 0x63 } else { 0x64 });
                     relocs.push((

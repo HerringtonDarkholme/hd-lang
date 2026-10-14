@@ -586,18 +586,19 @@ and `eqref` with a cast after the tag test otherwise.
 ### Closures And Mutably Captured Variables
 
 ```wat
-(type $Fn_i32_i32 (sub (struct (field $code (ref $Code_i32_i32)))))
-(type $Env_k (sub final $Fn_i32_i32 (struct (field $code (ref $Code_i32_i32)) (field $count (ref $Cell_i32)))))
+(type $Fn (sub (struct (field $code funcref))))
+(type $Env_k (sub final $Fn (struct (field $code funcref) (field $count (ref $Cell_i32)))))
 (type $Cell_i32 (struct (field $v (mut i32))))
-;; call f(x): the code receives the closure and casts it to its own environment
+;; call f(x): the code is cast to its final type (cheap on wasmtime, unlike
+;; reading a typed funcref field); the code casts the closure to its environment
 (call_ref $Code_i32_i32 (local.get $f) (local.get $x) (ref.null $Ctx)
-          (struct.get $Fn_i32_i32 $code (local.get $f)))
+          (ref.cast (ref $Code_i32_i32) (struct.get $Fn $code (local.get $f))))
 ```
 
-- **Speed:** per call, a load, a `call_ref`, and a cast in the callee
-  (skipped when the closure has no capture). Per construction, one
-  allocation, plus one per shared cell. A capture-free closure is a
-  constant global.
+- **Speed:** per call, a load, a cast to the code type, a `call_ref`,
+  and a cast in the callee (skipped when the closure has no capture).
+  Per construction, one allocation, plus one per shared cell. A
+  capture-free closure is a constant global.
 - **With passes:** the closure specialization schedule removes the call,
   the environment and the cells together when a closure literal reaches
   a callee within budget ([Closure Calls](#closure-calls)).
@@ -605,9 +606,9 @@ and `eqref` with a cast after the tag test otherwise.
 - **Engines:** V8 inlines a monomorphic call site; wasmtime pays the
   indirect call every time, and it blocks loop optimization across it.
 - **Boundary:** no serializable closures in the first release.
-- **`T?` of a closure:** `(ref null $Fn_sig)`, a null niche.
-- **Type-only:** yes. The base depends on the signature (rows left out,
-  codegen.md §12.4); the subtype on the capture shape.
+- **`T?` of a closure:** `(ref null $Fn)`, a null niche.
+- **Type-only:** yes. The code type depends on the signature (rows left
+  out, codegen.md §12.4); the subtype on the capture shape.
 
 ### `List[T]`
 

@@ -202,11 +202,15 @@ pub fn storage(v: &VT) -> VT {
     }
 }
 
-/// The closure base struct of a code signature (§15.2 "closure").
+/// The closure base struct (§15.2 "closure"): the code as an abstract
+/// `funcref`, one type for every signature. A call casts the code to its
+/// final function type before `call_ref`: wasmtime reads an abstract
+/// funcref field without the type lookup and subtype check a concrete
+/// one costs (closure-calls.md §1.2, option E1).
 #[must_use]
-pub fn closure_base(code: &WTy) -> WTy {
+pub fn closure_base() -> WTy {
     WTy::Struct {
-        fields: vec![VT::r(code.clone())],
+        fields: vec![VT::Func],
         sup: None,
         open: true,
     }
@@ -859,16 +863,9 @@ impl<'a> Lay<'a> {
                     }
                 }
             }
-            TyData::Fn {
-                params,
-                result,
-                suspends,
-                ..
-            } => {
-                vec![VT::r(closure_base(
-                    &self.code_ty(params, result, suspends)?,
-                ))]
-            }
+            // One base for every signature: the code type is laid out where
+            // a call or a construction needs it (`shape`).
+            TyData::Fn { .. } => vec![VT::r(closure_base())],
             TyData::TraitValue { def, .. } => self.nominal(self.dyn_key(t), Nominal::Dyn, def)?,
             // Per key in key order, its payload and vtable
             // (codegen.md §12.4, "Context values").
@@ -1635,7 +1632,7 @@ impl<'a> Lay<'a> {
             } => {
                 let code = self.code_ty(params, result, suspends)?;
                 Shape::Fn {
-                    base: closure_base(&code),
+                    base: closure_base(),
                     code,
                 }
             }

@@ -75,7 +75,7 @@ found that. The spec allows either form
 | `Result[T, E]` | `multi`: `(i32 tag, dflt(T')..., dflt(E')...)` with slot sharing, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
 | tuple | its elements' values within the bound; one immutable box over it | its elements' fields, flattened, or the box |
 | trait value, `Any` | `(eqref, (ref $VT))`; `eqref`, so `is` can use `ref.eq` on the payload | two fields |
-| closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
+| closure | `(ref $Fn)`: one base struct for every signature, holding the code as an abstract `funcref`; a call casts it to the final `$Code_sig` before `call_ref` (wasmtime reads an abstract funcref field without a subtype check; closure-calls.md §7); one subtype per capture shape | same |
 | capture-free closure | a constant global of the base type, with no environment | same |
 | `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` (owner, 2026-10-07: Go-style shared slices; "Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
@@ -333,8 +333,8 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    builds each component's descriptors after the components it names; a
    member is named by its position until the group closes. The group's
    members are its nominal types, ordered by `canon(T)`, and the types
-   inside them that name one (a closure base and code type, a slot type,
-   a tuple box), ordered by their content hash over the nominal order,
+   inside them that name one (a closure code type, a slot type, a
+   tuple box), ordered by their content hash over the nominal order,
    supertypes first. A nominal type on no cycle is a group of one that
    link emits as an ordinary type. A descriptor is `Rec(group, i)`,
    inside a member `Back(i)`; a group is identified by a hash of its
@@ -345,7 +345,7 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    emissions share the laid-out nominal types, so a group is laid out
    once per build. At link, a type built outside the group whose
    resolved form equals a member's (a function's type from its
-   parameters, a closure base from its code type) is that member. An
+   parameters, a closure code type from its signature) is that member. An
    item whose declarations recur at ever larger arguments (`D[T]` naming
    `D[List[T]]?`, an expansive cycle in Kennedy and Pierce's sense) has
    no finite descriptor and stops emission as unsupported; the check
@@ -357,7 +357,7 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    cold. A program-wide type table would make it linear.
 4. **Subtyping.** Declared only where hd needs it: enum variants under
    their base, frames under `$Suspend_L`, closure environments under
-   `$Fn_sig`. Every leaf is `final`, which lets engines skip subtype
+   `$Fn`. Every leaf is `final`, which lets engines skip subtype
    checks.
 5. **Order.** A Wasm type may only name types of its own group or of
    earlier groups, so groups follow a topological order of the SCC

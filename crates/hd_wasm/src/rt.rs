@@ -275,8 +275,10 @@ pub enum Helper {
     MapGrow { map: WTy, comps: Vec<VT> },
     /// The cursor closure of `Map.iter()`.
     MapStep {
+        /// The code type, `(env, ctx) -> (dflt(T?)...)`.
+        code: WTy,
         /// The environment `{code, map, pos, end, len}`, which names the
-        /// code and map types.
+        /// map type.
         env: WTy,
         /// The key's values, then the value's.
         comps: Vec<VT>,
@@ -555,12 +557,14 @@ impl Helper {
                 encode_vts(comps, w);
             }
             Helper::MapStep {
+                code,
                 env,
                 comps,
                 tuple,
                 opt,
             } => {
                 w.u8(24);
+                enc_wty(code, w);
                 enc_wty(env, w);
                 encode_vts(comps, w);
                 match tuple {
@@ -825,6 +829,7 @@ impl Helper {
                 comps: decode_vts(r, 0)?,
             },
             24 => Helper::MapStep {
+                code: dec_wty(r)?,
                 env: dec_wty(r)?,
                 comps: decode_vts(r, 0)?,
                 tuple: if r.u8() == 1 { Some(dec_wty(r)?) } else { None },
@@ -1325,11 +1330,12 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         Helper::MapPut { map, key, val, ops } => crate::map::put_code(map, key, val, ops),
         Helper::MapGrow { map, comps } => crate::map::grow_code(map, comps),
         Helper::MapStep {
+            code,
             env,
             comps,
             tuple,
             opt,
-        } => crate::map::step_code(env, comps, tuple.as_ref(), opt)?,
+        } => crate::map::step_code(code, env, comps, tuple.as_ref(), opt)?,
         Helper::HostCold {
             sig,
             frame,

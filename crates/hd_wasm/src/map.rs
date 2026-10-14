@@ -487,14 +487,20 @@ pub const IT_LEN: u32 = 4;
 /// iterator panics too. Entries at or past the captured end stay unseen
 /// and removed entries are skipped (Q-R7); a value replaced in place is
 /// seen (`flow.for.replace.observed`).
-pub fn step_code(env: &WTy, comps: &[VT], tuple: Option<&WTy>, opt: &OptForm) -> StageResult<Code> {
+pub fn step_code(
+    code: &WTy,
+    env: &WTy,
+    comps: &[VT],
+    tuple: Option<&WTy>,
+    opt: &OptForm,
+) -> StageResult<Code> {
     let WTy::Struct { fields, .. } = env else {
         return unsupported("a map cursor without its environment");
     };
-    let (Some(VT::Ref(code, _)), Some(VT::Ref(map, _))) = (fields.first(), fields.get(1)) else {
-        return unsupported("a map cursor environment without its code and map");
+    let Some(VT::Ref(map, _)) = fields.get(1) else {
+        return unsupported("a map cursor environment without its map");
     };
-    let WTy::Func(params, results) = &**code else {
+    let WTy::Func(params, results) = code else {
         return unsupported("a map cursor without a code type");
     };
     let map: &WTy = map;

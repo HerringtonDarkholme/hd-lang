@@ -618,12 +618,13 @@ impl Em<'_> {
                 self.push_ctx(callee)?;
                 // A closure collection resolved (the optimized pipeline's
                 // A1) is a direct call of its code; any other reads the
-                // code from the value.
+                // code from the value and casts it to its final type.
                 if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
                     self.a.call(Sym::Inst(key));
                 } else {
                     self.a.get(f);
                     self.a.struct_get(&base, 0);
+                    self.a.ref_cast(&code, false);
                     self.a.call_ref(&code);
                 }
                 self.store_from(i, &rs.clone())?;
@@ -2908,10 +2909,10 @@ impl Em<'_> {
         caps: std::ops::Range<usize>,
         ty: Ty,
     ) -> StageResult<(WTy, Vec<(u32, u32)>)> {
-        let Shape::Fn { base, code } = self.lay.shape(ty)? else {
+        let Shape::Fn { base, .. } = self.lay.shape(ty)? else {
             return unsupported("a closure without a function type");
         };
-        let mut fields = vec![VT::r(code)];
+        let mut fields = base.fields();
         let mut at = Vec::new();
         for c in caps {
             let l = self.b.cap_local[c].raw();
@@ -3443,9 +3444,9 @@ impl Em<'_> {
             vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
             self.vts(ot)?,
         );
-        let base = crate::layout::closure_base(&code);
+        let base = crate::layout::closure_base();
         let env = WTy::Struct {
-            fields: vec![VT::r(code.clone()), VT::r(lt.clone()), VT::I32, VT::I32],
+            fields: vec![VT::Func, VT::r(lt.clone()), VT::I32, VT::I32],
             sup: Some(Box::new(base)),
             open: false,
         };
@@ -3753,15 +3754,9 @@ impl Em<'_> {
             vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
             self.vts(ot)?,
         );
-        let base = crate::layout::closure_base(&code);
+        let base = crate::layout::closure_base();
         let env = WTy::Struct {
-            fields: vec![
-                VT::r(code.clone()),
-                VT::r(mt.clone()),
-                VT::I32,
-                VT::I32,
-                VT::I32,
-            ],
+            fields: vec![VT::Func, VT::r(mt.clone()), VT::I32, VT::I32, VT::I32],
             sup: Some(Box::new(base)),
             open: false,
         };
@@ -3772,6 +3767,7 @@ impl Em<'_> {
         self.comp(map, 0, &VT::r(mt.clone()))?;
         self.a.set(m);
         self.a.ref_func(Sym::Helper(Helper::MapStep {
+            code,
             env: env.clone(),
             comps: [key, val].concat(),
             tuple,

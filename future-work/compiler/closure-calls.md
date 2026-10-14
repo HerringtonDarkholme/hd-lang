@@ -267,3 +267,41 @@ without a compile regression) fails on the suite, the compile time and
 the frame lists, so inlining stays off. Owner Q4 is answered: leave
 wasmtime inlining off. Re-measure after a wasmtime move or after job 7 if
 the closures bench still lags V8.
+
+## 7. Result of job 7 (E1: abstract code field), 2026-10-13
+
+Shipped. The closure base is one struct for every signature,
+`(sub (struct (field (mut funcref))))`; environments and the `ListStep`
+and `MapStep` cursors extend it. A call reads the field, then
+`ref.cast (ref $Code)` (a final type) before `call_ref`. Known closures
+(A1, A2) still call directly.
+
+Measured with a dev `hd` binary, the old and new builds interleaved
+per round, p50 of 9 runs after a warmup (closures) or 5 runs (suite),
+load average 7 to 10 with spikes. Wasmtime is `hd run [--release]
+--engine wasmtime`, wall time including the compile; V8 is
+`node host/run.mjs`.
+
+| Program | Engine, profile | Before | After | Change |
+| --- | --- | --- | --- | --- |
+| closures | wasmtime dev | 1912 ms | 1502 ms | -21.5% |
+| closures | wasmtime release | 1042 ms | 716 ms | -31.3% |
+| closures | V8 dev | 347 ms | 361 ms | +4.0% |
+| closures | V8 release | 273 ms | 281 ms | +2.8% |
+| list-sort | wasmtime dev / release | 1270 / 462 ms | 1273 / 457 ms | +0.3% / -1.0% |
+| list-sort | V8 dev / release | 1300 / 1034 ms | 1296 / 1030 ms | -0.3% / -0.4% |
+| int-loop, map-count, string-build, trait-dispatch | both | | | Wasm byte-identical; noise within ±4% |
+
+- A V8-only rerun of closures, 15 runs: dev 348 to 370 ms (+6.3%),
+  release 279 to 287 ms (+2.9%). The cast costs V8 about 0.2 ns per
+  call, and V8 still runs the bench 2.5x to 4x faster than wasmtime.
+- Release gains more than dev: A2 leaves the data-field calls
+  (`Iterator.step` and captured iterators) indirect, and each of those
+  paid the full subtype check.
+- Hello: dev 4549 bytes, release 4032 bytes, both byte-identical (no
+  closure). Closures bench Wasm: dev 8712 to 8714 bytes, release 7786
+  to 7767 bytes.
+- The plan-row rule holds: wasmtime dev closures -21% (at least 10%), V8
+  on the runtime suite within 3% (four programs are byte-identical,
+  list-sort -0.4%), hello +0%. The cost is V8 on the closures bench
+  itself, +3% to +6%.
