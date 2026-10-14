@@ -448,8 +448,10 @@ fn filesystem_long_paths_keep_native_errors_and_operation_context() {
 #[cfg(target_os = "linux")]
 #[test]
 fn filesystem_write_failure_keeps_the_native_message_and_path() {
+    // `/dev/full` is a device, so the write waits on the blocking pool
+    // (`std-fs.special-file`) and completes at `.finish`.
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:FsWrite",
         "write_bytes",
         Enc::default().str("/dev/full").bytes(b"full").0,
