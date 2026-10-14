@@ -69,6 +69,7 @@ mod identity_run;
 mod impl_targets;
 mod impl_universe;
 mod incremental;
+mod inferred_result_variance;
 mod inferred_results_run;
 mod inferred_rows_run;
 mod init_cycle_run;

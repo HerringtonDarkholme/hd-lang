@@ -850,7 +850,7 @@ pub(crate) fn check_fn_body(
         Ok((tail, ret))
     })?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
-    ck.finish_with(root, ret)
+    ck.finish_with(root, ret, Some(node))
 }
 
 /// The `DefId` of a default body: the declaration's path plus the field or
@@ -3059,7 +3059,92 @@ impl Ck<'_, '_> {
 
     fn finish(self, root: Ref) -> StageResult<Body> {
         let ret = self.rets[0];
-        self.finish_with(root, ret).map(|(b, ..)| b)
+        self.finish_with(root, ret, None).map(|(b, ..)| b)
+    }
+
+    /// An impl method's inferred result against its impl parameters'
+    /// variances (`types.variance.surface`): a method that omits its
+    /// result type still counts toward the markers its parameters derive
+    /// from the impl target. Declared parameters, results and rows go
+    /// through `impl_variance` in lowering; only the inferred result
+    /// needs this, once inference has settled it.
+    fn check_inferred_result(&mut self, node: NodeRef<'_>, ret: Ty) {
+        // A declared result already checks in lowering, and a poisoned
+        // or still-open result already reports elsewhere.
+        if Src::type_child(node).is_some() {
+            return;
+        }
+        let pool = self.pool();
+        if pool.has_poison(ret) || pool.has_infer(ret) {
+            return;
+        }
+        let item = self.b.body_mut().item;
+        let owner = match self.cx.lookup.item(item).map(|i| &i.data) {
+            Some(ItemData::Method { owner, .. }) => *owner,
+            _ => return,
+        };
+        let Some(impl_item) = self.cx.lookup.item(owner) else {
+            return;
+        };
+        let hd_resolve::ItemData::Impl { self_ty, .. } = &impl_item.data else {
+            return;
+        };
+        let self_ty = *self_ty;
+        let generics = impl_item.generics.clone();
+        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+            return;
+        };
+        // The built-in collections' markers describe their readonly views
+        // only, as in lowering.
+        let known = self.cx.names.known;
+        if target == known.list || target == known.map {
+            return;
+        }
+        let declared = self.declared_variances(target);
+        if declared.iter().all(|v| *v == 0) {
+            return;
+        }
+        let global = self.cx.names.pool;
+        let var_of = |d: DefId| {
+            if d == known.list {
+                return vec![1];
+            }
+            if d == known.map {
+                return vec![0, 1];
+            }
+            self.cx
+                .lookup
+                .item(d)
+                .map(|i| i.generics.iter().map(|g| g.variance).collect())
+                .unwrap_or_default()
+        };
+        let mut seen = vec![hd_resolve::variance::Seen::default(); generics.len()];
+        for (a, v) in global.list_items(args).iter().copied().zip(&declared) {
+            hd_resolve::variance::walk(global, a, *v, owner, &var_of, &mut seen);
+        }
+        let derived: Vec<i8> = seen.iter().map(|s| s.derived()).collect();
+        let mut found = vec![hd_resolve::variance::Seen::default(); generics.len()];
+        hd_resolve::variance::walk(global, ret, 1, owner, &var_of, &mut found);
+        for ((g, marker), seen) in generics.iter().zip(&derived).zip(&found) {
+            if seen.breaks(*marker) {
+                let msg = format!(
+                    "`{}` is declared {}, but it occurs in a {} position here",
+                    self.cx.names.text(g.name),
+                    if *marker > 0 {
+                        "covariant (`+`)"
+                    } else {
+                        "contravariant (`-`)"
+                    },
+                    if *marker > 0 {
+                        "negative or invariant"
+                    } else {
+                        "positive or invariant"
+                    }
+                );
+                self.err(Code::InvalidVariance, node, &msg);
+                return;
+            }
+        }
     }
 
     /// Finishes the body and returns it with `ret` resolved: a function's
@@ -3069,6 +3154,7 @@ impl Ck<'_, '_> {
         mut self,
         root: Ref,
         ret: Ty,
+        fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         self.unused_locals();
         if self.module_init.is_none() {
@@ -3259,6 +3345,9 @@ impl Ck<'_, '_> {
         }
         self.check_negated_unsigned();
         self.check_literal_ranges();
+        if let Some(node) = fun {
+            self.check_inferred_result(node, ret);
+        }
         // Capture modes (checking-and-tir.md "Data and closures"): `Copy`
         // when no side assigns the local after its declaration, `Shared`
         // otherwise. `Move` needs the liveness pass and is not chosen yet.

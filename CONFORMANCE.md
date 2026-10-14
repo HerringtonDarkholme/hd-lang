@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2831 | 10 | 4 | 2845 |
+| 2833 | 8 | 4 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 348 | 4 | 0 | 352 |
+| `lang/04-type-system.md` | 350 | 2 | 0 | 352 |
 | `lang/05-expressions.md` | 277 | 0 | 0 | 277 |
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
 | `lang/07-functions.md` | 130 | 0 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1065 | 10 | 0 | 1075 |
+| `typing/invalid` | 1067 | 8 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,18 +75,16 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 10 |
+| `fail:no-diagnostic` | 8 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (10)</summary>
+<details><summary><code>fail:no-diagnostic</code> (8)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/contravariant-inferred-private-result.hd`
-- `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
@@ -1567,6 +1565,8 @@ typing/invalid/contextual-variant-binding-without-type.hd
 typing/invalid/contextual-variant-without-type.hd
 typing/invalid/continue-outside-loop.hd
 typing/invalid/contravariant-enum-requirement-row.hd
+typing/invalid/contravariant-inferred-invariant-result.hd
+typing/invalid/contravariant-inferred-private-result.hd
 typing/invalid/contravariant-method-requirement-row.hd
 typing/invalid/contravariant-method-result.hd
 typing/invalid/contravariant-representation-change.hd
