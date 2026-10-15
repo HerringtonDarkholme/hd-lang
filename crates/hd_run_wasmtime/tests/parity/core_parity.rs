@@ -433,7 +433,8 @@ fn filesystem_long_paths_keep_native_errors_and_operation_context() {
         ("hd:FsRead", "list_dir", "scandir"),
         ("hd:FsWrite", "create_dir_all", "mkdir"),
     ] {
-        let native = std::io::Error::from_raw_os_error(libc::ENAMETOOLONG);
+        let native =
+            std::io::Error::from_raw_os_error(rustix::io::Errno::NAMETOOLONG.raw_os_error());
         let error = format!("{syscall} {:?}: {native}", path(&too_long));
         p.call(
             module,
@@ -460,7 +461,7 @@ fn filesystem_write_failure_keeps_the_native_message_and_path() {
             .leb(7)
             .str(&format!(
                 "write \"/dev/full\": {}",
-                std::io::Error::from_raw_os_error(libc::ENOSPC)
+                std::io::Error::from_raw_os_error(rustix::io::Errno::NOSPC.raw_os_error())
             ))
             .0,
     );

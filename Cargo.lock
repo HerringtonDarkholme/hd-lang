@@ -755,7 +755,6 @@ dependencies = [
  "hd_sched",
  "hd_wasm",
  "hostname",
- "libc",
  "nix",
  "rustix",
  "rustls",

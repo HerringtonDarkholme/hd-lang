@@ -636,11 +636,7 @@ fn test_file_imports_interrupt_fifos_with_the_time_limit_report() {
         let owner = State::new(TestCase::default());
         let root = std::path::PathBuf::from(owner.temp_dir().unwrap());
         let path = root.join("blocked-1.snap");
-        nix::unistd::mkfifo(
-            &path,
-            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
-        )
-        .unwrap();
+        crate::test_fifo::make(&path);
         let mut case = case();
         if matches!(body, Body::Snapshot) {
             case.snapshot = Some(crate::testing::Snapshot {

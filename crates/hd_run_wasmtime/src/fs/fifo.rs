@@ -14,11 +14,7 @@ use crate::codec::{Dec, Enc};
 
 fn fifo(dir: &TempDir) -> String {
     let path = dir.path("fifo");
-    nix::unistd::mkfifo(
-        Path::new(&path),
-        nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
-    )
-    .unwrap();
+    crate::test_fifo::make(Path::new(&path));
     path
 }
 

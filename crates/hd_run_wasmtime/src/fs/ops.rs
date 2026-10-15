@@ -324,7 +324,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn write_errors_keep_the_native_message_and_path() {
-        let native = std::io::Error::from_raw_os_error(libc::ENOSPC);
+        let native = std::io::Error::from_raw_os_error(rustix::io::Errno::NOSPC.raw_os_error());
         assert_eq!(
             invoke("write_text", "/dev/full", Some(b"x")).done(),
             error(&format!("write \"/dev/full\": {native}"), 7).done()

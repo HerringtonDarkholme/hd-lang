@@ -19,6 +19,12 @@ pub fn sys(name: &str, grants: &Grants) -> Enc {
                     other => other,
                 });
             }
+            // The name `hostname(1)` prints.
+            #[cfg(unix)]
+            "hostname" => {
+                e.str(&rustix::system::uname().nodename().to_string_lossy());
+            }
+            #[cfg(windows)]
             "hostname" => match hostname::get() {
                 Ok(name) => {
                     e.str(&name.to_string_lossy());

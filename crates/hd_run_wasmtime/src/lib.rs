@@ -52,6 +52,8 @@ mod session_link_tests;
 #[cfg(test)]
 mod session_tests;
 mod test_engine;
+#[cfg(all(test, unix))]
+mod test_fifo;
 pub mod testing;
 mod testing_files;
 mod testing_json;

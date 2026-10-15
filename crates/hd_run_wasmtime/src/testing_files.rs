@@ -308,11 +308,7 @@ mod tests {
     fn regression_persistence_replaces_a_fifo_without_opening_it() {
         let mut owner = Files::new(&TestCase::default());
         let path = PathBuf::from(owner.temp_dir().unwrap()).join("regression");
-        nix::unistd::mkfifo(
-            &path,
-            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
-        )
-        .unwrap();
+        crate::test_fifo::make(&path);
         let (send, receive) = std::sync::mpsc::channel();
         let worker = std::thread::spawn(move || {
             send.send(save_regression(&path, &[8])).unwrap();

@@ -259,11 +259,11 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn bounded_accept_returns_a_blocking_fixture_socket() {
-        use nix::fcntl::{FcntlArg, OFlag, fcntl};
+        use rustix::fs::{OFlags, fcntl_getfl};
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let _peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
         let stream = bounded_accept(&listener);
-        let flags = OFlag::from_bits_retain(fcntl(&stream, FcntlArg::F_GETFL).unwrap());
-        assert!(!flags.contains(OFlag::O_NONBLOCK));
+        let flags = fcntl_getfl(&stream).unwrap();
+        assert!(!flags.contains(OFlags::NONBLOCK));
     }
 }

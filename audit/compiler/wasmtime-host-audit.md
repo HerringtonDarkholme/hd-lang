@@ -85,14 +85,19 @@ both count against the heap ledger (§4.5), and the 1 GiB cap is gone.
 `cargo tree -p hd_run_wasmtime -e normal --depth 1` (aarch64 macOS):
 
 ```text
-getrandom 0.4.3, hd_cache, hd_host_abi, hd_run, hd_wasm, hostname 0.4.2,
-libc 0.2.190, nix 0.31.3, rustix 1.1.5, rustls 0.23.45, serde_json 1.0.152,
-socket2 0.6.5, ureq 3.4.2, url 2.5.8, wasmtime 49.0.2
-Windows only: interprocess 2.4.4, winapi-util 0.1.11, windows-sys 0.61
+getrandom 0.4.3, hd_base, hd_cache, hd_host_abi, hd_run, hd_wasm, rustix 1.1.5,
+rustls 0.23.45, serde_json 1.0.152, socket2 0.6.5, tokio 1.53.2, ureq 3.4.2,
+wasmtime 49.0.2
+Windows only: hostname 0.4.2, win32job, windows-sys 0.61
+(state after T12; the first listing, at the audit's start, also had hostname,
+libc, nix and url as direct dependencies)
 ```
 
-Transitive totals: 126 external crates on macOS, 129 on
-x86_64-pc-windows-msvc, 147 across all targets (`--target all`).
+Transitive totals at the audit's start: 126 external crates on macOS, 129 on
+x86_64-pc-windows-msvc, 147 across all targets (`--target all`). After T12
+(distinct non-workspace lines of `cargo tree -p hd_run_wasmtime -e normal
+--prefix none`): 136 on macOS (138 before T12) and 150 on Windows (150
+before: `hostname` stays there).
 
 "Total" counts the crates under that direct dependency. "Only" counts
 the crates no other direct dependency pulls, which removing it would
@@ -104,12 +109,12 @@ save.
 | `url` | dropped by T10 (was `granted_url` parse and redirect `join`). `http/target.rs` parses with `http::Uri` (in the tree via ureq) and joins by RFC 3986 §5.2 | 0 (was 35) | 0 (was 26: idna, icu_*, zerovec, yoke, ...) | done: external crates 173 → 138 on macOS and 185 → 150 on Windows by `cargo tree -e normal` distinct lines |
 | `ureq` (rustls feature) | HTTP/1.1, TLS, timeouts | 22 (incl. rustls, ring, webpki-roots) | 8 | keep. The 903 lines of `http/transport.rs`, `chunk.rs` and `headers.rs` that wrapped ureq's transport for raw header spelling and cross-name order are gone (S8, T11): the request and response use ureq's headers, and a response name arrives in lowercase. Known gaps: ureq refuses a response with more than 128 headers (`Connect`), and a `100 Continue` that carries headers |
 | `rustls` | only `is::<rustls::Error>` to classify TLS errors (`http/request.rs:234`) | 12 | 0 | free (ureq pulls it); a direct dependency only for one type check |
-| `nix` | `poll`/`select` for FIFOs and process pipes, `fcntl`, test `mkfifo` | 4 | 1 | `rustix` (already in the tree, 0 new crates) covers poll, fcntl and mkfifo; the FIFO polling may go entirely (jobs T7, T12) |
+| `nix` | dropped by T12 (was `fcntl`, test `mkfifo`; the polling went with T7). `kill_process_group` was already rustix. One dev-only use stays: `tests/child_signals.rs` blocks SIGCHLD per thread, which rustix has no safe call for | 0 normal (was 4) | 0 (was 1) | done: tests use rustix `fcntl_getfl`, `test_kill_process`, `kill_process`; rustix has no `mkfifo` on macOS, so tests run `mkfifo(1)` (`test_fifo.rs`) |
 | `rustix` | one errno downcast of wasmtime's allocation error (`limits.rs:34`) | 4 | 0 | free; pinned to wasmtime's version |
-| `libc` | four errno and flag constants (`net/socket.rs:148`, `fs/io.rs:265,279`, `fs/ops.rs:302`) | 1 | 0 | free; `rustix` or `io::ErrorKind` would do |
+| `libc` | dropped by T12 (was four errno constants; `fs/ops.rs`, `core_parity.rs` now use `rustix::io::Errno`). Still in the tree through tokio, mio and rustix | 0 direct | 0 | done: no direct use, and the dev-dependency is gone |
 | `socket2` | nonblocking connect with per-candidate timeouts | 2 | 1 | std `TcpStream::connect_timeout` is enough once each connect runs on its own thread |
 | `getrandom` | `Random` | 3 | 1 | keep (std has no stable entropy API); ring also pulls getrandom 0.2, so two versions build |
-| `hostname` | `Sys.hostname` | 3 | 1 | `rustix::system::uname().nodename()` on Unix, `windows-sys` on Windows; saves one crate |
+| `hostname` | Windows only since T12. Unix reads `rustix::system::uname().nodename()` (`core/sys.rs`); no safe std call exists on Windows | Windows 3 | Windows 1 | done: `sys_hostname_matches_hostname_1` compares with `hostname(1)` |
 | `serde_json` | test-runner JSON lines (`testing_json.rs`, `testing_files.rs`) | 5 | 2 | keep; `hd_cli` links it anyway |
 | `interprocess`, `winapi-util`, `windows-sys` | Windows named-pipe paths in `Fs` and pipe handles for `Process` (`windows_pipe.rs`, 386 lines) | Windows only | 3 + deps | removed by T7 (`windows_pipe.rs`, `interprocess`, `winapi-util` and its helpers `doctest-file`, `recvmsg`, `widestring` deleted); `windows-sys` stays for error codes and `FILE_FLAG_BACKUP_SEMANTICS` |
 | `hd_*` | cache, ABI table, driver, linker | 12 | 1 | in-repo |
@@ -404,7 +409,7 @@ WAT, functions and build time before and after.
 | T9 | opus | T2, T4, T6 | S7 heap ledger (§4.5): shared counter, reservations in the Process, Http and Net tasks, release at `.finish` or abort, `heap-exhausted` panic. Remove both 1 GiB caps | done in "Charge host-held data to the program's heap budget": `limits::Ledger` is an `Arc` atomic counter that the store's `HeapBudget` and every host task charge; a `Reservation` releases on drop, so `.finish` releases it before the exchange-buffer copy and an abort releases it with the task. A failed reservation delivers `Done::Exhausted`, and `.finish` panics `heap-exhausted`; a payload past the budget panics at `.start`. Process output is reserved per 8 KiB pipe read (exact bytes kept) and kills the group on failure; the Http body is read in 16 KiB chunks, reserved as read, with no ureq limit (the reservation is the bound); Net reserves `min(max, 64 KiB)` once the socket is readable and shrinks to what it read. `hd --engine wasmtime --max-heap 64M`: a 100 MiB `get!` body and a child printing 100 MiB (and `yes`) panic `heap-exhausted`, and `ps -p` finds no child; without the flag, or at `1G`, both return 100 MiB. `host_operations_release_all_the_heap_they_hold` (session test) checks the ledger returns to the store's memory after repeated `run!`, `connect!`/`write!`/`read!`, `get!` and a cancelled `run!`. A session's rebuild keeps the ledger, since sockets keep their put-back bytes |
 | T10 | sonnet | T6 | S9: drop `url`. Parse with `http::Uri` (absolute `http`/`https`, ASCII host, else `InvalidUrl`), grant on the lowercase host, and write the RFC 3986 §5.2 join for redirects | done in "Parse Http URLs with http::Uri and drop the url crate": `http/target.rs` validates (absolute, `http`/`https`, printable ASCII, no percent-encoded host, port in range), keeps the host lowercase for the grant, and resolves a redirect `Location` by RFC 3986 §5.2 (`resolve`, `remove_dot_segments`; the RFC's §5.4.1 and §5.4.2 examples are unit tests). `http://bücher.example/` is `InvalidUrl`, `http://xn--bcher-kva.example/` is valid. A Location outside printable ASCII is `InvalidUrl`; a malformed ASCII one stays `Other("Invalid URL")`. The Node host and the web host now refuse the same URLs (`isAsciiUrl` in `core.mjs`) instead of IDNA-mapping them. `cargo tree -e normal` loses `url`, `idna` and the ICU crates: distinct lines 173 → 138 on macOS and 185 → 150 on Windows. Not mapped any more: `url`'s WHATWG forms such as `http://127.1/` or backslashes, which now fail or reach DNS as written |
 | T11 | sonnet | T10 | S8: drop the raw-header transport (`http/transport.rs`, `chunk.rs`, most of `headers.rs`) and use ureq's request and response headers | done in "Use ureq's own headers and drop the raw-header transport": `transport.rs` (243), `chunk.rs` (282) and `headers.rs` (378) are deleted, 903 lines; `request.rs` builds an `http::Request` from the caller's headers and ureq supplies `Host` and the body framing. A response name is lowercase and the values of one name keep their order; the Node host (`host/http.mjs`) now lowercases and groups the same way, so the parity tests see one result. The http tests compare names ignoring case. Dropped: the 128-header and 1001-pair tests (ureq refuses more than 128 response headers as `Connect`), Node's CL+TE and repeated CL checks, HTTP/1.0 chunking, and the exact `Parse Error` text of a malformed response (`Connect` text is the provider's own) |
-| T12 | sonnet | T2, T4, T7 | S6/F10: drop `nix` (rustix `poll`/`fcntl`/`mkfifo` in tests, `kill_process_group`), Unix `hostname` (`rustix::system::uname`; Windows keeps the crate) and direct `libc` use; keep `socket2` only where tokio lacks the option | `cargo tree -p hd_run_wasmtime --depth 1` lists no `nix` or `libc`, and `hostname` only for Windows; the macOS external count is ≈102; `Sys.hostname` matches `hostname(1)` |
+| T12 | sonnet | T2, T4, T7 | S6/F10: drop `nix` (rustix `poll`/`fcntl`/`mkfifo` in tests, `kill_process_group`), Unix `hostname` (`rustix::system::uname`; Windows keeps the crate) and direct `libc` use; keep `socket2` only where tokio lacks the option | `cargo tree -p hd_run_wasmtime --depth 1` lists no `nix` or `libc`, and `hostname` only for Windows; the macOS external count is ≈102; `Sys.hostname` matches `hostname(1)` | done in "Drop nix, libc and Unix hostname from hd_run_wasmtime". `hostname` is Windows-only, `libc` and `nix` are no direct dependency (one dev-only `nix` `signal` use remains for `child_signals`). External crates by distinct `cargo tree -e normal` lines: macOS 138 → 136, Windows 150 → 150; the ≈102 estimate used another method |
 
 Order: T1, then T2 and T3, then T4 and T5, T6, T7, T8, T9, T10, T11,
 T12. The pairs T2/T3 and T4/T5 touch the same files back to back. T9

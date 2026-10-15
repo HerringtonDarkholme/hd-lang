@@ -1167,9 +1167,8 @@ fn fixture_path(label: &str) -> std::path::PathBuf {
 #[cfg(unix)]
 #[test]
 fn a_stop_during_run_cancels_the_input_and_kills_the_child() {
-    use nix::errno::Errno;
-    use nix::sys::signal::{Signal, kill};
-    use nix::unistd::Pid;
+    use rustix::io::Errno;
+    use rustix::process::{Pid, Signal, kill_process, test_kill_process};
     use std::time::{Duration, Instant};
     let path = fixture_path("stop-run");
     let input = format!(
@@ -1192,7 +1191,7 @@ fn a_stop_during_run_cancels_the_input_and_kills_the_child() {
                     .ok()
                     .and_then(|pid| pid.trim().parse::<i32>().ok())
                     .filter(|pid| *pid > 1)
-                    .map(Pid::from_raw)
+                    .and_then(Pid::from_raw)
             }
         };
         let stopping = {
@@ -1223,11 +1222,11 @@ fn a_stop_during_run_cancels_the_input_and_kills_the_child() {
     let until = Instant::now() + Duration::from_secs(10);
     let mut gone = false;
     while !gone && Instant::now() < until {
-        gone = kill(child, None) == Err(Errno::ESRCH);
+        gone = test_kill_process(child) == Err(Errno::SRCH);
         std::thread::sleep(Duration::from_millis(5));
     }
     if !gone {
-        let _ = kill(child, Signal::SIGKILL);
+        let _ = kill_process(child, Signal::KILL);
     }
     assert!(gone, "the child outlived the cancel");
 }
@@ -1670,11 +1669,7 @@ struct Fifo(std::path::PathBuf);
 impl Fifo {
     fn new(label: &str) -> Self {
         let path = fixture_path(label);
-        nix::unistd::mkfifo(
-            &path,
-            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
-        )
-        .expect("makes a FIFO");
+        crate::test_fifo::make(&path);
         Self(path)
     }
 
