@@ -41,8 +41,8 @@ use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
     Declarations, FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls,
-    MemberStep, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl, UniverseImpls,
-    folder_table,
+    MemberStep, OWN_TABLE, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl,
+    UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
@@ -681,6 +681,13 @@ struct ProgramTables {
     /// closure (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     universe: ImplUniverseId,
     extra: Arc<UniverseImpls>,
+    /// A test program's impls that no folder table holds: those of the
+    /// `tests:` blocks, which only the test role checks
+    /// (`names.tests.module-items`, `module.test.code`). The program view
+    /// reads them as its own table, so a memo entry that probed one is
+    /// never shared with a library-role context, nor one of theirs used
+    /// here. Empty outside a test run.
+    test_impls: hd_types::solver::ImplTable,
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
     recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
@@ -6010,6 +6017,7 @@ impl Run<'_> {
         let names = self.names();
         let mut items = HashMap::new();
         let mut bodies: HashMap<Hash128, LazyBody> = HashMap::new();
+        let mut test_role_impls = Vec::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
                 if self.table.modules[m].package != 0 || !self.builds_module(m) {
@@ -6021,7 +6029,11 @@ impl Run<'_> {
                 return None;
             }
             let sections = split_sections(&c.entry)?;
+            let test_role = self.role(m) == "test";
             for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
+                if test_role && matches!(it.data, ItemData::Impl { .. }) {
+                    test_role_impls.push(it.def);
+                }
                 items.insert(it.def, it);
             }
             // An earlier REPL input's bodies yield to this build's.
@@ -6065,6 +6077,23 @@ impl Run<'_> {
                 members.push((fid, fi));
             }
         }
+        // A `tests:` block's impls are in its module's test-role entry but
+        // in no folder interface, which is built without test code.
+        let test_impls: Vec<&Item> = test_role_impls
+            .iter()
+            .filter(|d| !impl_rows.contains_key(*d))
+            .filter_map(|d| items.get(d))
+            .collect();
+        let test_impls = hd_resolve::impl_table(&names, &test_impls);
+        for (row, d) in test_impls.def.iter().enumerate() {
+            impl_rows.insert(
+                *d,
+                ImplRef {
+                    module: OWN_TABLE,
+                    row: u32_of(row),
+                },
+            );
+        }
         // A module cycle's runs that split a module's init: one body per
         // run (`module.init.cycle.step`).
         for cycles in self.init_runs.iter().filter_map(OnceLock::get) {
@@ -6100,6 +6129,7 @@ impl Run<'_> {
             impl_rows,
             universe,
             extra,
+            test_impls,
             recursive_enums: OnceLock::new(),
         });
         self.program.get()
@@ -6144,8 +6174,9 @@ impl Run<'_> {
     }
 
     /// The program's view of the impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): owner
-    /// lookup over every folder, no module's own table, the program's
-    /// universe.
+    /// lookup over every folder, the `tests:` blocks' impls of a test
+    /// program as its own table ([`ProgramTables::test_impls`]), the
+    /// program's universe.
     fn program_view<'a>(
         &'a self,
         p: &'a ProgramTables,
@@ -6155,7 +6186,7 @@ impl Run<'_> {
         ImplView {
             paths: &self.paths,
             owners: self.owners(),
-            own: None,
+            own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
             folders,
             universe: p.universe,
             extra: &p.extra,
