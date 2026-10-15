@@ -1425,3 +1425,10 @@ fn self_outside_a_trait_or_impl_is_unknown() {
         assert_eq!(codes(&out), [Code::UnknownType], "{src}\n{}", out.render());
     }
 }
+/// `names.local.no-pub`, `fn.local.private`: `pub` is not accepted on a
+/// local declaration.
+#[test]
+fn pub_on_a_local_declaration_is_a_syntax_error() {
+    let out = program("fn outer() -> i32:\n    pub fn helper() -> i32:\n        1\n    helper()\n");
+    assert_eq!(codes(&out), [Code::SyntaxError], "{}", out.render());
+}

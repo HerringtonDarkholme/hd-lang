@@ -174,6 +174,15 @@ impl Parser<'_> {
         let marker = self.start();
         let decorated = self.decorators(place == Place::Body);
         let public = self.eat(TokenKind::KwPub);
+        if public && place == Place::Body {
+            // names.local.no-pub, fn.local.private
+            let at = self.pos() - 1;
+            self.error_at(
+                Code::SyntaxError,
+                at,
+                "'pub' is not accepted on local declarations",
+            );
+        }
         match self.current() {
             Some(TokenKind::KwFn) => self.fn_decl(marker, Owner::Free),
             Some(TokenKind::KwData) => self.data_decl(marker),
