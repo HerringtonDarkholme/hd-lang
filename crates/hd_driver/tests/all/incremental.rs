@@ -651,3 +651,105 @@ fn a_tuple_template_edit_reaches_the_header_findings_it_decides() {
     assert_eq!(bound_lines(&strict), vec![field], "{}", strict.render());
     assert_eq!(strict.render(), cold.render());
 }
+
+/// The build of `src`, package `fan`, at `level` on `store`.
+fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel) -> Output {
+    let host = Host {
+        render_tir: &[],
+        sources: src,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = hd_driver::Packages {
+        level,
+        ..hd_driver::Packages::default()
+    };
+    let r = hd_driver::build_packages(
+        &host,
+        "fan",
+        &packages,
+        &Goal::Program {
+            entry: "app.main".into(),
+        },
+    );
+    assert!(r.wasm.is_some(), "{}", r.render());
+    r
+}
+
+/// Rebuild scope on the fan-out package (#49), at both levels. A body
+/// edit rechecks its module alone, in a leaf or in `core.util`, which
+/// every leaf imports, and re-emits only the instances whose code reads
+/// the edited body: in the optimized pipeline a callee body that stops
+/// calling its closure parameter turns off `closure_spec` at every
+/// caller, so those callers re-emit too. A signature edit in
+/// `core.util` rebuilds its importers' interfaces and rechecks them,
+/// plus `app.main`, whose key lists its whole use closure because it can
+/// see the impls of every folder there (cache.md §5.3). Every
+/// incremental build's Wasm equals a clean build's.
+#[test]
+fn a_body_edit_rechecks_one_module_and_a_signature_edit_its_importers() {
+    use hd_driver::OptLevel;
+    use hd_driver::bench::{FANOUT_EDITS, fanout_edited, fanout_sources};
+    const N: usize = 4;
+    let own = |c: &hd_driver::Counters| -> Vec<String> {
+        c.modules_checked
+            .iter()
+            .filter(|m| m.starts_with("fan."))
+            .cloned()
+            .collect()
+    };
+    let core = vec!["fan.core.util".to_owned()];
+    for level in [OptLevel::Dev, OptLevel::Optimized] {
+        let store = MemoryStore::default();
+        let base = fanout_sources(N);
+        let cold = fan_run(&store, &base, level);
+        let mut runs = Vec::new();
+        for (label, file, from, to) in FANOUT_EDITS {
+            let src = fanout_edited(N, file, from, to);
+            let r = fan_run(&store, &src, level);
+            let clean = fan_run(&MemoryStore::default(), &src, level);
+            assert_eq!(
+                r.wasm, clean.wasm,
+                "{label}, {level:?}: incremental != clean"
+            );
+            runs.push(r.counters);
+            // Back to the base, so each edit starts from the same store.
+            fan_run(&store, &base, level);
+        }
+        let [leaf, body, closure, sig] = &runs[..] else {
+            unreachable!("four edits")
+        };
+        // (a) and (b): one module, no interface, only the edited instances.
+        assert_eq!(own(leaf), vec!["fan.f1.leaf".to_owned()], "{level:?}");
+        assert_eq!(own(body), core, "{level:?}");
+        for c in [leaf, body, closure] {
+            assert!(c.ifaces_built.is_empty(), "{level:?}: {:?}", c.ifaces_built);
+            assert_eq!(c.miss("check"), 1, "{level:?}");
+        }
+        assert_eq!(leaf.emitted, 2, "{level:?}: `run_1` and its closure");
+        assert_eq!(body.emitted, 1, "{level:?}: `scale` alone");
+        // (b2): `apply`'s body is a fact its callers' code reads only in
+        // the optimized pipeline.
+        assert_eq!(own(closure), core, "{level:?}");
+        match level {
+            OptLevel::Dev => assert_eq!(closure.emitted, 1),
+            OptLevel::Optimized => assert!(closure.emitted > 1 + N, "{}", closure.emitted),
+        }
+        // (c): core's interface changes; the leaves rebuild theirs, which
+        // name nothing of core, so their deep hashes stay.
+        assert!(sig.ifaces_built.contains(&"fan.core".to_owned()));
+        assert_ne!(
+            sig.deep_hashes["fan.core"],
+            cold.counters.deep_hashes["fan.core"]
+        );
+        for i in 0..N {
+            let f = format!("fan.f{i}");
+            assert_eq!(sig.deep_hashes[&f], cold.counters.deep_hashes[&f], "{f}");
+        }
+        let mut expected: Vec<String> = (0..N).map(|i| format!("fan.f{i}.leaf")).collect();
+        expected.extend(["fan.app.main".to_owned(), "fan.core.util".to_owned()]);
+        expected.sort();
+        assert_eq!(own(sig), expected, "{level:?}");
+    }
+}
