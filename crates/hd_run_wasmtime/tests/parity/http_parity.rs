@@ -3,6 +3,7 @@
 use crate::support::*;
 use hd_run::Limit;
 use std::fmt::Write;
+use std::net::ToSocketAddrs;
 use std::time::Duration;
 
 fn request(
@@ -330,25 +331,44 @@ fn http_host_is_taken_as_written_in_lowercase() {
     assert!(server.seen.lock().unwrap().is_empty());
 }
 
-/// A `127.1` entry grants `127.1`, which the resolver turns into the
-/// loopback address; the `Host` header is the host as written, in lowercase.
+/// A `127.1` entry grants `127.1` (`std-http.url.grant`), and the host
+/// goes to the OS resolver as written (`.no-normalize`). By RFC 3986 7.4
+/// that name is the resolver's to read: glibc and Darwin turn it into the
+/// loopback address, Windows finds no such host. So the test asks the
+/// same resolver and expects a response or `Dns("127.1")` to match. The
+/// `Host` header is the host as written, in lowercase.
 #[test]
-fn http_short_ipv4_host_connects_when_granted_as_written() {
+fn http_short_ipv4_host_is_granted_as_written_and_left_to_the_resolver() {
     let scratch = Scratch::new();
     let server = HttpFixture::new(|_| (raw(200, &[("Content-Length", "0")], b""), Duration::ZERO));
     let port = server.port();
+    let resolves = match ("127.1", port).to_socket_addrs() {
+        Ok(mut addresses) => {
+            assert!(
+                addresses.any(|a| a.ip() == std::net::Ipv4Addr::LOCALHOST),
+                "the resolver turns 127.1 into a loopback address"
+            );
+            true
+        }
+        Err(_) => false,
+    };
+    let ok = response(200, &[("Content-Length", "0")], b"");
     let mut p = Program::new();
     p.call_waiting(
         "hd:Http",
         "send",
         request(0, &format!("http://127.1:{port}/"), &[], b"", None),
-        response(200, &[("Content-Length", "0")], b""),
+        if resolves {
+            ok.clone()
+        } else {
+            error(2, "127.1")
+        },
     );
     p.call_waiting(
         "hd:Http",
         "send",
         request(0, &format!("http://LocalHost:{port}/"), &[], b"", None),
-        response(200, &[("Content-Length", "0")], b""),
+        ok,
     );
     assert_program(
         &scratch,
@@ -360,12 +380,16 @@ fn http_short_ipv4_host_connects_when_granted_as_written() {
         || {},
     );
     let seen = server.seen.lock().unwrap();
-    // Each engine sends both requests.
-    assert_eq!(seen.len(), 4);
-    for (i, r) in seen.iter().enumerate() {
-        let host = if i % 2 == 0 { "127.1" } else { "localhost" };
-        assert_eq!(r.values("Host"), [format!("{host}:{port}")]);
+    let hosts: Vec<_> = seen.iter().map(|r| r.values("Host")).collect();
+    let mut expected = Vec::new();
+    // Each engine sends both requests, one after the other.
+    for _ in 0..2 {
+        if resolves {
+            expected.push(vec![format!("127.1:{port}")]);
+        }
+        expected.push(vec![format!("localhost:{port}")]);
     }
+    assert_eq!(hosts, expected);
 }
 
 #[test]

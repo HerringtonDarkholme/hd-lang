@@ -279,9 +279,18 @@ mod tests {
                 stream
                     .set_read_timeout(Some(Duration::from_secs(5)))
                     .unwrap();
+                // Windows resets a connection whose receiving side shuts
+                // down with the response still unread, as it may be in the
+                // middle of the body. A reset closes it too.
                 let started = Instant::now();
                 let mut rest = Vec::new();
-                let ended = stream.read_to_end(&mut rest).is_ok();
+                let ended = match stream.read_to_end(&mut rest) {
+                    Ok(_) => true,
+                    Err(error) => matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+                    ),
+                };
                 (ended, started.elapsed())
             });
             let scheme = if tls { "https" } else { "http" };
