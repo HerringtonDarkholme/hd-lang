@@ -363,7 +363,7 @@ impl Cx<'_> {
             && !self
                 .externs
                 .contains_key(&(item, Sub::Erased, args, Hash128(0)));
-        let key = self.push(item, Sub::Erased, args, parent)?;
+        let key = self.push(item, Sub::Erased, args, args, parent)?;
         if fresh {
             let ph = |d: DefId| env.path_hash(d);
             let family = witness_family(pool, &ph, &mut self.canons, m, targs);
@@ -458,7 +458,7 @@ impl Cx<'_> {
         let mut keys = Vec::new();
         for k in 0..opens.len() {
             let k = u16::try_from(k).expect("open instructions");
-            keys.push(self.push(e.item, Sub::Thunk(k), args, parent)?);
+            keys.push(self.push(e.item, Sub::Thunk(k), args, args, parent)?);
         }
         self.witness.thunks.insert((family, name, e.key), keys);
         Ok(())

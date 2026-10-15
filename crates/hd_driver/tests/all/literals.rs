@@ -423,3 +423,18 @@ fn unary_minus_on_signed_and_float_is_valid() {
         assert_clean(&format!("{body}{MAIN}"));
     }
 }
+
+/// `expr.power.negated-literal`: a negated literal is signed, with or
+/// without parentheses, so a bare literal under `-` takes `i32` rather
+/// than failing as unsigned `usize`.
+#[test]
+fn a_negated_bare_literal_is_signed_through_parentheses() {
+    for body in [
+        "fn f() -> i32:\n    -(5)\n",
+        "fn f() -> i32:\n    -((5))\n",
+        "fn f() -> i32:\n    +(5)\n",
+        "fn f(x: i32) -> i32:\n    x + -(5)\n",
+    ] {
+        assert_clean(&format!("{body}{MAIN}"));
+    }
+}

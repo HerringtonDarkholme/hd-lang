@@ -281,3 +281,31 @@ fn pick[I < Named & Keyed](value: I) -> I::Item:
     let not_a_trait = errors("fn count(items: List[i32, Item = i32]) -> i32: 0\n");
     assert_eq!(not_a_trait, vec![Code::UnknownAssociatedType]);
 }
+
+#[test]
+fn a_projection_no_bound_declares_is_unknown() {
+    // `trait.assoc.projection`: when no bound declares the name, the
+    // header reports `unknown-associated-type` once, instead of
+    // carrying a fabricated member into knock-on errors.
+    let header = errors(
+        "\
+trait Named:
+    fn name(self) -> string
+
+fn pick[I < Named](value: I::Item) -> string:
+    panic(\"unreachable\")
+",
+    );
+    assert_eq!(header, vec![Code::UnknownAssociatedType]);
+    let annotation = errors(
+        "\
+trait Named:
+    fn name(self) -> string
+
+fn pick[I < Named](value: I) -> string:
+    let _item: I::Item = value.name()
+    panic(\"unreachable\")
+",
+    );
+    assert_eq!(annotation, vec![Code::UnknownAssociatedType]);
+}

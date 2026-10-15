@@ -1016,15 +1016,21 @@ impl Cx<'_> {
     }
 
     /// Pushes an instance that `parent` requests; returns its key. A new
-    /// instance over a limit of codegen.md §13.4 stops collection.
+    /// instance over a limit of codegen.md §13.4 stops collection. `raw`
+    /// is the request's type arguments before A1 classification: when a
+    /// request re-enters an ancestor instance with a differently shaped
+    /// request, the recursion grows concrete types through erased
+    /// positions, which is polymorphic recursion
+    /// (`types.generic.polymorphic-recursion`).
     fn push(
         &mut self,
         item: DefId,
         sub: Sub,
         args: TyList,
+        raw: TyList,
         parent: InstId,
     ) -> StageResult<Hash128> {
-        self.push_known(item, sub, args, &[], parent)
+        self.push_known(item, sub, args, raw, &[], parent)
     }
 
     /// [`Self::push`] of the instance specialized on `known` (option A2 of
@@ -1034,12 +1040,31 @@ impl Cx<'_> {
         item: DefId,
         sub: Sub,
         args: TyList,
+        raw: TyList,
         known: &[(u32, Hash128)],
         parent: InstId,
     ) -> StageResult<Hash128> {
         let table = &self.out.table;
         if let Some(id) = table.get_known(item, sub, args, known) {
-            return Ok(table.key[id.idx()]);
+            let key = table.key[id.idx()];
+            // Re-entering an ancestor instance with a differently shaped
+            // request passes ever larger concrete types through
+            // reference layouts that classify alike: each cycle wraps
+            // again, so collection would never reach a limit on its own
+            // (`types.generic.polymorphic-recursion`). An identical
+            // request is ordinary recursion; a hit outside the
+            // requester's ancestry is a shared instance, not a cycle.
+            let changed = raw != table.args[id.idx()];
+            let mut ancestor = parent;
+            let mut cycle = false;
+            while !cycle && ancestor != InstId::NONE {
+                cycle = ancestor == id;
+                ancestor = table.parent[ancestor.idx()];
+            }
+            if cycle && changed {
+                return Err(self.stop_poly_recursion(item, raw, parent));
+            }
+            return Ok(key);
         }
         // An instance an earlier session module holds is that module's,
         // callees included: it is an extern, never pushed or scanned.
@@ -1198,6 +1223,54 @@ impl Cx<'_> {
         NotImplemented::new(Stage::Collect, "instantiation-too-deep")
     }
 
+    /// Records polymorphic recursion through reference layouts
+    /// (`types.generic.polymorphic-recursion`): the request of `item`
+    /// re-enters an ancestor instance with a differently shaped request,
+    /// so concrete types grow through positions that classify alike and
+    /// no depth limit trips. Same `instantiation-too-deep` error as
+    /// [`Self::stop_too_deep`].
+    fn stop_poly_recursion(&mut self, item: DefId, args: TyList, parent: InstId) -> NotImplemented {
+        let table = &self.out.table;
+        let mut ids = Vec::new();
+        let mut p = parent;
+        while p != InstId::NONE {
+            ids.push(p);
+            p = table.parent[p.idx()];
+        }
+        ids.reverse();
+        let name = |item: DefId, args: TyList| {
+            let args = self.pool.list_items(args);
+            if args.is_empty() {
+                format!("`{}`", self.env.describe(item))
+            } else {
+                let shown: Vec<String> = args
+                    .iter()
+                    .map(|&t| shown_type(self.pool, self.env, t))
+                    .collect();
+                format!("`{}[{}]`", self.env.describe(item), shown.join(", "))
+            }
+        };
+        let mut shown: Vec<String> = ids
+            .iter()
+            .take(3)
+            .map(|id| name(table.item[id.idx()], table.args[id.idx()]))
+            .collect();
+        if ids.len() > 3 {
+            shown.push("...".to_owned());
+        }
+        shown.push(name(item, args));
+        let last = format!("`{}`", self.env.describe(item));
+        let message = format!(
+            "instantiating {last} does not end: its type arguments grow through reference layouts that classify alike; the chain: {}",
+            shown.join(" -> ")
+        );
+        self.too_deep = Some(TooDeep {
+            at: self.at,
+            message,
+        });
+        NotImplemented::new(Stage::Collect, "instantiation-too-deep")
+    }
+
     /// A1's representation summary of `def` (codegen.md §13.2): per own
     /// type parameter, whether a type of its signature or body holds the
     /// parameter where the layout depends on its exact representation.
@@ -1309,8 +1382,9 @@ impl Cx<'_> {
             ));
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
+        let raw = args;
         let args = self.classify(def, self.pool.list_items(args), own_from)?;
-        let key = self.push(def, Sub::Body(0), args, parent)?;
+        let key = self.push(def, Sub::Body(0), args, raw, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -1547,7 +1621,7 @@ impl Cx<'_> {
             self.out.supplied.insert(key, Arc::new(body));
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
-        let key = self.push(method, Sub::Body(0), args, parent)?;
+        let key = self.push(method, Sub::Body(0), args, args, parent)?;
         Ok(Some(CallTarget {
             key,
             item: method,
@@ -1583,7 +1657,7 @@ impl Cx<'_> {
             let body = self.env.dbg_body(def, key, ty, debug)?;
             self.out.supplied.insert((def, ty), Arc::new(body));
         }
-        let key = self.push(def, Sub::Body(0), args, parent)?;
+        let key = self.push(def, Sub::Body(0), args, args, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -1827,7 +1901,7 @@ impl Cx<'_> {
         {
             return Ok(Specialize::Plain);
         }
-        let key = self.push_known(def, Sub::Body(0), cargs, &known, id)?;
+        let key = self.push_known(def, Sub::Body(0), cargs, cargs, &known, id)?;
         let ret = env.ret(def).unwrap_or(Ty::VOID);
         Ok(Specialize::Copy(CallTarget {
             key,
@@ -2260,7 +2334,8 @@ impl Cx<'_> {
                         }
                         _ => Vec::new(),
                     };
-                    let key = self.push_known(item, Sub::Body(sub_k), targs, &carried, id)?;
+                    let key =
+                        self.push_known(item, Sub::Body(sub_k), targs, targs, &carried, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the
@@ -2273,7 +2348,8 @@ impl Cx<'_> {
                     };
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
-                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pool.list(&targs), id)?;
+                    let pushed = pool.list(&targs);
+                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pushed, pushed, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
@@ -2644,14 +2720,20 @@ impl Cx<'_> {
         extra: &[(DefId, TyList)],
         refs: &[(DefId, TyList)],
     ) -> StageResult<()> {
-        self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
+        self.push(
+            root,
+            Sub::Body(0),
+            TyList::EMPTY,
+            TyList::EMPTY,
+            InstId::NONE,
+        )?;
         for i in inits {
             if let Some(session) = self.session
                 && (session.inits_run)(self.key(*i, Sub::Body(0), TyList::EMPTY))
             {
                 continue;
             }
-            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
+            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
         }
         // Extra roots with type arguments: the test cases after the first
@@ -2662,7 +2744,7 @@ impl Cx<'_> {
             self.out.extra.push(t.key);
         }
         for (d, args) in refs {
-            self.push(*d, Sub::Adapter, *args, InstId::NONE)?;
+            self.push(*d, Sub::Adapter, *args, *args, InstId::NONE)?;
         }
         let mut boundary_roots = vec![(root, TyList::EMPTY)];
         boundary_roots.extend(extra.iter().copied());

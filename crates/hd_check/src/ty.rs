@@ -750,6 +750,18 @@ impl Ck<'_, '_> {
                 };
                 let name = self.cx.src.text(t).to_owned();
                 let Some((trait_, args)) = self.assoc_owner(base, &name) else {
+                    // No bound declares the name: an associated-type
+                    // error at the projection (`trait.assoc.projection`).
+                    // A projection on a type with no bounds at all is
+                    // still a gap.
+                    let bounded =
+                        (0..self.env.clause_self.len()).any(|i| self.env.clause_self[i] == base);
+                    if bounded {
+                        let msg =
+                            format!("`{name}` names no associated type that any bound declares");
+                        self.err(Code::UnknownAssociatedType, n, &msg);
+                        return Ok(Ty::POISON);
+                    }
                     return unsupported("a projection on a type without a bound naming it");
                 };
                 let assoc = self.cx.names.member(trait_, PathKind::Member, &name);

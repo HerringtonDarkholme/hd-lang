@@ -2172,18 +2172,24 @@ impl Lower<'_, '_, '_> {
                     self.diags
                         .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
                 }
-                let found = decls.first().copied().or_else(|| {
-                    cands.first().map(|&(tr, a)| {
-                        let d = self
-                            .names
-                            .member(tr, PathKind::Member, self.names.text(name));
-                        (tr, a, d)
-                    })
-                });
-                let Some((trait_, args, assoc)) = found else {
-                    self.gap("a projection on a type without a bound naming it");
+                if decls.is_empty() {
+                    // No bound declares the name: an associated-type
+                    // error at the projection, not a fabricated member
+                    // with knock-on errors below
+                    // (`trait.assoc.projection`).
+                    if cands.is_empty() {
+                        self.gap("a projection on a type without a bound naming it");
+                    } else {
+                        let msg = format!(
+                            "`{}` names no associated type that any bound declares",
+                            self.names.text(name)
+                        );
+                        self.diags
+                            .error(Code::UnknownAssociatedType, self.src.span(n), &msg);
+                    }
                     return Ty::POISON;
-                };
+                }
+                let (trait_, args, assoc) = decls[0];
                 pool.intern_ty(&TyData::Assoc {
                     assoc,
                     trait_,

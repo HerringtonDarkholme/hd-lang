@@ -153,3 +153,59 @@ fn a_warm_rebuild_of_shared_types_emits_nothing() {
     assert_eq!(warm.counters.emitted, 0);
     assert_eq!(warm.wasm, cold.wasm);
 }
+
+/// Each call wraps `T` in one more list: the concrete types grow through
+/// reference layouts that classify alike, so no depth limit trips on its
+/// own (`types.generic.polymorphic-recursion`).
+const ERASED_GROWTH: &str = "\
+fn eat[T](xs: List[T], depth: i32) -> i32:
+    if depth == 0: 0
+    else: eat([xs], depth - 1) + 1
+
+pub fn main() -> void:
+    _ := eat([1], 3)
+";
+
+#[test]
+fn polymorphic_recursion_through_erasure_stops() {
+    let program = run(ERASED_GROWTH, &whole_program());
+    assert_eq!(
+        codes(&program),
+        ["instantiation-too-deep"],
+        "{}",
+        program.render()
+    );
+    assert!(program.wasm.is_none());
+    let text = program.render();
+    assert!(text.contains("grow through reference layouts"), "{text}");
+    // On the growing call, line 3.
+    let call = ERASED_GROWTH.find("eat([xs]").expect("the call");
+    assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
+}
+
+/// Recursion that passes its erased parameter through unchanged shares
+/// one instance at one concrete shape: no error.
+const ERASED_SHARE: &str = "\
+fn walk[T](xs: List[T], n: i32) -> i32:
+    if n == 0: 0
+    else: walk(xs, n - 1) + 1
+
+fn a[T](x: T, n: i32) -> i32:
+    if n == 0: 0
+    else: b(x, n - 1)
+
+fn b[T](x: T, n: i32) -> i32:
+    if n == 0: 0
+    else: a(x, n - 1)
+
+pub fn main() -> void:
+    _ := walk([1, 2], 2)
+    _ := a([1], 2)
+";
+
+#[test]
+fn same_shape_recursion_through_erasure_builds() {
+    let program = run(ERASED_SHARE, &whole_program());
+    assert!(program.diags.is_empty(), "{}", program.render());
+    assert!(program.wasm.is_some());
+}
