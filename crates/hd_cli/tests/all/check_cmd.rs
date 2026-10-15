@@ -542,6 +542,62 @@ fn dev_dependencies_are_for_test_code_only() {
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
 
+/// `module.cycle.diagnostic.*`: the diagnostic shows one shortest loop
+/// with the `use` making each edge, the tangle size, and a fix moving a
+/// lone `x.hd` beside its own `mod.hd`.
+#[test]
+fn a_folder_cycle_shows_its_loop_uses_tangle_and_fix() {
+    let dir = scratch("hd-check-cycle-detail");
+    for (file, text) in [
+        ("hd.toml", "[package]\nname = \"cyc\"\n"),
+        (
+            "src/shop/mod.hd",
+            "use pkg.cart.item\n\npub fn shop_name() -> string:\n    item()\n",
+        ),
+        (
+            "src/cart/mod.hd",
+            "use pkg.shop.shop_name\n\npub fn item() -> string:\n    shop_name()\n",
+        ),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, &[]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert!(
+        r.err.contains(
+            "folder-cycle: src/cart -> src/shop -> src/cart\n  src/cart/mod.hd:1:1: use pkg.shop.shop_name\n  src/shop/mod.hd:1:1: use pkg.cart.item\ntangle of 2 folders\n"
+        ),
+        "{}",
+        r.err
+    );
+    let dir = scratch("hd-check-cycle-fix");
+    for (file, text) in [
+        ("hd.toml", "[package]\nname = \"cyc\"\n"),
+        (
+            "src/shop/mod.hd",
+            "use pkg.cart.{cart}\n\npub fn shop() -> i32:\n    cart()\n",
+        ),
+        (
+            "src/cart.hd",
+            "use pkg.shop.{shop}\n\npub fn cart() -> i32:\n    shop()\n",
+        ),
+        ("src/cart/extra.hd", "pub fn extra() -> i32:\n    1\n"),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, &["--format", "json"]);
+    assert!(
+        r.out.contains("\"code\":\"folder-cycle\"")
+            && r.out.contains("move src/cart.hd to src/cart/mod.hd"),
+        "{}",
+        r.out
+    );
+}
+
 /// `crates/hd_resolve/DESIGN.md` §4.8 rule 5: the folders of a cycle
 /// resolve together, so the cycle is reported and the uses across it
 /// still resolve; a body error in one of them is still found.

@@ -16,6 +16,7 @@
 //! `analyze_package` runs the same code and only reports the counts.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::fmt::Write as _;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
@@ -1583,17 +1584,16 @@ fn build_packages_inner(
         table,
     };
     lock(&run.report).ok(Stage::Discover);
-    for names in &folder_cycles {
-        let span = Span {
-            file: FileId::from_raw(u32::MAX),
-            lo: 0,
-            hi: 0,
-        };
-        lock(&run.diags).error(
-            Code::FolderCycle,
-            span,
-            &format!("folders form a cycle: {}", names.join(" -> ")),
-        );
+    for cycle in &folder_cycles {
+        let mut diags = lock(&run.diags);
+        diags.error(Code::FolderCycle, cycle.span, &cycle.message);
+        if let Some((from, to)) = &cycle.fix {
+            diags.add_fix(
+                &format!("move {from} to {to}"),
+                hd_diag::FixSafety::Suggestion,
+                &[],
+            );
+        }
     }
     for cycle in run.table.package_cycles() {
         let names: Vec<&str> = cycle
@@ -1735,42 +1735,57 @@ fn build_packages_inner(
 /// Folder-cycle recovery (`crates/hd_resolve/DESIGN.md` §4.8 rule 5): the
 /// folders of a cycle in the root package are merged into one folder, so
 /// they resolve together and their uses do not cascade; merging repeats
-/// until the folder graph is acyclic. Returns the cycles found first, as
-/// folder paths, for one `folder-cycle` error each.
+/// until the folder graph is acyclic.
+///
+/// A folder cycle as its diagnostic shows it
+/// (`module.cycle.diagnostic.*`).
+struct FolderCycle {
+    /// The message: the shortest loop, each edge's `use`, then the
+    /// tangle size and the fix.
+    message: String,
+    /// The first edge's `use` line.
+    span: Span,
+    /// A single-file folder on the loop to move beside its own `mod.hd`,
+    /// as `(from, to)` files.
+    fix: Option<(String, String)>,
+}
+
+/// The folder cycles' diagnostics, recovering by merging as before: one
+/// error per cycle of the first graph, each with its shortest loop, its
+/// edges' uses, its tangle size and its fix
+/// (`module.cycle.diagnostic.*`).
 fn recover_folder_cycles(
     table: &mut ModuleTable,
     texts: &[Arc<str>],
     files: &skims::FileSkims<'_>,
-) -> Vec<Vec<String>> {
-    let uses: Vec<Vec<String>> = (0..table.modules.len())
+) -> Vec<FolderCycle> {
+    let module_uses: Vec<Vec<(String, u32, u32)>> = (0..table.modules.len())
         .map(|m| {
             if table.modules[m].package != 0 {
                 return Vec::new();
             }
             let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-            written_uses(&texts[m], &files.get(table, m, &texts[m]).use_lines, &roots)
+            written_use_lines(&texts[m], &files.get(table, m, &texts[m]).use_lines, &roots)
         })
         .collect();
-    let mut found: Vec<Vec<String>> = Vec::new();
+    let uses: Vec<Vec<String>> = module_uses
+        .iter()
+        .map(|v| v.iter().map(|(p, _, _)| p.clone()).collect())
+        .collect();
+    let mut out: Option<Vec<FolderCycle>> = None;
     loop {
         let graph = FolderGraph::build(table, &uses);
         let cycles: Vec<Vec<FolderId>> = graph
             .cycles
-            .into_iter()
+            .iter()
             .filter(|c| c.iter().all(|f| table.folders[f.idx()].package == 0))
+            .cloned()
             .collect();
         if cycles.is_empty() {
-            return found;
+            return out.unwrap_or_default();
         }
-        if found.is_empty() {
-            found = cycles
-                .iter()
-                .map(|c| {
-                    c.iter()
-                        .map(|f| table.folders[f.idx()].path.clone())
-                        .collect()
-                })
-                .collect();
+        if out.is_none() {
+            out = Some(describe_cycles(table, texts, &module_uses, &cycles));
         }
         table.merge_folders(&cycles);
     }
@@ -1796,7 +1811,250 @@ fn written_uses(text: &str, lines: &[(u32, u32)], roots: &hd_project::UseRoots) 
     uses
 }
 
-/// Whether a file holds a `tests:` block, from its skim alone.
+/// The module paths a file's `use` lines name with their line spans, as
+/// `written_uses`, for the folder edge each use makes.
+fn written_use_lines(
+    text: &str,
+    lines: &[(u32, u32)],
+    roots: &hd_project::UseRoots,
+) -> Vec<(String, u32, u32)> {
+    let mut uses = Vec::new();
+    for &(lo, hi) in lines {
+        let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
+        let rest = line.strip_prefix("pub ").unwrap_or(line);
+        if let Some(rest) = rest.strip_prefix("use ") {
+            let path = rest.split(".{").next().unwrap_or(rest);
+            let path = path.split(" as ").next().unwrap_or(path).trim();
+            let segs: Vec<&str> = path.split('.').collect();
+            if let Ok(abs) = roots.absolute(&segs) {
+                uses.push((abs.join("."), lo, hi));
+            }
+        }
+    }
+    uses
+}
+
+/// The 1-based line and character column of byte `at` in `text`.
+fn line_col(text: &str, at: u32) -> (usize, usize) {
+    let at = (at as usize).min(text.len());
+    let line = text[..at].bytes().filter(|b| *b == b'\n').count() + 1;
+    let col = text[..at]
+        .rsplit('\n')
+        .next()
+        .map_or(0, |s| s.chars().count())
+        + 1;
+    (line, col)
+}
+
+/// The folder as cycle diagnostics show it: its `mod.hd` directory, or
+/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.loop`).
+fn folder_display(table: &ModuleTable, f: usize) -> String {
+    let mut files: Vec<&str> = table.folders[f]
+        .modules
+        .iter()
+        .map(|m| table.files[m.idx()].as_str())
+        .collect();
+    files.sort_unstable();
+    if let Some(dir) = files.iter().find_map(|p| p.strip_suffix("/mod.hd")) {
+        return dir.to_owned();
+    }
+    if let Some(stem) = files.iter().find_map(|p| p.strip_suffix(".hd")) {
+        return stem.to_owned();
+    }
+    table.folders[f].path.clone()
+}
+
+/// The shortest directed loop through `touch`: folder indices from its
+/// least, open (the message closes it). Loops compare by length, then by
+/// folder path order (`module.cycle.diagnostic.loop`).
+fn shortest_loop(table: &ModuleTable, adj: &[Vec<usize>], touch: &HashSet<usize>) -> Vec<usize> {
+    let n = adj.len();
+    let path_of = |f: usize| table.folders[f].path.clone();
+    let mut best: Option<Vec<usize>> = None;
+    let better = |cand: &[usize], best: &Option<Vec<usize>>| -> bool {
+        let Some(best) = best else {
+            return true;
+        };
+        if cand.len() != best.len() {
+            return cand.len() < best.len();
+        }
+        cand.iter().map(|f| path_of(*f)).collect::<Vec<_>>()
+            < best.iter().map(|f| path_of(*f)).collect::<Vec<_>>()
+    };
+    for s in 0..n {
+        if !touch.contains(&s) {
+            continue;
+        }
+        // Breadth-first from `s`: the first edge back to `s` closes the
+        // shortest loop through `s`.
+        let mut dist = vec![u32::MAX; n];
+        let mut parent = vec![usize::MAX; n];
+        dist[s] = 0;
+        let mut queue = vec![s];
+        let mut qi = 0;
+        while qi < queue.len() {
+            let u = queue[qi];
+            qi += 1;
+            for &v in &adj[u] {
+                if v == s {
+                    let mut cyc = vec![s];
+                    let mut path = vec![u];
+                    let mut x = u;
+                    while x != s {
+                        x = parent[x];
+                        path.push(x);
+                    }
+                    path.pop();
+                    path.reverse();
+                    cyc.extend(path);
+                    if better(&cyc, &best) {
+                        best = Some(cyc);
+                    }
+                    break;
+                }
+                if dist[v] == u32::MAX {
+                    dist[v] = dist[u] + 1;
+                    parent[v] = u;
+                    queue.push(v);
+                }
+            }
+            if best.as_ref().is_some_and(|b| b.len() == 2 && b[0] == s) {
+                break;
+            }
+        }
+    }
+    // From its least folder, open.
+    let mut out = best.unwrap_or_default();
+    if let Some(at) = out
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, f)| path_of(**f))
+        .map(|(i, _)| i)
+    {
+        out.rotate_left(at);
+    }
+    out
+}
+
+/// One diagnostic per cycle: its shortest loop through the cycle's
+/// folders, each edge's `use`, the folders on some loop with them, and
+/// the fix.
+fn describe_cycles(
+    table: &ModuleTable,
+    texts: &[Arc<str>],
+    module_uses: &[Vec<(String, u32, u32)>],
+    cycles: &[Vec<FolderId>],
+) -> Vec<FolderCycle> {
+    let n = table.folders.len();
+    // The folder adjacency the graph built, restricted to this package,
+    // with the first `use` line making each edge.
+    let mut adj = vec![Vec::new(); n];
+    let mut edges: HashMap<(usize, usize), (usize, u32, u32)> = HashMap::new();
+    for (m, paths) in module_uses.iter().enumerate() {
+        if table.modules[m].package != 0 {
+            continue;
+        }
+        let from = table.modules[m].folder.idx();
+        let test_code = table.modules[m].role == Role::Test;
+        for (path, lo, hi) in paths {
+            let Some(target) = table.module_of_use(path) else {
+                continue;
+            };
+            let to = table.modules[target.idx()].folder.idx();
+            if to == from {
+                continue;
+            }
+            if table.folders[to].package != 0 {
+                continue;
+            }
+            let into_tests = table.modules[target.idx()].role == Role::Test;
+            if !test_code && into_tests {
+                continue;
+            }
+            if let Err(at) = adj[from].binary_search(&to) {
+                adj[from].insert(at, to);
+            }
+            edges.entry((from, to)).or_insert((m, *lo, *hi));
+        }
+    }
+    // The folders on some loop: every folder of every reported cycle.
+    // (Depth-first finds every folder a directed loop reaches: a folder
+    // on a loop is on its stack when the loop closes.)
+    let mut looping = HashSet::new();
+    for c in cycles {
+        looping.extend(c.iter().map(|f| f.idx()));
+    }
+    cycles
+        .iter()
+        .map(|c| {
+            let touch: HashSet<usize> = c.iter().map(|f| f.idx()).collect();
+            let shown = shortest_loop(table, &adj, &touch);
+            let shown = if shown.is_empty() {
+                c.iter().map(|f| f.idx()).collect()
+            } else {
+                shown
+            };
+            let mut lines = Vec::new();
+            let mut spans = Vec::new();
+            for (i, f) in shown.iter().enumerate() {
+                let g = shown[(i + 1) % shown.len()];
+                if let Some((m, lo, hi)) = edges.get(&(*f, g)) {
+                    let text = &texts[*m];
+                    let decl = text.get(*lo as usize..*hi as usize).unwrap_or("").trim();
+                    let (line, col) = line_col(text, *lo);
+                    let file = &table.files[*m];
+                    lines.push(format!("  {file}:{line}:{col}: {decl}"));
+                    spans.push((table.modules[*m].file, *lo, *hi));
+                }
+            }
+            let names: Vec<String> = shown.iter().map(|f| folder_display(table, *f)).collect();
+            let mut message = format!("folder-cycle: {}", names.join(" -> "));
+            if let Some(first) = names.first() {
+                message.push_str(" -> ");
+                message.push_str(first);
+            }
+            for line in &lines {
+                message.push('\n');
+                message.push_str(line);
+            }
+            // The tangle: the folders on some loop with the shown ones.
+            let shown_set: HashSet<usize> = shown.iter().copied().collect();
+            let tangle = looping
+                .iter()
+                .filter(|f| {
+                    cycles.iter().any(|c| {
+                        c.iter().any(|g| shown_set.contains(&g.idx()))
+                            && c.iter().any(|g| g.idx() == **f)
+                    })
+                })
+                .count();
+            // The fix moves a lone `x.hd` on the loop beside its own
+            // `mod.hd`, which keeps its module name.
+            let mut fix = None;
+            for f in &shown {
+                let display = folder_display(table, *f);
+                let from = format!("{display}.hd");
+                if table.files.contains(&from) {
+                    fix = Some((from.clone(), format!("{display}/mod.hd")));
+                    break;
+                }
+            }
+            let _ = write!(message, "\ntangle of {tangle} folders");
+            if let Some((from, to)) = &fix {
+                let _ = write!(message, "; move {from} to {to}");
+            }
+            let span = spans.into_iter().next().map_or(
+                Span {
+                    file: FileId::from_raw(u32::MAX),
+                    lo: 0,
+                    hi: 0,
+                },
+                |(file, lo, hi)| Span { file, lo, hi },
+            );
+            FolderCycle { message, span, fix }
+        })
+        .collect()
+}
 #[must_use]
 pub fn has_tests_block(text: &str) -> bool {
     skim(text.as_bytes())
