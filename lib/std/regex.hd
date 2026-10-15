@@ -403,20 +403,20 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
         .Some('+') => min = 1
         .Some('?') => max = .Some(1)
         .Some('{') =>
-            match counts_at(source, at):
-                .Some(counts) =>
-                    min = counts.min
-                    max = counts.max
-                    next = counts.next
-                    let bad = min > max_repeat()
-                    match max:
-                        .Some(high) =>
-                            if high > max_repeat() || high < min:
-                                bad = true
-                        .None => pass
-                    if bad:
-                        return .Err(source.fail(.BadRepeat, at))
+            counts := match counts_at(source, at):
+                .Some(found) => found
                 .None => return .Ok(atom)
+            min = counts.min
+            max = counts.max
+            next = counts.next
+            let bad = min > max_repeat()
+            match max:
+                .Some(high) =>
+                    if high > max_repeat() || high < min:
+                        bad = true
+                .None => pass
+            if bad:
+                return .Err(source.fail(.BadRepeat, at))
         _ => return .Ok(atom)
     let greedy = true
     if source.has(next, '?'):
