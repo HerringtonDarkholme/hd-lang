@@ -22,7 +22,7 @@ pub(crate) fn rank(mut names: Vec<String>, wanted: &str) -> Vec<String> {
 
 /// The headings of a Markdown page outside code blocks: (level, text in
 /// code, line index).
-fn headings(md: &str) -> Vec<(usize, String, usize)> {
+pub(crate) fn headings(md: &str) -> Vec<(usize, String, usize)> {
     let mut out = Vec::new();
     let mut fenced = false;
     for (i, line) in md.lines().enumerate() {
@@ -67,10 +67,10 @@ fn section(md: &str, heading: usize) -> String {
 /// (`cli.doc.name.missing`).
 pub(crate) fn lookup(p: &Package<'_>, name: &str) -> Result<String, Vec<String>> {
     if name == "std" {
-        return stdref::page("");
+        return stdref::page(p, "");
     }
     if let Some(rest) = name.strip_prefix("std.") {
-        return stdref::page(rest);
+        return stdref::page(p, rest);
     }
     let parts: Vec<&str> = name.split('.').collect();
     let found: Option<(usize, &Module<'_>)> = (1..=parts.len()).rev().find_map(|k| {
@@ -84,7 +84,14 @@ pub(crate) fn lookup(p: &Package<'_>, name: &str) -> Result<String, Vec<String>>
         let modules = p.modules.iter().map(|m| shown_name(m.path).to_owned());
         return Err(rank(modules.collect(), name));
     };
-    let (page, _) = module_page(module, p, &impls::impl_lines(p.root, p.ifaces), None, true);
+    let (page, _) = module_page(
+        module,
+        p,
+        &impls::impl_lines(p.root, p.ifaces),
+        None,
+        true,
+        false,
+    );
     if k == parts.len() {
         return Ok(page.md);
     }

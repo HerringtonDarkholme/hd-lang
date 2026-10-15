@@ -39,7 +39,7 @@ enum Outcome {
         anchor: Option<String>,
     },
     /// A link to the standard library reference.
-    Std(&'static str),
+    Std(String),
     /// Checked, but shown as code: a dependency item, a std module.
     Plain,
     Broken {
@@ -101,7 +101,7 @@ impl<'a> Links<'a> {
         for m in p.modules {
             let parse = hd_syntax::parse(m.text.as_bytes());
             let path = module_path(p, m.path);
-            let shown = items::items(m.text, &parse, p.private);
+            let shown = items::items(m.text, &parse, p.private, false);
             let set = shown
                 .iter()
                 .flat_map(|it| {
@@ -347,7 +347,7 @@ impl<'a> Links<'a> {
     }
 
     fn module_exists(&self, m: &str) -> bool {
-        self.modules.contains(m) || (m.starts_with("std.") && stdref::has_module(m))
+        self.modules.contains(m) || stdref::has_module(self.p, m)
     }
 
     fn outcome(&self, at: &At) -> Outcome {
@@ -357,7 +357,7 @@ impl<'a> Links<'a> {
         let root = module.split('.').next().unwrap_or("");
         if root == "std" {
             return match at {
-                At::Module(m) if stdref::has_module(m) => Outcome::Plain,
+                At::Module(m) if stdref::has_module(self.p, m) => Outcome::Plain,
                 At::Item {
                     module,
                     name,
@@ -366,7 +366,7 @@ impl<'a> Links<'a> {
                     let item = member
                         .as_ref()
                         .map_or_else(|| name.clone(), |m| format!("{name}.{m}"));
-                    stdref::link(module, &item)
+                    stdref::link(self.p, module, &item)
                         .map_or(Outcome::Broken { private: false }, Outcome::Std)
                 }
                 At::Module(_) => Outcome::Broken { private: false },

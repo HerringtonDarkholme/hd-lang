@@ -86,3 +86,34 @@ fn a_dependency_name_finds_only_its_pub_items() {
         text(&out.stderr)
     );
 }
+
+#[test]
+fn a_std_name_prints_the_lib_std_declaration() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-doc-name-std");
+    let cache = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "hd-doc-name-std-cache");
+    write(
+        &root,
+        &[
+            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            ("src/lib.hd", "pub fn one() -> i32: 1\n"),
+        ],
+    );
+    let out = hd(&root, &cache, &["doc", "std.text.split"]);
+    assert_eq!(
+        text(&out.stdout),
+        "```hd\npub fn split(self, separator: string) -> List[string]\n```\n\nSplits the string around each occurrence of `separator`, in order.\n\nReference: [std.text.string.split](spec/std/text.md#r-std-text.string.split)\n",
+        "{}",
+        text(&out.stderr)
+    );
+    let out = hd(&root, &cache, &["doc", "std.text.pad_start"]);
+    assert!(text(&out.stdout).contains("Pads the string on the left"));
+    let out = hd(&root, &cache, &["doc", "std.text"]);
+    let page = text(&out.stdout);
+    assert!(page.starts_with("# Module `std.text`\n"), "{page}");
+    assert!(page.contains("- [`join`](#join): "), "{page}");
+    let out = hd(&root, &cache, &["doc", "std.text.nope"]);
+    assert_eq!(out.status.code(), Some(101));
+    assert_eq!(text(&out.stdout), "");
+    assert!(text(&out.stderr).contains("no documented item"));
+    assert!(text(&out.stderr).contains("candidates: std.text."));
+}

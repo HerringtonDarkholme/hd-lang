@@ -119,17 +119,24 @@ fn members(node: NodeRef<'_>) -> Vec<NodeRef<'_>> {
 /// The items of a module source, in source order, with the members of
 /// each and the methods of its inherent `impl` blocks. Private items and
 /// members are kept only when `private` (`cli.doc.items`,
-/// `cli.doc.private`).
-pub(crate) fn items(text: &str, parse: &Parse, private: bool) -> Vec<Item> {
+/// `cli.doc.private`). With `foreign`, the methods of an inherent `impl` on
+/// a type the module does not declare, as `impl string:` in std has for a
+/// built-in type, get a section for that type to stand under.
+pub(crate) fn items(text: &str, parse: &Parse, private: bool, foreign: bool) -> Vec<Item> {
     let s = Src {
         text,
         toks: &parse.tokens,
     };
     let mut out: Vec<Item> = Vec::new();
     let mut methods: Vec<(String, Section)> = Vec::new();
+    let mut heads: Vec<(String, String, String)> = Vec::new();
     for node in parse.tree.root().children() {
         if node.kind() == SyntaxKind::ImplDecl {
-            methods.extend(inherent_methods(&s, node, private));
+            let found = inherent_methods(&s, node, private);
+            if let Some((owner, _)) = found.first() {
+                heads.push((owner.clone(), s.signature(node, false), s.doc(node)));
+            }
+            methods.extend(found);
             continue;
         }
         if Decl::cast(node).is_none() || !(private || s.is_pub(node)) {
@@ -137,6 +144,22 @@ pub(crate) fn items(text: &str, parse: &Parse, private: bool) -> Vec<Item> {
         }
         let Some(name) = s.name(node) else { continue };
         out.push(item(&s, node, name, private));
+    }
+    if foreign {
+        for (owner, signature, doc) in heads {
+            if !out.iter().any(|it| it.type_name.as_deref() == Some(&owner)) {
+                out.push(Item {
+                    section: Section {
+                        anchor: owner.clone(),
+                        signature,
+                        doc,
+                        impls: Vec::new(),
+                    },
+                    type_name: Some(owner),
+                    members: Vec::new(),
+                });
+            }
+        }
     }
     for (owner, m) in methods {
         if let Some(it) = out

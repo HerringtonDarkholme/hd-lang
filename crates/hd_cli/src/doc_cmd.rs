@@ -114,6 +114,11 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
     let modules = modules_of(&texts);
     let root_ident = hd_project::package_ident(&program.package);
     let deps = dependency_roots(&program);
+    let std_names = std_names();
+    let std: Vec<hd_doc::Module<'_>> = std_names
+        .iter()
+        .map(|(path, text)| hd_doc::Module { path, text })
+        .collect();
     let package = hd_doc::Package {
         name: &program.package,
         root: &root_ident,
@@ -122,6 +127,7 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
         private: o.private,
         scopes: &out.scopes,
         deps: &deps,
+        std: &std,
     };
     if let Some(name) = &o.name {
         return print_name(&program, &package, &out, name, rep);
@@ -222,6 +228,15 @@ fn module_texts(
     Ok(texts)
 }
 
+/// The standard library's modules, `text` for `lib/std/text.hd`, with the
+/// source embedded in the driver.
+fn std_names() -> Vec<(String, &'static str)> {
+    hd_driver::STD_FILES
+        .iter()
+        .filter_map(|(path, text)| Some((path.strip_suffix(".hd")?.replace('/', "."), *text)))
+        .collect()
+}
+
 fn modules_of(texts: &[(String, String)]) -> Vec<hd_doc::Module<'_>> {
     texts
         .iter()
@@ -267,6 +282,7 @@ fn print_name(
                 private: false,
                 scopes: &[],
                 deps: &[],
+                std: package.std,
             };
             let prefix = format!("dep.{key}.");
             if item.is_empty() {

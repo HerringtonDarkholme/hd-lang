@@ -98,6 +98,21 @@ fn built(sources: &[(&str, &str)]) -> (Ifaces, Scopes) {
     (out.ifaces, out.scopes)
 }
 
+/// The standard library's modules, from the embedded `lib/std`.
+fn std_modules() -> Vec<(String, &'static str)> {
+    hd_driver::STD_FILES
+        .iter()
+        .filter_map(|(path, text)| Some((path.strip_suffix(".hd")?.replace('/', "."), *text)))
+        .collect()
+}
+
+fn std_of<'a>(names: &'a [(String, &'static str)]) -> Vec<Module<'a>> {
+    names
+        .iter()
+        .map(|(path, text)| Module { path, text })
+        .collect()
+}
+
 fn file<'a>(files: &'a [DocFile], path: &str) -> &'a str {
     &files
         .iter()
@@ -118,6 +133,8 @@ fn site(private: bool) -> Vec<DocFile> {
             text: LIB,
         },
     ];
+    let std = std_modules();
+    let std = std_of(&std);
     render(&Package {
         name: "shop",
         root: "shop",
@@ -126,6 +143,7 @@ fn site(private: bool) -> Vec<DocFile> {
         private,
         scopes: &scopes,
         deps: &[],
+        std: &std,
     })
     .files
 }
@@ -235,6 +253,8 @@ fn name(private: bool, name: &str) -> Result<String, Vec<String>> {
             text: LIB,
         },
     ];
+    let std = std_modules();
+    let std = std_of(&std);
     lookup(
         &Package {
             name: "shop",
@@ -244,6 +264,7 @@ fn name(private: bool, name: &str) -> Result<String, Vec<String>> {
             private,
             scopes: &[],
             deps: &[],
+            std: &std,
         },
         name,
     )
@@ -300,22 +321,48 @@ fn name_suggests_in_each_space() {
         std_modules.contains(&"std.text".to_owned()),
         "{std_modules:?}"
     );
-    assert!(name(false, "std.text").is_err());
 }
 
 #[test]
 fn name_prints_a_std_entry() {
     let split = name(false, "std.text.split").unwrap();
     assert!(
-        split.starts_with("```hd\nsplit(self, separator: string) -> List[string]\n```\n\n"),
+        split.starts_with(
+            "```hd\npub fn split(self, separator: string) -> List[string]\n```\n\nSplits the string around each occurrence of `separator`, in order.\n\n"
+        ),
         "{split}"
     );
-    assert!(split.contains("retains empty pieces"), "{split}");
     assert!(
-        split.ends_with("Reference: [std.text.split](spec/std/text.md#r-std-text.string.split)\n"),
+        split.ends_with(
+            "Reference: [std.text.string.split](spec/std/text.md#r-std-text.string.split)\n"
+        ),
         "{split}"
     );
     assert_eq!(split, name(false, "std.text.string.split").unwrap());
+    // `pad_start` had no summary in the table scraped from the reference.
+    let pad = name(false, "std.text.pad_start").unwrap();
+    assert!(pad.contains("Pads the string on the left"), "{pad}");
+    assert!(pad.contains("fill: char = ' '"), "{pad}");
+}
+
+#[test]
+fn name_prints_a_std_module_page() {
+    let page = name(false, "std.text").unwrap();
+    assert!(page.starts_with("# Module `std.text`\n"), "{page}");
+    assert!(page.contains("- [`join`](#join): "), "{page}");
+    assert!(page.contains("### `string.split`"), "{page}");
+    assert!(
+        page.ends_with("Reference: [std.text](spec/std/text.md)\n"),
+        "{page}"
+    );
+    assert!(!page.contains("](../../spec/"), "{page}");
+    assert_eq!(
+        name(false, "std.text.join")
+            .unwrap()
+            .matches("```hd")
+            .count(),
+        1
+    );
 }
 
 const LINK_LIB: &str = "\
@@ -373,6 +420,8 @@ fn link_files(private: bool) -> super::Rendered {
             text: LINK_DEEP,
         },
     ];
+    let std = std_modules();
+    let std = std_of(&std);
     render(&Package {
         name: "shop",
         root: "shop",
@@ -381,6 +430,7 @@ fn link_files(private: bool) -> super::Rendered {
         private,
         scopes: &scopes,
         deps: &[],
+        std: &std,
     })
 }
 

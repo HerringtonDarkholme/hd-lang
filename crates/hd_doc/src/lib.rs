@@ -51,6 +51,10 @@ pub struct Package<'a> {
     /// The package's dependencies: each key after `dep.` and the root
     /// module of its package.
     pub deps: &'a [(String, String)],
+    /// The standard library's modules, `text` for `std.text`: what
+    /// `hd doc std.…` renders (`cli.doc.name.std`) and what links into
+    /// `std` check (`cli.doc.link.external`).
+    pub std: &'a [Module<'a>],
 }
 
 /// One output file, by its path below the output directory.
@@ -284,10 +288,11 @@ fn module_page(
     impl_lines: &impls::ImplLines,
     links: Option<&Links<'_>>,
     in_place: bool,
+    foreign: bool,
 ) -> (Page, String) {
     let parse = hd_syntax::parse(m.text.as_bytes());
     let module_doc = hd_syntax::module_doc_text(m.text, &parse.tokens);
-    let mut items: Vec<Item> = items::items(m.text, &parse, p.private);
+    let mut items: Vec<Item> = items::items(m.text, &parse, p.private, foreign);
     let full = module_path(p, m.path);
     for it in &mut items {
         if let Some(lines) = it
@@ -381,7 +386,7 @@ pub fn render(p: &Package<'_>) -> Rendered {
     let mut full = String::new();
     let mut root_summary = String::new();
     for m in &modules {
-        let (page, sum) = module_page(m, p, &impl_lines, links, true);
+        let (page, sum) = module_page(m, p, &impl_lines, links, true, false);
         let stem = page_stem(m.path);
         let name = shown_name(m.path);
         let module = module_path(p, m.path);
@@ -412,7 +417,7 @@ pub fn render(p: &Package<'_>) -> Rendered {
             full.push('\n');
         }
         // The pages of `llms-full.txt` are read from the output directory.
-        full.push_str(&module_page(m, p, &impl_lines, links, false).0.md);
+        full.push_str(&module_page(m, p, &impl_lines, links, false, false).0.md);
         let title = format!("Module {name} - {}", p.name);
         files.push(DocFile {
             path: format!("{stem}.md"),
