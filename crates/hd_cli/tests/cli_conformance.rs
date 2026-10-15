@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 const HEADING: &str = "\n## CLI Conformance\n";
 const PASS_START: &str = "<!-- cli-pass-list-start -->";
 const PASS_END: &str = "<!-- cli-pass-list-end -->";
-const LIMIT: Duration = Duration::from_secs(60);
+const LIMIT: Duration = Duration::from_mins(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EngineMode {
