@@ -245,10 +245,12 @@ on wasmtime only.
    (crates/hd_web/DESIGN.md).
 2. Each request sends every file; the session keeps its `MemoryStore`, so
    unchanged entries are reused.
-3. "Run" instantiates the built Wasm in the same worker with the JS
-   host, so one worker does both jobs. Stopping or timing out a program
-   terminates that worker and starts a fresh one, so the next compile
-   after a Stop is cold.
+3. "Run" hands the built Wasm bytes to a separate program worker, which
+   instantiates them with the JS host. Stopping or timing out a program
+   terminates that worker only, so the compiler's warm state survives.
+   Implementation differs: the program runs in the compiler worker, and
+   a Stop terminates both, which is worse: the next compile after a Stop
+   is cold (#254).
 
 Planned, not built: filling the `MemoryStore` from IndexedDB when the
 worker starts and draining new entries back after each run (§5.8);
