@@ -108,6 +108,18 @@ pub fn parse_key(toolchain: Hash128, source_hash: Hash128) -> Hash128 {
     k.finish()
 }
 
+/// `depfiles_key(p) = H("depfiles", toolchain, identity(p))`: the skims of
+/// a package whose files cannot change under one key, read once per
+/// machine instead of skimming its files on every run (§5.5 rule 7). The
+/// embedded std is one: its texts are part of the toolchain key.
+#[must_use]
+pub fn depfiles_key(toolchain: Hash128, identity: &str) -> Hash128 {
+    let mut k = StableHasher::new("depfiles");
+    k.hash(toolchain);
+    k.str(identity);
+    k.finish()
+}
+
 /// `hdr_key(F) = H("hdr", toolchain, package, F, own deep_hash,
 /// [(folder, deep_hash) for every folder of closure(F)])`: a part key of
 /// the `graph` entry (stage-B header findings, one entry per folder here).

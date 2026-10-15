@@ -16,6 +16,7 @@ mod panic_frames;
 mod property_tests;
 mod resource_limits;
 mod run;
+mod same_size_edit;
 mod spread_position;
 mod test_bodies;
 mod test_cmd;

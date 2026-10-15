@@ -41,8 +41,10 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // 11 KB raw and 5 KB gzip (4.550 -> 4.560 MB, 1.436 -> 1.440 MB), within
 // both gates. The REPL's session-as-one-module rules for derivations, facts
 // and drift (#159, f101ce35 onward) took gzip to 1.454 MB, so the gzip gate
-// is 1.5 MB.
-const RAW_LIMIT = 4.7e6;
+// is 1.5 MB. The std skim cache and per-process std sources (#49, b068b071)
+// added 15 KB raw (4.696 -> 4.711 MB); the browser compiler keeps one driver
+// across compiles, so warm compiles use them too. The raw gate is 4.75 MB.
+const RAW_LIMIT = 4.75e6;
 const GZIP_LIMIT = 1.5e6;
 const RAW_FLOOR = 2e6;
 

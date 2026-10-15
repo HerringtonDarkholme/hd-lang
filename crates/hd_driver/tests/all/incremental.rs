@@ -753,3 +753,40 @@ fn a_body_edit_rechecks_one_module_and_a_signature_edit_its_importers() {
         assert_eq!(own(sig), expected, "{level:?}");
     }
 }
+
+/// Std's skims come from the toolchain's `depfiles` entry (#49): a cold
+/// run records it, a warm run reads it instead of skimming std, and a
+/// damaged entry is a miss: std is skimmed again, the program is the same
+/// and the entry is recorded anew.
+#[test]
+fn std_skims_come_from_the_toolchain_entry() {
+    use hd_cache::{CacheStore, EntryKind};
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let base = program(DATA_MAIN, GEO);
+        let cold = ok(&store, &base, executor);
+        assert_eq!(cold.counters.miss("depfiles"), 1);
+        let warm = ok(&store, &base, executor);
+        assert_eq!(warm.counters.hit("depfiles"), 1);
+        assert_eq!(warm.counters.miss("depfiles"), 0);
+        assert_eq!(warm.wasm, cold.wasm);
+
+        let damaged = MemoryStore::default();
+        let mut found = false;
+        for (kind, key) in store.drain_new() {
+            let mut bytes = store.get(kind, &key).expect("entry").to_vec();
+            if kind == EntryKind::Depfiles {
+                found = true;
+                let last = bytes.len() - 1;
+                bytes[last] ^= 1;
+            }
+            damaged.put(kind, &key, &bytes);
+        }
+        assert!(found, "the cold run recorded std's skims");
+        let again = ok(&damaged, &base, executor);
+        assert_eq!(again.counters.miss("depfiles"), 1);
+        assert_eq!(again.wasm, cold.wasm);
+        let healed = ok(&damaged, &base, executor);
+        assert_eq!(healed.counters.hit("depfiles"), 1);
+    }
+}
