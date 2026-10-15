@@ -250,3 +250,24 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(output_of("identity", main), "true\ntrue\n102\ntext\n");
 }
+
+/// `trait.impl.generics` and `.count`: an implementation method repeats
+/// the trait method's row parameter by position, not by owner identity.
+#[test]
+fn a_trait_method_row_parameter_matches_its_implementation() {
+    let main = "\
+trait Runner:
+    fn run[$R](self, f: fn() -> i32 $ R) -> i32 $ R
+
+data Plain:
+    n: i32
+
+impl Runner for Plain:
+    fn run[$R](self, f: fn() -> i32 $ R) -> i32 $ R:
+        f()
+
+pub fn main() -> void $ Console:
+    println(Plain { n: 1 }.run(fn() -> i32: +5))
+";
+    assert_eq!(output_of("row-impl", main), "5\n");
+}

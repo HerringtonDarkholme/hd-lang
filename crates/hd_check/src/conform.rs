@@ -221,10 +221,25 @@ impl Ck<'_, '_> {
                         targs.get(usize::from(p.index) - 1).copied()
                     }
                 } else if p.owner == tm {
-                    Some(pool.intern_ty(&TyData::Param(ParamRef {
-                        owner: def,
-                        index: p.index,
-                    })))
+                    let index = usize::from(p.index);
+                    if tsig.generics.get(index).is_some_and(|g| g.row) {
+                        // `subst_row` presents a row parameter through
+                        // `ParamRef` too: keep its kind when moving it to
+                        // the implementation method (`trait.impl.generics`).
+                        let row = pool.row(&hd_types::RowData {
+                            keys: vec![],
+                            params: vec![hd_types::RowParamRef {
+                                owner: def,
+                                index: p.index,
+                            }],
+                        });
+                        Some(pool.intern_ty(&TyData::Row(row)))
+                    } else {
+                        Some(pool.intern_ty(&TyData::Param(ParamRef {
+                            owner: def,
+                            index: p.index,
+                        })))
+                    }
                 } else {
                     None
                 }
