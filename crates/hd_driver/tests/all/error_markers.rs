@@ -49,6 +49,18 @@ fn transparent_data_type_is_clean() {
 }
 
 #[test]
+fn transparent_requires_exactly_one_member() {
+    for src in [
+        "@error\nenum E:\n    @error(transparent)\n    Empty\n",
+        "@error\nenum E:\n    @error(transparent)\n    Pair(a: i32, b: i32)\n",
+        "@error(transparent)\ndata D: pass\n",
+        "@error(transparent)\ndata D:\n    a: i32\n    b: i32\n",
+    ] {
+        assert_eq!(codes(src), vec![Code::DecoratorTargetKind], "{src}");
+    }
+}
+
+#[test]
 fn argument_forms_are_rejected_once() {
     for line in [
         "@error(opaque)",

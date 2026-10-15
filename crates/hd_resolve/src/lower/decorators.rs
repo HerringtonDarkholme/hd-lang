@@ -236,29 +236,44 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::InvalidErrorMarker, span, what);
     }
 
-    /// Whether an `@error` line's arguments are one message or
-    /// `transparent` (`annot.error.form.argument`).
-    fn error_args_ok(&self, args: Option<NodeRef<'_>>) -> bool {
-        let Some(args) = args else { return false };
-        let mut all = args.children();
+    /// The one value in an `@error(...)` argument list, when it has one.
+    fn error_arg(args: Option<NodeRef<'_>>) -> Option<NodeRef<'_>> {
+        let mut all = args?.children();
         let (Some(one), None) = (all.next(), all.next()) else {
-            return false;
+            return None;
         };
         if one.kind() != SyntaxKind::Argument {
-            return false;
+            return None;
         }
         let mut inner = one.children();
         let (Some(value), None) = (inner.next(), inner.next()) else {
-            return false;
+            return None;
         };
-        match value.kind() {
+        Some(value)
+    }
+
+    /// Whether an `@error` line's arguments are one message or
+    /// `transparent` (`annot.error.form.argument`).
+    fn error_args_ok(&self, args: Option<NodeRef<'_>>) -> bool {
+        Self::error_arg(args).is_some_and(|value| match value.kind() {
             SyntaxKind::StringExpr => true,
             SyntaxKind::NameExpr => self
                 .src
                 .first_ident(value)
                 .is_some_and(|t| self.src.text(t) == "transparent"),
             _ => false,
-        }
+        })
+    }
+
+    /// Whether an `@error(...)` line names the `transparent` form.
+    fn error_transparent(&self, args: Option<NodeRef<'_>>) -> bool {
+        Self::error_arg(args).is_some_and(|value| {
+            value.kind() == SyntaxKind::NameExpr
+                && self
+                    .src
+                    .first_ident(value)
+                    .is_some_and(|t| self.src.text(t) == "transparent")
+        })
     }
 
     /// Checks the decorators of one target; returns whether it carries a
@@ -296,6 +311,9 @@ impl Lower<'_, '_, '_> {
                     } else if !deco.bare && !self.error_args_ok(deco.args) {
                         let msg = "`@error` takes one message or `transparent`";
                         self.marker_error(span, msg);
+                    } else if !deco.bare && self.error_transparent(deco.args) && place.members != 1
+                    {
+                        self.target_error(span, "`@error(transparent)` needs exactly one member");
                     }
                 }
                 "from" | "source" if place.error_type => {
@@ -728,7 +746,6 @@ impl Lower<'_, '_, '_> {
                     self.check_decorators(n, top(kind::NEWTYPE), items);
                 }
                 SyntaxKind::DataDecl => {
-                    self.check_decorators(n, top(kind::DATA), items);
                     let error_type = self.has_error(n, false);
                     let block = Src::child(n, SyntaxKind::Block);
                     let fields: Vec<_> = block
@@ -738,6 +755,15 @@ impl Lower<'_, '_, '_> {
                             matches!(c.kind(), SyntaxKind::DataField | SyntaxKind::EmbeddedField)
                         })
                         .collect();
+                    self.check_decorators(
+                        n,
+                        Place {
+                            kind: kind::DATA,
+                            members: fields.len(),
+                            ..Place::default()
+                        },
+                        items,
+                    );
                     let types = match self.item_of(n, TokenKind::KwData, items) {
                         Some(Item {
                             data: ItemData::Data(fs),
@@ -782,9 +808,15 @@ impl Lower<'_, '_, '_> {
                         _ => &[],
                     };
                     for (i, v) in variants.into_iter().enumerate() {
+                        let members = Src::child(v, SyntaxKind::ParameterList)
+                            .into_iter()
+                            .flat_map(NodeRef::children)
+                            .filter(|c| c.kind() == SyntaxKind::Parameter)
+                            .count();
                         let place = Place {
                             kind: kind::VARIANT,
                             error_type,
+                            members,
                             ..Place::default()
                         };
                         self.check_decorators(v, place, items);
