@@ -39,6 +39,9 @@ Research and direction outside the specification:
 - [NonEscapable Types And Lifetimes: Adversarial Review 2](NONESCAPE_LIFETIME_STRESS_TEST_2.md)
   rechecks rounds 4 and 5 against the earlier findings and evaluation dimensions,
   with thirteen cases targeting providers, invariant aggregation, and callable contracts.
+- [NonEscapable Types And Lifetimes: Adversarial Review 3](NONESCAPE_LIFETIME_STRESS_TEST_3.md)
+  tests round 6 in twelve cases, targeting component-preserving contracts,
+  ordinary-buffer frame retention, bound getters, and generated iterators.
 - [Standard Library Calls](STDLIB_CALLS.md) logs every stdlib design
   choice the owner did not make explicitly, with its status, for the
   stdlib audit.
