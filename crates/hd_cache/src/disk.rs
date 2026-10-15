@@ -54,6 +54,8 @@ const UNKNOWN: u64 = u64::MAX;
 pub struct DiskStore {
     root: PathBuf,
     cap: u64,
+    /// Automatic eviction's time budget; tests may force it to zero.
+    evict_bound: Duration,
     /// The bytes this store published, per shard, not yet in the ledger.
     written: [AtomicU64; SHARDS],
     used: AtomicBool,
@@ -73,6 +75,7 @@ impl DiskStore {
         Self {
             root,
             cap: DEFAULT_CAP,
+            evict_bound: EVICT_BOUND,
             written: std::array::from_fn(|_| AtomicU64::new(0)),
             used: AtomicBool::new(false),
         }
@@ -82,6 +85,14 @@ impl DiskStore {
     #[must_use]
     pub fn with_cap(mut self, cap: u64) -> Self {
         self.cap = cap;
+        self
+    }
+
+    /// The same store with a different automatic-eviction time budget.
+    #[cfg(test)]
+    #[must_use]
+    fn with_evict_bound(mut self, bound: Duration) -> Self {
+        self.evict_bound = bound;
         self
     }
 
@@ -116,7 +127,7 @@ impl DiskStore {
         if !self.used.load(Ordering::Relaxed) {
             return;
         }
-        let deadline = Instant::now() + EVICT_BOUND;
+        let deadline = Instant::now() + self.evict_bound;
         let budget = self.budget();
         let written: Vec<u64> = self
             .written
@@ -584,15 +595,22 @@ mod tests {
     #[test]
     fn the_ledger_keeps_bytes_another_process_added() {
         let root = scratch("ledger");
-        let store = DiskStore::new(root.clone()).with_cap(256 * 1000);
+        let store = DiskStore::new(root.clone())
+            .with_cap(256 * 1000)
+            .with_evict_bound(Duration::ZERO);
         let k = key(5, 1);
+        // Start from exact sizes, so the bounded drops below need no
+        // rescan: the test is about byte merging, not eviction timing.
+        assert_eq!(store.collect().after, 0);
         store.put(EntryKind::Iface, &k, &[0; 300]);
         drop(store);
         let read = |r: &PathBuf| Ledger::decode(&std::fs::read(r.join("stats")).expect("ledger"));
         assert_eq!(read(&root).sizes[5], 300);
         assert_eq!(read(&root).sizes[6], 0);
         // A later store over the same tree adds its own bytes.
-        let other = DiskStore::new(root.clone()).with_cap(256 * 1000);
+        let other = DiskStore::new(root.clone())
+            .with_cap(256 * 1000)
+            .with_evict_bound(Duration::ZERO);
         other.put(EntryKind::Iface, &key(5, 2), &[0; 200]);
         drop(other);
         assert_eq!(read(&root).sizes[5], 500);
