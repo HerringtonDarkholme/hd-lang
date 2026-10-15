@@ -304,6 +304,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
         if (n) return n;
         const d = nextDeadline();
         if (d === null) deadlock();
+        flush();
         sleep(Math.max(0, until(d) - performance.now()));
         if (overran()) throw new TimeLimit();
       }
@@ -622,6 +623,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
           if (n === 0) {
             const d = nextDeadline();
             if (d === null) deadlock();
+            flush();
             await wait(Math.max(0, until(d) - performance.now()));
             if (overran()) throw new TimeLimit();
             const stop = driver?.stopping(Boolean(ex["hd.cancel"]));

@@ -677,7 +677,14 @@ const nodeLayer = {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.mjs");
-    const netClient = { call: (request) => net.call(request, left) };
+    // The program's output reaches its stream before it waits on the host
+    // (std-console.host.visible): a run stopped in a wait loses none. Each
+    // client call and child process asks `waiting()` first.
+    const waiting = () => {
+      flush();
+      return left();
+    };
+    const netClient = { call: (request) => net.call(request, waiting) };
     // A waiting file operation on the paths that `paths(d)` reads from the
     // arguments; `run(e, paths, d)` does it once the grant covers each path.
     const fsOp = (key, paths, run) => ({
@@ -701,11 +708,11 @@ const nodeLayer = {
       imports: {
         "hd:ConsoleInput": consoleInputImports({ env, flush, ready }),
         "hd:Sys": sysImports({ grant, put }),
-        "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {}, left }),
+        "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {}, left: waiting }),
         "hd:Net": netImports({ argsOf, ready, put, grant, netClient, text }),
         "hd:Env": envImports({ grant, sink, st, flush, put, text }),
         ...fsImports({ fsOp }),
-        "hd:Process": processImports({ argsOf, grant, env, ready, left }),
+        "hd:Process": processImports({ argsOf, grant, env, ready, left: waiting }),
         "hd:TestRunner": testRunner.imports,
       },
       tempDir: testRunner.tempDir,
