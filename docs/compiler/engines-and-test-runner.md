@@ -290,7 +290,7 @@ Linux dependencies and Wasmtime types; it is not a full engine check.
 Static review found Node's Windows path-prefix check and libuv's nested
 Linux CPU-quota calculation can diverge from Rust's implementations.
 These platform-specific issues are recorded in
-[Diagnostic Notes](../../audit/compiler/diagnostic-notes.md), not claimed as verified parity.
+[Diagnostic Notes](../../audit/diagnostic-notes.md), not claimed as verified parity.
 
 The 12 CLI engine tests pass, including startup denial for every core
 provider. Driver conformance before and after W2 runs 129 runtime
@@ -369,7 +369,7 @@ The original M19 Windows cross-check stopped while building `ring`.
 M21's pinned Zig-backed cross-target checks passed; native Windows execution
 remains unverified.
 DNS cancellation and observed Node/spec discrepancies are recorded in
-[Diagnostic Notes](../../audit/compiler/diagnostic-notes.md).
+[Diagnostic Notes](../../audit/diagnostic-notes.md).
 
 Driver conformance on the current checker runs 131 runtime programs on
 both engines: 130 match exactly, and the documented unbounded-recursion

@@ -65,9 +65,9 @@ pnpm run spec phase-audit
 `coverage` prints, per chapter, how many rules a fixture, `cases.tsv`, or
 `examples.tsv` cites. The conformance README does not count.
 `--uncovered 08` lists the uncovered IDs of the chapters whose name starts with `08`.
-`--compiler` adds the rules cited by fixtures in the checked-in new-compiler
-pass list. With `--uncovered`, it lists rules with no passing new-compiler
-fixture.
+`--compiler` adds the rules cited by fixtures the compiler passes: every
+indexed case except the rows of the root `KNOWN_FAILURES.tsv`. With
+`--uncovered`, it lists rules with no passing fixture.
 
 ```sh
 pnpm run spec coverage
@@ -120,7 +120,7 @@ exit 1, and `--list` prints each one.
 ## Finding Citations
 
 `refs RULE-ID` lists every place that cites a rule: Markdown prose in
-`spec/`, `guide/`, and `future-work/`, fixture comments and the index
+`spec/`, `guide/`, `future-work/`, and `docs/`, fixture comments and the index
 files, the root `KNOWN_FAILURES.tsv`, `lib/std` comments, and comments in
 the Rust compiler under `crates/`. A citation is a `#r-<id>` anchor or a bare rule ID.
 
@@ -138,7 +138,7 @@ such as `retired in commit 35a38958 "Spec pass 42: remove shapes; ..."`.
 | Where | A dead citation |
 | --- | --- |
 | `spec/`, fixtures, `guide/`, `lib/std` | fails, and `spec/check.sh` fails |
-| `future-work/`, `KNOWN_FAILURES.tsv`, `crates/` | warns |
+| `future-work/`, `docs/`, `KNOWN_FAILURES.tsv`, `crates/` | warns |
 | a line that records history, such as "(since retired)" | is allowed |
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'
