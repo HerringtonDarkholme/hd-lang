@@ -1,0 +1,6 @@
+pub trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+pub fn drain(source: Supplier) -> void:
+    pass

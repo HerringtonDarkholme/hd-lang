@@ -14,6 +14,7 @@ mod dep_cmd;
 mod disk;
 mod doc_cmd;
 mod engine;
+mod fix_cmd;
 mod fmt_cmd;
 mod help;
 mod memory_cap;
@@ -53,6 +54,7 @@ const USAGE: &str = "usage:
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
+  hd fix [--jobs N]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
 
   FILE.hd, FILE.wasm and hd run accept --max-heap SIZE and --time-limit DURATION
@@ -151,6 +153,7 @@ fn main() -> ExitCode {
         ("remove", rest) => dep_cmd::remove(rest),
         ("fetch", rest) => dep_cmd::fetch(rest),
         ("fmt", rest) => fmt_cmd::command(rest),
+        ("fix", rest) => fix_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
@@ -191,7 +194,7 @@ fn repl_command() -> ExitCode {
 /// Follow command dispatch: a source argument to `fmt` is not a program run.
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
-        "run" | "build" | "check" | "test" | "doc" => true,
+        "run" | "build" | "check" | "test" | "doc" | "fix" => true,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
         | "cache" => false,
         _ => arguments
@@ -311,7 +314,11 @@ pub(crate) fn default_jobs() -> usize {
 }
 
 pub(crate) fn executor() -> Executor {
-    let threads = default_jobs();
+    executor_of(default_jobs())
+}
+
+/// The executor of `threads` threads: a pool, or the serial one for 1.
+pub(crate) fn executor_of(threads: usize) -> Executor {
     if threads > 1 {
         Executor::Pool(threads)
     } else {
@@ -1177,7 +1184,7 @@ mod limit_tests {
 
     #[test]
     fn compiler_cap_follows_dispatch_not_incidental_source_arguments() {
-        for command in ["run", "build", "check", "test"] {
+        for command in ["run", "build", "check", "test", "fix"] {
             assert!(compiles(command, &args(&[command])));
         }
         for command in [

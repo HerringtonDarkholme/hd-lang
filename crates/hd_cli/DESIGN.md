@@ -165,19 +165,37 @@ that reached them changes.
 No type checking and no cache entries. Idempotence is tested on every
 fixture (`fmt(fmt(x)) == fmt(x)`).
 
-**`hd fix`.**
+**`hd fix`** (`fix_cmd.rs`, `cli.fix.*`). Package mode only; it takes
+no FILE, no `-p` and no `--format`, as the Commands table and
+`cli.json.commands` leave them out.
 
-1. Run `hd check` with fix-its.
-2. Take the `Exact` fix-its. Where two overlap, the first in content order
-   wins.
-3. Apply them per file, re-parse each edited file, and drop any fix whose
-   file gains a syntax error.
-4. Re-check incrementally: only edited modules and their dependents miss
-   the cache.
-5. If an edited module has a diagnostic with a new root key, revert that
-   file's fixes one at a time until it has none.
-6. Repeat up to 3 rounds, write the files, and print what was applied and
-   what remains.
+1. Read every source file of the package once. Checks run in memory: a
+   tried state's texts reach the driver through `DiskSources::set_text`,
+   and nothing is written until the end.
+2. Check as `hd check` does with no flag (`check_cmd::check_package`).
+3. Of each diagnostic, in output order, take its first `Exact` fix-it
+   whose edits all lie in a package source file and fit its text. One
+   whose edit overlaps, or starts at the same byte as, an edit already
+   taken waits (`cli.fix.overlap`). `hd.toml`, dependencies and `std` are
+   never edited.
+4. Apply the round's fix-its together and check again. The round is safe
+   when no diagnostic key (code, severity, file, message) occurs more
+   often than before; positions are not in the key, since edits move
+   them. When it is not safe, try the fix-its one at a time in output
+   order, each on top of those kept, so an added diagnostic is charged to
+   the fix-it that brought it. A rejected fix-it is skipped in later
+   rounds, which lets one it overlapped have its turn.
+5. Repeat with the last check, at most 3 rounds (`cli.fix.rounds`).
+6. Write each changed file through a temporary file and a rename, unless
+   it changed on disk meanwhile. Print each change (`fixed: FILE:L:C:
+   CODE: MESSAGE`), the diagnostics of the last check, and `fix result:`
+   with the counts, all on standard error. Status 101 when an error
+   remains (`cli.fix.status`).
+
+Stage-A diagnostics are re-emitted from `iface` entries on a warm run, so
+those entries keep the fix-its too, anchored like their diagnostics:
+each edit is an anchor of its first token plus byte distances from it
+(layout 9).
 
 ### 7.7 `hd doc`
 

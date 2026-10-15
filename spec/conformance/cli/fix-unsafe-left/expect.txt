@@ -1,0 +1,10 @@
+# The fix-it of trait-used-as-type inserts dyn, but dyn Supplier leaves
+# Item unbound, which is the new diagnostic trait-not-dynamically-safe
+# (trait.dyn.safe.assoc-type). So the fix-it is not safe, hd fix leaves the
+# file as it is and exits 101, and the check after it still reports
+# trait-used-as-type with its fix-it.
+run: hd fix
+exit: 101
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trait-used-as-type","file":"src/lib.hd","line":5,"fixes":[{"message":null,"edits":null}]},{"kind":"summary","errors":1,"status":101}]

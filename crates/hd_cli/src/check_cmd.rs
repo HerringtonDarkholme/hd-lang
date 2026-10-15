@@ -19,6 +19,7 @@ use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
 
 /// What `hd check` was asked for.
+#[derive(Default)]
 struct Options {
     file: Option<OsString>,
     json: bool,
@@ -30,18 +31,13 @@ struct Options {
     all: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
+    /// The thread count of `hd fix --jobs N` (`cli.jobs`); `None` for the
+    /// default.
+    jobs: Option<usize>,
 }
 
 fn options(args: &[OsString]) -> Result<Options, String> {
-    let mut o = Options {
-        file: None,
-        json: false,
-        summary: false,
-        max_errors: None,
-        tests: false,
-        all: false,
-        packages: Vec::new(),
-    };
+    let mut o = Options::default();
     let mut i = 0;
     while i < args.len() {
         if let Some(format) = report::format_flag(args, i) {
@@ -211,7 +207,7 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
         sources: &t.program.sources,
         store: &store,
         clock: &clock,
-        executor: executor(),
+        executor: o.jobs.map_or_else(executor, crate::executor_of),
     };
     let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
     let mut shown = shown(&out, &t, &docs);
@@ -225,6 +221,22 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
     diags.extend(left_out);
     diags.extend(shown);
     (diags, out.counters.modules_checked.len())
+}
+
+/// The diagnostics of a whole-package check of `program`, as `hd check`
+/// with no flag reports them (`cli.check.default`), on `jobs` threads or
+/// the default; `hd fix` runs it (`cli.fix.command`).
+pub(crate) fn check_package(program: disk::Program, jobs: Option<usize>) -> Vec<Diag> {
+    let t = Target {
+        program,
+        only: None,
+        member: None,
+    };
+    let o = Options {
+        jobs,
+        ..Options::default()
+    };
+    check_one(t, &o).0
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {

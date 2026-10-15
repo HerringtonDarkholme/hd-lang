@@ -604,9 +604,28 @@ struct PrepOut {
     diags: DiagBuf,
 }
 
-/// A folder's stage-A diagnostics, with the module each belongs to and
-/// the severity each was reported with (a cache hit re-emits them).
-type IfaceDiags = Vec<(usize, Code, Severity, hd_resolve::anchor::Anchor, String)>;
+/// A folder's stage-A diagnostics, with the module each belongs to, the
+/// severity each was reported with and its fix-its (a cache hit re-emits
+/// them).
+type IfaceDiags = Vec<(
+    usize,
+    Code,
+    Severity,
+    hd_resolve::anchor::Anchor,
+    String,
+    Vec<IfaceFix>,
+)>;
+
+/// A stage-A fix-it as an interface entry keeps it: no byte offsets, as
+/// for its diagnostic. Each edit is its module, an anchor of the token at
+/// its start, its start and end as byte distances from that token's start
+/// (wrapping, so whitespace before the token makes them negative), and
+/// its text.
+struct IfaceFix {
+    title: String,
+    exact: bool,
+    edits: Vec<(usize, hd_resolve::anchor::Anchor, u32, u32, String)>,
+}
 
 /// A module's TIR and body diagnostics after `Body(m)`, the hidden
 /// methods its derivations add (`crates/hd_tir/DESIGN.md` §4.13.9), and the
@@ -2414,22 +2433,45 @@ impl Run<'_> {
     /// with the severity each was reported with.
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
         let folder = &self.table.folders[fi];
-        let mut d = lock(&self.diags);
-        for (m, code, severity, anchor, msg) in diags {
-            let Some(mid) = folder.modules.get(*m) else {
-                continue;
-            };
-            let span = if self.parse_of(mid.idx()).is_ok() {
+        let place = |m: usize, anchor: &hd_resolve::anchor::Anchor| {
+            let mid = folder.modules.get(m)?;
+            if self.parse_of(mid.idx()).is_ok() {
                 hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
             } else {
                 None
             }
-            .unwrap_or(Span {
+        };
+        let mut d = lock(&self.diags);
+        for (m, code, severity, anchor, msg, fixes) in diags {
+            let Some(mid) = folder.modules.get(*m) else {
+                continue;
+            };
+            let span = place(*m, anchor).unwrap_or(Span {
                 file: FileId::from_raw(mid.raw()),
                 lo: 0,
                 hi: 0,
             });
             d.push(*code, *severity, span, msg, None);
+            for fix in fixes {
+                // A fix-it with an edit this run cannot place is left out.
+                let edits: Option<Vec<(Span, &str)>> = fix
+                    .edits
+                    .iter()
+                    .map(|(m, anchor, lo, hi, text)| {
+                        let at = place(*m, anchor)?;
+                        let (lo, hi) = (at.lo.wrapping_add(*lo), at.lo.wrapping_add(*hi));
+                        Some((Span { lo, hi, ..at }, text.as_str()))
+                    })
+                    .collect();
+                if let Some(edits) = edits {
+                    let safety = if fix.exact {
+                        hd_diag::FixSafety::Exact
+                    } else {
+                        hd_diag::FixSafety::Suggestion
+                    };
+                    d.add_fix(&fix.title, safety, &edits);
+                }
+            }
         }
     }
 
@@ -2546,20 +2588,38 @@ impl Run<'_> {
                 return;
             }
         };
+        let module_of = |file: FileId| folder.modules.iter().position(|x| x.raw() == file.raw());
         let idiags: IfaceDiags = (0..diags.len())
             .map(|i| {
                 let sp = diags.primary[i];
-                let m = folder
-                    .modules
-                    .iter()
-                    .position(|x| x.raw() == sp.file.raw())
-                    .unwrap_or(0);
+                let m = module_of(sp.file).unwrap_or(0);
+                let fixes = diags.fixes[i];
+                let fixes = (fixes.start..fixes.start + fixes.len)
+                    .filter_map(|f| {
+                        let f = f as usize;
+                        let edits = diags.edits[diags.fix_edits[f].range()]
+                            .iter()
+                            .map(|e| {
+                                let m = module_of(e.span.file)?;
+                                let src = self.src(folder.modules[m].idx());
+                                let (anchor, lo, hi) = edit_anchor(&src, e.span);
+                                Some((m, anchor, lo, hi, diags.get_text(e.text).to_owned()))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some(IfaceFix {
+                            title: diags.get_text(diags.fix_title[f]).to_owned(),
+                            exact: diags.fix_safety[f] == hd_diag::FixSafety::Exact,
+                            edits,
+                        })
+                    })
+                    .collect();
                 (
                     m,
                     diags.code[i],
                     diags.severity[i],
                     hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
                     diags.get_text(diags.message[i]).to_owned(),
+                    fixes,
                 )
             })
             .collect();
@@ -7104,17 +7164,57 @@ fn decode_header_findings(b: &[u8], items: &[Item]) -> Option<Vec<hd_check::head
     r.ok().then_some(out)
 }
 
+/// Where a fix-it edit of `span` sits, without byte offsets: an anchor of
+/// the token at its start, and its start and end as byte distances from
+/// that token's start ([`IfaceFix`]). An empty edit is anchored by the
+/// byte after it.
+fn edit_anchor(src: &Src<'_>, span: Span) -> (hd_resolve::anchor::Anchor, u32, u32) {
+    let anchor = hd_resolve::anchor::of_span(src, span.lo, span.hi.max(span.lo.saturating_add(1)));
+    let base = hd_resolve::anchor::resolve(src, &anchor).map_or(span.lo, |s| s.lo);
+    (
+        anchor,
+        span.lo.wrapping_sub(base),
+        span.hi.wrapping_sub(base),
+    )
+}
+
+fn encode_anchor(w: &mut Writer, a: &hd_resolve::anchor::Anchor) {
+    for v in [a.decl, a.member, a.tok, a.count] {
+        w.u32(v);
+    }
+}
+
+fn decode_anchor(r: &mut Reader<'_>) -> hd_resolve::anchor::Anchor {
+    hd_resolve::anchor::Anchor {
+        decl: r.u32(),
+        member: r.u32(),
+        tok: r.u32(),
+        count: r.u32(),
+    }
+}
+
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(d);
-    for (m, code, severity, a, msg) in d {
+    for (m, code, severity, a, msg, fixes) in d {
         w.u32(u32_of(*m));
         w.str(code.as_str());
         w.u8(u8::from(*severity == Severity::Warning));
-        for v in [a.decl, a.member, a.tok, a.count] {
-            w.u32(v);
-        }
+        encode_anchor(&mut w, a);
         w.str(msg);
+        w.len_of(fixes);
+        for f in fixes {
+            w.str(&f.title);
+            w.u8(u8::from(f.exact));
+            w.len_of(&f.edits);
+            for (m, a, lo, hi, text) in &f.edits {
+                w.u32(u32_of(*m));
+                encode_anchor(&mut w, a);
+                w.u32(*lo);
+                w.u32(*hi);
+                w.str(text);
+            }
+        }
     }
     w.bytes
 }
@@ -7130,13 +7230,26 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
         } else {
             Severity::Warning
         };
-        let a = hd_resolve::anchor::Anchor {
-            decl: r.u32(),
-            member: r.u32(),
-            tok: r.u32(),
-            count: r.u32(),
-        };
-        out.push((m, code, severity, a, r.str().to_owned()));
+        let a = decode_anchor(&mut r);
+        let msg = r.str().to_owned();
+        let mut fixes = Vec::new();
+        for _ in 0..r.count() {
+            let title = r.str().to_owned();
+            let exact = r.u8() == 1;
+            let mut edits = Vec::new();
+            for _ in 0..r.count() {
+                let m = r.u32() as usize;
+                let a = decode_anchor(&mut r);
+                let (lo, hi) = (r.u32(), r.u32());
+                edits.push((m, a, lo, hi, r.str().to_owned()));
+            }
+            fixes.push(IfaceFix {
+                title,
+                exact,
+                edits,
+            });
+        }
+        out.push((m, code, severity, a, msg, fixes));
     }
     r.ok().then_some(out)
 }

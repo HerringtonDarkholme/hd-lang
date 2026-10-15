@@ -116,7 +116,7 @@ fn format_one(path: &Path, shown: &str, check: bool) -> Result<bool, Vec<Diag>> 
 }
 
 /// The 1-based line and column of byte `at` of `text`.
-fn line_column(text: &str, at: usize) -> (usize, usize) {
+pub(crate) fn line_column(text: &str, at: usize) -> (usize, usize) {
     let before = text.get(..at).unwrap_or(text);
     let line = before.matches('\n').count() + 1;
     let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;

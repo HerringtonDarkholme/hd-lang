@@ -1,0 +1,5 @@
+pub fn run[R](job: fn() -> void $ R) -> void $ R:
+    job()
+
+pub fn count() -> i32:
+    "one"

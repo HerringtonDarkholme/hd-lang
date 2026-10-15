@@ -21,10 +21,14 @@ pub struct Edit {
     pub text: String,
 }
 
+/// One fix-it. `exact` is [`hd_diag::FixSafety::Exact`]: the compiler
+/// offers it as the whole fix, so `hd fix` tries it (`cli.fix.safe`); a
+/// suggestion is only shown. The JSON line leaves it out.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fix {
     pub message: String,
     pub edits: Vec<Edit>,
+    pub exact: bool,
 }
 
 /// One diagnostic. A command-line error has no code; a diagnostic that no
@@ -199,6 +203,7 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
                             text: d.get_text(e.text).to_owned(),
                         })
                         .collect(),
+                    exact: d.fix_safety[f] == hd_diag::FixSafety::Exact,
                 })
                 .collect();
             Diag {

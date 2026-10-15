@@ -11,6 +11,7 @@ mod deps;
 mod doc_links;
 mod doc_name;
 mod doc_tests;
+mod fix_cmd;
 mod host_traits;
 mod node_host_exit;
 mod panic_frames;

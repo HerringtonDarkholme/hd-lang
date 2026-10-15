@@ -46,6 +46,17 @@ impl DiskSources {
             .push((path.to_owned(), Arc::from(text.as_bytes())));
     }
 
+    /// Reads the listed file at `path` as `text` instead of from disk, as
+    /// `hd fix` checks an edit before it writes it (`cli.fix.safe`).
+    pub fn set_text(&mut self, path: &str, text: &str) {
+        if let Some(e) = self.files.iter_mut().find(|e| e.path == path) {
+            e.size = text.len() as u64;
+        }
+        self.synthetic.retain(|(p, _)| p != path);
+        self.synthetic
+            .push((path.to_owned(), Arc::from(text.as_bytes())));
+    }
+
     /// Removes a file that `add_synthetic` added, such as a REPL input
     /// that did not join its session.
     #[cfg(feature = "wasmtime")]
@@ -927,6 +938,7 @@ fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
                     m.name
                 ),
             }],
+            exact: true,
         });
         out.push((None, d));
     }
