@@ -10,6 +10,7 @@ mod doc_links;
 mod doc_name;
 mod doc_tests;
 mod host_traits;
+mod node_host_exit;
 mod panic_frames;
 mod property_tests;
 mod resource_limits;

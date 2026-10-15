@@ -463,21 +463,13 @@ fn execute(
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
-    if engine == engine::EngineKind::Node {
-        for (flag, present) in [
-            ("--max-heap", limits.heap_bytes.is_some()),
-            ("--time-limit", limits.wall_ms.is_some()),
-        ] {
-            if present {
-                rep.diag(&report::Diag::new(
-                    None,
-                    hd_diag::Severity::Warning,
-                    &format!(
-                        "{flag} is ignored on Node until W5; use --engine wasmtime for enforcement"
-                    ),
-                ));
-            }
-        }
+    // Node enforces `--time-limit` (host/run.mjs) but has no heap cap.
+    if engine == engine::EngineKind::Node && limits.heap_bytes.is_some() {
+        rep.diag(&report::Diag::new(
+            None,
+            hd_diag::Severity::Warning,
+            "--max-heap is ignored on Node until W5; use --engine wasmtime for enforcement",
+        ));
     }
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {

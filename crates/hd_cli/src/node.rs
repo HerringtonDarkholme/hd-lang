@@ -51,6 +51,9 @@ struct NodeInstance {
     /// Its capability grant, which the host's providers check
     /// (`cli.host.default-profile.granted`).
     grants: Grants,
+    /// Its `--time-limit` in milliseconds (`cli.limit.time`), which the
+    /// host enforces.
+    wall_ms: Option<u64>,
     done: Option<Outcome>,
 }
 
@@ -74,6 +77,7 @@ impl Engine for NodeEngine {
             args: host.args.clone(),
             program: host.program.clone(),
             grants: host.grants.clone(),
+            wall_ms: host.limits.wall_ms,
             done: None,
         }))
     }
@@ -125,7 +129,7 @@ impl NodeInstance {
             Err(e) => return Outcome::Internal(e),
         };
         let config = dir.0.join("config.json");
-        let text = run_config(&self.program, &self.grants);
+        let text = run_config(&self.program, &self.grants, self.wall_ms);
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
@@ -303,7 +307,7 @@ impl Programs {
             let module = dir.0.join(format!("program-{i}.wasm"));
             let config = dir.0.join(format!("program-{i}.json"));
             std::fs::write(&module, wasm).map_err(|e| format!("{}: {e}", module.display()))?;
-            std::fs::write(&config, run_config(name, grants))
+            std::fs::write(&config, run_config(name, grants, None))
                 .map_err(|e| format!("{}: {e}", config.display()))?;
             if i > 0 {
                 json.push(',');
@@ -323,11 +327,12 @@ impl Programs {
     }
 }
 
-/// The run host's configuration (`run.mjs`): the program's `Args.program`
-/// and its grant.
-fn run_config(program: &str, grants: &Grants) -> String {
+/// The run host's configuration (`run.mjs`): the program's `Args.program`,
+/// its grant, and its time limit in milliseconds.
+fn run_config(program: &str, grants: &Grants, wall_ms: Option<u64>) -> String {
+    let limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
     format!(
-        "{{\"program\":{},\"grants\":{}}}",
+        "{{\"program\":{},\"grants\":{}{limit}}}",
         quote(program),
         grants_json(grants)
     )

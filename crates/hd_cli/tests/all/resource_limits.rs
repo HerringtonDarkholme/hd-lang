@@ -41,7 +41,7 @@ fn bounded(mut command: Command) -> Output {
     }
 }
 
-fn module(init: &[u8]) -> Vec<u8> {
+pub(crate) fn module(init: &[u8]) -> Vec<u8> {
     // Two functions: `hd.init` () -> (), `hd.poll` (i32) -> i32; one
     // initial 64 KiB memory.
     let mut module = b"\0asm\x01\0\0\0".to_vec();
@@ -245,22 +245,21 @@ fn invalid_runtime_forms_fail_but_program_words_are_not_parsed() {
 }
 
 #[test]
-fn node_limits_warn_without_enforcement_until_w5() {
+fn node_heap_limit_warns_without_enforcement_until_w5() {
     let dir = work("node-warnings");
     std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
     let mut command = hd(&dir);
     command.args([
         "--engine=node",
         "--max-heap=0",
-        "--time-limit=0ms",
+        "--time-limit=60s",
         "main.wasm",
     ]);
     let output = bounded(command);
     assert!(output.status.success(), "{output:?}");
     let warning = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(warning.matches("warning:").count(), 2, "{warning}");
+    assert_eq!(warning.matches("warning:").count(), 1, "{warning}");
     assert!(warning.contains("--max-heap is ignored on Node until W5"));
-    assert!(warning.contains("--time-limit is ignored on Node until W5"));
 }
 
 #[cfg(not(feature = "wasmtime"))]

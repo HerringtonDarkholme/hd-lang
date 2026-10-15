@@ -46,10 +46,12 @@ import {
   EndCase,
   Enc,
   HostContract,
+  PROGRAM_TIME_LIMIT,
+  TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
 
-export { Deadlock, Dec, EndCase, Enc, timeLimitReport };
+export { Deadlock, Dec, EndCase, Enc, PROGRAM_TIME_LIMIT, timeLimitReport };
 
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory
@@ -189,12 +191,21 @@ const never = () => {
 const one = (d) => [d.str()];
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
-// first call. `call(request)` posts the request and waits for the thread's
-// answer synchronously, so an operation finishes inside its `.start`.
+// first call. `call(request, left)` posts the request and waits for the
+// thread's answer synchronously, so an operation finishes inside its
+// `.start`. It waits at most `left()` milliseconds, the time before the
+// run's deadline: past it, the thread stops, since it still holds the
+// operation, and the call throws the `time-limit` panic.
 const syncClient = (file) => {
   let client = null;
+  // Stops the thread, closing whatever it holds open.
+  const stop = () => {
+    client?.worker.terminate();
+    client = null;
+  };
   return {
-    call: (request) => {
+    call: (request, left = () => Infinity) => {
+      if (left() <= 0) throw new TimeLimit();
       if (client === null) {
         const { port1, port2 } = new MessageChannel();
         const flag = new Int32Array(new SharedArrayBuffer(4));
@@ -209,20 +220,19 @@ const syncClient = (file) => {
       const { port, flag } = client;
       Atomics.store(flag, 0, 0);
       port.postMessage(request);
-      Atomics.wait(flag, 0, 0);
+      if (Atomics.wait(flag, 0, 0, Math.max(0, left())) === "timed-out") {
+        stop();
+        throw new TimeLimit();
+      }
       return receiveMessageOnPort(port).message;
     },
-    // Stops the thread, closing whatever it holds open.
-    stop: () => {
-      client?.worker.terminate();
-      client = null;
-    },
+    stop,
   };
 };
 
 // HTTP requests hold nothing open, so one client serves every instance.
 const httpClient = syncClient("http.mjs");
-const httpSend = (request) => httpClient.call(request);
+const httpSend = (request, left) => httpClient.call(request, left);
 
 // Reads standard input one line at a time, synchronously
 // (cli.host.default-profile.input-closed): the line without its ending,
@@ -271,9 +281,10 @@ function lineReader(fd) {
 }
 
 // `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
-// it cannot be read.
+// it cannot be read. `env.readLine`, when a host has one, reads it instead
+// of `lineReader` (run.mjs, whose main thread reads for a worker).
 function consoleInputImports({ env, flush, ready }) {
-  const readLine = lineReader(env.stdin === undefined ? 0 : env.stdin);
+  const readLine = env.readLine ?? lineReader(env.stdin === undefined ? 0 : env.stdin);
   return {
     // `Result[string?, ConsoleError]`: the next line, `.None` at the end
     // of input, `.Err(.Closed)` when it cannot be read.
@@ -314,7 +325,7 @@ function sysImports({ grant, put }) {
 }
 
 // `hd:Http`: one `send`, decoded, made, and encoded (std-http.send.*).
-function httpImports({ argsOf, ready, grants }) {
+function httpImports({ argsOf, ready, grants, left }) {
   // `Http.send!` (std-http.send.*): decodes the `Request` (its method,
   // URL, header pairs, body, and timeout), makes it on the client thread
   // under the program's grant, and encodes `Result[Response, HttpError]`.
@@ -325,7 +336,7 @@ function httpImports({ argsOf, ready, grants }) {
     const headers = d.list((d) => [d.str(), d.str()]);
     const body = Uint8Array.from(d.bytes());
     const timeout = d.num() === 1 ? Number(d.zz()) : null;
-    const r = httpSend({ method, url, headers, body, timeout, grants });
+    const r = httpSend({ method, url, headers, body, timeout, grants }, left);
     const e = new Enc();
     if (r.error) {
       e.leb(1).leb(HTTP[r.error]);
@@ -555,13 +566,17 @@ function fsImports({ fsOp }) {
 }
 
 // `hd:Process`: running host programs (`Process.run!`).
-function processImports({ argsOf, grant, env, ready }) {
+function processImports({ argsOf, grant, env, ready, left }) {
   // `Process.run!` (cli.host.default-profile, cli.test.process): the test
   // runner's provider starts the package's executables and tasks by name,
   // the default profile's a host program.
   const runProcess = (name, argv, input) => {
     const e = new Enc();
     if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
+    // The child runs at most until the run's deadline.
+    const ms = left();
+    if (ms <= 0) throw new TimeLimit();
+    const timeout = Number.isFinite(ms) ? Math.ceil(ms) : undefined;
     let r;
     if (env.programs) {
       const p = env.programs[name];
@@ -570,6 +585,7 @@ function processImports({ argsOf, grant, env, ready }) {
         input,
         cwd: p.cwd,
         maxBuffer: 1 << 30,
+        timeout,
       });
     } else {
       try {
@@ -578,6 +594,7 @@ function processImports({ argsOf, grant, env, ready }) {
           cwd: process.cwd(),
           env: process.env,
           maxBuffer: 1 << 30,
+          timeout,
         });
       } catch (error) {
         if (name === "") return e.leb(1).leb(PROC.NotFound);
@@ -586,6 +603,7 @@ function processImports({ argsOf, grant, env, ready }) {
     }
     if (r.error) {
       const code = r.error.code;
+      if (code === "ETIMEDOUT") throw new TimeLimit();
       if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);
       if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
       return e.leb(1).leb(PROC.Other).str(String(r.error.message));
@@ -655,10 +673,11 @@ const nodeLayer = {
   resolveTarget,
   sep,
   files: nodeFiles,
-  providers: ({ env, sink, st, grant, flush, put, ready, text, argsOf }) => {
+  providers: ({ env, sink, st, grant, flush, put, ready, text, argsOf, left }) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
-    const netClient = syncClient("net.mjs");
+    const net = syncClient("net.mjs");
+    const netClient = { call: (request) => net.call(request, left) };
     // A waiting file operation on the paths that `paths(d)` reads from the
     // arguments; `run(e, paths, d)` does it once the grant covers each path.
     const fsOp = (key, paths, run) => ({
@@ -682,18 +701,18 @@ const nodeLayer = {
       imports: {
         "hd:ConsoleInput": consoleInputImports({ env, flush, ready }),
         "hd:Sys": sysImports({ grant, put }),
-        "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {} }),
+        "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {}, left }),
         "hd:Net": netImports({ argsOf, ready, put, grant, netClient, text }),
         "hd:Env": envImports({ grant, sink, st, flush, put, text }),
         ...fsImports({ fsOp }),
-        "hd:Process": processImports({ argsOf, grant, env, ready }),
+        "hd:Process": processImports({ argsOf, grant, env, ready, left }),
         "hd:TestRunner": testRunner.imports,
       },
       tempDir: testRunner.tempDir,
       // Removes a directory the host made for itself, and closes its
       // sockets.
       close: () => {
-        netClient.stop();
+        net.stop();
         if (st.ownTemp) {
           try {
             rmSync(st.ownTemp, { recursive: true, force: true });

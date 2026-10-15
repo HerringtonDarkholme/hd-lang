@@ -57,9 +57,10 @@ export class EndCase extends Error {}
 // A host result that breaks the ABI: the `host-contract` panic.
 export class HostContract extends Error {}
 
-// A test body that ran longer than its `timeout`: the `time-limit` panic
+// A test body that ran longer than its `timeout`, or a program past its
+// `--time-limit` (cli.limit.time): the `time-limit` panic
 // (std-testing.option.timeout-any-duration, flow.panic.time-limit).
-class TimeLimit extends Error {}
+export class TimeLimit extends Error {}
 
 // A trap's stack holds every Wasm frame, not V8's default ten: a panic
 // report lists them all (cli.test.report.frame). A stack is captured only
@@ -79,6 +80,9 @@ const wasmFrames = (e) =>
 // milliseconds.
 export const timeLimitReport = (ms) =>
   `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
+
+// The panic report of a program that ran past its `--time-limit`.
+export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
 
 // Whether `text` can be an `Http` request URL (std-http.url.valid,
 // .non-ascii, .no-normalize): RFC 3986 has no space, control or non-ASCII
@@ -433,11 +437,15 @@ function testRunnerImports({ env, st, put, text, files }) {
     row: (count) => (env.runner ? env.runner.row(count) : 0),
     // The runner fails a body that runs longer than its timeout: here at
     // the end of the run or of a wait, and in test.mjs by stopping an
-    // instance that never returns.
+    // instance that never returns. A program deadline that ends first
+    // stays (cli.limit.time).
     report_timeout: (millis) => {
-      st.timeoutMs = Number(millis);
-      st.deadline = performance.now() + st.timeoutMs;
-      env.runner?.timeout?.(st.timeoutMs);
+      const ms = Number(millis);
+      const at = performance.now() + ms;
+      const base = st.baseDeadline !== null && st.baseDeadline < at;
+      st.timeoutMs = base ? null : ms;
+      st.deadline = base ? st.baseDeadline : at;
+      env.runner?.timeout?.(ms);
     },
     snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
   };
@@ -456,6 +464,9 @@ function testRunnerImports({ env, st, put, text, files }) {
 // `TestRunner.row` and `PropertyRunner` reach it (`row`, `slugSuffix`,
 // `start`, `record`, `show`; cases.mjs), and `files`, where its snapshot
 // files are when the platform layer's `files` is not where they are.
+// `env.deadline` is when a `--time-limit` ends (cli.limit.time), in
+// milliseconds on `performance.timeOrigin + performance.now()`, a clock
+// that threads share.
 export function createCoreHost(sink, env = {}, layer = null) {
   const args = env.args ?? [];
   const program = env.program ?? "";
@@ -468,7 +479,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
     memory: null,
     reported: false,
     timeoutMs: null,
-    deadline: null,
+    baseDeadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
+    deadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
     snapshots: 0,
     tempMade: false,
     nextHandle: 1,
@@ -544,6 +556,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // wait is cut at the deadline (runtime-and-host.md §17.8).
   const until = (d) => (st.deadline === null ? d : Math.min(d, st.deadline));
   const overran = () => st.deadline !== null && performance.now() > st.deadline;
+  // The milliseconds left before the deadline. A provider that waits
+  // inside its `.start` throws `TimeLimit` when none are left.
+  const left = () => (st.deadline === null ? Infinity : st.deadline - performance.now());
   const imports = {
     "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
     "hd:prim": primImports({ put, text }),
@@ -558,7 +573,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // The platform layer's providers; a module it names extends the core's
   // table for that module rather than replacing it.
   const platform =
-    layer?.providers({ env, sink, st, grant, flush, put, ready, text, argsOf }) ?? null;
+    layer?.providers({ env, sink, st, grant, flush, put, ready, text, argsOf, left }) ?? null;
   for (const [module, table] of Object.entries(platform?.imports ?? {})) {
     imports[module] = { ...imports[module], ...table };
   }
@@ -592,6 +607,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     let status = 0;
     let trapped = false;
     let ended = false;
+    let limited = false;
     let frames = [];
     const wait = (ms) => driver?.wait(ms) ?? new Promise((r) => setTimeout(r, ms));
     try {
@@ -636,6 +652,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         st.reported = true;
       } else if (e instanceof TimeLimit) {
         st.reported = true;
+        limited = true;
       } else if (e instanceof RangeError && /call stack size/i.test(e.message)) {
         // V8 reports a guest stack overflow as a RangeError ("Maximum call
         // stack size exceeded"), not a WebAssembly.RuntimeError; it is the
@@ -660,8 +677,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
     flush();
     // A body that ended after its deadline ran longer than its timeout,
     // whatever it did after the deadline.
-    if (overran()) {
-      sink.err(timeLimitReport(st.timeoutMs));
+    if (limited || overran()) {
+      sink.err(st.timeoutMs === null ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs));
       status = 3;
       trapped = true;
       frames = [];
