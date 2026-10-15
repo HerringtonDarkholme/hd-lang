@@ -112,7 +112,7 @@ pub fn parse_key(toolchain: Hash128, source_hash: Hash128) -> Hash128 {
 
 /// `depfiles_key(p) = H("depfiles", toolchain, identity(p))`: the skims of
 /// a package whose files cannot change under one key, read once per
-/// machine instead of skimming its files on every run (§5.5 rule 7). The
+/// machine instead of skimming its files on every run (§5.5). The
 /// embedded std is one: its texts are part of the toolchain key.
 #[must_use]
 pub fn depfiles_key(toolchain: Hash128, identity: &str) -> Hash128 {

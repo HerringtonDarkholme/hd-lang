@@ -1,4 +1,4 @@
-// Check, Run and Test on the Rust compiler (crates/hd_web/DESIGN.md §3, W5, W6).
+// Check, Run and Test on the Rust compiler (crates/hd_web/DESIGN.md §3).
 // The compiler wasm of crates/hd_web compiles the project; Run instantiates
 // the program with the browser host, host/web.mjs, as `hd run` does on
 // Node with host/node.mjs. Test runs each case with the case loop that

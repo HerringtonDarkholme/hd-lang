@@ -596,7 +596,7 @@ time.
 | `runtime` (geomean at most 1.5x Node, no case over 3x) | `map` above 3x on wasmtime from the hash protocol; chains slow from `call_ref` | `map` near 2x on wasmtime; chains near 1x; the heap pathology removed |
 | `allocations` (0 per counted loop, at most 1 per chain) | 3 to 5 per map lookup | 0 for both |
 | `size-startup-heap` (tiny at most 2 KB) | short literals at 3 bytes per byte | the pool; hello world needs none |
-| `dead-code` | list code per reference type | folded by A1; the target is re-based after spike S7 ([docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#2-rebasing-the-dead-code-target)) |
+| `dead-code` | list code per reference type | folded by A1; the target is re-based after spike S7 |
 | `long-run-memory` | slices that pin sources; heap growth pathology | the heap is sized; a small string slice still pins its source (Go-style strings): a known risk this metric watches |
 
 ## 13. Monomorphization And Merging

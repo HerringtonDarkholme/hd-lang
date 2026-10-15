@@ -18,7 +18,7 @@ build.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; none stores `T?` (crates/hd_wasm/DESIGN.md §15.2) |
+| `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; `Deque` and `Heap` store `T?` in `List` slots, laid out as in crates/hd_wasm/DESIGN.md §15.2 |
 | `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. See #180 |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, `all!`, `race!`'s frame, `Waker` | compiler intrinsics | the spec names them so ([Standard Combinators](../../spec/lang/11-requirements-and-suspension.md#standard-combinators)); `race!` itself is hd in `std.task` |
@@ -427,7 +427,7 @@ cancelled and holds the worker until it ends.
 | Limit | Mechanism | Failure |
 | --- | --- | --- |
 | time (`--time-limit`, a test's `timeout`) | epoch interruption: one `hd-epochs` thread per process, started only when a store has a deadline, increments every registered engine's epoch every 10 ms; the store's epoch callback checks the wall clock, which stays authoritative | `time-limit`; a pending host wait is cut at the same deadline |
-| initial GC heap size | 64 MiB for an uncapped `hd run`; 0 when a heap cap is set and for `hd test`'s pooled heaps, so a small cap is not used up before the program allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
+| initial GC heap size | 64 MiB for an uncapped `hd run`; 0 when a heap cap is set and for `hd test`'s heaps, which start empty and grow on demand, so a small cap is not used up before the program allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
 | GC heap, the exchange buffer and host-held data (`--max-heap`) | one `Ledger` per program, enforced through a `ResourceLimiter` for the store's backing bytes; host operations, including tasks on `hd-io`, charge the same ledger (`std-host.op.heap`). A refused linear-memory growth makes `memory.grow` return `-1`, which the writer turns into `heap-exhausted` (§17.3); a GC allocation that fails after a collection traps | `heap-exhausted` |
 | stack | `Config::max_wasm_stack`, 4 MiB by default | `stack-exhausted` |
 | instances, tables, memories, GC heaps in `hd test` | the pooling allocator's totals, one slot per worker plus shrink spares. The runner never runs more stores at once than the pool has slots, so exhaustion means a bug | an internal error naming the limit |

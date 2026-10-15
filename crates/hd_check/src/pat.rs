@@ -1,4 +1,4 @@
-//! Patterns, `let`, `match` and exhaustiveness (`crates/hd_check/DESIGN.md` (type checking) §6;
+//! Patterns, `let`, `match` and exhaustiveness (`crates/hd_check/DESIGN.md` (type checking) §7;
 //! `crates/hd_tir/DESIGN.md` "Matching"). The checker declares each arm's
 //! bindings, emits the arm blocks, then a decision block of `SwitchTag`,
 //! `If`, `Payload`, `Unwrap`, `Guard` and `ToArm` that tries the rows in

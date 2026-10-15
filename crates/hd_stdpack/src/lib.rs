@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_stdpack`: the build-time tool that checks `lib/std` and writes the
-//! std pack `hd_driver` embeds (`docs/compiler/design-overview.md` §2.1). The pack needs
+//! std pack `hd_driver` embeds (`docs/compiler/design-overview.md` §2.2 rule 2). The pack needs
 //! std's folder interfaces, which the subset pipeline cannot build yet;
 //! `build_pack` runs the architecture driver and refuses until every
 //! stage through `ModuleFinish` passes.

@@ -3,7 +3,7 @@
 //! shard-size ledger `<root>/stats` and least-recently-used eviction down
 //! to the size cap (§5.7; `cli.cache.obj.cap`, `cli.cache.obj.evict`).
 //! Only this module touches the file system (`docs/compiler/design-overview.md` §2.2
-//! rule 3).
+//! rule 1).
 //!
 //! - **Use marks.** A hit sets the entry's mtime to now when it is more
 //!   than an hour old, so the mtime is the last use to within an hour, at

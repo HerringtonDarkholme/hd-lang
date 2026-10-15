@@ -62,6 +62,19 @@ When the caller itself returns a `Result` of the same error, `?` passes
 the error up, so no `match` is needed:
 
 ```hd
+use std.json.{decode, JsonError}
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize)
+data Limits:
+    retries: i32
+    timeout_ms: i32
+
+@derive(Serialize, Deserialize)
+data Config:
+    name: string
+    limits: Limits
+
 fn retry_limit(text: string) -> Result[i32, JsonError]:
     config := decode::[Config](text)?
     .Ok(config.limits.retries)
@@ -351,7 +364,7 @@ pub fn render(name: string, total: i32, at: Timestamp) -> string:
     "report $name: $total cents, at ${at.to_rfc3339()}"
 ```
 
-```hd
+```text
 use std.testing.{assert_equal, hd_run, snapshot_file, temp_dir}
 use std.time.Timestamp
 use pkg.report.render

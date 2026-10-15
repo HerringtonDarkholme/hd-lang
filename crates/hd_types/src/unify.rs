@@ -47,7 +47,7 @@ enum Undo {
 }
 
 /// The body's inference table: union-find with union by rank and a trail
-/// (`docs/compiler/data-structures.md` §3.19's `parent`, `rank`, `kind` and `value`
+/// (`docs/compiler/data-structures.md` §3.19's `parent`, `rank`, `kind` and `binding`
 /// columns). Union by rank keeps every path at most log2(n) links long
 /// without writing during a lookup, so `root` stays a read and a rollback
 /// undoes each link and rank change exactly.

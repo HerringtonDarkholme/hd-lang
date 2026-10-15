@@ -203,7 +203,9 @@ repl#4.wasm       imports price, dbg_text[u32]
 - **Wasm GC types canonicalize across modules** (iso-recursive rec
   groups), so a value built in input 1 flows into input 4 unchanged.
   The emitter's canonical type order (crates/hd_wasm/DESIGN.md §15.3) makes the
-  same hd layout give the same rec group in every module.
+  same hd layout give the same rec group in every module. Implementation
+  differs: neither the canonical type order nor module-local literal
+  numbers is built as written (one getter per literal, #258).
 - ~~**Runtime type ids** (for `dyn Any` and type witnesses,
   crates/hd_wasm/DESIGN.md §15.2) are assigned session-wide and append-only, so a
   shadowed type and its replacement get different ids.~~ **[Decided

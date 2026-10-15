@@ -1,6 +1,6 @@
 //! Embeds `lib/std`'s sources: until the std pack writer exists (slice 4),
 //! the driver carries std as source text and builds its interfaces like any
-//! dependency's (`docs/compiler/design-overview.md` §2.1, `hd_stdpack`).
+//! dependency's (`docs/compiler/design-overview.md` §2.2 rule 2, `hd_stdpack`).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};

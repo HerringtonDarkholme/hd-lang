@@ -721,7 +721,7 @@ and no body holds a program-wide number.
   why long literals cannot be constant globals on either engine.
 - **Type-only:** not a type question.
 
-Implementation differs: each distinct literal has its own getter function
+Implementation differs (#258): each distinct literal has its own getter function
 and its own lazily filled global (`Helper::Lit`, `rt::lit_code`), over
 one deduplicated passive segment, and there is no `memory.init` fast path.
 Worse by the cost model above: about 2,000 functions at 10k lines, each

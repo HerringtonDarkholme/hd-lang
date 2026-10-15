@@ -116,7 +116,7 @@ Tools and front ends:
 - [lowering-catalog.md](lowering-catalog.md): the lowering of each data
   type and syntax form, with its cost.
 - [engines-and-test-runner.md](engines-and-test-runner.md): engines, tiers
-  and the test runner (§18 to §22).
+  and the test runner (§18, §19 and §22).
 - [testing-the-compiler.md](testing-the-compiler.md): determinism and
   soundness tests (§8, §21).
 - [tiering.md](tiering.md): the dev and optimized pipelines and the pass

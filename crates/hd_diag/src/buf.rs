@@ -7,7 +7,8 @@ use hd_base::{DefId, Range32, Span};
 
 use crate::{Code, Severity};
 
-/// Exact passed the re-parse check, so `hd fix` applies it.
+/// Exact is safe to apply, so `hd fix` tries it; `hd fix` keeps it only if
+/// the check after it adds no diagnostic (`crates/hd_cli/src/fix_cmd.rs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FixSafety {
     Exact,

@@ -17,8 +17,8 @@ pub const NONE: u32 = u32::MAX;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Inst(pub u32);
 
-/// A value: bit 31 clear, an instruction's value; set, a global pool
-/// constant (bits 0..30).
+/// A value: bit 31 clear, an instruction's value; set, a row of the
+/// body's `consts` (bits 0..30).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Ref(pub u32);
 

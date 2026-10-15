@@ -40,7 +40,7 @@ pub struct Lowering {
 
 impl Lowering {
     /// The profile of `target`. `Browser` follows `V8` until another
-    /// browser engine is measured (`crates/hd_opt/DESIGN.md` (optimization pipelines) §7 Q2).
+    /// browser engine is measured (`crates/hd_opt/DESIGN.md` (optimization pipelines) §7 item 2).
     #[must_use]
     pub const fn of(target: EngineTarget) -> Self {
         match target {

@@ -1,5 +1,5 @@
 //! Interface records, folder interfaces and their blobs, and impl tables
-//! (`crates/hd_resolve/DESIGN.md` §4.10 to §4.12; `docs/compiler/data-structures.md` §3.15;
+//! (`crates/hd_resolve/DESIGN.md` §4.10 to §4.12; `docs/compiler/data-structures.md` §3.16;
 //! `crates/hd_check/DESIGN.md` (trait solver) §3.3). Types are `hd_types` types in the run's pool; a
 //! blob carries them through entry-local tables.
 

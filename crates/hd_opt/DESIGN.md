@@ -161,7 +161,7 @@ has the same two rows; each column is data in the crate that reads it.
 
 The lowering profile differs by target (§4). Dev runs no A1 or A2 on any
 target: specialization and devirtualization run in the optimized pipeline
-only (docs/compiler/tiering.md §8.1 Q3). A target whose measured best
+only (docs/compiler/tiering.md §3.1 and §7.1). A target whose measured best
 values differ would get its own `Pipeline` static.
 
 ### 3.2 Validation
