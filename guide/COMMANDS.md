@@ -55,6 +55,21 @@ seeded
 Read next: [Running A Package](../spec/cli/command-line.md#running-a-package)
 and [Tasks](../spec/cli/command-line.md#tasks).
 
+An implementation may offer more than one engine to run programs on.
+`hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
+`HD_ENGINE` gives the name when the flag is absent. Which engines exist,
+and which is the default, depends on your `hd`. A program behaves the same
+on each; only speed and memory use differ. A name your `hd` does not offer
+is a usage error that exits 101 and runs nothing:
+
+```sh
+$ hd run --engine no-such-name
+$ echo $?
+101
+```
+
+Read next: [Engines](../spec/cli/command-line.md#engines).
+
 ## Check And Build
 
 You want to know it compiles, without running it. `hd check` type-checks

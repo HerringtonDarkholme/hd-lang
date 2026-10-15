@@ -5,7 +5,7 @@ exit-hd-failure	cli.exit.hd-failure,cli.package.file,cli.package.whole
 exit-package-check	cli.package.whole,cli.check.default,cli.exit.success,cli.mode.package.nearest,cli.mode.start
 exit-package-file	cli.package.file,cli.exit.success,cli.file.in-package
 exit-usage-error	cli.exit.hd-failure
-command-help	cli.command.help,cli.command.help.command,cli.command.positional
+command-help	cli.command.help,cli.command.help.command,cli.command.positional,cli.engine.flag
 exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root
 json-check-error	cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.hd-failure
@@ -122,3 +122,4 @@ dep-add-inferred-key	cli.dep.key.inferred,cli.dep.add.report
 dep-add-several-remote	cli.dep.add.several,cli.dep.add.report,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands
 dep-update-query-remote	cli.dep.update.query,cli.dep.update,cli.dep.update.release,cli.dep.query.partial,cli.dep.query.v-prefix,cli.dep.query.revision,cli.dep.add.lower,cli.dep.select,cli.dep.tidy
 dep-add-clash-remote	cli.dep.key.clash,cli.dep.key.name-flag,cli.dep.key.inferred,cli.dep.unchanged-on-error,cli.json.commands
+engine-unknown	cli.engine.flag,cli.engine.unknown,cli.engine.unknown.no-run,cli.exit.hd-failure

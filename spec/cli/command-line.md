@@ -30,11 +30,11 @@ says which program a command starts. Its diagnostic codes are in the
 | Command | Effect |
 | --- | --- |
 | `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
-| `hd [--release] FILE` | runs FILE as a [single file](#single-files), in the [build profile](#build-profiles) its flag selects |
-| `hd FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
-| `hd run [--release]`, `hd run [--release] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
-| `hd build [--release]` | builds the [package](#building-and-checking), or one FILE, in that profile |
-| `hd check`, `hd test [--release]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
+| `hd [--release] [--engine NAME] FILE` | runs FILE as a [single file](#single-files), in the [build profile](#build-profiles) its flag selects, on the [engine](#engines) NAME |
+| `hd [--engine NAME] FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
+| `hd run [--release] [--engine NAME]`, `hd run [--release] [--engine NAME] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
+| `hd build [--release] [--engine NAME]` | builds the [package](#building-and-checking), or one FILE, in that profile |
+| `hd check`, `hd test [--release] [--engine NAME]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
@@ -805,6 +805,33 @@ hd test --release     # the test profile; optimized code, the same results
 > wraps where a checked build panics. The pipeline is not. So
 > `hd test --release` can test optimized code without dropping the
 > checks, as Zig's `ReleaseSafe` mode does.
+
+### Engines
+
+An **engine** is what runs a program's compiled module. An implementation may
+offer several, and a command picks one by name:
+
+```sh
+hd run --engine NAME          # NAME is an engine the implementation offers
+HD_ENGINE=NAME hd test        # the same choice, from the environment
+hd run --engine no-such-name  # a usage error: exits 101 and runs no program
+```
+
+1. r[cli.engine.define] An **engine** is the runtime that executes a program's compiled module.
+2. r[cli.engine.offered] An implementation offers one or more engines. Which engines exist, and what they are called, is implementation-defined.
+3. r[cli.engine.flag] `hd FILE`, `hd FILE.wasm`, `hd run`, `hd build`, and `hd test` take `--engine NAME`, where NAME names an engine.
+4. r[cli.engine.select] A command that takes `--engine` uses the engine that the flag names. Without the flag, it uses the engine that the environment variable `HD_ENGINE` names. Without both, it uses the default engine.
+5. r[cli.engine.env-empty] An empty `HD_ENGINE` counts as unset.
+6. r[cli.engine.default] Which engine is the default is implementation-defined.
+7. r[cli.engine.build] `hd build --engine NAME` builds the module for that engine. A module that `hd build` wrote runs on every engine, whichever engine it was built for.
+8. r[cli.engine.same-behavior] A program's output, exit status, panic categories, and panic sites are the same on every engine, as [`cli.profile.pipeline.unobservable`](#r-cli.profile.pipeline.unobservable) says of pipelines.
+9. r[cli.engine.differences] Between engines, only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
+10. r[cli.engine.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). That includes an engine that this build lacks.
+11. r[cli.engine.unknown.no-run] A command that rejects its engine name runs no program, and never falls back to another engine.
+
+> **Why.** Engines differ in speed and in what they cost, not in what a
+> program means. So a user, CI, or an agent picks one by name, and a
+> program's results do not depend on the choice.
 
 ### Debug Output
 

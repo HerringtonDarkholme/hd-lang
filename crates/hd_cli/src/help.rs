@@ -34,6 +34,10 @@ const TIME_LIMIT: (&str, &str) = (
     "--time-limit DURATION",
     "limit how long the program runs, as 30s; past it the program panics",
 );
+const ENGINE: (&str, &str) = (
+    "--engine NAME",
+    "run on the engine NAME; the default is HD_ENGINE, else the implementation's own",
+);
 const FORMAT: (&str, &str) = (
     "--format FORMAT",
     "print diagnostics as text (the default) or as JSON lines",
@@ -52,35 +56,37 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
         ],
-        flags: &[RELEASE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY],
+        flags: &[
+            RELEASE, ENGINE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY,
+        ],
     },
     Command {
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
-        usage: "hd [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE.wasm [-- ARGS]",
+        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE.wasm [-- ARGS]",
         about: &["Run a module that hd build wrote. Its grant comes from --cap flags alone."],
-        flags: &[CAP, MAX_HEAP, TIME_LIMIT],
+        flags: &[ENGINE, CAP, MAX_HEAP, TIME_LIMIT],
     },
     Command {
         name: "build",
         summary: "build the package's executables, or the module of one FILE in the package",
-        usage: "hd build [--release] [-p NAME] [FILE]",
+        usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",
         about: &[
             "Build each executable NAME of the package to build/debug/NAME.wasm, or to",
             "build/release/ with --release; with FILE, its module to build/debug/files/STEM.wasm.",
             "A package with no executable is checked, and no .wasm file is written.",
         ],
-        flags: &[RELEASE, PACKAGE, FORMAT, JOBS, MAX_MEMORY],
+        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS, MAX_MEMORY],
     },
     Command {
         name: "run",
         summary: "run the package's executable, or the executable or task named NAME",
-        usage: "hd run [--release] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
+        usage: "hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
         about: &[
             "Run the package's executable, or the executable or task named NAME.",
             "",
@@ -89,19 +95,20 @@ const COMMANDS: &[Command] = &[
             "one [[executable]] table of hd.toml. Words after -- are the program's arguments.",
         ],
         flags: &[
-            RELEASE, PACKAGE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY,
+            RELEASE, ENGINE, PACKAGE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY,
         ],
     },
     Command {
         name: "test",
         summary: "run the test cases of the package, or of FILE",
-        usage: "hd test [--release] [-p NAME] [--filter PATTERN] [--seed N] [--affected] [--update] [FILE]",
+        usage: "hd test [--release] [--engine NAME] [-p NAME] [--filter PATTERN] [--seed N] [--affected] [--update] [FILE]",
         about: &[
             "Run the test cases of the package, or of FILE's module. Test builds are",
             "always checked; --release only selects the optimizing pipeline.",
         ],
         flags: &[
             RELEASE,
+            ENGINE,
             PACKAGE,
             (
                 "--filter PATTERN",

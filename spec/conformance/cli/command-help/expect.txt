@@ -26,7 +26,7 @@ stdout:   --format FORMAT  print diagnostics as text (the default) or as JSON li
 stdout:
 stdout: Run 'hd help COMMAND' for a command's flags.
 run: hd help run
-stdout: usage: hd run [--release] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]
+stdout: usage: hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]
 stdout:
 stdout: Run the package's executable, or the executable or task named NAME.
 stdout:
@@ -36,6 +36,7 @@ stdout: one [[executable]] table of hd.toml. Words after -- are the program's ar
 stdout:
 stdout: flags:
 stdout:   --release              build for release: integer overflow wraps instead of panicking
+stdout:   --engine NAME          run on the engine NAME; the default is HD_ENGINE, else the implementation's own
 stdout:   -p, --package NAME     act on the workspace member NAME only; may be repeated
 stdout:   --cap NAME=VALUE       grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com
 stdout:   --max-heap SIZE        limit the program's heap, as 256M; past it the program panics

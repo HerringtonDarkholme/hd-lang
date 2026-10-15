@@ -1,0 +1,13 @@
+# The engine name is the one thing these steps use. No engine name is assumed to exist.
+# A name no implementation offers is a usage error, so the program never starts.
+run: hd run --engine no-such-engine
+exit: 101
+stdout-json: []
+run: hd --engine no-such-engine src/main.hd
+exit: 101
+stdout-json: []
+run: hd build --engine no-such-engine
+exit: 101
+no-file: build/debug/shop.wasm
+run: hd test --engine no-such-engine
+exit: 101

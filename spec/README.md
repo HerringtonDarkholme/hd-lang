@@ -202,6 +202,7 @@ The stdlib chapters' terms are in the
 | **driver context** | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. See [`req.bang.driver-contexts`](lang/11-requirements-and-suspension.md#r-req.bang.driver-contexts). |
 | **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](lang/08-data-and-enums.md#data-embedding). |
+| **engine** | The runtime that executes a program's compiled module; which engines exist is implementation-defined. See [`cli.engine.define`](cli/command-line.md#r-cli.engine.define). |
 | **entry module** | The module that a program starts from: a module that the toolchain selects in a package, or the file of a single-file program. See [`module.init.entry-module.selected`](lang/10-modules.md#r-module.init.entry-module.selected). |
 | **entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](lang/10-modules.md#r-module.entry.definition). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](lang/08-data-and-enums.md#r-data.kind.enum). |
