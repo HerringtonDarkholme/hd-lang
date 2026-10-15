@@ -39,7 +39,7 @@ use hd_types::{ParamRef, Ty, TyData, TyList};
 use crate::body::{BodyCx, unsupported};
 use crate::call::subst_owner;
 use crate::derive::{MemberLine, OptIn};
-use crate::facts::{FactSource, FactTarget, check_fact_list};
+use crate::facts::{FactSource, FactTarget, check_fact_list, fact_lines};
 
 pub use hd_structure::Generated;
 
@@ -240,11 +240,7 @@ pub fn member_fact_sites<'t>(
     }
     for (_, members) in member_sites(item, node) {
         for (n, ty) in members {
-            out.extend(
-                hd_resolve::facts::fact_lines(src, n)
-                    .into_iter()
-                    .map(|e| (e, ty, true)),
-            );
+            out.extend(fact_lines(cx, n).into_iter().map(|e| (e, ty, true)));
         }
     }
     out
@@ -263,7 +259,7 @@ pub fn declaration_facts<'t>(
 ) -> FactLines<'t> {
     let src = &cx.src;
     let values = |n: NodeRef<'t>| -> Vec<FactSource<'t>> {
-        hd_resolve::facts::fact_lines(src, n)
+        fact_lines(cx, n)
             .into_iter()
             .map(FactSource::Value)
             .collect()

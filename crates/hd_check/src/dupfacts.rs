@@ -18,14 +18,13 @@ use std::collections::HashMap;
 use hd_base::DefId;
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
-use hd_resolve::facts::fact_lines;
 use hd_resolve::{Head, HeadKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::BodyKind;
 use hd_types::{RowId, Ty, TyData};
 
 use crate::body::{BodyCx, new_ck};
-use crate::facts::{FactSource, FactTarget};
+use crate::facts::{FactSource, FactTarget, fact_lines};
 use crate::structure::{FactLines, Slot};
 
 /// One fact of a place: its value's node, whether it is a decorator's
@@ -221,7 +220,7 @@ pub fn check_duplicate_facts<'t>(
     let mut places = Vec::new();
     decorated(h.node, &mut places);
     for n in places {
-        let lines = fact_lines(&cx.src, n);
+        let lines = fact_lines(cx, n);
         let Some(first) = lines.first() else { continue };
         let target = match typed.iter().find(|(e, ..)| e.index() == first.index()) {
             Some((_, ty, _)) => FactTarget::Field(*ty),

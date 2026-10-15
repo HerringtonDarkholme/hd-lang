@@ -2,7 +2,9 @@
 //! numeric literal suffixes (`250ms`), and string prefixes (`sql"..."`).
 
 use hd_diag::Code;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{
+    Dependency, Executor, Goal, Host, NoClock, Output, Packages, build, build_packages,
+};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -26,18 +28,56 @@ fn program(main: &str) -> Output {
     )
 }
 
+fn with_dependency(main: &str, dep: &str) -> Output {
+    let mut root = MemorySources::default();
+    root.insert("src/main.hd", main);
+    let mut dep_sources = MemorySources::default();
+    dep_sources.insert("src/lib.hd", "");
+    dep_sources.insert("src/marks.hd", dep);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &root,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = Packages {
+        requires: vec![("pkg".to_owned(), 1)],
+        deps: vec![Dependency {
+            name: "pkg".to_owned(),
+            identity: "pkg".to_owned(),
+            sources: &dep_sources,
+            requires: Vec::new(),
+            fetched: false,
+        }],
+        ..Packages::default()
+    };
+    build_packages(
+        &host,
+        "app",
+        &packages,
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    )
+}
+
 fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
 
-/// The program has no diagnostic but an `Emit` stub's `unsupported`.
-fn assert_clean(src: &str) {
-    let out = program(src);
+fn assert_clean_output(out: &Output, src: &str) {
     assert!(
-        codes(&out).iter().all(|c| *c == Code::Unsupported),
+        codes(out).iter().all(|c| *c == Code::Unsupported),
         "{src}\n{}",
         out.render()
     );
+}
+
+/// The program has no diagnostic but an `Emit` stub's `unsupported`.
+fn assert_clean(src: &str) {
+    assert_clean_output(&program(src), src);
 }
 
 fn assert_code(src: &str, code: Code) {
@@ -120,6 +160,62 @@ fn a_suffixed_literal_calls_its_suffix_function() {
             "use std.ops.num_suffix\n\n@num_suffix\nfn off(value: i32) -> i32:\n    value\n\nfn lowest() -> i32:\n    -2147483648off\n{MAIN}"
         ),
         Code::IntegerLiteralRange,
+    );
+}
+
+// `expr.literal-fn.marker` and `.not-marked`: a marker is recognized by its
+// resolved declaration, including aliases and qualified paths, never by text.
+#[test]
+fn a_numeric_suffix_marker_resolves_by_qualified_name() {
+    for (import, marker) in [
+        ("use std.ops as ops\n", "ops.num_suffix"),
+        ("use std.ops.num_suffix as suffix\n", "suffix"),
+    ] {
+        let src = format!(
+            "{import}@{marker}\nfn kb(count: i32) -> i32:\n    count\n\nfn delay() -> i32: 250kb{MAIN}"
+        );
+        assert_clean(&src);
+    }
+    let src = format!(
+        "use dep.pkg\n@pkg.marks.num_suffix\nfn kb(count: i32) -> i32:\n    count\n\nfn delay() -> i32: 250kb{MAIN}"
+    );
+    assert_clean_output(
+        &with_dependency(&src, "pub use std.ops.{num_suffix}\n"),
+        &src,
+    );
+}
+
+#[test]
+fn a_string_prefix_marker_resolves_by_qualified_name() {
+    for (import, marker) in [
+        ("use std.ops as ops\n", "ops.str_prefix"),
+        ("use std.ops.str_prefix as prefix\n", "prefix"),
+    ] {
+        let src = format!(
+            "{import}use std.ops.Template\n@{marker}\nfn sql(t: Template[i32]) -> i32:\n    1\n\nfn find() -> i32: sql\"select\"{MAIN}"
+        );
+        assert_clean(&src);
+    }
+    let src = format!(
+        "use std.ops.Template\nuse dep.pkg\n@pkg.marks.str_prefix\nfn sql(t: Template[i32]) -> i32:\n    1\n\nfn find() -> i32: sql\"select\"{MAIN}"
+    );
+    assert_clean_output(
+        &with_dependency(&src, "pub use std.ops.{str_prefix}\n"),
+        &src,
+    );
+}
+
+#[test]
+fn a_same_named_local_marker_does_not_hijack_literal_functions() {
+    let suffix = "fn num_suffix() -> i32: 1\n\n@num_suffix\nfn kb(count: i32) -> i32:\n    count\n\nfn delay() -> i32: 250kb";
+    assert_eq!(
+        errors(&format!("{suffix}{MAIN}")),
+        vec![Code::InvalidLiteralSuffix]
+    );
+    let prefix = "use std.ops.Template\n\nfn str_prefix() -> i32: 1\n\n@str_prefix\nfn sql(t: Template[i32]) -> i32:\n    1\n\nfn find() -> i32: sql\"select\"";
+    assert_eq!(
+        errors(&format!("{prefix}{MAIN}")),
+        vec![Code::InvalidStringPrefix]
     );
 }
 

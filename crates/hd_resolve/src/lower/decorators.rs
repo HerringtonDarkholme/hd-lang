@@ -108,6 +108,17 @@ impl Lower<'_, '_, '_> {
         })
     }
 
+    /// The declaration a decorator's possibly qualified callee reaches.
+    fn decorator_def(&self, d: NodeRef<'_>) -> Option<DefId> {
+        crate::facts::decorator_def(
+            &self.src,
+            &self.names,
+            self.scope,
+            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
+            d,
+        )
+    }
+
     /// The item a name in this module's scope reaches.
     fn scope_item(&self, name: &str, items: &HashMap<DefId, &Item>) -> Option<(DefId, Item)> {
         let Some(Binding {
@@ -166,18 +177,9 @@ impl Lower<'_, '_, '_> {
         let mut typed_line = false;
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
             let Some(deco) = self.deco(d) else { continue };
-            if deco.name != "annotate" {
-                continue;
-            }
-            let Some(Binding {
-                kind: BindingKind::Item,
-                value,
-            }) = self.scope.lookup(self.sym("annotate"))
-            else {
-                continue;
-            };
-            // `annot.target.recognized`: only std's own `annotate` counts.
-            if DefId::from_raw(value) != self.names.known.annotate {
+            // `annot.target.recognized`: only std's own `annotate` counts,
+            // including through an alias or a qualified path.
+            if self.decorator_def(d) != Some(self.names.known.annotate) {
                 continue;
             }
             let mut m = 0;
@@ -200,26 +202,33 @@ impl Lower<'_, '_, '_> {
         mask.map(|m| (m, typed_line))
     }
 
-    /// The fact type a decorator's value has: the result type of the
-    /// function it calls, or the data type or enum it constructs.
-    fn fact_type(&self, name: &str, items: &HashMap<DefId, &Item>) -> Option<DefId> {
-        let (d, item) = self.scope_item(name, items)?;
-        match item.data {
+    /// An ordinary value on a target of `kind`: a limited fact type allows
+    /// only the kinds it lists (`annot.target.limit.kind-error`).
+    fn target_allowed(&self, name: &str, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
+        let Some((def, _)) = self.scope_item(name, items) else {
+            return true;
+        };
+        self.target_allowed_def(def, kind, items)
+    }
+
+    /// [`Self::target_allowed`] for an already resolved decorator.
+    fn target_allowed_def(&self, def: DefId, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
+        let Some(item) = items
+            .get(&def)
+            .map(|item| (*item).clone())
+            .or_else(|| self.r.item(def))
+        else {
+            return true;
+        };
+        let fact = match item.data {
             ItemData::Fn(sig) => match self.names.pool.get(sig.ret) {
                 TyData::Adt { def, .. } => Some(def),
                 _ => None,
             },
-            ItemData::Data(_) | ItemData::Enum { .. } => Some(d),
+            ItemData::Data(_) | ItemData::Enum { .. } => Some(def),
             _ => None,
-        }
-    }
-
-    /// An ordinary value on a target of `kind`: a limited fact type allows
-    /// only the kinds it lists (`annot.target.limit.kind-error`).
-    fn target_allowed(&self, name: &str, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
-        let Some(fact) = self.fact_type(name, items) else {
-            return true;
         };
+        let Some(fact) = fact else { return true };
         let mask = items
             .get(&fact)
             .map(|i| i.targets)
@@ -354,18 +363,26 @@ impl Lower<'_, '_, '_> {
                 "from" | "source" => {
                     // Outside an error type each is an ordinary decorator
                     // (`annot.error.marker.outside`): it must resolve.
-                    if self.scope_item(&deco.name, items).is_none() {
+                    if let Some(def) = self.decorator_def(d) {
+                        if !self.target_allowed_def(def, k, items) {
+                            self.target_error(
+                                span,
+                                "the value's fact type does not allow this target",
+                            );
+                        }
+                    } else {
                         self.diags.error(
                             Code::UnknownName,
                             span,
                             &format!("`@{}` names no binding", deco.name),
                         );
-                    } else if !self.target_allowed(&deco.name, k, items) {
-                        self.target_error(span, "the value's fact type does not allow this target");
                     }
                 }
-                name => {
-                    if !self.target_allowed(name, k, items) {
+                _ => {
+                    if self
+                        .decorator_def(d)
+                        .is_some_and(|def| !self.target_allowed_def(def, k, items))
+                    {
                         self.target_error(span, "the value's fact type does not allow this target");
                     }
                 }
@@ -938,7 +955,7 @@ impl Lower<'_, '_, '_> {
             .flat_map(|v| v.children().filter(|c| c.kind() == SyntaxKind::Decorator))
             .filter(|d| {
                 self.deco(*d)
-                    .is_some_and(|deco| deco.bare && is(&deco.name, marker))
+                    .is_some_and(|deco| deco.bare && self.decorator_def(*d) == Some(marker))
             })
             .collect();
         match marks.as_slice() {

@@ -19,7 +19,8 @@ use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::ItemData;
-use hd_resolve::facts::fact_lines;
+use hd_resolve::facts::fact_lines as resolved_fact_lines;
+use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -47,6 +48,41 @@ fn facts_types(cx: &BodyCx<'_>) -> StageResult<(Ty, Ty)> {
     Ok((ty, items))
 }
 
+/// A decorator's resolved declaration, including a qualified path.
+fn decorator_def(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<DefId> {
+    hd_resolve::facts::decorator_def(
+        &cx.src,
+        &cx.names,
+        cx.scope_at(cx.src.span(d).lo),
+        &|module, name| {
+            cx.lookup
+                .ifaces
+                .iter()
+                .find_map(|f| f.export(module, name))
+                .map(|e| e.def)
+        },
+        d,
+    )
+}
+
+/// The literal marker of a decorator, by its resolved declaration.
+pub(crate) fn literal_marker(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<u8> {
+    let def = decorator_def(cx, d)?;
+    if def == cx.names.known.num_suffix {
+        Some(LITERAL_SUFFIX)
+    } else if def == cx.names.known.str_prefix {
+        Some(LITERAL_PREFIX)
+    } else {
+        None
+    }
+}
+
+/// The decorator expressions that attach values, with literal markers
+/// filtered by the same resolved identity as the function's marker.
+pub(crate) fn fact_lines<'t>(cx: &BodyCx<'t>, node: NodeRef<'t>) -> Vec<NodeRef<'t>> {
+    resolved_fact_lines(&cx.src, node, |d| literal_marker(cx, d).is_some())
+}
+
 /// Checks the facts body of the module-level function `owner`, whose
 /// declaration is `node`; a typed fact checks against the function's
 /// signature type (`annot.typed-fact.declared-type`).
@@ -57,7 +93,7 @@ pub fn check_facts(
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
     let def = cx.names.member(owner, PathKind::Hidden, "facts");
-    let sources: Vec<FactSource<'_>> = fact_lines(&cx.src, node)
+    let sources: Vec<FactSource<'_>> = fact_lines(cx, node)
         .into_iter()
         .map(FactSource::Value)
         .collect();
@@ -264,7 +300,7 @@ pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags:
     let rest: Vec<FactSource<'_>> = places
         .into_iter()
         .filter(|p| !(is_fn && p.index() == node.index()))
-        .flat_map(|p| fact_lines(&cx.src, p))
+        .flat_map(|p| fact_lines(cx, p))
         .filter(|e| !held.contains(&e.index()))
         .map(FactSource::Value)
         .collect();

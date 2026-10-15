@@ -4195,7 +4195,7 @@ impl Run<'_> {
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Fn)
-            .filter(|h| !hd_resolve::facts::fact_lines(&src, h.node).is_empty())
+            .filter(|h| lookup.item(h.def).is_some_and(|item| item.has_facts))
         {
             match hd_check::check_facts(&cx, h.def, h.node, &mut diags) {
                 Ok(b) => {

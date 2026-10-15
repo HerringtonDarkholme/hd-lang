@@ -317,11 +317,7 @@ impl Ck<'_, '_> {
         };
         let Some(dec) = node.children().find(|c| {
             c.kind() == SyntaxKind::Decorator
-                && self
-                    .cx
-                    .src
-                    .first_ident(*c)
-                    .is_some_and(|t| self.cx.src.text(t) == wanted)
+                && crate::facts::literal_marker(self.cx, *c) == Some(kind)
         }) else {
             return;
         };

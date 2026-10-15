@@ -2967,15 +2967,30 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// The literal marker of one decorator, resolved through the module's
+    /// scope rather than matched by its written first segment.
+    fn literal_marker(&self, d: NodeRef<'_>) -> Option<u8> {
+        let def = crate::facts::decorator_def(
+            &self.src,
+            &self.names,
+            self.scope,
+            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
+            d,
+        )?;
+        if def == self.names.known.num_suffix {
+            Some(crate::iface::LITERAL_SUFFIX)
+        } else if def == self.names.known.str_prefix {
+            Some(crate::iface::LITERAL_PREFIX)
+        } else {
+            None
+        }
+    }
+
     /// `@num_suffix` or `@str_prefix` before a function.
     fn literal_fn(&self, n: NodeRef<'_>) -> u8 {
-        self.decorators(n)
-            .iter()
-            .find_map(|(d, _)| match d.as_str() {
-                "num_suffix" => Some(crate::iface::LITERAL_SUFFIX),
-                "str_prefix" => Some(crate::iface::LITERAL_PREFIX),
-                _ => None,
-            })
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .find_map(|d| self.literal_marker(d))
             .unwrap_or(0)
     }
 
@@ -3721,7 +3736,9 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
-                it.has_facts = !crate::facts::fact_lines(&self.src, n).is_empty();
+                it.has_facts =
+                    !crate::facts::fact_lines(&self.src, n, |d| self.literal_marker(d).is_some())
+                        .is_empty();
                 out.push(it);
             }
             HeadKind::Data => {
