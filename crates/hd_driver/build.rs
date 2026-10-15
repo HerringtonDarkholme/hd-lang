@@ -1,6 +1,6 @@
 //! Embeds `lib/std`'s sources: until the std pack writer exists (slice 4),
 //! the driver carries std as source text and builds its interfaces like any
-//! dependency's (design-overview.md §2.1, `hd_stdpack`).
+//! dependency's (`docs/compiler/design-overview.md` §2.1, `hd_stdpack`).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -45,7 +45,7 @@ fn main() {
     build_id(&manifest);
 }
 
-/// The compiler build id of cache.md §5.3's `toolchain_key`: a hash of every
+/// The compiler build id of `crates/hd_cache/DESIGN.md` §5.3's `toolchain_key`: a hash of every
 /// compiler crate's Rust sources and manifests, so an entry written by one
 /// compiler build never decodes under another.
 fn build_id(manifest: &str) {

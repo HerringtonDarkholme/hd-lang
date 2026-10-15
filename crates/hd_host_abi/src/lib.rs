@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `hd_host_abi`: the one host ABI description (runtime-and-host.md §16.4,
+//! `hd_host_abi`: the one host ABI description (`crates/hd_run_wasmtime/DESIGN.md` §16.4,
 //! §17.1, §17.2): capability traits, methods, codecs and wait flags; the
 //! import names they produce; and operation handles.
 //!
@@ -317,7 +317,7 @@ pub static TABLE: &[HostTrait] = &[
     },
 ];
 
-/// The test runner's host traits (§16.4, engines-and-test-runner.md §19;
+/// The test runner's host traits (§16.4, `docs/compiler/engines-and-test-runner.md` §19;
 /// `std-testing.runner.declares`): imported from `hd:<Key>` like a
 /// capability, but no grant names them.
 pub static RUNNERS: &[HostTrait] = &[
@@ -354,7 +354,7 @@ pub static RUNNERS: &[HostTrait] = &[
     },
 ];
 
-/// Host handles (runtime-and-host.md §17.4): the traits of values that a
+/// Host handles (`crates/hd_run_wasmtime/DESIGN.md` §17.4): the traits of values that a
 /// host method returns as a handle number, such as `Net`'s sockets. In hd
 /// such a value is a trait value whose vtable's slots are host calls that
 /// take the handle first, as an `i32`; they are imported from the module
@@ -460,7 +460,7 @@ pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
 ];
 
 /// How the compiler supplies an `@intrinsic("key")` body of std
-/// (std-bootstrap.md, "Primitive Functions"; codegen.md §12.2).
+/// (`crates/hd_stdpack/DESIGN.md`, "Primitive Functions"; `crates/hd_mono/DESIGN.md` §12.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lowering {
     /// Inline code the emitter writes (string and list kernels, `dbg`,

@@ -1,4 +1,4 @@
-// The REPL panel (repl-plan.md job W5): an input line with continuation,
+// The REPL panel (`f1c55020:future-work/compiler/repl-plan.md` job W5): an input line with continuation,
 // the transcript, history in memory, and the REPL commands. The playground
 // shows it as its REPL view, over the editor's files; the website docks it
 // at the bottom of its pages (website/client/repl.ts), where code blocks

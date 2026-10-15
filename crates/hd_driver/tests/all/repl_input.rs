@@ -1,4 +1,4 @@
-//! REPL inputs (repl-plan.md §2.2, job C4): each input is a synthetic
+//! REPL inputs (`f1c55020:future-work/compiler/repl-plan.md` §2.2, job C4): each input is a synthetic
 //! module `repl#N` outside every package folder, built with
 //! `Goal::ReplInput` as one more module of a session. Its scope is
 //! `src/lib.hd`'s, private declarations included (`cli.repl.package.lib`),
@@ -231,7 +231,7 @@ fn a_panicked_input_leaves_the_session() {
     repl.input(4, "println(kept())\n");
 }
 
-/// The `prices` example of live-execution.md §2.2 (std's `Map` stores by
+/// The `prices` example of `future-work/live-execution.md` §2.2 (std's `Map` stores by
 /// index, not `insert`): input 2's function reads input 1's binding, and
 /// input 3's statement changes its value. Each reaches the binding through
 /// the global input 1 exports.
@@ -689,7 +689,7 @@ fn other_modules_and_dependencies_keep_their_private_members() {
 
 /// A build reads the earlier inputs from the session, not from the store,
 /// and gives them no task but their skim: its store reads and its other
-/// tasks are the same at input 12 as at input 3 (repl-plan.md §4).
+/// tasks are the same at input 12 as at input 3 (`f1c55020:future-work/compiler/repl-plan.md` §4).
 #[test]
 fn a_build_reads_the_earlier_inputs_from_the_session() {
     let inner = crate::warm_store();

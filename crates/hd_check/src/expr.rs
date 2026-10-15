@@ -1,4 +1,4 @@
-//! Expressions (type-checking.md §2.2): literals, strings and
+//! Expressions (`crates/hd_check/DESIGN.md` (type checking) §2.2): literals, strings and
 //! interpolation, names, operators, fields, indexing, collection and data
 //! literals, `if`, loops, closures, `?`, ranges and providers.
 
@@ -1308,7 +1308,7 @@ impl Ck<'_, '_> {
     }
 
     /// Whether a type's values have identity: the solver's `AnyRef` row
-    /// holds or waits (trait-solver.md §3.9). A diverging operand has no
+    /// holds or waits (`crates/hd_check/DESIGN.md` (trait solver) §3.9). A diverging operand has no
     /// value to compare and passes.
     fn has_identity(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool();
@@ -2153,7 +2153,7 @@ impl Ck<'_, '_> {
                 }
                 if f.has_default {
                     // The field's default body, at each construction that
-                    // omits it (checking-and-tir.md "Default calls").
+                    // omits it (`crates/hd_tir/DESIGN.md` "Default calls").
                     let fname = self.cx.names.text(f.name).to_owned();
                     let body = self.cx.names.member(def, PathKind::Hidden, &fname);
                     let a = self.b.refs_record(&[Ref(body.raw()), Ref(targ_list.0)]);
@@ -2408,7 +2408,7 @@ impl Ck<'_, '_> {
 
     /// `for p in e: body` over the iterator protocol: `iter` (unless `e`
     /// is already an `Iterator`), then a loop around `next` and a match on
-    /// its option (checking-and-tir.md "What The Checker Desugars").
+    /// its option (`crates/hd_tir/DESIGN.md` "What The Checker Desugars").
     fn for_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.loop_else = self.loop_else_of(e, want)?;
         let kids: Vec<NodeRef<'_>> = e.children().collect();
@@ -2662,7 +2662,7 @@ impl Ck<'_, '_> {
     }
 
     /// `a |> f(_, b)`: `a` first, then the step with `a` in the
-    /// placeholder's slot (checking-and-tir.md "What The Checker Desugars").
+    /// placeholder's slot (`crates/hd_tir/DESIGN.md` "What The Checker Desugars").
     /// Whether the pipe step holds an indented suite: a `Block` starting
     /// on its own line (`expr.pipe.single-line`). Only blanks lie
     /// between such a block and its line break. A nested pipe's step
@@ -3380,7 +3380,7 @@ impl Ck<'_, '_> {
 
     /// The entries of `$.with(...)` or `$.context(...)` in source order
     /// (`req.context.order`), as `(key, value)` pairs, and every key they
-    /// bind (checking-and-tir.md §4.13.4, "Context values"). The keys are
+    /// bind (`crates/hd_tir/DESIGN.md` §4.13.4, "Context values"). The keys are
     /// `None` when an entry's keys are unknown because it is already in
     /// error, so the caller reports nothing more about them.
     fn provider_entries(

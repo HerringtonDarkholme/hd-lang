@@ -1,11 +1,11 @@
 //! `@error` derivation at run time (spec 14 "Error Derivation";
-//! codegen.md §13.14): the generated `Display` renders each variant's
+//! `crates/hd_mono/DESIGN.md` §13.14): the generated `Display` renders each variant's
 //! message, `Error.cause` returns the `@from` or `@source` member, `?`
 //! converts through the generated `From`, and transparent errors forward
 //! both. Programs build through the driver and run on V8
 //! (`host/run.mjs`), as the conformance runner does.
 //!
-//! A message read through a `dyn Error` (a supertrait call, codegen.md
+//! A message read through a `dyn Error` (a supertrait call, `crates/hd_mono/DESIGN.md`
 //! §13.16) is not emitted yet, so causes are observed through the chain's
 //! length and `cause().is_some()`.
 

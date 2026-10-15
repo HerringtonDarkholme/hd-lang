@@ -1,4 +1,4 @@
-//! Impl universes (trait-solver.md §3.2, §14.2 memo invariance): two
+//! Impl universes (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §14.2 memo invariance): two
 //! modules ask the same open goal, `Receiver: Pick[?]`, with the same
 //! traits in scope but different closures. Only `a`'s closure holds
 //! `impl Pick[Product] for Receiver`, which its folder owns only through

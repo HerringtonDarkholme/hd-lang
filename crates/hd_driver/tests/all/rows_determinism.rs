@@ -1,5 +1,5 @@
 //! A requirement row's canonical encoding is content order, not this run's
-//! interning order (scheduler.md §6.5, cache.md determinism): the same
+//! interning order (`crates/hd_sched/DESIGN.md` §6.5, `crates/hd_cache/DESIGN.md` determinism): the same
 //! row-polymorphic program builds to the same Wasm and the same cache
 //! entries under shuffled task orders and both executors, and an unrelated
 //! edit leaves the untouched instances' entries as they were.

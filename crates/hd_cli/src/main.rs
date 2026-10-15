@@ -368,7 +368,7 @@ pub(crate) const fn level_of(release: bool) -> OptLevel {
     }
 }
 
-/// The pipeline a build runs (opt-pipeline.md §5): the engine target it is
+/// The pipeline a build runs (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the engine target it is
 /// tuned for and the optimization level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Pipeline {

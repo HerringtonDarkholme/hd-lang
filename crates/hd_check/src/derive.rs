@@ -1,5 +1,5 @@
 //! The instantiated-template check at a derivation opt-in (annotations,
-//! `annot.template.checked`; checking-and-tir.md §4.13.9 "Derive
+//! `annot.template.checked`; `crates/hd_tir/DESIGN.md` §4.13.9 "Derive
 //! instances"). Each `@derive(X)` and each derivation block
 //! `impl X for D by Structure` checks the methods of `X`'s template once
 //! more, in `D`'s module, with the template's `T` standing for the
@@ -340,7 +340,7 @@ pub fn check_opt_in(
     Ok(OptInCheck { failures, bodies })
 }
 
-/// The derive instance of one template method (checking-and-tir.md
+/// The derive instance of one template method (`crates/hd_tir/DESIGN.md`
 /// §4.13.9): the body that `check_opt_in` checked, as the method of the
 /// derived implementation `opt.impl_` of the same name. The template's
 /// `T` becomes the target, the template method's own parameters the
@@ -349,7 +349,7 @@ pub fn check_opt_in(
 /// the `Structure` this derivation sees (`annot.structure.per-derivation`):
 /// a hidden method of its `structure_owner`, at the owner's arguments and
 /// the call's own. So derivations that see one `Structure` share its
-/// instances (codegen.md §13.6).
+/// instances (`crates/hd_mono/DESIGN.md` §13.6).
 pub fn instance(
     cx: &BodyCx<'_>,
     opt: &OptIn,
@@ -599,7 +599,7 @@ impl<'c> Ck<'_, 'c> {
         Ok(())
     }
 
-    /// A tuple template's member steps (trait-solver.md §3.9): the bounds
+    /// A tuple template's member steps (`crates/hd_check/DESIGN.md` (trait solver) §3.9): the bounds
     /// of each walker, describer or source its body passes, on every
     /// element, and on a rest element by `annot.walker.obligation.rest`.
     /// The template's `T` stays; the method's parameter becomes

@@ -1,4 +1,4 @@
-//! Maps run (#124, codegen.md §13.12): iteration in entry order, removal
+//! Maps run (#124, `crates/hd_mono/DESIGN.md` §13.12): iteration in entry order, removal
 //! by tombstone, growth that keeps the order, keys hashed and compared
 //! through their own `Hash` and `Eq`, and the iterator's invalidation
 //! check. Programs build through the driver and run on V8

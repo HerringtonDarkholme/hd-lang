@@ -4,7 +4,7 @@
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
 //! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
 //! program that imports another host trait is refused with a message that
-//! names it (engines-and-test-runner.md §18, W2/W3). Tests use shared
+//! names it (`docs/compiler/engines-and-test-runner.md` §18, W2/W3). Tests use shared
 //! prepared programs and typed named children on Wasmtime, while Node
 //! keeps its existing subprocess protocol.
 //!
@@ -231,7 +231,7 @@ impl EngineKind {
     }
 
     /// The target a build that this engine runs is tuned for
-    /// (opt-pipeline.md §5).
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5).
     pub(crate) const fn target(self) -> EngineTarget {
         match self {
             Self::Node => EngineTarget::V8,

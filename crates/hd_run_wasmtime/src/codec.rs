@@ -1,4 +1,4 @@
-//! The exchange-buffer encoding of runtime-and-host.md §17.4, as the
+//! The exchange-buffer encoding of `crates/hd_run_wasmtime/DESIGN.md` §17.4, as the
 //! Node host's `Enc` writes it (`host/core.mjs`): integers as
 //! LEB128 (zigzag when signed), strings and byte lists as their length
 //! then their bytes, lists as their count then their elements, an

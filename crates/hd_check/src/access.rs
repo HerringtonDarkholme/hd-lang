@@ -1,4 +1,4 @@
-//! Access permission (type-checking.md §8; spec 04 "Composite Values And
+//! Access permission (`crates/hd_check/DESIGN.md` (type checking) §8; spec 04 "Composite Values And
 //! Access Permission", "Mutable Paths"). Every expression's type carries
 //! its access, `mut T` or `T`; unification ignores the marker, so the
 //! permission rules are checked here, at bindings, coercions, field

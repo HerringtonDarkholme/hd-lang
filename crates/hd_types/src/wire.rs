@@ -1,4 +1,4 @@
-//! Entry-local tables (data-structures.md §3.20.2): run IDs never reach a
+//! Entry-local tables (`docs/compiler/data-structures.md` §3.20.2): run IDs never reach a
 //! cache entry. A writer collects the stable paths, types, type lists and
 //! symbols one blob mentions and gives each a row; the reader re-interns
 //! the rows into this run's tables. Rows refer only to earlier rows.
@@ -126,7 +126,7 @@ impl<'a> TableWriter<'a> {
             return Ok(x);
         }
         let mut d = self.pool.row_data(r);
-        // Content order (scheduler.md §6.5): the pool lists keys by this
+        // Content order (`crates/hd_sched/DESIGN.md` §6.5): the pool lists keys by this
         // run's interning order, which must not reach a cache entry. Each
         // key sorts by its own encoding in a fresh table, which holds only
         // stable paths and content.

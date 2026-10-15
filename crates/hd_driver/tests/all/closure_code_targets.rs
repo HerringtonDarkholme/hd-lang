@@ -1,6 +1,6 @@
-//! Closure code per engine target (opt-pipeline.md §4 and §5, job (d) of
+//! Closure code per engine target (`crates/hd_opt/DESIGN.md` (optimization pipelines) §4 and §5, job (d) of
 //! #162): `V8` and `Browser` give the closure base a typed code field;
-//! `Wasmtime` an abstract `funcref` that a call casts (closure-calls.md §7,
+//! `Wasmtime` an abstract `funcref` that a call casts (`crates/hd_opt/DESIGN.md` (known closure calls) §7,
 //! E1). Every target's module is valid Wasm GC on every engine, so a module
 //! built for one engine runs, with the same output, on the other: the `V8`
 //! build on wasmtime (with the `wasmtime` feature) and the `Wasmtime` build

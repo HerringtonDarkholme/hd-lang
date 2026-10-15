@@ -1,6 +1,6 @@
 // The execution journal of a REPL session in the JS host, byte for byte as
 // `hd_run` writes and reads it (crates/hd_run/src/journal.rs and
-// replay.rs; live-execution.md §4 and §5), so a journal the wasmtime
+// replay.rs; future-work/live-execution.md §4 and §5), so a journal the wasmtime
 // session recorded replays here and one recorded here replays there.
 //
 // `journal = Header Row*`; `Row = kind: u8, index: uleb, len: uleb,

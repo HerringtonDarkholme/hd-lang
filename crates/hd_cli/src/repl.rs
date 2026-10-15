@@ -1,4 +1,4 @@
-//! The REPL (spec `cli.repl.*`, repl-plan.md job C9): `hd` with no
+//! The REPL (spec `cli.repl.*`, `f1c55020:future-work/compiler/repl-plan.md` job C9): `hd` with no
 //! arguments on a terminal (`cli.repl.open.terminal`). It runs on wasmtime
 //! only, so it exists in a build with the `wasmtime` feature; `main.rs`
 //! says so in a build without it.
@@ -61,7 +61,7 @@ Ctrl-C clears the line, or stops the input that runs.
 ";
 
 /// Said once, after the input in which the session's journal of host
-/// calls passed its cap (live-execution.md §4.6): recording stopped, so
+/// calls passed its cap (`future-work/live-execution.md` §4.6): recording stopped, so
 /// the session cannot be rebuilt (`cli.repl.rebuild`). The session itself
 /// goes on.
 const JOURNAL_FULL: &str =
@@ -423,7 +423,7 @@ struct Repl {
     names: complete::Names,
 }
 
-/// The pipeline of every module a session builds (opt-pipeline.md §5): the
+/// The pipeline of every module a session builds (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the
 /// REPL runs on wasmtime only, unoptimized.
 pub(crate) const PIPELINE: crate::Pipeline =
     crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false);

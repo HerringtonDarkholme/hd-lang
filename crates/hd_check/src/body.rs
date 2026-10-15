@@ -1,4 +1,4 @@
-//! Body checking (type-checking.md §1.4 to §1.6; checking-and-tir.md
+//! Body checking (`crates/hd_check/DESIGN.md` (type checking) §1.4 to §1.6; `crates/hd_tir/DESIGN.md`
 //! §4.13): one function body over the full parser's tree, typed with an
 //! `InferTable` whose variable types live in the body's `LocalPool`, trait goals through the
 //! `Solver` with fuel, TIR written through `TirBuilder`. User errors go to
@@ -29,7 +29,7 @@ use crate::access::FieldKind;
 
 /// What a body sees: the run's tables, its module's scope, the items of
 /// its closure and its view of the impls (owner tables and its impl
-/// universe, trait-solver.md §3.2).
+/// universe, `crates/hd_check/DESIGN.md` (trait solver) §3.2).
 pub struct BodyCx<'a> {
     pub names: Names<'a>,
     pub src: Src<'a>,
@@ -48,7 +48,7 @@ pub struct BodyCx<'a> {
     /// build rejects in the user's own code (`module.dbg.release`).
     pub dbg_refs: std::cell::RefCell<Vec<crate::dbg::DbgRef>>,
     /// The module's block-local declarations, lifted to hidden items
-    /// (checking-and-tir.md "Local items lift to hidden module items").
+    /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
     /// The module's file as diagnostics name it, which a `dbg` line's
     /// location starts with (`module.dbg.location`).
@@ -88,7 +88,7 @@ impl<'a> BodyCx<'a> {
 
 impl BodyCx<'_> {
     /// The declarations the solver's compiler-supplied rows read
-    /// (trait-solver.md §3.9).
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     pub(crate) fn decls(&self) -> LookupDecls<'_> {
         LookupDecls {
             lookup: self.lookup,
@@ -111,7 +111,7 @@ pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
 
 /// An open closure: its builder mark, the scope depth at its start, its
 /// result type.
-/// One level of the available-keys stack (type-checking.md §5.2).
+/// One level of the available-keys stack (`crates/hd_check/DESIGN.md` (type checking) §5.2).
 #[derive(Clone)]
 pub(crate) enum RowFrame {
     /// A function's declared row: the bottom of a body's stack.
@@ -127,7 +127,7 @@ pub(crate) enum RowFrame {
     },
     /// A private function's omitted row (`req.row.omitted.inferred-private`):
     /// the keys its body uses so far outside its own `$.with` blocks, and
-    /// its calls of rows still open (checking-and-tir.md "M3: inferred
+    /// its calls of rows still open (`crates/hd_tir/DESIGN.md` "M3: inferred
     /// rows").
     Inferred {
         used: hd_types::RowData,
@@ -308,7 +308,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// Nested projection normalizations, against binding cycles.
     pub norm_depth: u32,
     /// Arguments of an instantiation choice inferred once, before its
-    /// trials (type-checking.md §2.5 "Trial cost"): node, value, type.
+    /// trials (`crates/hd_check/DESIGN.md` (type checking) §2.5 "Trial cost"): node, value, type.
     pub pre_args: Vec<(NodeRefIdx, Ref, Ty)>,
     /// Call parameters named only in bounds that call inference left
     /// unsolved (§2.4 step 9): variable, call, and whether a bound allows
@@ -332,7 +332,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// `Structure` method and its walker, describer or source type.
     pub structure_calls: Vec<(DefId, Ty)>,
     /// Checking a tuple template's method for its plan: where its member
-    /// steps go (trait-solver.md §3.9).
+    /// steps go (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     pub plan_sink: Option<&'c std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
     /// The least-common-type sites being joined (`types.lct.sites`), by
     /// join variable, with the values each has joined.
@@ -678,7 +678,7 @@ pub(crate) fn is_inspectable_key(
         && (def == inspectable || trait_extends(lookup, pool, def, inspectable, 0))
 }
 
-/// Elaborates one declared bound into an environment (trait-solver.md
+/// Elaborates one declared bound into an environment (`crates/hd_check/DESIGN.md` (trait solver)
 /// §2.3, §4.2): the clause, a defaulted trait argument left out filled
 /// in, then its supertraits, depth first in declared order, each trait
 /// reference once. Bodies and header checks build their environments
@@ -783,7 +783,7 @@ pub(crate) fn check_fn_in(
 
 /// Checks a tuple template's method for the template's plan: the member
 /// steps of its `walk`, `describe` and `build` calls go to `sink`
-/// (trait-solver.md §3.9). Diagnostics go to `diags`.
+/// (`crates/hd_check/DESIGN.md` (trait solver) §3.9). Diagnostics go to `diags`.
 pub fn check_tuple_template_method(
     cx: &BodyCx<'_>,
     def: DefId,
@@ -881,14 +881,14 @@ pub(crate) fn check_fn_body(
 }
 
 /// The `DefId` of a default body: the declaration's path plus the field or
-/// parameter name (checking-and-tir.md "Default calls").
+/// parameter name (`crates/hd_tir/DESIGN.md` "Default calls").
 #[must_use]
 pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
     names.member(owner, hd_intern::PathKind::Hidden, name)
 }
 
 /// Checks one default expression as a body of kind `Default`
-/// (type-checking.md §1.7): a data field's (no parameters) or a function
+/// (`crates/hd_check/DESIGN.md` (type checking) §1.7): a data field's (no parameters) or a function
 /// parameter's (the earlier parameters are its parameters).
 pub fn check_default(
     cx: &BodyCx<'_>,
@@ -1348,7 +1348,7 @@ impl Ck<'_, '_> {
     }
 
     /// Unifies `got` with `want`, inserting the coercions of
-    /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
+    /// `crates/hd_check/DESIGN.md` (type checking) §4.2 (`never`, `.Some` wrapping, trait values).
     /// `position` flows to `expect`, selecting its error codes.
     pub(crate) fn coerce(
         &mut self,
@@ -1824,7 +1824,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let pool = self.pool();
         // Projections with a known base normalize before the goal is
-        // solved (trait-solver.md §4.3, point 3).
+        // solved (`crates/hd_check/DESIGN.md` (trait solver) §4.3, point 3).
         let tref = TraitRef {
             trait_: tref.trait_,
             self_ty: self.norm_ty(self.infer.resolve(pool, tref.self_ty)),
@@ -1931,7 +1931,7 @@ impl Ck<'_, '_> {
         self.cx.solver.solve(&mut scx, goal, &mut self.fuel)
     }
 
-    /// The evidence of a goal that a compiler-supplied row (trait-solver.md
+    /// The evidence of a goal that a compiler-supplied row (`crates/hd_check/DESIGN.md` (trait solver)
     /// §3.9) or a trait value's row (§9.3) answers, when one holds; `None`
     /// for a goal the impl tables decide.
     pub(crate) fn supplied_holds(&mut self, tref: TraitRef) -> StageResult<Option<Evidence>> {
@@ -2970,7 +2970,7 @@ impl Ck<'_, '_> {
     }
 
     /// Resolves every type the body recorded; literal variables with no
-    /// other constraint take their default type (type-checking.md §3.6).
+    /// other constraint take their default type (`crates/hd_check/DESIGN.md` (type checking) §3.6).
     pub(crate) fn zonk(&mut self, t: Ty) -> Ty {
         let pool = self.pool();
         let r = self.infer.resolve(pool, t);
@@ -3494,7 +3494,7 @@ impl Ck<'_, '_> {
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
         }
-        // Capture modes (checking-and-tir.md "Data and closures"): `Copy`
+        // Capture modes (`crates/hd_tir/DESIGN.md` "Data and closures"): `Copy`
         // when no side assigns the local after its declaration, `Shared`
         // otherwise. `Move` needs the liveness pass and is not chosen yet.
         let modes: Vec<hd_tir::ir::CaptureMode> = {

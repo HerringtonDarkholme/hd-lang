@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_run_wasmtime`: the wasmtime engine and the default profile's host
-//! (codegen.md §11.4; engines-and-test-runner.md §18; runtime-and-host.md
+//! (`crates/hd_mono/DESIGN.md` §11.4; `docs/compiler/engines-and-test-runner.md` §18; `crates/hd_run_wasmtime/DESIGN.md`
 //! §17.5).
 //!
 //! A program runs in-process: its module is compiled by Cranelift with

@@ -1,4 +1,4 @@
-//! The stable-path trie (data-structures.md §3.2) and the sharded interner
+//! The stable-path trie (`docs/compiler/data-structures.md` §3.2) and the sharded interner
 //! (§3.3).
 //!
 //! Every package, module segment and item segment is one trie node, and a

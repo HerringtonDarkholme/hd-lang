@@ -1,5 +1,5 @@
 //! Provider keys carry their type arguments (`req.row.entail.generic`,
-//! `req.key.binding.identity`, codegen.md §13.18): `Repo[User]` and
+//! `req.key.binding.identity`, `crates/hd_mono/DESIGN.md` §13.18): `Repo[User]` and
 //! `Repo[Post]` are two keys with two providers, through a direct call, a
 //! generic instance, a function value, a data field and a suspension.
 //! Programs build through the driver and run on V8 (`host/run.mjs`), as

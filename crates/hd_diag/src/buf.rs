@@ -1,5 +1,5 @@
-//! Diagnostic records as columns (data-structures.md §3.8) and the compact
-//! and JSON renderers (checking-and-tir.md §4.14).
+//! Diagnostic records as columns (`docs/compiler/data-structures.md` §3.8) and the compact
+//! and JSON renderers (`crates/hd_tir/DESIGN.md` §4.14).
 
 use std::fmt::Write as _;
 
@@ -159,7 +159,7 @@ impl DiagBuf {
         }
     }
 
-    /// A rollback point: every column's length (type-checking.md §3.5).
+    /// A rollback point: every column's length (`crates/hd_check/DESIGN.md` (type checking) §3.5).
     #[must_use]
     pub fn mark(&self) -> DiagMark {
         let n = |v: usize| u32::try_from(v).expect("diags");
@@ -213,7 +213,7 @@ impl DiagBuf {
         self.code.is_empty()
     }
 
-    /// Content order (scheduler.md §6.5): by file, position, then code.
+    /// Content order (`crates/hd_sched/DESIGN.md` §6.5): by file, position, then code.
     #[must_use]
     pub fn content_order(&self) -> Vec<usize> {
         let mut order: Vec<usize> = (0..self.len()).collect();

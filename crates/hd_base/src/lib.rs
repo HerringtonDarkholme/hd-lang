@@ -2,7 +2,7 @@
 //! `hd_base`: the ID newtype macro, `Hash128` and `StableHasher`, `Span`,
 //! `Fuel`, `AppendVec`, the little-endian entry codec and the structured
 //! "not implemented" error that every skeleton stage returns
-//! (design-overview.md §2.1, data-structures.md §3.1, §3.2, §3.9.4).
+//! (`docs/compiler/design-overview.md` §2.1, `docs/compiler/data-structures.md` §3.1, §3.2, §3.9.4).
 //! `append` is the workspace's one audited `unsafe` module.
 
 pub mod append;
@@ -93,7 +93,7 @@ impl BuildProfile {
     }
 }
 
-/// The engine a build is tuned for (opt-pipeline.md §1.1). Every target
+/// The engine a build is tuned for (`crates/hd_opt/DESIGN.md` (optimization pipelines) §1.1). Every target
 /// emits standard Wasm GC that every engine runs; a target only tunes
 /// speed. It is not the output format (`wasm32-gc`), and its name is in no
 /// key: only the pipeline content it selects is.
@@ -113,7 +113,7 @@ impl EngineTarget {
     pub const ALL: [Self; 3] = [Self::V8, Self::Wasmtime, Self::Browser];
 }
 
-/// How much a build optimizes (opt-pipeline.md §3.1): the dev pipeline, or
+/// How much a build optimizes (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.1): the dev pipeline, or
 /// the optimized one that `--release` selects. It is apart from the
 /// [`BuildProfile`]: `hd test --release` builds checked and optimized.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -140,14 +140,14 @@ const _: () = assert!(core::mem::size_of::<Span>() == 12);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Hash128(pub u128);
 
-/// The content hash of a byte string: xxh3-128 (data-structures.md §3.2).
+/// The content hash of a byte string: xxh3-128 (`docs/compiler/data-structures.md` §3.2).
 #[must_use]
 pub fn hash128(bytes: &[u8]) -> Hash128 {
     Hash128(xxhash_rust::xxh3::xxh3_128(bytes))
 }
 
-/// Per-body (or per-goal) work budget (checking-and-tir.md §4.15,
-/// trait-solver.md §7.4). Fuel counts steps, never time.
+/// Per-body (or per-goal) work budget (`crates/hd_tir/DESIGN.md` §4.15,
+/// `crates/hd_check/DESIGN.md` (trait solver) §7.4). Fuel counts steps, never time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Fuel {
     left: u64,

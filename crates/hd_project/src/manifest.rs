@@ -1,5 +1,5 @@
 //! The manifest `hd.toml`: its tables, and the rules a manifest alone can
-//! break (commands.md §7.1 step 1: [Dependency Requirements], [Host Paths],
+//! break (`crates/hd_cli/DESIGN.md` §7.1 step 1: [Dependency Requirements], [Host Paths],
 //! [Versions], [Toolchain Version] of `spec/lang/10-modules.md`,
 //! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 

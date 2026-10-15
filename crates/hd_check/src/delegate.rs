@@ -1,5 +1,5 @@
 //! The forwarding methods of a delegating implementation `impl Tr for C
-//! by E` (spec 09 "Generated Methods", trait.by.generated; trait-solver.md
+//! by E` (spec 09 "Generated Methods", trait.by.generated; `crates/hd_check/DESIGN.md` (trait solver)
 //! §3.10). Header lowering declares one per method of `Tr` with a receiver
 //! that the body does not write, with the trait method's signature at
 //! `Self = C[...]` (`hd_resolve::lower::delegations`). Each body here is

@@ -1,5 +1,5 @@
 //! `hd test [FILE] [--filter PATTERN] [--jobs N]` (spec/cli/command-line.md,
-//! "Test Runs"; engines-and-test-runner.md §19): build the package's
+//! "Test Runs"; `docs/compiler/engines-and-test-runner.md` §19): build the package's
 //! unit-test program, run each selected case in a fresh instance on the selected
 //! workers, and print the results through the release cursor in content
 //! order, whatever order the workers finish in.
@@ -272,7 +272,7 @@ pub fn command(args: &[OsString]) -> ExitCode {
     report.finish()
 }
 
-/// One program of a test run (engines-and-test-runner.md §19.1): the
+/// One program of a test run (`docs/compiler/engines-and-test-runner.md` §19.1): the
 /// unit-test program, an integration test file (`module.test.integration`)
 /// or a doc test (`module.test.doc.program`), each built on its own.
 struct Built {
@@ -290,7 +290,7 @@ struct Built {
 
 /// What names one program's panic frames (`cli.test.report.frame`): its
 /// sources' positions, and its line table, read on the program's first
-/// trap and shared by every case after it (wasm-layout.md §15.9, Q2).
+/// trap and shared by every case after it (`crates/hd_wasm/DESIGN.md` §15.9, Q2).
 pub(crate) struct Frames {
     positions: hd_driver::Positions,
     table: std::sync::OnceLock<Option<hd_run::frames::LineTable>>,
@@ -485,7 +485,7 @@ impl Doc {
 
 /// The doc tests of the package's source files, or of FILE's module
 /// (`cli.test.doc.default`), each as a synthetic integration-view module
-/// under the test root (checking-and-tir.md §4.13.9).
+/// under the test root (`crates/hd_tir/DESIGN.md` §4.13.9).
 pub(crate) fn doc_tests(sources: &disk::DiskSources, file: Option<&str>) -> Vec<Doc> {
     let mut out = Vec::new();
     for e in sources.list() {
@@ -1331,7 +1331,7 @@ fn panic_of(stderr: &str) -> (String, String) {
 
 /// What `hd test` prints: quiet passes, each other case with its location,
 /// a failure with its message and a repro command, then a summary
-/// (engines-and-test-runner.md §19.5). With `--format json`, one test
+/// (`docs/compiler/engines-and-test-runner.md` §19.5). With `--format json`, one test
 /// object per case instead (`cli.json.test.result`), then the summary.
 struct Report {
     rep: Reporter,

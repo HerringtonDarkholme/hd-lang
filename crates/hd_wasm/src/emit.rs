@@ -1,4 +1,4 @@
-//! `Emit(inst)` (codegen.md §12.1, §12.2): one walk of an instance's
+//! `Emit(inst)` (`crates/hd_mono/DESIGN.md` §12.1, §12.2): one walk of an instance's
 //! generic TIR under its substitution. Every value instruction's result
 //! lives in Wasm locals, one per value of its layout (`multi` layouts have
 //! several), so structured control needs only empty block types. Calls go
@@ -35,7 +35,7 @@ enum Ctl {
     Arm(u32, u32),
     Brk(u32),
     Cont(u32),
-    /// The cleanup block of `Scope` instruction `s` (codegen.md §12.2,
+    /// The cleanup block of `Scope` instruction `s` (`crates/hd_mono/DESIGN.md` §12.2,
     /// "The exit ladder"): a branch to it runs the scope's suites.
     Scope(u32),
 }
@@ -46,7 +46,7 @@ enum Exit {
     Ret,
     Brk(u32),
     Cont(u32),
-    /// Cancellation at a suspension point (suspension.md §14.6): it runs
+    /// Cancellation at a suspension point (`crates/hd_wasm/DESIGN.md` §14.6): it runs
     /// the same suites, then the body returns.
     Cancel,
 }
@@ -57,7 +57,7 @@ struct ScopeInfo {
     exits: Vec<Exit>,
 }
 
-/// A suspending body's state machine (suspension.md §14.2, §14.3).
+/// A suspending body's state machine (`crates/hd_wasm/DESIGN.md` §14.2, §14.3).
 struct Susp {
     /// `$F_f`: the frame.
     frame_ty: WTy,
@@ -89,7 +89,7 @@ struct Em<'a> {
     ctrl: Vec<Ctl>,
     deciding: Vec<u32>,
     /// Covering providers, innermost last: the whole key (the trait value
-    /// type with its arguments, codegen.md §13.18), its two locals.
+    /// type with its arguments, `crates/hd_mono/DESIGN.md` §13.18), its two locals.
     providers: Vec<(Ty, [u32; 2])>,
     /// The instance's own key (a suspending body names its parts).
     key: Hash128,
@@ -101,7 +101,7 @@ struct Em<'a> {
     /// Each `defer` suite's "registered" flag local.
     defer_flags: HashMap<u32, u32>,
     susp: Option<Susp>,
-    /// An erased body's thunks (codegen.md §13.5.1): the local holding
+    /// An erased body's thunks (`crates/hd_mono/DESIGN.md` §13.5.1): the local holding
     /// its witness field, that field's struct type, and each open
     /// instruction's thunk type.
     ops: Option<(u32, WTy, Vec<WTy>)>,
@@ -497,7 +497,7 @@ impl Em<'_> {
     }
 
     /// Emits instruction `i`, which anchors the calls it writes when it has
-    /// a source position (wasm-layout.md §15.9).
+    /// a source position (`crates/hd_wasm/DESIGN.md` §15.9).
     fn inst(&mut self, i: u32) -> StageResult<()> {
         let outer = self.a.at;
         if self
@@ -679,7 +679,7 @@ impl Em<'_> {
                     return self.canonical_data(i, ty, st);
                 }
                 // Replacements are `(field, value)` pairs; every other field
-                // is read from the source (codegen.md `CopyData`).
+                // is read from the source (`crates/hd_mono/DESIGN.md` `CopyData`).
                 let words = self.rec(bw);
                 let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
                 for (idx, (start, vs)) in fields.iter().enumerate() {
@@ -1592,7 +1592,7 @@ impl Em<'_> {
     }
 
     /// Brings an `i32` holding a `bits`-wide integer's low bits back to
-    /// canonical form (codegen.md §13.15): sign-extended when `signed`,
+    /// canonical form (`crates/hd_mono/DESIGN.md` §13.15): sign-extended when `signed`,
     /// zero-extended otherwise. Every producer of a sub-word value ends
     /// with it, so consumers use the native 32-bit operations. Nothing at
     /// 32 and 64 bits.
@@ -1709,7 +1709,7 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// Checked integer arithmetic (codegen.md §13.15, `types.arith.checked`).
+    /// Checked integer arithmetic (`crates/hd_mono/DESIGN.md` §13.15, `types.arith.checked`).
     /// Sub-word widths compute exactly in `i32` and 32-bit widths in `i64`,
     /// each range-checked against the type; 64-bit widths test the native
     /// result. The operands are canonical, and an in-range result is too.
@@ -2025,7 +2025,7 @@ impl Em<'_> {
 
     /// The current providers for a callee's row keys, in key order: per
     /// key, the innermost provider of that whole key, so `Repo[User]`
-    /// never matches `Repo[Post]` (`req.row.entail.generic`, codegen.md
+    /// never matches `Repo[Post]` (`req.row.entail.generic`, `crates/hd_mono/DESIGN.md`
     /// §13.18). Check covers every key, so a miss is internal.
     fn push_providers(&mut self, keys: &[Ty]) -> StageResult<()> {
         for k in keys {
@@ -2057,7 +2057,7 @@ impl Em<'_> {
     }
 
     /// The keys of a context type's row, whole and in key order: the
-    /// order of its providers array (codegen.md §12.4, "Context values").
+    /// order of its providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
     fn context_keys(&self, t: Ty) -> StageResult<Vec<Ty>> {
         let pool = self.pool();
         let TyData::Context(row) = pool.get(self.lay.strip(t)) else {
@@ -2140,7 +2140,7 @@ impl Em<'_> {
 
     /// The context a call of a function value of type `callee` passes:
     /// the key ids and this body's providers of the callee type's row
-    /// (codegen.md §12.4), or two nulls for the empty row.
+    /// (`crates/hd_mono/DESIGN.md` §12.4), or two nulls for the empty row.
     fn push_ctx(&mut self, callee: Ty) -> StageResult<()> {
         let keys = self.fn_row_keys(callee);
         if keys.is_empty() {
@@ -2200,7 +2200,7 @@ impl Em<'_> {
 
     /// A direct `call` of a collected instance: the arguments at the
     /// callee's parameter types, then its providers. `bracket` counts the
-    /// call as a forbidden context (suspension.md §14.9), so `block_on`
+    /// call as a forbidden context (`crates/hd_wasm/DESIGN.md` §14.9), so `block_on`
     /// reached inside it panics.
     fn call_instance(
         &mut self,
@@ -2242,7 +2242,7 @@ impl Em<'_> {
         crate::rt::forbid_by(&mut self.a, by);
     }
 
-    /// An omitted argument (`fn.default.eval`, codegen.md §13.13): a
+    /// An omitted argument (`fn.default.eval`, `crates/hd_mono/DESIGN.md` §13.13): a
     /// direct `call` of its default body's instance with the earlier
     /// argument values, bracketed when the body makes a call (§12.3).
     fn default_call(&mut self, i: u32, args_at: u32, ty: Ty) -> StageResult<()> {
@@ -2471,7 +2471,7 @@ impl Em<'_> {
                 Ok(())
             }
             "block_on" => {
-                // suspension.md §14.9: poll; when Pending, wait in the host.
+                // `crates/hd_wasm/DESIGN.md` §14.9: poll; when Pending, wait in the host.
                 let Shape::Suspend { base, poll, result } = self.lay.shape(self.ty_of(args[0]))?
                 else {
                     return unsupported("`block_on` of a value that is not a suspension");
@@ -2758,11 +2758,11 @@ impl Em<'_> {
     /// A trait-value call, its results left on the stack: the method's
     /// slot in the vtable of its declaring trait `trait_`, reached from
     /// the receiver's vtable through the parent fields when `trait_` is a
-    /// supertrait (trait.dyn.value-methods, codegen.md §13.16). `targs`
+    /// supertrait (trait.dyn.value-methods, `crates/hd_mono/DESIGN.md` §13.16). `targs`
     /// are the callee's type arguments, the trait's first. A generic
     /// method's slot takes its open arguments as `eqref` and the witness
     /// of the call's method type arguments, and its open result, unboxed
-    /// here, has the type `ret` (codegen.md §13.5.1).
+    /// here, has the type `ret` (`crates/hd_mono/DESIGN.md` §13.5.1).
     fn push_dyn(
         &mut self,
         trait_: DefId,
@@ -2844,7 +2844,7 @@ impl Em<'_> {
         Ok(rs.clone())
     }
 
-    /// An erased body's prologue (codegen.md §13.5.1): its field of the
+    /// An erased body's prologue (`crates/hd_mono/DESIGN.md` §13.5.1): its field of the
     /// witness parameter `w`, cast to the struct of its thunks.
     fn read_ops(&mut self, w: u32, family: Hash128) -> StageResult<()> {
         let mut opens: Vec<(u32, u32)> = self
@@ -2880,7 +2880,7 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// An open instruction of an erased body (codegen.md §13.5.1): its
+    /// An open instruction of an erased body (`crates/hd_mono/DESIGN.md` §13.5.1): its
     /// operands, open ones as `eqref`, and the body's providers go to
     /// its thunk in the witness field the prologue read, whose results
     /// are left on the stack.
@@ -2912,7 +2912,7 @@ impl Em<'_> {
     }
 
     /// A closure value: its code, the instance collection recorded (a
-    /// closure body, or a function reference's adapter, codegen.md
+    /// closure body, or a function reference's adapter, `crates/hd_mono/DESIGN.md`
     /// §13.11), and the captured locals `caps` (indices into
     /// `cap_local`). A closure whose environment holds no value is the
     /// constant global of its code (`GSym::Closure`), read without
@@ -2935,7 +2935,7 @@ impl Em<'_> {
     }
 
     /// The environment struct of a closure value of type `ty` that
-    /// captures `caps` (codegen.md, the `Closure` row): a subtype of the
+    /// captures `caps` (`crates/hd_mono/DESIGN.md`, the `Closure` row): a subtype of the
     /// function type's base holding the code, then each captured local's
     /// values (a `Shared` one's cell). Each captured value comes with its
     /// field and the Wasm local holding it, in field order.
@@ -3036,7 +3036,7 @@ impl Em<'_> {
         unsupported(format!("the coercion kind {kind}"))
     }
 
-    /// Widening to a supertrait value (trait.dyn.widen, codegen.md
+    /// Widening to a supertrait value (trait.dyn.widen, `crates/hd_mono/DESIGN.md`
     /// §13.16): the payload unchanged, and the supertrait's vtable read
     /// through the parent fields of the child's.
     fn widen(&mut self, i: u32, v: u32, ty: Ty) -> StageResult<()> {
@@ -3525,7 +3525,7 @@ impl Em<'_> {
     }
 
     /// How instruction `i`'s map hashes and compares keys of type `kt`
-    /// (codegen.md §13.12): inline for an integer, `bool`, `char` or
+    /// (`crates/hd_mono/DESIGN.md` §13.12): inline for an integer, `bool`, `char` or
     /// `string`, else through the `hash_of` and `Eq.eq` instances that
     /// collection selected at the key type.
     fn key_ops(&self, i: u32, kt: Ty, key: &[VT]) -> StageResult<KeyOps> {
@@ -3664,7 +3664,7 @@ impl Em<'_> {
         self.store(i)
     }
 
-    /// `m[k]`, `m.get(k)`, `m[k] = v` and `m.remove(k)` (codegen.md
+    /// `m[k]`, `m.get(k)`, `m[k] = v` and `m.remove(k)` (`crates/hd_mono/DESIGN.md`
     /// §13.12): hash the key, then probe for its entry.
     fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32], ty: Ty) -> StageResult<()> {
         let (key, val, mt, kt) = self.map_parts(self.ty_of(args[0]))?;
@@ -3763,7 +3763,7 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// `Map.iter()`: a cursor closure over the entries (codegen.md
+    /// `Map.iter()`: a cursor closure over the entries (`crates/hd_mono/DESIGN.md`
     /// §13.12), capturing the written and live entry counts.
     fn map_iter(&mut self, i: u32, map: u32, ty: Ty) -> StageResult<()> {
         let (key, val, mt, _) = self.map_parts(self.ty_of(map))?;
@@ -3835,7 +3835,7 @@ fn opt_form(o: OptShape) -> OptForm {
 }
 
 /// The Wasm signature of an instance: its parameters' values, then one
-/// trait value per row key (codegen.md §12.4); a closure's code takes its
+/// trait value per row key (`crates/hd_mono/DESIGN.md` §12.4); a closure's code takes its
 /// environment first.
 pub fn signature(
     lay: &Lay<'_>,
@@ -3935,7 +3935,7 @@ type Plan = (HashMap<u32, u32>, HashMap<u32, (u32, u32)>);
 
 /// Numbers the suspension points in structural order and records, for
 /// every block and instruction that contains one, its range of states
-/// (suspension.md §14.2): a subtree's states are contiguous.
+/// (`crates/hd_wasm/DESIGN.md` §14.2): a subtree's states are contiguous.
 fn plan(b: &Body, root: u32) -> StageResult<Plan> {
     fn join(r: Option<(u32, u32)>, x: Option<(u32, u32)>) -> Option<(u32, u32)> {
         match (r, x) {
@@ -4074,7 +4074,7 @@ impl<'a> Em<'a> {
 
     /// With the branch condition of `i` on the stack: on resume, replaces
     /// it by whether the resumed state is in `then`, so a resumed branch
-    /// enters the side that holds the point (suspension.md §14.2). A
+    /// enters the side that holds the point (`crates/hd_wasm/DESIGN.md` §14.2). A
     /// `select`, since structured blocks here carry no values.
     fn resume_branch(&mut self, i: u32, then: u32) {
         if self.range(i).is_none() {
@@ -4090,7 +4090,7 @@ impl<'a> Em<'a> {
         self.a.s().select();
     }
 
-    /// A block list that contains a suspension point (suspension.md
+    /// A block list that contains a suspension point (`crates/hd_wasm/DESIGN.md`
     /// §14.2): on resume, the code before the point is skipped, and each
     /// construct on the way enters the branch that holds the point.
     fn resume_list(&mut self, items: &[u32]) -> StageResult<()> {
@@ -4242,7 +4242,7 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// A `Scope` with `defer` suites: the exit ladder (codegen.md §12.2).
+    /// A `Scope` with `defer` suites: the exit ladder (`crates/hd_mono/DESIGN.md` §12.2).
     /// Each suite has a "registered" flag; every exit stores its code and
     /// branches to the scope's end, which runs the registered suites last
     /// in, first out, then takes the exit.
@@ -4310,7 +4310,7 @@ impl<'a> Em<'a> {
     /// `$.with(K = p, ctx..., ...): block`: each provider, a trait value
     /// of its key since checking, and each spread context's providers
     /// cover their keys in the block, later entries innermost
-    /// (codegen.md §12.4, "Context values").
+    /// (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
     fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
         let pairs = self.rec(rec);
         let mut pushed = 0;
@@ -4346,7 +4346,7 @@ impl<'a> Em<'a> {
         r
     }
 
-    /// Pushes a vtable (codegen.md §13.5, §13.16) of adapters over the
+    /// Pushes a vtable (`crates/hd_mono/DESIGN.md` §13.5, §13.16) of adapters over the
     /// slots' targets, for a payload of values `fv` erased to `eqref`: its
     /// method slots, then its direct supertraits' vtables. A supertrait
     /// reached twice, as `Display` is through two paths of a diamond, is
@@ -4475,7 +4475,7 @@ impl<'a> Em<'a> {
         Ok((s.frame_ty.clone(), s.base.clone(), s.frame, s.pc))
     }
 
-    /// Saves every saved local into the frame (suspension.md §14.3).
+    /// Saves every saved local into the frame (`crates/hd_wasm/DESIGN.md` §14.3).
     fn save(&mut self) -> StageResult<()> {
         let (ft, _, frame, _) = self.susp_parts()?;
         let saved = self
@@ -4554,7 +4554,7 @@ impl<'a> Em<'a> {
         self.a.end();
     }
 
-    /// A suspension point (suspension.md §14.2 to §14.6).
+    /// A suspension point (`crates/hd_wasm/DESIGN.md` §14.2 to §14.6).
     fn point(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let Some(k) = self.susp.as_ref().and_then(|s| s.states.get(&i).copied()) else {
             return unsupported("a suspension point outside a suspending body");
@@ -4754,7 +4754,7 @@ impl<'a> Em<'a> {
         self.store_from(i, &dres)
     }
 
-    /// `all!(a, b, ...)` (suspension.md §14.5): polls the unfinished
+    /// `all!(a, b, ...)` (`crates/hd_wasm/DESIGN.md` §14.5): polls the unfinished
     /// children in argument order, keeps each result, and completes once
     /// every child has.
     fn await_all(
@@ -4844,7 +4844,7 @@ pub enum HoldStub {
 }
 
 /// `Emit(inst)`: walks the generic TIR of sub-body `sub` under the
-/// instance's arguments. A suspending function's instance (suspension.md
+/// instance's arguments. A suspending function's instance (`crates/hd_wasm/DESIGN.md`
 /// §14.1) emits its cold constructor as the code entry and `f$body`,
 /// `f$poll` and `f$cancel` as its parts.
 pub fn emit(
@@ -4865,7 +4865,7 @@ pub fn emit(
     )
 }
 
-/// The erased body of a generic method a vtable slot holds (codegen.md
+/// The erased body of a generic method a vtable slot holds (`crates/hd_mono/DESIGN.md`
 /// §13.5.1): the item's body with its own type parameters open, its
 /// witness after its parameters, its open instructions calling the
 /// thunks of the witness field of the body's family.
@@ -4900,7 +4900,7 @@ pub fn emit_erased(
 }
 
 /// The type of thunk `at` of the erased body of `item` at `erased`
-/// (codegen.md §13.5.1): its operands as the erased body holds them,
+/// (`crates/hd_mono/DESIGN.md` §13.5.1): its operands as the erased body holds them,
 /// open ones as `eqref`, then the body's providers; its result likewise.
 fn thunk_sig(lay: &Lay, b: &Body, erased: TyList, at: u32) -> StageResult<WTy> {
     let (pool, env) = (lay.pool, lay.env);
@@ -4921,7 +4921,7 @@ fn thunk_sig(lay: &Lay, b: &Body, erased: TyList, at: u32) -> StageResult<WTy> {
 }
 
 /// Thunk `k` of an erased body at concrete method type arguments
-/// (codegen.md §13.5.1): the one open instruction collection recorded,
+/// (`crates/hd_mono/DESIGN.md` §13.5.1): the one open instruction collection recorded,
 /// emitted at the caller's types, its open operands unboxed or cast on
 /// the way in and its open result boxed or upcast on the way out.
 pub fn emit_thunk(
@@ -4982,7 +4982,7 @@ pub fn emit_thunk(
 }
 
 /// An item or closure body; `erased` is the witness family of an erased
-/// body (codegen.md §13.5.1).
+/// body (`crates/hd_mono/DESIGN.md` §13.5.1).
 fn emit_body(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -5185,7 +5185,7 @@ impl OnceCell<'_> {
 }
 
 /// The provider of key `k` from a closure call's context (the parameters
-/// `keys_at` and `provs_at`, codegen.md §12.4): two fresh locals holding
+/// `keys_at` and `provs_at`, `crates/hd_mono/DESIGN.md` §12.4): two fresh locals holding
 /// its value and its vtable. The caller's row covers `k`, so the search
 /// ends at its slot.
 fn ctx_provider(
@@ -5235,7 +5235,7 @@ fn ctx_provider(
     [pl, vl]
 }
 
-/// A function reference's adapter instance (codegen.md §13.11): closure
+/// A function reference's adapter instance (`crates/hd_mono/DESIGN.md` §13.11): closure
 /// code `(env, params..., keys, providers)` that forwards its parameters,
 /// receiver first for a method (`fn.ref.unbound.receiver`), and its row's
 /// providers from the context to one call of the item's instance at
@@ -5306,7 +5306,7 @@ pub fn emit_adapter(
 /// call: an intrinsic, a built-in family's method, or a trait method at a
 /// trait-value `Self`. The adapter is the call itself, as a body of one
 /// `Call` whose operands are the parameters, so the reference lowers
-/// exactly as a direct call at the same types does (codegen.md §13.11).
+/// exactly as a direct call at the same types does (`crates/hd_mono/DESIGN.md` §13.11).
 /// The closure's parameters are the call's operands, receiver first;
 /// `keys` are the row keys the call's providers come from, which the
 /// adapter takes from the context its caller passed.
@@ -5457,7 +5457,7 @@ struct ClosureBind {
 /// saves with its type, and a closure's bindings.
 type Pass = (Code, Vec<(u32, VT)>, Option<ClosureBind>);
 
-/// A suspending function or closure body (suspension.md §14.1 to §14.6).
+/// A suspending function or closure body (`crates/hd_wasm/DESIGN.md` §14.1 to §14.6).
 /// The body is emitted twice: the first pass learns its Wasm locals, which
 /// the frame saves; the second writes the state machine over that frame.
 ///
@@ -5833,10 +5833,10 @@ fn flag_checks(a: &mut Asm, f: u32, ft: &WTy, poll: bool) {
     a.end();
 }
 
-/// The entry exports (codegen.md §13.1, suspension.md §14.4): `hd.init`
+/// The entry exports (`crates/hd_mono/DESIGN.md` §13.1, `crates/hd_wasm/DESIGN.md` §14.4): `hd.init`
 /// runs every reachable group's init in order; `hd.poll` provides one
 /// default-profile provider per row key, each a vtable of host stubs
-/// generated from `hd_host_abi::TABLE` (runtime-and-host.md §17.1), and
+/// generated from `hd_host_abi::TABLE` (`crates/hd_run_wasmtime/DESIGN.md` §17.1), and
 /// runs `main` or polls `main!`, then turns its result into the exit
 /// status with `report` (a `std.rt` instance; `None` for `void`);
 /// `hd.wake(n)` records completed handles.
@@ -5915,7 +5915,7 @@ pub fn script_entry(
     ])
 }
 
-/// The exports of a test program (engines-and-test-runner.md §19.1):
+/// The exports of a test program (`docs/compiler/engines-and-test-runner.md` §19.1):
 /// `hd.init.j`, the init groups that test module `j` reaches; `hd.test.i`,
 /// which polls case `i` as `hd.poll` polls `main`; and `hd.wake`.
 pub fn test_entry(
@@ -6015,7 +6015,7 @@ fn root_poll(
     let mut providers = Vec::new();
     for key in env.row_keys(main, TyList::EMPTY) {
         // A host capability is never generic (`req.use.entry-row`), so the
-        // host table is keyed by the trait alone (codegen.md §13.18).
+        // host table is keyed by the trait alone (`crates/hd_mono/DESIGN.md` §13.18).
         let k = match pool.get(key) {
             TyData::TraitValue {
                 def,
@@ -6203,7 +6203,7 @@ fn profile_slot(
     host_slot(lay, key, &row, m, sig, false, Some(boundary))
 }
 
-/// One vtable slot of a default-profile provider (runtime-and-host.md
+/// One vtable slot of a default-profile provider (`crates/hd_run_wasmtime/DESIGN.md`
 /// §17.2): a host call for a method that never waits, a host leaf frame
 /// for one that may, or a stub that panics for a method whose declaration
 /// and ABI row disagree. With `handle`, the method's first ABI argument

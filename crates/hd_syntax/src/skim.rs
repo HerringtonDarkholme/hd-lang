@@ -273,7 +273,7 @@ fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
     let mut indents = vec![0_u16];
     // A function body that declares a local type, trait or impl stays in
     // the API text: those lift to module items, and a local impl is in
-    // the folder interface (checking-and-tir.md "Local items lift to
+    // the folder interface (`crates/hd_tir/DESIGN.md` "Local items lift to
     // hidden module items").
     let decls = decl_line_starts(tokens);
     let declares = |body: &BodyRange| {

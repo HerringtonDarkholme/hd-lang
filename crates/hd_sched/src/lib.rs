@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
-//! `hd_sched`: the task graph and its executors (scheduler.md §6.1 to
-//! §6.4; data-structures.md §3.21): serial (FIFO, priority or shuffled),
+//! `hd_sched`: the task graph and its executors (`crates/hd_sched/DESIGN.md` §6.1 to
+//! §6.4; `docs/compiler/data-structures.md` §3.21): serial (FIFO, priority or shuffled),
 //! stepping (the browser's `run_for`), and the rayon pool (feature
 //! `threads`). Every executor runs the same task signature, `Exec`: a task
 //! gets its id, its kind and a `&dyn Spawn` (SK-13).
@@ -34,7 +34,7 @@ pub enum TaskKind {
     Ext(ExtTask),
 }
 
-/// D2's tasks (codegen.md §11.3).
+/// D2's tasks (`crates/hd_mono/DESIGN.md` §11.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ExtTask {
     Collect,
@@ -133,7 +133,7 @@ impl TaskGraph {
         id
     }
 
-    /// The creation guard (data-structures.md §3.21): the task waits on
+    /// The creation guard (`docs/compiler/data-structures.md` §3.21): the task waits on
     /// one extra count until `release`, so edges added after creation can
     /// never race its start.
     pub fn add_held(&mut self, kind: TaskKind, deps: &[TaskId], priority: u32) -> TaskId {
@@ -256,7 +256,7 @@ impl TaskGraph {
     }
 }
 
-/// What a running task may do to the graph (scheduler.md §6.2, SK-13):
+/// What a running task may do to the graph (`crates/hd_sched/DESIGN.md` §6.2, SK-13):
 /// every executor implements it, so task code is executor-independent.
 pub trait Spawn {
     fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId;

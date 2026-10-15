@@ -1,5 +1,5 @@
 // The request and response of the playground's compiler wasm, the four
-// exports of crates/hd_web (playground-wasm.md §3.1). A request is the file
+// exports of crates/hd_web (crates/hd_web/DESIGN.md §3.1). A request is the file
 // count, each file's path and text, the entry path, then one goal byte and
 // the goal's own fields; counts, numbers and lengths are unsigned LEB128 and
 // strings UTF-8 (crates/hd_web/src/wire.rs). The response is JSON text plus

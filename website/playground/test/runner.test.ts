@@ -134,7 +134,7 @@ test("a type error is reported at its line and column", async () => {
 });
 
 // The panic report names its category and message; its source position
-// comes later (playground-wasm.md §5, item 2).
+// comes later (crates/hd_web/DESIGN.md §5, item 2).
 test("a runtime panic is reported after the output before it", async () => {
   const result = await run(
     single(
@@ -372,7 +372,7 @@ test("a two-file project with a package use compiles and runs", async () => {
 
 // Without `main`, Run builds the file as a script: its top-level statements
 // run as its initialization, and a bare expression prints nothing
-// (playground-wasm.md §5, item 1).
+// (crates/hd_web/DESIGN.md §5, item 1).
 test("without main, Run runs the top-level statements as a script", async () => {
   const source = [
     "# no main: each top-level statement runs in order",
@@ -475,7 +475,7 @@ test("Test runs the test cases, with or without main", async () => {
 });
 
 // The summaries name no source line: a panic's position needs the source
-// positions the playground does not have yet (playground-wasm.md §5).
+// positions the playground does not have yet (crates/hd_web/DESIGN.md §5).
 test("Test judges it_each rows, expected panics, and ignored cases as hd test does", async () => {
   const test = async (lines: readonly string[]) => {
     const result = await run(single(lines.join("\n")), "test");

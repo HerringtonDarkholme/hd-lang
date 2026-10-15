@@ -1,4 +1,4 @@
-//! `AppendVec` and frozen columns (data-structures.md §3.9.4).
+//! `AppendVec` and frozen columns (`docs/compiler/data-structures.md` §3.9.4).
 //!
 //! The design's `AppendVec` is a chunked column whose items never move:
 //! chunk `k` holds `2^(k+10)` items, readers index without a lock, and
@@ -48,7 +48,7 @@ impl Range32 {
     }
 }
 
-/// Growable column whose items never move (data-structures.md §3.9.4):
+/// Growable column whose items never move (`docs/compiler/data-structures.md` §3.9.4):
 /// dense `T` slots in doubling chunks, a published length, lock-free reads.
 pub struct AppendVec<T> {
     chunks: [AtomicPtr<MaybeUninit<T>>; CHUNKS],

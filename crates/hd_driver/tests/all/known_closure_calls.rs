@@ -1,4 +1,4 @@
-//! Known closure calls (closure-calls.md, options A1 and A2, #53): in the
+//! Known closure calls (`crates/hd_opt/DESIGN.md` (known closure calls), options A1 and A2, #53): in the
 //! optimized pipeline, a call of a closure value made in the same body,
 //! directly or through a local bound once, is a direct `call` of the
 //! closure's code (A1). A small callee that calls a parameter gets one copy
@@ -293,7 +293,7 @@ pub fn main() -> void $ Console:
 ";
 
 /// `V8` and `Browser` have the same pipeline content at each level, so the
-/// same bytes (opt-pipeline.md §3.3); `Wasmtime` stores closure code
+/// same bytes (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3); `Wasmtime` stores closure code
 /// differently (`closure_code_targets.rs`). Each build has its own store,
 /// so none is a cache hit.
 #[test]

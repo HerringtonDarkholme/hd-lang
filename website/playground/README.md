@@ -133,7 +133,7 @@ the separate `hd_web.wasm`, about 4.6 MB raw and 1.4 MB gzip.
 The playground's **REPL** view and the website's docked panel (**›\_ REPL**
 at the bottom of every docs page, or Ctrl+\`) are one panel,
 [`src/repl-panel.ts`](src/repl-panel.ts), over a REPL session on the Rust
-compiler (`cli.repl.*` in the spec, repl-plan.md job W5):
+compiler (`cli.repl.*` in the spec, `f1c55020:future-work/compiler/repl-plan.md` job W5):
 
 - Input: Enter runs an input; a line that ends in `:`, an open bracket, a
   `"""` string or a line of an indented block continues it, and an empty

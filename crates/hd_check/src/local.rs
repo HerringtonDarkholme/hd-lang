@@ -1,4 +1,4 @@
-//! Block-local declarations in a body (checking-and-tir.md "Local items
+//! Block-local declarations in a body (`crates/hd_tir/DESIGN.md` "Local items
 //! lift to hidden module items"). A local `data`, `enum`, `trait`, `type`
 //! or `impl` is a hidden module item, lowered and checked as one; its
 //! statement here executes nothing (`names.local-type.static`,

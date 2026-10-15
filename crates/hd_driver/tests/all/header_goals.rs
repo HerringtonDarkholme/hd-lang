@@ -1,5 +1,5 @@
-//! `HeaderCheck(F)` asks its goals through the solver (trait-solver.md
-//! §1.1, §3.7; resolution-and-interfaces.md §4.10.1): a supertrait that
+//! `HeaderCheck(F)` asks its goals through the solver (`crates/hd_check/DESIGN.md` (trait solver)
+//! §1.1, §3.7; `crates/hd_resolve/DESIGN.md` §4.10.1): a supertrait that
 //! holds through a bounded blanket impl, one whose blanket impl's bound
 //! fails, and answers that depend on the folder's closure (§3.2).
 

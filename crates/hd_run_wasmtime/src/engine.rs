@@ -29,7 +29,7 @@ pub enum OptLevel {
 
 impl EngineConfig {
     /// The engine options of a build's optimization level
-    /// (opt-pipeline.md §3.1): Cranelift `None` for the dev pipeline
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.1): Cranelift `None` for the dev pipeline
     /// (`hd run`), `Speed` for the optimized one (`--release`).
     #[must_use]
     pub fn pipeline(level: hd_base::OptLevel) -> EngineConfig {

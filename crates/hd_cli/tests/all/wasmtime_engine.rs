@@ -1,4 +1,4 @@
-//! The wasmtime engine against the Node engine (engines-and-test-runner.md
+//! The wasmtime engine against the Node engine (`docs/compiler/engines-and-test-runner.md`
 //! §18, "As built (W1)"): each program runs once on Node, the default,
 //! and once on wasmtime (`HD_ENGINE=wasmtime` or `--engine wasmtime`), and
 //! both runs print the same standard output and error and end with the
@@ -514,7 +514,7 @@ fn stack_exhaustion_is_a_panic() {
     );
 }
 
-/// `hd build --engine wasmtime` builds for wasmtime (opt-pipeline.md §5),
+/// `hd build --engine wasmtime` builds for wasmtime (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5),
 /// and `hd FILE.wasm` runs the module on the engine it was tuned for. A
 /// module of one target runs on every engine, so Node runs it too.
 #[test]

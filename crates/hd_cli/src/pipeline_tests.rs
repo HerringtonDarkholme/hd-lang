@@ -1,5 +1,5 @@
 //! Each command that builds a program to run tunes it for the engine that
-//! runs it (opt-pipeline.md §5): `--engine NAME`, else `HD_ENGINE`, else
+//! runs it (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): `--engine NAME`, else `HD_ENGINE`, else
 //! Node, at the level `--release` selects. These tests run the commands
 //! themselves and read the pipeline the driver reports for each build. A
 //! program with a type error stops each command after its build, before

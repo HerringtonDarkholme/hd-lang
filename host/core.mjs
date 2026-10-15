@@ -1,9 +1,9 @@
 // The platform-neutral core of the JS host (V8 in Node, and browsers): the
-// import object of the ABI in `hd_host_abi` (runtime-and-host.md §17.2,
+// import object of the ABI in `hd_host_abi` (crates/hd_run_wasmtime/DESIGN.md §17.2,
 // §17.10), the exchange-buffer codecs of §17.4, the providers that need
 // nothing from the platform (`Console`, `Clock`, `Random`, `Args`, `rt`,
 // `prim`, and the test and property runners' hooks), and the entry driver
-// of suspension.md §14.4. It uses web-standard APIs only. A platform layer
+// of crates/hd_wasm/DESIGN.md §14.4. It uses web-standard APIs only. A platform layer
 // (node.mjs) adds the providers that touch the machine by passing `layer`
 // to `createCoreHost`.
 //
@@ -69,7 +69,7 @@ Error.stackTraceLimit = Infinity;
 
 // The Wasm frames of a trap's stack, innermost first, as [function index,
 // module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
-// command maps them through the module's line table (wasm-layout.md §15.9).
+// command maps them through the module's line table (crates/hd_wasm/DESIGN.md §15.9).
 const wasmFrames = (e) =>
   Array.from(String(e.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g), (m) => [
     Number(m[1]),
@@ -554,7 +554,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     st.ops.delete(h);
   };
   // Waits at most until `d`, and never past the timeout: a pending host
-  // wait is cut at the deadline (runtime-and-host.md §17.8).
+  // wait is cut at the deadline (crates/hd_run_wasmtime/DESIGN.md §17.8).
   const until = (d) => (st.deadline === null ? d : Math.min(d, st.deadline));
   const overran = () => st.deadline !== null && performance.now() > st.deadline;
   // The milliseconds left before the deadline. A provider that waits
@@ -805,7 +805,7 @@ const handleParam = (args) => {
   return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
 };
 
-// A REPL session (repl-plan.md job W4): the instances of every input that
+// A REPL session (`f1c55020:future-work/compiler/repl-plan.md` job W4): the instances of every input that
 // ran, sharing the first one's memory, as `hd_run_wasmtime`'s
 // `WasmtimeSession` holds them. `sink`, `env` and `layer` are
 // `createCoreHost`'s: one host serves every input.

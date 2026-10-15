@@ -1,5 +1,5 @@
 // What a REPL session keeps across a page reload and in a share link
-// (repl-plan.md job W6): the files it started over, each kept input's number
+// (`f1c55020:future-work/compiler/repl-plan.md` job W6): the files it started over, each kept input's number
 // and text, the journal of its host calls, and the transcript the page
 // showed. A rebuild replays the journal without repeating a host call
 // (repl-client.ts), but it drops the output, so the transcript travels too.

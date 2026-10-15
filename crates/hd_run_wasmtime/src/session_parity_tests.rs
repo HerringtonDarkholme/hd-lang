@@ -1,4 +1,4 @@
-//! One REPL session on wasmtime and on Node (repl-plan.md job W4): the
+//! One REPL session on wasmtime and on Node (`f1c55020:future-work/compiler/repl-plan.md` job W4): the
 //! JS host's session (`host/core.mjs`, `createSession`) runs the same
 //! input modules with the same transcript, and each engine's journal
 //! replays on the other byte for byte (`hd_run::journal`'s row format).

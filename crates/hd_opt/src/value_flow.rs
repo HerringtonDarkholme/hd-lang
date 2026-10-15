@@ -1,11 +1,11 @@
-//! `value_flow` (opt-pipeline.md §2.1): the body-unit analysis behind
+//! `value_flow` (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.1): the body-unit analysis behind
 //! the known-value decisions. It reads only the body's own TIR, so it runs
 //! once per body, never per instance.
 
 use hd_tir::ir::{Body, Tag};
 
 /// What `devirt_known` and `closure_spec` read of a body's data flow
-/// (options A1 and A2 of closure-calls.md).
+/// (options A1 and A2 of `crates/hd_opt/DESIGN.md` (known closure calls)).
 pub struct ValueFlow {
     /// Per local: how many `LocalSet`s write it, and the last one's value.
     sets: Vec<(u32, u32)>,
@@ -87,7 +87,7 @@ impl ValueFlow {
     /// Whether item parameter `p` is called in sub-body `k` or in a sub
     /// nested in it, with no generic local function's body on the way: the
     /// calls an instance of `k` specialized on `p` makes direct, itself or
-    /// through the sub-bodies it creates (closure-calls.md §3.1).
+    /// through the sub-bodies it creates (`crates/hd_opt/DESIGN.md` (known closure calls) §3.1).
     #[must_use]
     pub fn called_under(&self, p: u32, k: u32) -> bool {
         self.param_calls.iter().any(|&(q, s)| {

@@ -153,7 +153,7 @@ export const createWebSession = (sink, env = {}, options = {}) =>
 
 // The files of one test run in the browser (cases.mjs): kept in memory and
 // gone with the run, since the playground has no disk
-// (playground-wasm.md §5).
+// (crates/hd_web/DESIGN.md §5).
 export function memoryFiles() {
   const texts = new Map();
   return {

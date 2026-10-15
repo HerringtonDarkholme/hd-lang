@@ -1,6 +1,6 @@
-//! The playground compiler's wasm exports (playground-wasm.md §3.1).
+//! The playground compiler's wasm exports (`crates/hd_web/DESIGN.md` §3.1).
 //!
-//! Owner decision 2026-10-12 (playground-wasm.md §6, Q1): these four
+//! Owner decision 2026-10-12 (`crates/hd_web/DESIGN.md` §6, Q1): these four
 //! hand-written exports carry `#[unsafe(no_mangle)]`, and this module is
 //! the only place in the crate where `unsafe_code` is allowed. There are no
 //! `unsafe` blocks and no raw-pointer dereferences: every buffer is a `Vec`

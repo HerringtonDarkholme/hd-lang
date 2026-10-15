@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `hd_wasm`: Wasm GC emission (codegen.md §12, wasm-layout.md §15) and link
+//! `hd_wasm`: Wasm GC emission (`crates/hd_mono/DESIGN.md` §12, `crates/hd_wasm/DESIGN.md` §15) and link
 //! (§13.10). `Emit` walks one instance's `hd_tir::ir::Body` under its
 //! substitution (`emit`), with value layouts from `layout` and call targets
 //! from collection (no selection here). Runtime pieces the compiler builds
@@ -7,7 +7,7 @@
 //! the wake table, `race!`'s frame, vtable adapters, the entry exports)
 //! are `rt` helpers. A suspending instance's code entry is its cold
 //! constructor, with its state-machine body, poll and cancel functions as
-//! parts (suspension.md §14.1). A code entry holds symbolic relocations:
+//! parts (`crates/hd_wasm/DESIGN.md` §14.1). A code entry holds symbolic relocations:
 //! callees by instance key, part or helper, globals by binding path hash,
 //! Wasm types by their structural descriptor; `Link` assigns indices.
 
@@ -51,11 +51,11 @@ pub enum VT {
     I64,
     F32,
     F64,
-    /// `eqref`, nullable: erased storage (the A1 class `REF`, wasm-layout.md §15.1).
+    /// `eqref`, nullable: erased storage (the A1 class `REF`, `crates/hd_wasm/DESIGN.md` §15.1).
     Eq,
     /// `(ref $T)` or `(ref null $T)`.
     Ref(Arc<WTy>, bool),
-    /// `funcref`, nullable: a closure's code field (wasm-layout.md §15.2
+    /// `funcref`, nullable: a closure's code field (`crates/hd_wasm/DESIGN.md` §15.2
     /// "closure"). Reading an abstract funcref from a GC object skips
     /// wasmtime's type lookup and subtype check; calls cast it to the
     /// final code type first.
@@ -63,7 +63,7 @@ pub enum VT {
 }
 
 /// A Wasm heap type, described by structure (hd needs no nominal Wasm
-/// types, codegen.md §13.7): equal descriptors are one type.
+/// types, `crates/hd_mono/DESIGN.md` §13.7): equal descriptors are one type.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WTy {
     /// `(array (mut i8))`: string bytes.
@@ -78,13 +78,13 @@ pub enum WTy {
         open: bool,
     },
     Func(Vec<VT>, Vec<VT>),
-    /// Member `i` of a recursion group (wasm-layout.md §15.3).
+    /// Member `i` of a recursion group (`crates/hd_wasm/DESIGN.md` §15.3).
     Rec(Arc<Group>, u32),
     /// Inside a recursion group's member: the group's member `i`.
     Back(u32),
 }
 
-/// A recursion group (wasm-layout.md §15.3): its members in canonical
+/// A recursion group (`crates/hd_wasm/DESIGN.md` §15.3): its members in canonical
 /// order, naming each other as `Back`. A group is identified by a hash of
 /// its members, which names other groups by their hashes, so groups
 /// compare, order and hash in constant time however deep the types they
@@ -244,7 +244,7 @@ impl VT {
     pub fn rn(t: WTy) -> VT {
         VT::Ref(Arc::new(t), true)
     }
-    /// The defaultable form (wasm-layout.md §15.2): references nullable.
+    /// The defaultable form (`crates/hd_wasm/DESIGN.md` §15.2): references nullable.
     #[must_use]
     pub fn dflt(&self) -> VT {
         match self {
@@ -404,7 +404,7 @@ impl WTy {
 }
 
 /// The functions a suspending instance lowers to besides its cold
-/// constructor (suspension.md §14.1): `f$body`, `f$poll`, `f$cancel`.
+/// constructor (`crates/hd_wasm/DESIGN.md` §14.1): `f$body`, `f$poll`, `f$cancel`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Part {
     Body,
@@ -428,7 +428,7 @@ impl Part {
 }
 
 /// A global symbol: a top-level binding's storage, one global per Wasm
-/// value of its layout (wasm-layout.md §15.4, "module storage"), or a
+/// value of its layout (`crates/hd_wasm/DESIGN.md` §15.4, "module storage"), or a
 /// runtime global.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum GSym {
@@ -440,7 +440,7 @@ pub enum GSym {
     /// global, named by the canonical encoding of the type, holding the
     /// struct `VT` (`expr.is.canonical-data`).
     Canon(Hash128, VT),
-    /// A witness (codegen.md §13.5.1): an immutable constant global per
+    /// A witness (`crates/hd_mono/DESIGN.md` §13.5.1): an immutable constant global per
     /// `(family, method type arguments)`, which link fills from the
     /// collected thunks; `VT` is `(ref $witness)`.
     Witness(Hash128, Hash128, VT),
@@ -448,7 +448,7 @@ pub enum GSym {
     /// constant `i32` that link assigns, by family and the body's
     /// instance key.
     WitnessField(Hash128, Hash128, VT),
-    /// A closure that captures nothing (lowering-catalog.md, "Numbering"):
+    /// A closure that captures nothing (`docs/compiler/lowering-catalog.md`, "Numbering"):
     /// an immutable constant global per closure code, by its instance key,
     /// that link fills with `struct.new` of the environment `VT` over the
     /// code's `ref.func`. Function values have no identity
@@ -520,7 +520,7 @@ impl GSym {
     }
 }
 
-/// A function symbol (codegen.md §13.8 `FuncTarget`).
+/// A function symbol (`crates/hd_mono/DESIGN.md` §13.8 `FuncTarget`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {
     /// A collected instance, by instance key (a suspending instance's
@@ -539,7 +539,7 @@ pub enum Sym {
     Helper(Helper),
 }
 
-/// A relocation target (codegen.md §13.8 `Reloc`).
+/// A relocation target (`crates/hd_mono/DESIGN.md` §13.8 `Reloc`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Reloc {
     Func(Sym),
@@ -547,7 +547,7 @@ pub enum Reloc {
     Global(GSym),
 }
 
-/// A code entry (codegen.md §13.8): locals and instructions as bytes, index
+/// A code entry (`crates/hd_mono/DESIGN.md` §13.8): locals and instructions as bytes, index
 /// immediates as 5-byte padded LEBs, with relocations sorted by offset.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
@@ -557,9 +557,9 @@ pub struct Code {
     pub relocs: Vec<(u32, Reloc)>,
     /// The offset of each call that starts a new anchor, with the anchor:
     /// the index of the TIR instruction in its item's body
-    /// (wasm-layout.md §15.9, codegen.md §13.8 "Positions"). Sorted.
+    /// (`crates/hd_wasm/DESIGN.md` §15.9, `crates/hd_mono/DESIGN.md` §13.8 "Positions"). Sorted.
     pub lines: Vec<(u32, u32)>,
-    /// A suspending instance's other functions (suspension.md §14.1).
+    /// A suspending instance's other functions (`crates/hd_wasm/DESIGN.md` §14.1).
     pub parts: Vec<(Part, Code)>,
 }
 
@@ -1025,7 +1025,7 @@ fn decode_grouped<T>(bytes: &[u8], body: impl FnOnce(&mut Reader<'_>) -> Option<
 }
 
 impl Code {
-    /// The code entry's bytes (codegen.md §13.8): ID-free. First the
+    /// The code entry's bytes (`crates/hd_mono/DESIGN.md` §13.8): ID-free. First the
     /// table of its types (`Table`), then the entry.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
@@ -1125,7 +1125,7 @@ pub(crate) fn padded(out: &mut Vec<u8>, v: u32) {
 
 // ------------------------------------------------------------------- link
 
-/// The type section under construction (wasm-layout.md §15.3): each type
+/// The type section under construction (`crates/hd_wasm/DESIGN.md` §15.3): each type
 /// once, its dependencies first. A type outside a recursion group is a
 /// group of one; a `Rec` type's group is emitted whole, after the types
 /// it names outside itself.
@@ -1346,7 +1346,7 @@ pub enum LinkMode<'a> {
     #[default]
     Program,
     /// One module of a session that grows a module at a time, such as a
-    /// REPL input (repl-plan.md §2.3). A symbol an earlier module of the
+    /// REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.3). A symbol an earlier module of the
     /// session owns becomes an import; each instance, part and global this
     /// module defines is exported under its session key (`func_key`,
     /// `global_key`), so a later module can import it. Every import and
@@ -1524,12 +1524,12 @@ fn module_local(g: &GSym) -> bool {
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal
-/// pool, globals, relocation patching (codegen.md §13.10). Inputs are in
+/// pool, globals, relocation patching (`crates/hd_mono/DESIGN.md` §13.10). Inputs are in
 /// content order, so the bytes are deterministic. `exports` are the entry
 /// functions (`hd.init`, `hd.poll`, `hd.wake`); `names` are the
 /// instances' item paths for the dev `name` section. Every module gets the
-/// `hd.lines` table (wasm-layout.md §15.9); a `release` build gets the
-/// compact `hd.names` in place of the `name` section (codegen.md §13.10
+/// `hd.lines` table (`crates/hd_wasm/DESIGN.md` §15.9); a `release` build gets the
+/// compact `hd.names` in place of the `name` section (`crates/hd_mono/DESIGN.md` §13.10
 /// step 9, §13.17). `mode` says which symbols are imported (`LinkMode`).
 ///
 /// In a session module, function indices are the host imports, the
@@ -1573,7 +1573,7 @@ pub fn link(
         .collect();
     // `hd.wake` joins the exports only when the program can wait on a host
     // handle, that is, when `WakeTake` is reachable from its code; a program
-    // that never suspends links no wake runtime (suspension.md §14.4).
+    // that never suspends links no wake runtime (`crates/hd_wasm/DESIGN.md` §14.4).
     let mut todo: Vec<Helper> = exports
         .iter()
         .filter(|e| e.1 != Helper::EntryWake)
@@ -1712,7 +1712,7 @@ pub fn link(
         func_idx.insert(s.clone(), nfuncs);
         nfuncs += 1;
     }
-    // Linear memory is the exchange buffer (wasm-layout.md §15.4); every
+    // Linear memory is the exchange buffer (`crates/hd_wasm/DESIGN.md` §15.4); every
     // module has it, so any helper that touches it validates.
     let memory = MemoryType {
         minimum: 1,
@@ -1753,7 +1753,7 @@ pub fn link(
         nfuncs += 1;
         bodies.push(c);
     }
-    // Globals: one lazily filled cell per literal (wasm-layout.md §15.4),
+    // Globals: one lazily filled cell per literal (`crates/hd_wasm/DESIGN.md` §15.4),
     // then module storage and runtime globals, by symbol order.
     let mut globals = GlobalSection::new();
     let mut lit_global: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
@@ -1961,7 +1961,7 @@ pub fn link(
         module.section(&compact_names(&all, first));
         return Ok(module.finish());
     }
-    // The dev pipeline's standard `name` section (codegen.md §13.10 step 9).
+    // The dev pipeline's standard `name` section (`crates/hd_mono/DESIGN.md` §13.10 step 9).
     let mut fnames = wasm_encoder::NameMap::new();
     for (k, (module_name, name, _, _)) in imports.iter().enumerate() {
         fnames.append(
@@ -2005,7 +2005,7 @@ fn helper_base(h: &Helper) -> String {
     h.short_name().chars().take(48).collect()
 }
 
-/// The `hd.lines` section (wasm-layout.md §15.9): for each function with
+/// The `hd.lines` section (`crates/hd_wasm/DESIGN.md` §15.9): for each function with
 /// anchored calls, by function index, its rows as (offset from the previous
 /// row's, anchor). An offset counts from the start of the function's body,
 /// its locals included; an anchor is a TIR instruction index in the body
@@ -2036,7 +2036,7 @@ fn line_table(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::CustomS
     }
 }
 
-/// The `hd.names` section of a release build (wasm-layout.md §15.5): each
+/// The `hd.names` section of a release build (`crates/hd_wasm/DESIGN.md` §15.5): each
 /// compiled function's index and the name the `name` section would give it.
 fn compact_names(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::CustomSection<'static> {
     use wasm_encoder::Encode;
@@ -2054,7 +2054,7 @@ fn compact_names(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::Cust
     }
 }
 
-/// The constant initializer of a witness global (codegen.md §13.5.1):
+/// The constant initializer of a witness global (`crates/hd_mono/DESIGN.md` §13.5.1):
 /// per erased body of its family, in field order, a struct of that body's
 /// thunks at the witness's arguments; or of an erased body's field
 /// index. `None` for any other global.

@@ -115,7 +115,7 @@ pub struct KnownItems {
 
 impl KnownItems {
     /// The sealed traits the solver's compiler-supplied rows answer
-    /// (trait-solver.md §3.9).
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     #[must_use]
     pub fn sealed(&self) -> hd_types::solver::SealedTraits {
         hd_types::solver::SealedTraits {

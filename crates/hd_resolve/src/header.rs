@@ -1,4 +1,4 @@
-//! The overlap check of coherence (§4.12.3, trait-solver.md §5.2), over
+//! The overlap check of coherence (§4.12.3, `crates/hd_check/DESIGN.md` (trait solver) §5.2), over
 //! the impl heads of frozen interfaces. The header checks that need goals
 //! are `hd_check::header`'s, asked through the solver.
 

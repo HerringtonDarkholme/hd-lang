@@ -1,5 +1,5 @@
-//! Patterns, `let`, `match` and exhaustiveness (type-checking.md §6;
-//! checking-and-tir.md "Matching"). The checker declares each arm's
+//! Patterns, `let`, `match` and exhaustiveness (`crates/hd_check/DESIGN.md` (type checking) §6;
+//! `crates/hd_tir/DESIGN.md` "Matching"). The checker declares each arm's
 //! bindings, emits the arm blocks, then a decision block of `SwitchTag`,
 //! `If`, `Payload`, `Unwrap`, `Guard` and `ToArm` that tries the rows in
 //! order. A failed test continues with the next row; the next row's tests

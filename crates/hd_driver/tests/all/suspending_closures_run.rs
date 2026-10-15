@@ -1,5 +1,5 @@
 //! Suspending closures run (req.suspend.closure.marker,
-//! req.suspend.closure.trailing-only, req.bind.construction; suspension.md
+//! req.suspend.closure.trailing-only, req.bind.construction; `crates/hd_wasm/DESIGN.md`
 //! §14.1 to §14.6): a `fn!` closure's code is the cold constructor of a
 //! frame that holds its parameters, captures and providers, and its body
 //! is the same state machine as a named suspending function's. Programs

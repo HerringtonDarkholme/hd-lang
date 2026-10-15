@@ -1,4 +1,4 @@
-// The worker side of the playground's REPL (src/repl-host.ts, repl-plan.md
+// The worker side of the playground's REPL (src/repl-host.ts, `f1c55020:future-work/compiler/repl-plan.md`
 // job W5), driven as the page drives it: `repl-*` requests in, `repl-out`
 // and `repl` messages back. A worker the page terminates is a host whose
 // compiler and session are gone; the page then hands a fresh host the

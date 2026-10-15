@@ -1,5 +1,5 @@
 //! Trait methods with a requirement row called through a trait value
-//! (trait.dyn.safe.suspending, codegen.md §12.4, §13.5.1): a vtable slot
+//! (trait.dyn.safe.suspending, `crates/hd_mono/DESIGN.md` §12.4, §13.5.1): a vtable slot
 //! takes the providers of its method's row after the arguments, as a
 //! direct call of the method does, and the slot's adapter passes them on
 //! to the impl's method. Programs build through the driver and run on V8

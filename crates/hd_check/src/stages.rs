@@ -1,5 +1,5 @@
-//! The design's checking stages beyond bodies (checking-and-tir.md
-//! §4.13.1, §4.13.9, §4.13.10; trait-solver.md §5; scheduler.md §6.1):
+//! The design's checking stages beyond bodies (`crates/hd_tir/DESIGN.md`
+//! §4.13.1, §4.13.9, §4.13.10; `crates/hd_check/DESIGN.md` (trait solver) §5; `crates/hd_sched/DESIGN.md` §6.1):
 //! test overlay and init order; overlap is `hd_resolve::Universe`. Each
 //! returns its result or a structured "not implemented".
 

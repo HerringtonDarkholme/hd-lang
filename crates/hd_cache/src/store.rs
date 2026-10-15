@@ -1,6 +1,6 @@
 //! The `CacheStore` interface, entry kinds, entry framing, the memory
-//! store, the stat manifest record and the eviction plan (cache.md §5.2,
-//! §5.4, §5.5, §5.7, §5.8; data-structures.md §3.20). The disk store is in
+//! store, the stat manifest record and the eviction plan (`crates/hd_cache/DESIGN.md` §5.2,
+//! §5.4, §5.5, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
 //! `disk.rs`.
 
 use std::collections::HashMap;
@@ -123,7 +123,7 @@ impl CacheStore for MemoryStore {
     fn touch(&self, _: EntryKind, _: &Hash128) {}
 }
 
-/// A session's store (repl-plan.md §6, C3): reads look in its own memory
+/// A session's store (`f1c55020:future-work/compiler/repl-plan.md` §6, C3): reads look in its own memory
 /// first and fall through to the inner store; writes stay in memory, so
 /// per-input entries never reach the inner (disk) store.
 pub struct OverlayStore<'a> {
@@ -164,7 +164,7 @@ impl CacheStore for OverlayStore<'_> {
     }
 }
 
-/// The 64-byte entry header (data-structures.md §3.20), little-endian.
+/// The 64-byte entry header (`docs/compiler/data-structures.md` §3.20), little-endian.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntryHeader {
     pub kind: EntryKind,
@@ -303,7 +303,7 @@ pub fn decode_entry(bytes: &[u8]) -> Result<(EntryHeader, Sections<'_>), EntryEr
     Ok((h, out))
 }
 
-/// One stat manifest record (§5.5; data-structures.md §3.20), 88 bytes on disk.
+/// One stat manifest record (§5.5; `docs/compiler/data-structures.md` §3.20), 88 bytes on disk.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ManifestRecord {
     pub path: String,

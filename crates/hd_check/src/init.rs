@@ -1,4 +1,4 @@
-//! Module initialization (checking-and-tir.md §4.13.10; spec/lang/
+//! Module initialization (`crates/hd_tir/DESIGN.md` §4.13.10; spec/lang/
 //! 10-modules.md, "Module Initialization"): a module's top-level
 //! statements are one `Init` body, checked before its functions so their
 //! bodies see the top-level bindings; each body records the init facts
@@ -139,7 +139,7 @@ pub struct StmtSummary {
     pub facts: InitFacts,
 }
 
-/// A module's init summary (checking-and-tir.md §4.13.10): what
+/// A module's init summary (`crates/hd_tir/DESIGN.md` §4.13.10): what
 /// `InitOrder` reads of a checked module to order the statements of its
 /// module cycle (spec 10 `module.init.cycle.dependency`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

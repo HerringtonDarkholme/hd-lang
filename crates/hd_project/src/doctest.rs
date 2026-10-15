@@ -1,4 +1,4 @@
-//! Doc tests (spec/lang/10-modules.md "Doc Tests", checking-and-tir.md
+//! Doc tests (spec/lang/10-modules.md "Doc Tests", `crates/hd_tir/DESIGN.md`
 //! §4.13.9): each fenced `hd` block in a documentation comment of a module
 //! under the source root is a test of its own. Extraction reads only the
 //! file's text: the `##` blocks (`lex.doc.*`), the declaration each

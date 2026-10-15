@@ -1,4 +1,4 @@
-//! The lowering profile of each engine target (opt-pipeline.md §4): the
+//! The lowering profile of each engine target (`crates/hd_opt/DESIGN.md` (optimization pipelines) §4): the
 //! lowering choices that depend on the engine. Every profile emits valid
 //! Wasm GC for every engine, so a choice only tunes speed. The driver hashes
 //! the profile into the pipeline key, by content and never by target name,
@@ -7,17 +7,17 @@
 use hd_base::{EngineTarget, Hash128, StableHasher};
 
 /// How a closure's code is stored and called (option E1 of
-/// closure-calls.md).
+/// `crates/hd_opt/DESIGN.md` (known closure calls)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ClosureCode {
     /// One closure base per code signature, whose code field has the
     /// concrete code type; a call reads it and calls it with `call_ref`.
-    /// V8 runs this form fastest (closure-calls.md §7).
+    /// V8 runs this form fastest (`crates/hd_opt/DESIGN.md` (known closure calls) §7).
     Typed,
     /// One closure base for every signature, with an abstract `funcref`
     /// code field; a call casts the code before `call_ref`. Wasmtime reads
     /// an abstract field without a type lookup and subtype check
-    /// (closure-calls.md §7).
+    /// (`crates/hd_opt/DESIGN.md` (known closure calls) §7).
     Abstract,
 }
 
@@ -40,7 +40,7 @@ pub struct Lowering {
 
 impl Lowering {
     /// The profile of `target`. `Browser` follows `V8` until another
-    /// browser engine is measured (opt-pipeline.md §7 Q2).
+    /// browser engine is measured (`crates/hd_opt/DESIGN.md` (optimization pipelines) §7 Q2).
     #[must_use]
     pub const fn of(target: EngineTarget) -> Self {
         match target {
@@ -53,7 +53,7 @@ impl Lowering {
         }
     }
 
-    /// The hash of each field, by name and value (opt-pipeline.md §3.3).
+    /// The hash of each field, by name and value (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3).
     #[must_use]
     pub fn hash(&self) -> Hash128 {
         let mut h = StableHasher::new("lowering");

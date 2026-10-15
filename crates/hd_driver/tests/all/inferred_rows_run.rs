@@ -1,6 +1,6 @@
 //! Inferred rows of private callables (#194; spec 11
 //! `req.row.omitted.inferred-private`, `req.row.omitted.cycle`,
-//! `req.row.omitted.closure-row`; checking-and-tir.md §4.13.1 "M3:
+//! `req.row.omitted.closure-row`; `crates/hd_tir/DESIGN.md` §4.13.1 "M3:
 //! inferred rows"). A private function or inherent method without a `$`
 //! clause takes the least row its body needs, a recursive group the least
 //! rows that satisfy every member, and each caller sees that row. Programs

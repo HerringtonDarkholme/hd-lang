@@ -1,4 +1,4 @@
-//! A panic's frames (wasm-layout.md §15.9): the engine's backtrace, as
+//! A panic's frames (`crates/hd_wasm/DESIGN.md` §15.9): the engine's backtrace, as
 //! function index and module byte offset per frame, mapped through the
 //! module's `hd.lines` rows to an anchor, a TIR instruction in the body of
 //! the item the function compiles. The caller resolves anchors to

@@ -1,5 +1,5 @@
 //! Function references to targets the compiler lowers at each call
-//! (codegen.md §13.11): an intrinsic, a built-in impl's method, and a
+//! (`crates/hd_mono/DESIGN.md` §13.11): an intrinsic, a built-in impl's method, and a
 //! trait method at a trait-value `Self`. The adapter makes the call a
 //! direct call at the same types makes, so each reference gives the
 //! answer the call gives. Built and run on V8 (`host/run.mjs`).

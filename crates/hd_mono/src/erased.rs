@@ -1,4 +1,4 @@
-//! Generic methods called through a trait value (codegen.md §13.5.1, the
+//! Generic methods called through a trait value (`crates/hd_mono/DESIGN.md` §13.5.1, the
 //! erased method ABI): a vtable slot of a generic method holds the erased
 //! body of its implementation, one per `(impl, method)`, whose own type
 //! parameters stay open. Every instruction of that body whose types are

@@ -1,5 +1,5 @@
-//! Derived implementations run (#119; checking-and-tir.md §4.13.9,
-//! codegen.md §12.3): each derivation's template methods, checked at the
+//! Derived implementations run (#119; `crates/hd_tir/DESIGN.md` §4.13.9,
+//! `crates/hd_mono/DESIGN.md` §12.3): each derivation's template methods, checked at the
 //! opt-in, become the derived implementation's bodies, and the
 //! derivation's `Structure` (`walk`, `describe`, `build`, `name`,
 //! `facts`) is generated as ordinary bodies. Programs build through the
@@ -275,7 +275,7 @@ pub fn main() -> void $ Console:
 /// The template and its walker in one module, the deriving type in
 /// another: an edit of the walker's helper changes the derived output,
 /// and an edit of the template method rechecks the deriving module
-/// (checking-and-tir.md §4.13.9).
+/// (`crates/hd_tir/DESIGN.md` §4.13.9).
 #[test]
 fn template_edits_change_the_derived_output_on_rebuild() {
     let show = |sep: &str, prefix: &str| {

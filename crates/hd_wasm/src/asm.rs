@@ -1,6 +1,6 @@
 //! The function assembler: plain instructions through `wasm-encoder`,
 //! relocated immediates (functions, types) as raw opcode bytes plus a
-//! 5-byte padded slot (codegen.md §13.8).
+//! 5-byte padded slot (`crates/hd_mono/DESIGN.md` §13.8).
 
 use wasm_encoder::{BlockType, HeapType, InstructionSink, MemArg};
 
@@ -17,13 +17,13 @@ pub struct Asm {
     /// What each local holds: a non-null reference is narrowed on read.
     logical: Vec<VT>,
     /// What each parameter holds, when it is declared defaultable (a
-    /// suspending body's resume arguments, suspension.md §14.1).
+    /// suspending body's resume arguments, `crates/hd_wasm/DESIGN.md` §14.1).
     param_logical: Vec<VT>,
     /// The TIR instruction being emitted, the anchor of each call written
     /// meanwhile; `None` outside an instruction with a source position.
     pub at: Option<u32>,
     /// Per call written at an anchor: its offset and the anchor, the
-    /// code entry's `lines` (wasm-layout.md §15.9).
+    /// code entry's `lines` (`crates/hd_wasm/DESIGN.md` §15.9).
     lines: Vec<(u32, u32)>,
 }
 
@@ -90,7 +90,7 @@ impl Asm {
     }
     /// Records the call about to be written at the current anchor. A
     /// frame's address maps to the greatest recorded offset at or below it
-    /// (wasm-layout.md §15.9, Q1), so a call at the anchor of the row
+    /// (`crates/hd_wasm/DESIGN.md` §15.9, Q1), so a call at the anchor of the row
     /// before it needs no row of its own.
     fn line(&mut self) {
         let Some(at) = self.at else {

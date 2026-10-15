@@ -1,4 +1,4 @@
-// The page's handle on a REPL session (repl-plan.md job W5). The session
+// The page's handle on a REPL session (`f1c55020:future-work/compiler/repl-plan.md` job W5). The session
 // runs in a playground compiler worker (worker.ts, repl-host.ts): the
 // compiler's REPL session and the JS session that runs its modules. The
 // page numbers the inputs, as `hd` does, and keeps what a fresh worker

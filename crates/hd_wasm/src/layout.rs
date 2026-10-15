@@ -1,4 +1,4 @@
-//! Value layouts at concrete types (wasm-layout.md §15.1, §15.2): the Wasm
+//! Value layouts at concrete types (`crates/hd_wasm/DESIGN.md` §15.1, §15.2): the Wasm
 //! values of every hd type in locals, parameters and results, and the
 //! shapes emission needs to build and read them. The classes agree with
 //! `hd_mono::layout::layout_of` (the value bound, slot sharing, `T?`
@@ -37,7 +37,7 @@ pub const BOUND: usize = 4;
 /// this many in total, and subtypes otherwise (§15.2).
 pub const FLAT_FIELDS: usize = 4;
 
-/// A function value's provider context (codegen.md §12.4, one callable
+/// A function value's provider context (`crates/hd_mono/DESIGN.md` §12.4, one callable
 /// ABI): every closure code takes, after its arguments, the key ids and
 /// the providers of the caller's row for it, so a value of any narrower
 /// row looks its own keys up and row subsumption is no instruction.
@@ -54,7 +54,7 @@ pub fn ctx_provs() -> WTy {
 
 /// The id a context gives a key: the low bits of its content hash, which
 /// covers the trait's arguments and bindings, so `Repo[User]` and
-/// `Repo[Post]` have two ids (codegen.md §13.18).
+/// `Repo[Post]` have two ids (`crates/hd_mono/DESIGN.md` §13.18).
 #[must_use]
 pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
     let ph = |d: DefId| env.path_hash(d);
@@ -65,7 +65,7 @@ pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
 }
 
 /// A path through a vtable's parent fields to a supertrait's vtable
-/// (codegen.md §13.16): each step's vtable type and parent field, then
+/// (`crates/hd_mono/DESIGN.md` §13.16): each step's vtable type and parent field, then
 /// the supertrait's vtable key.
 pub(crate) type SuperPath = (Vec<(WTy, u32)>, Ty);
 
@@ -85,7 +85,7 @@ pub(crate) struct DynSlot {
     pub open: Option<SlotOpen>,
 }
 
-/// The open parts of a generic method's slot (codegen.md §13.5.1): per
+/// The open parts of a generic method's slot (`crates/hd_mono/DESIGN.md` §13.5.1): per
 /// declared parameter after `self`, whether its type names a method type
 /// parameter, and whether the result does. The witness follows the
 /// arguments.
@@ -94,7 +94,7 @@ pub(crate) struct SlotOpen {
     pub ret: bool,
 }
 
-/// A witness (codegen.md §13.5.1): per erased body of its family, that
+/// A witness (`crates/hd_mono/DESIGN.md` §13.5.1): per erased body of its family, that
 /// body's thunks as a struct of function references, viewed as `eqref`.
 #[must_use]
 pub fn witness_ty() -> WTy {
@@ -114,7 +114,7 @@ pub struct Lay<'a> {
 /// Nominal types' values shared by every `Lay` of one program build, so a
 /// recursion group is laid out once rather than once per instance that
 /// names it. Keys are the run's interned types. It carries the build's
-/// lowering profile (opt-pipeline.md §4), which every `Lay` reads.
+/// lowering profile (`crates/hd_opt/DESIGN.md` (optimization pipelines) §4), which every `Lay` reads.
 pub struct Layouts {
     lowering: Lowering,
     laid: std::sync::Mutex<HashMap<Ty, Vec<VT>>>,
@@ -218,7 +218,7 @@ pub fn storage(v: &VT) -> VT {
 }
 
 /// The closure base struct of code type `code` (§15.2 "closure"), by the
-/// profile's closure code (closure-calls.md option E1). `Typed`: the code
+/// profile's closure code (`crates/hd_opt/DESIGN.md` (known closure calls) option E1). `Typed`: the code
 /// field has type `code`, one base per signature. `Abstract`: the code is
 /// an abstract `funcref`, one base for every signature, and a call casts
 /// it to `code` before `call_ref`; wasmtime reads such a field without
@@ -244,7 +244,7 @@ fn abstract_closure_base() -> WTy {
     }
 }
 
-/// Fields of every suspension (suspension.md §14.1): the cancel function,
+/// Fields of every suspension (`crates/hd_wasm/DESIGN.md` §14.1): the cancel function,
 /// the resume state, the flags; then, per result layout, the poll
 /// function; then, in a generated frame, the awaited child.
 pub const F_CANCEL: u32 = 0;
@@ -255,7 +255,7 @@ pub const F_CHILD: u32 = 4;
 /// The first saved field of a generated frame.
 pub const F_SAVED: u32 = 5;
 
-/// Frame flags (suspension.md §14.1).
+/// Frame flags (`crates/hd_wasm/DESIGN.md` §14.1).
 pub const ACTIVE: i32 = 1;
 pub const DONE: i32 = 4;
 pub const CANCELLED: i32 = 8;
@@ -277,7 +277,7 @@ pub fn task_base() -> WTy {
     }
 }
 
-/// `$Suspend_L` (suspension.md §14.1) and its poll function's type
+/// `$Suspend_L` (`crates/hd_wasm/DESIGN.md` §14.1) and its poll function's type
 /// `(frame) -> (i32 ready, dflt(L)...)`. The competing-driver field is
 /// not laid out yet.
 #[must_use]
@@ -331,7 +331,7 @@ pub fn list_ty(elem: &[VT]) -> WTy {
     }
 }
 
-/// A map's fields (codegen.md §13.12, representation-runtime.md §7.2):
+/// A map's fields (`crates/hd_mono/DESIGN.md` §13.12, `f1c55020:future-work/compiler/representation-runtime.md` §7.2):
 /// the live entry count, the written entry count (tombstones included),
 /// the probe index (entry number plus one, 0 empty, twice the entry
 /// capacity, a power of two), the entry hashes (-1 marks a removed
@@ -629,7 +629,7 @@ impl<'a> Lay<'a> {
         matches!(self.pool.get(self.strip(t)), TyData::Adt { def, .. } if self.env.newtype_base(def).is_some())
     }
 
-    /// A trait value's vtable key (codegen.md §13.5, "As built (#193)"):
+    /// A trait value's vtable key (`crates/hd_mono/DESIGN.md` §13.5, "As built (#193)"):
     /// the trait, its arguments and the binding of every associated type
     /// the trait reaches, so a slot naming `Self::Item` has a concrete
     /// signature (trait.dyn.binding.signatures). The value type's own
@@ -840,7 +840,7 @@ impl<'a> Lay<'a> {
         let pool = self.pool;
         let t = self.erase(t);
         // An open value is the caller's representation, viewed as `eqref`
-        // (codegen.md §13.5.1).
+        // (`crates/hd_mono/DESIGN.md` §13.5.1).
         if is_class_ref(pool, t) || is_open(pool, t) {
             return Ok(vec![VT::Eq]);
         }
@@ -929,7 +929,7 @@ impl<'a> Lay<'a> {
             }
             TyData::TraitValue { def, .. } => self.nominal(self.dyn_key(t), Nominal::Dyn, def)?,
             // Per key in key order, its payload and vtable
-            // (codegen.md §12.4, "Context values").
+            // (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
             TyData::Context(_) => vec![VT::r(ctx_provs())],
             _ => {
                 return unsupported(format!(
@@ -1083,7 +1083,7 @@ impl<'a> Lay<'a> {
     /// A closure's code type: `(eqref env, params..., keys, providers) ->
     /// results`. A suspending function value's code returns its cold
     /// `mut Suspend[T]`, as a plain call of a suspending function does
-    /// (suspension.md §14.1).
+    /// (`crates/hd_wasm/DESIGN.md` §14.1).
     fn code_ty(&self, params: TyList, result: Ty, suspends: bool) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];
         for p in self.pool.list_items(params).iter().copied() {
@@ -1192,7 +1192,7 @@ impl<'a> Lay<'a> {
                         .collect();
                     tys.push(env.ret(m).unwrap_or(Ty::VOID));
                     // A type naming the method's own parameters is an
-                    // `eqref` in the slot (codegen.md §13.5.1).
+                    // `eqref` in the slot (`crates/hd_mono/DESIGN.md` §13.5.1).
                     for p in tys {
                         if !self.names_own(t, m, p) {
                             out.push(self.member_at(t, m, p));
@@ -1207,7 +1207,7 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A vtable key's direct supertraits (codegen.md §13.16), in declared
+    /// A vtable key's direct supertraits (`crates/hd_mono/DESIGN.md` §13.16), in declared
     /// order, each the supertrait's key at the value's arguments, `Self`
     /// being the class `REF`, with the bindings it reaches. They are the
     /// vtable's parent fields, after its method slots.
@@ -1446,7 +1446,7 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A trait's vtable (codegen.md §13.5, §13.16): one code reference per
+    /// A trait's vtable (`crates/hd_mono/DESIGN.md` §13.5, §13.16): one code reference per
     /// method of the trait itself, in declaration order, then one
     /// immutable reference per direct supertrait, in declared order, to
     /// that supertrait's own vtable.
@@ -1762,7 +1762,7 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A vtable key's vtable (codegen.md §13.5, §13.16): its method slots,
+    /// A vtable key's vtable (`crates/hd_mono/DESIGN.md` §13.5, §13.16): its method slots,
     /// then its direct supertraits' vtables.
     pub fn vtable(&self, key: Ty) -> StageResult<WTy> {
         match &self.vts(key)?[..] {
@@ -1782,7 +1782,7 @@ impl<'a> Lay<'a> {
 
     /// Where a call of `method`, declared by `trait_`, goes through a
     /// receiver of the trait-value type `recv` (trait.dyn.value-methods,
-    /// trait.dyn.bound.dispatch, codegen.md §13.16): the method's slot in
+    /// trait.dyn.bound.dispatch, `crates/hd_mono/DESIGN.md` §13.16): the method's slot in
     /// the vtable of `trait_`, reached from the receiver's vtable through
     /// the parent fields when `trait_` is a supertrait. `targs` are the
     /// callee's type arguments under the caller's substitution, the
@@ -1829,7 +1829,7 @@ impl<'a> Lay<'a> {
     }
 
     /// The parent-field path from the vtable of the key `from` to that of
-    /// the supertrait `to` (codegen.md §13.16): each step's vtable type
+    /// the supertrait `to` (`crates/hd_mono/DESIGN.md` §13.16): each step's vtable type
     /// and parent field, then the supertrait's key. `from` itself is the
     /// empty path. The search runs depth first in declared order; the
     /// supertrait at the arguments `want` wins over the same trait at
@@ -1881,7 +1881,7 @@ impl<'a> Lay<'a> {
 
     /// The requirement keys of `m`'s row at the vtable key `key`, in key
     /// order: the providers its slot takes after the arguments, as a
-    /// direct call passes its callee's (codegen.md §12.4, §13.5.1).
+    /// direct call passes its callee's (`crates/hd_mono/DESIGN.md` §12.4, §13.5.1).
     pub fn slot_keys(&self, key: Ty, m: DefId) -> Vec<Ty> {
         let (pool, env) = (self.pool, self.env);
         let TyData::TraitValue { args, bindings, .. } = pool.get(key) else {
@@ -1895,7 +1895,7 @@ impl<'a> Lay<'a> {
     }
 
     /// Whether a generic method's slot type at `key` names one of the
-    /// method's own type parameters in `t` (codegen.md §13.5.1).
+    /// method's own type parameters in `t` (`crates/hd_mono/DESIGN.md` §13.5.1).
     fn names_own(&self, key: Ty, m: DefId, t: Ty) -> bool {
         let mut ps = Vec::new();
         params_in(self.pool, self.member_at(key, m, t), &mut ps);
@@ -1920,7 +1920,7 @@ impl<'a> Lay<'a> {
     }
 
     /// The values of a slot parameter or result of type `t`: `eqref` for
-    /// one that names a method type parameter (codegen.md §13.5.1).
+    /// one that names a method type parameter (`crates/hd_mono/DESIGN.md` §13.5.1).
     fn slot_vts(&self, key: Ty, m: DefId, t: Ty) -> StageResult<Vec<VT>> {
         if self.names_own(key, m, t) {
             return Ok(vec![VT::Eq]);
@@ -1932,7 +1932,7 @@ impl<'a> Lay<'a> {
     /// -> results`, a provider per key of the method's row (`slot_keys`);
     /// a suspending method's slot returns its cold `mut Suspend[T]`. A
     /// generic method's open parameters and result are `eqref`, and its
-    /// witness comes after the parameters (codegen.md §13.5.1). `key` is
+    /// witness comes after the parameters (`crates/hd_mono/DESIGN.md` §13.5.1). `key` is
     /// the vtable key of the trait declaring `m`.
     pub fn slot_sig(&self, key: Ty, m: DefId) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];

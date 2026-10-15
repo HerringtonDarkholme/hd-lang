@@ -1,4 +1,4 @@
-//! The execution journal (live-execution.md §4): rows, their framing, a
+//! The execution journal (`future-work/live-execution.md` §4): rows, their framing, a
 //! torn-tail-tolerant reader, the payload of each row kind and a
 //! [`Recorder`] that an engine's host import dispatch writes rows through.
 //! [`crate::replay`] serves a recorded input's host calls again (§5);

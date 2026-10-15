@@ -65,7 +65,7 @@ fn hd_run(cache_dir: &Path, target: &Path) -> String {
     String::from_utf8(output.stdout).expect("UTF-8")
 }
 
-/// The phase-1 exit program (build-order.md, M4b): `List`, `Map`,
+/// The phase-1 exit program (`f1c55020:future-work/compiler/build-order.md`, M4b): `List`, `Map`,
 /// `Option`, `Result`, strings with interpolation, a user trait, a
 /// closure, `match`, `for` and std's own `println`.
 const EXIT: &str = "total 14 of 5\n40\nrect 6\ncircle 12\nfound 4\nmissing\nok 3\n\

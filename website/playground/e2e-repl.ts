@@ -1,4 +1,4 @@
-// The REPL's end-to-end steps (repl-plan.md job W5), which
+// The REPL's end-to-end steps (`f1c55020:future-work/compiler/repl-plan.md` job W5), which
 // `pnpm run website:e2e` runs after the playground's: the playground's REPL
 // view (a value, a later input reading an earlier binding, a panic, Stop of
 // a loop and of a sleep, the commands) and the site's docked panel with its

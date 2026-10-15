@@ -1,5 +1,5 @@
 //! Declaration-relative source positions for interface items
-//! (data-structures.md §3.7 "Token anchors", resolution-and-interfaces.md
+//! (`docs/compiler/data-structures.md` §3.7 "Token anchors", `crates/hd_resolve/DESIGN.md`
 //! §4.10 `anchors`). A folder interface keeps no byte offsets: an anchor
 //! names the top-level declaration by its place among the file's
 //! declarations, an optional member of its block, and a token range inside

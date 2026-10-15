@@ -241,7 +241,7 @@ fn a_comment_edit_reuses_the_check_and_moves_its_positions() {
 
 /// A documentation-only edit, of an item's or the module's `##` lines,
 /// changes no interface hash: comments stay out of the API text
-/// (commands.md §7.7), so no interface is rebuilt and no module that uses
+/// (`crates/hd_cli/DESIGN.md` §7.7), so no interface is rebuilt and no module that uses
 /// the edited one is rechecked. The edited module's own bodies are, since
 /// its `check` key keeps documentation lines (their attachment is checked).
 #[test]
@@ -349,7 +349,7 @@ fn user_errors_are_coded_diagnostics() {
 /// Interface keys come from API text, which ignores comments and blank
 /// lines, so a comment above an item hits the cached interface. Findings
 /// from the cached interface still land on the shifted line, because item
-/// positions are declaration-relative (resolution-and-interfaces.md §4.10).
+/// positions are declaration-relative (`crates/hd_resolve/DESIGN.md` §4.10).
 const FINDINGS: &str = "\
 trait Marker
 
@@ -506,7 +506,7 @@ fn interface_keys_ignore_a_comment_above_an_item() {
 /// both stay declared in either text: the edit under test changes the
 /// template's body only, so no interface changes. Which tuples meet `Show`
 /// is read from that body, which no interface carries yet, so a header
-/// finding about a tuple depends on this text (trait-solver.md §3.9).
+/// finding about a tuple depends on this text (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
 fn show_module(strict: bool) -> String {
     let walker = if strict { "Strict" } else { "Lax" };
     format!(
@@ -685,7 +685,7 @@ fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel)
 /// caller, so those callers re-emit too. A signature edit in
 /// `core.util` rebuilds its importers' interfaces and rechecks them,
 /// plus `app.main`, whose key lists its whole use closure because it can
-/// see the impls of every folder there (cache.md §5.3). Every
+/// see the impls of every folder there (`crates/hd_cache/DESIGN.md` §5.3). Every
 /// incremental build's Wasm equals a clean build's, and its relink
 /// decodes only the TIR bodies collection reaches.
 #[test]

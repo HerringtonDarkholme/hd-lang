@@ -1,4 +1,4 @@
-//! What collection reads of a body's optimization plan (opt-pipeline.md
+//! What collection reads of a body's optimization plan (`crates/hd_opt/DESIGN.md` (optimization pipelines)
 //! §2.2). The passes that decide a plan live in `hd_opt`, which implements
 //! [`Planner`]; collection applies a plan by generic rules that name no
 //! pass, so it never decides *whether* to devirtualize or specialize.

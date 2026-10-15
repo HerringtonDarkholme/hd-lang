@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! `hd_resolve`: use resolution, the folder interface builder, derived
 //! heads, orphan and visibility checks, and interface validation
-//! (resolution-and-interfaces.md §4.9, §4.10, §4.12; data-structures.md
+//! (`crates/hd_resolve/DESIGN.md` §4.9, §4.10, §4.12; `docs/compiler/data-structures.md`
 //! §3.15): module scopes over the full parser's tree, header lowering to
 //! `hd_types` types, folder interfaces and their blobs, impl tables for
 //! the solver, and the overlap check.

@@ -7,8 +7,8 @@ use core::fmt;
 
 use crate::Span;
 
-/// Every stage of the pipeline, in run order (design-overview.md §1.2,
-/// codegen.md §11.2, scheduler.md §6.1).
+/// Every stage of the pipeline, in run order (`docs/compiler/design-overview.md` §1.2,
+/// `crates/hd_mono/DESIGN.md` §11.2, `crates/hd_sched/DESIGN.md` §6.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Stage {
     Discover,

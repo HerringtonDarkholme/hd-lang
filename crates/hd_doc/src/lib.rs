@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_doc`: the pages of `hd doc` (spec/cli/command-line.md
-//! "Documentation", `future-work/compiler/doc.md`). Each module's page is
+//! "Documentation", `f1c55020:future-work/compiler/doc.md`). Each module's page is
 //! rendered from its source, whose declarations give the signatures as
 //! written and the `##` documentation, and from the package's folder
 //! interfaces, which give each type's implementations. Pages are built as

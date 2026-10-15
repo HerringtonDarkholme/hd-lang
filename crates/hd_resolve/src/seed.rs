@@ -1,4 +1,4 @@
-//! Compiler-supplied std declarations (std-bootstrap.md, "Prelude"):
+//! Compiler-supplied std declarations (`crates/hd_stdpack/DESIGN.md`, "Prelude"):
 //! `std.core`'s primitives, collections, `Option`, `Result`, the `Any`
 //! traits and `panic`; `std.task`'s suspension protocol; `std.function`'s
 //! function type constructors; `std.testing.it`. Each is an ordinary
@@ -180,7 +180,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     t,
                 )),
             );
-            // `all!` has no written signature (suspension.md §14.5): its
+            // `all!` has no written signature (`crates/hd_wasm/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut all = FnSig::simple(vec![], vec![], Ty::VOID);
             all.suspends = true;

@@ -18,7 +18,7 @@ Old internal task numbers (T###, written `#NNN` in older commits and notes) and 
 | T306 | #14 | Decision: Suspend[T] is a sealed trait but written as a type without dyn |
 | T200 | #15 | Release profile in codegen |
 | T201 | #16 | Panic frames in hd test reports |
-| T240 | #17 | REPL per live-execution.md |
+| T240 | #17 | REPL per future-work/live-execution.md |
 | T287 | #18 | Resume (durable execution) after the REPL |
 | T247 | #19 | Make wasmtime the default engine |
 | T265 | #20 | hd reads a program from stdin when stdin is not a terminal |

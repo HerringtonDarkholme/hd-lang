@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! `hd_structure`: the compiler-supplied `Structure` generator
 //! (annotations, "The Structure Trait", "Walk, Describe, And Build",
-//! "Members And Variants", "Tuple Structure", "Handles"; codegen.md §12.3
+//! "Members And Variants", "Tuple Structure", "Handles"; `crates/hd_mono/DESIGN.md` §12.3
 //! "Derives", §13.6). One generator writes the TIR bodies of `facts`,
 //! `name`, `walk`, `describe` and `build` over a [`Target`]: a type and its
 //! member list. It reads declarations only, through [`Cx`], and keeps no
@@ -266,7 +266,7 @@ fn method_body(
 }
 
 /// The hidden method of a derivation's `Structure` owner that holds the
-/// generated body of `Structure`'s method `name` (codegen.md §12.3). The
+/// generated body of `Structure`'s method `name` (`crates/hd_mono/DESIGN.md` §12.3). The
 /// prefix keeps it apart from a field's default body, which a data type
 /// holds under the field's name.
 #[must_use]
@@ -274,7 +274,7 @@ pub fn hidden_method(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
     names.member(owner, PathKind::Hidden, &format!("structure {name}"))
 }
 
-/// The `Structure` bodies of a derivation over `target` (codegen.md
+/// The `Structure` bodies of a derivation over `target` (`crates/hd_mono/DESIGN.md`
 /// §12.3): hidden methods of `owner`, one per `Structure` method and one
 /// per handle the traversals pass. `owner` is the data type or enum
 /// itself for the declaration's `Structure`, which every derivation
@@ -347,7 +347,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
 }
 
 /// The body of `Structure`'s method `method` at `target`, a type the
-/// compiler supplies `Structure` for (a tuple, codegen.md §13.6). The body
+/// compiler supplies `Structure` for (a tuple, `crates/hd_mono/DESIGN.md` §13.6). The body
 /// belongs to the trait method itself: its signature is the trait's with
 /// `Self` replaced by the target, and the method's own parameters stay the
 /// trait method's, so an instance's arguments are `[target, own...]`.

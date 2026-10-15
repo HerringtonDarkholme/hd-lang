@@ -1,8 +1,8 @@
 //! The disk store (feature `disk`): `<root>/<kind>/<shard>/<key>`,
-//! published by write-then-rename (cache.md §5.4), with use marks, the
+//! published by write-then-rename (`crates/hd_cache/DESIGN.md` §5.4), with use marks, the
 //! shard-size ledger `<root>/stats` and least-recently-used eviction down
 //! to the size cap (§5.7; `cli.cache.obj.cap`, `cli.cache.obj.evict`).
-//! Only this module touches the file system (design-overview.md §2.2
+//! Only this module touches the file system (`docs/compiler/design-overview.md` §2.2
 //! rule 3).
 //!
 //! - **Use marks.** A hit sets the entry's mtime to now when it is more

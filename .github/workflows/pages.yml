@@ -36,7 +36,7 @@ jobs:
 
       # Run and Check in the playground compile with the Rust compiler's
       # wasm, which the UI tests and the website build need
-      # (playground-wasm.md §7, W5). Set up as test.yml's lint job does.
+      # (crates/hd_web/DESIGN.md §7, W5). Set up as test.yml's lint job does.
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 

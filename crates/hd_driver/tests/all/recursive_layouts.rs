@@ -1,4 +1,4 @@
-//! Recursive type layouts (#120; wasm-layout.md §15.2, §15.3): a
+//! Recursive type layouts (#120; `crates/hd_wasm/DESIGN.md` §15.2, §15.3): a
 //! self-recursive enum is boxed (flat or subtypes), and data types and
 //! trait values that name themselves lay out as Wasm GC recursion groups.
 //! Programs build through the driver and run on V8 (`host/run.mjs`), as the

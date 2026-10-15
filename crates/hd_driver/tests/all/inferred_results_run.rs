@@ -1,7 +1,7 @@
 //! Omitted result types (#80; spec 07 `fn.decl.result-omitted-private`,
 //! `fn.decl.result-inferred`, `fn.decl.result-inferred.common`,
 //! `fn.decl.result-inferred.void`, `fn.decl.omitted-cycle`;
-//! checking-and-tir.md §4.13.1 "Omitted result types (M1)"). A private
+//! `crates/hd_tir/DESIGN.md` §4.13.1 "Omitted result types (M1)"). A private
 //! function or inherent method without `-> T` takes the least common type
 //! of its final value and its `return` operands, and every caller sees
 //! that result. Programs build through the driver and run on V8

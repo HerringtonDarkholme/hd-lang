@@ -1,4 +1,4 @@
-//! Compiler-supplied impls as solver rows (#121; trait-solver.md §3.9):
+//! Compiler-supplied impls as solver rows (#121; `crates/hd_check/DESIGN.md` (trait solver) §3.9):
 //! bodies, header checks and codegen's `select` get the sealed traits'
 //! answers from the solver. Programs build through the driver and run on
 //! V8 (`host/run.mjs`), as the conformance runner does.
@@ -141,7 +141,7 @@ pub fn main() -> void:
     );
 }
 
-/// Header checks ask the same rows (trait-solver.md §3.7): a written
+/// Header checks ask the same rows (`crates/hd_check/DESIGN.md` (trait solver) §3.7): a written
 /// `Box[i32]` misses `Box`'s `AnyRef` bound, and an impl of a trait whose
 /// supertrait is `AnyRef` misses it for `i32` but not for a data type.
 #[test]

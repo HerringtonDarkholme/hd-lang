@@ -1,4 +1,4 @@
-//! Stable hashing (data-structures.md §3.2): xxh3-128, streaming, default
+//! Stable hashing (`docs/compiler/data-structures.md` §3.2): xxh3-128, streaming, default
 //! seed. Integers hash little-endian at their declared width; lists and
 //! strings hash their length first. No `usize` is hashed, and run IDs
 //! have no `StableHash` impl, so they cannot enter a key by accident.

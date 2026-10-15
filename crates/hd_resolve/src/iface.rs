@@ -1,6 +1,6 @@
 //! Interface records, folder interfaces and their blobs, and impl tables
-//! (resolution-and-interfaces.md §4.10 to §4.12; data-structures.md §3.15;
-//! trait-solver.md §3.3). Types are `hd_types` types in the run's pool; a
+//! (`crates/hd_resolve/DESIGN.md` §4.10 to §4.12; `docs/compiler/data-structures.md` §3.15;
+//! `crates/hd_check/DESIGN.md` (trait solver) §3.3). Types are `hd_types` types in the run's pool; a
 //! blob carries them through entry-local tables.
 
 use std::collections::HashMap;
@@ -74,7 +74,7 @@ impl Names<'_> {
     }
     /// The hidden scope of a block-local declaration: a child of the item
     /// whose body declares it, numbered by the declaration's place among
-    /// that body's local declarations (checking-and-tir.md "Local items
+    /// that body's local declarations (`crates/hd_tir/DESIGN.md` "Local items
     /// lift to hidden module items"). The declaration's own path is a child
     /// of this scope, so its last segment is the name a user writes.
     #[must_use]
@@ -221,7 +221,7 @@ impl Generic {
 /// A trait reference's arguments with the trait's omitted trailing
 /// parameters filled from their defaults, in declaration order, each with
 /// the earlier arguments and `Self` substituted (`types.generic.default.fill`,
-/// `types.generic.default.written`; trait-solver.md §2.1). `generics` are
+/// `types.generic.default.written`; `crates/hd_check/DESIGN.md` (trait solver) §2.1). `generics` are
 /// the trait's declared parameters (parameter 0 is `Self`). `self_ty` is
 /// `None` where no `Self` is known (a `dyn` type or a row key).
 ///
@@ -350,7 +350,7 @@ pub struct TraitData {
     pub supers: Vec<Ty>,
 }
 
-/// What an impl declaration is (trait-solver.md §3.10, annotations §Templates).
+/// What an impl declaration is (`crates/hd_check/DESIGN.md` (trait solver) §3.10, annotations §Templates).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ImplKind {
@@ -368,7 +368,7 @@ pub enum ImplKind {
     Derived,
     /// `Display`, `Error` or a `From` that `@error` generates for an error
     /// type (spec 14 `annot.error.generates`): an ordinary implementation
-    /// whose method bodies the checker writes (codegen.md §13.14).
+    /// whose method bodies the checker writes (`crates/hd_mono/DESIGN.md` §13.14).
     Error,
 }
 
@@ -473,7 +473,7 @@ impl Item {
         }
     }
     /// What the solver's compiler-supplied rows read of a type
-    /// declaration (trait-solver.md §3.9).
+    /// declaration (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     #[must_use]
     pub fn type_decl(&self) -> TypeDecl {
         match &self.data {
@@ -594,7 +594,7 @@ impl<'a> Lookup<'a> {
 }
 
 /// The declarations the solver's compiler-supplied rows and trait-value
-/// rows read (trait-solver.md §3.9, §9.3), over a context's lookup.
+/// rows read (`crates/hd_check/DESIGN.md` (trait solver) §3.9, §9.3), over a context's lookup.
 pub struct LookupDecls<'a> {
     pub lookup: &'a Lookup<'a>,
     pub sealed: SealedTraits,
@@ -661,7 +661,7 @@ pub struct FolderIface {
     /// Where each item and written type sits: `(item, slot)` to (module
     /// index in the folder, anchor). Outside every hash; diagnostics only.
     pub spans: HashMap<(DefId, u32), (u32, crate::anchor::Anchor)>,
-    /// The private-name index (resolution-and-interfaces.md §4.9): each
+    /// The private-name index (`crates/hd_resolve/DESIGN.md` §4.9): each
     /// top-level declaration without `pub`, as (module path, name). A
     /// failed export lookup that finds a row is `private-import`. Outside
     /// every hash; diagnostics only.
@@ -1352,7 +1352,7 @@ pub fn folder_iface(
     }
 }
 
-/// The solver's impl table (trait-solver.md §3.3) over the impls of a
+/// The solver's impl table (`crates/hd_check/DESIGN.md` (trait solver) §3.3) over the impls of a
 /// scope: rows grouped by trait, in stable path order within a trait.
 /// Templates take no row; inherent blocks are not trait impls.
 #[must_use]
@@ -1563,7 +1563,7 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
 }
 
 /// A row as a user reads it, after `$`: its keys in content order
-/// (scheduler.md §6.5), not interning order, then its row parameters.
+/// (`crates/hd_sched/DESIGN.md` §6.5), not interning order, then its row parameters.
 fn show_row_in(names: &Names<'_>, pool: hd_types::Types<'_>, r: hd_types::RowId) -> String {
     let d = pool.row_data(r);
     if d.keys.is_empty() && d.params.is_empty() {

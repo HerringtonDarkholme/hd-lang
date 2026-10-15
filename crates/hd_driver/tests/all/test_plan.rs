@@ -1,4 +1,4 @@
-//! `Goal::Tests` (engines-and-test-runner.md §19.1, §19.2): the test plan
+//! `Goal::Tests` (`docs/compiler/engines-and-test-runner.md` §19.1, §19.2): the test plan
 //! lists the cases in content order with their exports, `--filter`
 //! selects by name, a second run is warm (no module checked, no instance
 //! emitted), and the serial and pool executors build the same program.

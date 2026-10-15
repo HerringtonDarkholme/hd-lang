@@ -1,4 +1,4 @@
-//! Trials and the choices made by them (type-checking.md §2.4 steps 7 to
+//! Trials and the choices made by them (`crates/hd_check/DESIGN.md` (type checking) §2.4 steps 7 to
 //! 9, §2.5 "The instantiation choice", §3.5): a checkpoint of every piece
 //! of body state a check can change, exact rollback, the instantiation
 //! choice of a method call among the candidates of an `Instantiations`
@@ -315,7 +315,7 @@ impl Ck<'_, '_> {
             .collect();
         let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
         // A tuple template's member steps number on after its bound
-        // plan's, at the receiver's tuple type (trait-solver.md §3.9).
+        // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
         let mut goals = plan_goals(pool, table, row, &impl_args);
         if table.origin[row] == ImplOrigin::TupleTemplate
             && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)

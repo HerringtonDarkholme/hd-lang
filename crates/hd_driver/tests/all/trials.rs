@@ -1,5 +1,5 @@
-//! The instantiation choice through trials (type-checking.md §2.5,
-//! trait-solver.md §6.5): a method call whose receiver implements one
+//! The instantiation choice through trials (`crates/hd_check/DESIGN.md` (type checking) §2.5,
+//! `crates/hd_check/DESIGN.md` (trait solver) §6.5): a method call whose receiver implements one
 //! generic trait at several instantiations tries each candidate, keeps
 //! the ones that fit, and commits, reports `ambiguous-method`, or reports
 //! `type-mismatch` listing the instantiations. A failed trial leaves no

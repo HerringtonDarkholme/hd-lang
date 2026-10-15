@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `hd_driver`: the one driver (design-overview.md §1, scheduler.md §6.1).
+//! `hd_driver`: the one driver (`docs/compiler/design-overview.md` §1, `crates/hd_sched/DESIGN.md` §6.1).
 //! A run is the task graph of §6.1 over a package: skim, folder graph,
 //! folder interfaces, header checks, module prep, bodies, module finish,
 //! coherence, init order, package result, then `Collect`, `Emit` and
@@ -163,7 +163,7 @@ fn with_core(sources: &dyn SourceSet) -> MemorySources {
 }
 
 /// The hash of a source set's paths and texts (the std part of the
-/// toolchain key, cache.md §5.3).
+/// toolchain key, `crates/hd_cache/DESIGN.md` §5.3).
 fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
     let mut h = hd_base::StableHasher::new("std-sources");
     for e in sources.list() {
@@ -230,7 +230,7 @@ impl Clock for NoClock {
     }
 }
 
-/// Which executor runs the graph (scheduler.md §6.2).
+/// Which executor runs the graph (`crates/hd_sched/DESIGN.md` §6.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Executor {
     Serial(SerialOrder),
@@ -266,7 +266,7 @@ pub enum Goal {
     /// A program whose root is `fn main` of this module (its path below
     /// the package, as `main` or `app.main`).
     Program { entry: String },
-    /// The package's unit-test program (engines-and-test-runner.md
+    /// The package's unit-test program (`docs/compiler/engines-and-test-runner.md`
     /// §19.1): every selected `it` case of its `tests:` blocks, each a
     /// root. `module` limits the cases to one module (`hd test FILE`),
     /// `filter` to the names that contain it (`cli.test.filter`).
@@ -294,7 +294,7 @@ pub enum Goal {
     /// into its test-role `check` entry, as a test run checks them
     /// (`hd check --tests`, `cli.check.tests`).
     CheckTests,
-    /// The `input`th input of a REPL session (repl-plan.md §2.2): the root
+    /// The `input`th input of a REPL session (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the root
     /// package's synthetic file `repl#N` ([`hd_project::repl_file`]), a
     /// module outside every package folder, polled as a script. The
     /// sources hold the session's earlier inputs as `repl#K` files, `K`
@@ -357,7 +357,7 @@ pub fn integration_test_file(path: &str) -> bool {
         .is_some_and(|rest| !rest.contains('/'))
 }
 
-/// One program of a test run (engines-and-test-runner.md §19.1), built on
+/// One program of a test run (`docs/compiler/engines-and-test-runner.md` §19.1), built on
 /// its own: the unit-test program, or an integration test file
 /// (`module.test.integration`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -471,11 +471,11 @@ pub struct Output {
     /// The optimization level whose pipeline built this output
     /// ([`Packages::level`]).
     pub level: OptLevel,
-    /// The run's toolchain key (cache.md §5.3): the compiler build and the
+    /// The run's toolchain key (`crates/hd_cache/DESIGN.md` §5.3): the compiler build and the
     /// std sources it built with.
     pub toolchain: Hash128,
     /// The content key of the pipeline that built this output
-    /// (opt-pipeline.md §3.3), for its `target` and `level`.
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3), for its `target` and `level`.
     pub pipeline: Hash128,
 }
 
@@ -528,7 +528,7 @@ impl Output {
     }
 
     /// What resolves the anchors of the built program's line table to
-    /// files and lines (wasm-layout.md §15.9), its modules kept in `pool`
+    /// files and lines (`crates/hd_wasm/DESIGN.md` §15.9), its modules kept in `pool`
     /// with those of the command's other programs.
     #[must_use]
     pub fn positions(&self, pool: &mut PositionPool) -> Positions {
@@ -609,7 +609,7 @@ struct PrepOut {
 type IfaceDiags = Vec<(usize, Code, Severity, hd_resolve::anchor::Anchor, String)>;
 
 /// A module's TIR and body diagnostics after `Body(m)`, the hidden
-/// methods its derivations add (checking-and-tir.md §4.13.9), and the
+/// methods its derivations add (`crates/hd_tir/DESIGN.md` §4.13.9), and the
 /// results and rows inferred for its private callables (§4.13.1).
 type BodyOut = (
     Vec<Body>,
@@ -622,7 +622,7 @@ type BodyOut = (
 );
 
 /// What a module's derivations add to its `check` entry: the derived
-/// implementations' methods and their bodies (codegen.md §12.3).
+/// implementations' methods and their bodies (`crates/hd_mono/DESIGN.md` §12.3).
 #[derive(Default)]
 struct Derived {
     items: Vec<Item>,
@@ -651,7 +651,7 @@ struct ProgramTables {
     impl_rows: HashMap<DefId, ImplRef>,
     /// The program's impl universe: every folder of the program. A build
     /// sees the whole program, so the universe is not narrowed to a
-    /// closure (trait-solver.md §3.2).
+    /// closure (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     universe: ImplUniverseId,
     extra: Arc<UniverseImpls>,
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
@@ -818,7 +818,7 @@ enum Roots {
 /// registrations.
 type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
-/// One tuple template's member steps, computed once (trait-solver.md
+/// One tuple template's member steps, computed once (`crates/hd_check/DESIGN.md` (trait solver)
 /// §3.9); `None` for a template whose body does not check.
 type PlanCell = Arc<OnceLock<Option<Arc<[MemberStep]>>>>;
 
@@ -1023,7 +1023,7 @@ struct Run<'a> {
     syms: ShardedInterner,
     universes: ImplUniverses,
     memo: GlobalMemo,
-    /// Which folder declares what (trait-solver.md §3.2), built on first use.
+    /// Which folder declares what (`crates/hd_check/DESIGN.md` (trait solver) §3.2), built on first use.
     owners: OnceLock<OwnerMap>,
     /// Per folder: its impl table and `arg_impls` section, built once per
     /// run from its interface on first use.
@@ -1034,7 +1034,7 @@ struct Run<'a> {
     /// The pipeline's body-unit passes, which collection applies.
     planner: hd_opt::planner::PipelinePlanner,
     /// The target's lowering profile, which emission reads
-    /// (opt-pipeline.md §4); its hash is part of `pipeline`.
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §4); its hash is part of `pipeline`.
     lowering: hd_wasm::Lowering,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
@@ -1055,7 +1055,7 @@ struct Run<'a> {
     /// template, from its interface, found on first use; `true` for a
     /// module that declares a tuple template.
     folder_templates: Vec<OnceLock<Vec<(String, bool)>>>,
-    /// Per tuple template: its member steps (trait-solver.md §3.9),
+    /// Per tuple template: its member steps (`crates/hd_check/DESIGN.md` (trait solver) §3.9),
     /// computed once per run from its body on first use.
     tuple_plans: Mutex<HashMap<DefId, PlanCell>>,
     body: Vec<OnceLock<Option<BodyOut>>>,
@@ -1157,7 +1157,7 @@ pub struct Packages<'a> {
     /// `cli.profile.release`). Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
-    /// The engine the build is tuned for (opt-pipeline.md §5). With
+    /// The engine the build is tuned for (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5). With
     /// `level` it selects the pipeline (`hd_opt::passes::pipeline`) and the
     /// lowering (`hd_wasm::Lowering::of`), whose content, not the target's
     /// name, is part of every code key. The default is the default engine's
@@ -1172,7 +1172,7 @@ pub struct Packages<'a> {
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
     /// For a `Goal::Program`: build one more module of this session
-    /// instead of a closed program (repl-plan.md §2.2). Collection stops at
+    /// instead of a closed program (`f1c55020:future-work/compiler/repl-plan.md` §2.2). Collection stops at
     /// the instances earlier modules export and leaves out the inits they
     /// ran; the module links in `hd_wasm::LinkMode::Session`. Its link is
     /// not cached, since it depends on the session, except the prelude's
@@ -1192,7 +1192,7 @@ pub struct Session {
     /// Each REPL input's entries, by number. The build of a later input
     /// reads an earlier input here instead of computing its keys over the
     /// inputs before it and reading the store, so it does not redo the
-    /// session's earlier inputs (repl-plan.md §4).
+    /// session's earlier inputs (`f1c55020:future-work/compiler/repl-plan.md` §4).
     inputs: BTreeMap<u32, InputEntries>,
 }
 
@@ -1257,7 +1257,7 @@ impl Session {
     }
 }
 
-/// The REPL session's prelude (repl-plan.md §2.3, job C8): input 0, the
+/// The REPL session's prelude (`f1c55020:future-work/compiler/repl-plan.md` §2.3, job C8): input 0, the
 /// session's first module. It owns the memory and the runtime globals and
 /// holds what a value-showing input needs (`cli.repl.value`), so a later
 /// input imports those instances instead of linking its own copies: the
@@ -1713,7 +1713,7 @@ fn build_packages_inner(
     }
 }
 
-/// Folder-cycle recovery (resolution-and-interfaces.md §4.8 rule 5): the
+/// Folder-cycle recovery (`crates/hd_resolve/DESIGN.md` §4.8 rule 5): the
 /// folders of a cycle in the root package are merged into one folder, so
 /// they resolve together and their uses do not cascade; merging repeats
 /// until the folder graph is acyclic. Returns the cycles found first, as
@@ -2300,7 +2300,7 @@ impl Run<'_> {
         let all: Vec<TaskId> = iface_task.iter().flatten().copied().collect();
         let coh = sp.add(TaskKind::Coherence, &all);
         sp.edge(coh, pr);
-        // A program's collection crosses packages (codegen.md §13.2): the
+        // A program's collection crosses packages (`crates/hd_mono/DESIGN.md` §13.2): the
         // std modules its folders reach are checked to TIR too.
         let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
         if !self.analyze() {
@@ -2433,7 +2433,7 @@ impl Run<'_> {
         }
     }
 
-    /// `FolderIface(F)` (resolution-and-interfaces.md §4.10).
+    /// `FolderIface(F)` (`crates/hd_resolve/DESIGN.md` §4.10).
     fn folder_iface(&self, fi: usize) {
         let folder = &self.table.folders[fi];
         let fid = folder.id;
@@ -3041,7 +3041,7 @@ impl Run<'_> {
 
     /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, its goals
     /// asked through the solver with the impls of `closure(F)` and its
-    /// impl universe, taken when the task starts (trait-solver.md §3.2).
+    /// impl universe, taken when the task starts (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     fn header_check(&self, fi: usize) {
         let fid = self.table.folders[fi].id;
         let (Some(own), Some(all)) = (self.iface_of(fid), self.closure_ifaces(fid)) else {
@@ -3056,7 +3056,7 @@ impl Run<'_> {
             .map(|(c, i)| (self.table.folders[c.idx()].path.as_str(), i.deep_hash))
             .collect();
         // A tuple template's member steps come from its body, which no
-        // interface carries (trait-solver.md §3.9): its source is a
+        // interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9): its source is a
         // dependency of the findings, as it is of a module's check.
         let Some(templates) = self.tuple_template_sources(fid) else {
             self.blocked(Stage::HeaderCheck);
@@ -3134,7 +3134,7 @@ impl Run<'_> {
     /// `top-level-read-before-initialization` where the statements wait on
     /// each other (`module.init.cycle.stuck`). The order is a `graph` part
     /// keyed by `init_key` over the summaries, so a warm run with no change
-    /// to what it reads reads it (cache.md, "Part keys").
+    /// to what it reads reads it (`crates/hd_cache/DESIGN.md`, "Part keys").
     fn init_order(&self, fi: usize) {
         let folder = &self.table.folders[fi];
         let names = self.names();
@@ -3330,7 +3330,7 @@ impl Run<'_> {
             all.push(i);
         }
         // The result is a function of every interface: a warm run with no
-        // interface change reads it (cache.md, "Part keys"; this key is
+        // interface change reads it (`crates/hd_cache/DESIGN.md`, "Part keys"; this key is
         // coarser than the per-trait `coh_key`).
         let key = {
             let mut k = hd_base::StableHasher::new("coh");
@@ -3496,7 +3496,7 @@ impl Run<'_> {
     /// template edit must reach the key of every module that opts in. A
     /// module whose text names neither `derive` nor `Structure` opts in
     /// nowhere, but any module may use a tuple template, whose member
-    /// steps come from its body (trait-solver.md §3.9). std's sources are
+    /// steps come from its body (`crates/hd_check/DESIGN.md` (trait solver) §3.9). std's sources are
     /// in the toolchain key already.
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
         let text = &self.texts[m];
@@ -3507,7 +3507,7 @@ impl Run<'_> {
     /// The source hashes of the user tuple-template modules in
     /// `closure(folder)`: what `HeaderCheck(folder)` reads through a
     /// template's member steps, which come from its body and from nothing
-    /// an interface carries (trait-solver.md §3.9). The walkers' bounds
+    /// an interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9). The walkers' bounds
     /// are in the interfaces of the key's reach already, so the template
     /// modules' text is all that is missing. std's templates are in the
     /// toolchain key.
@@ -3570,7 +3570,7 @@ impl Run<'_> {
 
     /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
     /// it lower headers and create `Body(m)`, `ModuleFinish(m)` and
-    /// `TestOverlay(m)` (scheduler.md §6.1).
+    /// `TestOverlay(m)` (`crates/hd_sched/DESIGN.md` §6.1).
     fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
         let mi = m as usize;
         let body = self.module_prep_now(id, mi, sp);
@@ -3682,7 +3682,7 @@ impl Run<'_> {
         })
     }
 
-    /// A folder's impls, frozen with its interface (trait-solver.md §3.2,
+    /// A folder's impls, frozen with its interface (`crates/hd_check/DESIGN.md` (trait solver) §3.2,
     /// §3.3); `None` when the interface was not built.
     fn folder_impls(&self, f: FolderId) -> Option<&FolderImpls> {
         self.folder_impls[f.idx()]
@@ -3700,7 +3700,7 @@ impl Run<'_> {
             .as_deref()
     }
 
-    /// A solving context's impls (trait-solver.md §3.2): the closure's
+    /// A solving context's impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): the closure's
     /// folder tables by folder id, read by owner, and its impl universe,
     /// the closure's folders whose `arg_impls` or unowned rows are not
     /// empty.
@@ -3851,13 +3851,13 @@ impl Run<'_> {
         }
         let mut bodies = Vec::new();
         let mut failed = None;
-        // M1 (checking-and-tir.md §4.13.1 "Omitted result types"): the
+        // M1 (`crates/hd_tir/DESIGN.md` §4.13.1 "Omitted result types"): the
         // private callables without a result type are checked before
         // their callers, from the top-level statements on.
         let methods = hd_resolve::body_nodes(&names, &src, &heads);
         hd_check::results::omitted_results(&cx, &methods);
         // Top-level statements first: their bindings are visible to every
-        // function body of the module (checking-and-tir.md §4.13.10).
+        // function body of the module (`crates/hd_tir/DESIGN.md` §4.13.10).
         let mut stmts = hd_check::init::init_statements(src.root());
         // In test code, a top-level registration call is in test position
         // (`module.testing.test-position`): it registers a test case below,
@@ -4065,7 +4065,7 @@ impl Run<'_> {
             }
         }
         // The method bodies of the implementations `@error` generates
-        // (spec 14 `annot.error.generates`, codegen.md §13.14).
+        // (spec 14 `annot.error.generates`, `crates/hd_mono/DESIGN.md` §13.14).
         for h in heads.iter().filter(|h| {
             matches!(
                 h.kind,
@@ -4191,7 +4191,7 @@ impl Run<'_> {
             }
         }
         // Default bodies: data field defaults and parameter defaults
-        // (checking-and-tir.md "Default calls").
+        // (`crates/hd_tir/DESIGN.md` "Default calls").
         let mut defaults = Vec::new();
         for h in &heads {
             if h.kind == hd_resolve::HeadKind::Data {
@@ -4314,7 +4314,7 @@ impl Run<'_> {
         self.profile_boundaries(&cx, &heads, &mut diags);
         self.entry_points(m, &cx, &heads, &mut diags);
         // Each derivation opt-in checks its template's instance
-        // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9),
+        // (spec 14 `annot.template.checked`, `crates/hd_tir/DESIGN.md` §4.13.9),
         // whose bodies join the module's.
         let mut derived = Derived::default();
         if failed.is_none() {
@@ -4566,7 +4566,7 @@ impl Run<'_> {
 
     /// The derivation opt-ins of module `m`, its derived implementations
     /// and derivation blocks, each checked as an instance of its trait's
-    /// template, in the template's module scope (checking-and-tir.md
+    /// template, in the template's module scope (`crates/hd_tir/DESIGN.md`
     /// §4.13.9 "Derive instances"). A failing member is one
     /// `member-not-derivable` at the opt-in (spec 14
     /// `annot.walker.obligation.error`). `cx` and `impls` are the module's
@@ -5109,7 +5109,7 @@ impl Run<'_> {
         Some(f(&tcx, &theads))
     }
 
-    /// A tuple template's member steps (trait-solver.md §3.9): its
+    /// A tuple template's member steps (`crates/hd_check/DESIGN.md` (trait solver) §3.9): its
     /// methods checked once in its own module, with `T` its parameter,
     /// and the bounds of each walker, describer or source a `walk`,
     /// `describe` or `build` call there chose. That check sees no tuple
@@ -5197,7 +5197,7 @@ impl Run<'_> {
     /// Checks opt-ins whose template module `tcx` sees: each checks the
     /// template methods its block does not write (`annot.block.methods`).
     /// A clean opt-in adds its derive instances and, once per owner, the
-    /// bodies of the `Structure` it sees to `derived` (codegen.md §12.3);
+    /// bodies of the `Structure` it sees to `derived` (`crates/hd_mono/DESIGN.md` §12.3);
     /// a `Structure` the generator does not carry yet adds no body, so a
     /// call of it stops at collection.
     fn check_opt_ins(
@@ -5355,7 +5355,7 @@ impl Run<'_> {
         add_derived_methods(&names, &mut all_items, derived);
         // An omitted result type or row is the inferred one in the module's
         // items, which `Collect` and the program's emission read: a body's
-        // code key and its callers' hold its row's keys (codegen.md §12.4).
+        // code key and its callers' hold its row's keys (`crates/hd_mono/DESIGN.md` §12.4).
         let inferred: HashMap<DefId, hd_check::results::Inferred> =
             inferred.iter().map(|i| (i.def, *i)).collect();
         for it in &mut all_items {
@@ -5766,7 +5766,7 @@ impl Run<'_> {
             .collect()
     }
 
-    /// The program's view of the impls (trait-solver.md §3.2): owner
+    /// The program's view of the impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): owner
     /// lookup over every folder, no module's own table, the program's
     /// universe.
     fn program_view<'a>(
@@ -5804,10 +5804,10 @@ impl Run<'_> {
         self.body_of(p, def).is_some().then_some((def, held.active))
     }
 
-    /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
+    /// `Collect` (`crates/hd_mono/DESIGN.md` §11.3): `prog_key`, then instances, then code
     /// keys; hits are looked up here, and only misses become `Emit` tasks.
     /// A program's roots are `main` (with its report), or for a test run
-    /// each running case (engines-and-test-runner.md §19.1).
+    /// each running case (`docs/compiler/engines-and-test-runner.md` §19.1).
     fn collect(&self, sp: &dyn Spawn) {
         // `InitOrder` may have found an initialization cycle.
         if lock(&self.diags).has_errors() {
@@ -6529,7 +6529,7 @@ impl Run<'_> {
                     None => Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
                 }
             }
-            // A function reference's adapter has no TIR (codegen.md §13.11).
+            // A function reference's adapter has no TIR (`crates/hd_mono/DESIGN.md` §13.11).
             hd_mono::Sub::Adapter => {
                 hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls)
             }
@@ -6594,7 +6594,7 @@ impl Run<'_> {
                 self.names().path(c.collected.table.item[id.idx()]),
                 c.collected.table.sub[id.idx()]
             );
-            // A copy specialized on known closures (closure-calls.md, A2)
+            // A copy specialized on known closures (`crates/hd_opt/DESIGN.md` (known closure calls), A2)
             // is told from its plain instance by its key.
             fnames.push(if c.collected.table.known[id.idx()].is_empty() {
                 fname
@@ -7333,7 +7333,7 @@ impl Env<'_> {
             || pool.row_names_trait_self(sig.row, trait_)
     }
 
-    /// A default body (codegen.md §13.13): a body of its own, whose
+    /// A default body (`crates/hd_mono/DESIGN.md` §13.13): a body of its own, whose
     /// parameters are the earlier parameters and whose result is the
     /// parameter's or field's declared type. A facts body is one that takes
     /// no parameter.
@@ -7460,7 +7460,7 @@ impl ProgramEnv for Env<'_> {
         let o = self.p.items.get(owner)?;
         match &o.data {
             // A data type or enum owns its declaration `Structure`'s
-            // hidden methods (codegen.md §12.3).
+            // hidden methods (`crates/hd_mono/DESIGN.md` §12.3).
             ItemData::Impl { .. } | ItemData::Data(_) | ItemData::Enum { .. } => {
                 Some((*owner, o.generics.len()))
             }
@@ -7621,7 +7621,7 @@ impl ProgramEnv for Env<'_> {
         self
     }
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>> {
-        // A tuple's `Structure` (codegen.md §13.6): the derivation
+        // A tuple's `Structure` (`crates/hd_mono/DESIGN.md` §13.6): the derivation
         // generator over the tuple's member list.
         let names = self.run.names();
         let Some(target) = hd_structure::tuple_target(names.pool, self_ty) else {
@@ -7709,7 +7709,7 @@ pub fn messages(o: &Output) -> Vec<String> {
 /// Joins a module's derived methods to its items: each derived
 /// implementation lists its derive instances among its methods; its
 /// `Structure`'s methods stay hidden members, which `impl_method` finds
-/// for a call of `Structure` (codegen.md §12.3).
+/// for a call of `Structure` (`crates/hd_mono/DESIGN.md` §12.3).
 fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item]) {
     for d in derived {
         let ItemData::Method { owner, .. } = d.data else {

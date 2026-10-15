@@ -1,4 +1,4 @@
-//! The host's pending operations (runtime-and-host.md §17.2): each
+//! The host's pending operations (`crates/hd_run_wasmtime/DESIGN.md` §17.2): each
 //! `.start` that cannot finish at once
 //! gets a handle and completes later, when its time comes (`Clock.sleep`,
 //! `Console.write_line`) or when another thread delivers its result into

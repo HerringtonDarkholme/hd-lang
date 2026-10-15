@@ -1,4 +1,4 @@
-//! Which trait declares an associated type (trait-solver.md §4.1): a
+//! Which trait declares an associated type (`crates/hd_check/DESIGN.md` (trait solver) §4.1): a
 //! projection and a binding name the declaring trait's item, which a trait
 //! may reach through its supertraits (trait.assoc.projection,
 //! trait.binding.name-reach). Header lowering and the body checker both

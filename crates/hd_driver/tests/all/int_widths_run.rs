@@ -1,4 +1,4 @@
-//! Integer widths (codegen.md §13.15): sub-word values stay canonical, so
+//! Integer widths (`crates/hd_mono/DESIGN.md` §13.15): sub-word values stay canonical, so
 //! checked arithmetic panics at the type's own range, casts keep the
 //! target's low bits (`types.cast.wrap`), shifts drop the bits past the
 //! width, and the `std.num` methods written over those operators wrap,

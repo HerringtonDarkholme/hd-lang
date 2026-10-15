@@ -1,4 +1,4 @@
-//! Runtime helpers the compiler builds (runtime-and-host.md §16.1,
+//! Runtime helpers the compiler builds (`crates/hd_run_wasmtime/DESIGN.md` §16.1,
 //! "generated"): literal getters, number formatting, string equality, the
 //! exchange-buffer copy, panic stubs, the default profile's host provider
 //! stubs (from `hd_host_abi::TABLE`), vtable adapters, the list cursor and
@@ -17,7 +17,7 @@ use crate::layout::{
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
-/// How a host method's argument crosses (runtime-and-host.md §17.2).
+/// How a host method's argument crosses (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ArgCodec {
     /// A string: its viewed bytes into the exchange buffer, then the length.
@@ -27,7 +27,7 @@ pub enum ArgCodec {
     /// A scalar, as itself.
     Scalar(VT),
     /// A structured value, encoded into the exchange buffer after the
-    /// arguments before it (runtime-and-host.md §17.4).
+    /// arguments before it (`crates/hd_run_wasmtime/DESIGN.md` §17.4).
     Buf(BTy),
 }
 
@@ -70,7 +70,7 @@ impl ArgCodec {
     }
 }
 
-/// How a host method's result crosses (runtime-and-host.md §17.2).
+/// How a host method's result crosses (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ResCodec {
     Void,
@@ -136,7 +136,7 @@ impl ResCodec {
     }
 }
 
-/// The wake table (suspension.md §14.4): completed host handles by slot.
+/// The wake table (`crates/hd_wasm/DESIGN.md` §14.4): completed host handles by slot.
 #[must_use]
 pub fn wake_table() -> GSym {
     GSym::Rt("wake".into(), VT::rn(WTy::Array(VT::I32)))
@@ -149,7 +149,7 @@ pub fn fact_global() -> GSym {
     GSym::Rt("fact".into(), VT::rn(WTy::Bytes))
 }
 
-/// The forbidden-context counter (suspension.md §14.9): how many forbidden
+/// The forbidden-context counter (`crates/hd_wasm/DESIGN.md` §14.9): how many forbidden
 /// contexts are running; `block_on` panics while it is not zero.
 #[must_use]
 pub fn forbid_global() -> GSym {
@@ -193,7 +193,7 @@ pub fn runtime_globals() -> [GSym; 5] {
     ]
 }
 
-/// The host runtime's `abort` import (runtime-and-host.md §17.2).
+/// The host runtime's `abort` import (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 #[must_use]
 pub fn abort_import() -> Sym {
     Sym::Import {
@@ -213,7 +213,7 @@ pub enum OptForm {
     Boxed(WTy),
 }
 
-/// How a map hashes and compares its key (codegen.md §13.12).
+/// How a map hashes and compares its key (`crates/hd_mono/DESIGN.md` §13.12).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KeyOps {
     /// An integer, `bool` or `char` in one `i32`.
@@ -233,7 +233,7 @@ pub enum KeyOps {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
-    /// A pooled string literal's getter (wasm-layout.md §15.4).
+    /// A pooled string literal's getter (`crates/hd_wasm/DESIGN.md` §15.4).
     Lit(Vec<u8>),
     /// `Display.to_string` of an integer: a view over a fresh buffer.
     IntToStr { wide: bool, signed: bool },
@@ -241,7 +241,7 @@ pub enum Helper {
     StrEq,
     /// Copies a string's viewed bytes to the exchange buffer; its length.
     StrToBuf,
-    /// A panic stub with a fixed message (wasm-layout.md §15.5).
+    /// A panic stub with a fixed message (`crates/hd_wasm/DESIGN.md` §15.5).
     Panic(String),
     /// `panic(message)`.
     PanicStr,
@@ -305,7 +305,7 @@ pub enum Helper {
         result: ResCodec,
     },
     /// A host method that never waits: one import call
-    /// (runtime-and-host.md §17.2).
+    /// (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
     HostCall {
         sig: WTy,
         module: String,
@@ -969,7 +969,7 @@ impl Helper {
     }
 }
 
-/// The host runtime's stderr import (runtime-and-host.md §17.2).
+/// The host runtime's stderr import (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 #[must_use]
 pub fn stderr_import() -> Sym {
     Sym::Import {
@@ -992,7 +992,7 @@ pub fn stdout_import() -> Sym {
     }
 }
 
-/// The host runtime's `block` import (suspension.md §14.9).
+/// The host runtime's `block` import (`crates/hd_wasm/DESIGN.md` §14.9).
 #[must_use]
 pub fn block_import() -> Sym {
     Sym::Import {
@@ -1162,7 +1162,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             a.i64(32);
             a.s().i64_shr_u().i32_wrap_i64();
             a.set(len);
-            // Grow the exchange buffer to fit (runtime-and-host.md §17.3).
+            // Grow the exchange buffer to fit (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
             a.get(len);
             a.i32(65535);
             a.s().i32_add();
@@ -1893,7 +1893,7 @@ fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>) {
     a.end();
 }
 
-/// `race!`'s poll (suspension.md §14.5): polls the children in list order;
+/// `race!`'s poll (`crates/hd_wasm/DESIGN.md` §14.5): polls the children in list order;
 /// the first Ready wins, and every other child is cancelled in list order
 /// before it returns. An empty list panics.
 fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
@@ -1982,7 +1982,7 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.finish(res)
 }
 
-/// Pushes a host import's arguments (runtime-and-host.md §17.2): the
+/// Pushes a host import's arguments (`crates/hd_run_wasmtime/DESIGN.md` §17.2): the
 /// structured ones are encoded into the exchange buffer first, one after
 /// another, and their total length is the last import parameter; a lone
 /// string crosses as its bytes alone, its length the parameter; scalars
@@ -2039,7 +2039,7 @@ fn marshal(a: &mut Asm, args: &[ArgCodec], load: &dyn Fn(&mut Asm, u32, &VT)) ->
 fn unmarshal(a: &mut Asm, result: &ResCodec, n: u32) {
     match result {
         ResCodec::Tags => {
-            // An enum of tags (runtime-and-host.md §17.4): the variant
+            // An enum of tags (`crates/hd_run_wasmtime/DESIGN.md` §17.4): the variant
             // index, then a payload variant index when present.
             a.i32(0);
             a.mem8_load(0);
@@ -2066,7 +2066,7 @@ fn unmarshal(a: &mut Asm, result: &ResCodec, n: u32) {
     }
 }
 
-/// A host method that never waits (runtime-and-host.md §17.2): one import
+/// A host method that never waits (`crates/hd_run_wasmtime/DESIGN.md` §17.2): one import
 /// call, its arguments and result marshalled as `marshal` and `unmarshal`
 /// do. The first `skip` parameters of `sig` are not arguments (a provider
 /// method's receiver).
@@ -2101,7 +2101,7 @@ fn host_call(
     Ok(a.finish(results.clone()))
 }
 
-/// The leaf frame's poll (runtime-and-host.md §17.2).
+/// The leaf frame's poll (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 fn host_poll(
     frame: &WTy,
     module: &str,
@@ -2193,7 +2193,7 @@ fn host_poll(
 }
 
 /// `(n)`: reads `n` handles (`i32`, little-endian) from the exchange
-/// buffer and records each in the wake table under its slot (suspension.md
+/// buffer and records each in the wake table under its slot (`crates/hd_wasm/DESIGN.md`
 /// §14.4). The table grows to fit.
 fn wake_mark() -> Code {
     let arr = WTy::Array(VT::I32);

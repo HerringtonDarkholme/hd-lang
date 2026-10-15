@@ -1,5 +1,5 @@
-//! The wire form of a body (data-structures.md §3.18, §3.20.2;
-//! checking-and-tir.md §4.13.11): entry-local tables, then the columns,
+//! The wire form of a body (`docs/compiler/data-structures.md` §3.18, §3.20.2;
+//! `crates/hd_tir/DESIGN.md` §4.13.11): entry-local tables, then the columns,
 //! with every run ID (item, type, type list, symbol) replaced by a table
 //! row. The tables are per body, so the TIR hash is a function of the body
 //! alone (reconciliation, SK-N9).
@@ -239,7 +239,7 @@ pub fn write_body(
     }
     w.str(&b.label);
     // Locations last, outside the hashed prefix: moving a body in its file
-    // changes node indices, not the body (cache.md §5.3).
+    // changes node indices, not the body (`crates/hd_cache/DESIGN.md` §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
     u32s(&mut w, b.syn.iter().map(|n| n.raw()));
     u32s(&mut w, b.local_syn.iter().map(|n| n.raw()));
@@ -351,7 +351,7 @@ pub fn read_body(
 /// type columns, the constants' types, and the ID words of each record,
 /// the ones the wire form remaps. A derive instance is its template's
 /// checked body with the template's parameters replaced this way
-/// (checking-and-tir.md §4.13.9).
+/// (`crates/hd_tir/DESIGN.md` §4.13.9).
 ///
 /// # Errors
 /// A tag whose ID words are not mapped yet, as for the wire form.

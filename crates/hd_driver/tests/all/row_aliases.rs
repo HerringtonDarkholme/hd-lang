@@ -1,4 +1,4 @@
-//! Row aliases and context types in headers (resolution-and-interfaces.md,
+//! Row aliases and context types in headers (`crates/hd_resolve/DESIGN.md`,
 //! "Row aliases and context types in interfaces"; spec 11 "Row Aliases"
 //! and "Reusable Contexts"): every alias use expands first
 //! (`req.row.alias.expand.first`), recursively and in any declaration

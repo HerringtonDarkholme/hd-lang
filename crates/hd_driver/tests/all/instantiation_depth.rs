@@ -1,5 +1,5 @@
 //! `types.generic.instantiation-depth.error` and `cli.build.depth-error`:
-//! collection stops at the instantiation depth limit (codegen.md §13.4)
+//! collection stops at the instantiation depth limit (`crates/hd_mono/DESIGN.md` §13.4)
 //! with `instantiation-too-deep` on the call that would exceed it, and a
 //! check builds no program, so it reports nothing. Instance keys hash the
 //! pool's shared types, never their trees, so a type that doubles per call

@@ -104,7 +104,7 @@ pub struct Counters {
     /// `HeaderCheck`) this run computed instead of reading their entries.
     pub parts_computed: BTreeMap<&'static str, usize>,
     /// How many body-unit pass runs collection's planner made
-    /// (opt-pipeline.md §2.2): 0 in a pipeline with no body pass.
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2): 0 in a pipeline with no body pass.
     pub body_passes: usize,
 }
 

@@ -1,5 +1,5 @@
 //! Typed derivation bodies run (#253; annotations, "Walk, Describe, And
-//! Build", "Facts", "Members And Variants"; codegen.md §12.3, §13.6): the
+//! Build", "Facts", "Members And Variants"; `crates/hd_mono/DESIGN.md` §12.3, §13.6): the
 //! generated `walk`, `describe`, `build` and `facts`, the facts each
 //! derivation sees, one `Structure` shared by every derivation without
 //! member lines, and the rebuild that a field edit forces. Programs build
@@ -494,7 +494,7 @@ fn two(name: &str, decl: &str, main: &str) -> (String, usize) {
     (run(&out, name), out.counters.emitted)
 }
 
-/// codegen.md §13.6, design Q2: two derivations of one target that see the
+/// `crates/hd_mono/DESIGN.md` §13.6, design Q2: two derivations of one target that see the
 /// declaration's `Structure` call one `walk` instance per walker, and one
 /// set of handles; a derivation block with member lines sees, and emits,
 /// its own.
@@ -521,7 +521,7 @@ fn two_derivations_of_one_target_share_their_bodies() {
     );
 }
 
-/// The cache claim of the design (`future-work/compiler/typed-derivation.md`,
+/// The cache claim of the design (`f1c55020:future-work/compiler/typed-derivation.md`,
 /// "How they stay cached per type"): adding, removing, reordering or
 /// renaming a field of a derived type changes the generated bodies' code
 /// keys, so a rebuild through one store re-emits them and never reuses a

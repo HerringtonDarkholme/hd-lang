@@ -1,4 +1,4 @@
-//! Boundary codecs (runtime-and-host.md §17.4): the encoders and decoders
+//! Boundary codecs (`crates/hd_run_wasmtime/DESIGN.md` §17.4): the encoders and decoders
 //! of the values that cross the exchange buffer, generated per boundary
 //! type from its structure, as a derive would be. A `BTy` describes a type
 //! by its parts and its Wasm layout, with no pool, so a codec helper is
@@ -41,7 +41,7 @@ pub struct JsonB {
     pub decoded: Vec<VT>,
 }
 
-/// A boundary type (runtime-and-host.md §17.4).
+/// A boundary type (`crates/hd_run_wasmtime/DESIGN.md` §17.4).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BTy {
     /// `void`: no bytes.
@@ -606,7 +606,7 @@ fn check_room(a: &mut Asm, off: u32, n: u32) {
 }
 
 /// `(end)`: grows the exchange buffer to at least `end` bytes
-/// (runtime-and-host.md §17.3); a refused growth is `heap-exhausted`.
+/// (`crates/hd_run_wasmtime/DESIGN.md` §17.3); a refused growth is `heap-exhausted`.
 #[must_use]
 pub fn fit_code() -> Code {
     let mut a = Asm::new(vec![VT::I32]);

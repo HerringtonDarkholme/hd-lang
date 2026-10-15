@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `hd_mono`: monomorphizing collection (codegen.md §13.1 to §13.3) over
+//! `hd_mono`: monomorphizing collection (`crates/hd_mono/DESIGN.md` §13.1 to §13.3) over
 //! `hd_tir::ir` bodies into the `InstanceTable`, with A1 classes and
 //! instance keys from `layout`, and trait selection through the solver's
 //! `select` plus a head match. Collection records each call's target, each
@@ -34,7 +34,7 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
     fn body(&self, def: DefId) -> Option<&Body>;
-    /// Per type parameter of the item itself: has a bound (A1, codegen.md
+    /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
     /// Per type parameter of the item itself: is a row parameter (`$R`).
@@ -46,7 +46,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
     /// The requirement keys of an instance's row, each the whole trait
-    /// value type with its substituted arguments and bindings (codegen.md
+    /// value type with its substituted arguments and bindings (`crates/hd_mono/DESIGN.md`
     /// §13.18), in key order (`key_order`, §12.4): the declared keys, and
     /// the keys of each row parameter's argument, so providers are passed
     /// per instance.
@@ -58,7 +58,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn parent(&self, def: DefId) -> Option<(DefId, usize)>;
     /// The item whose type parameters `def`'s types name: a default body's
     /// declaring function, method or data type, whose instance arguments
-    /// it shares (codegen.md §13.13); `def` itself for every other item.
+    /// it shares (`crates/hd_mono/DESIGN.md` §13.13); `def` itself for every other item.
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
@@ -102,24 +102,24 @@ pub trait ProgramEnv: LayoutEnv {
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
-    /// folders (trait-solver.md §3.2, §8.3), the program being the impl
+    /// folders (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
     /// universe.
     fn impls(&self) -> Impls<'_>;
     /// The program's impl universe and the run's proof memo, which
-    /// selection shares with checking (trait-solver.md §7.1).
+    /// selection shares with checking (`crates/hd_check/DESIGN.md` (trait solver) §7.1).
     fn solving(&self) -> (ImplUniverseId, &GlobalMemo);
     /// Where an impl's row lives.
     fn impl_row(&self, impl_: DefId) -> Option<ImplRef>;
     /// The declarations the solver's compiler-supplied rows read
-    /// (trait-solver.md §3.9), so selection answers sealed traits as
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9), so selection answers sealed traits as
     /// checking does.
     fn decls(&self) -> &dyn Declarations;
     /// The body of a compiler-supplied impl's method at a concrete self
     /// type, when the compiler generates one in TIR (a tuple's
-    /// `Structure`, codegen.md §13.6): its signature is the trait
+    /// `Structure`, `crates/hd_mono/DESIGN.md` §13.6): its signature is the trait
     /// method's with `Self` replaced, so its instance's arguments are the
     /// self type, then the trait's and the method's own. `None` when
-    /// emission lowers the method itself (trait-solver.md §3.9).
+    /// emission lowers the method itself (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>>;
     /// The body of one of the `dbg` functions the compiler supplies per
     /// concrete argument (`dbg_show[ty]`, `dbg[args]`; spec/lang/10-modules.md
@@ -127,7 +127,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `std.format.Debug`, which `dbg_show` prints through where it holds.
     fn debug_trait(&self) -> DefId;
-    /// The items a map key's hashing and equality call (codegen.md
+    /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
     /// names `Self`) and `std.hash.hash_of`.
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
@@ -166,7 +166,7 @@ pub enum TargetKind {
     Intrinsic(String),
     /// A body-less method of a built-in family (`impl[N < Num] Display for
     /// N`), or a method of a sealed trait's compiler-supplied impl
-    /// (`Inspectable.runtime_type`, trait-solver.md §3.9): the method's
+    /// (`Inspectable.runtime_type`, `crates/hd_check/DESIGN.md` (trait solver) §3.9): the method's
     /// name at a concrete self type.
     Builtin { method: String, self_ty: Ty },
 }
@@ -183,7 +183,7 @@ pub struct CallTarget {
     pub kind: TargetKind,
 }
 
-/// A row's requirement keys in key order (codegen.md §12.4, §13.18): the
+/// A row's requirement keys in key order (`crates/hd_mono/DESIGN.md` §12.4, §13.18): the
 /// trait value types among `keys`, sorted by their content hash
 /// (`layout::canon`) and each once, so a caller and its callee agree on
 /// the order without comparing run-local type numbers. `Repo[User]` and
@@ -208,7 +208,7 @@ pub fn key_order(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Call(CallTarget),
-    /// An omitted argument's default body (codegen.md §13.13): its
+    /// An omitted argument's default body (`crates/hd_mono/DESIGN.md` §13.13): its
     /// instance, and whether the body makes a call, so emission brackets
     /// it with the forbidden-context counter (§12.3).
     Default {
@@ -218,25 +218,25 @@ pub enum Target {
     /// A coercion to a trait value: its vtable's targets.
     VTable(VTable),
     /// A trait method call at a trait-value receiver: it dispatches
-    /// through the receiver's table (codegen.md §13.5,
+    /// through the receiver's table (`crates/hd_mono/DESIGN.md` §13.5,
     /// trait.dyn.bound.dispatch), so collection pushes nothing.
     Dyn,
     /// A closure's code instance.
     Closure(Hash128),
     /// At a `CallValue` its body's plan makes direct (`plan`, rule 1): the
     /// callee is a known closure, whose code instance this is
-    /// (closure-calls.md, options A1 and A2). Emission calls it directly,
+    /// (`crates/hd_opt/DESIGN.md` (known closure calls), options A1 and A2). Emission calls it directly,
     /// the value passed as the environment, instead of reading the code
     /// field.
     KnownClosure(Hash128),
     /// A map operation on a key that is not inline
     /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
-    /// (codegen.md §13.12).
+    /// (`crates/hd_mono/DESIGN.md` §13.12).
     MapKey {
         hash: CallTarget,
         eq: CallTarget,
     },
-    /// An open instruction of an erased body (codegen.md §13.5.1): it
+    /// An open instruction of an erased body (`crates/hd_mono/DESIGN.md` §13.5.1): it
     /// calls thunk `k` of the witness the body was passed.
     Open(u32),
     /// At [`INFO`] of an erased body: its witness family.
@@ -253,7 +253,7 @@ pub enum Target {
 /// (an erased body's family, a thunk's instruction), not an instruction.
 pub const INFO: u32 = u32::MAX;
 
-/// The targets of one vtable at a concrete type (codegen.md §13.5,
+/// The targets of one vtable at a concrete type (`crates/hd_mono/DESIGN.md` §13.5,
 /// §13.16): the trait, one target per method slot, and per direct
 /// supertrait, in declared order, that supertrait's vtable at the same
 /// type.
@@ -305,7 +305,7 @@ pub struct BoundaryCodecs {
 /// provider signatures, by stripped type.
 pub type BoundaryMap = HashMap<Ty, BoundaryCodecs>;
 
-/// The output of `Collect` (codegen.md §11.3).
+/// The output of `Collect` (`crates/hd_mono/DESIGN.md` §11.3).
 #[derive(Debug, Default)]
 pub struct Collected {
     pub table: InstanceTable,
@@ -326,7 +326,7 @@ pub struct Collected {
     /// the program reaches, by `(trait method, self type)`.
     pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
     /// The witnesses of generic methods called through trait values
-    /// (codegen.md §13.5.1), which link writes.
+    /// (`crates/hd_mono/DESIGN.md` §13.5.1), which link writes.
     pub witnesses: Witnesses,
     /// The JSON codecs of the private-field types in the entry rows'
     /// provider signatures, by stripped type, which the host boundary
@@ -339,7 +339,7 @@ pub struct Collected {
 }
 
 /// What the earlier modules of a session already hold, such as the inputs
-/// before a REPL input (repl-plan.md §2.2): collection stops at their
+/// before a REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): collection stops at their
 /// instances and leaves out the inits they ran.
 #[derive(Clone, Copy)]
 pub struct Session<'a> {
@@ -381,7 +381,7 @@ impl DefIdOrd {
 
 /// Substitutes an instance's arguments for its item's parameters: the
 /// owner's (impl or trait) first, then the item's own. A projection whose
-/// base becomes concrete resolves to the impl's binding (codegen.md §13).
+/// base becomes concrete resolves to the impl's binding (`crates/hd_mono/DESIGN.md` §13).
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
     let item = env.generics_owner(item);
@@ -447,7 +447,7 @@ fn def_name(env: &dyn ProgramEnv, printed: bool, def: DefId) -> String {
 
 /// The longest type a diagnostic prints in full, in bytes; a longer one is
 /// cut there and ends in `...`. A type that nests 33 deep can have 2^33
-/// leaves (`instantiation-too-deep`, codegen.md §13.4).
+/// leaves (`instantiation-too-deep`, `crates/hd_mono/DESIGN.md` §13.4).
 pub const SHOWN_TYPE_MAX: usize = 120;
 
 /// `t` as `type_name` spells it, cut at `SHOWN_TYPE_MAX` bytes: the walk
@@ -773,7 +773,7 @@ fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
     out
 }
 
-/// `layout_hash(T)` (codegen.md §13.8): the hash of `canon(T)` and of the
+/// `layout_hash(T)` (`crates/hd_mono/DESIGN.md` §13.8): the hash of `canon(T)` and of the
 /// declarations of every item `T` names, and of every item their declared
 /// types name, however far. A type's layout reads only those, at `T`'s
 /// arguments, so the hash covers a whole recursion group and ends on any
@@ -909,7 +909,7 @@ fn declarations_hash(
 
 type SelectKey = (DefId, Ty, TyList, Option<DefId>);
 
-/// What selection picked (trait-solver.md §8.3): an impl and its
+/// What selection picked (`crates/hd_check/DESIGN.md` (trait solver) §8.3): an impl and its
 /// arguments, or the compiler's impl of a sealed trait (§3.9), whose
 /// methods are lowered per type.
 #[derive(Clone)]
@@ -926,7 +926,7 @@ struct Cx<'a> {
     penv: ParamEnv,
     memo: BodyMemo,
     /// The build's selections, by `(trait, self type, trait arguments,
-    /// chosen impl)`: the impl and its arguments (trait-solver.md §8.3).
+    /// chosen impl)`: the impl and its arguments (`crates/hd_check/DESIGN.md` (trait solver) §8.3).
     selected: HashMap<SelectKey, Picked>,
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
@@ -937,7 +937,7 @@ struct Cx<'a> {
     /// `declarations_hash` per item, for the build.
     layouts: HashMap<DefId, Hash128>,
     /// Nesting depth per type, so a type shared by its parts is walked
-    /// once however large its tree (codegen.md §13.4).
+    /// once however large its tree (`crates/hd_mono/DESIGN.md` §13.4).
     depths: HashMap<Ty, u32>,
     /// The instruction being scanned: its item and syntax node, where an
     /// instance request over a limit is reported.
@@ -986,7 +986,7 @@ enum Specialize {
     Skip,
 }
 
-/// Collection stopped at an instantiation limit (codegen.md §13.4):
+/// Collection stopped at an instantiation limit (`crates/hd_mono/DESIGN.md` §13.4):
 /// `instantiation-too-deep`, at the call that would exceed it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TooDeep {
@@ -1021,7 +1021,7 @@ impl Cx<'_> {
     }
 
     /// Pushes an instance that `parent` requests; returns its key. A new
-    /// instance over a limit of codegen.md §13.4 stops collection. `raw`
+    /// instance over a limit of `crates/hd_mono/DESIGN.md` §13.4 stops collection. `raw`
     /// is the request's type arguments before A1 classification: when a
     /// request re-enters an ancestor instance with a differently shaped
     /// request, the recursion grows concrete types through erased
@@ -1039,7 +1039,7 @@ impl Cx<'_> {
     }
 
     /// [`Self::push`] of the instance specialized on `known` (option A2 of
-    /// closure-calls.md), or of the plain one when `known` is empty.
+    /// `crates/hd_opt/DESIGN.md` (known closure calls)), or of the plain one when `known` is empty.
     fn push_known(
         &mut self,
         item: DefId,
@@ -1169,7 +1169,7 @@ impl Cx<'_> {
         d
     }
 
-    /// Records the stop at a limit (codegen.md §13.4): the request of
+    /// Records the stop at a limit (`crates/hd_mono/DESIGN.md` §13.4): the request of
     /// `item` at `args` from `parent`, at the instruction being scanned,
     /// with the first three instances of the chain and the last.
     fn stop_too_deep(
@@ -1276,7 +1276,7 @@ impl Cx<'_> {
         NotImplemented::new(Stage::Collect, "instantiation-too-deep")
     }
 
-    /// A1's representation summary of `def` (codegen.md §13.2): per own
+    /// A1's representation summary of `def` (`crates/hd_mono/DESIGN.md` §13.2): per own
     /// type parameter, whether a type of its signature or body holds the
     /// parameter where the layout depends on its exact representation.
     /// Only a value of the parameter itself, `mut`, an optional, and the
@@ -1285,7 +1285,7 @@ impl Cx<'_> {
     /// projection that mentions it change their Wasm type with it. A
     /// requirement key that mentions it (the item's own row, a function
     /// type's row, a `$.with` key) changes which provider the instance
-    /// passes and reads, so it is exact too (codegen.md §13.18).
+    /// passes and reads, so it is exact too (`crates/hd_mono/DESIGN.md` §13.18).
     fn exact_params(&mut self, def: DefId) -> Vec<bool> {
         if let Some(e) = self.exact.get(&def) {
             return e.clone();
@@ -1328,14 +1328,14 @@ impl Cx<'_> {
         out
     }
 
-    /// A1 (codegen.md §13.2): an unbounded, move-only argument of a
+    /// A1 (`crates/hd_mono/DESIGN.md` §13.2): an unbounded, move-only argument of a
     /// reference layout is keyed and laid out as the class `REF`.
     fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let pinned = self.exact_params(def);
         let mut a = Vec::new();
         for (k, &t) in args.iter().enumerate() {
-            // A row argument is part of the instance (codegen.md §12.4:
+            // A row argument is part of the instance (`crates/hd_mono/DESIGN.md` §12.4:
             // its keys are the instance's provider parameters).
             let exact = k < own_from
                 || bounded.get(k - own_from).copied().unwrap_or(true)
@@ -1399,7 +1399,7 @@ impl Cx<'_> {
         })
     }
 
-    /// Selects the implementation of `trait_` for `self_ty` (codegen.md
+    /// Selects the implementation of `trait_` for `self_ty` (`crates/hd_mono/DESIGN.md`
     /// §13.2 `select`): the impl and its arguments.
     fn select(
         &mut self,
@@ -1792,7 +1792,7 @@ impl Cx<'_> {
     }
 
     /// The vtable of `trait_[trait_args]` at the concrete type `from`
-    /// (codegen.md §13.5, §13.16): a target per method slot, then each
+    /// (`crates/hd_mono/DESIGN.md` §13.5, §13.16): a target per method slot, then each
     /// direct supertrait's vtable at the same type, its arguments
     /// substituted with `Self` as `from`. Each slot's key joins `reps`.
     fn vtable(
@@ -1856,7 +1856,7 @@ impl Cx<'_> {
         d
     }
 
-    /// Collection rule 2 of opt-pipeline.md §2.2, specialization, at the
+    /// Collection rule 2 of `crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2, specialization, at the
     /// call `at.at` of `def`: the instance of `def` specialized on the
     /// known closures the call passes for the parameters the callee's plan
     /// marks (`spec_params`). An argument is a known closure when its
@@ -1970,7 +1970,7 @@ impl Cx<'_> {
     /// What an item body's code reads of its own signature, which its TIR
     /// does not hold: its parameter and result layouts, whether it
     /// suspends, and its row's keys, which are its provider parameters
-    /// (codegen.md §12.4). Two programs may give one item path one body
+    /// (`crates/hd_mono/DESIGN.md` §12.4). Two programs may give one item path one body
     /// under two rows, as `fn read() -> i32 $ Clock: 42` and
     /// `fn read() -> i32 $ Clock + Logger: 42`, and must not share code.
     fn hash_signature(&mut self, item: DefId, args: TyList, reps: &mut StableHasher) {
@@ -1994,7 +1994,7 @@ impl Cx<'_> {
         }
     }
 
-    /// A function reference's adapter (codegen.md §13.11): its one call,
+    /// A function reference's adapter (`crates/hd_mono/DESIGN.md` §13.11): its one call,
     /// of the item at the instance's arguments, recorded as instruction
     /// 0. A trait member's arguments are `[Self, trait args..., own...]`,
     /// and its implementation is selected at that `Self` (the reference
@@ -2051,7 +2051,7 @@ impl Cx<'_> {
         Ok(())
     }
 
-    /// The key operations of a map of type `map` (codegen.md §13.12):
+    /// The key operations of a map of type `map` (`crates/hd_mono/DESIGN.md` §13.12):
     /// `None` for an inline key, else `hash_of` and `Eq.eq` at the key
     /// type, selected here so the TIR carries only the key type.
     fn map_key(
@@ -2120,7 +2120,7 @@ impl Cx<'_> {
         let mut seen = std::collections::HashSet::new();
         let s = |t: Ty| subst(pool, env, item, args, t);
         // An erased body outlines its open instructions, and a thunk is
-        // one of them at concrete arguments (codegen.md §13.5.1).
+        // one of them at concrete arguments (`crates/hd_mono/DESIGN.md` §13.5.1).
         let mut open: HashMap<u32, u32> = HashMap::new();
         let mut only = None;
         match sub {
@@ -2309,7 +2309,7 @@ impl Cx<'_> {
                     self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }
-                // An omitted argument (codegen.md §13.2 step 6, §13.13): the
+                // An omitted argument (`crates/hd_mono/DESIGN.md` §13.2 step 6, §13.13): the
                 // default body's instance at the call's type arguments.
                 Tag::DefaultCall => {
                     let (Some(&d), Some(&l)) = (body.record(a).first(), body.record(a).get(1))
@@ -2349,7 +2349,7 @@ impl Cx<'_> {
                     } else {
                         args
                     };
-                    // Collection rule 3 of opt-pipeline.md §2.2, carrying:
+                    // Collection rule 3 of `crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2, carrying:
                     // a closure that a specialized instance creates carries
                     // the known closures for the parameters its plan lists,
                     // so those calls are direct there too. One outside the
@@ -2375,7 +2375,7 @@ impl Cx<'_> {
                 }
                 // A function reference is a closure whose code is the
                 // adapter instance of the item at its substituted type
-                // arguments (codegen.md §13.11).
+                // arguments (`crates/hd_mono/DESIGN.md` §13.11).
                 Tag::ItemRef => {
                     let (Some(&d), Some(&l)) = (body.record(a).first(), body.record(b).first())
                     else {
@@ -2428,7 +2428,7 @@ impl Cx<'_> {
                     let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
-                // A map's key operations (codegen.md §13.12): a literal
+                // A map's key operations (`crates/hd_mono/DESIGN.md` §13.12): a literal
                 // inserts each entry, and lookup, insertion and removal
                 // hash and compare the key through its impls.
                 Tag::NewMap if !body.record(b).is_empty() => {
@@ -2530,7 +2530,7 @@ fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
     )
 }
 
-/// Collection rule 1 of opt-pipeline.md §2.2, direct calls: each
+/// Collection rule 1 of `crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2, direct calls: each
 /// `CallValue` the plan gives a callee source records
 /// `Target::KnownClosure` when that source is a known closure in the
 /// instance being scanned. A `Made` source is one when its instruction's
@@ -2579,7 +2579,7 @@ fn direct_calls(
 /// Whether a body may run other code: a call of any form, or a map
 /// operation that hashes and compares its key through impls (§13.12). A
 /// body that does not can never reach `block_on`, so its `DefaultCall`
-/// needs no forbidden-context bracket (codegen.md §12.3).
+/// needs no forbidden-context bracket (`crates/hd_mono/DESIGN.md` §12.3).
 fn makes_call(body: &Body) -> bool {
     (0..body.len()).any(|i| match body.tags[i] {
         Tag::Call
@@ -2691,7 +2691,7 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
     }
 }
 
-/// Collection from `root` (codegen.md §13.1) and the init bodies `inits`
+/// Collection from `root` (`crates/hd_mono/DESIGN.md` §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
 /// instance, each call's target, the imports and data types; or the stop
 /// at an instantiation limit. With a `session`, collection stops at the
@@ -2699,7 +2699,7 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// the inits they ran; without one, it collects the whole program. `refs`
 /// are function references the module holds though its code takes none:
 /// each item's adapter instance at its type arguments, as a REPL
-/// session's prelude holds them for later inputs (repl-plan.md job C8).
+/// session's prelude holds them for later inputs (`f1c55020:future-work/compiler/repl-plan.md` job C8).
 /// `planner` holds the pipeline's body-unit passes, whose plans
 /// collection applies (`plan`).
 pub fn collect(
@@ -2772,7 +2772,7 @@ impl Cx<'_> {
             self.out.inits.push(k);
         }
         // Extra roots with type arguments: the test cases after the first
-        // and the `std.rt` result functions (engines-and-test-runner.md
+        // and the `std.rt` result functions (`docs/compiler/engines-and-test-runner.md`
         // §19.1).
         for (d, args) in extra {
             let t = self.target(*d, *args, InstId::NONE)?;
@@ -2784,7 +2784,7 @@ impl Cx<'_> {
         let mut boundary_roots = vec![(root, TyList::EMPTY)];
         boundary_roots.extend(extra.iter().copied());
         self.note_boundary_codecs(&boundary_roots)?;
-        // Breadth-first in push order (codegen.md §13.4): the first
+        // Breadth-first in push order (`crates/hd_mono/DESIGN.md` §13.4): the first
         // instance over a limit is the same on every run.
         let mut next = 0;
         while next < self.work.len() {

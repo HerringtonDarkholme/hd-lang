@@ -1,4 +1,4 @@
-// The Node half of the cross-engine REPL session test (repl-plan.md job
+// The Node half of the cross-engine REPL session test (`f1c55020:future-work/compiler/repl-plan.md` job
 // W4), which hd_run_wasmtime's `a_session_runs_and_replays_the_same_on_node`
 // runs: `node scripts/repl-parity.js <dir>`. The directory holds a session
 // that ran on wasmtime: `inputs` (the input numbers, in order), and for

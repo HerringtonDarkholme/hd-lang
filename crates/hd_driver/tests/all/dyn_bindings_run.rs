@@ -1,5 +1,5 @@
 //! Associated-type bindings on trait values (spec 09 "Bound Associated
-//! Types", trait.dyn.binding.*; codegen.md §13.5 "As built (#193)"): a
+//! Types", trait.dyn.binding.*; `crates/hd_mono/DESIGN.md` §13.5 "As built (#193)"): a
 //! `dyn Tr[Item = T]` value keeps its bindings, so a projection in a
 //! method signature denotes the bound type through the value, and the
 //! vtable's slots are laid out at the bound types. The checker half checks

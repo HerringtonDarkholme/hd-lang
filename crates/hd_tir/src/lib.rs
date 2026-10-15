@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `hd_tir`: TIR (checking-and-tir.md §4.13.11; data-structures.md §3.18):
+//! `hd_tir`: TIR (`crates/hd_tir/DESIGN.md` §4.13.11; `docs/compiler/data-structures.md` §3.18):
 //! one typed IR per body in columns (`ir`), and its wire form with
 //! entry-local tables and the TIR hash (`wire`).
 

@@ -1,4 +1,4 @@
-//! The full TIR (checking-and-tir.md §4.13.11; data-structures.md §3.18):
+//! The full TIR (`crates/hd_tir/DESIGN.md` §4.13.11; `docs/compiler/data-structures.md` §3.18):
 //! the instruction catalog with its operand schema, the body columns, the
 //! `TirSink` builder API, a text printer, a text parser that round-trips,
 //! and the verifier.
@@ -266,7 +266,7 @@ impl IntrinsicOp {
     }
 }
 
-/// Coercion kinds (§4.13.11 "Coercion kinds"; type-checking.md §4.2).
+/// Coercion kinds (§4.13.11 "Coercion kinds"; `crates/hd_check/DESIGN.md` (type checking) §4.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Coercion {
@@ -566,7 +566,7 @@ impl Body {
 
     /// The value operands of instruction `i` that compute one result from
     /// values and own no block, label or local (an erased body outlines
-    /// such an instruction, codegen.md §13.5.1), in the order emission
+    /// such an instruction, `crates/hd_mono/DESIGN.md` §13.5.1), in the order emission
     /// reads them; constants included. `None` for any other instruction.
     #[must_use]
     pub fn value_operands(&self, i: usize) -> Option<Vec<u32>> {

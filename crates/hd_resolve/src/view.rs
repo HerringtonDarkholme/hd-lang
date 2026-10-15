@@ -1,4 +1,4 @@
-//! A typed view of one parsed file (syntax.md §4.4 "typed views"): tokens,
+//! A typed view of one parsed file (`crates/hd_syntax/DESIGN.md` §4.4 "typed views"): tokens,
 //! text and spans of the full parser's green tree.
 
 use hd_base::{FileId, Span, TokenIdx};

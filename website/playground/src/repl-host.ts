@@ -1,4 +1,4 @@
-// The worker side of the REPL (repl-plan.md job W5): the compiler's REPL
+// The worker side of the REPL (`f1c55020:future-work/compiler/repl-plan.md` job W5): the compiler's REPL
 // session (W3's goals over the compiler wasm) and the JS session that runs
 // its modules (host/core.mjs `createSession`, W4) live in one worker, the
 // playground's compiler worker. The page numbers the inputs; each input is

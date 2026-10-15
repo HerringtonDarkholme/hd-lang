@@ -1,6 +1,6 @@
 // `hd test` on V8 (Node): the test program is compiled once, and the
 // shared case loop (cases.mjs) runs each case in its own fresh instance
-// (engines-and-test-runner.md §19.3). `argv[3]` is the run's
+// (docs/compiler/engines-and-test-runner.md §19.3). `argv[3]` is the run's
 // configuration, a `.json` file that `hd test` writes: the program's
 // `Args.program` and `args` (Test Environments), the package's executables
 // and tasks that its `Process` provider starts by name (`programs`,

@@ -1,5 +1,5 @@
 //! The shape of an error type (spec 14 "Error Derivation";
-//! codegen.md §13.14): which declarations `@error` makes error types,
+//! `crates/hd_mono/DESIGN.md` §13.14): which declarations `@error` makes error types,
 //! each variant's message form, and each member's cause marker. Header
 //! lowering reads it to declare the generated `Display`, `Error` and
 //! `From` implementations with their bounds; the checker reads it to

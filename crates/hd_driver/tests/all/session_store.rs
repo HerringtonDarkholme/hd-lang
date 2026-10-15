@@ -1,4 +1,4 @@
-//! The session overlay store (repl-plan.md §6, job C3): a session's builds
+//! The session overlay store (`f1c55020:future-work/compiler/repl-plan.md` §6, job C3): a session's builds
 //! read the inner store but write only to the overlay's memory, and a
 //! second build in the same overlay hits what the first one wrote.
 

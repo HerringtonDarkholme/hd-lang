@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
-//! `hd_fmt`: the formatter on the green tree (design-overview.md §2.1,
-//! commands.md §7.6). The Wadler-style layout rules are not written yet;
+//! `hd_fmt`: the formatter on the green tree (`docs/compiler/design-overview.md` §2.1,
+//! `crates/hd_cli/DESIGN.md` §7.6). The Wadler-style layout rules are not written yet;
 //! today's layout is the part every layout shares: no trailing whitespace
 //! at a line's end and exactly one newline at the file's end, outside
 //! every token and comment, so meaning and comments stay as they are

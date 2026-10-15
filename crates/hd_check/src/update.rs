@@ -1,5 +1,5 @@
 //! Copy-update helpers (spec 05 "Copy-Update Expressions", spec 08
-//! "Copy-Update Literals" and "Parts And Copies"; checking-and-tir.md
+//! "Copy-Update Literals" and "Parts And Copies"; `crates/hd_tir/DESIGN.md`
 //! `CopyData`). A copy reads every field the literal does not replace
 //! through the source's access view. An embedded part is copied as a
 //! copy-update of its own, made when the spread is evaluated

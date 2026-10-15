@@ -1,4 +1,4 @@
-//! Anchors to source lines (codegen.md §13.8 "Positions", wasm-layout.md
+//! Anchors to source lines (`crates/hd_mono/DESIGN.md` §13.8 "Positions", `crates/hd_wasm/DESIGN.md`
 //! §15.9). A linked module's `hd.lines` names a call by its anchor: an
 //! item's stable path and a TIR instruction index in that item's body. The
 //! anchor is resolved against the current sources only when a panic's

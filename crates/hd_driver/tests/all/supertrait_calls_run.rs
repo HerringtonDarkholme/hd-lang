@@ -1,5 +1,5 @@
 //! Supertrait methods through a trait value (trait.dyn.value-methods,
-//! trait.dyn.supertrait-methods, trait.dyn.widen; codegen.md §13.16): a
+//! trait.dyn.supertrait-methods, trait.dyn.widen; `crates/hd_mono/DESIGN.md` §13.16): a
 //! vtable holds its own slots and one field per direct supertrait, so a
 //! supertrait call on a `dyn` value reads the parent vtable, then the
 //! slot, and widening reads the parent field. Programs build through the

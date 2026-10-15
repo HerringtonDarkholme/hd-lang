@@ -256,7 +256,7 @@ pub struct Head<'t> {
     pub test: Option<NodeRef<'t>>,
 }
 
-/// A block-local declaration's place (checking-and-tir.md "Local items
+/// A block-local declaration's place (`crates/hd_tir/DESIGN.md` "Local items
 /// lift to hidden module items"): it is visible from its first byte to
 /// the end of its enclosing suite (`names.local-type.name`,
 /// `names.local-impl.extent`).
@@ -385,7 +385,7 @@ fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
 }
 
 /// Heads of the module's own items: the top-level ones, each followed by
-/// the block-local declarations of its bodies (checking-and-tir.md "Local
+/// the block-local declarations of its bodies (`crates/hd_tir/DESIGN.md` "Local
 /// items lift to hidden module items"). With `tests`, as test code is
 /// checked, the items of its `tests:` block follow (`names.tests.module-items`).
 #[must_use]
@@ -588,7 +588,7 @@ pub struct ModIn<'t> {
     /// the items of its `tests:` block are then items of the module, which
     /// only the block sees. A folder interface never holds them.
     pub tests: bool,
-    /// For a REPL input (repl-plan.md §2.2): the session scope its own
+    /// For a REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the session scope its own
     /// scope is nested in. Every top-level declaration and `use` of the
     /// input is then exported, so later inputs see it whatever its `pub`.
     pub session: Option<Arc<SessionScope>>,
@@ -2155,7 +2155,7 @@ impl Lower<'_, '_, '_> {
                 }
                 // The projection names the trait that declares the
                 // associated type, which a bound may reach through its
-                // supertraits (trait-solver.md §4.1).
+                // supertraits (`crates/hd_check/DESIGN.md` (trait solver) §4.1).
                 let mut decls: Vec<(DefId, TyList, DefId)> = Vec::new();
                 for &(tr, a) in &cands {
                     for d in self.assoc_decls(tr, a, Some(base), name) {
@@ -3471,7 +3471,7 @@ impl Lower<'_, '_, '_> {
     /// `impl Display`, `impl Error` and one `impl From[P]` per `@from`
     /// member (spec 14 `annot.error.generates`), each an ordinary
     /// implementation with one method, whose body the checker writes
-    /// (codegen.md §13.14). `fields` are each variant's members (a data
+    /// (`crates/hd_mono/DESIGN.md` §13.14). `fields` are each variant's members (a data
     /// type's fields as its one variant), over the declaration's
     /// parameters. A generic error type gets the generated bounds
     /// (`annot.error.bound.*`).
@@ -4022,7 +4022,7 @@ fn declares_params(h: &Head<'_>) -> bool {
 
 /// Lowers every alias of the folder before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
-/// (resolution-and-interfaces.md, "Row aliases and context types in
+/// (`crates/hd_resolve/DESIGN.md`, "Row aliases and context types in
 /// interfaces"). Every data type, enum and newtype takes part in that
 /// order, for its generic parameters alone: a written type counts its
 /// arguments against them (`types.generic.too-long`) and fills the omitted
@@ -5415,7 +5415,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
 }
 
 /// The members a delegating implementation `impl Tr for C by E` takes
-/// from its part (spec 09 "Delegation", trait-solver.md §3.10), once every
+/// from its part (spec 09 "Delegation", `crates/hd_check/DESIGN.md` (trait solver) §3.10), once every
 /// item of the folder is lowered:
 ///
 /// - each associated type of `Tr` is bound to the projection

@@ -1,4 +1,4 @@
-//! Generic methods called through a trait value (codegen.md §13.5.1, the
+//! Generic methods called through a trait value (`crates/hd_mono/DESIGN.md` §13.5.1, the
 //! erased method ABI; trait.dyn.safe.method-type-param): a vtable slot
 //! holds one erased body per implementation, whose open instructions call
 //! the thunks of the witness the caller passes for its method type
@@ -60,7 +60,7 @@ fn output_of(name: &str, main: &str) -> String {
     String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
-/// The design's first test (build-order.md §22, slice 6b), but for the
+/// The design's first test (`f1c55020:future-work/compiler/build-order.md` §22, slice 6b), but for the
 /// closure built in the erased body: a packed `T = i32` and a reference
 /// `T`, a caller-owned `mut List[(T, T?)]`, a user `Buffer[T]` built and
 /// returned, a generic helper, a caller's `fn(T) -> T`, a bound call in a

@@ -1,5 +1,5 @@
 //! Generic code instantiated at a trait-value type (trait.dyn.bound,
-//! trait.dyn.bound.dispatch, codegen.md §13.2 step 4): a trait value
+//! trait.dyn.bound.dispatch, `crates/hd_mono/DESIGN.md` §13.2 step 4): a trait value
 //! satisfies a bound on its own trait and on each supertrait, and a call
 //! through the bound at `T = dyn Tr` dispatches through the value's
 //! vtable, as a direct `dyn` call does. The checker half checks the

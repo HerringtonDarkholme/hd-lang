@@ -1,5 +1,5 @@
 //! Omitted arguments run their default bodies per call (fn.default.eval,
-//! fn.default.scope, data.literal.defaulted; codegen.md §13.13): programs
+//! fn.default.scope, data.literal.defaulted; `crates/hd_mono/DESIGN.md` §13.13): programs
 //! build through the driver and run on V8 (`host/run.mjs`), as the
 //! conformance runner does.
 

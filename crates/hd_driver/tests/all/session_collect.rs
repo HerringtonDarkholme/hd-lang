@@ -1,4 +1,4 @@
-//! Session collection (repl-plan.md §2.2, job C2): the driver builds one
+//! Session collection (`f1c55020:future-work/compiler/repl-plan.md` §2.2, job C2): the driver builds one
 //! more module of a session. Collection stops at the instances earlier
 //! modules export, which the module imports under their session keys
 //! (`hd_wasm::func_key`), and leaves out the inits they ran.

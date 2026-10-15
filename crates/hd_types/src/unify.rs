@@ -1,6 +1,6 @@
-//! The unifier (type-checking.md §3): union-find over inference variables
+//! The unifier (`crates/hd_check/DESIGN.md` (type checking) §3): union-find over inference variables
 //! with a trail for rollback (§3.5), an occurs check (§3.3) and literal
-//! kinds (§3.6). Poison unifies with everything (data-structures.md §3.6).
+//! kinds (§3.6). Poison unifies with everything (`docs/compiler/data-structures.md` §3.6).
 
 use hd_base::InferVar;
 
@@ -47,7 +47,7 @@ enum Undo {
 }
 
 /// The body's inference table: union-find with union by rank and a trail
-/// (data-structures.md §3.19's `parent`, `rank`, `kind` and `value`
+/// (`docs/compiler/data-structures.md` §3.19's `parent`, `rank`, `kind` and `value`
 /// columns). Union by rank keeps every path at most log2(n) links long
 /// without writing during a lookup, so `root` stays a read and a rollback
 /// undoes each link and rank change exactly.
@@ -66,7 +66,7 @@ pub struct Snapshot(usize);
 
 /// A trial's rollback point: the trail and the variable count. Rolling
 /// back to it also drops the variables the trial made, so a failed trial
-/// leaves no variable behind (type-checking.md §3.5, §2.5).
+/// leaves no variable behind (`crates/hd_check/DESIGN.md` (type checking) §3.5, §2.5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TrialMark {
     trail: usize,
@@ -128,7 +128,7 @@ impl InferTable {
 
     /// Replaces a bound variable's solution with `t`, undoably: the
     /// permission join of several arguments lowers `mut X` to `X`
-    /// (type-checking.md §3.4, "Permission join").
+    /// (`crates/hd_check/DESIGN.md` (type checking) §3.4, "Permission join").
     pub fn rebind(&mut self, pool: Types<'_>, var: Ty, t: Ty) {
         let TyData::Infer(v) = pool.get(var) else {
             return;

@@ -1,7 +1,7 @@
-//! The little-endian codec of cache-entry sections (data-structures.md
+//! The little-endian codec of cache-entry sections (`docs/compiler/data-structures.md`
 //! §3.20): a writer over `Vec<u8>` and a reader that never panics. A read
 //! past the end yields zeros and marks the reader bad; the caller checks
-//! `ok()` once and treats a bad section as a cache miss (cache.md §5.4).
+//! `ok()` once and treats a bad section as a cache miss (`crates/hd_cache/DESIGN.md` §5.4).
 
 use crate::Hash128;
 

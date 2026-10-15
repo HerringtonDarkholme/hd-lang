@@ -13,6 +13,6 @@ keeps them); open ones live in a GitHub issue or in one of the files below.
   scheduled.
 
 Notes for the compiler's design are in
-[`future-work/compiler/goals.md`](../../future-work/compiler/goals.md). The
+[`docs/compiler/goals.md`](../../docs/compiler/goals.md). The
 conformance state is in [`CONFORMANCE.md`](../../CONFORMANCE.md) and
 [`KNOWN_FAILURES.tsv`](../../KNOWN_FAILURES.tsv).

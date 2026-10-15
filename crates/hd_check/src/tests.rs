@@ -527,7 +527,7 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
 
 /// The std body that a test case of registration function `def` runs, and
 /// the registration's parameters it takes, in order (lib/std/testing.hd;
-/// checking-and-tir.md §4.13.9). Its generics are the registration's.
+/// `crates/hd_tir/DESIGN.md` §4.13.9). Its generics are the registration's.
 pub(crate) fn case_runner(
     known: &hd_resolve::KnownItems,
     def: DefId,

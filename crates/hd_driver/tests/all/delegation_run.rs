@@ -1,5 +1,5 @@
 //! Delegating implementations, `impl Tr for C by E` (spec 09
-//! "Delegation", trait.by.*; trait-solver.md §3.10): associated types take
+//! "Delegation", trait.by.*; `crates/hd_check/DESIGN.md` (trait solver) §3.10): associated types take
 //! the part's bindings, and each method with a receiver that the body does
 //! not write forwards to the part's implementation as `Tr::m(self.E,
 //! arguments...)`. The checker half checks the programs with

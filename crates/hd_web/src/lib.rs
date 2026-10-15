@@ -1,13 +1,13 @@
 #![deny(unsafe_code)]
-//! `hd_web`: the playground's compiler (design-overview.md §2.1;
-//! playground-wasm.md §3.1). A [`Session`] is one worker's state: the
+//! `hd_web`: the playground's compiler (`docs/compiler/design-overview.md` §2.1;
+//! `crates/hd_web/DESIGN.md` §3.1). A [`Session`] is one worker's state: the
 //! playground's files and one in-memory cache store, kept across compiles
 //! so an edit recompiles only what it changed. Each compile is one serial
 //! driver run with a clock that reads zero, since `Instant::now()` panics
 //! on wasm32. On wasm32 the crate exports four functions over that session
 //! (the `exports` module); [`wire`] holds their request and response format.
 //!
-//! A session also holds one REPL session (repl-plan.md job W3): the
+//! A session also holds one REPL session (`f1c55020:future-work/compiler/repl-plan.md` job W3): the
 //! playground's files as its package, and the inputs that joined it. Each
 //! REPL request builds one module of that session, which the JS host links
 //! to the modules before it and runs; the host then reports how the module
@@ -25,7 +25,7 @@ use hd_sched::SerialOrder;
 
 pub mod wire;
 
-// Owner decision 2026-10-12 (playground-wasm.md §6, Q1): the wasm exports
+// Owner decision 2026-10-12 (`crates/hd_web/DESIGN.md` §6, Q1): the wasm exports
 // carry `#[unsafe(no_mangle)]`. This module is the only exception to the
 // crate's `deny(unsafe_code)`, and it has no `unsafe` blocks.
 #[cfg(target_arch = "wasm32")]
@@ -36,10 +36,10 @@ mod exports;
 pub const PACKAGE: &str = "playground";
 
 /// The store size past which a session drops its store: the next compile
-/// is then cold (playground-wasm.md §3.1).
+/// is then cold (`crates/hd_web/DESIGN.md` §3.1).
 pub const STORE_CAP_BYTES: usize = 64 << 20;
 
-/// The pipeline of every build (opt-pipeline.md §5): the playground's
+/// The pipeline of every build (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the playground's
 /// programs and REPL modules run in a browser, unoptimized.
 const PIPELINE: (EngineTarget, OptLevel) = (EngineTarget::Browser, OptLevel::Dev);
 
@@ -458,7 +458,7 @@ mod pipeline_tests {
 
     /// Every build of a session, its Run, Check and Test compiles and its
     /// REPL modules, is tuned for the browser, unoptimized
-    /// (opt-pipeline.md §5).
+    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5).
     #[test]
     fn every_build_is_for_the_browser_in_the_dev_pipeline() {
         let browser = (EngineTarget::Browser, OptLevel::Dev);

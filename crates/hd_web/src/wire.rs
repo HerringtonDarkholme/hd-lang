@@ -1,4 +1,4 @@
-//! The wire format of the wasm exports (playground-wasm.md §3.1), as plain
+//! The wire format of the wasm exports (`crates/hd_web/DESIGN.md` §3.1), as plain
 //! functions so native tests cover it.
 //!
 //! A request is bytes: the file count, then each file's path and text, then
@@ -28,7 +28,7 @@
 //! test goal's programs (the unit-test program, then each integration test
 //! file's) follow one another in the bytes, each as long as its `size`.
 //!
-//! **REPL goals** (repl-plan.md job W3) drive the session's REPL session
+//! **REPL goals** (`f1c55020:future-work/compiler/repl-plan.md` job W3) drive the session's REPL session
 //! ([`Session::repl_start`]), one module per request:
 //!
 //! - Repl start drops any earlier REPL session and builds the new one's

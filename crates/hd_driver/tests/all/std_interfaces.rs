@@ -1,4 +1,4 @@
-//! Slice 2's exit test (build-order.md §9) with std as a program's
+//! Slice 2's exit test (`f1c55020:future-work/compiler/build-order.md` §9) with std as a program's
 //! dependency: std's folder interfaces build with no diagnostic, blobs
 //! decode to equal interfaces, blob bytes are equal across shuffled serial
 //! orders, and a deep-hash edit reaches a dependent's key.

@@ -35,7 +35,7 @@ impl DiskSources {
     }
 
     /// Adds a file no disk holds, listed at `path` (a doc test's program,
-    /// checking-and-tir.md §4.13.9).
+    /// `crates/hd_tir/DESIGN.md` §4.13.9).
     pub fn add_synthetic(&mut self, path: &str, text: &str) {
         self.files.push(SourceEntry {
             path: path.to_owned(),
@@ -159,7 +159,7 @@ pub struct Program {
     pub dev_requires: Requires,
     /// The packages its path requirements reach.
     pub deps: Vec<DiskPackage>,
-    /// What its manifest breaks (commands.md §7.1 step 1); any error stops
+    /// What its manifest breaks (`crates/hd_cli/DESIGN.md` §7.1 step 1); any error stops
     /// the command before compiling.
     pub problems: Vec<Diag>,
     /// A single-file program's FILE as the command line wrote it

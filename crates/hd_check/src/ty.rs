@@ -1,4 +1,4 @@
-//! Type annotations inside bodies (type-checking.md §2.4): the same forms
+//! Type annotations inside bodies (`crates/hd_check/DESIGN.md` (type checking) §2.4): the same forms
 //! as headers, read through the module scope, the item's type parameters
 //! and the closure's interfaces. An `_` is a fresh variable.
 

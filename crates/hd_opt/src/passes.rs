@@ -1,5 +1,5 @@
-//! The pass manager (tiering.md §6): pass declarations, pipelines as data,
-//! and the startup validator. Body-unit passes (opt-pipeline.md §2.1) run
+//! The pass manager (`docs/compiler/tiering.md` §6): pass declarations, pipelines as data,
+//! and the startup validator. Body-unit passes (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.1) run
 //! per generic body and feed collection through `crate::planner`.
 //! The other named passes are declared; their bodies report not
 //! implemented, except `liveness`, which suspension lowering owns.
@@ -62,7 +62,7 @@ impl FactId {
     }
 }
 
-/// A tuning knob a pass declares (opt-pipeline.md §2.1): its name and the
+/// A tuning knob a pass declares (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.1): its name and the
 /// inclusive range of values a pipeline may give it.
 pub struct Param {
     pub name: &'static str,
@@ -84,7 +84,7 @@ pub struct InstanceCx {
 }
 
 /// What a body-unit pass sees: one generic body, before and during
-/// collection (opt-pipeline.md §2.1).
+/// collection (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.1).
 pub struct BodyCx<'a> {
     /// The item whose body it is (or for which the compiler generated it).
     pub def: DefId,
@@ -118,7 +118,7 @@ pub struct BodyFacts {
 }
 
 /// What `closure_spec` decides for one body (option A2 of
-/// closure-calls.md), in the shape of `hd_mono::plan::BodyPlan`.
+/// `crates/hd_opt/DESIGN.md` (known closure calls)), in the shape of `hd_mono::plan::BodyPlan`.
 #[derive(Default)]
 pub struct ClosureSpec {
     /// Per `CallValue` of an item parameter: `Source::Param` of it.
@@ -175,7 +175,7 @@ pub struct PassSpec {
     pub params: &'static [Param],
 }
 
-/// A declared pass with no body yet changes nothing (tiering.md §6): it
+/// A declared pass with no body yet changes nothing (`docs/compiler/tiering.md` §6): it
 /// reports `Skipped`, after the one fuel step every pass pays to run.
 fn not_yet(_: &mut InstanceCx, fuel: &mut Fuel) -> StageResult<PassOutcome> {
     if fuel.charge(1) {
@@ -201,7 +201,7 @@ fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageR
     Ok(PassOutcome::Done)
 }
 
-/// `devirt_known`, option A1 of closure-calls.md: each `CallValue` whose
+/// `devirt_known`, option A1 of `crates/hd_opt/DESIGN.md` (known closure calls): each `CallValue` whose
 /// callee is a closure value made in the call's own sub-body
 /// (`ValueFlow::made`) has that instruction as its callee's source.
 /// Collection makes the call direct where that instruction is a closure.
@@ -228,14 +228,14 @@ fn devirt_known(
     Ok(PassOutcome::Done)
 }
 
-/// `closure_spec`, option A2 of closure-calls.md: a small callee that calls
+/// `closure_spec`, option A2 of `crates/hd_opt/DESIGN.md` (known closure calls): a small callee that calls
 /// a parameter is worth one instance per closure literal passed for it,
 /// in which the parameter's calls are direct.
 ///
 /// - As a callee, the body's `spec_params` are the parameters it calls,
 ///   itself or in a closure it creates (`ValueFlow::called_under` sub 0).
 ///   None for a body over the `max_insts` knob (TIR instructions, their
-///   sub-bodies included; closure-calls.md §3.1, owner Q2), an intrinsic,
+///   sub-bodies included; `crates/hd_opt/DESIGN.md` (known closure calls) §3.1, owner Q2), an intrinsic,
 ///   a suspending function, or one that calls no parameter.
 /// - Per `Call` of an item, each argument's source: a value made in the
 ///   call's sub-body (`ValueFlow::made`) or a parameter passed on
@@ -462,10 +462,10 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "liveness",
     ],
     link: &["drop_dead", "fold", "leb_compact", "compact_names"],
-    // `closure_spec`'s bounds (closure-calls.md §3.1): bodies of at most
+    // `closure_spec`'s bounds (`crates/hd_opt/DESIGN.md` (known closure calls) §3.1): bodies of at most
     // 64 TIR instructions, and a specialized instance requested from
     // inside a specialized instance is the last. Measured per target in
-    // job (e) of #162 (opt-pipeline.md §8): 128/2 emits
+    // job (e) of #162 (`crates/hd_opt/DESIGN.md` (optimization pipelines) §8): 128/2 emits
     // the same runtime-bench Wasm as 64/2, while 32/1 and no
     // `closure_spec` lose most of A2's gain on V8 and wasmtime alike, so
     // every target shares these values.
@@ -483,7 +483,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
     ],
 };
 
-/// The pipeline of each (target, level) (opt-pipeline.md §3.1). The match
+/// The pipeline of each (target, level) (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.1). The match
 /// is total with no wildcard, so a new target or level does not compile
 /// until it has a row (validator check 1). Every target has the same rows
 /// today: job (e) of #162 measured `closure_spec`'s knobs on V8 and
@@ -543,11 +543,11 @@ fn check_knobs(p: &Pipeline) -> Result<(), String> {
     Ok(())
 }
 
-/// The startup validator (§6.2, opt-pipeline.md §3.2): each read is
+/// The startup validator (§6.2, `crates/hd_opt/DESIGN.md` (optimization pipelines) §3.2): each read is
 /// produced earlier, every required pass is present, a body-unit pass
 /// reads only body facts and only body-unit passes write them (check 2),
 /// and the knobs are complete and in range (check 3). Returns the pass
-/// hash on success (opt-pipeline.md §3.3): each pass's name, version and
+/// hash on success (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3): each pass's name, version and
 /// knob values in order, then the link passes. The pipeline's name and
 /// the target it serves are not hashed, only content.
 pub fn validate(p: &Pipeline) -> Result<Hash128, String> {

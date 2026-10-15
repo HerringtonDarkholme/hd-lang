@@ -1,4 +1,4 @@
-//! The default profile's host traits end to end (runtime-and-host.md §17,
+//! The default profile's host traits end to end (`crates/hd_run_wasmtime/DESIGN.md` §17,
 //! spec/cli/command-line.md "Host Capabilities"): each program runs under
 //! `hd` on V8, its host calls crossing the exchange buffer with the codecs
 //! of §17.4, and each provider asking the grant first
@@ -376,7 +376,7 @@ fn the_test_runner_fails_a_body_past_its_timeout() {
     assert_eq!(out.status.code(), Some(1));
 }
 
-/// A host wait is cut at the timeout (runtime-and-host.md §17.8): an
+/// A host wait is cut at the timeout (`crates/hd_run_wasmtime/DESIGN.md` §17.8): an
 /// integration test that sleeps past its timeout fails with `time-limit`,
 /// with the output it wrote before, while one within it passes.
 #[test]

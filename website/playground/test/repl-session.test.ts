@@ -1,4 +1,4 @@
-// A REPL session in the JS host (host/core.mjs `createSession`, repl-plan.md
+// A REPL session in the JS host (host/core.mjs `createSession`, `f1c55020:future-work/compiler/repl-plan.md`
 // job W4) over modules the playground's compiler builds through W3's REPL
 // goals: inputs link to earlier ones through `hd.s`, a panic resets the
 // runtime state, a stop cancels a waiting input, and a rebuild from the

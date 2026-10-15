@@ -1,4 +1,4 @@
-// Builds the playground's compiler wasm (playground-wasm.md §7, W3):
+// Builds the playground's compiler wasm (crates/hd_web/DESIGN.md §7, W3):
 // `cargo build -p hd_web --target wasm32-unknown-unknown --profile web`,
 // copied to website/playground/assets/hd_web.wasm, which the playground
 // build copies next to its worker. The output is not committed. Prints the

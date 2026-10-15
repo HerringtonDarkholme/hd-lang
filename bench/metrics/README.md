@@ -2,7 +2,7 @@
 
 Scripts that check the goal metrics of the new compiler, as listed in the
 Goal Metrics section of
-[goals.md](../../future-work/compiler/goals.md).
+[docs/compiler/goals.md](../../docs/compiler/goals.md).
 Each metric is one script, judged against its target with no AI and no
 agent run.
 
@@ -87,7 +87,7 @@ Notes on the choices:
   and a JSON object about 2.5x its text. The owner may change them. A JSON
   object is measured as `JSON.stringify` writes it, compact.
 - **`check-cost` and `dev-speed`** replace `release-check-cost` (owner,
-  2026-10-07; [tiering.md](../../future-work/compiler/tiering.md)). The
+  2026-10-07; [docs/compiler/tiering.md](../../docs/compiler/tiering.md)). The
   profile (checked or wrapping) is observable; the pipeline (dev or
   optimized) is not, and `hd test --release` pairs the test profile with
   the optimized pipeline
@@ -146,7 +146,7 @@ Notes on the choices:
 - **`long-session`** runs the REPL's session in the `hd_cli` test, since bare
   `hd` needs a terminal. Its inputs each show the value 1000000 + i
   (`cli.repl.value`). It takes cargo, the `wasmtime` feature and minutes
-  (since #17's C12 an input's build time stays nearly flat, repl-plan.md §4),
+  (since #17's C12 an input's build time stays nearly flat, `f1c55020:future-work/compiler/repl-plan.md` §4),
   and prints the per-input build and run time and the journal size with
   each RSS sample. The bound is 100 KiB per kept input (owner, 2026-10-13), on 16
   KiB pages and scaled by `getconf PAGESIZE`; the Linux figure is

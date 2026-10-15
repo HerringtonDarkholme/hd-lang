@@ -1,4 +1,4 @@
-// Smoke test of the playground's compiler wasm (playground-wasm.md §7, W3).
+// Smoke test of the playground's compiler wasm (crates/hd_web/DESIGN.md §7, W3).
 // Loads website/playground/assets/hd_web.wasm (build-web-compiler.js writes
 // it), compiles a conformance fixture through the four exports (the
 // playground's own wire module, compiler-wire.ts), runs the

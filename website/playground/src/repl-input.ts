@@ -1,4 +1,4 @@
-// How the REPL panel reads an input (repl-plan.md §3.3, as `hd` does at
+// How the REPL panel reads an input (`f1c55020:future-work/compiler/repl-plan.md` §3.3, as `hd` does at
 // the terminal): an input continues while it is incomplete, inside a
 // bracket or a `"""` string, after a line that ends in `:`, or while its
 // last line is a line of an indented block, which an empty line ends.

@@ -1,7 +1,7 @@
 //! Function references (spec/lang/07-functions.md, Generic Function
 //! Values and Method References) through the checker: each kind's
 //! `ItemRef` and type, a bound reference's closure, and the errors. Then
-//! called through their adapters (codegen.md §13.11), built by the driver
+//! called through their adapters (`crates/hd_mono/DESIGN.md` §13.11), built by the driver
 //! and run on V8 (`host/run.mjs`), as the conformance runner does.
 
 use std::path::Path;

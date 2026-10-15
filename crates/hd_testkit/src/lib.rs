@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_testkit` (dev only): the determinism matrix, the edit-script fuzzer
-//! and the differential harness (testing-the-compiler.md §8.1, §8.2). The
+//! and the differential harness (`docs/compiler/testing-the-compiler.md` §8.1, §8.2). The
 //! matrix runs one build under several executors (serial orders and the
 //! pool) and compares bytes; the fuzzer and the harness are not written yet.
 

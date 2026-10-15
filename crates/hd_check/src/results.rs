@@ -1,4 +1,4 @@
-//! Omitted result types and rows (checking-and-tir.md §4.13.1 "Omitted
+//! Omitted result types and rows (`crates/hd_tir/DESIGN.md` §4.13.1 "Omitted
 //! result types (M1)" and "M3: inferred rows"). A non-public function or
 //! inherent method written without `-> T` (spec 07
 //! `fn.decl.result-omitted-private`) takes its result from its body: the
@@ -29,7 +29,7 @@ use hd_types::{ParamRef, RowData, RowId, Ty, TyData, Types};
 use crate::body::{BodyCx, Ck, Infer, check_fn_body};
 
 /// The instantiation depth limit (spec 04
-/// `types.generic.instantiation-depth`; checking-and-tir.md §4.15): a row
+/// `types.generic.instantiation-depth`; `crates/hd_tir/DESIGN.md` §4.15): a row
 /// key nested deeper comes from polymorphic recursion and stops the solve.
 const MAX_KEY_DEPTH: u32 = 32;
 
@@ -56,7 +56,7 @@ struct Omits {
 }
 
 /// A call of a private callable whose row is still open, from the body of
-/// a member of its recursive group (checking-and-tir.md "M3: inferred
+/// a member of its recursive group (`crates/hd_tir/DESIGN.md` "M3: inferred
 /// rows"): the callee, the call's type arguments by owner, and the keys of
 /// the `$.with` blocks around the call, which the caller need not supply.
 #[derive(Clone)]
@@ -586,7 +586,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
 }
 
 /// Whether `def` is a registered callable whose row is still open: a call
-/// of it records an edge (checking-and-tir.md "M3: inferred rows").
+/// of it records an edge (`crates/hd_tir/DESIGN.md` "M3: inferred rows").
 pub(crate) fn row_open(cx: &BodyCx<'_>, def: DefId) -> bool {
     cx.results.borrow().row_open(def)
 }
@@ -636,7 +636,7 @@ pub fn module_diags(cx: &BodyCx<'_>) -> DiagBuf {
 }
 
 /// One callable's inferred parts: what the module's items carry as its
-/// result type and row (checking-and-tir.md §4.13.1).
+/// result type and row (`crates/hd_tir/DESIGN.md` §4.13.1).
 #[derive(Clone, Copy)]
 pub struct Inferred {
     pub def: DefId,

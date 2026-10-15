@@ -1,4 +1,4 @@
-//! Where a goal's candidates come from (trait-solver.md §3.2, §3.3): the
+//! Where a goal's candidates come from (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §3.3): the
 //! tables of its owner folders, one synthetic table of the impls that no
 //! owner folder holds, and the candidate directory of the impls owned only
 //! through a trait argument. The last two are merged per impl universe, so
@@ -274,11 +274,11 @@ pub struct ImplView<'a> {
     pub arity: &'a dyn Fn(DefId) -> usize,
     /// Block-local impls this context does not see: those whose suite does
     /// not hold it, or that are declared after it
-    /// (`trait.impl.local.lookup`, checking-and-tir.md "Local items lift
+    /// (`trait.impl.local.lookup`, `crates/hd_tir/DESIGN.md` "Local items lift
     /// to hidden module items"). They stay rows of their tables, so a
     /// probe that meets one is never answered from the run's memo.
     pub hidden: &'a [DefId],
-    /// The member steps of the tuple templates (trait-solver.md §3.9).
+    /// The member steps of the tuple templates (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     /// `None` only where a tuple template's own plan is computed, under a
     /// memo of its own.
     pub plans: Option<&'a dyn TuplePlans>,

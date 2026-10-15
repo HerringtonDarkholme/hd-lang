@@ -1,4 +1,4 @@
-//! Context values in bodies (checking-and-tir.md §4.13.4 and codegen.md
+//! Context values in bodies (`crates/hd_tir/DESIGN.md` §4.13.4 and `crates/hd_mono/DESIGN.md`
 //! §12.4, "Context values"; spec 11 "Reusable Contexts"): `$.context`
 //! builds a value of `$.Context[$ Row]`, one provider per key, and
 //! `$.with(ctx...)` installs its providers. Entries apply left to right
@@ -410,7 +410,7 @@ fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:
 
 /// One item path with one body under two rows takes two code entries: a
 /// body's code key covers its own signature, whose row keys are its
-/// provider parameters (codegen.md §12.4). A program whose `read` needs
+/// provider parameters (`crates/hd_mono/DESIGN.md` §12.4). A program whose `read` needs
 /// `Tag` must not lend its code to one whose `read` also needs `Log`.
 #[test]
 fn one_body_under_two_rows_shares_no_code() {

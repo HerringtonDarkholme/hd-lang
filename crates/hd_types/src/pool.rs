@@ -1,4 +1,4 @@
-//! The `InternPool` (data-structures.md §3.4, §3.9.2): every type, row and
+//! The `InternPool` (`docs/compiler/data-structures.md` §3.4, §3.9.2): every type, row and
 //! type list is one hash-consed item, so global type equality is one
 //! integer compare. Storage is a one-byte tag, a `u32` data word, a `u32`
 //! meta word (flags and node count) and variable parts in `extra`.
@@ -212,7 +212,7 @@ pub enum TyData {
     },
     Mut(Ty),
     Infer(InferVar),
-    /// A canonical placeholder of the solver (trait-solver.md §2.2).
+    /// A canonical placeholder of the solver (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
     Canon(u8),
     /// A requirement row in a row parameter's argument slot (an explicit
     /// `f::[$ Db]`, or the row a call solved for `$R`).
@@ -1140,7 +1140,7 @@ impl<'a> Types<'a> {
     pub fn has_assoc(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_ASSOC != 0
     }
-    /// Whether `t` holds a canonical placeholder (trait-solver.md §2.2).
+    /// Whether `t` holds a canonical placeholder (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
     #[must_use]
     pub fn has_canon(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_CANON != 0

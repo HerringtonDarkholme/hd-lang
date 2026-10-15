@@ -1,4 +1,4 @@
-//! Requirement rows in bodies (type-checking.md §5.2 to §5.6): the
+//! Requirement rows in bodies (`crates/hd_check/DESIGN.md` (type checking) §5.2 to §5.6): the
 //! available-keys stack, closure rows, row subsumption, and the least
 //! solution of a callee's row parameters.
 
@@ -494,7 +494,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let row = self.infer.resolve_row(pool, row);
         let mut d = pool.row_data(row);
-        // Diagnostics in content order (scheduler.md §6.5), not by the
+        // Diagnostics in content order (`crates/hd_sched/DESIGN.md` §6.5), not by the
         // order this run interned the keys.
         let mut keys: Vec<(String, Ty)> = d
             .keys
@@ -741,7 +741,7 @@ impl Ck<'_, '_> {
     /// The row a call of `callee` needs, `row` as its signature shows it
     /// with the call's type arguments `args` (by owner) applied. A written
     /// or solved row is checked here. A private callable's row that is
-    /// still open (checking-and-tir.md "M3: inferred rows") is recorded
+    /// still open (`crates/hd_tir/DESIGN.md` "M3: inferred rows") is recorded
     /// instead: an inferred row takes an edge to it, and a written row
     /// checks it once it is solved, each without the keys of the `$.with`
     /// blocks around the call. A closure or a test case needs the row now,

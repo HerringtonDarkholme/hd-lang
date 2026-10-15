@@ -1,4 +1,4 @@
-//! A REPL session on wasmtime (repl-plan.md §2.3 and §2.4, job S1).
+//! A REPL session on wasmtime (`f1c55020:future-work/compiler/repl-plan.md` §2.3 and §2.4, job S1).
 //!
 //! One `Store` and one `Linker` hold the whole session. Each input is one
 //! module that `hd_wasm::link` linked in `LinkMode::Session`: it imports
@@ -25,7 +25,7 @@
 //! it is `cancelled` (`cli.repl.cancel`). Either way it then ends as a
 //! panicking input does, and the host operations it left are dropped.
 //!
-//! The session records a journal in memory (live-execution.md §4, job
+//! The session records a journal in memory (`future-work/live-execution.md` §4, job
 //! J1): an `Input` row as each input starts, a row for each of its host
 //! calls, written where the host dispatches imports, its `Wake` and
 //! `Cancel` driver events, and an `End` row with how it ended. It is the

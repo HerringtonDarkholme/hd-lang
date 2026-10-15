@@ -153,7 +153,7 @@ fn write_files(dir: &Path, files: &[(&str, &str)]) {
 }
 
 /// A session builds its prelude and every input for wasmtime, the REPL's
-/// only engine, in the dev pipeline (opt-pipeline.md §5).
+/// only engine, in the dev pipeline (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5).
 #[test]
 fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     let pipeline = crate::Pipeline {
@@ -1018,7 +1018,7 @@ fn diagnostics_name_the_input_and_line() {
 
 /// Past its journal's cap the REPL says once, after the input that passed
 /// it, that the session can no longer be rebuilt; the session goes on
-/// (live-execution.md §4.6). The cap here is 200 bytes: the prelude, the
+/// (`future-work/live-execution.md` §4.6). The cap here is 200 bytes: the prelude, the
 /// `use` and the first clock reading fit; the next input passes it.
 #[test]
 fn a_full_journal_is_noted_once() {

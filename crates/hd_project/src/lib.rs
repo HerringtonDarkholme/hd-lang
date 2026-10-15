@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! `hd_project`: manifests, module discovery and identity, folders, the
-//! folder graph and the `SourceSet` trait (design-overview.md §2.1,
-//! resolution-and-interfaces.md §4.7 and §4.8).
+//! folder graph and the `SourceSet` trait (`docs/compiler/design-overview.md` §2.1,
+//! `crates/hd_resolve/DESIGN.md` §4.7 and §4.8).
 //!
 //! No file system access here (§2.2 rule 3): sources come through
 //! `SourceSet`, which the CLI implements over the disk and `hd_web` over JS.
@@ -70,7 +70,7 @@ impl SourceSet for MemorySources {
     }
 }
 
-/// The role a file plays (cache.md §5.3).
+/// The role a file plays (`crates/hd_cache/DESIGN.md` §5.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     Lib,
@@ -89,7 +89,7 @@ pub enum Root {
     Test,
     /// `tasks` (`cli.task.file`).
     Task,
-    /// A REPL input (repl-plan.md §2.2): the synthetic file `repl#N` of
+    /// A REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the synthetic file `repl#N` of
     /// the session's `N`th input, outside every package folder. It is its
     /// own module and its own folder, and its relative lookup starts at
     /// the package root module, as `src/lib.hd`'s does (`cli.repl.package.lib`).
@@ -697,7 +697,7 @@ impl ModuleTable {
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
                 let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
-                // The test unit (resolution-and-interfaces.md §4.8): every
+                // The test unit (`crates/hd_resolve/DESIGN.md` §4.8): every
                 // test module of a package, wherever its file lies, is one
                 // folder, after the folders its uses reach; so no library
                 // folder holds test code (`module.cycle.test-code`).
@@ -978,7 +978,7 @@ impl ModuleTable {
     /// Merges each group of folders into one folder, named after the
     /// group's first folder in path order: folder-cycle recovery, which
     /// resolves the folders of a cycle together as one folder
-    /// (resolution-and-interfaces.md §4.8 rule 5). Groups that share a
+    /// (`crates/hd_resolve/DESIGN.md` §4.8 rule 5). Groups that share a
     /// folder become one. Folder IDs are renumbered in path order.
     pub fn merge_folders(&mut self, groups: &[Vec<FolderId>]) {
         let n = self.folders.len();
@@ -1046,7 +1046,7 @@ fn find(parent: &mut [usize], x: usize) -> usize {
     r
 }
 
-/// A bit set over the program graph's folders (scheduler.md §6.1).
+/// A bit set over the program graph's folders (`crates/hd_sched/DESIGN.md` §6.1).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FolderSet(Vec<u64>);
 
@@ -1106,7 +1106,7 @@ pub struct FolderGraph {
     pub cycles: Vec<Vec<FolderId>>,
     /// `closure(F)`: F plus every folder its uses reach.
     pub closure: Vec<FolderSet>,
-    /// Longest path to a sink: the `FolderIface` priority (scheduler.md §6.3).
+    /// Longest path to a sink: the `FolderIface` priority (`crates/hd_sched/DESIGN.md` §6.3).
     pub height: Vec<u32>,
 }
 

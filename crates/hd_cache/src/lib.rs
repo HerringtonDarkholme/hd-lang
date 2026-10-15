@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_cache`: the `CacheStore` interface with its memory and disk stores,
-//! entry framing (cache.md §5) and the key rules of §5.3. Entries are
+//! entry framing (`crates/hd_cache/DESIGN.md` §5) and the key rules of §5.3. Entries are
 //! bytes by `(kind, key)`; every key is `H(tag, fields...)` over content,
 //! never a run ID.
 
@@ -13,7 +13,7 @@ pub mod store;
 pub use disk::DiskStore;
 pub use store::{CacheStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry};
 
-/// The entry layout version (data-structures.md §3.20): part of every
+/// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
 pub const LAYOUT_VERSION: u16 = 8;
 
@@ -165,7 +165,7 @@ pub fn init_key(toolchain: Hash128, folder: &str, modules: &[(&str, Hash128)]) -
 }
 
 /// `prog_key = H("prog", toolchain, pipeline, profile, entry, [(module,
-/// TIR content hash)])` (codegen.md §11.3).
+/// TIR content hash)])` (`crates/hd_mono/DESIGN.md` §11.3).
 #[must_use]
 pub fn prog_key(
     toolchain: Hash128,
@@ -187,7 +187,7 @@ pub fn prog_key(
 }
 
 /// `code_key = H("code", pipeline, profile, instance key, TIR hash, callee
-/// representation summaries)` (codegen.md §13.8; walking skeleton, SK-3).
+/// representation summaries)` (`crates/hd_mono/DESIGN.md` §13.8; walking skeleton, SK-3).
 #[must_use]
 pub fn code_key(
     pipeline: Hash128,

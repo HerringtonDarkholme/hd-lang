@@ -21,10 +21,14 @@ Planning and backlog:
 
 Compiler:
 
-- [New Compiler: Architecture Notes](compiler/goals.md) holds
-  the owner's goals for the new compiler and CLI, and implementation
-  notes carried over from the prototype's records. The TypeScript
+- The compiler's design records moved to
+  [docs/compiler/ARCHITECTURE.md](../docs/compiler/ARCHITECTURE.md), a code
+  map that links the cross-cutting docs and each crate's `DESIGN.md`. The
+  owner's goals for the compiler and CLI are in
+  [docs/compiler/goals.md](../docs/compiler/goals.md). The TypeScript
   prototype (`src/`) was deleted on 2026-10-12 (#145); git history keeps it.
+- [Live Execution](live-execution.md) is the open design of the REPL
+  session model, replay and resume (#18), with the REPL decisions of #17.
 
 Research and direction outside the specification:
 

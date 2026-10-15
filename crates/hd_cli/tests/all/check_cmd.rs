@@ -542,7 +542,7 @@ fn dev_dependencies_are_for_test_code_only() {
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
 
-/// resolution-and-interfaces.md §4.8 rule 5: the folders of a cycle
+/// `crates/hd_resolve/DESIGN.md` §4.8 rule 5: the folders of a cycle
 /// resolve together, so the cycle is reported and the uses across it
 /// still resolve; a body error in one of them is still found.
 #[test]

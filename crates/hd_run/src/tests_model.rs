@@ -1,5 +1,5 @@
-//! The test runner's case model (engines-and-test-runner.md §19.1 to
-//! §19.5; scheduler.md §6.5 item 4): cases in content order, `it_each`
+//! The test runner's case model (`docs/compiler/engines-and-test-runner.md` §19.1 to
+//! §19.5; `crates/hd_sched/DESIGN.md` §6.5 item 4): cases in content order, `it_each`
 //! row expansion, filters, and the release cursor that streams results in
 //! content order.
 

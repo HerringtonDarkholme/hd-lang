@@ -1,5 +1,5 @@
 //! The bodies of the implementations `@error` generates (spec 14 "Error
-//! Derivation"; codegen.md §13.14). Header lowering declares the heads
+//! Derivation"; `crates/hd_mono/DESIGN.md` §13.14). Header lowering declares the heads
 //! (`hd_resolve::error_type`); each body here is checked as ordinary code
 //! of the error type's module, so a message is type-checked in its
 //! variant's scope (`annot.error.message.checked`). A cause member's type

@@ -38,7 +38,7 @@ pub fn define(
     )
 }
 
-/// Defines the host imports of a session input (repl-plan.md §2.3) in the
+/// Defines the host imports of a session input (`f1c55020:future-work/compiler/repl-plan.md` §2.3) in the
 /// session's one linker: every import of `module` but its session imports
 /// (`hd_wasm::SESSION_MODULE`), which earlier inputs' exports satisfy, and
 /// those an earlier input already defined (`defined`).
@@ -160,7 +160,7 @@ fn define_with<'m>(
 
 /// One defined import, as a session's journal records its calls and a
 /// rebuild's replay serves them: the recorder and the replayer sit here,
-/// where every host import is dispatched (repl-plan.md §5 Q8c). `index` is
+/// where every host import is dispatched (`f1c55020:future-work/compiler/repl-plan.md` §5 Q8c). `index` is
 /// unique in its linker.
 struct Site {
     index: usize,

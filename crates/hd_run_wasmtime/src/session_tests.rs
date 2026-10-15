@@ -1,4 +1,4 @@
-//! The wasmtime session (repl-plan.md job S1): inputs the driver builds
+//! The wasmtime session (`f1c55020:future-work/compiler/repl-plan.md` job S1): inputs the driver builds
 //! with `Goal::ReplInput` (job C4) run one after another in one store. A
 //! later input sees an earlier input's declarations and top-level bindings
 //! by name (job C5). An input that is one expression shows its value, and
@@ -431,7 +431,7 @@ fn later_inputs_read_and_assign_earlier_bindings() {
     });
 }
 
-/// The `prices` example of live-execution.md §2.2, with std's `Map`
+/// The `prices` example of `future-work/live-execution.md` §2.2, with std's `Map`
 /// stored by index: a function of input 2 reads the map input 1 binds,
 /// after input 3 stored into it.
 #[test]

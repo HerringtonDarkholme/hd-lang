@@ -1,4 +1,4 @@
-//! Compiler-supplied impls (trait-solver.md §3.9): one function answers
+//! Compiler-supplied impls (`crates/hd_check/DESIGN.md` (trait solver) §3.9): one function answers
 //! each sealed trait the compiler implements from the type's form, as the
 //! rows of one `match`. The rows read no impl table, so their answers
 //! depend on no impl universe; they read only the declarations a
@@ -224,7 +224,7 @@ pub(crate) fn row(
     // template (`annot.structure.named-positions`), where a tuple
     // template's `T` is a parameter that the environment answers; codegen
     // asks it once a tuple template's instance is collected, and lowers
-    // its methods per tuple type (codegen.md §13.6).
+    // its methods per tuple type (`crates/hd_mono/DESIGN.md` §13.6).
     Some(if matches!(t, TyData::Tuple { .. }) {
         Row::Holds(BuiltinImpl::Structure, Vec::new())
     } else {

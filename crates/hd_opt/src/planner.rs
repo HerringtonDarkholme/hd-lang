@@ -1,5 +1,5 @@
 //! A pipeline's body-unit passes as the `hd_mono::plan::Planner` the
-//! driver hands collection (opt-pipeline.md §1.2, §2.2).
+//! driver hands collection (`crates/hd_opt/DESIGN.md` (optimization pipelines) §1.2, §2.2).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -1,4 +1,4 @@
-//! The trait solver's types and entry points (trait-solver.md §1.3, §2,
+//! The trait solver's types and entry points (`crates/hd_check/DESIGN.md` (trait solver) §1.3, §2,
 //! §3, §6, §7, §8, §10, §12). The goal, candidate, memo, evidence and
 //! failure records are real definitions; `solve` and `select` are the
 //! table solver: impl heads matched with their bound plans, and the
@@ -134,7 +134,7 @@ pub struct ParamEnv {
 
 pub type ParamEnvBuilder = ParamEnv;
 
-/// The impl universe of a solving context (§3.2; scheduler.md §6.1): the
+/// The impl universe of a solving context (§3.2; `crates/hd_sched/DESIGN.md` §6.1): the
 /// sorted folders of its closure whose `arg_impls` section is not empty.
 /// A run ID: it keys the memo, never a cache key or output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -897,7 +897,7 @@ pub enum BuiltinImpl {
     Integer,
     Float,
     Suspend,
-    /// A concrete tuple type's `Structure` (codegen.md §13.6), whose
+    /// A concrete tuple type's `Structure` (`crates/hd_mono/DESIGN.md` §13.6), whose
     /// methods collection generates per tuple type.
     Structure,
 }
@@ -4701,7 +4701,7 @@ mod tests {
     }
 
     /// The `Tuple` and `Structure` rows: every tuple is a `Tuple`; a tuple
-    /// has the compiler's `Structure` (`annot.tuple.structure`, codegen.md
+    /// has the compiler's `Structure` (`annot.tuple.structure`, `crates/hd_mono/DESIGN.md`
     /// §13.6); no other concrete type has `Structure`, which only a
     /// template instance's environment gives (`annot.structure.generated`).
     #[test]

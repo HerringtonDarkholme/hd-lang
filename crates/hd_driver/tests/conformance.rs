@@ -10,7 +10,7 @@
 //! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
 //! fixture profiles, on both engines and judges by wasmtime.
 //! `wasmtime-only` never launches Node for entries or test programs.
-//! Each engine runs a build tuned for its own target (opt-pipeline.md §5,
+//! Each engine runs a build tuned for its own target (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5,
 //! Q3): Node runs the `V8` build and wasmtime the `Wasmtime` build, so
 //! compare mode builds each runnable program once per target. The
 //! default, Node, builds for `V8` only.
@@ -755,7 +755,7 @@ fn engine_selection_is_explicit() {
     }
 }
 
-/// Each engine runs a build tuned for its own target (opt-pipeline.md §5,
+/// Each engine runs a build tuned for its own target (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5,
 /// Q3): the judged build is for the judging engine's target, and compare
 /// mode builds once more for `V8`, the module Node runs. Both at the
 /// selected level.
@@ -1041,7 +1041,7 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
 }
 
 /// How many cases a worker handles before it is recycled as cheap
-/// insurance against V8 heap growth (wasmtime-perf.md, M38).
+/// insurance against V8 heap growth (`f1c55020:future-work/compiler/wasmtime-perf.md`, M38).
 const WORKER_USES: usize = 500;
 
 struct EntryWorker {

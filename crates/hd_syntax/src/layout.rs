@@ -1,4 +1,4 @@
-//! The layout cursor (syntax.md §4.2): the parser pulls tokens through it,
+//! The layout cursor (`crates/hd_syntax/DESIGN.md` §4.2): the parser pulls tokens through it,
 //! and it inserts the abstract `NEWLINE`, `INDENT` and `DEDENT` tokens of
 //! [Physical And Logical Lines](spec/lang/01-lexical-structure.md). The
 //! parser tells it when a colon or `=>` opens a suite; everything else is

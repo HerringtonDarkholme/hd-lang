@@ -1,4 +1,4 @@
-//! The full parser (syntax.md §4.4): recursive descent over the token
+//! The full parser (`crates/hd_syntax/DESIGN.md` §4.4): recursive descent over the token
 //! stream that the layout cursor (§4.2) interleaves with `NEWLINE`,
 //! `INDENT` and `DEDENT`, emitting events that build the green tree. Each
 //! diagnostic comes from the grammar point that rejects the input; a

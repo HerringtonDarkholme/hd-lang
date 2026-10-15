@@ -1,6 +1,6 @@
 //! Block-local declarations (spec 03 `names.local-fn.*`,
 //! `names.local-type.*`, `names.local-impl.*`; spec 07 `fn.local.*`;
-//! checking-and-tir.md "Local items lift to hidden module items"): local
+//! `crates/hd_tir/DESIGN.md` "Local items lift to hidden module items"): local
 //! types and impls are hidden module items, a local function is a named
 //! closure. Programs build through the driver and run on V8
 //! (`host/run.mjs`), as the conformance runner does.

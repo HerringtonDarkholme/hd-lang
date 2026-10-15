@@ -1,4 +1,4 @@
-//! Node as an `hd_run::Engine` (build-order.md §22: until wasmtime is an
+//! Node as an `hd_run::Engine` (`f1c55020:future-work/compiler/build-order.md` §22: until wasmtime is an
 //! approved dependency, `hd run` and `hd test` run on V8 through Node).
 //! The JS host (`host/*.mjs`) is embedded, so the binary is
 //! relocatable.
@@ -203,7 +203,7 @@ pub struct CaseRun {
     /// (`std-testing.prop.report`).
     pub input: Option<String>,
     /// A Wasm trap's frames, innermost first: function index and module
-    /// byte offset (wasm-layout.md §15.9).
+    /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
 }
 

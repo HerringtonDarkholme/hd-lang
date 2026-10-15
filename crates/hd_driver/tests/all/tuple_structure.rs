@@ -1,4 +1,4 @@
-//! A tuple's `Structure` at codegen (#126; codegen.md §13.6,
+//! A tuple's `Structure` at codegen (#126; `crates/hd_mono/DESIGN.md` §13.6,
 //! `annot.tuple.*`): the trait solver's `Structure` row answers a concrete
 //! tuple with `Builtin(Structure)`, and collection lowers each method per
 //! tuple type with the derivation generator. So std's tuple templates

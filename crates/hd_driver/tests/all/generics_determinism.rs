@@ -1,5 +1,5 @@
 //! Generic parameters, associated types and trait-value bindings reach
-//! instance keys by stable content, never by run IDs (scheduler.md §6.5):
+//! instance keys by stable content, never by run IDs (`crates/hd_sched/DESIGN.md` §6.5):
 //! the same program builds to the same Wasm and the same cache entries
 //! under shuffled task orders, both executors, shuffled file order, and
 //! cold versus warm after an unrelated edit.

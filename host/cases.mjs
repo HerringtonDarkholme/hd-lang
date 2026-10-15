@@ -3,7 +3,7 @@
 // web-standard APIs only; the caller hands it what touches the platform.
 // The test program is compiled once; each case runs in its own fresh
 // instance (module.testing.instance), its module's init export first, then
-// its test export polled to completion (engines-and-test-runner.md §19.3).
+// its test export polled to completion (docs/compiler/engines-and-test-runner.md §19.3).
 //
 // This file is the test runner's side of `std.testing`
 // (spec/std/testing.md#runner-capabilities). A case's std body tells the

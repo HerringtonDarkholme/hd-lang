@@ -4,7 +4,7 @@
 //! function type, an explicit list, or the call it is an argument of,
 //! then from defaults (`fn.type.generic.*`). A bound reference
 //! `value::name` is a closure whose body calls the method on the
-//! receiver it captured once (codegen.md §13.11; old Muse queue
+//! receiver it captured once (`crates/hd_mono/DESIGN.md` §13.11; old Muse queue
 //! Q-R3: `ItemRef` keeps its schema, a bound reference wraps it).
 //!
 //! The type arguments of an `ItemRef` are the owner's, then the

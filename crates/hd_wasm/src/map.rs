@@ -1,4 +1,4 @@
-//! The map helpers (codegen.md §13.12, representation-runtime.md §7.2):
+//! The map helpers (`crates/hd_mono/DESIGN.md` §13.12, `f1c55020:future-work/compiler/representation-runtime.md` §7.2):
 //! entries in the order they were added, a removed entry marked by hash
 //! -1, and a linear-probing index of entry numbers plus one (0 empty),
 //! twice the entry capacity, so a probe always meets an empty slot.

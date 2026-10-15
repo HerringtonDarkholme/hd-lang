@@ -1,4 +1,4 @@
-// Check, Run and Test on the Rust compiler (playground-wasm.md §3, W5, W6).
+// Check, Run and Test on the Rust compiler (crates/hd_web/DESIGN.md §3, W5, W6).
 // The compiler wasm of crates/hd_web compiles the project; Run instantiates
 // the program with the browser host, host/web.mjs, as `hd run` does on
 // Node with host/node.mjs. Test runs each case with the case loop that
@@ -94,9 +94,9 @@ const tests = (count: number): string => `${count} ${count === 1 ? "test" : "tes
 
 /**
  * The lines `hd test` prints for a result other than a pass
- * (engines-and-test-runner.md §19.5), without the repro command, which
+ * (docs/compiler/engines-and-test-runner.md §19.5), without the repro command, which
  * names a file on disk, and without frames, which need the source
- * positions the playground does not have yet (playground-wasm.md §5).
+ * positions the playground does not have yet (crates/hd_web/DESIGN.md §5).
  */
 function reportLines(at: string, name: string, verdict: Verdict, input?: string): string[] {
   const indent = (text: string): string[] => text.split("\n").map((line) => `    ${line}`);
@@ -119,7 +119,7 @@ function reportLines(at: string, name: string, verdict: Verdict, input?: string)
  * of host/cases.mjs. A case running past its `timeout` while it waits is
  * cut at its deadline; one that never yields is cut only by the
  * playground's run limit. Snapshot and regression files live in memory
- * for the run (playground-wasm.md §5). The output lists each case that did
+ * for the run (crates/hd_web/DESIGN.md §5). The output lists each case that did
  * not pass as `hd test` prints it; the summary counts the passes, or names
  * the first failure.
  */

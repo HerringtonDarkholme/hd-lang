@@ -65,7 +65,7 @@ jobs:
         run: cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown
 
       # LTO build, then compile and run a fixture through
-      # the exports, with the size gate (playground-wasm.md §7, W3).
+      # the exports, with the size gate (crates/hd_web/DESIGN.md §7, W3).
       - name: Web compiler smoke test and size gate
         run: pnpm run -s test:web-compiler
 
@@ -150,7 +150,7 @@ jobs:
         run: cargo test --release --workspace --all-features --test conformance
 
       # Every engine: each runs a build tuned for its own target and the
-      # outputs are compared (opt-pipeline.md §5, Q3). Local runs test the
+      # outputs are compared (crates/hd_opt/DESIGN.md (optimization pipelines) §5, Q3). Local runs test the
       # V8 target on Node only.
       - name: Conformance on Node and wasmtime
         env:

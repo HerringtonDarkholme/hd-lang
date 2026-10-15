@@ -1,4 +1,4 @@
-//! The playground's REPL sessions (repl-plan.md job W3): one module per
+//! The playground's REPL sessions (`f1c55020:future-work/compiler/repl-plan.md` job W3): one module per
 //! input, linked by the JS host, which reports each module's outcome.
 
 use std::collections::BTreeSet;

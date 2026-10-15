@@ -1,5 +1,5 @@
 //! Trailing-block calls (spec/lang/07-functions.md, Trailing Callback
-//! Blocks; checking-and-tir.md, "What The Checker Desugars"): the block is
+//! Blocks; `crates/hd_tir/DESIGN.md`, "What The Checker Desugars"): the block is
 //! a zero-argument closure typed by the callee's final parameter, passed
 //! as one more final argument. Then top-level `it(...)` registrations of a
 //! test module and an integration test file (spec/lang/10-modules.md,

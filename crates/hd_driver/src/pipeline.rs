@@ -1,4 +1,4 @@
-//! The pipeline key of each (target, level) (opt-pipeline.md §3.3): the
+//! The pipeline key of each (target, level) (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3): the
 //! hash of `hd_opt`'s pass hash and `hd_wasm`'s lowering hash. It hashes
 //! content, never the target's name, so targets whose passes, knobs and
 //! lowering are equal share every cache entry. The table is validated once

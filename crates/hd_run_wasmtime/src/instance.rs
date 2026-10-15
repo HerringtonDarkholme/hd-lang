@@ -33,7 +33,7 @@ pub struct WasmtimeInstance {
     pub(crate) last_trapped: bool,
     /// The last Wasm trap's frames, innermost first: function index and
     /// module byte offset, which a test report symbolizes
-    /// (wasm-layout.md §15.9).
+    /// (`crates/hd_wasm/DESIGN.md` §15.9).
     pub(crate) last_frames: Vec<(u32, u32)>,
     /// Whether a session's stop ended the run: `Stopped` while Wasm ran,
     /// `Cancelled` while it waited. For the input's `End` row.

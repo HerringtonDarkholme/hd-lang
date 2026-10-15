@@ -1,6 +1,6 @@
 //! The text half of a module's skim ([`FileSkim`]), made once per run, and
 //! the embedded std's, kept per toolchain in a `depfiles` entry
-//! ([`StdSkims`], cache.md §5.5 rule 7). Std is about 500 KB of text: on a
+//! ([`StdSkims`], `crates/hd_cache/DESIGN.md` §5.5 rule 7). Std is about 500 KB of text: on a
 //! warm run its skims were most of the run's time (#49).
 
 use std::collections::HashMap;

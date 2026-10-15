@@ -1,5 +1,5 @@
-//! Rebuilding a session from its journal (live-execution.md §5.4, spec
-//! `cli.repl.rebuild`, `.prefix`, `.stopped`; repl-plan.md job J2).
+//! Rebuilding a session from its journal (`future-work/live-execution.md` §5.4, spec
+//! `cli.repl.rebuild`, `.prefix`, `.stopped`; `f1c55020:future-work/compiler/repl-plan.md` job J2).
 //!
 //! A rebuild starts a new store over the same host: the standard streams,
 //! standard input, open sockets and HTTP clients stay, as the world outside

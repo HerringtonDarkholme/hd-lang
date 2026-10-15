@@ -1,4 +1,4 @@
-//! Replay (live-execution.md §5): the inputs a session's journal recorded,
+//! Replay (`future-work/live-execution.md` §5): the inputs a session's journal recorded,
 //! and [`Replay`], which serves one input's host calls and wakes from its
 //! rows instead of making them again (`cli.repl.host.once`).
 //!

@@ -1,6 +1,6 @@
 //! Instance keys, A1 classes and Wasm layouts over the full type
-//! representation (codegen.md §13.2, §13.3; wasm-layout.md §15.1, §15.2;
-//! data-structures.md §3.22).
+//! representation (`crates/hd_mono/DESIGN.md` §13.2, §13.3; `crates/hd_wasm/DESIGN.md` §15.1, §15.2;
+//! `docs/compiler/data-structures.md` §3.22).
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use std::collections::{HashMap, HashSet};
@@ -78,7 +78,7 @@ pub enum StdKind {
     Other,
 }
 
-/// Whether a map key type hashes and compares inline (codegen.md §13.12):
+/// Whether a map key type hashes and compares inline (`crates/hd_mono/DESIGN.md` §13.12):
 /// an integer, `bool`, `char` or `string`, whose `Eq` and `Hash` are
 /// std's fixed ones, erasing newtypes to their base. Every other key
 /// calls its own impls.
@@ -333,7 +333,7 @@ fn layout_in(
                 "the layout of a requirement row",
             ));
         }
-        // One providers array (codegen.md §12.4, "Context values").
+        // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
         TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         TyData::Param(_)
         | TyData::Assoc { .. }
@@ -350,7 +350,7 @@ fn layout_in(
 }
 
 /// The self-recursive enums among `enums`, the program's enum declarations
-/// (wasm-layout.md §15.2): those whose declaration reaches itself through
+/// (`crates/hd_wasm/DESIGN.md` §15.2): those whose declaration reaches itself through
 /// value positions. Value positions are enum payloads, tuple elements and
 /// `T?`, and another enum's argument when that enum holds the parameter
 /// in a value position. Data, collections, functions and trait values are
@@ -527,7 +527,7 @@ pub struct CanonMemo(HashMap<Ty, Hash128>);
 ///
 /// A requirement key's content hash is `canon` of the whole key, the trait
 /// with its type arguments and bindings (`req.key.binding.identity`,
-/// codegen.md §13.18); content order of a row's keys is its order.
+/// `crates/hd_mono/DESIGN.md` §13.18); content order of a row's keys is its order.
 pub fn canon(
     pool: &InternPool,
     path_hash: &dyn Fn(DefId) -> Hash128,
@@ -698,12 +698,12 @@ pub enum Sub {
     /// A body of the item's TIR: 0 for the item's own, `k` for its
     /// closure body `k`.
     Body(u16),
-    /// A function reference's adapter, which has no TIR (codegen.md
+    /// A function reference's adapter, which has no TIR (`crates/hd_mono/DESIGN.md`
     /// §13.11): its code forwards to one call that collection records as
     /// instruction 0.
     Adapter,
     /// The erased body of a generic method that a vtable slot holds
-    /// (codegen.md §13.5.1): the item's body at its owner's concrete
+    /// (`crates/hd_mono/DESIGN.md` §13.5.1): the item's body at its owner's concrete
     /// arguments, its own type parameters open (`open_param`).
     Erased,
     /// Thunk `k` of an erased body: its open instruction `k`, in TIR
@@ -769,7 +769,7 @@ pub fn instance_key(
     h.finish()
 }
 
-/// The known closures of a specialized instance (closure-calls.md, option
+/// The known closures of a specialized instance (`crates/hd_opt/DESIGN.md` (known closure calls), option
 /// A2): per parameter index the instance's caller always passes one closure
 /// literal for, that literal's code instance key, sorted by index. Empty
 /// for every other instance.
@@ -805,7 +805,7 @@ pub fn known_key(plain: Hash128, known: &[(u32, Hash128)]) -> Hash128 {
     h.finish()
 }
 
-/// The per-program instance table (data-structures.md §3.22).
+/// The per-program instance table (`docs/compiler/data-structures.md` §3.22).
 #[derive(Default, Debug)]
 pub struct InstanceTable {
     pub item: Vec<DefId>,

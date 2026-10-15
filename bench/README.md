@@ -46,6 +46,6 @@ Two Node tools drive the Rust `hd` as a child process:
 
 - [`metrics/`](metrics/README.md): the goal-metric scripts
   (`pnpm run metrics`), judged against the targets in
-  [goals.md](../future-work/compiler/goals.md);
+  [docs/compiler/goals.md](../docs/compiler/goals.md);
 - [`micro/`](micro/README.md): runtime microbenchmarks of the same programs
   in hd, Python and Node.

@@ -1,4 +1,4 @@
-//! Capture-free closures as constant globals (#49, lowering-catalog.md
+//! Capture-free closures as constant globals (#49, `docs/compiler/lowering-catalog.md`
 //! "Numbering"): a closure literal that captures nothing, or a function
 //! reference used as a value, is one immutable global per closure code,
 //! initialized with `struct.new` of its environment over `ref.func`. Each

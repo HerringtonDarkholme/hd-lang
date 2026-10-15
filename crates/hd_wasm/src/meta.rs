@@ -1,4 +1,4 @@
-//! The `hd.runtime` custom section (runtime-and-host.md §16.4) and the
+//! The `hd.runtime` custom section (`crates/hd_run_wasmtime/DESIGN.md` §16.4) and the
 //! `hd FILE.wasm` import check.
 
 use hd_base::Hash128;

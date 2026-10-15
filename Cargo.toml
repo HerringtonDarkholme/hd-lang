@@ -35,7 +35,7 @@ opt-level = 1
 
 # The playground's compiler wasm (`cargo build -p hd_web --target
 # wasm32-unknown-unknown --profile web`; scripts/build-web-compiler.js).
-# Only that build selects it (playground-wasm.md §4).
+# Only that build selects it (crates/hd_web/DESIGN.md §4).
 [profile.web]
 inherits = "release"
 lto = true

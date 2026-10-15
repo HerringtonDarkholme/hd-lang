@@ -1,11 +1,11 @@
 //! A derivation's `Structure` at check time (annotations, "The Structure
 //! Trait", "Facts", "Members And Variants", "Self References";
-//! codegen.md §12.3 "Derives"): the target's member list, built from the
+//! `crates/hd_mono/DESIGN.md` §12.3 "Derives"): the target's member list, built from the
 //! data type or enum and the derivation's omitted members, for the one
 //! generator in `hd_structure`, which writes the bodies as hidden methods
 //! of the `Structure`'s owner (`OptIn::structure_owner`); and the bodies
 //! that build each `Facts` the derivation sees. Collection calls the same
-//! generator for a tuple's `Structure` (codegen.md §13.6).
+//! generator for a tuple's `Structure` (`crates/hd_mono/DESIGN.md` §13.6).
 //!
 //! The declaration's `Structure` is shared: its methods, handles and facts
 //! bodies are hidden methods of the data type or enum, generated once per

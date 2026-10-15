@@ -1,4 +1,4 @@
-//! Names, calls and member lookup (type-checking.md §2.3, §5): local and
+//! Names, calls and member lookup (`crates/hd_check/DESIGN.md` (type checking) §2.3, §5): local and
 //! item names, variant constructors, generic calls, inherent, built-in and
 //! trait methods, static members, conversions, function values, bang calls
 //! and the row check of a callee's requirements.
@@ -536,7 +536,7 @@ impl Ck<'_, '_> {
     /// `f(a): block` and `f: block` (`fn.trailing.form`,
     /// `fn.trailing.empty-parentheses`): the call with one more final
     /// argument, the block, which `check_args` checks as a zero-argument
-    /// closure typed by the callee's final parameter (checking-and-tir.md,
+    /// closure typed by the callee's final parameter (`crates/hd_tir/DESIGN.md`,
     /// "What The Checker Desugars").
     pub(crate) fn trailing_call(
         &mut self,
@@ -1328,7 +1328,7 @@ impl Ck<'_, '_> {
                     }
                     // `DefaultCall` of the parameter's default body, after
                     // every explicit argument, over the earlier values
-                    // (checking-and-tir.md "Default calls").
+                    // (`crates/hd_tir/DESIGN.md` "Default calls").
                     let Some((def, targs, prefix)) = &owner else {
                         return unsupported("a default argument of this callee");
                     };
@@ -1789,7 +1789,7 @@ impl Ck<'_, '_> {
                 self.callee_row(def, row, vec![(def, vars.clone())], n)?;
                 // A registration call's test case runs its std body with
                 // the arguments that body takes, and returns the result of
-                // the registration's body (checking-and-tir.md §4.13.9).
+                // the registration's body (`crates/hd_tir/DESIGN.md` §4.13.9).
                 if let Some((body_fn, takes)) = runner {
                     let mut picked = Vec::new();
                     for t in takes {
@@ -1953,7 +1953,7 @@ impl Ck<'_, '_> {
     }
 
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
-    /// value is the tuple of their results (suspension.md §14.5).
+    /// value is the tuple of their results (`crates/hd_wasm/DESIGN.md` §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
         if let Some(s) = args.spread {
             self.err(
@@ -3140,7 +3140,7 @@ impl Ck<'_, '_> {
 
     /// The trait methods named `sym` of a concrete type: the
     /// compiler-answered traits, then the trait part of `Methods`
-    /// (trait-solver.md §6.5), each other trait with the method by the
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §6.5), each other trait with the method by the
     /// impl candidates the type has. Two traits are ambiguous.
     fn trait_part(
         &mut self,
@@ -3981,7 +3981,7 @@ impl Ck<'_, '_> {
         self.normalize_deep(r).unwrap_or(r)
     }
 
-    /// Normalizes projections whose self type is known (trait-solver.md
+    /// Normalizes projections whose self type is known (`crates/hd_check/DESIGN.md` (trait solver)
     /// §4.3): a bound's binding, a trait value's binding, or an impl's
     /// binding. A projection on a parameter with no binding stays rigid,
     /// named by the trait that declares it.
@@ -4208,7 +4208,7 @@ impl Ck<'_, '_> {
         Ok(self.choice_of(ev.as_ref()))
     }
 
-    /// The callee choice a solver answer names (checking-and-tir.md,
+    /// The callee choice a solver answer names (`crates/hd_tir/DESIGN.md`,
     /// "callee record").
     pub(crate) fn choice_of(&self, ev: Option<&Evidence>) -> (ChoiceKind, u32) {
         match ev {

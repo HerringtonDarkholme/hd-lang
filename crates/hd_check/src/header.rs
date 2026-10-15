@@ -1,5 +1,5 @@
-//! Stage B of header validation (resolution-and-interfaces.md §4.10.1;
-//! trait-solver.md §1.1, §3.7, §5.1), the `HeaderCheck(F)` task's work:
+//! Stage B of header validation (`crates/hd_resolve/DESIGN.md` §4.10.1;
+//! `crates/hd_check/DESIGN.md` (trait solver) §1.1, §3.7, §5.1), the `HeaderCheck(F)` task's work:
 //! the header checks that need goals. Written header types against their
 //! declared bounds, each impl's supertraits, and delegation targets are
 //! `Implements` goals asked through the solver, under the item's

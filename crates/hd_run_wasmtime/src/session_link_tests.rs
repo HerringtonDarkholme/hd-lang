@@ -1,4 +1,4 @@
-//! Session linking (repl-plan.md §2.3, job C1): a module `hd_wasm::link`
+//! Session linking (`f1c55020:future-work/compiler/repl-plan.md` §2.3, job C1): a module `hd_wasm::link`
 //! links in `LinkMode::Session` instantiates against the exports of an
 //! earlier module in the same store and calls into it.
 
