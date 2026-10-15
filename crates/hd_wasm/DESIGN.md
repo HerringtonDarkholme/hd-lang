@@ -22,37 +22,31 @@ struct or an array element.
 | `erased` | `eqref` | the payload of a trait value, `Any`, an open value in an erased method body (crates/hd_mono/DESIGN.md §13.5.1) |
 | `void` | none | `void`, `()`, and `never` |
 
-**One representation per type in every position (lowering pass,
-2026-10-07).** A type has the same Wasm values in a local, a parameter,
+**One representation per type in every position.** A type has the same Wasm values in a local, a parameter,
 a result, a field and an array element, apart from packing scalars (`i8`
 for `bool`). A value layout within the **bound** is several values,
 several fields, or a structure of arrays. A value layout over the bound
 is one immutable box struct in every position, fields and arrays
-included. An earlier draft boxed only in locals and kept fields and
-arrays unboxed, so every read of such an element allocated a box; the
-runtime study (`f1c55020:future-work/compiler/representation-runtime.md`)
-found that. The spec allows either form
+included; boxing only in locals would allocate a box on every read of
+such a field or element. The spec allows either form
 ([Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)).
 
 - **The bound** counts Wasm values after slot sharing, the tag included,
-  and counts a boxed payload as one value. **Default 4, decided by E2**
-  of spike 0c: the largest payload count where parallel arrays win a
-  read-only kernel by more than 10 percent on wasmtime and `push` stays
-  under 256 bytes. There is one bound, because crossing it changes the
+  and counts a boxed payload as one value. It is 4 (`layout::BOUND`):
+  the largest payload count where parallel arrays won a read-only kernel
+  by more than 10 percent on wasmtime and `push` stayed under 256 bytes.
+  There is one bound, because crossing it changes the
   layout of every value type that holds the type by value.
 - **Slot sharing.** Payload fields of different variants with the same
   Wasm value type share a slot. Reference fields share reference slots:
   the slot is typed exactly when every variant's field in it has one
   reference type, and `eqref` with a `ref.cast` after the tag test
-  otherwise (`f1c55020:future-work/compiler/research-enum-values.md` §5.1).
+  otherwise.
 - **Erased storage (A1).** A struct field or array element whose declared
   type is a type parameter, instantiated at a layout of one reference
   (nullable or not), is stored as `eqref`, and readers cast at the first
   use that needs the exact type. So `List[Point]` is always `{len,
-  (array eqref)}`. Scalars and `multi` layouts keep exact storage.
-  **Default adopted, decided by E1:** rejected if the wasmtime read
-  penalty is over 1 ns per element or over 5 percent on the `sort` and
-  `map` microbenchmarks with reference elements. Collection then gives
+  (array eqref)}`. Scalars and `multi` layouts keep exact storage. Collection then gives
   move-only generic bodies one instance per class (crates/hd_mono/DESIGN.md §13.2).
 - Every rule here reads only the type's definition and the definitions
   its fields name, never a use or the program, so a cached instance is
@@ -71,7 +65,7 @@ found that. The spec allows either form
 | enum box, **flat** (over the bound, at most 4 payload fields in total) | one immutable struct: tag plus the union of payload fields, unused fields null or zero | same: the box reference |
 | enum box, **subtypes** (over the bound with more fields, or self-recursive) | a non-final base struct (tag, shared fields) and one final subtype per payload variant; payloadless variants are constant singletons | same: the box reference |
 | `T?`, `T` a non-nullable reference (data, list, string, closure, a box) | `(ref null $T)`; null is `.None` | same |
-| `T?`, `T` a trait value | `(eqref, (ref null $VT))`; a null vtable is `.None` (lowering pass) | two fields |
+| `T?`, `T` a trait value | `(eqref, (ref null $VT))`; a null vtable is `.None` | two fields |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
 | `T??` and `Option` of a `multi` | a tag plus the inner layout, boxed over the bound | the same fields |
 | `Result[T, E]` | `multi`: `(i32 tag, dflt(T')..., dflt(E')...)` with slot sharing, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
@@ -79,14 +73,14 @@ found that. The spec allows either form
 | trait value, `Any` | `(eqref, (ref $VT))`; `eqref`, so `is` can use `ref.eq` on the payload | two fields |
 | closure | per the target's lowering profile (crates/hd_opt/DESIGN.md (optimization pipelines) §4). `V8`, `Browser`: `(ref $Fn_sig)`, a base struct holding the code as a typed function reference. `Wasmtime`: `(ref $Fn)`, one base struct for every signature, holding the code as an abstract `funcref`; a call casts it to the final `$Code_sig` before `call_ref` (wasmtime reads an abstract funcref field without a subtype check; crates/hd_opt/DESIGN.md (known closure calls) §7). One subtype per capture shape | same |
 | capture-free closure | a constant global of the base type, with no environment | same |
-| `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` (owner, 2026-10-07: Go-style shared slices; "Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
+| `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` ("Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
 | `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))` | same |
-| `Map[K, V]` | std hd over arrays (§16.1): a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays ([docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)) | same |
-| `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))` | same |
+| `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
+| `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `data TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
 
-**Strings (owner, 2026-10-07: Go-style shared slices).** A string is a
+**Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are
 O(1) and share bytes, as
 [`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared)
@@ -136,7 +130,7 @@ value layout (§15.1):
   `strings.Clone` is.
 - **Type-only:** yes. The layout depends on nothing but the type.
 
-**Defaultable forms (Codex re-review N3).** A language layout may hold
+**Defaultable forms.** A language layout may hold
 a non-null reference: data, lists, strings, closures. Wasm has no default
 value for one, so a slot that may be inactive cannot hold it. Each layout
 `L` therefore has a defaultable form `dflt(L)`, the same Wasm values with
@@ -149,20 +143,19 @@ inactive:
 | an inactive payload of a value enum or `Result` (`multi` layout), and the payload fields of a flat enum struct | `dflt` per payload field; the inactive variant's fields hold `default` | the tag test, then `ref.as_non_null` on the read field |
 | the Pending result and the resume arguments of `f$body`, every saved field of a suspension frame, the result fields of an `all!` frame | `dflt` (crates/hd_wasm/DESIGN.md §14.1) | the state test or the done mask |
 | a module storage global before init | `dflt` (§15.4) | init order; reads after init narrow |
-| an `Array[T]` slot past the count that `List`, `Map` or `Deque` keeps (lowering pass) | `dflt` per element value; such slots hold `default` and std never reads them | std's count check, then `ref.as_non_null`, or the A1 `ref.cast` to a non-null type, which checks both |
+| an `Array[T]` slot past the count that `List`, `Map` or `Deque` keeps | `dflt` per element value; such slots hold `default` and std never reads them | std's count check, then `ref.as_non_null`, or the A1 `ref.cast` to a non-null type, which checks both |
 
 Language-level locals, parameters and fields keep the non-null form, so a
 value that is always present costs nothing. A narrowing read is one
 `ref.as_non_null`, which cannot fail after the test. `struct.new_default`
 is valid for every frame type.
 
-**M4b local gap (M4b gap 6).** M4b declares every reference local in its
-defaultable nullable form and emits `ref.as_non_null` on each read. That
-keeps validation simple, but adds redundant casts to locals whose value
-is always present. The non-null language-local rule above remains the
-target; only genuinely inactive slots use `dflt`.
+Implementation differs: `Asm::local` declares every reference local in
+its defaultable form and emits `ref.as_non_null` on each read of a
+non-null one; that adds a cast to every read of a value that is always
+present.
 
-**Enum layout per enum (mine).** Every enum is an identity-free value
+**Enum layout per enum.** Every enum is an identity-free value
 (S1c) and normally uses the value layout of "One predicate for
 identity-free enums" below. The flat and subtype rows above are the
 shapes of its **box**, used past the bound (§15.1) and for a self-recursive
@@ -173,7 +166,7 @@ cast on a match, and their payloadless variants need no allocation.
 Subtype enums cast once per matching arm, which the engine checks with
 one load and compare.
 
-**Self-recursive enums (implementation, #120).** An enum is
+**Self-recursive enums.** An enum is
 self-recursive when its declaration reaches itself through value
 positions: enum payloads, tuple elements, `T?`, and another enum's
 argument when that enum holds the parameter in a value position. Data,
@@ -183,16 +176,17 @@ A cycle of declarations decides, found once per program
 growing arguments (`E[T?]` in `E[T]`) is boxed like a plain one and every
 other value layout is finite. A projection in a value position is not
 resolved there, so its enum counts as self-recursive. "Payload fields"
-counts declared fields across the variants. The first implementation's
-subtype base holds the tag only, a payloadless variant allocates a base
-struct (no singleton globals yet), and a payload read casts per field,
-not once per arm.
+counts declared fields across the variants.
+
+Implementation differs: the subtype base (`layout::enum_base`) holds the
+tag only, a payloadless variant allocates a base struct (no singleton
+globals), and a payload read casts per field, not once per arm; that
+allocates for every payloadless value and repeats casts.
 
 **Erased scalars.** In an erased position, `bool`, `char` and integers of
 16 bits or less become `i31ref`. Wider integers (`i32`, `u32`, `usize`,
 `i64`, `u64`) become `i31ref` when the value fits in 31 signed bits and
-are boxed in `$Box_i32` or `$Box_i64` otherwise (owner, 2026-10-06,
-reaffirmed 2026-10-07). Erasing checks the range, which is a shift, a
+are boxed in `$Box_i32` or `$Box_i64` otherwise. Erasing checks the range, which is a shift, a
 shift back and a compare, and allocates only on a miss. Unboxing is
 `br_on_cast` to `i31`, then `i31.get_s` and an extend; a miss takes
 `ref.cast` to the box and `struct.get`. A box-only layout would need
@@ -204,30 +198,23 @@ only the runtime form depends on the value. This is where the owner's
 all. A string is boxed in `$Box_str`, an immutable `{bytes, span}`
 struct, as a tuple is boxed in one immutable struct.
 
-**M4b erased-scalar gap (M4b gap 3).** The current erased path always
-allocates a scalar box. It does not emit the `i31ref` range fast path or
-the corresponding unbox branch. The mixed `i31ref`/box representation
-above remains required.
+Implementation differs: `Em::erase` boxes every scalar with `struct.new`
+of `box_of(vts)`, with no `i31ref` fast path; every scalar passed as
+`Any` or a trait value allocates (see #175).
 
-**Identity (owner decision B, extended, 2026-10-07).** The Codex review (finding 1)
-showed that the rows above broke the spec's allocation identity: the spec
-gives each `.Some(...)` and each primitive-to-`Any` box its own identity
-(`expr.is.some`, `expr.is.box`, `expr.is.box.distinct`). The owner chose
-to change the language instead of the layouts. `.Some`, `.Ok`, `.Err`
+**Identity.** These layouts rely on the language giving value types no
+identity. `.Some`, `.Ok`, `.Err`
 and primitive, string or tuple boxes have no identity. `is` is a compile
 error on an operand whose static type is a value type and on function
 values; since S1c that covers every enum, optionals and `Result`
 included. On an `Any` or trait value that holds a value at run time,
-the result is unspecified (Codex review, finding 1). The spec has this
-as
+the result is unspecified. The spec has this as
 [`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand),
 [`expr.is.box-values`](../../spec/lang/05-expressions.md#r-expr.is.box-values)
 and
 [`expr.is.box-unspecified`](../../spec/lang/05-expressions.md#r-expr.is.box-unspecified).
-The other option was to keep the spec and allocate one object per `.Some`
-and per box wherever identity could be observed. That costs one 16 to
-24 byte allocation per `.Some` that crosses a call, which `T?`-heavy code
-pays on every lookup. B was chosen because it costs nothing and an
+Keeping identity would cost one 16 to 24 byte allocation per `.Some`
+that crosses a call, which `T?`-heavy code pays on every lookup, and an
 optional's identity has no known use.
 
 So the layouts follow these rules:
@@ -236,19 +223,17 @@ So the layouts follow these rules:
    for a scalar `T`. Nothing is allocated.
 2. **Boxes.** A primitive, string or tuple converted to a trait value or
    `Any` is erased as above. Equal small scalars give equal `i31ref`s, and
-   two boxes of one value are two objects. The proposed spec change makes
-   `is` on such values unspecified, as it already is for function values.
-3. **`Result` has no identity either** (open question 23.1-7, answered
-   yes). It uses the `multi` layout `(i32 tag, T', E')` and allocates
+   two boxes of one value are two objects; `is` on such values is
+   unspecified, as for function values.
+3. **`Result` has no identity either.** It uses the `multi` layout `(i32 tag, T', E')` and allocates
    nothing. A field that holds a `Result` stores the same fields
    inline, or the box past the bound. Its payload fields share slots
    by §15.1's slot-sharing rule: when `T'` and `E'` are references of
-   different types, they share one `eqref` slot cast after the tag test
-   (lowering pass; an earlier draft kept them apart).
+   different types, they share one `eqref` slot cast after the tag test.
 4. **Other enums** are identity-free too (S1c). They follow the
    predicate below; the flat and subtype shapes are only their boxes.
 
-**One predicate for identity-free enums (mine).** Layout, `is` lowering
+**One predicate for identity-free enums.** Layout, `is` lowering
 and the checker's value-type test read one predicate, `identity_free(E)`.
 Since the S1c spec pass it holds for every enum
 ([`types.sealed.anyval-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-values)).
@@ -259,7 +244,7 @@ fields...)` as `multi`, boxed in one immutable struct past the bound in every po
 as §15.1 says. A self-recursive payload stays a reference, as the flat
 or subtype layout above has it.
 
-**Representation equivalence (Codex re-review N-B2).** Identity-free
+**Representation equivalence.** Identity-free
 means the enum's own shell may be copied, deduplicated or hoisted into a
 constant. It does not mean a referenced object may be replaced by an
 equal one. Two enum values are interchangeable only when their value
@@ -285,27 +270,32 @@ No type-id test is needed in the last row. Two different objects are
 never `ref.eq`, and two equal `i31ref`s of different types are boxed
 values, whose result is unspecified.
 
-**Arrays.** `Array[T]` is the one compiler-known collection: `(array (mut
+**Arrays.** Not built yet; see #180: std has no `Array[T]`, and `List`
+and `Map` are compiler-known types over Wasm arrays. The design:
+`Array[T]` is the one compiler-known collection, `(array (mut
 T'))` with `T'` the element layout of the table. An array of a `multi`
 layout, such as `Array[Option[i32]]` or `Array[(i32, f64)]`, is a struct
-of one array per Wasm value (mine): a structure of arrays, which keeps
+of one array per Wasm value: a structure of arrays, which keeps
 every element unboxed, as the spec's packed `List[i32]` and list of
 tuples ask, and allocates nothing per element. `Array[T]` is intrinsic,
 so `List[T]` and `Map[K, V]` in std see one type either way.
 
-- **Element forms (lowering pass).** An element is stored in its
+- **Element forms.** An element is stored in its
   defaultable form, since slots past a collection's count hold
   `default(L)`. Under A1 an element of a reference layout is `eqref`.
   An element over the bound is the box reference.
 - **`Array[void]`** has no Wasm array: it is one shared empty constant
   struct, and its operations emit nothing. So `Map[T, void]`, which
   `Set[T]` wraps, has no values array, with no special case.
-- **Collections over plain storage (lowering pass; std work, not done
-  here).** `Heap[T]` is a `List[T]` with sift operations, and `Deque[T]`
-  a ring buffer over `Array[T]` with a head and a count. Neither stores
-  `T?`, which for a scalar `T` doubled the arrays and added a tag test
-  per access. `Set[T]` wraps `Map[T, void]` with an internal
-  insert-if-absent, so `insert` probes once. `Map` is the compact
+- **Collections over plain storage.** `Heap[T]` is a `List[T]` with sift
+  operations, and `Deque[T]` a ring buffer over `Array[T]` with a head
+  and a count. Neither stores `T?`, which for a scalar `T` doubles the
+  arrays and adds a tag test per access. `Set[T]` wraps `Map[T, void]`
+  with an internal insert-if-absent, so `insert` probes once.
+  Implementation differs: `Deque` and `Heap` in `lib/std/collections.hd`
+  store `List[T?]`, and `Set` wraps `Map[T, bool]`; that doubles scalar
+  storage, adds a tag test per access, and stores a `bool` per entry.
+ `Map` is the compact
   insertion-ordered table of [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v).
 
 ### 15.3 The Type Section
@@ -313,7 +303,7 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 1. **Canonical descriptors.** The linker maps each hd type to a canonical
    Wasm type descriptor: kind, fields with mutability and storage type,
    supertype, finality. Structurally equal descriptors are one type.
-2. **Structural, not nominal (mine).** hd never tests an object's Wasm
+2. **Structural, not nominal.** hd never tests an object's Wasm
    type to learn its hd type. Enum variants use the tag, and `Any` uses
    the vtable's type id. So two hd types with the same layout may share a
    Wasm type, which shrinks the type section and lets instances fold
@@ -324,9 +314,9 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    then by the members' `canon(T)` bytes (crates/hd_mono/DESIGN.md §13.3), a nominal
    key that exists before any Wasm index does. Two groups are one type
    when their encoded bytes under that order are equal. Recognizing equal
-   recursive shapes under different member names is deferred until the
-   size measurements ask for it (Codex re-review N-B1, N-S3).
-   **As built (#120).** Storage erases a reference to `eqref` in an
+   recursive shapes under different member names waits until size
+   measurements ask for it.
+   **As built.** Storage erases a reference to `eqref` in an
    enum's slots and box and in a list's or map's arrays, and layout reads
    only the parts' storage there, so Wasm types recur only through data
    fields and trait values (vtable slot types), possibly by way of
@@ -352,11 +342,11 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    `D[List[T]]?`, an expansive cycle in Kennedy and Pierce's sense) has
    no finite descriptor and stops emission as unsupported; the check
    runs only when an item is on the walk's path at two arguments.
-   **Cost (measured, #120).** A code entry carries the descriptors of
-   every group it reaches, so a program with one group of `N` types used
-   by `N` functions, or a chain of `N` nested types, writes `O(N^2)`
-   descriptor bytes: about 0.26 s at `N = 800` and 1.5 s at `N = 3200`
-   cold. A program-wide type table would make it linear.
+   **Cost.** A code entry carries the descriptors of every group it
+   reaches, so a program with one group of `N` types used by `N`
+   functions, or a chain of `N` nested types, writes `O(N^2)` descriptor
+   bytes: about 0.26 s at `N = 800` and 1.5 s at `N = 3200` cold. A
+   program-wide type table would make it linear; see #49.
 4. **Subtyping.** Declared only where hd needs it: enum variants under
    their base, frames under `$Suspend_L`, closure environments under
    `$Fn`. Every leaf is `final`, which lets engines skip subtype
@@ -369,17 +359,16 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    ready set). The type section is then a pure function of the type set,
    and valid by construction
    ([Wasm type validity](https://webassembly.github.io/spec/core/valid/types.html)).
-   The current link emits each group on first use, after the groups it
-   names (a depth-first topological order over code in content order):
-   valid and deterministic, but not yet the sorted ready set.
-6. **Stability (lowering pass).** No dense order is stable under
+   Implementation differs: link emits each group on first use, after the
+   groups it names (a depth-first order over code in content order),
+   which is valid and deterministic but depends on code order; not judged.
+6. **Stability.** No dense order is stable under
    insertion: a new type that sorts early shifts the type immediates of
    later functions, and wasmtime's per-function cache keys include them.
-   The first release keeps this order and measures the misses (S2 of
-   spike 0c). If fewer than 90 percent of functions hit after adding one
-   type, allocation and cast sites name types through a call to a
-   per-type helper, or the cache key is asked to abstract type indices
-   upstream. Under A1, fewer types exist, so fewer shift.
+   This order is kept until a measurement shows fewer than 90 percent of
+   functions hitting the cache after adding one type; then allocation and
+   cast sites name types through a per-type helper. Under A1, fewer types
+   exist, so fewer shift.
 
 ### 15.4 Globals And Module Initialization
 
@@ -388,29 +377,30 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | runtime state: panic category, the wake table, the forbidden-context counter | mutable | constants | `global.get` of a fixed low index |
 | one literal table per source module | immutable `(ref $LitTab)`: a `(ref $Pool)`, an `(array (mut (ref null $bytes)))` with one slot per pooled literal of the module, and the module's index-area offset | a constant expression (`struct.new`, `array.new_default`) | nothing: only the module's literal getter reads it |
 | vtables, capture-free closures, payloadless variant singletons, member handles, witnesses, `TypeId` values | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) | `global.get`; globals of a kind ordered by content key |
-| string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get`, then `i64.const` of the literal's span (`len << 32`) |
+| string literals of 4 bytes or less | immutable | a constant expression (`array.new_fixed`) | `global.get`, then `i64.const` of the literal's span (`len << 32`) |
 | other string literals | a slot of their module's table | lazily: the module's getter runs `array.new_data` on segment 0 at the literal's offset | `i32.const` of the module-local number, a `call` of the module's getter, then `i64.const` of the span: a literal is a view over its pooled array |
 | module storage (top-level bindings) | mutable, nullable or zero | the group's init function | `global.get`, `global.set`; ordered by module path, then binding index |
 | fact values and metadata | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (crates/hd_mono/DESIGN.md §12.3) | a `call` of the getter |
 | shared enum data | mutable, nullable or zero | the declaring module's group init function ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)) | `global.get` |
 
-**M4b vtable gap (M4b gap 2).** M4b does not place vtables in immutable
-globals. Each coercion executes `struct.new`, and the struct omits the
-direct-supertrait vtable fields required by crates/hd_mono/DESIGN.md §13.5. The global
-row above remains the intended allocation and layout rule.
+Implementation differs: of the constant kinds, only capture-free
+closures, witnesses and fieldless data values are globals (`GSym`).
+Each coercion to a trait value builds its vtable with `struct.new`
+(`Em::vtable_value`, direct supertraits included), so every coercion
+allocates; payloadless variants and `TypeId` values allocate too. Short
+literals have no `array.new_fixed` globals.
 
-**Stable numbering (lowering pass).** A reader never holds the index of
+**Stable numbering.** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's
 per-function cache abstracts call targets, so adding a literal or a fact
 elsewhere recompiles no other function. "Append-friendly" global order
 would need numbers kept from earlier builds, which §15.8 forbids. The
-immutable constants are read directly by default; S2 of spike 0c moves a
-global kind behind getters if adding one global leaves fewer than 95
-percent of functions hitting the cache. The full table of index spaces is
+immutable constants are read directly; a global kind moves behind
+getters if adding one global leaves fewer than 95 percent of functions
+hitting the cache. The full table of index spaces is
 in [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#numbering).
 
-**Constant strings (lowering pass; per-module tables after the systems
-review).** All pooled literals share one passive data segment,
+**Constant strings.** All pooled literals share one passive data segment,
 deduplicated by content, so the program has one data segment. After the
 bytes come each module's index area: an `(offset, length)` pair per
 module-local literal number. Each module has one literal table and one
@@ -424,12 +414,19 @@ dominating path. A host call whose argument is a literal, such as
 copies the bytes from segment 0 into the exchange buffer with
 `memory.init` and returns the length, so no array is built at all, and
 the offset stays inside that function. Eager filling of the tables in
-`hd.init` is measured by E10.
+`hd.init` is a later measurement.
+
+Implementation differs: each literal gets its own getter function and
+cache global (`Helper::Lit`, `rt::lit_code`), called by function index.
+At 10k lines that is about 2,000 tiny functions, each paying Cranelift's
+fixed per-function cost, which the per-module table avoids. The host fast
+path is not built either: a literal passed to a host call is built as an
+array first.
 
 - **Init order.** The `hd.init` export calls each reachable group's init
-  function once, in D1's order (`InitOrder` and M3), after every group it
+  function once, in `InitOrder`'s order, after every group it
   uses ([`module.init.cycle.once`](../../spec/lang/10-modules.md#r-module.init.cycle.once)).
-- **No Wasm `start` function** (mine). Init can panic and can call
+- **No Wasm `start` function.** Init can panic and can call
   imports. Calling it as an export after instantiation lets the host
   refuse a start, attribute a trap to init, and run a test case's init
   inside the case's time limit.
@@ -444,7 +441,7 @@ executes `unreachable`. The host reads the global and the buffer after
 the trap, so it never calls into a poisoned instance
 ([`flow.panic.poison`](../../spec/lang/06-control-flow.md#r-flow.panic.poison)).
 
-**No site numbers (lowering pass).** A call of a stub carries no site
+**No site numbers.** A call of a stub carries no site
 immediate. The site is the stub's caller frame: its function index and
 the code offset of the `call`, which both engines' backtraces give, and
 `hd.sites` is keyed by function and code offset. So no body holds a
@@ -454,6 +451,11 @@ the per-function cache for about half a debug program). Each check keeps
 its own `call` instruction, so two sites never share an offset. Category
 ids are fixed by the runtime, not numbered per program.
 
+Implementation differs: a panic stub (`Helper::Panic`) writes the text
+`panic: CATEGORY: MESSAGE` through the `hd:rt.stderr` import, then
+executes `unreachable`; there is no category global or category id, and
+the host reads the category from that text. Not judged.
+
 **Engine traps.** A trap without a stored category is mapped by its trap
 code and its code offset:
 
@@ -462,20 +464,24 @@ code and its code offset:
 | integer division by zero | `integer-division-by-zero` |
 | array out of bounds (string byte access) | `index-out-of-bounds` |
 | call stack exhausted (wasmtime's trap code; V8's `RangeError`) | `stack-exhausted` |
-| epoch deadline (§17.8) | `time-limit` (proposed by answer 11) |
-| GC heap growth refused (§17.8) | `heap-exhausted` (proposed by answer 11) |
+| epoch deadline (crates/hd_run_wasmtime/DESIGN.md §17.8) | `time-limit` |
+| GC heap growth refused (crates/hd_run_wasmtime/DESIGN.md §17.8) | `heap-exhausted` |
 | null dereference, failed cast, `unreachable` without a category | an internal error: a compiler bug, reported with the site and exit status 101 |
+
+Implementation differs: integer division emits an explicit zero check
+that calls a panic stub, rather than mapping the engine trap; not judged.
 
 **Sections.**
 
 | Section | Holds | Release |
 | --- | --- | --- |
-| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | no: the dev pipeline only (owner, 2026-10-07) |
+| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | no: the dev pipeline only |
 | `hd.names` | per function: an index into a path table and a list of indices into a type-argument table; the symbolizer prints the same names as `name` | yes; about 30 KB instead of 150 KB at 10k lines |
-| `hd.sites` | per site, keyed by function index and code offset: category or kind, and an anchor (item path index, TIR instruction index); in a file that `hd build` writes, the anchor is resolved to a file index, line and column, plus a file table of package-relative paths (crates/hd_mono/DESIGN.md §13.8, "Positions") | yes |
-| `hd.lines` | per function: sorted code offsets with an anchor each, for every statement that can call or trap; resolved to delta-encoded lines in a written file | yes |
-| `hd.folds` | folded aliases per representative (§13.7) | yes |
-| `hd.runtime` | §16.4 | yes |
+| `hd.lines` | per function: sorted code offsets with an anchor each (§15.9) | yes |
+
+Planned, not built: `hd.folds` (folded aliases per representative,
+§13.7) and writing `hd.runtime` (crates/hd_run_wasmtime/DESIGN.md §16.4; `hd_wasm::meta` defines its
+encoding). `hd.sites` is not written (§15.9).
 
 Spans become line and column at link time, from the source's line table.
 The link key includes the source hashes through the code keys, so a
@@ -484,34 +490,31 @@ stale line cannot survive.
 **Backtraces.** wasmtime's `WasmBacktrace` gives each frame's function
 index and module offset. V8's `Error.stack` gives
 `wasm-function[i]:0xOFF` frames. `hd_run` maps both through `hd.lines`,
-`hd.sites` and `hd.names` (or `name` in the dev pipeline) to `file:line function`,
+and `hd.names` (or `name` in the dev pipeline) to `file:line function`,
 and prints the panic's own site first: for an explicit panic, the frame
 that called the stub.
 Release builds keep these sections, so release backtraces are symbolized,
 as the first-release feature list asks. They omit the standard `name`
-section (owner, 2026-10-07), so external tools such as browser devtools,
+section, so external tools such as browser devtools,
 `wasm-objdump` and native profilers show unnamed functions for a release
 module; a dev build keeps `name` for them.
 
-**Mapping must survive every Wasm-level pass (owner, 2026-10-07).**
-`hd.sites`, `hd.lines` and engine-trap mapping key on code offsets. So
-any pass that rewrites the code section after emission must carry the
-offsets through. LEB compaction already does, with its offset map
-(crates/hd_mono/DESIGN.md §13.10, step 8). A Binaryen pass, if spike T2 adopts one,
-must round-trip them through a source map (`--input-source-map`,
-`--output-source-map`), or it does not run. The optimized pipeline's
-inliner records each inlined call site in `hd.lines`, a few bytes per
-site, so backtraces keep the inlined frames ([docs/compiler/tiering.md §4](../../docs/compiler/tiering.md#4-divergence-between-tiers)).
+**Mapping must survive every Wasm-level pass.** `hd.lines` and
+engine-trap mapping key on code offsets, so any pass that rewrites the
+code section after emission must carry the offsets through. A Binaryen
+pass would have to round-trip them through a source map
+(`--input-source-map`, `--output-source-map`), or it does not run. An hd
+inliner must record each inlined call site in `hd.lines`
+([docs/compiler/tiering.md §4](../../docs/compiler/tiering.md#4-divergence-between-tiers)).
 
-**Browser devtools (mine).** The program worker builds a source map from
-`hd.lines` when the page asks for it, and serves it through a
-`sourceMappingURL` that names a blob URL. The binary carries no source
-map, so it costs nothing in `hd build` output.
+Planned, not built: a browser devtools source map, built from `hd.lines`
+by the program worker on request and served through a blob
+`sourceMappingURL`, so the binary carries none.
 
 ### 15.6 The 2 KB Tiny Program
 
 There is no runtime blob. Everything in a module is reachable code
-generated for that program, std included (§16.1). The tiny program
+generated for that program, std included (crates/hd_run_wasmtime/DESIGN.md §16.1). The tiny program
 (`println("hello")`) needs:
 
 | Part | Estimate |
@@ -524,13 +527,8 @@ generated for that program, std included (§16.1). The tiny program
 | `hd.names`, `hd.sites`, `hd.lines`, `hd.runtime` | 300 B |
 | total | about 800 B (an estimate, not an accounting) |
 
-**M4b measurement (M4b gap 8).** The current hello-world module is about
-4.8 KB with its standard `name` section, so it misses the 2 KB target.
-Reachability currently brings std number formatting and helpers along
-with `println`; link also emits dev names rather than the compact release
-metadata above. The estimate table is not an accounting. The queued size
-breakdown must report each section and reachable function before any
-design change or tuning decision.
+The hello module is about 4 KB in release today, so it misses the 2 KB
+target; the size items are #175.
 
 What keeps it small:
 
@@ -541,11 +539,10 @@ What keeps it small:
 - short export names (`hd.init`, `hd.poll`, `hd.wake`, `hd.x`).
 
 **Start to first output (≤ 5 ms).** A warm `hd FILE.wasm` deserializes
-the cached precompiled module (§18.2), instantiates it from an
-`InstancePre`, and runs `hd.init` and `hd.poll`. Process start of `hd`
-dominates: the `startup` target is 20 ms for `hd --version`, so a cold
-process may miss 5 ms. How the metric counts it is inconsistency 7
-(§23.2).
+the cached precompiled module, instantiates it from an `InstancePre`,
+and runs `hd.init` and `hd.poll`. Process start of `hd` dominates: the
+`startup` target is 20 ms for `hd --version`, so a cold process may miss
+5 ms.
 
 ### 15.7 Emission
 
@@ -559,19 +556,19 @@ process may miss 5 ms. How the metric counts it is inconsistency 7
 - **Validation.** `wasmparser` validates every linked module in the
   compiler's debug builds, in CI, and in verify mode. A release `hd`
   trusts its own output; the engine validates again anyway.
+  Implementation differs: only tests validate (`hd_wasm` link tests,
+  `hd_driver` session tests); not judged.
 - **WAT** for the playground's view and `hd build --wat` (Later) comes
   from `wasmprinter`.
 
 ### 15.8 Deterministic Bytes
 
 Reproducible builds are parked as a metric, but the cache needs
-deterministic bytes anyway: equal keys must mean equal entries (verify
-mode, §5.6). Every order in §13.10 and §15.3 is content-based: instance
+deterministic bytes anyway: equal keys must mean equal entries. Every order in §13.10 and §15.3 is content-based: instance
 keys, canonical descriptors, content keys of constant globals, and
 literal pool slots by literal content. No hash map's iteration order
-reaches the output. Locals in a body are numbered in TIR order; closures
-and temporaries per body (§6.5). Wasm bytes join the determinism matrix
-(§21.1).
+reaches the output. Locals in a body are numbered in TIR order.
+
 
 Deterministic is not the same as stable. A content order still shifts
 when an item is inserted before others, and a body that holds a shifted
@@ -585,129 +582,51 @@ used.
 
 ### 15.9 The Line Table
 
-`cli.test.report.frame` prints a panic's source frame in `hd test`
-reports: `FILE:LINE FUNCTION` lines, panic site first. This section
-says what codegen emits for that, where it is stored, how the runner
-reads it, and what it costs when nothing panics. The pieces already
-exist as designs (§15.5, crates/hd_mono/DESIGN.md §13.8 "Code Entries" and
-"Positions"); this pins the mapping rule and the read path.
+`cli.test.report.frame` prints a panic's source frames in `hd test`
+reports: `FILE:LINE FUNCTION` lines, panic site first.
 
-**What maps to what.** Three tables, all keyed without program-wide
-dense numbers:
-
-- `hd.lines`: per function index, the sorted code offsets of every
-  statement that can call or trap, each with its anchor (item path
-  row, TIR instruction index). A frame whose address falls between
-  two recorded offsets belongs to the lower one (Q1): a return
-  address points past its call.
-- `hd.sites`: per (function index, code offset of the stub `call`),
-  the panic category or kind with its anchor. An explicit panic
-  resolves through its caller frame — the stub frame itself is never
-  reported — so the panic site prints first, as the rule asks.
-- `hd.names`: per function index, a path-table index plus
-  type-argument indices, printing the same names as the dev `name`
-  section (`shop.cart/Cart.total`, `std.list/List.push[i32]`).
-
-Anchors resolve to `FILE:LINE` against the current sources at print
-time (crates/hd_mono/DESIGN.md §13.8): `hd run` and `hd test` keep anchors and look
-them up in the module's current `check` entry; `hd build` resolves
-them once into the written file (file table plus line and column).
-
-**Where it is stored.** The three tables travel as custom sections of
-the linked module (`hd.lines`, `hd.sites`, `hd.names`), sorted for
-deterministic bytes (§15.8), and in the `link` cache entry still
-anchored; columns exist only in written files. Pre-link, the same
-rows live in each `CodeEntry` (`sites`, `lines`), so folding (§13.7)
-and the link step carry them without re-deriving. Engine-trap
-mapping (the §15.5 table) needs no storage: trap code plus code
-offset is enough. Release builds keep all three sections (§15.5, and
-crates/hd_mono/DESIGN.md §13.17 Q2): dropping the dev `name` section does not drop
-symbolized panics.
-
-**How the runner reads it.** Only on a trap, never on a clean run.
-`hd_run` parses the three sections once per module and caches the
-parsed tables beside the instance: it reads the category global and
-the exchange-buffer message, walks the engine backtrace (wasmtime
-function index plus module offset; V8 `wasm-function[i]:0xOFF`),
-maps each frame through `hd.lines`/`hd.names` (explicit panics
-through `hd.sites` at the caller frame), and prints the text `PANIC`
-block. Machine output carries the category and message only; frames
-are a text-report feature. `PanicReport.sites` (`hd_run`) is the
-parsed per-case frame list before rendering.
-
-**Cost when unused.** Emission records one anchor per call/trap
-statement during the one emission walk — negligible. Size is the
-sections: about 300 B of the 800 B tiny program (§15.6), and
-`hd.names` about 30 KB against 150 KB for `name` at 10k lines. Read
-cost is zero on clean runs (lazy parse; the engine never touches the
-sections), microseconds per printed location on a panic. Cache cost
-is zero by construction: anchors hold no lines or columns, so a
-comment edit changes the reported line and nothing compiled or
-cached.
-
-**Questions.** Q1: greatest-recorded-offset `<=` frame address, or
-exact-offset match with a fallback? `<=` (recommended): return
-addresses always overshoot their call. Q2: parse the sections at
-instantiation or lazily on first trap? Lazily (recommended): clean
-runs, the common case for `hd test`, pay nothing. Q3: store columns
-in `hd.lines`, or lines only? Lines only in linked modules
-(recommended): the rule prints `FILE:LINE`, and columns are resolved
-from the `check` entry when writing files. Q4: cap the frame list?
-A `stack-exhausted` backtrace can hold thousands of frames; the spec
-names no cap. Recommended: print all frames the rule asks for, and
-raise the cap as an owner question if reports get unwieldy.
-
-**As built (#16, 2026-10-12).** Q1 to Q4 took the recommended answers.
-
-- Emission records a row at each call that starts a new anchor; calls
-  in a row at one anchor share it. Every panic site is a stub call, so
-  call rows cover them all.
-- `hd.lines` holds, per function, its rows as (offset delta, TIR
-  instruction index). The item comes from the function's name, so the
-  table repeats no path. A release build writes `hd.names` and drops
-  `name`; a dev build keeps `name` and writes no `hd.names`.
-- No `hd.sites` is written. The category and message still travel in
-  the stub's report, and a stub has no rows, so the first anchored
-  frame is already the stub's caller. `hd.sites` would only repeat
-  `hd.lines` rows; it returns when categories move into globals.
-- `hd_driver::Positions` resolves an anchor on the first trap of a
+- **`hd.lines`** holds, per function, its rows as (offset delta, TIR
+  instruction index). Emission records a row at each call that starts a
+  new anchor; calls in a row at one anchor share it. Every panic site is
+  a stub call, so call rows cover them all. The item comes from the
+  function's name, so the table repeats no path. A frame whose address
+  falls between two recorded offsets belongs to the lower one: both
+  engines give a caller frame the offset of its call.
+- **Names.** A release build writes `hd.names` (per function, a
+  path-table index plus type-argument indices) and drops `name`; a dev
+  build keeps `name` and writes no `hd.names`. Both hold stable paths
+  (`path#sub`), which key the `check` entry's bodies.
+- **No `hd.sites`.** The category and message travel in the stub's
+  report, and a stub has no rows, so the first anchored frame is already
+  the stub's caller. `hd.sites` would only repeat `hd.lines` rows, so
+  leaving it out keeps modules smaller with no loss.
+- **Resolution.** Anchors hold no lines or columns, so a comment edit
+  changes the reported line and nothing compiled or cached.
+  `hd_driver::Positions` resolves an anchor on the first trap of a
   program: the module's `check` entry gives the TIR syntax node, and a
-  parse of the file the run read gives the line. One `PositionPool`
-  keeps each module once for all programs of an `hd test` run.
-- Node reports V8 frames in its result lines, with
-  `Error.stackTraceLimit = Infinity`. wasmtime reports `WasmBacktrace`
-  frames; its frame limit is preallocated per trap, so it is set to
-  `max_wasm_stack / 16`, which no stack can exceed. Both give a caller
-  frame the offset of its call, so the `<=` rule is exact.
-- Only guest traps have frames. A host stop (time limit, host contract,
-  exhausted heap, deadlock) prints none, on both engines.
-- `hd build` writes the rows anchored, unresolved: nothing outside
-  `hd test` prints frames yet.
-- Q4 cost: unbounded recursion prints about 27,000 frames on Node and
-  131,000 on wasmtime (4 MiB stack). That is the owner question Q4
-  anticipated.
-
-**As built (#104, #105, 2026-10-12).** Owner decisions.
-
-- A frame prints the hd name, not the stable path. `name` and
-  `hd.names` keep stable paths (`path#sub`), which key the `check`
-  entry's bodies. The CLI maps a path to a name only when it prints a
-  frame, so dev and release builds print the same names and the module
-  does not grow. The name is the module's printed path, then the
-  function. The path follows `trait.typeid.name.*`: the package name
-  with `-` written `_`, or a single file's stem. A test or task
-  module drops its `$tests` or `$tasks` segment. A method prints its
-  impl's type, without generic arguments, then the method
-  (`std.collections.List.remove_at`). A hidden segment, such as a
-  default body, is left out. A test case's body prints
-  `test "NAME"`, with the registered name. `hd test FILE` outside a
-  package now marks the program single-file (`cli.file.check-test`).
-- Repeated frames collapse in the text report. A frame repeated right
-  after itself prints once, then `... frame repeated N more times`. A
-  cycle of up to eight frames prints once, then
-  `... last K frames repeated N more times`. At each frame the cycle
-  that covers the most frames wins. So unbounded recursion prints a
-  few lines on both engines; the engines still capture every frame.
+  parse of the file the run read gives the line. One `PositionPool` keeps
+  each module once for all programs of an `hd test` run. `hd build`
+  writes the rows anchored, unresolved.
+- **Reading.** Only on a trap. Node reports V8 frames with
+  `Error.stackTraceLimit = Infinity`; wasmtime reports `WasmBacktrace`
+  frames, with its frame limit set to `max_wasm_stack / 16`, which no
+  stack can exceed. Only guest traps have frames: a host stop (time
+  limit, host contract, exhausted heap, deadlock) prints none.
+- **Printing.** A frame prints the hd name, not the stable path; the CLI
+  maps a path to a name only when it prints, so dev and release print the
+  same names and the module does not grow. The name is the module's
+  printed path (`trait.typeid.name.*`: the package name with `-` written
+  `_`, or a single file's stem; a test or task module drops its `$tests`
+  or `$tasks` segment), then the function. A method prints its impl's
+  type without generic arguments, then the method
+  (`std.collections.List.remove_at`). A hidden segment, such as a default
+  body, is left out. A test case's body prints `test "NAME"`.
+- **Repeats collapse.** A frame repeated right after itself prints once,
+  then `... frame repeated N more times`. A cycle of up to eight frames
+  prints once, then `... last K frames repeated N more times`; at each
+  frame the cycle covering the most frames wins. So unbounded recursion
+  prints a few lines, though the engines capture every frame (about
+  27,000 on Node and 131,000 on wasmtime at a 4 MiB stack).
 
 # New Compiler Design: Suspension Lowering
 
@@ -720,8 +639,8 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 The spec fixes the protocol: cold, one-shot, poll-based suspensions,
 synchronous cancellation, and a waker-driven entry driver
 ([Compilation Strategy](../../spec/lang/11-requirements-and-suspension.md#compilation-strategy)).
-D2 uses state machines with lazily materialized frames, as the research
-recommends, which
+Suspensions lower to state machines with lazily materialized frames,
+which
 [`req.lowering.representation`](../../spec/lang/11-requirements-and-suspension.md#r-req.lowering.representation)
 allows.
 
@@ -736,7 +655,7 @@ For each instance of a suspending function `f!`:
 | `f$poll` | `(frame: eqref) -> (i32, dflt(T))` | the result-layout vtable's `poll`; casts the frame to `$F_f` and calls `f$body` with it |
 | `f$cancel` | `(frame: eqref) -> ()` | the layout-independent `$Task` cancel function (§14.6); it casts the frame to `$F_f` |
 
-**Defaultable forms (Codex re-review N3).** A value of a data, list or
+**Defaultable forms.** A value of a data, list or
 closure type is a non-null reference, which has no default inhabitant.
 So every slot that can be inactive uses the defaultable form `dflt(L)`
 of its layout (crates/hd_wasm/DESIGN.md §15.2): each non-null reference becomes
@@ -768,15 +687,17 @@ the callee's result layout before the callee's private frame type is
 emitted. Parents retain a child as `$Task` and cancel it without knowing
 either its result or frame layout.
 
-**M4d implementation boundary (M4d gap 3 and M4d gap 5).** The emitter
-implements this hierarchy except for `$Suspend_L.driver`. It checks
-re-entrant and terminal-state polls, but not competing drivers. The field
-and check remain part of the design and land with the complete driver.
+Implementation differs: there is no separate `f$cold`; the instance's
+own function is the cold constructor, and its parts are `f$body`,
+`f$poll` and `f$cancel` (`hd_wasm::Part`). That is the same design under
+other names. `$Suspend_L` has no `$driver` field (`layout::suspend_base`):
+competing drivers are detected only at the root, by the `owner` runtime
+global that the first `hd.poll` context claims. Not judged.
 
 ### 14.2 The State Machine
 
 Emission builds the state machine from TIR's explicit suspension points;
-TIR itself is not changed (§3.10.1):
+TIR itself is not changed:
 
 1. **Liveness.** One backward dataflow over the body's structured
    blocks, iterated to a fixed point on loops (§12.1), gives the live
@@ -787,7 +708,7 @@ TIR itself is not changed (§3.10.1):
    those scopes). The analysis is layout-independent, so it runs once per
    body per run and is memoized.
 2. **Blocks containing a suspension point** are flattened into a
-   dispatch loop (mine): `loop $dispatch { block_n ... block_1 {
+   dispatch loop: `loop $dispatch { block_n ... block_1 {
    br_table pc } ... case code ... }`. Each basic block of a flattened
    block becomes one case, and a transfer sets `pc` and branches to
    `$dispatch`.
@@ -799,8 +720,7 @@ TIR itself is not changed (§3.10.1):
    reloading the saved locals.
 
 Code size is linear: one case per basic block of a flattened block, one
-save sequence and one reload sequence per suspension point. The prototype
-grew about N³ (F-552).
+save sequence and one reload sequence per suspension point.
 
 Wasm's structured control flow cannot jump into a nested block, which is
 why blocks with a suspension point are flattened. The alternative,
@@ -808,11 +728,13 @@ re-entering the nesting with skip flags as Binaryen's Asyncify does,
 costs code size on every path. The cost of flattening is a branch through `$dispatch` at
 each control transfer inside a suspending loop, a few cycles.
 
-**Known phase-1 deviation (M4d gap 1 and M4d gap 2).** M4d saves every
-Wasm local at every suspension point and resumes through nested,
-`pc`-guarded block lists. It does not run liveness, clear dead references,
-or emit this section's `br_table` dispatch loop. Phase 3 restores the
-designed liveness, clearing and dispatch when code-size work begins.
+Implementation differs: `emit_suspending` runs two emission passes, the
+first learning every Wasm local the body declares, and saves all of them
+at every suspension point (`Em::save`); it resumes through nested,
+`pc`-guarded block lists. There is no liveness, no clearing of dead
+references, and no `br_table` dispatch loop, so frames are larger, every
+wait stores every local, and a reused frame keeps dead values reachable
+(see #175).
 
 ### 14.3 Lazy Frame Materialization
 
@@ -831,7 +753,7 @@ else:                                     ;; Pending
 
 - A deep chain allocates one frame per level, on the first real wait
   only. Later waits reuse the frames.
-- **Dead references are cleared (Codex re-review N-B6).** A reused frame
+- **Dead references are cleared.** A reused frame
   would keep a value saved for an earlier wait reachable through a later
   one. So each suspension point's save sequence also stores null into
   every reference field that was live at an earlier point but is dead at
@@ -839,9 +761,8 @@ else:                                     ;; Pending
   is known per point at emission. Completion and cancellation null the
   child field and every saved reference, after the `defer` suites ran.
   A capture that a pending `defer` suite reads stays live until that
-  suite runs, which liveness already says. Slice 8 tests a large list
-  saved across a first wait, then a long second wait, and checks with a
-  GC heap measurement that the list was collected.
+  suite runs, which liveness already says. Not built: see the note in
+  §14.2.
 - **A resumed `f$body` resumes its child directly**: the saved child's
   type is known statically, so `f$body` calls `g$body(child,
   default(args)...)` with no vtable call. The child ignores those
@@ -864,7 +785,7 @@ which fits the 100 ns `suspension-overhead` budget with room to spare.
 
 ### 14.4 Wakers And The Entry Driver
 
-**Wakers (mine).** A waker is a small struct `(task, slot)`: the frame of
+**Wakers.** A waker is a small struct `(task, slot)`: the frame of
 an `all!` or the root, and a child index. `wake` sets the slot's bit in
 the task's wake mask, propagates the bit up to the root, and sets the
 instance's "woken" global. Wakes coalesce in the mask
@@ -891,8 +812,8 @@ host loop:
         status = hd.poll()
 ```
 
-`hd.poll` drains internal wakes before it answers (Codex re-review
-N-B3): while the "woken" global is set, it clears it and polls the root
+`hd.poll` drains internal wakes before it answers: while the "woken"
+global is set, it clears it and polls the root
 again. So `-1` always means that no wake is queued inside the instance,
 and the host loop's deadlock test matches §14.8's definition. Handles
 are generation-tagged, and a wake for a stale handle is ignored
@@ -902,6 +823,13 @@ One `hd.wake` call carries every completion of one reactor turn, so a
 burst of completions costs one crossing. The driver returns to the host
 whenever the root is Pending
 ([`req.entry.busy-poll`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll)).
+
+Implementation differs: there are no waker structs, wake masks or
+"woken" global. The wake table (`rt::wake_table`) is an `i32` array of
+completed host handles by slot; `hd.wake(n)` records the `n` handles
+there (`wake_mark`), and each `hd.poll` re-polls the frame tree from the
+root, where each host leaf checks the table for its handle. So one wake
+costs a walk of every pending frame, not O(woken).
 
 ### 14.5 `all!` And `race!`
 
@@ -916,9 +844,12 @@ result types:
   from locals and allocates nothing of its own. Only the children's cold
   frames were allocated.
 - **Later polls** visit the unfinished children in argument order. A
-  child whose wake bit is clear is skipped (mine). Polling it would only
-  return Pending with no effect, so skipping is not observable, and it
-  makes a wake O(woken children) instead of O(children).
+  child whose wake bit is clear is skipped. Polling it would only return
+  Pending with no effect, so skipping is not observable, and it makes a
+  wake O(woken children) instead of O(children). Implementation differs:
+  `Em::await_all` polls every unfinished child on each poll, since there
+  are no wake bits (§14.4), and an `all!` takes at most 31 children (its
+  done mask is one `i32`).
 - **Cancellation** cancels the unfinished children in argument order.
 
 `race!(tasks...)` takes a `List[mut Suspend[T]]`:
@@ -960,7 +891,7 @@ A `Hook` instruction sits in TIR at each suspension point, resume, frame
 creation, completion, cancellation, and host call start and finish. Normal
 emission drops it, so it costs nothing in debug or release code.
 
-A trace, replay or simulation build (all Later) sets a flag in the tier
+Planned, not built: a trace, replay or simulation build sets a flag in the tier
 part of `code_key` and emits each hook as a call to an `hd:hook` import
 with the site and the frame. Hooks live in the cached TIR, so turning them
 on re-emits code entries and never re-checks.
@@ -976,11 +907,11 @@ A deadlock is a root that is Pending while no host operation is pending,
 no timer is set and no wake is queued. Nothing can ever wake it.
 
 - **Both tiers** detect it in the host loop for free (§14.4), and fail
-  the run instead of hanging. The panic category is open question 3.
+  the run with `panic: deadlock` instead of hanging.
 - **The debug tier** adds a report. Each frame records the site of its
   current `Await` in its state, so the host walks the frame tree from the
-  root and prints each waiting frame's function and source line, as the
-  first-release feature list asks.
+  root and prints each waiting frame's function and source line. Planned,
+  not built: the host prints no frames for a deadlock.
 
 A `block_on` whose argument waits on a suspension of the outer driver
 hangs by the spec's note. That is a deadlock of the same shape inside
@@ -1001,12 +932,15 @@ loop:
 
 - **wasmtime:** the import runs the reactor on the same thread until a
   completion arrives. The Wasm stack waits below the host call.
-- **Browser:** §17.6.
-- **The indirect ban (answer 13).** A global counter counts entered
+- **Browser:** crates/hd_run_wasmtime/DESIGN.md §17.6.
+- **The indirect ban.** A global counter counts entered
   forbidden contexts: `defer` suites, `DefaultCall`s whose default body
   makes a call, and module initialization other than the entry's. A fact's
   getter is one too (facts are lazily initialized globals, crates/hd_mono/DESIGN.md
   §12.3), so an indirect call there panics, reported as
   `fact-evaluation-failed`. `block_on` and `println`
-  read it and panic when it is not zero. D1 rejects the direct calls at
-  check time (§4.13.5). The run-time category is open question 3.
+  read it and panic `suspension-forbidden-context` when it is not zero.
+  The checker rejects the direct calls (crates/hd_tir/DESIGN.md §4.13.5).
+
+Implementation differs: `block_on` is a seeded `std.task` item that the
+emitter lowers by name (`Em`, `"block_on"`), not std hd; not judged.

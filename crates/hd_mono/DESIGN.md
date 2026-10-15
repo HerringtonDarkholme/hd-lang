@@ -6,58 +6,38 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 
 ## Part D2: The Back Half
 
-**Second pass** (backend lane, 2026-10-07), from Codex review items 18 to 20 and 22
-([crates/hd_check/DESIGN.md (trait solver) §16.4](../hd_check/DESIGN.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)), and the owner's answers of the day: collection
-selects impls by a head match plus `Bind` steps, with no proof
-(§13.2); vtables follow the trait record's shape (§13.5); tuple traits
-are template instances (§13.6); defaults run per call and facts are
-lazily initialized globals (§12.3, owner, 2026-10-07); `Result` uses `multi` layouts, and
-bounded inlining and scalar replacement are first-release (§12.6);
-polymorphic recursion is an error (§13.4).
+The back half monomorphizes, emits Wasm GC and links. Suspension
+lowering and the Wasm layouts are in crates/hd_wasm/DESIGN.md, the
+optimization passes in crates/hd_opt/DESIGN.md. It consumes these
+interfaces and does not reach around them:
 
-**Lowering pass** (2026-10-07), from the two representation studies
-and the orchestrator's calls; the per-type and per-form costs are in
-[docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md): stable, type-only numbering
-(§12.4, §13.8, §13.10); erased storage A1 applied at collection (§13.2,
-§13.3); collection skips always-inlined callees (§13.2); closure
-specialization and known-vtable devirtualization (§12.6); a size versus
-speed policy with budgets and size guards (§12.8); merging by worklist
-(§13.7); per-program packs (§13.10). Each optimization is a named pass
-with its inputs, outputs and cost. Which passes run where follows the
-tiering decision ([docs/compiler/tiering.md](../../docs/compiler/tiering.md), owner, 2026-10-07): a dev
-pipeline and an optimized pipeline (§12.6).
-
-D2 designs monomorphization, suspension lowering, Wasm GC emission, link,
-the runtime, the host interface and the test runner. It consumes these
-interfaces from D1 and does not reach around them:
-
-| Interface | From | What D2 gets |
+| Interface | From | What the back half gets |
 | --- | --- | --- |
-| TIR per body (§4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `tir` entry |
+| TIR per body (crates/hd_tir/DESIGN.md §4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `check` entry |
 | `ModuleResult` | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
-| folder interfaces (§4.10, §4.11) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes for instance keys |
-| types and rows | `hd_types` | the InternPool (§3.9.2), stable paths for every `DefId`, and `StableHash` |
+| folder interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
+| types and rows | `hd_types` | the intern pool, stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per module cycle |
-| test plan (§7.3) | `hd_driver` | test programs and their statically registered cases |
-| cache | `hd_cache` | `CacheStore`, the key rules of §5.3, entry framing, verify mode, eviction. D2 adds the kinds `code`, `link` and `cwasm` (§11.2) |
-| scheduler | `hd_sched` | `TaskKind::Ext` tasks with dependencies on D1 tasks, fuel, cancellation, the opt-in memory cap, content-ordered output |
-| diagnostics | `hd_diag` | the `Diagnostic` record for D2's own errors, such as instantiation depth |
-| determinism rules | §6.5 | content order, local counters, no IDs in output or keys; D2's entries join the determinism matrix |
+| test plan | `hd_driver` | test programs and their statically registered cases |
+| cache | `hd_cache` | `CacheStore`, the key rules of crates/hd_cache/DESIGN.md §5.3, entry framing, eviction; the back half's kinds are `code` and `link` |
+| scheduler | `hd_sched` | `TaskKind::Ext` tasks with dependencies on frontend tasks |
+| diagnostics | `hd_diag` | the `Diagnostic` record for the back half's own errors, such as instantiation depth |
+| determinism | | content order, local counters, no IDs in output or keys |
 
 ## 11. Back-Half Overview
 
 ### 11.1 From TIR To A Running Program
 
 ```text
- ModuleFinish(m) ═══════════════════════════════════► [check entry, TIR sections]  per module (D1)
+ ModuleFinish(m) ═══════════════════════════════════► [check entry, TIR sections]  per module
                                   │ generic TIR, per-item TIR hashes, dependency lists
  program root(s) ─────────────────┤  (entry, test registrations, REPL input)
                                   ▼
                        Collect(P): reachability over TIR + impl tables
                                   │ instance set {(item, type args)}, content-ordered
                                   ▼
-                       Emit(group): emit every missed instance in one folder group,
-                                    choose layouts, write Wasm ═════════► [codepack]     one per folder group, parallel
+                       Emit(inst): emit every missed instance,
+                                    choose layouts, write Wasm ═════════► [code]     one per instance, parallel
                                   │ body bytes + symbolic relocations
                                   ▼
                        Link(P): fold identical bodies, assign indices,
@@ -71,36 +51,41 @@ interfaces from D1 and does not reach around them:
    poll/wake driver + host reactor                  JSPI or sync XHR for block_on
 ```
 
-`═══►` marks a cache boundary, as in D1. Every boundary goes through
-`CacheStore`, and every key follows §5.3's hygiene: no paths, no IDs, no
-thread counts.
+`═══►` marks a cache boundary. Every boundary goes through `CacheStore`,
+and every key follows crates/hd_cache/DESIGN.md §5.3's hygiene: no paths,
+no IDs, no thread counts. Fold at link is not built (§13.7), and
+`Precompile` and `RunCase` are scheduled but empty: `hd_run_wasmtime`
+compiles and runs outside the task graph.
 
 ### 11.2 Stages
-
-This continues D1's table (§1.2).
 
 | Stage | Input | Output | Unit | Parallel | Cached | Key |
 | --- | --- | --- | --- | --- | --- | --- |
 | Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set; code-entry hits and folder groups with misses | program | serial per program; programs in parallel | inside `link` | none |
 | Emit | one folder group's missed instances: generic TIR, substitutions, and callees' TIR | Wasm body bytes, relocations, site and line records | folder group (`codepack`) | groups in parallel | `code` entries in `codepack` | §13.8 |
+
+Implementation differs: `Emit` runs per missed instance
+(`ExtTask::Emit(slot)`), and each instance's code is its own `code`
+entry, with no `codepack` grouping. Finer parallelism, but one cache
+lookup and file per instance; not judged.
 | Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
 | Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
 There is no MIR stage: the checker's TIR is the input of `Collect` and
-`Emit` (§3.9.1).
+`Emit`.
 
 ### 11.3 Tasks
 
-D2's tasks are `TaskKind::Ext` tasks (§6.1):
+The back half's tasks are `TaskKind::Ext` tasks (crates/hd_sched/DESIGN.md §6.1):
 
 ```rust
-pub enum ExtTask {
-    Collect(ProgramId),          // after the tir entry of every module the program can reach
-    Emit(GroupId),               // created by Collect, one per folder group with a miss
-    Link(ProgramId),             // after every Emit of its program
-    Precompile(ProgramId, PipelineId), // native only; the pipeline gives the engine config
-    RunCase(ProgramId, CaseIdx), // test runner (§19); the browser runs cases in its worker instead
+pub enum ExtTask {   // hd_sched
+    Collect,         // after the check entry of every module the program can reach
+    Emit(u32),       // created by Collect, one per missed instance
+    Link,            // after every Emit of its program
+    Precompile,      // scheduled, no work yet
+    RunCase(u32),    // scheduled, no work yet
 }
 ```
 
@@ -111,10 +96,8 @@ pub enum ExtTask {
 - `Collect` looks up every code entry itself. It reuses hits and creates
   one `ExtTask::Emit(GroupId)` for each folder group with at least one
   miss. The task emits that group's missed instances as a batch, and the
-  group is the `codepack` unit of crates/hd_cache/DESIGN.md §5.2
-  (reconciliation, item 5 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
-- **The program fast key (mine; keyed by TIR content since the systems
-  review, finding 4).** Before `Collect`, D2 computes
+  group is the `codepack` unit of crates/hd_cache/DESIGN.md §5.2.
+- **The program fast key.** Before `Collect`, the driver computes
 
   ```text
   prog_key            = H("prog", toolchain_key, pipeline_hash, profile, root description,
@@ -128,59 +111,43 @@ pub enum ExtTask {
   linking are skipped, and a warm `hd run` or `hd test` reads one entry
   per program. Module-level reachability is coarser than item-level, so a
   hit is always sound.
-  - **Content, not check keys.** An earlier draft used each module's
-    `tir` key, which held `check_key(m)` and so `source_hash(m)`. Then a
-    comment, a blank line, a doc comment or a `tests:` edit missed every
-    program that reaches the module: each one collected, linked and ran
-    the Cranelift lookup pass again, for identical bytes. Now such an
-    edit rechecks one module, which writes an equal content hash, and
-    every program hits.
+  - **Content, not check keys.** A key over each module's check key
+    would hold its source hash, so a comment, a blank line or a `tests:`
+    edit would miss every program that reaches the module. With content
+    hashes such an edit rechecks one module, which writes an equal
+    content hash, and every program hits.
   - **Why positions may stay out.** A TIR hash excludes the span columns
     (crates/hd_tir/DESIGN.md, "Lifetime And The `tir` Entry"), and code holds
     no source position: panic sites and statement lines are anchors to a
     TIR instruction, resolved against the current sources only when
     printed (§13.8, "Positions"). So moving code down a file changes no
     program byte that a run depends on.
-  - **Cost** (`ordinary-10k`; 50 test programs reach the edited module
-    under the old per-module test plan, one package program under §13.1's):
 
-    | Edit | Old key: work per edit | Content key |
-    | --- | --- | --- |
-    | comment or blank line | every reaching program: collect (about 2 ms), 800 to 4,800 code lookups, link, the Cranelift lookup pass (12 to 90 ms) | one module recheck; every program hits |
-    | `tests:` block | as above | the module's overlay; only the package's unit-test program relinks |
-    | private body, TIR unchanged (a renamed local) | as above | as for a comment |
-    | private body, TIR changed | as above | one or two code entries; the reaching programs relink from packs |
-- `Emit` tasks are ordered by TIR size, largest first, as body tasks are
-  (§6.3).
 
 ### 11.4 Crates
 
-This refines the research's back-half crates
-(Q16 (`git show f1c55020:future-work/compiler/research.md`)) and D1's §2.1. The
-research's `hd_mir` and `hd_opt` are gone: TIR lives in `hd_tir` (§2.1),
-and emission-time analyses live in `hd_mono`.
+TIR lives in `hd_tir`; there is no MIR crate.
 
-| Crate | Holds | Depends on | Browser |
-| --- | --- | --- | --- |
-| `hd_mono` | collection, substitution, instance keys, layouts, the depth limit, emission-time analyses (liveness, capture sharing, inlining decisions) | `hd_tir` | yes |
-| `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags; generators for hd-side stubs, wasmtime stubs and the JS glue | `hd_base` | yes |
-| `hd_wasm` | emission with `wasm-encoder`, the code entry format, folding, the linker, name and site sections | `hd_mono`, `hd_host_abi` | yes |
-| `hd_run` | the embedding API: `Engine`, `Host`, `Provider`, grants, the poll/wake driver logic, panic decoding, the test runner core | `hd_wasm`, `hd_cache` (reconciliation, item 8 (`git show f1c55020:future-work/compiler/reconciliation.md`)) | yes, without engines |
-| `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, the reactor, epochs, limits, the `cwasm` cache | `hd_run`, `wasmtime`, `tokio` (current-thread), `cap-std` | no |
-| `hd_web` (extended) | runs D2 in the compiler worker; hands bytes and metadata to the program worker | `hd_run` | only there |
+| Crate | Holds |
+| --- | --- |
+| `hd_mono` | collection, substitution, instance keys (`layout`), the depth limit, the erased method ABI (`erased`), the plan types (`plan`) |
+| `hd_opt` | the pass manager and the body passes (crates/hd_opt/DESIGN.md) |
+| `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags, intrinsic keys |
+| `hd_wasm` | Wasm layouts, emission with `wasm-encoder`, the code entry format, runtime helpers, the linker |
+| `hd_run` | engine-independent runtime pieces: panic frames, import checks |
+| `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, limits, the `cwasm` cache |
+| `hd_web` | the compiler in the playground's worker |
 
-The JS glue is a generated file, not a crate. `cargo xtask codegen`
-writes it from `hd_host_abi`, and CI fails when regenerating changes it,
-as D1's generated code does (§2.2).
+Planned, not built: `hd_host_abi::generate_js_glue` returns not
+implemented; the JS host (`host/core.mjs`) is written by hand.
 
 ## 12. Emitting From TIR
 
 ### 12.1 Analysis, Then One Emission Walk
 
-`Emit(inst)` reads the instance's TIR from its module's mapped `tir`
-entry. It may first run **bounded analysis passes** over the generic TIR
-under the substitution, then it writes Wasm in one walk (Codex review,
-I4). Some choices need facts about later instructions: whether a value
+`Emit(inst)` reads the instance's TIR from its module's `check` entry. It
+may first run **bounded analysis passes** over the generic TIR under the
+substitution, then it writes Wasm in one walk. Some choices need facts about later instructions: whether a value
 escapes in a later branch or through an inlined callback, which values
 are live across a loop's back edge, which are live at a suspension
 point. Deciding those during emission alone could be wrong.
@@ -195,8 +162,10 @@ point. Deciding those during emission alone could be wrong.
   the loop nesting depth. Analyses are passes in a pipeline (§12.6,
   [docs/compiler/tiering.md §6](../../docs/compiler/tiering.md#6-a-pass-manager-for-hd)), each gated by the
   instance's summary bits: an allocation, a closure, a loop with a
-  candidate, or a suspension point. A trivial instance skips them. The
-  dev pipeline runs only suspension liveness.
+  candidate, or a suspension point. A trivial instance skips them.
+  Implementation differs: no instance pass runs in any pipeline,
+  suspension liveness included (crates/hd_opt/DESIGN.md §1.3); see
+  crates/hd_wasm/DESIGN.md §14.2.
 - **What this is not.** The fixed decision forbids a monomorphized copy
   of the IR. Side tables and repeated reads of TIR are allowed.
 
@@ -241,7 +210,7 @@ instance.
 | `NewTuple` with a rest operand | the fixed elements as usual, plus the rest-list operand as the tuple's rest field |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
 | `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; a string part copies its viewed bytes; one exact-size array at the end, viewed from start 0 |
-| a string literal | a view over its pooled array (crates/hd_wasm/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm/DESIGN.md §15.4) |
+| a string literal | a view over its pooled array (crates/hd_wasm/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm/DESIGN.md §15.4). Implementation differs: a `call` of the literal's own getter, and no fast path or short-literal globals (crates/hd_wasm/DESIGN.md §15.4) |
 | an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (crates/hd_wasm/DESIGN.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
@@ -267,17 +236,14 @@ cancel function (§14.6).
 
 ### 12.3 Facts, Defaults, Derives And Tests
 
-- **Defaults run per call (Codex finding 4).** A default is a body of
-  its own, and each call that omits the argument runs it through a
-  `DefaultCall`, after the explicit arguments
-  ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)).
-  D1's first-use getter evaluated a default once per program, which
-  shared one mutable default between calls; it is gone. A constant
-  default is inlined by the trivial-inlining test, so `= 10` costs
-  nothing. Emission increments the forbidden-context counter around a
+- **Defaults run per call.** A default is a body of its own, and each
+  call that omits the argument runs it through a `DefaultCall`, after
+  the explicit arguments
+  ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)),
+  so no mutable default is shared between calls. Emission increments the forbidden-context counter around a
   `DefaultCall` whose body makes a call, so an indirect `block_on` or
   `println` there panics (crates/hd_wasm/DESIGN.md §14.9).
-- **Facts are lazily initialized globals (owner, 2026-10-07).** A fact
+- **Facts are lazily initialized globals.** A fact
   and a metadata expression are ordinary bodies, run once on first read
   ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy),
   [`annot.metadata.eval-as-fact`](../../spec/lang/14-annotations.md#r-annot.metadata.eval-as-fact)).
@@ -293,7 +259,7 @@ cancel function (§14.6).
   emitted. There is no compile-time evaluator, no evaluation budget, no
   `fact` cache entry and no value-graph serialization; a changed fact
   body changes only its own instance's code key.
-- **Shared enum data initializes with its module (owner, 2026-10-07).**
+- **Shared enum data initializes with its module.**
   Each variant's constructor and defaults are requirement-free bodies in
   the declaring module's group init function
   ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)).
@@ -306,7 +272,7 @@ cancel function (§14.6).
   ([`annot.walk.members`](../../spec/lang/14-annotations.md#r-annot.walk.members)).
   Member handles are built once per owner instance and held in globals,
   like facts (see "The derivation's own `Structure`" below).
-- **The derivation's own `Structure` (#119, #253).** Each derivation sees
+- **The derivation's own `Structure`.** Each derivation sees
   a `Structure` for its target, generated as ordinary TIR in the target
   module (`hd_check/src/structure.rs`): the bodies of `facts`, `name`,
   `walk`, `describe` and `build`, plus one hidden method per handle. A
@@ -341,8 +307,8 @@ cancel function (§14.6).
   panic in it keeps its own category.
 - **Test registrations.** A `TestCase` body evaluates its registration
   call's run-time arguments (`rows`, `timeout`, examples) and calls the
-  std registration function, which drives the test body (§19.3).
-- **Entry reports (`std.rt`, M4c gap 6).** The compiler supplies the
+  std registration function, which drives the test body.
+- **Entry reports (`std.rt`).** The compiler supplies the
   virtual module `std.rt`, like `std.core`. Its ordinary hd functions turn
   `Termination` and `Result` values into statuses and rendered error chains;
   only its private `entry_write` operation is intrinsic. Collection roots
@@ -353,11 +319,11 @@ cancel function (§14.6).
 Requirement rows never become type arguments
 ([`req.poly.one-body`](../../spec/lang/11-requirements-and-suspension.md#r-req.poly.one-body)).
 
-- **One key order (Codex review, D1).** Every place that lists a row's
+- **One key order.** Every place that lists a row's
   keys positionally uses one comparator: the bytes of `canon(K)` (§13.3).
   That covers the parameters of a signature, the providers of a call,
-  the key ids of a context, and the rows of the `tir` entry. In-run sets
-  sort keys by `Ty` value for fast merges (§4.13.4), so positional data
+  the key ids of a context, and the rows of the `check` entry. In-run sets
+  sort keys by `Ty` value for fast merges, so positional data
   never relies on that order. TIR stores a call's providers as
   `(key, provider)` pairs (crates/hd_tir/DESIGN.md, callee records), and
   emission sorts the pairs by this comparator once per call site.
@@ -365,11 +331,10 @@ Requirement rows never become type arguments
   in that key order. Each is a trait value of the
   key's trait (§15.2). A call passes the providers TIR names for it, so a
   provider costs one Wasm argument per key and no allocation.
-- **A row parameter** (`$R`) adds one **context** parameter (mine). A
+- **A row parameter** (`$R`) adds one **context** parameter. A
   context is an immutable linked list of `(key id, provider)` nodes. A
-  key id is the first 64 bits of `H(canon(K))`, an `i64` (lowering pass;
-  an earlier draft numbered keys densely at link, which changed every
-  context-using body when a key was added anywhere). Link checks the
+  key id is the first 64 bits of `H(canon(K))`, an `i64`, so adding a key
+  elsewhere changes no context-using body. Link checks the
   program's key ids for collisions and, on one, rehashes every id with
   the next fixed salt. Looking up a key
   walks the list and takes the first match, which is how an inner
@@ -377,7 +342,7 @@ Requirement rows never become type arguments
 - **Extension** (`$.with(Logger=...)` around a call that needs `R +
   Logger`) pushes one node: one allocation per call into row-polymorphic
   code.
-- **One callable ABI for function values (Codex re-review N-I2).** Every
+- **One callable ABI for function values.** Every
   closure's code has the signature `(env, args..., ctx: (ref null
   $Ctx)) -> results`, whatever its row; an empty row ignores `ctx`, and
   a caller with nothing to pass passes null. A function value's caller
@@ -391,12 +356,12 @@ Requirement rows never become type arguments
   `ContextFor` builds the context once per calling body.
 - **Own providers.** A provider pair whose provider is `NONE` passes the
   enclosing sub-body's own provider for that key, exactly as
-  `ProviderGet` would. M3 writes such pairs for calls to private
+  `ProviderGet` would. The checker writes such pairs for calls to private
   callees whose rows were solved after checking (crates/hd_tir/DESIGN.md,
   callee records).
 - **Cold suspensions** capture their providers in the frame at
   construction ([`req.bind.construction`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.construction)).
-- **Context values** (#229). A value of `$.Context[$ R]` holds one
+- **Context values.** A value of `$.Context[$ R]` holds one
   provider per key of `R`. Its row is concrete
   (`req.row.param.context`), so its key order is known statically and
   the value needs no key ids. It is one `(ref $CtxProvs)`, the
@@ -418,8 +383,8 @@ Requirement rows never become type arguments
 
 ### 12.5 Counted Loops And Checks
 
-`ForRange`, `ForList` and `ForMap` are emitted as counters in both pipelines
-(mine). A loop that allocates per step fails the `allocations` target, so
+`ForRange`, `ForList` and `ForMap` are emitted as counters in both pipelines.
+A loop that allocates per step fails the `allocations` target, so
 this is a lowering rule, not an optimization:
 
 ```text
@@ -454,16 +419,14 @@ each step, panicking with `iterator-invalidated`
 | string byte index | compares with the view's length, `index-out-of-bounds`; the array may be longer than the view, so the engine's check is not enough | same |
 | use of a closed handle | panics with the use site | not emitted; the host provider still refuses a closed handle |
 
-The overflow sequences are those of the research
-(Debug-Tier Checks (`git show f1c55020:future-work/compiler/research.md`)).
 `i64` multiplication has no wide multiply in core Wasm, so its check
 divides back, which costs about 20 cycles. The `check-cost` metric
 (the optimized pipeline, checks on against off) watches it.
 
 ### 12.6 Tiers And Optimizations
 
-**Decided (owner, 2026-10-07; [docs/compiler/tiering.md](../../docs/compiler/tiering.md)).** There are two
-pipelines, and the pipeline is separate from the profile:
+There are two pipelines ([docs/compiler/tiering.md](../../docs/compiler/tiering.md)), and the pipeline is
+separate from the profile:
 
 - The **profile** is observable: checked (debug, test) or wrapping
   (release). It decides overflow and shift checks and the debug-only
@@ -476,49 +439,46 @@ pipelines, and the pipeline is separate from the profile:
   optimization passes run and the Cranelift setting. A program's output,
   panic categories and sites, effect order, `is` and type ids are the
   same in both (docs/compiler/tiering.md §4).
-- `hd run`, `hd test` and the REPL use the **dev pipeline**: almost no
-  hd passes, then Cranelift `None` with the single-pass register
-  allocator if spike T1 confirms it (docs/compiler/engines-and-test-runner.md §18.6).
-- `--release` selects the **optimized pipeline**: bounded inlining,
-  closure specialization, devirtualization and scalar replacement, then
-  Cranelift `Speed`. On `hd build`, `hd run` and `hd FILE` it also
+- `hd run`, `hd test` and the REPL use the **dev pipeline**: no hd
+  body passes, then Cranelift `None`.
+- `--release` selects the **optimized pipeline**: the hd passes of
+  crates/hd_opt/DESIGN.md §3.1, then Cranelift `Speed`. On `hd build`, `hd run` and `hd FILE` it also
   selects the release profile; `hd test --release` keeps the test
   profile.
 - Bounded inlining, scalar replacement, closure specialization and
-  devirtualization run **in the optimized pipeline only**. This reverses
-  the earlier "the same in debug and release" rule. The `runtime` and
-  `allocations` targets measure optimized artifacts, so they still apply.
+  devirtualization run **in the optimized pipeline only**. The `runtime`
+  and `allocations` targets measure optimized artifacts.
 - What both pipelines share: the layouts (one per type), counted loops,
   `multi` layouts, the literal pool, stable numbering, folding during the
-  walk and merging at link. Binaryen in the optimized pipeline is decided
-  after spike T2.
+  walk and merging at link.
 
 Each optimization in this table is a named pass with its inputs, outputs
 and cost in [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#optimization-passes);
 the baseline emission without any pass is defined there too.
 
-| Rule | Dev pipeline | Optimized pipeline | Status |
+| Rule | Dev pipeline | Optimized pipeline | Built |
 | --- | --- | --- | --- |
-| counted loops (§12.5) | yes | yes | first release |
-| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07); one representation per type in every position, boxed over the bound (lowering pass) | yes | yes | first release |
-| capture-free closures as constants | yes | yes | first release |
-| constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | first release |
-| constant hoisting: an enum or tuple box whose payloads are constants is an immutable global, so `.Err(ParseError.Empty)` never allocates | yes | yes | first release (lowering pass) |
-| trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | if spike T4 keeps it (default on) | yes | first release (mine) |
-| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | first release (owner, 2026-10-07) |
-| scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included (an `Iterator` whose identity no one observes); an escape analysis in the analysis passes of §12.1, before emission | no | yes | first release (owner, 2026-10-07) |
-| known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | no | yes | first release (lowering pass) |
-| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | no | yes | first release (lowering pass) |
-| overflow and shift checks | by profile | by profile | spec: checked in debug and test, wrapping in release |
-| hook points (§14.7) | dropped | dropped | emitted only by hook builds (Later) |
-| debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | by profile | by profile | first release: on in debug and test, off in release |
+| counted loops (§12.5) | yes | yes | yes |
+| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values; one representation per type in every position, boxed over the bound | yes | yes | yes |
+| capture-free closures as constants | yes | yes | yes |
+| constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | planned, not built |
+| constant hoisting: an enum or tuple box whose payloads are constants is an immutable global, so `.Err(ParseError.Empty)` never allocates | yes | yes | planned, not built |
+| trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | planned, not built |
+| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | planned, not built (`inline_plan` is a declared stub) |
+| scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included; an escape analysis in the analysis passes of §12.1, before emission | no | yes | planned, not built |
+| known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | no | yes | planned, not built (vtables are not globals) |
+| known closure calls (A1, A2 of crates/hd_opt/DESIGN.md) | no | yes | yes |
+| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | no | yes | not built yet; see #65 |
+| overflow and shift checks | by profile | by profile | yes |
+| hook points (§14.7) | dropped | dropped | yes; hook builds are planned |
+| debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | by profile | by profile | planned, not built |
 
 Inlining walks the callee's generic TIR, mapped from its module's entry,
 under the composed substitution. The inlined items' TIR hashes join the
 instance's code key (§13.8). Escape facts and inlining decisions are
 emission state, never written into TIR.
 
-**Closure specialization (lowering pass).** An iterator adapter stores
+**Closure specialization.** Not built yet; see #65. The design: an iterator adapter stores
 its closure in a field of a mutable `Iterator` struct, so inlining alone
 never reveals the `call_ref` target. Specialization is a schedule of the
 named single passes of
@@ -546,15 +506,8 @@ budget would make one function's bytes depend on others.
 
 ### 12.7 Emission-Time Checks
 
-D1's TIR verifier (§4.13.11) holds before emission starts.
-
-**M4b gap 7.** The current emitter trusts verified TIR and indexes its
-instruction and record operands directly. It does not yet perform these
-emission assertions or turn malformed-input indexing into a named
-internal error. The intended checks below remain required even though
-M4b's valid TIR reaches V8.
-
-The intended walk asserts in compiler debug builds and CI:
+The TIR verifier (crates/hd_tir/DESIGN.md §4.13.11) holds before emission
+starts. The walk asserts in compiler debug builds and CI:
 
 1. no `Param` type remains after substitution;
 2. every `TraitMethod` callee resolves to exactly one impl at the
@@ -563,19 +516,20 @@ The intended walk asserts in compiler debug builds and CI:
 4. every relocation names a symbol in the program's instance, type, import
    or global sets (§13.10).
 
-A failure is an internal error naming the instance, with exit status 101,
-as a task panic is (§6.4). The linked module is then validated by
-`wasmparser` (§15.7).
+A failure is an internal error naming the instance, with exit status 101.
+The linked module is then validated by `wasmparser`
+(crates/hd_wasm/DESIGN.md §15.7).
+
+Implementation differs: the emitter trusts verified TIR and runs none of
+these assertions; an unexpected shape stops with a structured
+not-implemented (`unsupported`), not an internal error. Not judged.
 
 ### 12.8 Size Versus Speed Policy
 
-Runtime performance has two axes, code speed and code size (owner,
-2026-10-07). Speed scales with allocations, indirect calls, casts and
+Runtime performance has two axes, code speed and code size. Speed scales with allocations, indirect calls, casts and
 pointers per live object. Size scales with distinct instances, inlined
 copies and constant-building code, and it feeds download, instantiation,
 engine compile time, and the `size-startup-heap` and `dead-code` targets.
-This policy comes from the runtime study's section 9
-(`f1c55020:future-work/compiler/representation-runtime.md`).
 Rule 1 is representation and holds in every pipeline. Rules 2 to 4 say
 how to set each pass's budget wherever it runs. Rule 5 says which
 pipeline runs the passes (§12.6).
@@ -596,13 +550,13 @@ pipeline runs the passes (§12.6).
    another's (§12.6).
 5. **The optimized pipeline runs every pass; the dev pipeline runs the
    baseline emission** plus suspension liveness, folding during the walk
-   and, if spike T4 keeps it, trivial inlining (owner, 2026-10-07;
-   [docs/compiler/tiering.md](../../docs/compiler/tiering.md)). The budgets below apply in the optimized
+   and trivial inlining
+   ([docs/compiler/tiering.md](../../docs/compiler/tiering.md)). The budgets below apply in the optimized
    pipeline. `dev-speed` (dev at most 4x optimized, geomean, no case over
    10x) guards how slow dev code may get.
 
-**Budgets.** Defaults for each pass's parameters, decided by the
-experiments named:
+**Budgets.** Defaults for each pass's parameters. Only `closure_spec`'s
+are built (crates/hd_opt/DESIGN.md §8); the rest wait for their passes.
 
 | Feature | Speed it buys | Size it costs | Budget, wherever the pass runs |
 | --- | --- | --- | --- |
@@ -630,14 +584,12 @@ time.
   method. If the guard fires in std or the examples, outlining a whole
   basic block of open instructions per thunk (§13.5.1, "Later") is the
   first fix.
-- **`hd build --size-report`** prints bytes per section (code, types,
-  `hd.names`, `hd.sites`, `hd.lines`, data), the largest functions with
-  their instance counts, folded bytes, thunk counts per method, and code
-  bytes per source module. It reads the linked module and its custom
-  sections, so it costs nothing in a normal build.
+- Planned, not built: **`hd build --size-report`**, printing bytes per
+  section, the largest functions with their instance counts, folded
+  bytes, thunk counts per method, and code bytes per source module, read
+  from the linked module, so it costs nothing in a normal build.
 
-**What the policy buys** in a pipeline that runs every pass, as a release
-build will (estimates; spike 0c and the slices measure):
+**What the policy buys** in a pipeline that runs every pass (estimates):
 
 | Target | Without these rules | With them |
 | --- | --- | --- |
@@ -645,12 +597,13 @@ build will (estimates; spike 0c and the slices measure):
 | `allocations` (0 per counted loop, at most 1 per chain) | 3 to 5 per map lookup | 0 for both |
 | `size-startup-heap` (tiny at most 2 KB) | short literals at 3 bytes per byte | the pool; hello world needs none |
 | `dead-code` | list code per reference type | folded by A1; the target is re-based after spike S7 ([docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#2-rebasing-the-dead-code-target)) |
-| `long-run-memory` | slices that pin sources; heap growth pathology | the heap is sized; a small string slice still pins its source (Go-style strings, owner, 2026-10-07): a known risk this metric watches |
+| `long-run-memory` | slices that pin sources; heap growth pathology | the heap is sized; a small string slice still pins its source (Go-style strings): a known risk this metric watches |
 
 ## 13. Monomorphization And Merging
 
-Owner's answer 8: code per concrete type, then merge byte-identical
-functions, in both pipelines. Dictionaries exist only for
+Code per concrete type, then merge byte-identical functions, in both
+pipelines.
+ Dictionaries exist only for
 trait values and for the type witnesses of a generic method called
 through `dyn` (§13.5).
 
@@ -660,10 +613,10 @@ through `dyn` (§13.5).
 | --- | --- |
 | executable or task (`hd run`, `hd build`) | the entry wrapper of `main` or `main!` (§16.2), and the init function of every group the entry module reaches |
 | `hd build FILE` | the same, for FILE's module |
-| script: an entry module with top-level statements and no `main` (`d91db19e`) | the module init (`Roots::Script`); its entry row (`module.init.script-row`) is inferred from the init's direct item calls, and `hd_wasm::script_entry` emits it |
+| script: an entry module with top-level statements and no `main` | the module init (`Roots::Script`); its entry row (`module.init.script-row`) is inferred from the init's direct item calls, and `hd_wasm::script_entry` emits it |
 | unit test program (one per package) | one `TestCase` body per registration and per doc test, in every module of the package, and one init export per module with tests, which runs that module's reachable init groups |
 | integration test program (one file) | its `TestCase` bodies, and its reachable init groups |
-| REPL input | the input's top-level statements as an init body (§20.5) |
+| REPL input | the input's top-level statements as an init body |
 
 Only reachable items are compiled, so dead std code never reaches the
 binary, and the import list holds only reachable host methods
@@ -671,18 +624,11 @@ binary, and the import list holds only reachable host methods
 
 ### 13.2 Collection
 
-```rust
-pub struct Instance { pub item: StablePathRef, pub body: BodyRef, pub ty_args: CanonTys }
-pub struct InstanceSet {
-    pub instances: Vec<(InstanceKey, Instance)>,  // sorted by key bytes at the end
-    pub vtables: Vec<(CanonTy, TraitRef)>,        // (concrete type, trait) pairs
-    pub imports: BTreeSet<HostMethodId>,
-    pub types: BTreeSet<CanonTy>,                 // every type whose layout the program uses
-}
-```
-
-Its columns, deduplicated by run IDs and sorted by instance key, are in
-[docs/compiler/data-structures.md §3.22](../../docs/compiler/data-structures.md#322-codegen-the-instance-table-and-code-entries).
+`hd_mono::collect` returns `Collected`: the instance table
+(`layout::InstanceTable`: per instance its key, item, sub-body and type
+arguments, with `content_order` sorting by key), each instance's call
+targets, vtables, witnesses, compiler-supplied bodies and callee
+representation hashes.
 
 A worklist walk, as rustc's collector does:
 
@@ -691,9 +637,9 @@ A worklist walk, as rustc's collector does:
    column for calls, closures, coercions and host calls, substituting the
    instance's type arguments into each one's types.
 3. For each `Item` callee, push the callee with the substituted
-   arguments. **In a pipeline that runs `inline-trivial`, a callee that
-   is always inlined is not pushed** (lowering pass; the pipeline hash is
-   in the code key): when its `inline_summary` says
+   arguments. Planned, not built: **in a pipeline that runs
+   `inline-trivial`, a callee that is always inlined is not pushed**
+   (the pipeline hash is in the code key): when its `inline_summary` says
    it passes the trivial-inlining
    test (§13.8), which reads only its own TIR, every caller inlines it, so
    collection scans its body in place under the composed substitution and
@@ -721,7 +667,7 @@ A worklist walk, as rustc's collector does:
    operation needs, and every fact getter the instance calls (§12.3).
 9. Repeat until the worklist is empty.
 
-**Body-less intrinsic impls (M4a gap 6).** A body-less impl method in a
+**Body-less intrinsic impls.** A body-less impl method in a
 compiler-known intrinsic family has no TIR body and therefore no body or
 cache lookup. When collection selects it, it maps the intrinsic key plus
 the substituted self and trait arguments to the compiler-generated body
@@ -729,10 +675,8 @@ and continues the same worklist from that body. A body-less method that
 has no registered intrinsic mapping is an internal unsupported case; it
 must not silently disappear from the reachable program.
 
-**Derived newtype methods reuse the base implementation (#117).** A
-derived newtype impl has a head and no method bodies, so five
-`runtime/valid` fixtures stop at Collect when selection picks it.
-Generate nothing: a newtype is erased to its base at runtime
+**Derived newtype methods reuse the base implementation.** A derived
+newtype impl has a head and no method bodies. Generate nothing: a newtype is erased to its base at runtime
 ([Newtypes](../../docs/compiler/lowering-catalog.md#newtypes) — no wrapper, no allocation,
 construction and unwrapping emit nothing, and instances over the
 newtype and the base fold). When collection selects a method of a
@@ -752,15 +696,8 @@ stays distinct (identity follows `canon`, not representation), and
 code — the instances fold with the base type's — only the impl
 identity in the selection table.
 
-As built (#195): the emitter does not erase newtypes yet; a newtype value
-is a one-field struct (`NewData`/`Field`). So a derived newtype impl gets
-generated adapter methods (`hd_check/src/newtype.rs`) that unwrap `Self`
-arguments, call the base type's method and rewrap `Self`, `Self?`,
-`Result[Self, E]` and `List[Self]` results. Erasing newtypes as above
-(task in the P4 list) makes these adapters unnecessary.
 
-**A1 at collection (lowering pass; default adopted, decided by E1 and
-S1).** Each generic item carries a **representation summary** per type
+**A1 at collection.** Each generic item carries a **representation summary** per type
 parameter, computed at check time and stored with its TIR, so the item's
 TIR hash covers it. The summary says whether instances need the
 parameter's exact representation. An own type parameter stays exact
@@ -768,11 +705,10 @@ when a data type, tuple, function type, trait value or projection in
 the item's signature or body holds it: those change their Wasm type
 with it, and erasing one cast a `Box[Point]` to `Box[REF]`. Only a
 value of the parameter itself, `mut`, an optional, and the erased
-storage of a `List`, `Map` or enum payload keep it movable. (Walking
-skeleton, SK-2: the earlier rule read only
-the body's own trait calls on `T`. It made `relay[T < Shape]`, which
-passes `T` on to `total[T < Shape]`, an instance at `REF`, and `select`
-then found no impl at `REF`.) When the parameter is not exact, the body
+storage of a `List`, `Map` or enum payload keep it movable. (Reading
+only the body's own trait calls on `T` is not enough: `relay[T < Shape]`
+passes `T` on to `total[T < Shape]`, which needs an impl at the exact
+type.) When the parameter is not exact, the body
 only moves `T`, and collection replaces that type
 argument in the pushed instance by its **class**: `REF` for a layout of
 one non-null reference, `REF?` for one nullable reference, or the scalar
@@ -787,7 +723,7 @@ models 12 percent fewer instances, 43 percent fewer Wasm types and 9
 percent less code. Erasing reference parameters of function types as
 well (A2) is not adopted: it puts a cast in every closure entry.
 
-**`select` (Codex re-review N7).** At an instance every type is
+**`select`.** At an instance every type is
 concrete, so `select` is a head match plus reconstruction, never a
 proof ([crates/hd_check/DESIGN.md (trait solver) §8.3](../hd_check/DESIGN.md#83-what-codegen-does-with-it),
 rule TS-6):
@@ -796,7 +732,7 @@ rule TS-6):
 | --- | --- |
 | 1. Head match | match the concrete trait reference against the heads in its owner modules. Every trait argument is known, so the candidate directory is not read. Overlap is head-only and the checker proved the bounds generically, so at most one head matches. No match is an internal error (§12.7), never a diagnostic |
 | 2. `Bind` steps | run the impl's bound plan's `Bind` steps in plan order, through `normalize_concrete`. Each reads an associated-type binding at concrete types and fixes one impl parameter that the head does not fix |
-| 3. Skip `Bound` steps | the design: the checker proved them, so `select` proves no subgoal, has no depth limit and charges no fuel. As built, `select` is the solver's own search over the concrete goal and proves all of it, including a tuple template's member steps ([crates/hd_check/DESIGN.md (trait solver) §3.9](../hd_check/DESIGN.md#39-compiler-supplied-impls)) |
+| 3. Skip `Bound` steps | the checker proved them, so `select` proves no subgoal, has no depth limit and charges no fuel. Implementation differs: `select` is the solver's own search over the concrete goal and proves all of it, including a tuple template's member steps ([crates/hd_check/DESIGN.md (trait solver) §3.9](../hd_check/DESIGN.md#39-compiler-supplied-impls)); not judged |
 | 4. Return | the impl and every impl argument. In `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`, matching `Feed[ConcreteStore]` fixes `I`, and the `Bind` step fixes `T` |
 
 `select` and `normalize_concrete` keep their answers in one **selection
@@ -806,7 +742,7 @@ a proof and does not make one, so a selection entry and a proof entry
 never share a key.
 
 The order of the walk never reaches output: the result is sorted by
-instance key before anything is emitted (§6.5). Collection is serial per
+instance key before anything is emitted. Collection is serial per
 program and takes milliseconds; many programs (a test plan) collect in
 parallel.
 
@@ -830,11 +766,9 @@ folding and link order sort by it. The code entry key (§13.8) adds what
 the emitted bytes depend on, the item's own TIR hash included. At link,
 each symbol resolves to the code entry selected in this build.
 
-An earlier draft put `tir_hash(item)` in the instance key. Then an edit
-to a callee's body changed the symbol that its callers' cached code
-relocates to, while the callers' code keys still hit. Link found a
-missing or stale symbol (Codex review, finding 2). Keeping the body hash
-out of the symbol fixes that without re-emitting every caller.
+The body hash stays out of the symbol: with it, an edit to a callee's
+body would change the symbol its callers' cached code relocates to while
+their code keys still hit, and link would find a stale symbol.
 
 ### 13.4 The Instantiation Depth Limit
 
@@ -849,20 +783,18 @@ growing type) has no finite instance set.
   Its default limit is **256**.
 - The walk is breadth-first in content order, so the first instance over
   either limit is the same on every run.
-- The diagnostic `instantiation-too-deep` (proposed, in D1's §4.15 style)
-  points at the generic call that grows the type, and shows the first
+- The diagnostic `instantiation-too-deep` points at the generic call that grows the type, and shows the first
   three and the last instance of the chain, with types printed in full.
-- This is a build error, reported by `hd build`, `hd run` and `hd test`
-  (owner, 2026-10-07: polymorphic recursion is an error, with no boxed
-  fallback). `hd check` does not report it, since it does not collect.
-  The one exception is a private row that grows by polymorphic
-  recursion: M3 reports the same code at check time
+- This is a build error, reported by `hd build`, `hd run` and `hd test`,
+  with no boxed fallback. `hd check` does not report it, since it does
+  not collect. The one exception is a private row that grows by
+  polymorphic recursion: the checker reports the same code
   ([crates/hd_check/DESIGN.md (type checking) §5.5](../hd_check/DESIGN.md#55-private-rows-and-the-m3-fixpoint)).
 
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 
-- **Vtables follow the trait record's shape** (crates/hd_check/DESIGN.md (trait solver) §9.2,
-  change 19). The shape is computed once per trait at interface time:
+- **Vtables follow the trait record's shape** (crates/hd_check/DESIGN.md (trait solver) §9.2).
+  The shape is computed once per trait at interface time:
   one slot per method of the trait itself, in declaration order; one
   immutable reference per direct supertrait, in declared order, to that
   supertrait's own vtable at the same type; and a type id when the trait
@@ -872,15 +804,14 @@ growing type) has no finite instance set.
   is a global with a constant initializer, built once per `(type, trait
   reference)` pair, so a coercion to a trait value never allocates a
   vtable.
-- **M4b gap 2.** The current emitter constructs a vtable with
-  `struct.new` at every trait-value coercion: its own method slots and
-  its direct-supertrait fields (#131), a diamond's shared supertrait
-  built once per coercion. It does not reuse a constant global yet.
-  The constant vtable above remains the intended rule.
+- Implementation differs: the emitter builds a vtable with `struct.new`
+  at every trait-value coercion (`Em::vtable_value`): its own method
+  slots and its direct-supertrait fields, a diamond's shared supertrait
+  built once per coercion. So every coercion allocates a vtable tree.
 - **Trait values** are pairs: the value as `eqref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
-- **As built (#193): bindings live in the vtable key.** A `dyn Tr[A,
+- **Bindings live in the vtable key.** A `dyn Tr[A,
   Item = T]` type keeps its bindings in the pool (`TraitValue.bindings`,
   interned in sorted order, so binding order never makes two types,
   `trait.dyn.binding.identity`). Emission lays a vtable out per *key*:
@@ -905,7 +836,7 @@ growing type) has no finite instance set.
   the lookup is by item, never by name. A `dyn` type also takes the
   bindings its supertrait lists fix, so `dyn Count` under `Count <
   Supplier[Item = i32]` is `dyn Count[Item = i32]`.
-- **As built (#193): delegated implementations are ordinary ones.**
+- **Delegated implementations are ordinary ones.**
   Once a folder's items are lowered, `impl Tr for C by E` gets, for each
   associated type of `Tr`, the binding `<F as Tr[A]>::Name`, where `F` is
   the embedded field `E`'s type at `C`'s arguments (crates/hd_check/DESIGN.md (trait solver)
@@ -921,16 +852,15 @@ growing type) has no finite instance set.
   the part's default with the part as receiver (no overriding). A part
   that does not implement `Tr` gets no forwarders; the header reports
   `invalid-delegation`.
-- **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
+
 - **Generic methods called through a `dyn` value** use the type-witness
   ABI below.
 
-#### 13.5.1 The Erased Method ABI (Codex re-review N5)
+#### 13.5.1 The Erased Method ABI
 
-The owner's decision: a generic method called through a `dyn` value has
-one erased body per impl, accepts any type argument, and gets a type
-witness per call (docs/compiler/goals.md, 2026-10-07). Everything else is
-monomorphized. Examples are a user trait's `fn visit[T](self, f:
+A generic method called through a `dyn` value has one erased body per
+impl, accepts any type argument, and gets a type witness per call.
+Everything else is monomorphized. Examples are a user trait's `fn visit[T](self, f:
 fn(T) -> T, out: mut List[T])`, and `Inspectable.downcast[T]`, whose
 builtin body has one open instruction, the type-id read. The
 inherent `dyn Error` methods `find`, `root_cause` and `chain` are
@@ -1059,8 +989,8 @@ argument, and `find` pays nothing.
 **Later, if measured.** Outlining a whole basic block of consecutive
 open instructions as one thunk cuts crossings and boxes. Full
 monomorphization per `(impl, type arguments)`, with a type-id switch in
-the slot, would remove the erased path altogether. That is not the
-owner's decision, and it costs a whole body per pair.
+the slot, would remove the erased path altogether, at a whole body per
+pair; it was not chosen.
 
 **Rejected alternatives.** A runtime "representation factory" that
 builds `Buffer[T]`'s layout from `T`'s witness, as Swift's metadata
@@ -1070,14 +1000,7 @@ reach erased code (`Buffer[T]` with `anyref` fields everywhere) would
 slow every monomorphized use of that type. Copying a caller's container
 into such a layout would break the identity of data values.
 
-**First test (`f1c55020:future-work/compiler/build-order.md` §22, slice 6b).** One `dyn` generic method
-takes a packed `T = i32` and a reference `T`, mutates a caller-owned
-`mut List[(T, T?)]`, constructs and returns a user `Buffer[T]`, calls a
-generic helper, and returns an escaping `fn(T) -> T`. It validates and
-runs on wasmtime and V8. The caller sees its own list mutated in place
-and the returned buffer's identity preserved.
-
-**As built (#238).**
+**As built.**
 
 - A slot takes its method row's providers after the arguments and the
   witness (`Lay::slot_keys`), so a suspending method with a row works
@@ -1092,12 +1015,14 @@ and the returned buffer's identity preserved.
   references per erased body. The body reads its field at the index in
   an `i32` constant global (`GSym::WitnessField`) that link assigns, in
   place of a `Field` relocation and a per-family struct type, so its code
-  does not depend on the program's other impls.
+  does not depend on the program's other impls. This is simpler than the
+  per-family struct and keeps the same independence.
 - A non-reference value crosses in a `box_of` struct of its values, as a
-  trait value's payload does; there is no `i31ref` form yet.
+  trait value's payload does; there is no `i31ref` form, so every scalar
+  crossing allocates (see #175).
 - A tag switch over an open value outlines its tag read; `Match` does
   not read its scrutinee and stays.
-- Not erased yet, each an `unsupported` stop: a closure in a body with
+- Planned, not built, each an `unsupported` stop: a closure in a body with
   open instructions (the escaping `fn(T) -> T` of the first test), a
   suspending generic method, a loop or a non-tag switch over an open
   value, a method row parameter, and a function reference to a generic
@@ -1105,21 +1030,21 @@ and the returned buffer's identity preserved.
 
 ### 13.6 Tuples, Arity And `all!`
 
-There are no variadic generics (§4.13.7). Tuples are ordinary types:
+There are no variadic generics. Tuples are ordinary types:
 
 - `Args < Tuple` instantiates like any type parameter, so `f(args...)`
   is one instance per tuple type.
 - Tuple `Eq`, `Ord`, `Hash` and `Debug` are instances of std's tuple
-  templates (crates/hd_check/DESIGN.md (trait solver) change 20). The checker records an `Impl`
+  templates. The checker records an `Impl`
   choice of the template, and collection instantiates the template's
   instance per tuple type, like any impl. A user library's tuple
   template works the same way. No body is generated per arity.
 - Only sealed traits are `Builtin` (`Any`, `AnyVal`, `AnyRef`,
   `Inspectable`, `Tuple`, `Suspend`; `Num`, `Integer` and `Float` are
   std's written impls, crates/hd_check/DESIGN.md (trait solver) §3.9). Those with methods get a
-  body that D2 generates per primitive or shape, such as `type_id` and
+  body that the emitter generates per primitive or shape, such as `type_id` and
   `downcast` for `Inspectable`.
-- **A tuple's `Structure` (design, 2026-10-08).** A tuple template's
+- **A tuple's `Structure`.** A tuple template's
   body calls `Structure::walk` (and `describe`, `build`, `name`, `facts`)
   on its `T`, a `Bound` choice, and the spec has the compiler generate the
   tuple's `Structure` while it instantiates the template
@@ -1131,13 +1056,12 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
   method per tuple type as a compiler-supplied instance, keyed by the
   tuple type like any instance and cached the same way. Its body comes from
   the same generator that writes a declared type's `Structure` at check
-  time (#119, `hd_check/src/structure.rs`): the generator moves to where
-  both checking and collection can call it (a TIR builder over a target's
-  member list, with no checker state), and a tuple's members are its
+  time: the generator is a TIR builder over a target's member list, with
+  no checker state, and a tuple's members are its
   elements `_0`, `_1`… (`annot.tuple.members`), and a rest element is its last member, of type `List[T]` (`annot.tuple.rest`). No body is
   generated per arity; one is generated per tuple type that a program's
   instances reach.
-- **As built (#126).** The row answers every tuple type, with no mode:
+- **As built.** The row answers every tuple type, with no mode:
   rows read no context, so their memo entries must not depend on who
   asks. Checking never asks it at a concrete tuple, since `Structure` is
   named only inside a template (`annot.structure.named-positions`), where
@@ -1168,6 +1092,9 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
 
 ### 13.7 Merging Byte-Identical Functions
 
+Not built yet; see #175 ("merge identical functions"). Link folds
+nothing, and no `hd.folds` section is written. The design:
+
 **Where merging comes from.** Each instance is emitted with exact Wasm
 types (§15.2). Two instances fold when their emitted bytes are equal after
 relocation. Equal bytes arise from:
@@ -1182,13 +1109,13 @@ relocation. Equal bytes arise from:
 - identical small std helpers at different types.
 
 Under exact element types, `List[Point].push` and `List[User].push`
-would fold only when `Point` and `User` have the same field layout (§23.2,
-inconsistency 1). With A1 (lowering pass, default adopted), they are one
+would fold only when `Point` and `User` have the same field layout. With
+A1 they are one
 instance from collection on (§13.2), so folding is left with scalar
 twins, equal field layouts and identical helpers.
 
-**The algorithm (mine, after safe ICF in linkers; Codex re-review N4
-and N-S3).** The first release folds exact duplicates only:
+**The algorithm (after safe ICF in linkers).** Fold exact duplicates
+only:
 
 1. **Fold key.** `H(canonical signature, local declarations, body bytes,
    every relocation as (offset, kind, exact target), every site record
@@ -1209,7 +1136,7 @@ and N-S3).** The first release folds exact duplicates only:
    only bodies already proven equal, so `List[u32].push` and
    `List[i32].push` fold once their `Array` callees have folded. Rounds
    are bounded by the call graph's depth and are usually two or three.
-   **A worklist (lowering pass):** after the first round, only bodies
+   **A worklist:** after the first round, only bodies
    whose function targets changed class are rehashed, so a deep call
    chain costs linear work, not depth times bytes.
 3. The representative of a class is the member with the smallest instance
@@ -1226,68 +1153,62 @@ left on the table.
 Every step works on content keys, so the result does not depend on
 threads or order. Merging runs in `Link`, in both pipelines (§12.6): it
 saves more Cranelift time than its hashing costs (under 1 ms at 10k
-lines), so a dev build without it would compile slower. Whether the
-optimized pipeline adds `wasm-opt` on top is decided after spike T2.
+lines), so a dev build without it would compile slower.
 
 ### 13.8 Code Entries
 
 `Emit(inst)` lowers one instance to Wasm with `wasm-encoder` and stores a
-`code` entry:
+`code` entry, `hd_wasm::Code`:
 
 ```rust
-pub struct CodeEntry {
-    pub body: Box<[u8]>,                  // locals and instructions; index immediates as 5-byte padded LEBs
-    pub relocs: Box<[Reloc]>,             // sorted by offset
-    pub sites: Box<[SiteRecord]>,         // (offset, site kind, anchor) for traps and explicit panics
-    pub lines: Box<[(u32, Anchor)]>,      // offset -> statement anchor, for backtraces
-    // Anchor = (item path row, TIR instruction index in that item's body): no byte offset, no line
-    pub sig: CanonSig,                    // Wasm signature, as canonical types
+pub struct Code {
+    pub params: Vec<VT>,
+    pub results: Vec<VT>,
+    pub body: Vec<u8>,              // locals and instructions; index immediates as 5-byte padded LEBs
+    pub relocs: Vec<(u32, Reloc)>,  // sorted by offset
+    pub lines: Vec<(u32, u32)>,     // offset of each call that starts a new anchor -> TIR instruction index
+    pub parts: Vec<(Part, Code)>,   // a suspending instance's f$body, f$poll, f$cancel
 }
 pub enum Reloc {
-    Func { at: u32, target: FuncTarget },     // InstanceKey | Import(HostMethodId) | Intrinsic helper
-                                              // | Getter(GlobalSym): a module's literal getter or span function, or a fact's getter
-    Type { at: u32, ty: CanonWasmTy },        // a canonical Wasm type descriptor
-    Global { at: u32, global: GlobalSym },    // module storage and immutable constants (vtables, closures, short literals)
-    Field { at: u32, sym: WitnessField },     // an impl's field in a dyn method's witness (§13.5.1)
+    Func(Sym),     // an instance, an import, or a runtime helper (a literal's getter among them)
+    Type(WTy),     // a canonical Wasm type descriptor
+    Global(GSym),  // module storage, runtime globals and immutable constants (witnesses and their fields, closures)
 }
 ```
 
-**Recursive descriptors (#120).** A `CanonWasmTy` naming a recursion
-group ([crates/hd_wasm/DESIGN.md §15.3](../hd_wasm/DESIGN.md#153-the-type-section)) is
+An anchor is the item, known from the function's name, and a TIR
+instruction index: no byte offset, no line. There is no site record: a
+panic's site is its stub caller's `lines` row (crates/hd_wasm/DESIGN.md
+§15.9). A witness field index is an `i32` constant global
+(`GSym::WitnessField`), not a `Field` relocation (§13.5.1).
+
+**Recursive descriptors.** A type naming a recursion group
+([crates/hd_wasm/DESIGN.md §15.3](../hd_wasm/DESIGN.md#153-the-type-section)) is
 the group and a member index. The entry's bytes start with its type
-table (the `wasm_types` of docs/compiler/data-structures.md §3.22): each distinct
-descriptor and group the entry names, directly or inside another, once
+table: each distinct descriptor and group the entry names, directly or inside another, once
 and after the ones it names. A row names the descriptors it holds, and a
 member's group, by their places; so do the signature, the `Type`
 relocations and the types inside symbols. No descriptor is written twice
 and no row nests another. Link decodes the table once per entry, and
-equal descriptors come back as one shared value (#49: `main` of the
-dogfood `orders.hd` went from 1.88 MB to 36 KB, its decode from 14 to
-0.6 ms).
+equal descriptors come back as one shared value (on one large `main`,
+1.88 MB of entry became 36 KB, and its decode 14 ms became 0.6 ms).
 
-**Stable numbering (lowering pass).** An emitted body holds no
+**Stable numbering.** An emitted body holds no
 program-wide dense number that changes when something is added
 elsewhere, apart from function indices in `call`, which wasmtime's
 per-function cache abstracts, and the measured exceptions of
 [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#numbering) (type immediates,
 direct constant globals, `ref.func`, witness fields). So there is no
 `Site` relocation: a site is the code offset of its stub call
-(crates/hd_wasm/DESIGN.md §15.5). There is no `Data` relocation in a body: only the
-link-generated module literal getters, span functions and the fill helper
-name the data segment. A lazily initialized global is reached through a
-`Getter` call target. A literal use also holds its module-local number,
-which depends only on its module's literal list (docs/compiler/lowering-catalog.md,
-[Literals](../../docs/compiler/lowering-catalog.md#literals)). So the relocation kinds are
-`Func`, `Type`, `Global` and `Field`; there is no `Site` and no `Data`.
-Context key ids and type ids are content hashes written as constants.
-Spike 0c's S2 measures each remaining index space and moves any that
-keeps fewer than 95 percent of functions hitting behind a getter.
+(crates/hd_wasm/DESIGN.md §15.5). There is no `Data` relocation in a
+body: only the literal getters name the data segment, and a literal use
+is a call of its getter, keyed by the literal's bytes
+(crates/hd_wasm/DESIGN.md §15.4). So the relocation kinds are `Func`,
+`Type` and `Global`. Context key ids are content hashes written as
+constants. An index space that leaves fewer than 95 percent of functions
+hitting wasmtime's cache after one addition moves behind a getter.
 
-On disk a relocation is `(at, kind, target)` with `target` indexing the
-entry's deduplicated target table
-([docs/compiler/data-structures.md §3.22](../../docs/compiler/data-structures.md#322-codegen-the-instance-table-and-code-entries)).
-
-**Positions (systems review, finding 4).** A code entry holds no source
+**Positions.** A code entry holds no source
 position. A site or a statement line is an **anchor**: the item's stable
 path and the index of a TIR instruction in its body. Instruction indices
 do not move when a comment or a blank line is added, so the TIR hash
@@ -1297,7 +1218,7 @@ anchor is resolved against the current sources whenever a location is
 printed:
 
 - `hd run`, `hd test` and the playground keep the anchors in the linked
-  module's `hd.sites` and `hd.lines` (§13.10). On a panic or a failing
+  module's `hd.lines` (§13.10). On a panic or a failing
   test, the host looks the anchor up in the module's current `check`
   entry: the instruction's span columns give byte offsets, and its `locs`
   section gives the line. That costs microseconds, only when a location
@@ -1307,6 +1228,9 @@ printed:
   column in the written sections: one pass over about 5,000 rows at 10k
   lines, plus one map of each reachable module's `check` entry, a few ms
   per build. The cached `link` and `cwasm` entries stay anchored.
+  Implementation differs: `hd build` writes the rows anchored,
+  unresolved (crates/hd_wasm/DESIGN.md §15.9), so a written file cannot
+  print source lines without the compiler's cache.
 
 So a comment edit above a panic changes the line it reports and nothing
 that is compiled or cached.
@@ -1330,25 +1254,25 @@ pipeline_hash        = H(pipeline name, each pass's name, version and parameters
                          emit options, engine options)   (docs/compiler/tiering.md §6.4)
 ```
 
-**`layout_hash` as built (#120).** It hashes `canon(T)` and the
+**`layout_hash` as built.** It hashes `canon(T)` and the
 declarations of every item `T` names and of every item their declared
 types name (fields, payloads, trait method signatures), however far, not
 the instances' descriptors: an instance's layout reads only those, at
 `T`'s arguments. Items that reach each other share one hash (Tarjan's
 algorithm over items, memoized per item for the build), so the hash
 covers a whole recursion group, and the walk ends on any recursion, a
-payload at growing arguments (`E[List[T]]` in `E[T]`) included. The
-earlier walk over instance fields stopped at depth 4.
+payload at growing arguments (`E[List[T]]` in `E[T]`) included.
 
-**M4b key gap (M4b gap 4), narrowed by P2-1b `53563951`.** The
-implementation now hashes the layout hashes with the pipeline, instance
-key, item TIR hash, toolchain key and aggregate callee representation
-summary, so two fixtures declaring one path with different fields no
-longer share emitted code. It still omits the per-item interface
-hashes, selected-impl interface hashes, callee inline summaries,
-inlined-item TIR hashes and literal numbers listed above. Those inputs
-remain part of the required code key; a hit is not sound until every
-emission read is represented.
+Implementation differs: `hd_cache::code_key` hashes the pipeline,
+profile, instance key and item TIR hash with one dependency hash
+(`hd_driver`, `Collect`): the toolchain key, **one hash of every data
+type layout in the program**, and the instance's callee representation
+hash (each callee's path, instance key and signature layouts, and the
+instance's own signature `layout_hash`es and row keys). So a field added
+to any data type re-emits every instance of every program that has the
+type, and the per-item interface hashes and selected-impl hashes above
+are not read separately. Inline summaries and literal numbers are not
+needed while nothing inlines and literals are keyed by content.
 
 `pipeline_hash` replaces the earlier `tier` key part, and the profile is
 a separate part, since `hd test --release` pairs the test profile with
@@ -1358,7 +1282,7 @@ holds the pass.
 **The dependency set is what collection and emission read, not what the
 generic TIR names.** Generic TIR does not name the concrete types,
 projected associated types and impls that appear under a substitution
-(Codex review, A4). Collection already finds all of them for this
+Collection already finds all of them for this
 instance before `Emit` runs, so the key is computed from collection's
 record of the instance:
 
@@ -1374,7 +1298,7 @@ record of the instance:
   it. `inline_summary` changes only when a callee's body changes and the
   callee is or becomes small enough to inline. So a body edit to a large
   callee re-emits no caller.
-- **Callee representation summaries (walking skeleton, SK-3).** The
+- **Callee representation summaries.** The
   callee's instance key in the list is the one after A1 classification
   (§13.2): `first[REF]` or `first[Point]`. It picks the symbol the caller
   relocates to and whether the caller casts the result. So a change to a
@@ -1383,9 +1307,7 @@ record of the instance:
 - **Runtime helpers** are generated by the compiler, so `toolchain_key`
   covers them.
 
-The key completeness tests (§21.4) cover each of these reads. Any new
-read that emission adds must join this list in the same change. Verify
-mode then checks it on every hit (§5.6).
+Any new read that emission adds must join this list in the same change.
 
 - An edit to one private function re-emits its own instances, plus the
   instances that inlined it, plus callers for which it became inlinable
@@ -1399,12 +1321,12 @@ mode then checks it on every hit (§5.6).
 | number of instances | reachability; folding; rows are not type arguments |
 | emission time | one walk of the generic TIR per instance; cached by `code_key` |
 | type section size | structural canonicalization and dedup at link (§15.3) |
-| Cranelift time | wasmtime's per-function cache (§18.2) |
+| Cranelift time | wasmtime's per-function cache |
 
 A per-item instance budget stays a fallback, as the research says. Add it
 only if the `dead-code` metric fails after folding.
 
-**The compile study's model** (`f1c55020:future-work/compiler/representation-compile.md` §1.4) puts a
+**A compile model** puts a
 10k-line application at about 4,800 instances, 4,700 emitted functions
 and 640 KB under exact types, and about 3,600 functions and 530 KB with
 A1, the boxing bound and closure specialization. Derived code is the
@@ -1413,14 +1335,13 @@ percent), then `List` and `Map` methods (17 percent together). Skipping
 always-inlined callees (§13.2) and the compact `hd.names` section
 (about 120 KB at 10k lines) are the largest levers for bytes; stable
 numbering, packs and filtered test programs are the largest for latency.
-`hd build --size-report` (§12.8) shows where a program's bytes go.
+
 
 ### 13.10 The Link Step
 
 `Link(P)`:
 
-0. **Read the code entries in one batch** (lowering pass; systems
-   review, finding 1). The worktree's last-run record, or else the
+0. **Read the code entries in one batch.** The worktree's last-run record, or else the
    program's `packhint`, names the **code packs** of the program's last
    link: one per folder group, each holding the code entries of that
    group with an index by code key (crates/hd_cache/DESIGN.md §5.4). Link maps those
@@ -1428,6 +1349,8 @@ numbering, packs and filtered test programs are the largest for latency.
    only for keys no pack holds. It then writes a new pack for each group
    whose members changed. Reading 4,800 separate files would cost 0.3 to
    0.6 s on the Mac; about 30 mapped packs cost 2 to 4 ms.
+   Implementation differs: there are no packs; `Collect` looks up each
+   instance's `code` entry on its own. Planned, not built.
 1. **Drop and fold.** An instance that no relocation names, because every
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then
@@ -1436,11 +1359,11 @@ numbering, packs and filtered test programs are the largest for latency.
    getters, by content. Then the
    representatives in instance-key order. This order is deterministic,
    but it does not keep indices stable: inserting a function with a
-   smaller key renumbers every later one (Codex re-review N-D2). That is
+   smaller key renumbers every later one. That is
    harmless for `call`, which wasmtime's per-function cache abstracts. No
    persistent index allocation is kept, since it would make bytes depend
-   on build history (crates/hd_wasm/DESIGN.md §15.8). S2 of spike 0c measures the
-   `ref.func` case; if it misses, closure construction reads one
+   on build history (crates/hd_wasm/DESIGN.md §15.8). If the `ref.func`
+   case misses wasmtime's cache too often, closure construction reads one
    immutable `funcref` global per closure code instead.
 3. **Types.** The canonical types the functions, globals and exports name
    (§15.3).
@@ -1461,31 +1384,21 @@ numbering, packs and filtered test programs are the largest for latency.
 7. **Exports**: `hd.init`, `hd.poll`, `hd.wake`, the exchange buffer, and test entries (§14.4, §15.4, §19.2).
    A package's unit-test program exports one init function per module
    with tests instead of one `hd.init`; each runs exactly the init groups
-   its module reaches, in D1's order (docs/compiler/engines-and-test-runner.md §19.1).
+   its module reaches, in `InitOrder`'s order (docs/compiler/engines-and-test-runner.md §19.1).
 8. **Code.** Copy each representative's body and patch its relocations in
    place. In the optimized pipeline, re-encode the padded LEBs at minimal
-   width (mine, the `leb_compact` pass); the dev pipeline keeps them, since
-   size does not matter there.
+   width (the `leb_compact` pass); the dev pipeline keeps them, since
+   size does not matter there. Planned, not built: no build compacts LEBs.
    Re-encoding moves every later byte, so the encoder builds an
    old-to-new offset map per body as it goes (a sorted list of
    `(old offset, bytes removed so far)`, one row per shrunk immediate)
    and rewrites the offsets of `sites`, `lines` and the source map
-   through it before writing `hd.sites` and `hd.lines` (Codex re-review
-   N-B8). A test panics after a shrunk immediate in the optimized
+   through it before writing `hd.lines`. A test panics after a shrunk immediate in the optimized
    pipeline and checks the reported site against the dev pipeline.
-9. **Custom sections**: the compact `hd.names` in the optimized pipeline,
-   so release builds omit the standard `name` section (owner,
-   2026-10-07), or `name` in the dev pipeline; then
-   `hd.runtime`, `hd.sites`, `hd.lines`, `hd.folds` (§15.5, §16.4).
-   `hd.sites` and `hd.lines` hold anchors here; `hd build` resolves them
-   to positions in the file it writes (§13.8, "Positions").
-
-**M4b metadata boundary (M4b gap 5).** The current link writes
-`hd.lines` and the dev `name` section, or `hd.names` in a release build
-(#16, crates/hd_wasm/DESIGN.md §15.9). It writes no `hd.sites`, `hd.folds` or
-`hd.runtime`, and performs no byte-identical-function fold. A panic's
-site is its stub caller's `hd.lines` row; steps 1, 8 and the rest of 9
-remain required.
+9. **Custom sections**: `hd.lines`, then the compact `hd.names` in a
+   release build, so release omits the standard `name` section, or
+   `name` otherwise (crates/hd_wasm/DESIGN.md §15.9). Planned, not
+   built: `hd.runtime` and `hd.folds`.
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
@@ -1497,14 +1410,11 @@ cheap one. Link is serial per program and linear in output size.
 
 ### 13.11 Function References Become Adapters
 
-41 programs stop at Emit on an `ItemRef` and 14 at Body on "a path used
-as a value". Check already builds the node for qualified and explicit
-references (`hd_check/src/call.rs`, `item_value`: the item plus its
-instantiated type arguments, as `crates/hd_tir/DESIGN.md` records); the 14
-Body stops are bare paths that never reach it — a Check prerequisite
-(see Questions). The model below turns every `ItemRef` into a value by
-generating one adapter per instance, reusing the closure
-representation (§12.2); no new runtime form.
+Check builds an `ItemRef` node for a function used as a value
+(`hd_check/src/call.rs`, `item_value`: the item plus its instantiated
+type arguments). Emission turns every `ItemRef` into a value by
+generating one adapter per instance, reusing the closure representation
+(§12.2); no new runtime form.
 
 For each reference kind of spec 07 (`fn.ref.*`, generic function
 values):
@@ -1545,13 +1455,10 @@ as values exist.
 
 ### 13.12 Map Iteration And Removal
 
-19 programs stop at Emit on `MapIter`, 3 on `MapRemove`, 3 on map keys
-that are not integers or strings. Today a map is insertion-ordered
-parallel arrays with a linear key search, integers compare inline and
-strings through the `StrEq` helper; anything else is `unsupported`.
-The table below keeps that substrate and fills the three gaps on the
-`$Map_K_V` layout of `f1c55020:future-work/compiler/representation-runtime.md` §7.2 (`index`,
-`hashes`, `keys`, `values`, `used`, `live`).
+A map is the `$Map_K_V` layout (`index`, `hashes`, `keys`, `values`,
+`used`, `live`; crates/hd_wasm/DESIGN.md §15.2), with runtime helpers in
+`hd_wasm/src/map.rs`: entries in insertion order, a removed entry marked
+by hash -1, and a linear-probing index.
 
 **Iterator state.** `MapIter` builds a `Closure` struct `{code, map,
 pos: i32}`, mirroring `ListIter`'s `{code, list, index}` and the same
@@ -1589,12 +1496,10 @@ identical steps.
 
 ### 13.13 Omitted Arguments, Default Bodies And Derived Facts
 
-9 programs stop at Emit on `DefaultCall`, plus derive defaults and
-facts left by #119. Check already emits one `DefaultCall` per omitted
-argument, carrying the default body's `DefId`, the call's type
-arguments and the earlier arguments' `Ref`s. This section fixes the
-emission shape: a per-function default thunk, not inlined expressions
-and not a wrapper.
+Check emits one `DefaultCall` per omitted argument, carrying the default
+body's `DefId`, the call's type arguments and the earlier arguments'
+`Ref`s. Emission calls a per-function default body, not inlined
+expressions and not a wrapper.
 
 A call that omits arguments emits the explicit arguments, then one
 direct `call` of each omitted parameter's default-body instance in
@@ -1605,10 +1510,8 @@ describes. The alternatives lose: inlining every default at every
 call site duplicates code per site, and per-callee wrapper functions
 multiply by omission pattern (up to 2^D per generic instantiation).
 The thunk shares one default-body instance across all call sites at
-the same type arguments. Trivial constants already inline (the
-`DefaultCall` row), and bounded inlining (§12.6) may inline small
-non-trivial defaults at hot sites under its normal budgets — no
-special-casing (see Questions).
+the same type arguments. Inlining of small defaults belongs to the
+inlining passes (§12.6), with no special case; none is built.
 
 Footprint per function with D defaulted parameters, per distinct type
 tuple that reaches it: one instance per default body (the default
@@ -1617,7 +1520,7 @@ per omitted argument at each omitting call site. Monomorphic
 functions pay D small bodies total, shared by all callers; constants
 pay nothing.
 
-Derived defaults and facts (#119) use the same shapes. A derived
+Derived defaults and facts use the same shapes. A derived
 member's default body is an ordinary instance keyed by (default body,
 substituted type arguments) and pushed by collection step 6. A
 derived fact gets one lazy global per (fact, type arguments), since
@@ -1628,9 +1531,7 @@ resolves to its own global.
 
 ### 13.14 `@error` Derivation
 
-13 valid programs fail with "X does not implement Error/From": `@error`,
-`@from` and `@source` produce no impls yet. The spec already places
-them: `@error` is a compiler intrinsic, not an ordinary decorator
+`@error` is a compiler intrinsic, not an ordinary decorator
 (`annot.error.intrinsic`), and for an error type `E` the compiler
 generates `impl Display for E`, `impl Error for E`, and one
 `impl From[P] for E` per `@from` member (`annot.error.generates`),
@@ -1641,11 +1542,9 @@ Neither alternative source fits. A `std.error` template in the style
 of tuple templates (§13.6) cannot see the variant payload names, the
 shared fields, or the interpolated message scopes the messages are
 checked in (`annot.error.message.checked`). Compiler-supplied solver
-rows (§3.9) answer whether a sealed trait holds, not how to render
+rows (crates/hd_check/DESIGN.md (trait solver) §3.9) answer whether a sealed trait holds, not how to render
 this variant's message or wrap that payload — and `Display`/`Error`/
-`From` are not sealed. So each `@error` site generates template
-bodies, instantiated per error type on the #119 model (derived impls
-instantiate a template):
+`From` are not sealed. So each `@error` site generates its bodies:
 
 - `Display::to_string`: a match over the variants. Each arm builds
   its interpolated message (`annot.error.message.*`); a transparent
@@ -1671,7 +1570,7 @@ of a small match, plus the pooled message literals — all shared
 across call sites at the same instantiation and folded when identical
 (§13.7).
 
-**As built (#137, 2026-10-09).** Resolve lowers each error type's
+**As built.** Resolve lowers each error type's
 headers as ordinary impls (`ImplKind::Error` in `hd_resolve`), and the
 checker writes their bodies directly (`hd_check/src/error.rs`) rather
 than instantiating a std template: a message needs its variant's scope
@@ -1683,9 +1582,7 @@ by hand.
 
 ### 13.15 Integer Widths
 
-Seven programs show sub-word integers running as checked 32/64-bit
-(R2 §D): bit counts always 32, no wrapping, saturating traps,
-narrowing casts that keep 300. Values live as `i32` scalars in
+Values of sub-word integers live as `i32` scalars in
 locals, packed `i8`/`i16` only in fields and array elements
 (crates/hd_wasm/DESIGN.md). Field and array loads sign- or zero-extend, so
 every sequence below starts from a full-width exact value.
@@ -1714,15 +1611,15 @@ by the method name for the explicit `checked_*`/`wrapping_*`/
 `types.arith.always`). Code entries are per profile: debug-checked
 and release-wrapped sequences never share a cache entry.
 
-As built (#147): the operators carry the widths. Casts, `<<` and `~`
+As built: the operators carry the widths. Casts, `<<` and `~`
 end canonical; a 64-bit `*` is checked by dividing the product back,
 and a 64-bit `MIN / -1` is tested before `i64.div_s`. The `std.num`
 methods stay ordinary hd over those operators, as
 `spec/std/num.md` says, so they get no dedicated sequences above.
 Native sequences would need spec-named intrinsics, a later speed
-item. Only the debug sequences exist; #109 adds the release ones.
+item.
 
-As built (#173a): `PrimOp::Pow` is one `Prim`. An integer base runs
+As built: `PrimOp::Pow` is one `Prim`. An integer base runs
 square-and-multiply over the exponent widened to 64 bits, with each
 product the checked multiply above; a square is made only while exponent
 bits remain, so no product exceeds the final magnitude and a result in
@@ -1733,7 +1630,7 @@ follows IEEE 754 clause 9.2 for the special cases and computes
 `exp(y ln x)` in double-double arithmetic otherwise, then rounds once.
 No host import is involved, so every host gives the same bits.
 
-As built (#181b): floats use the instructions of their own width, so
+As built: floats use the instructions of their own width, so
 `f32` `+ - * /`, negation and the comparisons round once to `f32` and
 follow IEEE 754 for NaN, infinities and signed zeros. Floating `%` is
 the generated `RemF64` helper (`rem.rs`, `(f64, f64) -> f64`), C `fmod`:
@@ -1757,10 +1654,7 @@ directly because the clamp is monotone.
 
 ### 13.16 Supertrait Calls Through A Trait Value
 
-`dyn Error` calling `to_string` and `bounded-blanket-supertraits`
-stop at Emit on "a trait-value call of a supertrait's method": the
-emitter only looks in the receiver trait's own slots. The spec
-exposes transitive supertrait methods on every dynamic value
+The spec exposes transitive supertrait methods on every dynamic value
 (`trait.dyn.value-methods`, `trait.dyn.supertrait-methods`) and lets
 a `dyn` child widen implicitly to a supertrait value
 (`trait.dyn.widen`, bindings kept per `trait.dyn.binding.widen`).
@@ -1780,7 +1674,7 @@ payload and reads the parent's vtable field from the child's vtable,
 one `struct.get` per level (the `Coerce` row's `Supertrait` case).
 Reusing the child vtable as-is would need the child's vtable type to
 be a Wasm GC subtype of the parent's, which only flattening gives, and
-this design does not flatten (corrected as built, #131). Child-only
+this design does not flatten. Child-only
 methods become unreachable (`trait.dyn.widen` drops them,
 `trait.dyn.no-narrow` never returns).
 Vtables exist per (concrete type, trait) pair (§13.2 step 5),
@@ -1788,68 +1682,40 @@ extended by the associated-type bindings the pair carries.
 
 Footprint per trait value stays two words. Per (type, trait) in the
 used hierarchies there is one vtable of own slots plus parent
-fields; method bodies are shared with the direct-call instances,
-and identical vtables fold (§13.7).
+fields; method bodies are shared with the direct-call instances.
+Implementation differs: vtables are built per coercion, not once per
+pair (§13.5).
+
 
 ### 13.17 Build Profiles And Pipelines
 
-`--release` parses on every command that takes it, but the profile
-reaches nothing: `Goal` carries no profile, so release still panics
-on overflow and `dbg` still builds. The spec has three profiles —
-debug (checked), release (wrapping), test (always checked) — and a
-separate pipeline choice (fast-build vs optimized, unobservable).
-
-The profile rides the goal: `Goal::Program` gains the build profile
-(debug/release), and `Goal::Tests` implies the test profile with a
-separate pipeline flag (`hd test --release` stays checked and only
-switches pipelines). Profile and pipeline both join the pipeline
-hash and every code key, so debug, release and test entries — and
-dev vs optimized pipelines — never share cache entries (extends the
-§13.15 rule).
+The spec has three profiles: debug (checked), release (wrapping) and
+test (always checked), and a separate, unobservable pipeline choice (dev
+or optimized). The driver takes the profile as a build input
+(`Packages::build_profile`) and the pipeline as a target and level
+(crates/hd_opt/DESIGN.md §5); `hd test --release` stays checked and only
+switches pipelines. The profile joins `code_key` and `prog_key`, and the
+pipeline hash joins every key, so debug, release and test entries, and
+dev and optimized ones, never share cache entries. Keying is enough: a
+prebuilt module records nothing further, and a mismatch is a miss, never
+a miscompile.
 
 Per profile, at Emit: debug and test emit the checked arithmetic
 sequences of §13.15; release emits the wrapping ones. `dbg` never
 reaches Emit in a release build: Check rejects it there
-(`module.dbg.release`), while test builds — including
-`hd test --release` — always accept it. A dependency `dbg` call takes
-the third path: accepted with `dbg-in-dependency`
-(`module.dbg.dependency`), it lowers to argument evaluation with no
-print — Emit drops the print sequence but keeps left-to-right
-evaluation, so deleting the call later changes no types. As built, the
-link always emits the standard `name` section (step 9), since the
-profile reaches nothing; under this design, release builds omit it
-while `hd test` output keeps it. A prebuilt module keeps whichever
-behavior built it; the module records nothing further.
-
-Footprint: release drops every overflow branch and the `name`
-section, and shares the wrapping instances; checked builds pay one
-widen-compare per narrowing operation plus the section. The default
-pipeline everywhere is the fast-build one; `--release` is the only
-way to ask for the optimized pipeline.
-
-**Questions.** Q1: Goal-carried profile or a separate codegen flag?
-Goal-carried (recommended): the profile already must join every code
-key, and keys are computed from the goal, so a flag beside the goal
-would need shadowing into the keys anyway. Q2: omit the `name`
-section in release, or keep it for panic frames? Omit
-(recommended), but keep the M6 line-table storage separate from the
-`name` section, so release drops names without dropping whatever
-panic-frame mapping M6 designs. Q3: record the profile in a
-prebuilt module, or rely on key separation? Keys only
-(recommended): a module records nothing further, and a release link
-never maps a checked entry, so a mismatch is a miss, never a
-miscompile.
+(`module.dbg.release`), while test builds, `hd test --release` included,
+accept it. A dependency `dbg` call is accepted with `dbg-in-dependency`
+(`module.dbg.dependency`) and lowers to argument evaluation with no
+print, keeping left-to-right evaluation. Release link writes `hd.names`
+in place of the `name` section; the line table is separate, so release
+keeps panic frames.
 
 ### 13.18 Provider Keys Carry Their Type Arguments
 
-`requirement-row-order-*` print 11 instead of 201: `Repo[User]` and
-`Repo[Post]` collapse into one provider. The spec keys providers by
-the whole trait reference — a generic key is entailed only by an
+The spec keys providers by the whole trait reference — a generic key is entailed only by an
 identical key (`req.row.entail.generic`), and a key occurs at most
-once per row (`req.row.set.once`) — but Emit's provider list is
-keyed by bare trait `DefId`, so the first `Repo` match serves every
-`Repo[T]`. Check already distinguishes the keys (these programs
-check clean); only the lookup is wrong.
+once per row (`req.row.set.once`), so `Repo[User]` and `Repo[Post]`
+are two providers.
 
 The key is the full canonical trait reference: trait plus type
 arguments (and bindings), compared as interned `Ty` values — pointer
@@ -1863,21 +1729,17 @@ the full key:
   full keys; matching a call's providers into a callee instance —
   including one provider per instantiation of a generic
   `fn f[T](... $ Repo[T])` — compares full keys, which falls out of
-  instance keys carrying the type arguments. As built, A1 (§13.2)
-  had erased an unbounded `T` that only a key names, so a type
-  parameter named by a requirement key (the item's own row, a
-  function type's row, a `$.with` key) is exact.
+  instance keys carrying the type arguments. A type parameter named by
+  a requirement key (the item's own row, a function type's row, a
+  `$.with` key) is exact under A1 (§13.2), or the key would be erased.
 - **Emit**: the provider list and `push_providers` key by full key,
-  so `ProviderGet` for `Repo[User]` no longer matches `Repo[Post]`.
-  Emitted code is unchanged (the same locals); the fix is
-  compile-time only.
+  so `ProviderGet` for `Repo[User]` never matches `Repo[Post]`.
 - **Host**: host capabilities are never generic — a generic key
   cannot come from the host (`nonhost-entry-requirement`) — so the
   host lookup path stays trait-keyed and untouched. A function
   value's context ids are the low bits of the key's content hash
   (`canon` of the whole key, as a row's content order uses), so
-  they include the arguments; as built, they had been the trait's
-  path hash.
+  they include the arguments.
 
 Cost per call: zero at run time (the same locals and the same
 context walk); at compile time, one interned-`Ty` comparison per
