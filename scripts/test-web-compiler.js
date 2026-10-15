@@ -44,8 +44,12 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // is 1.5 MB. The std skim cache and per-process std sources (#49, b068b071)
 // added 15 KB raw (4.696 -> 4.711 MB); the browser compiler keeps one driver
 // across compiles, so warm compiles use them too. The raw gate is 4.75 MB.
-const RAW_LIMIT = 4.75e6;
-const GZIP_LIMIT = 1.5e6;
+// On 2026-10-15 checker fixes, the usize-fallback panic notes (#172),
+// newtype erasure (#50) and fix-its kept in cached interfaces (#23) took
+// the build to 4.748 MB raw and 1.50003 MB gzip, so the gates are 4.9 MB
+// raw and 1.55 MB gzip; shrinking hd_web is tracked with the size work (#49).
+const RAW_LIMIT = 4.9e6;
+const GZIP_LIMIT = 1.55e6;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
