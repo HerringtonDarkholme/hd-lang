@@ -245,7 +245,7 @@ fn invalid_runtime_forms_fail_but_program_words_are_not_parsed() {
 }
 
 #[test]
-fn node_heap_limit_warns_without_enforcement_until_w5() {
+fn node_heap_limit_warns_without_enforcement() {
     let dir = work("node-warnings");
     std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
     let mut command = hd(&dir);
@@ -259,7 +259,9 @@ fn node_heap_limit_warns_without_enforcement_until_w5() {
     assert!(output.status.success(), "{output:?}");
     let warning = String::from_utf8_lossy(&output.stderr);
     assert_eq!(warning.matches("warning:").count(), 1, "{warning}");
-    assert!(warning.contains("--max-heap is ignored on Node until W5"));
+    assert!(
+        warning.contains("--max-heap is ignored on Node: V8 exposes no per-store heap accounting")
+    );
 }
 
 #[cfg(not(feature = "wasmtime"))]
@@ -291,4 +293,24 @@ fn wasmtime_is_refused_without_the_feature() {
     assert!(message.contains("no wasmtime engine"), "{message}");
     assert!(message.contains("--features wasmtime"), "{message}");
     assert!(!dir.join("build").exists());
+}
+
+/// `cli.engine.select`: `--engine` wins over `HD_ENGINE`, which is read
+/// only when no flag is given.
+#[test]
+fn an_engine_flag_wins_over_a_bogus_hd_engine() {
+    let dir = work("engine-flag-wins");
+    std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
+    let mut command = hd(&dir);
+    command.env("HD_ENGINE", "bogus");
+    command.args(["--engine", "node", "main.wasm"]);
+    let output = bounded(command);
+    assert!(output.status.success(), "{output:?}");
+    let mut command = hd(&dir);
+    command.env("HD_ENGINE", "bogus");
+    command.args(["main.wasm"]);
+    let output = bounded(command);
+    assert!(!output.status.success(), "{output:?}");
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert!(message.contains("HD_ENGINE"), "{message}");
 }

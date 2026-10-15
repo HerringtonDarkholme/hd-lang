@@ -519,12 +519,16 @@ fn execute(
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
-    // Node enforces `--time-limit` (host/run.mjs) but has no heap cap.
+    // Node enforces `--time-limit` (host/run.mjs) but has no heap cap:
+    // V8 exposes no per-store heap accounting like wasmtime's
+    // ResourceLimiter ledger, which counts linear-memory and GC backing
+    // bytes together, so only wasmtime can enforce a heap budget with
+    // the same behavior on every engine (`cli.engine.same-behavior`).
     if engine == engine::EngineKind::Node && limits.heap_bytes.is_some() {
         rep.diag(&report::Diag::new(
             None,
             hd_diag::Severity::Warning,
-            "--max-heap is ignored on Node until W5; use --engine wasmtime for enforcement",
+            "--max-heap is ignored on Node: V8 exposes no per-store heap accounting, so only wasmtime enforces heap budgets; use --engine wasmtime for enforcement",
         ));
     }
     let cwd = std::env::current_dir().unwrap_or_default();
@@ -578,10 +582,11 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         caps: Vec::new(),
         file: None,
         program_args: Vec::new(),
-        engine: engine::from_env()?,
+        engine: engine::EngineKind::default(),
         release: false,
         limits: engine::ProgramLimits::default(),
     };
+    let mut engine_flag = false;
     let mut i = 0;
     while i < args.len() {
         if args[i] == "--" {
@@ -603,6 +608,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         if let Some(e) = engine::engine_flag(args, i) {
             let (kind, used) = e?;
             w.engine = kind;
+            engine_flag = true;
             i += used;
             continue;
         }
@@ -629,6 +635,11 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             );
         }
         i += 1;
+    }
+    // The flag wins over `HD_ENGINE`: read the variable only when no
+    // flag is given (`cli.engine.select`).
+    if !engine_flag {
+        w.engine = engine::from_env()?;
     }
     Ok(w)
 }
@@ -782,9 +793,10 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
-        engine: engine::from_env()?,
+        engine: engine::EngineKind::default(),
         limits: engine::ProgramLimits::default(),
     };
+    let mut engine_flag = false;
     let mut i = 0;
     while i < args.len() {
         if command == "run" && args[i] == "--" {
@@ -806,6 +818,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if let Some(e) = engine::engine_flag(args, i) {
             let (kind, used) = e?;
             w.engine = kind;
+            engine_flag = true;
             i += used;
             continue;
         }
@@ -838,6 +851,11 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             w.positional.push(args[i].clone());
         }
         i += 1;
+    }
+    // The flag wins over `HD_ENGINE`: read the variable only when no
+    // flag is given (`cli.engine.select`).
+    if !engine_flag {
+        w.engine = engine::from_env()?;
     }
     Ok(w)
 }

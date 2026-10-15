@@ -248,11 +248,13 @@ pub fn command(args: &[OsString]) -> ExitCode {
         unrun: Vec::new(),
     };
     if o.engine == crate::engine::EngineKind::Node && o.limits.heap_bytes.is_some() {
-        // Node enforces `--time-limit` (host/test.mjs) but has no heap cap.
+        // As in `main.rs`: V8 exposes no per-store heap accounting like
+        // wasmtime's ResourceLimiter ledger, so only wasmtime enforces
+        // heap budgets with the same behavior on every engine.
         report.rep.diag(&report::Diag::new(
             None,
             hd_diag::Severity::Warning,
-            "--max-heap is ignored on Node until W5; use --engine wasmtime for enforcement",
+            "--max-heap is ignored on Node: V8 exposes no per-store heap accounting, so only wasmtime enforces heap budgets; use --engine wasmtime for enforcement",
         ));
     }
     if o.file.is_some() && !o.packages.is_empty() {
