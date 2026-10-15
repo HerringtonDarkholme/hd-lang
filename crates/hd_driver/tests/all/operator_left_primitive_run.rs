@@ -205,3 +205,33 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(output_of("others", main), "9\n4\n3\n");
 }
+
+/// `expr.op.left-dispatch`: with two implementations of one operator
+/// trait, the literal right operand participates in the instantiation
+/// choice, and the other implementation still handles a `Money` right
+/// operand.
+#[test]
+fn a_literal_right_operand_selects_the_fitting_instantiation() {
+    let main = "\
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+impl Add[i64] for Money:
+    type Out = Money
+    fn add(self, rhs: i64) -> Money:
+        Money { cents: self.cents + rhs }
+
+pub fn main() -> void $ Console:
+    let a = Money { cents: 10 }
+    println((a + 7).cents)
+    println((a + Money { cents: 5 }).cents)
+";
+    assert_eq!(output_of("literal-choice", main), "17\n15\n");
+}
