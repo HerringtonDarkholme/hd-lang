@@ -5,10 +5,10 @@
 //! runtime's blocking pool (ureq blocks) and delivers the response or the
 //! failure for `.finish` to encode.
 //!
-//! Cancelling the operation drops the task, which shuts down the socket
-//! of the request's connection through its cancel slot
-//! (`connector::Cancel`): the blocked request ends at once, and the server
-//! reads the end of the connection (`std-http.send.cancel.close`).
+//! Cancelling the operation drops the task, which signals the request's
+//! cancel (`connector::Cancel`): the request's socket wait ends at once,
+//! its thread drops the socket, and the server reads the end of the
+//! connection (`std-http.send.cancel.close`).
 //!
 //! The request body and the response body count against the program's
 //! heap budget (`std-host.op.heap`): a body past it ends the request, and
@@ -248,11 +248,17 @@ mod tests {
     /// `std-http.send.cancel.close`: an abort while the request waits for
     /// the response headers, in the middle of the body, or in the TLS
     /// handshake returns at once, and the server reads the end of the
-    /// connection. The request's own timeout is 30 s, so only the abort can
-    /// end it.
+    /// connection: its end of input, or a reset, which Windows sends for a
+    /// connection closed with input still unread. The request's own
+    /// timeout is 30 s, so only the abort can end it. A failure names the
+    /// phase and what the server read.
     #[test]
     fn an_abort_closes_the_connection_in_every_phase() {
-        for (tls, partial_body) in [(false, false), (false, true), (true, false)] {
+        for (phase, tls, partial_body) in [
+            ("waiting for the headers", false, false),
+            ("in the middle of the body", false, true),
+            ("in the TLS handshake", true, false),
+        ] {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let address = listener.local_addr().unwrap();
             let (ready, arrived) = mpsc::channel();
@@ -279,17 +285,19 @@ mod tests {
                 stream
                     .set_read_timeout(Some(Duration::from_secs(5)))
                     .unwrap();
-                // Windows resets a connection whose receiving side shuts
-                // down with the response still unread, as it may be in the
-                // middle of the body. A reset closes it too.
                 let started = Instant::now();
-                let mut rest = Vec::new();
-                let ended = match stream.read_to_end(&mut rest) {
-                    Ok(_) => true,
-                    Err(error) => matches!(
-                        error.kind(),
-                        std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
-                    ),
+                let ended = match stream.read_to_end(&mut Vec::new()) {
+                    Ok(_) => Ok("its end of input"),
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::ConnectionReset
+                                | std::io::ErrorKind::ConnectionAborted
+                        ) =>
+                    {
+                        Ok("a reset")
+                    }
+                    Err(error) => Err(format!("{:?} ({error})", error.kind())),
                 };
                 (ended, started.elapsed())
             });
@@ -308,14 +316,18 @@ mod tests {
             assert!(reactor.remove(h).is_some());
             let aborted = started.elapsed();
             let (ended, waited) = server.join().unwrap();
-            assert!(ended, "the server read the end of the connection");
+            let read = ended.unwrap_or_else(|error| {
+                panic!(
+                    "{phase}: the server read no end of the connection but {error} after {waited:?}; the abort took {aborted:?}"
+                )
+            });
             assert!(
                 waited < Duration::from_secs(2),
-                "the end came late: {waited:?}"
+                "{phase}: the server read {read} late, after {waited:?}"
             );
             assert!(
                 aborted < Duration::from_secs(1),
-                "the abort waited: {aborted:?}"
+                "{phase}: the abort took {aborted:?}"
             );
         }
     }
