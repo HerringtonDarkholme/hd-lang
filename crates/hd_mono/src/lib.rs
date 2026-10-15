@@ -363,8 +363,8 @@ impl Collected {
 }
 
 pub use erased::{
-    Witnesses, erased_args, is_open, open_insts, open_param, own_count, thunk_operands,
-    witness_args, witness_family,
+    Witnesses, erased_args, is_open, open_insts, open_param, own_count, thunk_capture_locals,
+    thunk_operands, witness_args, witness_family,
 };
 pub use layout::InstanceTable;
 
@@ -2150,6 +2150,10 @@ impl Cx<'_> {
                 // and result: open ones cross as `eqref`.
                 for w in thunk_operands(body, ix).into_iter().chain([ix]) {
                     let t = value_ty(body, w);
+                    reps.u8(u8::from(is_open(pool, subst(pool, env, item, erased, t))));
+                }
+                for (local, _) in thunk_capture_locals(body, ix) {
+                    let t = body.local_ty[local as usize];
                     reps.u8(u8::from(is_open(pool, subst(pool, env, item, erased, t))));
                 }
                 calls.insert(INFO, Target::Thunk { at: ix });

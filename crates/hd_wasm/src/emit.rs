@@ -11,7 +11,7 @@ use hd_base::{BuildProfile, DefId, Hash128, NodeIdx, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
     CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, erased_args, key_order, subst,
-    thunk_operands, witness_args, witness_family,
+    thunk_capture_locals, thunk_operands, witness_args, witness_family,
 };
 use hd_tir::ir::{
     Body, BodyKind, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -2897,6 +2897,11 @@ impl Em<'_> {
         for r in thunk_operands(self.b, i) {
             self.load(r)?;
         }
+        for (l, _) in thunk_capture_locals(self.b, i) {
+            for l in self.local(l)? {
+                self.a.get(l);
+            }
+        }
         let keys = self.env().row_keys(self.item, self.args);
         self.push_providers(&keys)?;
         self.a.get(ops);
@@ -4899,6 +4904,34 @@ pub fn emit_erased(
     )
 }
 
+/// The values a captured local crosses with, at `args`: its components,
+/// or one shared cell of them, matching closure emission.
+fn captured_local_vts(
+    lay: &Lay,
+    b: &Body,
+    args: TyList,
+    local: u32,
+    shared: bool,
+) -> StageResult<Vec<VT>> {
+    let t = subst(lay.pool, lay.env, b.item, args, b.local_ty[local as usize]);
+    let fields = lay.vts(t)?;
+    if !shared {
+        return Ok(fields);
+    }
+    let fields = fields
+        .into_iter()
+        .map(|v| match v {
+            VT::Ref(t, _) => VT::Ref(t, true),
+            v => v,
+        })
+        .collect();
+    Ok(vec![VT::r(WTy::Struct {
+        fields,
+        sup: None,
+        open: false,
+    })])
+}
+
 /// The type of thunk `at` of the erased body of `item` at `erased`
 /// (`crates/hd_mono/DESIGN.md` §13.5.1): its operands as the erased body holds them,
 /// open ones as `eqref`, then the body's providers; its result likewise.
@@ -4908,6 +4941,9 @@ fn thunk_sig(lay: &Lay, b: &Body, erased: TyList, at: u32) -> StageResult<WTy> {
     let mut ps = Vec::new();
     for r in thunk_operands(b, at) {
         ps.extend(lay.vts(s(b.ty[r as usize]))?);
+    }
+    for (local, shared) in thunk_capture_locals(b, at) {
+        ps.extend(captured_local_vts(lay, b, erased, local, shared)?);
     }
     for k in env.row_keys(b.item, erased) {
         ps.push(VT::Eq);
@@ -4961,6 +4997,22 @@ pub fn emit_thunk(
             em.a.set(*l);
         }
         em.vals.insert(r, (ls, have));
+    }
+    for (local, shared) in thunk_capture_locals(b, at) {
+        let crossing = captured_local_vts(&em.lay, b, erased, local, shared)?;
+        let have = captured_local_vts(&em.lay, b, args, local, shared)?;
+        let params: Vec<u32> = (next..next + u32_of(crossing.len())).collect();
+        next += u32_of(crossing.len());
+        if crossing == have {
+            em.locals[local as usize] = Some(params);
+            continue;
+        }
+        let ls: Vec<u32> = have.iter().map(|v| em.a.local(v.clone())).collect();
+        unerase(&mut em.a, params[0], &have);
+        for l in ls.iter().rev() {
+            em.a.set(*l);
+        }
+        em.locals[local as usize] = Some(ls);
     }
     for k in env.row_keys(b.item, args) {
         em.providers.push((k, [next, next + 1]));

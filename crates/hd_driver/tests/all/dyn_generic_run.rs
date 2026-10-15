@@ -271,3 +271,36 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(output_of("row-impl", main), "5\n");
 }
+
+/// `trait.dyn.safe.method-type-param`: a closure built in an erased body
+/// is instantiated at the caller's types, captures and calls included.
+#[test]
+fn a_closure_in_an_erased_body_runs_at_the_callers_types() {
+    let main = "\
+trait Visitor:
+    fn twice[T](self, x: T, f: fn(T) -> T) -> T
+    fn gather[T](self, x: T) -> List[T]
+
+data Doubler:
+    n: i32
+
+impl Visitor for Doubler:
+    fn twice[T](self, x: T, f: fn(T) -> T) -> T:
+        let g = fn(y: T) -> T: f(f(y))
+        g(x)
+
+    fn gather[T](self, x: T) -> List[T]:
+        let ys: mut List[T] = []
+        let add = fn() -> void:
+            ys.push(x)
+        add()
+        add()
+        ys
+
+pub fn main() -> void $ Console:
+    let v: dyn Visitor = Doubler { n: 1 }
+    println(v.twice(+3, fn(a: i32) -> i32: a + 1))
+    println(v.gather(\"a\").len())
+";
+    assert_eq!(output_of("erased-closure", main), "5\n2\n");
+}

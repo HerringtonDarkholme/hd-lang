@@ -110,7 +110,8 @@ fn word_ty(b: &Body, word: u32) -> Option<Ty> {
 /// (`erased_args`), in TIR order: the number of each is its thunk index
 /// (§13.5.1 step 1). Control and local moves stay in the body; a match,
 /// loop or branch whose operand is open, and an open instruction that
-/// owns blocks or suspends, has no outlined form yet.
+/// owns blocks or suspends, has no outlined form yet. Every closure
+/// construction is outlined too, so its body instantiates concretely.
 pub fn open_insts(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -121,9 +122,26 @@ pub fn open_insts(
     let s = |t: Ty| subst(pool, env, item, erased, t);
     let open_word = |w: u32| word_ty(b, w).is_some_and(|t| is_open(pool, s(t)));
     let open_list = |l: TyList| pool.list_items(l).iter().any(|t| is_open(pool, s(*t)));
+    let subs = b.inst_subs();
     let mut out = Vec::new();
-    for i in 0..b.len() {
+    for (i, sub) in subs.iter().enumerate().take(b.len()) {
+        // Only the erased root's own instructions need thunks. A closure
+        // body is emitted by its construction's thunk at concrete types.
+        if *sub != 0 {
+            continue;
+        }
         let tag = b.tags[i];
+        if tag == Tag::Closure {
+            // Every closure construction is outlined, even a closed one:
+            // its body then instantiates concretely too, with no witness
+            // chain. A generic local function's definition is no value.
+            let sub = b.data[i][0] as usize;
+            if b.sub_is_generic(sub) && !b.is_instantiation(i) {
+                continue;
+            }
+            out.push(u32::try_from(i).expect("insts"));
+            continue;
+        }
         match tag {
             Tag::LocalGet
             | Tag::LocalSet
@@ -193,11 +211,6 @@ pub fn open_insts(
         }
         out.push(u32::try_from(i).expect("insts"));
     }
-    // A closure's body would reach the thunks through the body's witness,
-    // as a captured local; closures are not erased yet.
-    if !out.is_empty() && b.tags.contains(&Tag::Closure) {
-        return err("a closure in an erased body with open instructions");
-    }
     Ok(out)
 }
 
@@ -214,6 +227,27 @@ pub fn thunk_operands(b: &Body, i: u32) -> Vec<u32> {
     words
         .into_iter()
         .filter(|r| *r != hd_tir::ir::NONE && hd_tir::ir::Ref(*r).as_inst().is_some())
+        .collect()
+}
+
+/// The locals a closure construction captures, with whether each crosses
+/// as its shared cell. They are thunk operands after [`thunk_operands`],
+/// since a closure record names locals rather than instruction values.
+#[must_use]
+pub fn thunk_capture_locals(b: &Body, i: u32) -> Vec<(u32, bool)> {
+    if b.tags[i as usize] != Tag::Closure {
+        return Vec::new();
+    }
+    let rec = b.record(b.data[i as usize][1]);
+    let start = rec[0] as usize;
+    let len = rec[1] as usize;
+    (start..start + len)
+        .map(|c| {
+            (
+                b.cap_local[c].raw(),
+                b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared),
+            )
+        })
         .collect()
 }
 
