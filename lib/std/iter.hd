@@ -40,11 +40,11 @@ impl[T] Iterator[T]:
     pub fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
         Iterator::from_fn(fn() -> T?:
             while true:
-                match self.next():
-                    .Some(item) =>
-                        if keep(item):
-                            return .Some(item)
+                item := match self.next():
+                    .Some(found) => found
                     .None => return .None
+                if keep(item):
+                    return .Some(item)
         )
 
     ## A new iterator over the first `count` items of `self`, or fewer when `self` ends first.
@@ -151,11 +151,11 @@ impl[T] Iterator[T]:
         let at: usize = 0
         Iterator::from_fn(fn() -> U?:
             while at >= part.len():
-                match self.next():
-                    .Some(item) =>
-                        part = transform(item)
-                        at = 0
+                item := match self.next():
+                    .Some(found) => found
                     .None => return .None
+                part = transform(item)
+                at = 0
             at = at + 1
             .Some(part[at - 1])
         )
