@@ -6,10 +6,12 @@
 
 use hd_base::{BuildProfile, Hash128, StableHasher};
 
+#[cfg(feature = "disk")]
+pub mod disk;
 pub mod store;
-pub use store::{
-    CacheStore, DiskStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry,
-};
+#[cfg(feature = "disk")]
+pub use disk::DiskStore;
+pub use store::{CacheStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry};
 
 /// The entry layout version (data-structures.md §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.

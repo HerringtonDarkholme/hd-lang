@@ -163,9 +163,7 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     assert_eq!(super::PIPELINE, pipeline);
     let dir = Scratch::new(SCRATCH, &format!("repl-pipeline-{}", unique()));
     let mut program = disk::load_session(&dir).expect("the session's scope");
-    let store = hd_cache::DiskStore {
-        root: crate::cache_dir(),
-    };
+    let store = crate::disk_store();
     crate::take_built();
     let prelude = super::build_prelude(&program, &store);
     let mut built = hd_driver::Session::start();

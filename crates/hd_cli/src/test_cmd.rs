@@ -12,7 +12,6 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Instant;
 
-use hd_cache::DiskStore;
 use hd_check::tests::PANIC_CATEGORIES;
 use hd_driver::{Executor, Goal, Host, TestCase};
 
@@ -26,7 +25,7 @@ use crate::affected;
 use crate::caps::CapFlag;
 use crate::engine::{CaseRun, HostCase, Snapshot, TestEnv, TestPrograms, TestSession};
 use crate::report::{self, Reporter};
-use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
+use crate::{HD_FAILURE, Wall, disk, fail};
 
 struct Options {
     file: Option<PathBuf>,
@@ -580,7 +579,7 @@ fn test_one(
             (t, doc)
         })
         .collect();
-    let store = DiskStore { root: cache_dir() };
+    let store = crate::disk_store();
     let clock = Wall(Instant::now());
     let executor = if o.jobs == 1 {
         Executor::Serial(hd_sched::SerialOrder::Priority)

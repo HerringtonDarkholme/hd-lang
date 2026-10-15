@@ -126,3 +126,5 @@ engine-unknown	cli.engine.flag,cli.engine.unknown,cli.engine.unknown.no-run,cli.
 panic-location	cli.file.run,cli.exit.program,cli.engine.same-behavior
 panic-run-location	cli.exit.program,cli.engine.same-behavior
 panic-fallback-note	cli.file.run,cli.exit.program,cli.engine.same-behavior
+cache-gc-outside-package	cli.cache.gc,cli.cache.gc.anywhere
+cache-gc-package	cli.cache.gc,cli.cache.gc.anywhere

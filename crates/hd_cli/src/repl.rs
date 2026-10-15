@@ -499,9 +499,7 @@ impl Repl {
             built: hd_driver::Session::start(),
             cwd,
             program,
-            store: DiskStore {
-                root: crate::cache_dir(),
-            },
+            store: crate::disk_store(),
             next: 0,
             texts: BTreeMap::new(),
             names,

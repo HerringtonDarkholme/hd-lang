@@ -1,0 +1,5 @@
+# hd cache gc works outside any package and reads no manifest, so an
+# empty directory is fine and nothing appears in it.
+run: hd cache gc
+no-file: hd.toml
+no-file: build

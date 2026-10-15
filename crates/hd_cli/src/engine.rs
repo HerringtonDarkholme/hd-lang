@@ -14,7 +14,6 @@
 
 use std::ffi::OsString;
 
-use hd_cache::DiskStore;
 use hd_driver::{EngineTarget, OptLevel};
 use hd_run::{HostSetup, Limits, Outcome, run_program};
 
@@ -291,9 +290,7 @@ pub(crate) fn run(
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
-            let store = DiskStore {
-                root: crate::cache_dir(),
-            };
+            let store = crate::disk_store();
             let _guest = crate::memory_cap::enter_guest();
             let node = crate::node::NodeEngine::default();
             let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;

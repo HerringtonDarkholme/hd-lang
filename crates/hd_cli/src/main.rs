@@ -6,6 +6,7 @@
 //! or wasmtime in-process with `--engine wasmtime`; `engine.rs`).
 
 mod affected;
+mod cache_cmd;
 mod caps;
 mod check_cmd;
 mod clean_cmd;
@@ -46,6 +47,7 @@ const USAGE: &str = "usage:
   hd doc [--private] [--out DIR] [--open] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
+  hd cache gc
   hd add [--dev] [--name NAME] TARGET[@QUERY]...
   hd update [NAME[@QUERY]]
   hd remove NAME
@@ -110,6 +112,9 @@ fn main() -> ExitCode {
             Ok(memory) => memory,
             Err(error) => return fail(&error),
         };
+        if let Err(error) = cache_cap() {
+            return fail(&error);
+        }
         let json = (0..arguments.len())
             .take_while(|i| arguments[*i] != "--")
             .filter_map(|i| report::format_flag(&arguments, i))
@@ -140,6 +145,7 @@ fn main() -> ExitCode {
         ("test", rest) => test_cmd::command(rest),
         ("new", rest) => new_cmd::command(rest),
         ("clean", rest) => clean_cmd::command(rest),
+        ("cache", rest) => cache_cmd::command(rest),
         ("add", rest) => dep_cmd::add(rest),
         ("update", rest) => dep_cmd::update(rest),
         ("remove", rest) => dep_cmd::remove(rest),
@@ -186,9 +192,8 @@ fn repl_command() -> ExitCode {
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
         "run" | "build" | "check" | "test" | "doc" => true,
-        "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt" => {
-            false
-        }
+        "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
+        | "cache" => false,
         _ => arguments
             .iter()
             .take_while(|a| *a != "--")
@@ -269,6 +274,26 @@ pub(crate) fn cache_root() -> PathBuf {
 /// directory.
 pub(crate) fn cache_dir() -> PathBuf {
     cache_root().join("obj")
+}
+
+/// The compiled entries' size cap (`cli.cache.obj.cap`): `HD_CACHE_MAX_SIZE`
+/// as a SIZE, else 10 GiB.
+pub(crate) fn cache_cap() -> Result<u64, String> {
+    match std::env::var_os("HD_CACHE_MAX_SIZE") {
+        None => Ok(hd_cache::disk::DEFAULT_CAP),
+        Some(value) => match value.to_str().map(engine::parse_size) {
+            Some(Ok(bytes)) => Ok(bytes),
+            Some(Err(error)) => Err(format!("HD_CACHE_MAX_SIZE: {error}")),
+            None => Err("HD_CACHE_MAX_SIZE is not a valid SIZE".to_owned()),
+        },
+    }
+}
+
+/// The store of the compiled entries under their cap. Dropping it records
+/// what it wrote and runs the bounded eviction (`cli.cache.obj.evict`).
+/// A command that compiles rejects an invalid cap before it gets here.
+pub(crate) fn disk_store() -> DiskStore {
+    DiskStore::new(cache_dir()).with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
 }
 
 /// The thread count (`cli.jobs.env`, `cli.jobs.default`): `HD_JOBS`, else
@@ -403,7 +428,7 @@ pub(crate) fn build_goal_in(
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
-    let store = DiskStore { root: cache_dir() };
+    let store = disk_store();
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],

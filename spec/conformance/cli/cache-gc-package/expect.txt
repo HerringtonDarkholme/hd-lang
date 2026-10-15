@@ -1,0 +1,7 @@
+# hd cache gc reads no manifest: it succeeds beside one that does not
+# parse, which stops hd check.
+run: hd cache gc
+no-file: build
+run: hd check
+exit: 101
+run: hd cache gc

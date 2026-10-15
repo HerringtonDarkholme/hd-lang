@@ -1,6 +1,7 @@
-//! The `CacheStore` interface, entry kinds, entry framing, the memory and
-//! disk stores, the stat manifest record and eviction (cache.md §5.2,
-//! §5.4, §5.5, §5.7, §5.8; data-structures.md §3.20).
+//! The `CacheStore` interface, entry kinds, entry framing, the memory
+//! store, the stat manifest record and the eviction plan (cache.md §5.2,
+//! §5.4, §5.5, §5.7, §5.8; data-structures.md §3.20). The disk store is in
+//! `disk.rs`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -364,41 +365,6 @@ pub fn plan_eviction(entries: &[EntryStat], budget: u64) -> Vec<EntryStat> {
         out.push(e);
     }
     out
-}
-
-/// The disk store's interface (feature `disk`): `<root>/<kind>/<shard>/<key>`,
-/// published by write-then-rename (§5.4). Only the disk feature touches
-/// the file system (design-overview.md §2.2 rule 3).
-pub struct DiskStore {
-    pub root: std::path::PathBuf,
-}
-
-impl DiskStore {
-    #[must_use]
-    pub fn path(&self, kind: EntryKind, key: &Hash128) -> std::path::PathBuf {
-        self.root
-            .join(kind.as_str())
-            .join(format!("{:02x}", shard_of(*key)))
-            .join(format!("{:032x}", key.0))
-    }
-}
-
-#[cfg(feature = "disk")]
-impl CacheStore for DiskStore {
-    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-        std::fs::read(self.path(kind, key)).ok().map(Arc::from)
-    }
-    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-        let path = self.path(kind, key);
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let tmp = path.with_extension(format!("tmp{}", std::process::id()));
-        if std::fs::write(&tmp, bytes).is_ok() {
-            let _ = std::fs::rename(&tmp, &path);
-        }
-    }
-    fn touch(&self, _: EntryKind, _: &Hash128) {}
 }
 
 /// Verify mode (§5.6): recompute an entry and compare it with the stored one.

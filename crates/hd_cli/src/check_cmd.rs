@@ -9,7 +9,6 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use hd_cache::DiskStore;
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
@@ -17,7 +16,7 @@ use crate::memory_cap::build_packages;
 use hd_project::{ModuleTable, Role, role_of};
 
 use crate::report::{self, Diag, Summary};
-use crate::{HD_FAILURE, Wall, cache_dir, disk, executor, fail, package_of_cwd};
+use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
 
 /// What `hd check` was asked for.
 struct Options {
@@ -205,7 +204,7 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
     } else {
         Goal::Analyze
     };
-    let store = DiskStore { root: cache_dir() };
+    let store = crate::disk_store();
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],

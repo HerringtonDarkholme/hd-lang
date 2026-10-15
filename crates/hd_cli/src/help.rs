@@ -267,7 +267,11 @@ const COMMANDS: &[Command] = &[
         name: "cache gc",
         summary: "evict compiled entries down to the size cap",
         usage: "hd cache gc",
-        about: &["Evict entries of the compiled cache down to its size cap."],
+        about: &[
+            "Evict the least recently used entries of the compiled cache down to its",
+            "size cap, and print its size before and after. The cap is 10 GiB, or",
+            "HD_CACHE_MAX_SIZE as a SIZE. Works anywhere; reads no manifest.",
+        ],
         flags: &[],
     },
     Command {

@@ -4,6 +4,7 @@
 //! CONFORMANCE.md and runs its own worker pool.
 
 mod affected;
+mod cache_gc;
 mod check_cmd;
 mod dbg;
 mod deps;

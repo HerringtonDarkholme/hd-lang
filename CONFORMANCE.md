@@ -2943,7 +2943,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 127 | 0 | 0 | 127 |
+| 129 | 0 | 0 | 129 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -2953,6 +2953,8 @@ cli/ambiguous-import
 cli/build-instantiation-too-deep
 cli/build-library-only
 cli/build-output
+cli/cache-gc-outside-package
+cli/cache-gc-package
 cli/cap-env-notice
 cli/cap-flag-overrides-table
 cli/cap-partial-deny
