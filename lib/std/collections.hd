@@ -652,10 +652,11 @@ impl[T < Eq & Hash] Set[T]:
     ## Adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
     ## See [std-collections.set.insert](../../spec/std/collections.md#r-std-collections.set.insert).
     pub fn insert(mut self, value: T) -> bool:
-        if self.contains(value):
-            return false
+        # One probe: an equal element keeps its entry and its place, so the
+        # map grows exactly when the element was new.
+        before := self.entries.len()
         self.entries[value] = true
-        true
+        self.entries.len() > before
 
     # Removes `value`, and is true when it was there.
     ## Removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
