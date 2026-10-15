@@ -139,6 +139,31 @@ const fsFail = (e, path, err) => {
         .str(String(err?.message ?? err))
     : fsErr(e, path, v);
 };
+// Windows reports a path below a file as ENOENT, or as ENOTDIR on some
+// libuv paths, so the code is not stable there. A failed open whose nearest
+// existing ancestor is not a directory is `NotADirectory`
+// (std-fs.memory.error.not-directory); a missing ancestor chain stays
+// `NotFound`. The Rust host's `below_a_file` walks the same way.
+const opening = (path, open) => {
+  try {
+    return open();
+  } catch (err) {
+    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
+      for (let up = dirname(path); ; up = dirname(up)) {
+        let st;
+        try {
+          st = statSync(up);
+        } catch {
+          if (dirname(up) === up) break;
+          continue;
+        }
+        if (!st.isDirectory()) throw Object.assign(err, { code: "ENOTDIR" });
+        break;
+      }
+    }
+    throw err;
+  }
+};
 // An `Entry`: path, kind, size.
 const entry = (e, path, st) => {
   const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
@@ -450,9 +475,11 @@ function envImports({ grant, sink, st, flush, put, text }) {
 function fsImports({ fsOp }) {
   return {
     "hd:FsRead": waiting({
-      read_bytes: fsOp("FsRead", one, (e, [p]) => e.leb(0).bytes(readFileSync(p))),
+      read_bytes: fsOp("FsRead", one, (e, [p]) =>
+        e.leb(0).bytes(opening(p, () => readFileSync(p))),
+      ),
       read_text: fsOp("FsRead", one, (e, [p]) => {
-        const bytes = readFileSync(p);
+        const bytes = opening(p, () => readFileSync(p));
         let s;
         try {
           s = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -464,7 +491,9 @@ function fsImports({ fsOp }) {
       // The entries in the byte order of their names; each path is the
       // directory's, `/`, and the name (as `MemoryFs` lists them).
       list_dir: fsOp("FsRead", one, (e, [p]) => {
-        const names = readdirSync(p).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+        const names = opening(p, () => readdirSync(p)).sort((a, b) =>
+          Buffer.compare(Buffer.from(a), Buffer.from(b)),
+        );
         const under = p.endsWith("/") ? p : `${p}/`;
         const found = [];
         for (const n of names) {
@@ -489,15 +518,15 @@ function fsImports({ fsOp }) {
     }),
     "hd:FsWrite": waiting({
       write_bytes: fsOp("FsWrite", one, (e, [p], d) => {
-        writeFileSync(p, d.bytes());
+        opening(p, () => writeFileSync(p, d.bytes()));
         e.leb(0);
       }),
       write_text: fsOp("FsWrite", one, (e, [p], d) => {
-        writeFileSync(p, d.bytes());
+        opening(p, () => writeFileSync(p, d.bytes()));
         e.leb(0);
       }),
       append_text: fsOp("FsWrite", one, (e, [p], d) => {
-        appendFileSync(p, d.bytes());
+        opening(p, () => appendFileSync(p, d.bytes()));
         e.leb(0);
       }),
       create_dir_all: fsOp("FsWrite", one, (e, [p]) => {

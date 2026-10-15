@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::codec::Enc;
 
 use super::api::{Failure, check_deadline, entry, error};
-use super::io::{open, read, write};
+use super::io::{below_a_file, open, read, write};
 use crate::limits::Reservation;
 
 /// A guest path against the case's directory. An empty argument stays
@@ -79,7 +79,9 @@ pub(crate) fn run(
             // Incremental heap ordering allows checks during ordering, not just
             // around one potentially large, uncancellable sort operation.
             let mut names = std::collections::BinaryHeap::new();
-            for item in fs::read_dir(&actual).map_err(|err| Failure::new("scandir", err))? {
+            let entries = fs::read_dir(&actual)
+                .map_err(|err| Failure::new("scandir", below_a_file(&actual, err)))?;
+            for item in entries {
                 check_deadline(deadline)?;
                 let item = item.map_err(|err| Failure::new("scandir", err))?;
                 names.push(std::cmp::Reverse(
@@ -297,6 +299,10 @@ mod tests {
         }
         assert_eq!(
             invoke("write_text", &below, Some(b"no")).done(),
+            error(&below, 4).done()
+        );
+        assert_eq!(
+            invoke("list_dir", &below, None).done(),
             error(&below, 4).done()
         );
     }

@@ -25,6 +25,7 @@ fn fs_read_all_methods_binary_text_entries_and_errors() {
     fs::write(&bad, [0xff, 0xfe]).unwrap();
     let missing = scratch.at("absent");
     let notdir = file.join("child");
+    let deep_missing = missing.join("a/b");
     let mut p = Program::new();
     p.call(
         "hd:FsRead",
@@ -100,6 +101,15 @@ fn fs_read_all_methods_binary_text_entries_and_errors() {
         fs_error(&notdir, 4),
     );
     p.call("hd:FsRead", "read_bytes", one(&dir), fs_error(&dir, 5));
+    // Below a file is NotADirectory; below a missing chain is NotFound.
+    p.call("hd:FsRead", "read_text", one(&notdir), fs_error(&notdir, 4));
+    p.call("hd:FsRead", "list_dir", one(&notdir), fs_error(&notdir, 4));
+    p.call(
+        "hd:FsRead",
+        "read_bytes",
+        one(&deep_missing),
+        fs_error(&deep_missing, 0),
+    );
     assert_program(&scratch, p, vec![], || {});
 }
 
@@ -171,6 +181,22 @@ fn fs_write_all_methods_success_and_os_errors() {
         "write_text",
         Enc::default().str(path(&area)).str("no").0,
         fs_error(&area, 5),
+    );
+    let below = binary.join("child");
+    for method in ["write_bytes", "write_text", "append_text"] {
+        p.call(
+            "hd:FsWrite",
+            method,
+            Enc::default().str(path(&below)).str("no").0,
+            fs_error(&below, 4),
+        );
+    }
+    let deep = missing.join("a/b");
+    p.call(
+        "hd:FsWrite",
+        "write_text",
+        Enc::default().str(path(&deep)).str("no").0,
+        fs_error(&deep, 0),
     );
     p.call(
         "hd:FsWrite",

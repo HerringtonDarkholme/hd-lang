@@ -148,7 +148,7 @@ pub(crate) fn open(
 /// `std-fs.memory.error.not-directory`). When the open found nothing and
 /// the nearest existing ancestor is not a directory, say so.
 #[cfg(windows)]
-fn below_a_file(path: &Path, err: std::io::Error) -> std::io::Error {
+pub(crate) fn below_a_file(path: &Path, err: std::io::Error) -> std::io::Error {
     if err.kind() == ErrorKind::NotFound
         && path
             .ancestors()
@@ -162,7 +162,7 @@ fn below_a_file(path: &Path, err: std::io::Error) -> std::io::Error {
 }
 
 #[cfg(not(windows))]
-fn below_a_file(_: &Path, err: std::io::Error) -> std::io::Error {
+pub(crate) fn below_a_file(_: &Path, err: std::io::Error) -> std::io::Error {
     err
 }
 
