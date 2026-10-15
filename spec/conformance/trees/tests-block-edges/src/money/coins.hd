@@ -1,0 +1,6 @@
+use pkg.ledger.{total}
+
+base := total() - 3 + 100
+
+pub fn cents() -> i32:
+    base

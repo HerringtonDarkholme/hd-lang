@@ -102,11 +102,9 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   folder reachable from it through the folder graph's use edges. A
   role-`test` `check_key` uses `test_closure(m)`, which adds every folder
   that test code reaches, dev dependencies included. So each key lists
-  every folder whose impls its check can see. Implementation differs: one
-  closure serves both roles, and a `tests:` block's uses into other
-  packages join it for both; its uses of the same package make no edge.
-  Not judged: whether a same-package test-only use always lands in the
-  key needs checking.
+  every folder whose impls its check can see. A `tests:` block's uses,
+  of the same package or another, make no folder edge
+  (`module.cycle.test-code`), so they never widen `closure(m)`.
 - **Interface reach, not import reach.** A folder's `deep_hash` folds its
   own `api_hash` and the deep hashes of the folders its interface
   mentions (§4.11.3), and `iface_key(F)` should name the same set:

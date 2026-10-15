@@ -21,9 +21,12 @@ pub(crate) struct FileSkim {
     pub(crate) token_hash: Hash128,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
     pub(crate) code_lines: Vec<u32>,
-    /// The byte range of each `use` line (`HeaderSkeleton::uses`).
+    /// The byte range of each `use` line outside a `tests:` block
+    /// (`HeaderSkeleton::uses`): the uses that make folder edges.
     pub(crate) use_lines: Vec<(u32, u32)>,
-    /// The path of each `use` line of a `tests:` block, as written.
+    /// The path of each `use` line of a `tests:` block, as written. Test
+    /// code makes no folder edge (`module.cycle.test-code`); these widen
+    /// only the test role's closure.
     pub(crate) test_uses: Vec<String>,
     pub(crate) has_tests_block: bool,
     /// The header span of a top-level `pub fn main` or `main!`, which
@@ -38,6 +41,7 @@ impl FileSkim {
     pub(crate) fn of(text: &str) -> FileSkim {
         let sk = skim(text.as_bytes());
         let tests = || sk.bodies.iter().filter(|b| b.kind == HeaderKind::Tests);
+        let in_tests = |at: u32| tests().any(|b| (b.body_start..b.body_end).contains(&at));
         let mut test_uses = Vec::new();
         for b in tests() {
             let block = text
@@ -72,7 +76,12 @@ impl FileSkim {
             public_main: main_header(true),
             private_main: main_header(false),
             code_lines: sk.code_lines,
-            use_lines: sk.uses,
+            use_lines: sk
+                .uses
+                .iter()
+                .copied()
+                .filter(|&(lo, _)| !in_tests(lo))
+                .collect(),
             test_uses,
         }
     }
@@ -265,6 +274,14 @@ mod tests {
         let s = FileSkim::of(text);
         assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
         assert_eq!(s.test_uses, ["pkg.other"]);
+        // The block's `use` line is no folder-edge line.
+        let lines: Vec<&str> = s
+            .use_lines
+            .iter()
+            .map(|&(lo, hi)| &text[lo as usize..hi as usize])
+            .filter(|l| l.starts_with("use "))
+            .collect();
+        assert_eq!(lines, ["use std.text"]);
         let mut w = Writer::default();
         s.write(&mut w);
         let mut r = Reader::new(&w.bytes);

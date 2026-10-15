@@ -900,3 +900,68 @@ fn test_code_uses_reach_the_test_check_keys() {
         assert!(located.contains("src/ledger_test.hd:5:"), "{located}");
     }
 }
+
+fn analyze_run(store: &MemoryStore, src: &MemorySources, executor: Executor) -> Output {
+    let host = Host {
+        render_tir: &[],
+        sources: src,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    build(&host, "shop", &Goal::Analyze)
+}
+
+/// A `tests:` block's use makes no folder edge (#276,
+/// `module.cycle.test-code`): `ledger`'s block uses `money.coins`, which
+/// uses `ledger`, and neither role reports a folder cycle. The use widens
+/// only the test role's closure: an API edit of `money.coins` keeps
+/// `shop.ledger`'s library `check` key, so `hd check` rechecks only
+/// `money.coins`, while the test-role key changes and the test run
+/// rechecks `shop.ledger` too.
+#[test]
+fn a_tests_block_use_widens_only_the_test_role_closure() {
+    const COINS: &str = "use pkg.ledger.{total}\n\npub fn cents() -> i32:\n    total() - 3 + 100\n";
+    let sources = |coins: &str| {
+        let mut s = MemorySources::default();
+        s.insert("src/ledger.hd", LEDGER);
+        s.insert("src/money/coins.hd", coins);
+        s
+    };
+    let own = |r: &Output| -> Vec<String> {
+        r.counters
+            .modules_checked
+            .iter()
+            .filter(|m| m.starts_with("shop."))
+            .cloned()
+            .collect()
+    };
+    let key = |r: &Output| r.counters.check_keys.get("shop.ledger").copied();
+    let api = format!("{COINS}\npub fn dimes() -> i32:\n    10\n");
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let lib = analyze_run(&store, &sources(COINS), executor);
+        assert!(lib.diags.is_empty(), "{}", lib.render());
+        let test = test_run(&store, &sources(COINS), executor);
+        assert!(test.diags.is_empty(), "{}", test.render());
+        assert_eq!(test.tests.len(), 1, "{executor:?}");
+        assert!(
+            key(&lib).is_some() && key(&lib) != key(&test),
+            "{executor:?}"
+        );
+
+        let lib_api = analyze_run(&store, &sources(&api), executor);
+        assert!(lib_api.diags.is_empty(), "{}", lib_api.render());
+        assert_eq!(key(&lib_api), key(&lib), "{executor:?}");
+        assert_eq!(own(&lib_api), ["shop.money.coins"], "{executor:?}");
+
+        let test_api = test_run(&store, &sources(&api), executor);
+        assert!(test_api.diags.is_empty(), "{}", test_api.render());
+        assert_ne!(key(&test_api), key(&test), "{executor:?}");
+        assert_eq!(
+            own(&test_api),
+            ["shop.ledger", "shop.money.coins"],
+            "{executor:?}"
+        );
+    }
+}

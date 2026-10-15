@@ -75,12 +75,8 @@ owns what each task does.
   ordinary role and `test_closure(m)` for the test role, with test-only
   uses added (crates/hd_cache/DESIGN.md §5.3). The role's `check` entry
   holds the `tests:` block's items; there is no `TestOverlay` task.
-  - Implementation differs: there is one closure per module, and a
-    `tests:` block's uses into other packages (dev dependencies,
-    `std.testing`) join it for both roles; its uses of the same package
-    make no edge. Not judged: one closure is simpler and sound for other
-    packages, but whether a same-package test-only use is always in the
-    key needs checking.
+  A `tests:` block's uses make no folder edge, so the test role's
+  `ModulePrep(m)` waits for the interfaces of `test_closure(m)`.
   - Implementation differs: a `TestOverlay(m)` task is still created per
     module and checks nothing, which is worse: a dead task per module.
 - **Cache checks are tasks too.** A key can be computed only when the

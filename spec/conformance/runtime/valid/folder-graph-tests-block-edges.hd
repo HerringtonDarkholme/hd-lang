@@ -1,0 +1,13 @@
+# test: a use in a tests: block makes no folder edge, so the block may use a folder that uses its own
+# Spec 10 Folder Graph: module.cycle.test-code (Dependency Cycles DC6, DC11).
+# Spec 10 Entry Behavior: module.init.tests (the test run initializes `money.coins`).
+# fixture-package-tree: tests-block-edges/src/ledger.hd
+pub fn total() -> i32:
+    3
+
+tests:
+    use pkg.money.coins.{cents}
+    use std.testing.assert_equal
+
+    it("adds cents"):
+        assert_equal(total() + cents(), 103, reason="coins uses ledger.total")

@@ -1417,6 +1417,7 @@ typing/valid/folder-cycle-leaf-folder.hd	type	accept	lang/10-modules.md#folder-g
 typing/valid/folder-loop-within-folder.hd	type	accept	lang/10-modules.md#r-module.cycle.within-folder
 typing/invalid/folder-cycle-nested.hd	type	reject:folder-cycle	lang/10-modules.md#r-module.cycle.nested
 runtime/valid/folder-graph-test-edges.hd	runtime	accept	lang/10-modules.md#r-module.cycle.test-code
+runtime/valid/folder-graph-tests-block-edges.hd	runtime	accept	lang/10-modules.md#r-module.cycle.test-code
 typing/valid/pub-use-chain.hd	type	accept	lang/10-modules.md#r-module.pub-use.chain
 typing/invalid/pub-use-loop.hd	type	reject:re-export-loop	lang/10-modules.md#r-module.pub-use.chain.loop
 runtime/valid/init-group-order.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.step

@@ -428,8 +428,9 @@ pub struct Output {
     /// dependency's file (`<std>/serde.hd`) is not in the root package's
     /// sources, so positions are located in this text.
     pub texts: Vec<Arc<str>>,
-    /// Per file, the files of the modules its `use`s reach (from the
-    /// skims this run made; empty for a file it did not skim).
+    /// Per file, the files of the modules its `use`s reach, its `tests:`
+    /// block's included (from the skims this run made; empty for a file it
+    /// did not skim).
     pub uses: Vec<Vec<usize>>,
     /// Per file, its module's path.
     pub modules: Vec<String>,
@@ -590,7 +591,13 @@ fn main_visibility(header: &str) -> Option<bool> {
 struct SkimOut {
     /// The text's own skim.
     file: Arc<skims::FileSkim>,
+    /// The module paths its library code uses: its folder edges and
+    /// `closure(m)`.
     uses: Vec<String>,
+    /// The module paths only its `tests:` block uses, which make no folder
+    /// edge (`module.cycle.test-code`) and widen only the test role's
+    /// closure ([`Run::module_closure`]).
+    test_uses: Vec<String>,
     facts: ModuleFacts,
 }
 
@@ -735,7 +742,7 @@ struct CollectOut {
 
 /// Module `m`'s skim: its text's skim `file`, with the module paths it
 /// uses, `session` among them, the session modules of a REPL input
-/// ([`session_uses`]).
+/// ([`session_uses`]), and apart the paths its `tests:` block uses.
 fn skim_module(
     table: &ModuleTable,
     m: usize,
@@ -746,34 +753,28 @@ fn skim_module(
     let module = &table.modules[m].path;
     let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
     let mut uses = written_uses(text, &file.use_lines, &roots);
-    // A `tests:` block's uses into another package, such as a dev
+    // A `tests:` block's uses, of this package or another, such as a dev
     // dependency (`module.test.dev-dependency.in-tests`): the block is
-    // checked with its module, so their folders join its closure. They
-    // cannot close a folder cycle of this package, unlike its uses of
-    // this package, which make no edge (`module.cycle.test-code`).
-    let package = table.modules[m].package;
-    for path in &file.test_uses {
-        let segs: Vec<&str> = path.split('.').collect();
-        if let Ok(abs) = roots.absolute_in_tests(&segs) {
-            let abs = abs.join(".");
-            let other = table
-                .module_of_use(&abs)
-                .is_some_and(|t| table.modules[t.idx()].package != package);
-            if other {
-                uses.push(abs);
-            }
-        }
-    }
+    // test code, so they make no folder edge (`module.cycle.test-code`).
+    // The block is checked with its module in the test role, whose
+    // closure they join.
+    let mut test_uses = written_test_uses(&file.test_uses, &roots);
     // Test code has the prelude's `std.testing` row
     // (`module.prelude.test-only`), and its test cases run bodies of
     // `std.testing` (`case_timeout` for a `timeout`), so that folder
-    // joins its closure; std's own test code makes no such edge.
-    let test_code = table.modules[m].role == hd_project::Role::Test || file.has_tests_block;
+    // joins its closure; std's own test code makes no such edge. A test
+    // module is test code as a whole, in a folder no library code uses;
+    // a `tests:` block is test code only in the test role.
+    let package = table.modules[m].package;
     let testing_elsewhere = table
         .module_of_use("std.testing")
         .is_some_and(|t| table.modules[t.idx()].package != package);
-    if test_code && testing_elsewhere {
-        uses.push("std.testing".to_owned());
+    if testing_elsewhere {
+        if table.modules[m].role == hd_project::Role::Test {
+            uses.push("std.testing".to_owned());
+        } else if file.has_tests_block {
+            test_uses.push("std.testing".to_owned());
+        }
     }
     // A REPL input sees `src/lib.hd`, once its session holds it, and the
     // earlier inputs through its session scope, so their folders join its
@@ -790,7 +791,12 @@ fn skim_module(
         path: table.modules[m].path.clone(),
         has_tests_block: file.has_tests_block,
     };
-    SkimOut { file, uses, facts }
+    SkimOut {
+        file,
+        uses,
+        test_uses,
+        facts,
+    }
 }
 
 /// The roots a program's exports poll.
@@ -1686,6 +1692,7 @@ fn build_packages_inner(
             s.get().map_or_else(Vec::new, |s| {
                 s.uses
                     .iter()
+                    .chain(&s.test_uses)
                     .filter_map(|u| run.table.module_of_use(u))
                     .map(|m| run.table.modules[m.idx()].file.idx())
                     .collect()
@@ -1809,6 +1816,19 @@ fn written_uses(text: &str, lines: &[(u32, u32)], roots: &hd_project::UseRoots) 
         }
     }
     uses
+}
+
+/// The module paths a `tests:` block's `use` lines name (`test_uses`, as
+/// written), their roots replaced as test code resolves them, dev
+/// dependencies included.
+fn written_test_uses(paths: &[String], roots: &hd_project::UseRoots) -> Vec<String> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let segs: Vec<&str> = path.split('.').collect();
+            roots.absolute_in_tests(&segs).ok().map(|abs| abs.join("."))
+        })
+        .collect()
 }
 
 /// The module paths a file's `use` lines name with their line spans, as
@@ -2066,7 +2086,10 @@ pub fn has_tests_block(text: &str) -> bool {
 /// The files of a package that the module of `file` reaches through its
 /// `use` lines, deeply, `file` first: the part of the package that
 /// `hd test FILE` and `hd check FILE` link with FILE's module
-/// (`cli.package.file`). Only discovery and skims run, no check.
+/// (`cli.package.file`), and that `hd test --affected` maps an edit back
+/// through. A `tests:` block's uses count, though they make no folder
+/// edge: its cases read those modules. Only discovery and skims run, no
+/// check.
 #[must_use]
 pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<String> {
     let table = ModuleTable::discover_all(&[PackageIn {
@@ -2094,8 +2117,13 @@ pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<St
             .map(|b| String::from_utf8_lossy(&b).into_owned())
             .unwrap_or_default();
         let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-        for u in written_uses(&text, &skim(text.as_bytes()).uses, &roots) {
-            if let Some(id) = table.module_of_use(&u) {
+        let file = skims::FileSkim::of(&text);
+        let uses = written_uses(&text, &file.use_lines, &roots);
+        for u in uses
+            .iter()
+            .chain(&written_test_uses(&file.test_uses, &roots))
+        {
+            if let Some(id) = table.module_of_use(u) {
                 stack.push(id.idx());
             }
         }
@@ -2583,7 +2611,7 @@ impl Run<'_> {
         if !self.analyze() {
             for (m, module) in self.table.modules.iter().enumerate() {
                 if module.package == 0 && builds_module(m) {
-                    reached.union(&g.closure[module.folder.idx()]);
+                    reached.union(&self.module_closure_in(g, m));
                 }
             }
         }
@@ -2595,7 +2623,10 @@ impl Run<'_> {
             {
                 continue;
             }
-            let deps: Vec<TaskId> = g.closure[module.folder.idx()]
+            // In the test role, `test_closure(m)`: its `tests:` block's
+            // lowering and check read those interfaces too.
+            let deps: Vec<TaskId> = self
+                .module_closure_in(g, m)
                 .iter()
                 .filter_map(|c| iface_task[c.idx()])
                 .collect();
@@ -2637,6 +2668,32 @@ impl Run<'_> {
             .get()
             .map(|g| g.graph.closure[folder.idx()].iter().collect())
             .unwrap_or_default()
+    }
+
+    /// The folders module `m`'s check reads, in folder order: in the test
+    /// role `test_closure(m)`, its folder's closure joined with the
+    /// closure of each module its `tests:` block uses; else `closure(m)`
+    /// (`crates/hd_cache/DESIGN.md` §5.3). A `tests:` block's use makes no
+    /// folder edge (`module.cycle.test-code`), so only this widens to it.
+    fn module_closure(&self, m: usize) -> Vec<FolderId> {
+        self.graph
+            .get()
+            .map(|g| self.module_closure_in(&g.graph, m).iter().collect())
+            .unwrap_or_default()
+    }
+
+    /// [`Self::module_closure`] over `graph`, as a set.
+    fn module_closure_in(&self, graph: &FolderGraph, m: usize) -> hd_project::FolderSet {
+        let folder = self.table.modules[m].folder;
+        let mut set = graph.closure[folder.idx()].clone();
+        if self.role(m) == "test" {
+            for u in &self.skim_of(m).test_uses {
+                if let Some(t) = self.table.module_of_use(u) {
+                    set.union(&graph.closure[self.table.modules[t.idx()].folder.idx()]);
+                }
+            }
+        }
+        set
     }
 
     fn iface_of(&self, f: FolderId) -> Option<Arc<FolderIface>> {
@@ -3765,7 +3822,7 @@ impl Run<'_> {
         let module = &self.table.modules[m];
         let templates = self.template_sources(m)?;
         let mut closure = Vec::new();
-        for c in self.closure(module.folder) {
+        for c in self.module_closure(m) {
             closure.push((
                 self.table.folders[c.idx()].path.as_str(),
                 self.iface_of(c)?.deep_hash,
@@ -3819,7 +3876,7 @@ impl Run<'_> {
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
         let text = &self.texts[m];
         let opts_in = text.contains("derive") || text.contains("Structure");
-        self.template_hashes(self.table.modules[m].folder, opts_in)
+        self.template_hashes(&self.module_closure(m), opts_in)
     }
 
     /// The source hashes of the user tuple-template modules in
@@ -3830,15 +3887,18 @@ impl Run<'_> {
     /// modules' text is all that is missing. std's templates are in the
     /// toolchain key.
     fn tuple_template_sources(&self, folder: FolderId) -> Option<Vec<(String, Hash128)>> {
-        self.template_hashes(folder, false)
+        self.template_hashes(&self.closure(folder), false)
     }
 
-    /// The source hashes of the user template modules in
-    /// `closure(folder)`: every derivation template with `opts_in`, the
-    /// tuple templates always.
-    fn template_hashes(&self, folder: FolderId, opts_in: bool) -> Option<Vec<(String, Hash128)>> {
+    /// The source hashes of the user template modules in `closure`: every
+    /// derivation template with `opts_in`, the tuple templates always.
+    fn template_hashes(
+        &self,
+        closure: &[FolderId],
+        opts_in: bool,
+    ) -> Option<Vec<(String, Hash128)>> {
         let mut out = std::collections::BTreeMap::new();
-        for c in self.closure(folder) {
+        for &c in closure {
             let iface = self.iface_of(c)?;
             let paths = self.folder_templates[c.idx()].get_or_init(|| {
                 let names = self.names();
@@ -4062,7 +4122,7 @@ impl Run<'_> {
             return;
         };
         let module = &self.table.modules[m];
-        let closure = self.closure(module.folder);
+        let closure = self.module_closure(m);
         let ifaces: Vec<Arc<FolderIface>> =
             closure.iter().filter_map(|f| self.iface_of(*f)).collect();
         // A REPL input also sees `src/lib.hd`'s private items
@@ -5368,8 +5428,7 @@ impl Run<'_> {
                     .flatten()
             })
             .as_ref()?;
-        let module = &self.table.modules[m];
-        let mut closure = self.closure(module.folder);
+        let mut closure = self.module_closure(m);
         for fo in self.closure(self.table.modules[tm].folder) {
             if !closure.contains(&fo) {
                 closure.push(fo);
@@ -6289,7 +6348,7 @@ impl Run<'_> {
         // providers.
         let mut own: Vec<DefId> = Vec::new();
         for m in &root_modules {
-            let defs = match self.group_init_order(m, &init_of, &has_init) {
+            let defs = match self.root_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
                 Err(e) => {
                     self.stage::<()>(Stage::Collect, Err(e));
@@ -6684,6 +6743,38 @@ impl Run<'_> {
             }
             _ => Some((rt("entry_status_display"), args)),
         }
+    }
+
+    /// The init bodies a program root module `entry` reaches
+    /// ([`Self::group_init_order`]). A test run also initializes the
+    /// modules its `tests:` block uses (`module.init.tests`), each after
+    /// the bodies before it, since those uses make no edge of the use
+    /// graph (`module.cycle.test-code`).
+    fn root_init_order(
+        &self,
+        entry: &str,
+        init_of: &dyn Fn(&str) -> DefId,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<Vec<(DefId, &str)>> {
+        let mut defs = self.group_init_order(entry, init_of, has_init)?;
+        let Some(m) = self.table.module(entry).map(ModuleId::idx) else {
+            return Ok(defs);
+        };
+        if !matches!(self.goal, Goal::Tests { .. }) || self.role(m) != "test" {
+            return Ok(defs);
+        }
+        for u in &self.skim_of(m).test_uses {
+            let Some(t) = self.table.module_of_use(u) else {
+                continue;
+            };
+            let path = self.table.modules[t.idx()].path.as_str();
+            for (d, module) in self.group_init_order(path, init_of, has_init)? {
+                if !defs.iter().any(|(e, _)| *e == d) {
+                    defs.push((d, module));
+                }
+            }
+        }
+        Ok(defs)
     }
 
     /// The init bodies the entry module reaches, in initialization order
