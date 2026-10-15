@@ -23,8 +23,8 @@ fn report(out: &mut String, label: &str, c: &Counters, total_ns: u64) {
     let _ = writeln!(out, "   graph parts computed {:?}", c.parts_computed);
     let _ = writeln!(
         out,
-        "   modules checked {:?}, interfaces built {:?}, TIR decoded {:?}, emitted {}",
-        c.modules_checked, c.ifaces_built, c.tir_decoded, c.emitted
+        "   modules checked {:?}, interfaces built {:?}, TIR decoded {:?} ({} bodies), emitted {}",
+        c.modules_checked, c.ifaces_built, c.tir_decoded, c.bodies_decoded, c.emitted
     );
     let mut times: Vec<_> = c.stage_ns.iter().collect();
     times.sort_by_key(|(_, d)| std::cmp::Reverse(**d));

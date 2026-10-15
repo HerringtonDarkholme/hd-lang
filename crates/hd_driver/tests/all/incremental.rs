@@ -686,7 +686,8 @@ fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel)
 /// `core.util` rebuilds its importers' interfaces and rechecks them,
 /// plus `app.main`, whose key lists its whole use closure because it can
 /// see the impls of every folder there (cache.md §5.3). Every
-/// incremental build's Wasm equals a clean build's.
+/// incremental build's Wasm equals a clean build's, and its relink
+/// decodes only the TIR bodies collection reaches.
 #[test]
 fn a_body_edit_rechecks_one_module_and_a_signature_edit_its_importers() {
     use hd_driver::OptLevel;
@@ -720,6 +721,16 @@ fn a_body_edit_rechecks_one_module_and_a_signature_edit_its_importers() {
         let [leaf, body, closure, sig] = &runs[..] else {
             unreachable!("four edits")
         };
+        // Every relink decodes only the bodies collection reaches, not
+        // every module's: no std module the program never calls.
+        for c in [leaf, body, closure, sig] {
+            assert!(c.bodies_decoded > 0, "{level:?}");
+            assert!(
+                !c.tir_decoded.iter().any(|m| m == "std.json"),
+                "{level:?}: {:?}",
+                c.tir_decoded
+            );
+        }
         // (a) and (b): one module, no interface, only the edited instances.
         assert_eq!(own(leaf), vec!["fan.f1.leaf".to_owned()], "{level:?}");
         assert_eq!(own(body), core, "{level:?}");

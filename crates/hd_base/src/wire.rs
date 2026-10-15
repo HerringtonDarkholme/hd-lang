@@ -108,6 +108,11 @@ impl<'a> Reader<'a> {
     pub fn at_end(&self) -> bool {
         self.pos == self.bytes.len()
     }
+    /// How many bytes have been read: where the next field starts.
+    #[must_use]
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
 }
 
 #[cfg(test)]

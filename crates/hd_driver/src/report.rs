@@ -89,8 +89,11 @@ pub struct Counters {
     pub modules_checked: Vec<String>,
     pub ifaces_built: Vec<String>,
     pub parsed: Vec<String>,
-    /// Modules whose TIR was decoded from their `check` entry.
+    /// Modules whose TIR was decoded from their `check` entry, each once.
     pub tir_decoded: Vec<String>,
+    /// How many TIR bodies were decoded: only the ones collection and
+    /// emission reach (#49).
+    pub bodies_decoded: usize,
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,
@@ -128,5 +131,6 @@ impl Counters {
         self.ifaces_built.sort();
         self.parsed.sort();
         self.tir_decoded.sort();
+        self.tir_decoded.dedup();
     }
 }

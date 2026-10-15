@@ -659,22 +659,36 @@ struct ProgramTables {
     recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
 }
 
-/// The program's TIR bodies ([`Run::body_of`]). An earlier REPL input's
-/// are decoded on first use: its init ran in its own build, so a later
-/// input reads its bodies only for an instance no earlier input holds,
-/// and a build does not decode the whole session.
+/// The program's TIR bodies ([`Run::body_of`]), by item. Each is decoded
+/// on first use: collection reaches a small part of the program (most of
+/// std is never called), and a relink after an edit would otherwise
+/// decode every body of every module again (#49). An earlier REPL input's
+/// bodies are read the same way, so a build does not decode the session.
 struct Bodies {
-    eager: HashMap<DefId, (Body, Hash128)>,
-    /// Per earlier input the session holds, by its module's path node:
-    /// the module, and its bodies once decoded.
-    kept: HashMap<hd_base::PathId, (usize, KeptBodies)>,
-    /// The earlier inputs that derive for a type another module of the
-    /// session declares: their bodies include hidden methods under that
-    /// type's path, which its own module's entry does not hold.
-    deriving: Vec<hd_base::PathId>,
+    /// By the item's path hash, which a `check` entry stores with each
+    /// body: indexing interns nothing.
+    all: HashMap<Hash128, LazyBody>,
+    /// Set when a body's bytes did not decode: `Collect` then fails as a
+    /// module whose entry did not decode.
+    bad: std::sync::atomic::AtomicBool,
 }
 
-type KeptBodies = OnceLock<HashMap<DefId, (Body, Hash128)>>;
+/// One body: where its wire bytes are, and the body once decoded.
+struct LazyBody {
+    /// The module, its `check` entry, and the body's bytes in it; `None`
+    /// for a body built in this run (a module cycle's init run).
+    wire: Option<(usize, Arc<[u8]>, std::ops::Range<usize>)>,
+    body: OnceLock<Option<(Body, Hash128)>>,
+}
+
+impl LazyBody {
+    fn ready(body: Body, tir: Hash128) -> Self {
+        LazyBody {
+            wire: None,
+            body: OnceLock::from(Some((body, tir))),
+        }
+    }
+}
 
 /// One run of a module cycle's initialization (`InitOrder`, spec 10
 /// `module.init.cycle.step`): statements `start..end` of `module`, which
@@ -5314,8 +5328,12 @@ impl Run<'_> {
                     return;
                 }
             };
-            content.hash(names.path_hash(b.item));
+            // Each body under its item's path hash: `Collect` indexes the
+            // bodies by it and decodes only the ones it reaches (#49).
+            let item = names.path_hash(b.item);
+            content.hash(item);
             content.hash(hd_tir::wire::tir_hash(&bytes));
+            tw.hash(item);
             tw.blob(&bytes);
         }
         // A module with errors has no TIR, so no statement to order.
@@ -5620,10 +5638,7 @@ impl Run<'_> {
         }
         let names = self.names();
         let mut items = HashMap::new();
-        let mut bodies = HashMap::new();
-        let mut kept = HashMap::new();
-        let mut deriving = Vec::new();
-        let mut decoded = Vec::new();
+        let mut bodies: HashMap<Hash128, LazyBody> = HashMap::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
                 if self.table.modules[m].package != 0 || !self.builds_module(m) {
@@ -5635,31 +5650,22 @@ impl Run<'_> {
                 return None;
             }
             let sections = split_sections(&c.entry)?;
-            let node = names.module(&self.table.modules[m].path);
-            let mut foreign = false;
             for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
-                // A derivation block for another module's type holds that
-                // type's facts bodies, which no item lists.
-                let derives = matches!(&it.data, ItemData::Impl { by: Some(_), self_ty, .. }
-                    if matches!(names.pool.get(*self_ty), TyData::Adt { def, .. }
-                        if names.module_node(def) != node));
-                foreign |= derives || names.module_node(it.def) != node;
                 items.insert(it.def, it);
             }
-            if self.is_kept(m) {
-                kept.insert(node, (m, OnceLock::new()));
-                if foreign {
-                    deriving.push(node);
+            // An earlier REPL input's bodies yield to this build's.
+            let kept = self.is_kept(m);
+            for (item, at) in body_index(&c.entry)? {
+                let lazy = LazyBody {
+                    wire: Some((m, c.entry.clone(), at)),
+                    body: OnceLock::new(),
+                };
+                if kept {
+                    bodies.entry(item).or_insert(lazy);
+                } else {
+                    bodies.insert(item, lazy);
                 }
-                continue;
             }
-            let mut r = Reader::new(sections.get(3)?);
-            for _ in 0..r.count() {
-                let bytes = r.blob();
-                let b = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
-                bodies.insert(b.item, (b, hd_tir::wire::tir_hash(bytes)));
-            }
-            decoded.push(self.table.modules[m].path.clone());
         }
         for f in 0..self.table.folders.len() {
             if let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) {
@@ -5699,7 +5705,9 @@ impl Run<'_> {
                     if def == init {
                         continue;
                     }
-                    let Some((whole, tir)) = bodies.get(&init) else {
+                    let Some(Some((whole, tir))) =
+                        bodies.get(&names.path_hash(init)).map(|b| self.decode(b))
+                    else {
                         continue;
                     };
                     let body = hd_check::init::init_segment(whole, def, r.insts.clone());
@@ -5707,18 +5715,16 @@ impl Run<'_> {
                     k.hash(*tir);
                     k.u32(r.start);
                     k.u32(r.end);
-                    bodies.insert(def, (body, k.finish()));
+                    bodies.insert(names.path_hash(def), LazyBody::ready(body, k.finish()));
                 }
             }
         }
         let (universe, extra) = self.universes.intern(&members);
-        lock(&self.counters).tir_decoded.extend(decoded);
         let _ = self.program.set(ProgramTables {
             items,
             bodies: Bodies {
-                eager: bodies,
-                kept,
-                deriving,
+                all: bodies,
+                bad: std::sync::atomic::AtomicBool::new(false),
             },
             impl_rows,
             universe,
@@ -5728,58 +5734,35 @@ impl Run<'_> {
         self.program.get()
     }
 
-    /// The TIR body of `def`, and its content hash, decoding an earlier
-    /// REPL input's bodies on first use ([`Bodies`]).
+    /// The TIR body of `def`, and its content hash, decoded on first use
+    /// ([`Bodies`]).
     fn body_of<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p (Body, Hash128)> {
-        if let Some(b) = p.bodies.eager.get(&def) {
-            return Some(b);
-        }
-        if p.bodies.kept.is_empty() {
-            return None;
-        }
-        let mut at = hd_base::PathId::from_raw(def.raw());
-        while at.get().is_some()
-            && !matches!(
-                self.paths.kind(at),
-                hd_intern::PathKind::Module | hd_intern::PathKind::Package
-            )
-        {
-            at = self.paths.parent(at);
-        }
-        let own = p
+        let b = p
             .bodies
-            .kept
-            .get(&at)
-            .and_then(|(m, cell)| cell.get_or_init(|| self.decode_bodies(*m)).get(&def));
-        // A hidden method of a type that a later input derived for.
-        own.or_else(|| {
-            p.bodies.deriving.iter().find_map(|node| {
-                let (m, cell) = p.bodies.kept.get(node)?;
-                cell.get_or_init(|| self.decode_bodies(*m)).get(&def)
-            })
-        })
+            .all
+            .get(&self.paths.hash(hd_base::PathId::from_raw(def.raw())))?;
+        let out = self.decode(b);
+        if out.is_none() {
+            p.bodies
+                .bad
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        out
     }
 
-    /// Module `m`'s TIR bodies, from its `check` entry.
-    fn decode_bodies(&self, m: usize) -> HashMap<DefId, (Body, Hash128)> {
-        let mut out = HashMap::new();
-        let Some(Some(c)) = self.check[m].get() else {
-            return out;
-        };
-        let Some(section) = split_sections(&c.entry).and_then(|s| s.get(3).copied()) else {
-            return out;
-        };
-        let mut r = Reader::new(section);
-        for _ in 0..r.count() {
-            let bytes = r.blob();
-            if let Some(b) = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms) {
-                out.insert(b.item, (b, hd_tir::wire::tir_hash(bytes)));
-            }
-        }
-        lock(&self.counters)
-            .tir_decoded
-            .push(self.table.modules[m].path.clone());
-        out
+    /// A body, decoding its wire bytes on first use.
+    fn decode<'p>(&self, b: &'p LazyBody) -> Option<&'p (Body, Hash128)> {
+        b.body
+            .get_or_init(|| {
+                let (m, entry, at) = b.wire.as_ref()?;
+                let bytes = entry.get(at.clone())?;
+                let body = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
+                let mut c = lock(&self.counters);
+                c.bodies_decoded += 1;
+                c.tir_decoded.push(self.table.modules[*m].path.clone());
+                Some((body, hd_tir::wire::tir_hash(bytes)))
+            })
+            .as_ref()
     }
 
     /// Every folder's impls, by folder id: the program's tables.
@@ -6059,20 +6042,28 @@ impl Run<'_> {
             known: &known,
             inits_run: &inits_run,
         });
-        let Some(collected) = self.stage(
-            Stage::Collect,
-            hd_mono::collect(
-                &self.pool,
-                &env,
-                &TableSolver,
-                root,
-                &all_inits,
-                &extra,
-                &prelude.refs,
-                session,
-                &self.planner,
-            ),
-        ) else {
+        let collected = hd_mono::collect(
+            &self.pool,
+            &env,
+            &TableSolver,
+            root,
+            &all_inits,
+            &extra,
+            &prelude.refs,
+            session,
+            &self.planner,
+        );
+        // Bodies decode as collection reaches them: a body whose bytes did
+        // not decode fails the stage as a whole entry would.
+        let collected = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
+            Err(NotImplemented::new(
+                Stage::Collect,
+                "a module's check entry did not decode",
+            ))
+        } else {
+            collected
+        };
+        let Some(collected) = self.stage(Stage::Collect, collected) else {
             return;
         };
         let collected = match collected {
@@ -7156,6 +7147,31 @@ fn join_sections(sections: &[Vec<u8>]) -> Vec<u8> {
         w.blob(s);
     }
     w.bytes
+}
+
+/// Each TIR body of a `check` entry: its item's path hash, and where its
+/// wire bytes are in the entry. Decodes no body; `None` when the entry is
+/// malformed.
+fn body_index(entry: &[u8]) -> Option<Vec<(Hash128, std::ops::Range<usize>)>> {
+    let mut r = Reader::new(entry);
+    let mut section = None;
+    for i in 0..r.count() {
+        let b = r.blob();
+        if i == 3 {
+            section = Some((r.pos() - b.len(), b));
+            break;
+        }
+    }
+    let (start, section) = section?;
+    let mut r = Reader::new(section);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let item = r.hash();
+        let bytes = r.blob();
+        let end = start + r.pos();
+        out.push((item, end - bytes.len()..end));
+    }
+    r.ok().then_some(out)
 }
 
 fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {

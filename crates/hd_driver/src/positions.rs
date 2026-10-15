@@ -197,6 +197,8 @@ impl ModuleSource {
         let mut bodies = HashMap::new();
         let mut r = Reader::new(sections.get(3)?);
         for _ in 0..r.count() {
+            // The item's path hash, then the body.
+            r.hash();
             let b = hd_tir::wire::read_body(r.blob(), &pool, &paths, &syms)?;
             let path = path_of(&paths, b.item);
             let name = names.remove(&path)?;
