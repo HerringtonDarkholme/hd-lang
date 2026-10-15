@@ -83,7 +83,7 @@ pub(crate) fn open(
         options.custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
     }
     check_deadline(deadline)?;
-    options.open(path).map_err(|err| {
+    let file = options.open(path).map_err(|err| {
         // Windows refuses a write-open of a directory with "The parameter
         // is incorrect"; a path that is a directory is `IsADirectory`
         // whatever the OS code is, as the Unix `EISDIR` already is.
@@ -92,8 +92,43 @@ pub(crate) fn open(
         } else {
             err
         };
-        Failure::new("open", err)
-    })
+        Failure::new("open", below_a_file(path, err))
+    })?;
+    // An append-open of a directory succeeds on Windows (the backup flag
+    // above) and fails only at the write, as "Incorrect function". The
+    // handle itself says what was opened, so no path check can race.
+    if write
+        && file
+            .metadata()
+            .map_err(|err| Failure::new("fstat", err))?
+            .is_dir()
+    {
+        return Err(Failure::new("open", ErrorKind::IsADirectory.into()));
+    }
+    Ok(file)
+}
+
+/// Windows reports a path below a file as "path not found", where Unix and
+/// Node report `ENOTDIR` and the spec's `NotADirectory` (the rule
+/// `std-fs.memory.error.not-directory`). When the open found nothing and
+/// the nearest existing ancestor is not a directory, say so.
+#[cfg(windows)]
+fn below_a_file(path: &Path, err: std::io::Error) -> std::io::Error {
+    if err.kind() == ErrorKind::NotFound
+        && path
+            .ancestors()
+            .skip(1)
+            .find_map(|ancestor| std::fs::metadata(ancestor).ok())
+            .is_some_and(|st| !st.is_dir())
+    {
+        return ErrorKind::NotADirectory.into();
+    }
+    err
+}
+
+#[cfg(not(windows))]
+fn below_a_file(_: &Path, err: std::io::Error) -> std::io::Error {
+    err
 }
 
 /// A path in the Windows device namespace, where named pipes and other

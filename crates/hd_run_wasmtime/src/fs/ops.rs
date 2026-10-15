@@ -266,6 +266,26 @@ mod tests {
             );
         }
     }
+    /// A path below a file is `NotADirectory` on every OS, as Node reports
+    /// it (Windows says "path not found" for the open).
+    #[test]
+    fn a_path_below_a_file_is_a_not_a_directory_error() {
+        let dir = TempDir::new();
+        let file = dir.path("file");
+        fs::write(&file, "hello").unwrap();
+        let below = format!("{file}/child");
+        for method in ["read_bytes", "read_text"] {
+            assert_eq!(
+                invoke(method, &below, None).done(),
+                error(&below, 4).done(),
+                "{method}"
+            );
+        }
+        assert_eq!(
+            invoke("write_text", &below, Some(b"no")).done(),
+            error(&below, 4).done()
+        );
+    }
     #[test]
     fn recursive_mkdir_and_stat_have_node_edge_behavior() {
         let dir = TempDir::new();
