@@ -367,7 +367,7 @@ the variant index and the path.
 - **Path sandbox.** Granted directories are opened once as `cap-std`
   directory handles, and every file operation resolves relative to them.
   This removes the prototype's check-then-use race on symbolic links, as
-  HOST_CAPABILITIES asks.
+  the host capabilities spec asks.
 
 ### 17.6 Host Calls In The Browser
 
@@ -421,7 +421,7 @@ the variant index and the path.
   `Env.get` returns `.None` and the host prints the one-line notice once
   per name.
 - Checks live in host providers only, never in hd code, as
-  HOST_CAPABILITIES requires.
+  the host capabilities spec requires.
 - **As built (task #176).** On the Node engine, `hd run` and `hd FILE`
   write the run's grant and its `Args.program` (the FILE or NAME the
   command ran) into the run host's configuration; `hd test` writes each

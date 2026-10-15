@@ -193,7 +193,7 @@ Q7 (`git show f1c55020:future-work/compiler/research.md`).
 | `hd_cache` | `CacheStore` trait, keys, entry framing, memory store, disk store (feature `disk`), stat manifest, trim | `hd_base` | memory store only |
 | `hd_sched` | `Scheduler` trait, task graph, serial executor, thread pool executor (feature `threads`), budgets, memory cap | `hd_base`, `rayon` (feature) | serial only |
 | `hd_driver` | `Session`, command pipelines (check, test plan, doc, fix), output assembly | all of the above | yes |
-| `hd_doc` | `hd doc` rendering ([HD_DOC.md](../../future-work/HD_DOC.md)) | `hd_driver` | yes |
+| `hd_doc` | `hd doc` rendering (`git show d91250ec:future-work/HD_DOC.md`) | `hd_driver` | yes |
 | `hd_stdpack` | build-time tool: checks `lib/std` and writes the std pack that `hd_driver` embeds | `hd_driver` | the pack, not the tool |
 | D2 crates | `hd_mono`, `hd_wasm`, `hd_host_abi`, `hd_run` (§11.4) | `hd_tir`, `hd_types`, `hd_host_abi`; `hd_run` also depends on `hd_cache` | yes |
 | `hd_run_wasmtime` | wasmtime embedding (D2) | `hd_run`, `wasmtime` | no |

@@ -117,7 +117,6 @@ export const PAGES: readonly PageSource[] = [
   ),
   page("spec/cli/README.md", "spec/cli/index.html", "Command Line", "Command Line"),
   page("spec/cli/command-line.md", "spec/cli.html", "Commands", "Command Line"),
-  page("future-work/ROADMAP.md", "roadmap.html", "Roadmap", "Project"),
 ];
 
 /** The playground wrapper page, generated rather than rendered from Markdown. */

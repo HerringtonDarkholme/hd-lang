@@ -169,5 +169,5 @@ Read the [guide](guide/README.md), take the
 [Language Tour](guide/LANGUAGE_TOUR.md), and use the
 [specification](spec/README.md) for the exact rules. The Rust compiler is
 the Cargo workspace at the repository root ([crates/README.md](crates/README.md)).
-The standard library is in [lib/std](lib/std/), and the roadmap in
+The standard library is in [lib/std](lib/std/), and the open design questions in
 [future-work](future-work/README.md).

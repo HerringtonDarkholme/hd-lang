@@ -162,7 +162,7 @@ Detailed design: [README.md](ARCHITECTURE.md)
   thread, and the host interface has a JS implementation.
 
 - The TypeScript prototype (`src/`) was frozen as a test oracle
-  ([Roadmap](../../future-work/ROADMAP.md#order)), then deleted on 2026-10-12 (#145).
+  (`git show d91250ec:future-work/ROADMAP.md`, "Order"), then deleted on 2026-10-12 (#145).
   See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
 - Multiple backends: **Wasm** and **Cranelift** first, **LLVM** and **JS**
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
@@ -180,8 +180,8 @@ Detailed design: [README.md](ARCHITECTURE.md)
 - `usize` is target-defined: 32 bits on Wasm32.
 - `defer` is kept for the first release. See
   [Follow-Up Questions](#follow-up-questions).
-- `hd doc` is decided: [HD_DOC.md](../../future-work/HD_DOC.md).
-- Host capabilities are decided: [HOST_CAPABILITIES.md](../../future-work/HOST_CAPABILITIES.md).
+- `hd doc` is decided: `git show d91250ec:future-work/HD_DOC.md`.
+- Host capabilities are decided: `git show d91250ec:future-work/HOST_CAPABILITIES.md`.
   See [Host Capabilities](#host-capabilities-what-the-new-compiler-inherits-2026-10-06).
 - `Http` is its own trait.
 
@@ -370,7 +370,7 @@ now.
 - typed holes: `_` / `todo()` report the expected type and the names in
   scope that fit;
 - a pathology fuzzer in CI that flags superlinear growth;
-- `hd doc` ✓ (HTML and Markdown, [HD_DOC.md](../../future-work/HD_DOC.md)).
+- `hd doc` ✓ (HTML and Markdown, `git show d91250ec:future-work/HD_DOC.md`).
 
 **Later:**
 
@@ -770,7 +770,7 @@ which the prototype doesn't:
 - **A race-free path sandbox.** Use preopened directories rather than
   `realpath`-then-open; the prototype has a check-then-use race on swapped
   symlinks.
-- **Runtime code loading,** parked in OPEN_ISSUES.
+- **Runtime code loading,** parked in [Open Issues](../../future-work/OPEN_ISSUES.md#library-and-host-design-work).
 
 ### What The Arena Asks Of The Compiler (orchestrator's reading, not owner text)
 

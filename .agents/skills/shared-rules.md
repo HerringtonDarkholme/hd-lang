@@ -31,7 +31,7 @@ before relying on one, because they change.
 
 - hd is written mostly by coding agents and read by humans: explicitness
   over inference where it adds a guarantee, and no action at a distance
-  ([Roadmap](../../future-work/ROADMAP.md#direction)).
+  ([future-work/README.md](../../future-work/README.md#direction)).
 - Fewer mechanisms beat more: reuse an existing rule before adding one. Past
   cuts: `mut fn` removed (closures mutate captures freely), errors derived by
   the one `@error` intrinsic instead of derivation machinery, no marker templates,

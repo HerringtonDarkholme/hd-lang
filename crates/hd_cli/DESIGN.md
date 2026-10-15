@@ -182,7 +182,7 @@ fixture (`fmt(fmt(x)) == fmt(x)`).
 ### 7.7 `hd doc`
 
 - **Whole package:** build interfaces (no bodies), then render
-  [HD_DOC.md](../../future-work/HD_DOC.md) pages from `iface` entries plus doc comment
+  `git show d91250ec:future-work/HD_DOC.md` pages from `iface` entries plus doc comment
   text, read from source through the skeleton's ranges.
 - **`hd doc NAME`:** resolve NAME through the package's exports or a
   dependency's, skim the one declaring file for its doc comment, and print
@@ -330,6 +330,6 @@ Continuing D1's §7.9:
 3. Browser providers: `Console` to the page, `Clock` and `Random` from the
    platform, same-origin `Http` with `fetch` (or synchronous XHR in
    synchronous mode, §17.6), an in-memory file system, and the
-   playground's grants (HOST_CAPABILITIES S7).
+   playground's grants (`git show d91250ec:future-work/HOST_CAPABILITIES.md` S7).
 4. A panic shows the category, message and a backtrace mapped through
    `hd.lines`; the source map is built on demand (§15.5).

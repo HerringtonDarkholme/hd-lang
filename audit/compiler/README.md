@@ -9,8 +9,8 @@ keeps them); open ones live in a GitHub issue or in one of the files below.
 - [coverage-2026-10-15.md](coverage-2026-10-15.md): which spec rules have no
   conformance case or driver test, and the bugs found by probing them. It goes
   when issue #169 closes.
-- [later.md](later.md): compiler work that is noted but deliberately not
-  scheduled.
+
+Compiler work that is noted but not scheduled lives in P4 GitHub issues.
 
 Notes for the compiler's design are in
 [`docs/compiler/goals.md`](../../docs/compiler/goals.md). The

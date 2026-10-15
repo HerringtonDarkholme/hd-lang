@@ -3,9 +3,9 @@
 The language specification is implementable for the behavior it accepts, but
 the decisions below remain deliberately open and some block the broader product
 claims. Implementations must not guess an extension: unsupported forms remain
-errors until an issue is resolved in the specification. Runtime, ABI, library,
-and tooling work is listed separately at the end. A resolved entry is removed: the specification holds what it decided, and
-git history holds its decision table.
+errors until an issue is resolved in the specification. Library and host
+design work is listed separately at the end. A resolved entry is removed: the
+specification holds what it decided, and git history holds its decision table.
 
 ## Language Design Decisions
 
@@ -151,8 +151,9 @@ first release has no serializable closures. The decision above waits
 until after it.
 
 **Design study (#166, 2026-10-15).** Reopened under the owner's goals of
-remote calls, data fetching, security, caching, and a minimal wire:
-[Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md).
+remote calls, data fetching, security, caching, and a minimal wire. The
+design record, [Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md),
+now holds the options and the open questions; continue there.
 
 ### Observability Hooks
 
@@ -324,88 +325,66 @@ starting classification table is in git history
 targets take the root-application role. The package model itself is
 specified in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
 
-## Runtime, Library, ABI, And Tooling Work
+## Library And Host Design Work
 
-These items remain required but do not currently require new core syntax:
+These items need a design decision but no new core syntax. Engineering work
+that needs no decision lives in GitHub issues.
 
-- weak-reference runtime representation inside the standard runtime; weak
-  references and finalizers are never user-visible
-  ([`data.repr.runtime-only`](../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only));
-- the mandatory default algorithm, canonical field encoding, and evolution
-  rules for `std.fingerprint`, whose digests always carry an algorithm/version
-  identifier;
-- the final `hd.toml` schema. The default profile's host binding and
-  `[capabilities]` are specified in
-  [Host Capabilities](../spec/cli/command-line.md#host-capabilities);
-- the manifest diagnostics that wait for the manifest schema (DEP14,
-  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)).
-  Dependencies themselves (fetching, the cache, `hd.sum`, selection,
-  workspaces, pseudo-versions, path requirements) are specified and
-  implemented ([Dependencies](../spec/cli/command-line.md#dependencies));
-- the Wasm component ABI, exact export registration API, adapter wire format,
-  and runtime-profile panic status codes (histories record a panic by its
-  diagnostic name, as Replay Rules
-  state);
-- stateful property testing in `std.testing`, which waits for the event
-  log. The property-test API is decided and applied
-  (Testing PT1-PT9,
-  [Property Tests](../spec/std/testing.md#property-tests));
-- benchmarks, which no decision covers yet. The testing stress test
-  (TS-15) found a direction: benchmarks with a host clock and their own
-  registration, like Go's `b.Loop` or a `benches/` root;
-- final signatures, behavior, and the complete intrinsic set for the
-  compiler-intrinsic `std.task` combinators, such as racing, timeout,
-  and heterogeneous scheduling (`retry!` is a library loop, decided in
-  batch 29: [Task](../spec/std/task.md#retry));
-- the final `std.task` structured-scope API: `Task[T]` is decided as
-  structured scopes only, with `scope!`, `start`, and `join!`
-  (STDLIB decision 11), and must not weaken
-  one-shot `Suspend[T]` semantics;
-- host capability grants are specified: the default profile and
-  `[capabilities]` in
-  [Host Capabilities](../spec/cli/command-line.md#host-capabilities) and
-  [Capability Grants](../spec/cli/command-line.md#capability-grants), the
-  test grant in
-  [Test Environments](../spec/cli/command-line.md#test-environments), and
-  [Http](../spec/std/http.md), [Net](../spec/std/net.md) and
-  [Sys](../spec/std/sys.md). The first release's host ABI is hd's own core-Wasm
-  imports, not the Component Model, which can't carry Wasm GC values
-  (owner, 2026-10-06,
-  research (`git show f1c55020:future-work/compiler/research.md`)).
-  Where a point below names the component ABI, read it as the hd host ABI.
-  These points stay open:
-  - **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`
-    would load a built `.wasm` plugin at run time. It would check the
-    plugin's exports against an hd interface trait, bind its row from an
-    explicit `$.Context`, copy every value as boundary-safe data, and run
-    it under memory and time limits, behind a `load` permission. It waits
-    on:
-    - the component ABI, so two builds agree on a trait's types;
-    - an intrinsic that reifies a trait for a run-time check;
-    - cross-instance provider handles (`own` and `borrow`);
-    - the component-model async ABI for suspending plugin calls.
+- **`std.fingerprint`.** The mandatory default algorithm, canonical field
+  encoding, and evolution rules, whose digests always carry an
+  algorithm/version identifier.
+- **Final `std.task` API.** Signatures, behavior, and the complete
+  intrinsic set for the compiler-intrinsic combinators, such as racing,
+  timeout, and heterogeneous scheduling (`retry!` is a library loop:
+  [Task](../spec/std/task.md#retry)). `Task[T]` is decided as structured
+  scopes only (`scope!`, `start`, `join!`; STDLIB decision 11, 2026-09-26),
+  which needs a new polling intrinsic, and must not weaken one-shot
+  `Suspend[T]` semantics.
+- **`std.bytes.Bytes`** (decision 5, 2026-09-26). A readonly, compact type
+  convertible to and from `List[u8]`. It waits for a use that `List[u8]`
+  serves badly.
+- **`decimal`** (decision 9, 2026-09-26). The only number type past the
+  primitives; `BigInt` is a package. It waits for a `decimal` design.
+- **Float math.** `sqrt`, `floor`, `round`, `abs`, and `powi` on `f64` in
+  `std.num`. Most need a host hook, so the primitives need owner approval.
+- **`print` without a newline.** Add it when a prompt needs it. It needs a
+  `Console` method, which is language tier.
+- **`std.log`.** Waits for the [observability hooks](#observability-hooks).
+- **Typed config and CLI structs.** Typed config from `Env` and typed CLI
+  structs are more `Source` templates over `std.serde` and `std.cli`.
+- **Process with working directory and environment.** Needs a change to the
+  language-tier `Process` trait.
+- **Host ABI.** The first release's host ABI is hd's own core-Wasm imports,
+  not the Component Model, which can't carry Wasm GC values (owner,
+  2026-10-06). Where a point below names the component ABI, read it as the
+  hd host ABI.
+- **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`
+  would load a built `.wasm` plugin at run time. It would check the
+  plugin's exports against an hd interface trait, bind its row from an
+  explicit `$.Context`, copy every value as boundary-safe data, and run it
+  under memory and time limits, behind a `load` permission. It waits on:
+  - the component ABI, so two builds agree on a trait's types;
+  - an intrinsic that reifies a trait for a run-time check;
+  - cross-instance provider handles (`own` and `borrow`);
+  - the component-model async ABI for suspending plugin calls.
 
-    Until then a plugin is a program started through `Process` or a
-    service called through `Http`. Design:
-    [Host Capabilities](HOST_CAPABILITIES.md#runtime-code-loading).
-  - **Opaque host handles (with the resource design).** A host trait
-    can't return a native object, such as a database connection, as a
-    boundary value, because live handles are not boundary-safe. Custom
-    host traits are hd's FFI ([Host Capabilities](HOST_CAPABILITIES.md#ffi)),
-    so this limits every embedder. Target: component-model `resource`
-    types.
-  - **`std.net` after the minimal API.** The spec gives lookup, TCP and
-    UDP over closable handle traits. Open: a deterministic `Net`
-    provider, as `ScriptedHttp` is for `Http`; whether socket handles are
-    `NonEscapable`; read and connect timeouts; socket options; the port
-    that `listen!` picks for port 0; TLS over a stream; and how a handle
-    trait that a provider returns crosses the component ABI.
-  - **An HTTP server**, as a registered boundary that exports the
-    `wasi:http` handler, with `Net` covering its listen address;
-- exporter configuration, sampling, storage, and operational privacy policy
-  after the observability hook is designed; and
-- which generated artifacts—JSON Schema, OpenAPI, MCP, clients, or
-  documentation—ship first after typed derivation is resolved.
+  Until then a plugin is a program started through `Process` or a service
+  called through `Http`. The design is in
+  `git show d91250ec:future-work/HOST_CAPABILITIES.md`, section "Runtime
+  Code Loading".
+- **Opaque host handles (with the resource design).** A host trait can't
+  return a native object, such as a database connection, as a boundary
+  value, because live handles are not boundary-safe. Custom host traits
+  are hd's FFI, so this limits every embedder. Target: component-model
+  `resource` types.
+- **`std.net` after the minimal API.** The spec gives lookup, TCP and UDP
+  over closable handle traits. Open: whether socket handles are
+  `NonEscapable`, and how a handle trait that a provider returns crosses
+  the host ABI.
+- **Generated artifacts.** Which of JSON Schema, OpenAPI, MCP, clients, or
+  documentation ship first, after typed derivation is resolved.
+- **Exporter configuration, sampling, storage, and privacy policy,** after
+  the observability hook is designed.
 
 ## Resolution Process
 
