@@ -524,19 +524,33 @@ impl Ck<'_, '_> {
         };
         let (r, t) = self.expr(*e, want)?;
         let pool = self.pool();
-        // A negated literal is signed (`expr.power.negated-literal`):
-        // parentheses are transparent, so `-5` and `-(5)` mark the
-        // literal alike. Only an unbound literal class is marked
-        // (`Infer::mark_signed`), so a concrete unsigned operand still
-        // mismatches below.
+        // A negated literal is signed (`expr.power.negated-literal`,
+        // `types.literal.local.signed`): parentheses are transparent, so
+        // `-5` and `-(5)` mark the literal alike, and so is `**`, whose
+        // value has its base's type, so `-2 ** 2` marks the `2`. Only an
+        // unbound literal class is marked (`Infer::mark_signed`), so a
+        // concrete unsigned operand still mismatches below.
         let mut core = *e;
         while core.kind() == SyntaxKind::ParenExpr
             && let Some(inner) = core.children().next()
         {
             core = inner;
         }
+        let mut powered = false;
+        if core.kind() == SyntaxKind::PowerExpr
+            && let Some(base) = core.children().next()
+        {
+            let mut b = base;
+            while b.kind() == SyntaxKind::ParenExpr
+                && let Some(inner) = b.children().next()
+            {
+                b = inner;
+            }
+            core = b;
+            powered = true;
+        }
         if matches!(op, Some(TokenKind::Plus | TokenKind::Minus))
-            && self.b.const_of(r).is_some()
+            && (self.b.const_of(r).is_some() || powered)
             && self.cx.src.tkind(self.cx.src.first(core)) == Some(TokenKind::Number)
         {
             self.infer.mark_signed(pool, t);

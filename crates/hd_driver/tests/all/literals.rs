@@ -438,3 +438,16 @@ fn a_negated_bare_literal_is_signed_through_parentheses() {
         assert_clean(&format!("{body}{MAIN}"));
     }
 }
+
+/// `types.literal.local.signed`: in `-2 ** 2` with no expected type the
+/// literal is signed, so the power is `i32` and the negation applies.
+#[test]
+fn a_signed_literal_under_power_checks_and_evaluates() {
+    for body in [
+        "fn f() -> i32:\n    -2 ** 2\n",
+        "fn f() -> i32:\n    -(2 ** 2)\n",
+        "fn f(x: i32) -> i32:\n    x + -2 ** 2\n",
+    ] {
+        assert_clean(&format!("{body}{MAIN}"));
+    }
+}

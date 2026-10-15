@@ -123,6 +123,19 @@ println(2 ** 31)
 }
 
 #[test]
+fn a_negated_bare_power_is_signed() {
+    // `types.literal.local.signed`: in `-2 ** 2` with no expected type
+    // the literal is signed, so the power is `i32` and the negation
+    // applies to it, as precedence says.
+    let body = "\
+println(-2 ** 2)
+println(-(2 ** 2))
+println(-2 ** 2 ** 2)
+";
+    assert_eq!(prints("negated", "", body), ["-4", "-4", "-16"]);
+}
+
+#[test]
 fn a_zero_exponent_gives_one() {
     let body = "\
 println(i32(0) ** 0)
