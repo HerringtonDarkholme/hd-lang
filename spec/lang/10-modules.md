@@ -928,6 +928,7 @@ data Account:
 
 fn audit(account: Account) -> Account:
     dbg(account)  # prints ...: account = Account { owner: "Ada", balance: 120 }
+    account
 ```
 
 > **Why.** A type should not need `Debug` before it can be inspected, and
