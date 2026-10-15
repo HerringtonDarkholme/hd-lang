@@ -9,246 +9,183 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 ### 6.1 Tasks
 
 ```rust
-pub enum TaskKind {
-    Skim(FileId), Parse(FileId), FolderGraph(PackageId),
-    FolderIface(FolderId), HeaderCheck(FolderId),
-    ModulePrep(ModuleId), Body(ModuleId), ModuleFinish(ModuleId),  // Body: all of a module's bodies, as one batched parallel iterator (granularity rule below)
-    Coherence(PackageId), InitOrder(FolderId), PackageResult(PackageId),  // Coherence: one task over the traits whose key changed
-    Ext(ExtTask),                       // D2's tasks, behind a trait object
+pub enum TaskKind {                         // payloads: dense run IDs (file, folder, module, slot)
+    Skim(u32), Parse(u32), FolderGraph,
+    FolderIface(u32), HeaderCheck(u32),
+    ModulePrep(u32), Body(u32), ModuleFinish(u32), TestOverlay(u32),
+    Coherence, InitOrder(u32), PackageResult,
+    Ext(ExtTask),                           // Collect, Emit(slot), Link, Precompile, RunCase(case)
 }
-struct TaskNode {
-    kind: TaskKind,
-    waiting_on: AtomicU32,              // unfinished dependencies
-    successors: Mutex<SmallVec<[TaskId; 4]>>,
-    priority: u32,                      // §6.3
-    state: AtomicU8,                    // Waiting | Ready | Running | Done | Cancelled
-}
-pub struct TaskGraph { nodes: AppendVec<TaskNode> }
+struct TaskNode { kind, waiting_on: u32, successors: Vec<TaskId>, state, priority: u32 }
+pub struct TaskGraph { nodes: Vec<TaskNode>, ready: VecDeque<TaskId> }
 ```
 
-- **Creation is dynamic.** The driver creates the discovery tasks. A
-  finished task may add tasks and edges, for example the folder graph task
-  creates one `FolderIface` per folder whose key missed. An edge to a task
-  that is already done counts as satisfied at once. Registration and
-  completion take the producer's successor lock, so each edge is
-  satisfied exactly once, and a new task holds a creation guard until all
-  its edges exist (docs/compiler/data-structures.md §3.21).
-- **Tests.** The scheduler's interleaving test runs register-versus-
-  complete races under `loom` and checks that every task runs once, after
-  all its dependencies.
-- **Results** go to per-kind slot vectors (`OnceLock<T>` indexed by the
+`hd_sched` owns the graph and the executors; `hd_driver` (`Run::exec`)
+owns what each task does.
+
+- **Creation is dynamic.** The driver creates one `Skim` per file (and
+  one `Parse` per file for `hd check`), then `FolderGraph` after the
+  skims. A running task may add tasks and edges: `FolderGraph` adds a
+  `FolderIface` and a `HeaderCheck` per built folder, one `Coherence`,
+  one `ModulePrep` per built module and a held `PackageResult`;
+  `ModulePrep` adds `Body`, `ModuleFinish` and `TestOverlay` on a cache
+  miss; `PackageResult` adds one `InitOrder` per folder and then
+  `Collect`. `Collect` performs the code-entry lookups and adds a held
+  `Link`; for each folder group with at least one miss it creates one
+  `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
+  The folder group is the `codepack` cache unit
+  (crates/hd_cache/DESIGN.md §5.2). An edge from a task that is already
+  done counts as satisfied at once.
+  Implementation differs: `Collect` creates one `Emit` per missed
+  instance slot, which is worse: a cold build makes thousands of
+  single-instance tasks, each paying graph bookkeeping.
+- **The creation guard.** `add_held` creates a task with one extra wait
+  count, dropped by `release`, so edges added after creation cannot race
+  its start (docs/compiler/data-structures.md §3.21). An edge into a
+  started task is a compiler bug and asserts.
+- **Results** go to per-kind slot vectors (`OnceLock` indexed by the
   file, folder or module ID). A task reads only slots of tasks it depends
   on, so reads never race with writes.
 - **`HeaderCheck(F)` (stage B of
   [crates/hd_resolve/DESIGN.md §4.10.1](../hd_resolve/DESIGN.md#4101-header-validation-stages)).**
-  One per folder of the program graph, std and dependencies included.
-  It depends on `FolderIface(F)` and on the `FolderIface` of each folder
-  F's uses reach, since it needs their frozen impl tables and the
-  candidate directory. It checks written header types against their
-  bounds, impl supertraits and supertrait bindings, derived newtype
-  bases and delegation targets, with one fuel budget per item. Nothing
-  in checking waits for it: its answers never change what a dependent
-  reports. `PackageResult` waits for it, and so does every `Collect`
-  (§11.3) for the folders its program reaches, so no program is built
-  over an unchecked header. Its result is a part of the package's
-  `graph` entry (crates/hd_cache/DESIGN.md §5.2), found by its part key before it runs.
-- **Closures and impl universes (Codex re-review N1).** Once the folder
-  graphs are built, the driver computes each folder's closure as a bit
-  set over the program graph's folders, bottom-up. `ModulePrep(m)` builds
-  `closure(m)` for the ordinary role and `test_closure(m)` for the test
-  role, with test-only uses added (crates/hd_cache/DESIGN.md §5.3). Then each solving context gets one
-  `ImplUniverseId`: the sorted list of the folders in its closure whose
-  `arg_impls` section is not empty, interned once per run
+  One per built folder. It depends on the `FolderIface` of every folder
+  in F's closure. It checks written header types against their bounds,
+  impl supertraits and supertrait bindings, derived newtype bases and
+  delegation targets. Nothing in body checking waits for it.
+  `PackageResult` waits for it, and `Collect` is created only after
+  `PackageResult`, so no program is built over an unchecked header. (The
+  design had each `Collect` wait for the `HeaderCheck`s of the folders its
+  program reaches; one program per run makes the two equal, and the
+  built form needs no per-program edge list.) Its
+  findings are a `graph` entry keyed by `hdr_key`
+  (crates/hd_cache/DESIGN.md §5.2), looked up before it runs.
+- **Closures and impl universes.** `FolderGraph` computes each folder's
+  closure as a bit set over the program graph's folders. Each solving
+  context (a module's bodies, a `HeaderCheck`) interns the folders of
+  its closure that carry argument-owned impls into one `ImplUniverseId`
   ([crates/hd_check/DESIGN.md (trait solver) §3.2](../hd_check/DESIGN.md#32-owner-folders)).
-  - The contexts: each module's ordinary and test-role bodies, computed
-    before any `Body(m)` starts; each
-    `HeaderCheck(F)`, from `closure(F)` when the task starts; and each
-    derive instance, which uses its module's id.
   - Equal lists get one id, so most modules of a package share one.
   - The id is a run ID. It keys the solver memo and never reaches a
     cache key or output; the keys hash the closure lists instead.
   - Every folder in a context's closure is already a dependency of its
     task, through the `FolderIface` chain, so universes add no edge.
-- **Test-role checks (M4c gap 3).** A test run uses the ordinary
-  `ModulePrep`, `Body` and `ModuleFinish` tasks with role `test`. The role's
-  `check` entry stores synthesized `module.$test<i>` items, registrations
-  and TIR; there is no `TestOverlay` task or cache entry.
+- **Test-role checks.** A test run uses the ordinary `ModulePrep`,
+  `Body` and `ModuleFinish` tasks with role `test` for the root
+  package's modules. `ModulePrep(m)` builds `closure(m)` for the
+  ordinary role and `test_closure(m)` for the test role, with test-only
+  uses added (crates/hd_cache/DESIGN.md §5.3). The role's `check` entry
+  holds the `tests:` block's items; there is no `TestOverlay` task.
+  - Implementation differs: there is one closure per module, and a
+    `tests:` block's uses into other packages (dev dependencies,
+    `std.testing`) join it for both roles; its uses of the same package
+    make no edge. Not judged: one closure is simpler and sound for other
+    packages, but whether a same-package test-only use is always in the
+    key needs checking.
+  - Implementation differs: a `TestOverlay(m)` task is still created per
+    module and checks nothing, which is worse: a dead task per module.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
-  is the first step of each `FolderIface` and `ModulePrep` task. A hit
-  marks the subtree below it done without creating it.
-- **The check lookup is `ModulePrep`'s first step (walking skeleton,
-  SK-4).** `check_key(m)` needs only the closure's deep hashes and
-  `source_hash(m)`. So `ModulePrep(m)` looks it up before anything else,
-  and creates `Body(m)` and `ModuleFinish(m)` only on a miss. A lookup at
-  `ModuleFinish` would come after the work it could save.
-- **`Parse(f)` is created on demand.** A hit needs no parse. The task
-  that misses, `FolderIface(F)` or `ModulePrep(m)`, creates `Parse(f)`
-  for each file it reads, and a file parsed once in a run is not parsed
-  again. `Parse(f)` is not a static predecessor of `ModulePrep`.
+  is the first step of each `FolderIface`, `HeaderCheck` and
+  `ModulePrep` task. `ModulePrep(m)` computes `check_key(m)` from the
+  closure's deep hashes and the module's source, and creates `Body(m)`
+  and `ModuleFinish(m)` only on a miss.
+- **Parsing is on demand.** Outside `hd check`, no `Parse` task is
+  created. The task that misses parses the file it reads through a
+  per-run slot, so a file parsed once in a run is not parsed again.
 
 ### 6.2 Executors
 
 ```rust
 pub trait Spawn {
-    fn add(&self, kind: TaskKind) -> TaskId;
-    fn edge(&self, dependency: TaskId, dependent: TaskId);
-    fn add_held(&self, kind: TaskKind) -> CreationGuard;
+    fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId;
+    fn edge(&self, from: TaskId, to: TaskId);
+    fn add_held(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId;
+    fn release(&self, id: TaskId);
 }
-pub trait Scheduler: Sync {
-    fn run(
-        &self,
-        graph: &TaskGraph,
-        exec: &(dyn Fn(TaskId, TaskKind, &dyn Spawn) + Sync),
-    );
-    fn threads(&self) -> usize;
-}
-pub struct SerialScheduler { order: SerialOrder }       // Fifo | Shuffled(seed): tests only
-pub struct PoolScheduler { pool: rayon::ThreadPool }    // feature "threads"
-pub struct SteppingScheduler { .. }                     // browser: run_for(max_steps) -> Progress
+pub type Exec<'a> = dyn Fn(TaskId, TaskKind, &dyn Spawn) + Sync + 'a;
+pub struct SerialScheduler { pub order: SerialOrder }   // Fifo | Priority | Shuffled(seed)
+pub struct SteppingScheduler { pub order: SerialOrder, pub cancel: CancelFlag }
+pub fn run_pool(graph: TaskGraph, threads: usize, exec: &Exec) -> (TaskGraph, usize) // feature "threads"
 ```
 
-Every executor uses that one `exec(TaskId, TaskKind, &dyn Spawn)` task
-signature. The serial and stepping executors implement `Spawn` over their
-mutable graph; the pool implements it over the atomic graph. `add_held`
-returns the creation guard that keeps a task unready until all of its
-edges exist
-(reconciliation, item 4 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
+Every executor runs the one `Exec` task signature, so task code does not
+depend on the executor. Each run returns the number of tasks that never
+became ready; the driver reports a nonzero count as an internal error.
 
-- **Pool.** Ready tasks are spawned into rayon's work-stealing pool. Each
-  worker keeps its own bump arena for body tasks. The default thread
-  count is `min(cores, 8)`, changed by `--jobs` or `HD_JOBS`
-  (`f1c55020:future-work/compiler/open-questions.md`, answered).
-- **Granularity: items are the logical unit, not the scheduling unit**
-  (orchestrator, 2026-10-07, after the owner asked about steal
-  thrashing). One rayon task per body would cost about 0.2 to 1 µs of
-  spawn, steal and completion work on bodies that check in a few to tens
-  of µs (measured on `lib/std` by the systems review: mean 240 bytes and
-  37 tokens per body, median 118 bytes and 19 tokens), scatter a module's
-  bodies across cores away from its shared scope tables, and stretch the
-  per-module joins (M3, `ModuleFinish`). So:
-  1. The task graph is per module: parse, interface, body check and
-     finish tasks per module, never one graph node per item.
-  2. Inside a module's body task, the bodies run as one rayon parallel
-     iterator, which splits only when another worker steals (half the
-     remaining range, not one item). Bodies are ordered by their byte
-     length from skim's `BodyRange`, the cost estimate (skim keeps no
-     tokens, and the measured bytes-per-token ratio is steady), with a
-     minimum split size of about
-     0.5 to 1 ms of estimated work; a very large body runs alone, and a
-     small module runs as one sequential task.
-  3. Worker arenas reset per batch, not per item.
-  4. `Collect` performs the code-entry lookups. For each folder group
-     with at least one miss it creates one `ExtTask::Emit(GroupId)`;
-     that task emits the missed instances as a batch. The folder group is
-     the `codepack` cache unit (crates/hd_cache/DESIGN.md §5.2)
-     (reconciliation, item 5 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
-  Determinism, fuel, cache keys and TIR stay per item; only scheduling
-  coarsens. `parallel-speedup` (at least 0.6x per core up to 8 cores)
-  and the scheduler overhead are measured in slice 4.
-  - **The numbers behind this (estimates, 2026-10-07).** Bodies in
-    `lib/std` plus the dogfood examples (1,239 bodies): p25 8 tokens,
-    p50 21, p75 50, p90 94, p99 322, mean 43. Half the bodies have 20
-    tokens or fewer but hold only 10% of the tokens; the largest 10%
-    hold 45%. At an assumed 0.5 to 2 µs of checking per token and about
-    1 to 1.5 µs of overhead per scheduled task, a tiny body pays 15 to
-    35% overhead, a median one 5 to 10%, and the whole set about 3 to 4%.
-    So one task per body is not classic steal thrashing (which needs
-    tasks under about 5 µs on average), but it wastes the most where the
-    work is least, and the graph pays per-node bookkeeping. A module's
-    bodies as one adaptive parallel iterator removes that cost and still
-    spreads the few large bodies. Slice 3 measures the checker's µs per
-    token and slice 4 the per-task overhead; the minimum split size is
-    set from those, not from the 0.5 to 1 ms guess above.
-- **Serial.** One ready queue ordered by priority, then creation order.
-  It is the `--threads 1` mode and the browser's base. Its `Shuffled` mode
-  picks among ready tasks by a seeded random choice, which finds order
-  dependence without threads (§8.1).
-- **Stepping (mine).** The browser runs the serial scheduler in slices:
-  `run_for(steps)` returns to JavaScript between slices, so the worker can
-  receive a "source changed" message and cancel the run. A body cannot
-  yield inside itself (Codex re-review N-B5), so one solver-heavy body
-  can hold the worker for as long as its fuel allows.
-- **A step is one body, not one task (systems review, finding 7).** The
-  granularity rule above makes a module's bodies one task. That is right
-  for threads, but a playground program is usually one module, so one
-  step would be the whole body check: an estimated 15 to 75 ms in Wasm
-  for 1,000 lines, and over 200 ms for a 3,000-line paste. So the serial
-  and stepping executors run a module's body batch as a loop with a
-  cursor, one body per step:
-  1. `Body(m)` keeps the index of the next body in its task state. A
-     step checks one body, advances the cursor, and returns to the
-     executor, which may end the slice there.
-  2. M1's omitted-result walk keeps its depth-first stack in the task
-     state, so it resumes the same way, one function per step.
-  3. M3's worklist and row sweep yield every 4,096 items, the fuel
-     check's interval.
-  4. The batch is a scheduling unit for threads only. Under the pool
-     scheduler, `Body(m)` still runs as one parallel iterator. The
-     stepping loop visits bodies in the same order the serial executor
-     does, and checking order never reaches output (§6.5).
-  So the longest uninterruptible step is the largest body, bounded by its
-  fuel, not the largest module. A slice runs steps until about 8 ms have
-  passed, then returns to JavaScript; one return costs tens of µs, so a
-  1,000-line program pays well under 1 ms for about 100 returns.
-- **Staleness.** When an edit arrives, the run is cancelled at the next
-  return to JavaScript. The page terminates the compiler worker only if
-  the run is stale **and** has not returned for 200 ms, which now means
-  one body near its fuel limit, not a large module. A restart reloads
-  `hd_web` and the IndexedDB entries and rebuilds the interners, an
-  estimated 50 to 300 ms, so it stays the rare case. Entries already
-  written back to IndexedDB survive (crates/hd_cache/DESIGN.md §5.8); only the cancelled
-  run's new entries are lost.
+- **Serial.** One ready queue. `Fifo` takes tasks in the order they
+  became ready, `Priority` takes the highest priority first, then
+  creation order, and `Shuffled` picks by a seeded choice, which finds
+  order dependence without threads (§8.1). The CLI runs it for one
+  thread; `hd_web` and the tests run it too.
+- **Pool.** `run_pool` builds a rayon pool of `threads` workers. The
+  graph sits behind one mutex, held only to add, edge, release or
+  complete; each task that becomes ready is spawned into the pool's
+  scope. This replaces a design with per-node atomics and successor
+  locks; at module granularity a run has hundreds of tasks, so one
+  short-held lock does not contend and is far simpler to get right. If the pool cannot be built, the graph runs serially. The CLI
+  uses it when the thread count is above 1: `--jobs N`, else `HD_JOBS`,
+  else the number of cores, at most 8.
+- **Granularity: items are the logical unit, not the scheduling unit.**
+  The task graph is per module, never one node per item: a module's
+  bodies are one `Body` task and run in order inside it. One task per
+  body would pay about 1 µs of spawn and completion work on bodies that
+  check in a few to tens of µs (half of `lib/std`'s bodies have 20 tokens
+  or fewer), and would scatter a module's bodies away from its shared
+  scope tables. Determinism, fuel, cache keys and TIR stay per item;
+  only scheduling coarsens.
+- **Stepping.** `SteppingScheduler::run_for(max_steps)` runs the serial
+  executor for at most `max_steps` tasks and returns `Done`,
+  `Yielded { ran }` or `Cancelled`; the cancel flag is checked before
+  each task. Nothing uses it yet: `hd_web` runs a check to completion.
 
-| Program | Longest step, one task per module | Longest step, one body per step |
-| --- | --- | --- |
-| 1,000 lines, one module (estimates, Wasm at 1.5 to 2.5x native) | 15 to 75 ms | the largest body: under 2 ms for a p99 body (1,750 bytes), more only near the fuel limit |
-| 3,000-line paste | 50 to 200 ms or more; crosses the 200 ms kill | the same as above |
+Planned, not built: browser stepping that returns to JavaScript about
+every 8 ms and cancels a stale run on an edit, with a step of one body
+rather than one task (a `Body` task keeps a cursor into its bodies), so
+the longest uninterruptible step is the largest body. Also planned:
+splitting a large module's `Body` task into a rayon parallel iterator
+ordered by body size.
 
 ### 6.3 Priority
 
-Priority only affects speed, never output.
+Priority only affects speed, never output. Tasks carry a `priority`
+and the serial `Priority` order honors it, but the driver creates every
+task at priority 0, so `Priority` runs tasks in creation order.
 
-- `FolderIface` tasks are ordered by their height in the folder DAG,
-  longest path to a sink first, so the critical path starts early.
-- `Body` tasks are ordered by body size, largest first (longest
-  processing time first), so one huge body does not start last.
-- Tasks that unblock many others (`ModulePrep`, `FolderGraph`) come first.
+Planned, not built: `FolderIface` tasks ordered by height in the folder
+DAG, `Body` tasks by body size (largest first), and tasks that unblock
+many others (`ModulePrep`, `FolderGraph`) first.
 
 ### 6.4 Budgets, Cancellation And The Memory Cap
 
 - **Fuel** is per body (§4.15). A memo hit charges its stored steps.
-- **Cancellation** is an atomic flag. A task checks it when it starts,
-  and fuel checks it every 4,096 steps. It is set by the stepping
-  scheduler on a newer edit, by the opt-in memory cap, and by Ctrl-C.
-  `--max-errors` does not cancel checking: output is in content order,
-  and counts in the summary stay exact.
-- **A panic in a task** is caught at the task boundary, reported as an
-  internal error naming the task's item, and the rest of the run goes on.
-  The command still exits with status 101.
-- **The memory cap** is opt-in (§4.15).
+- **Cancellation** is `CancelFlag`, an atomic flag; only the stepping
+  executor reads it. `--max-errors` does not cancel checking: output is
+  in content order, and counts in the summary stay exact.
+- **The memory cap** is opt-in (§4.15) and sets the cancellation flag.
+  Implementation differs: `hd_cli` counts compiler heap bytes and exits
+  the process with a report when the cap is crossed, cancelling no task;
+  not judged.
+
+Planned, not built: a panic in a task caught at the task boundary and
+reported as an internal error naming the task's item, with the rest of
+the run going on; fuel checking the cancel flag; Ctrl-C cancelling a
+build.
 
 ### 6.5 Deterministic Output Assembly
 
 1. **Content order everywhere.** Anything printed, hashed or used to
    break a tie is ordered by stable paths, source positions and codes,
-   never by IDs, pointers or hash-map order (lesson 2). IDs have no `Ord`
+   never by IDs, pointers or hash-map order. IDs have no `Ord`
    (§3.1), and output maps are `BTreeMap`s keyed by content.
 2. **Local counters.** Inference variables, closure indices and generated
-   names are numbered per body or per item, never per session (rustc's
-   leaked allocation IDs).
-3. **Print at the end (first release).** Diagnostics are grouped by
-   module and printed, sorted, after every task that can produce one has
-   finished. Folder, coherence and init diagnostics belong to the module
-   of their primary span, and those tasks can finish after the module's
-   own bodies. A per-module release cursor would need a barrier on every
-   such producer (Codex review, D2). A warm check targets 50 ms, so
-   printing at the end costs an agent nothing it would notice. Streaming
-   with complete barriers is a later option.
-4. **Test results do stream.** A release cursor walks cases in content
-   order and prints a case's result once it and every earlier case have
-   finished (§19.3). No later task adds to a finished case, so the cursor
-   needs no other barrier.
+   names are numbered per body or per item, never per session.
+3. **Print at the end.** Diagnostics are collected and printed, sorted,
+   after every task that can produce one has finished. Folder, coherence
+   and init diagnostics can finish after the module's own bodies, so a
+   per-module release would need a barrier on each such producer.
+4. **Test results do stream.** `hd test`'s `ReleaseCursor` walks cases in
+   content order and prints a case's result once it and every earlier
+   case have finished (§19.3).
 5. **Cycle diagnostics** name the cycle's first member in source or path
    order, whichever thread found it.
 6. **The summary** comes last, with counts over the whole run.
