@@ -65,10 +65,11 @@ pub fn main() -> void $ Console:
     assert_eq!(ran.err, "src/main.hd:2:5: price * qty = 1250\n");
 }
 
-/// `dbg()` prints its location alone, and each argument of
-/// `dbg(a, b)` a line of its own, in order (`module.dbg.body.print`).
+/// `dbg()` writes nothing, and each argument of `dbg(a, b)` writes a
+/// line of its own, in order (`module.dbg.line`,
+/// `module.dbg.body.print`).
 #[test]
-fn dbg_with_no_arguments_prints_its_location_and_with_several_a_line_each() {
+fn dbg_with_no_arguments_writes_nothing_and_with_several_a_line_each() {
     let ran = run_main(
         "hd-dbg-several",
         "\
@@ -87,7 +88,6 @@ pub fn main() -> void $ Console:
     assert_eq!(
         ran.err,
         "\
-src/main.hd:2:5
 src/main.hd:3:5: 1 = 1
 src/main.hd:3:5: \"two\" = \"two\"
 src/main.hd:3:5: [3] = [3]

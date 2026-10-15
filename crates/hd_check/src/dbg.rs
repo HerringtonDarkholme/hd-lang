@@ -184,12 +184,13 @@ impl Ck<'_, '_> {
 
     /// A direct `dbg` call with only positional arguments.
     pub(crate) fn dbg_call(&mut self, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        let location = self.dbg_location(n);
         if args.positional.is_empty() {
-            let head = self.b.const_str(&location);
-            let r = self.dbg_support("dbg_here", &[], &[head], Ty::VOID, n);
+            // `dbg()` writes nothing (`module.dbg.line`): no support
+            // call, just an unused constant as the void value.
+            let r = self.b.const_str("");
             return Ok((r, Ty::VOID));
         }
+        let location = self.dbg_location(n);
         let mut printed = Vec::new();
         let mut types = Vec::new();
         for e in &args.positional {
@@ -252,8 +253,9 @@ impl Ck<'_, '_> {
             last = Some(self.dbg_support("dbg_bare_one", &[e], &[head, v, show], Ty::VOID, n));
         }
         if last.is_none() {
-            let head = self.b.const_str(prefix.trim_end_matches(": "));
-            last = Some(self.dbg_support("dbg_here", &[], &[head], Ty::VOID, n));
+            // An empty tuple prints nothing (`module.dbg.line`): the
+            // already-evaluated tuple is the call's value.
+            last = Some(tuple);
         }
         last
     }
