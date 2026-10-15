@@ -6,11 +6,11 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 - The [specification](../../spec/README.md) stays authoritative. Nothing here
   is spec, and anything that changes language behavior goes through it.
 - Every section says whose text it is: the owner's, or the orchestrator's.
-- Measured state of the prototype:
-  [baseline report](../../audit/compiler/baseline-2026-10-06.md).
-- Earlier analysis:
-  [architecture directions, 2026-10-05](../../audit/compiler/architecture-directions-2026-10-05.md),
-  [status quo](../../audit/compiler/status-quo-2026-10-04.md).
+- Measured state of the prototype, and the earlier architecture analysis
+  (baseline report, architecture directions 2026-10-05, status quo): deleted
+  on 2026-10-15 with the rest of the prototype audit; `git show
+  44890c30:audit/compiler/baseline-2026-10-06.md` and its siblings in
+  `audit/compiler/` read them.
 
 ## Summary
 
@@ -695,7 +695,7 @@ medians in ms, release builds, after the P1e/P1f string fixes:
   indirect calls and per-step `Option` structs remain.
 
 **Compile and check latency (Arena pillar 1).** From the
-[baseline report](../../audit/compiler/baseline-2026-10-06.md), as CLI wall
+baseline report, as CLI wall
 time with process startup included:
 
 | program | `hd check` | `hd build` | Wasm |
@@ -799,7 +799,7 @@ which the prototype doesn't:
     gate.
   - Runtime performance and executable size are what the prototype does
     worst: 2.5–11x slower than Node outside recursion
-    ([baseline](../../audit/compiler/baseline-2026-10-06.md)).
+    (baseline).
 
 ## Follow-Up Questions
 

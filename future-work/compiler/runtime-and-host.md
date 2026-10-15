@@ -341,7 +341,8 @@ the variant index and the path.
 ### 17.5 Host Calls On wasmtime
 
 > Superseded (2026-10-14) by
-> [wasmtime-host-audit.md §4](../../audit/compiler/wasmtime-host-audit.md#4-async-host-design-tokio):
+> the wasmtime host audit (#160, deleted 2026-10-15; `git show
+> 44890c30:audit/compiler/wasmtime-host-audit.md`, section 4):
 > one process-wide `hd-io` runtime, not one per worker, and the wait
 > stays a condvar wait, not a `block_on`.
 

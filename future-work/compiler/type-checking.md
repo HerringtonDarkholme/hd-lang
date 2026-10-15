@@ -879,7 +879,7 @@ This is not unification, so it is handled at the call:
 ### 3.5 The Trail And The One Rollback Contract
 
 The audit found two rollback mechanisms with different promises
-([CA-05](../../audit/compiler/findings-2026-10-04.md#ca-05-unequal-rollback-contracts)).
+(CA-05).
 D2 fixed one protocol for every IR builder: a checkpoint is a tuple of
 column lengths, and rollback truncates them all, plus the inference trail
 ([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
@@ -1788,7 +1788,7 @@ remedy would be a lint that suggests result types, not a design change.
 and checking goes on. No checker function throws, panics or returns
 early to a boundary for a user error. The prototype's `fail()` threw a
 `CheckFailure` and stopped the function at its first fatal error
-([CA-07](../../audit/compiler/findings-2026-10-04.md#ca-07-recovery-and-failure-boundaries)).
+(CA-07).
 A Rust panic in the checker is a compiler bug. The scheduler catches it
 at the task boundary and reports an internal error naming the item
 ([§6.4](scheduler.md#64-budgets-cancellation-and-the-memory-cap)).
@@ -1861,7 +1861,8 @@ first release (owner, 2026-10-07); there is no `todo()`.
 ### 10.5 Fix-Its For Common Mistakes
 
 The writing log (`audit/hd-writing-log.md`) and the
-[diagnostics wishlist](../../audit/diagnostics-wishlist-2026-10-06.md)
+diagnostics wishlist (deleted 2026-10-15; `git show
+44890c30:audit/diagnostics-wishlist-2026-10-06.md`)
 give the checker's most frequent codes. In the log: `type-mismatch` (24
 rows), `mixed-signedness` (15), `unsatisfied-trait-bound` (13),
 `unknown-method` (13), `unknown-name` (11), `missing-requirement` (11),
@@ -2134,22 +2135,24 @@ rules with no fixture, per component.
 
 ## 15. Prototype Failures And The Rules That Prevent Them
 
-From [the checker audit](../../audit/compiler/checker-2026-10-04.md),
-[the findings](../../audit/compiler/findings-2026-10-04.md) and
-[the architecture directions](../../audit/compiler/architecture-directions-2026-10-05.md):
+From the checker audit,
+the findings and
+the architecture directions (deleted 2026-10-15; `git show
+44890c30:audit/compiler/NAME` for `checker-2026-10-04.md`,
+`findings-2026-10-04.md` and `architecture-directions-2026-10-05.md`):
 
 | Prototype failure | Evidence | Rule here |
 | --- | --- | --- |
-| types are canonical strings, parsed and compared as text | [CA-02](../../audit/compiler/findings-2026-10-04.md#ca-02-textual-types-and-semantic-cycles) | TC-2: types are handles; printing only in the renderer; `Ty` has no `Display` |
-| 18 checker classes share one mutable `CheckerContext` with 21 constructor parameters | [CA-03](../../audit/compiler/findings-2026-10-04.md#ca-03-shared-checker-state-and-repeated-body-checks) | TC-9: one owned `BodyCx` per body; frozen inputs by `&`; components are functions over explicit contexts |
+| types are canonical strings, parsed and compared as text | CA-02 | TC-2: types are handles; printing only in the renderer; `Ty` has no `Display` |
+| 18 checker classes share one mutable `CheckerContext` with 21 constructor parameters | CA-03 | TC-9: one owned `BodyCx` per body; frozen inputs by `&`; components are functions over explicit contexts |
 | `LazySignatures.get` runs another checker inside a lookup | checker audit, Signature Inference | M1 is an explicit serial phase (section 9); lookups in M2 are pure reads |
 | one body checked during lazy result inference, again per row round, again for final HIR | CA-03 | TC-4: each body exactly once; rows by M3 facts; the exactly-once counter |
-| two rollback mechanisms with different promises | [CA-05](../../audit/compiler/findings-2026-10-04.md#ca-05-unequal-rollback-contracts) | TC-5: one trail plus append-only truncation; the rollback verifier |
+| two rollback mechanisms with different promises | CA-05 | TC-5: one trail plus append-only truncation; the rollback verifier |
 | literal retry scrapes widths from diagnostic text and re-checks statements | `literal-retry.ts` (`namedWidths`) | literal classes in union-find; no statement retry; the oracle mode for checking it |
-| literal joining mutates HIR in place; a global span-keyed map retains literal spans across compilations | checker audit; [CS-01](../../audit/compiler/findings-2026-10-04.md#cs-01-defaulted-literal-spans-accumulate-across-compilations) | literal widths are variables; IR types resolve once in `finish`; no global literal state (TC-9) |
-| `fail()` throws `CheckFailure`; a function stops at its first fatal error | [CA-07](../../audit/compiler/findings-2026-10-04.md#ca-07-recovery-and-failure-boundaries) | TC-7: errors are values; poison; checking continues; panics are internal errors at the task boundary |
+| literal joining mutates HIR in place; a global span-keyed map retains literal spans across compilations | checker audit; CS-01 | literal widths are variables; IR types resolve once in `finish`; no global literal state (TC-9) |
+| `fail()` throws `CheckFailure`; a function stops at its first fatal error | CA-07 | TC-7: errors are values; poison; checking continues; panics are internal errors at the task boundary |
 | no verifier for checker output | CA-07; directions §2 | the TIR verifier, the rollback verifier, the interface validator (D1 §4.10) |
-| captured-cell conversion on HIR, imported by the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TC-1: the checker states capture facts; representation is D2's |
+| captured-cell conversion on HIR, imported by the emitter | CA-04 | TC-1: the checker states capture facts; representation is D2's |
 | unused-local warnings re-walk the finished HIR | checker audit | local flags during checking (section 8.3) |
 | the winning candidate is re-checked outside the transaction | checker audit, Candidate Transactions | kept, but only for the instantiation choice, with arguments inferred once outside trials |
 | speculation snapshots large state; exponential trait search (F-626) | perf F1, F-626 | no state copies; fuel with memo-hit charging (TC-8) |

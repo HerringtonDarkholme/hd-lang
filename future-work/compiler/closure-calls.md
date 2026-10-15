@@ -3,7 +3,8 @@
 Step 1 of #53: a plan, no code. It covers where closures are made and
 called today, what is known at each call after monomorphization, five
 options with prices, a recommended order of jobs, and owner questions.
-Inputs: the #52 profile (`audit/compiler/profile-wasmtime-closures.md`),
+Inputs: the #52 profile (deleted 2026-10-15, its numbers are on #65; `git show
+44890c30:audit/compiler/profile-wasmtime-closures.md`),
 M37 in [wasmtime-perf.md](wasmtime-perf.md#closures-on-wasmtime-vs-v8),
 and the closure specialization schedule that
 [codegen.md §12.6](codegen.md) and

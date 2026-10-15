@@ -19,8 +19,8 @@ ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 serde_json = "1"
 # The `hd-io` runtime that offloaded host operations run on
-# (wasmtime-host-audit.md §4.2, §4.7): one current-thread runtime, so no
-# `rt-multi-thread`; no `macros`, `signal` or `fs`.
+# one current-thread runtime, so no `rt-multi-thread`; no `macros`,
+# `signal` or `fs`.
 tokio = { version = "=1.53.2", default-features = false, features = [
     "io-util",
     "net",
@@ -63,7 +63,7 @@ hd_sched = { path = "../hd_sched" }
 [target.'cfg(windows)'.dependencies]
 # `Process.run!` puts each child in a Job object that kills the child and
 # its descendants when it closes (`std-process.cancel`), as a process
-# group kill does on Unix (wasmtime-host-audit.md §5.3 Q1).
+# group kill does on Unix (owner decision, #160).
 win32job = "=2.0.3"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 # No safe std call reads the host name on Windows.

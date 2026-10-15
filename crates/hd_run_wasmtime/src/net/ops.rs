@@ -1,5 +1,5 @@
 //! The `Net` operations that wait, each run as one task on the `hd-io`
-//! runtime (wasmtime-host-audit.md §4.3). Every wait is a tokio readiness
+//! runtime. Every wait is a tokio readiness
 //! wait, so nothing polls. `read`, `accept` and `receive` take nothing
 //! from the socket until they complete, so aborting one leaves the bytes,
 //! the connection or the datagram in the kernel for the next call

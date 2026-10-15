@@ -1,4 +1,4 @@
-//! `Http.send!` (wasmtime-host-audit.md §4.3): `.start` decodes the
+//! `Http.send!`: `.start` decodes the
 //! request and checks its URL and grant on the program thread, and a
 //! refusal, or a timeout of zero or less, returns at once. Otherwise the
 //! request runs as one task on the `hd-io` runtime, which sends it on the

@@ -17,7 +17,7 @@ action at a distance.
 1. **New compiler** (owner decision, 2026-10-06). The owner writes a new
    compiler and CLI. The TypeScript prototype (`src/`) was frozen as a
    test oracle, then deleted on 2026-10-12 (#145). Its state is recorded in the
-   [baseline report](../audit/compiler/baseline-2026-10-06.md). These
+   baseline report (deleted 2026-10-15; `git show 44890c30:audit/compiler/baseline-2026-10-06.md`). These
    move to the new compiler: the CLI redesign including `hd doc`, Wasm
    size, value-layout specialization (batch 37,
    [Shapes and Generic Code](../spec/lang/04-type-system.md#shapes-and-generic-code)),

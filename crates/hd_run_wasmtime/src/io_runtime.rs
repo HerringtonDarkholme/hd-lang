@@ -1,5 +1,5 @@
 //! The process-wide runtime that offloaded host operations run on
-//! (wasmtime-host-audit.md §4.2): one current-thread tokio runtime, driven
+//! One current-thread tokio runtime, driven
 //! by `Runtime::block_on` on a dedicated `hd-io` thread, since only
 //! `block_on` drives a current-thread runtime's I/O and timer drivers.
 //! Program threads spawn tasks through its `Handle`; each task delivers

@@ -60,8 +60,7 @@ pub(crate) enum Start {
 
 /// A child instance running on its own big-stack thread. A child needs the
 /// stack of a test engine's thread, which a tokio task does not have, so
-/// the thread delivers its result to a task that waits for it
-/// (wasmtime-host-audit.md §5, T8).
+/// the thread delivers its result to a task that waits for it.
 pub(crate) struct ChildRun {
     /// Set to interrupt the child: its host checks it at every host call,
     /// in its waits and at epoch ticks, so the thread ends promptly.

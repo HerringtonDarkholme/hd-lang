@@ -1,5 +1,5 @@
 #!/bin/sh
-# Spike for M2 (audit/compiler/wasmtime-audit-2026-10-10.md): build the six
+# Spike for M2 (the 2026-10-10 wasmtime feature audit, see README.md): build the six
 # runtime progs, three samples and two synthetic host-free programs with
 # the current `hd`, validate every module with the wasmtime CLI (GC flags
 # on), and time wasmtime vs Node on the host-free ones.

@@ -1024,7 +1024,7 @@ The portable suite runs any `hd` that answers `parse`, `check` and `test`
 with exit codes and `code:` diagnostics
 (the portable README, deleted with the prototype). By the 2026-10-06
 baseline it selects 261 parse cases and 1,389 type cases
-([baseline](../../audit/compiler/baseline-2026-10-06.md#21-full-run)).
+(baseline).
 
 1. **Slice 1, syntax.** Lexer, layout, parser and CST, behind `hd parse FILE`.
    Exit: the parse-phase cases pass, every fixture and `lib/std` file
@@ -1149,7 +1149,7 @@ Measured costs of the frozen prototype that Part 2 explains:
 
 | Cost | Value | Cause, read from `src/` and `lib/std` |
 | --- | --- | --- |
-| `sum` loop vs Node | 11x in the [baseline](../../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks); 17x in the M1c metrics run (reported to this research, not in the repo) | the range loop runs the iterator protocol with boxed `i32` cells and an `Option` struct per step ([Prototype Baselines](goals.md#prototype-baselines-to-beat-2026-10-06)) |
+| `sum` loop vs Node | 11x in the baseline; 17x in the M1c metrics run (reported to this research, not in the repo) | the range loop runs the iterator protocol with boxed `i32` cells and an `Option` struct per step ([Prototype Baselines](goals.md#prototype-baselines-to-beat-2026-10-06)) |
 | counted loop allocations | 80 B per iteration (M1c run) | the same boxes |
 | JSON vs Node | 3 to 4% (M1c run) | `List[u8]` stores one boxed `anyref` per byte (F-505), `encode` builds a whole `Json` tree before writing text, and trait calls go through rebuilt dictionaries (F-502) |
 | `list_dir!` per call | 52 µs (M1c run) | structured values cross as node trees, and strings cross one host call per byte (F-558) |
@@ -1716,7 +1716,7 @@ immutable `(array i8)`. Substrings copy, as Java has since 7u6; the
 prototype's struct of array, start and length costs an extra indirection on
 every access. A `StringBuilder` is a growable `(array (mut i8))` with a
 length, copied once at the end, and `join` sums lengths first, which fixes
-the O(L log n) join of the [baseline](../../audit/compiler/baseline-2026-10-06.md#81-string-join-is-ol-log-n).
+the O(L log n) join of the baseline.
 In the browser, `TextDecoder` and `TextEncoder` convert at the boundary.
 
 ### Maps And Hashing

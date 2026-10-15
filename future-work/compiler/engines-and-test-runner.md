@@ -135,8 +135,9 @@ These engine settings are decided by measurements, not here:
 Owner, 2026-10-10: the `hd` CLI must not need Node. W1 links wasmtime
 and runs programs in-process behind a switch; Node stays the default.
 
-- **Engine.** `wasmtime = "=49.0.2"` (the newest release; the feature
-  audit is `audit/compiler/wasmtime-audit-2026-10-10.md`), with default
+- **Engine.** `wasmtime = "=49.0.2"` (the newest release; its feature
+  audit validated every emitted module, `git show
+  44890c30:audit/compiler/wasmtime-audit-2026-10-10.md`), with default
   features off and `cranelift`, `gc`, `gc-copying`,
   `parallel-compilation`, `runtime` and `std` on: no component model, no
   async, no WASI, no pooling allocator, no `cwasm` cache yet. The
@@ -1089,7 +1090,8 @@ plain TCP/UDP, as today).
 ### 20.6 Questions with a recommendation
 
 - **Q1. Sync host calls only?** Superseded (2026-10-14) by
-  [wasmtime-host-audit.md §4](../../audit/compiler/wasmtime-host-audit.md#4-async-host-design-tokio):
+  the wasmtime host audit (#160, deleted 2026-10-15; `git show
+  44890c30:audit/compiler/wasmtime-host-audit.md`, section 4):
   waiting host calls return a handle and run on a tokio runtime.
   Original answer: yes (recommended): the Node host already
   presents synchronous `.start` semantics via worker-thread blocking;

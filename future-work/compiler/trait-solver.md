@@ -1866,8 +1866,9 @@ conformance index, and lists rules with no fixture, per component.
 ## 15. Prototype Failures And The Rules That Prevent Them
 
 From `src/KNOWN_ISSUES.md` (deleted with the prototype), its history, the
-[checker audit](../../audit/compiler/checker-2026-10-04.md) and the
-[findings](../../audit/compiler/findings-2026-10-04.md):
+checker audit and the
+findings (both deleted 2026-10-15; `git show
+44890c30:audit/compiler/checker-2026-10-04.md` and `findings-2026-10-04.md`):
 
 | Prototype failure | Evidence | Rule here |
 | --- | --- | --- |
@@ -1877,9 +1878,9 @@ From `src/KNOWN_ISSUES.md` (deleted with the prototype), its history, the
 | `T < mut Any` drops the `Any` bound and its `mut` | F-619 | `mut_` on every goal; `Any` is an ordinary sealed row, never dropped |
 | `TypeId` spelled by bare name; two same-named types of different modules could share an identity | F-620 | `Inspectable` evidence names the type, and codegen derives identity from the canonical type over stable paths ([§13.3](codegen.md#133-instance-keys)) |
 | `Trait::method(item)` with a parameter receiver searched impls only | F-624 | one goal for every source, the environment first (section 3.1) |
-| impl matching on canonical type strings | [CA-02](../../audit/compiler/findings-2026-10-04.md#ca-02-textual-types-and-semantic-cycles) | heads in the pool; the head index; TC-2 |
-| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values; `dyn` generic methods get type witnesses (codegen.md §13.5.1); GADT evidence is removed with GADTs |
-| derivation diagnostics in process-global registries keyed by span | [CS-02](../../audit/compiler/findings-2026-10-04.md#cs-02-derivation-diagnostic-registries-reuse-keys-without-compilation-identity) | `FailInfo` carries the impl's origin; diagnostics are values in the body result |
+| impl matching on canonical type strings | CA-02 | heads in the pool; the head index; TC-2 |
+| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | CA-04 | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values; `dyn` generic methods get type witnesses (codegen.md §13.5.1); GADT evidence is removed with GADTs |
+| derivation diagnostics in process-global registries keyed by span | CS-02 | `FailInfo` carries the impl's origin; diagnostics are values in the body result |
 | derives through generated source that is parsed again | checker audit, Derivation And Std Integration | the solver sees derived heads only; template bodies are token text with a resolution table, checked as derive instances |
 | bound inference repeats until no solution changes | checker audit, `bound-inference.ts` | the spec's bounded loop stays in the checker; the solver has no fixpoint (TS-7) |
 | associated calls and member calls use separate selection paths | checker audit | one `Methods` goal for both; one `Instantiations` goal for the choice |

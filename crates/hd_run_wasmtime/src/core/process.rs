@@ -1,4 +1,4 @@
-//! `Process.run!` (wasmtime-host-audit.md §4.3): `.start` checks the grant
+//! `Process.run!`: `.start` checks the grant
 //! and the arguments on the program thread, and a refusal returns at once.
 //! Otherwise the child runs as one task on the `hd-io` runtime, which
 //! spawns it in a process group of its own, feeds its standard input and

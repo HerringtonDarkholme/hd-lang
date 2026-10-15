@@ -1,5 +1,5 @@
-//! The host's pending operations (runtime-and-host.md §17.2;
-//! wasmtime-host-audit.md §4): each `.start` that cannot finish at once
+//! The host's pending operations (runtime-and-host.md §17.2): each
+//! `.start` that cannot finish at once
 //! gets a handle and completes later, when its time comes (`Clock.sleep`,
 //! `Console.write_line`) or when another thread delivers its result into
 //! the inbox: a line of standard input (`ConsoleInput.read_line`, read by
@@ -34,8 +34,7 @@ pub const NS_PER_MS: i128 = 1_000_000;
 pub type Line = Result<Option<String>, ()>;
 
 /// What an offloaded operation delivers, for its `.finish` to encode.
-/// Each capability that moves onto the `hd-io` runtime adds its variant
-/// (wasmtime-host-audit.md §5, T2-T7).
+/// Each capability that moves onto the `hd-io` runtime adds its variant.
 pub enum Done {
     /// `Process.run!`: how the child's run ended.
     Process(crate::core::process::Ran),

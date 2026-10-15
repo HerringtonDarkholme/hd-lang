@@ -1,4 +1,4 @@
-//! `Net` on the `hd-io` runtime (wasmtime-host-audit.md §4.3): the
+//! `Net` on the `hd-io` runtime: the
 //! instance keeps a table of its sockets (`client.rs`), and each operation
 //! that waits is one task (`ops.rs`) that delivers into the reactor.
 

@@ -1,4 +1,4 @@
-//! The `hd-io` runtime starts lazily (wasmtime-host-audit.md §4.2): a
+//! The `hd-io` runtime starts lazily: a
 //! program that makes no offloaded host call starts no thread. Its own
 //! test binary, so no other test in the process starts the runtime.
 
