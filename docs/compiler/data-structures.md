@@ -1,477 +1,200 @@
 # New Compiler Design: Core Data Structures
 
 Status: design record; may lag the code. The code and the spec win.
+Each "Implementation differs" note marks a place where the code is
+behind this design.
 
 Part of the [compiler design](ARCHITECTURE.md).
 
-## Changes In This Pass
-
-Backend lane, 2026-10-07. The owner asked to "design each data structure
-better". §3.1 to §3.10 keep their numbers and anchors. §3.11 to §3.25
-are new: one full design per structure, a memory budget and the schema
-language. Every structure design answers the same nine points, in this
-order: purpose and consumers, layout, identity, lifetime, growth,
-determinism, wire form, memory, accessors.
-
-Edits in this file:
-
-1. **IDs (§3.1).** One sentinel rule: every index is a plain `u32`
-   newtype, and `u32::MAX` (`NONE`) means "absent" in every column, in
-   memory and on disk. `NonZeroU32` is dropped, so a column can be cast
-   from bytes without a second rule (mine).
-2. **Stable paths (§3.2)** are a hash-consed trie of `(parent, segment)`
-   nodes with an incremental 128-bit path hash per node (mine).
-3. **Interners (§3.3)** share one generic, `ShardedInterner`, built on the
-   chunked `AppendVec` of §3.9.4.
-4. **Types (§3.4, §3.9.2)**, from crates/hd_check/DESIGN.md (type checking) §17 item 1:
-   `Readonly(Ty)` becomes `Mut(Ty)`; `IntLit` is gone, and one `Infer`
-   form keeps its kind in the inference table. (A body-local `Rigid`
-   tag for GADT existentials was removed with GADTs.) The decoded view
-   is `TyView`, the accessor API of [crates/hd_check/DESIGN.md (type checking) §1.4](../../crates/hd_check/DESIGN.md#14-the-type-accessor-api).
-5. **InternPool (§3.9.2)**: a `meta` column (flags and node count), a
-   corrected constant encoding, interned lists and rows, and no
-   hash-consing in the body-local pool (mine).
-6. **Diagnostics (§3.8)** are columns in a `DiagBuf`, so rollback
-   truncates them like every other body column.
-7. **Wire rule (§3.20.2, mine).** No run ID is ever written to disk or
-   hashed. Every cache entry carries its own string, path and type tables.
-   The schema knows which operand words are IDs and generates the remap.
-   This corrects D2's "serialization is a column copy" for TIR, whose
-   words hold pool indices and `DefId`s.
-8. **Tokens (§3.11)** drop the `indent` and `depth` columns: indentation
-   moves to a per-line table, and the layout cursor tracks depth itself.
-   A token is 9 bytes, not 13.
-9. **Memory budget (§3.24)** and **schema language (§3.25)** are new.
-
-**Second pass (backend lane, 2026-10-07), from the frontend lane's
-review response.** `Assoc` names its item and trait reference, and
-`AssocList` is keyed by item (§3.4, §3.9.2; crates/hd_check/DESIGN.md (trait solver) change 15).
-Pending rows get a row tier that lives until `ModuleFinish` ends, and M3
-gets two specified writes: the provider patch and the row sweep (§3.4,
-§3.9.2, §3.9.5; crates/hd_check/DESIGN.md (type checking) §17 items 1 and 2). Tuple templates
-and numeric families are impl rows; only sealed traits are `Builtin`
-(§3.17). The schema gains the `TraitValue` choice and the `Providers`
-record (§3.25), and the entry table the `hdr` kind
-(§3.20.4). The `fact` kind is gone: facts are run-time values (owner,
-2026-10-07).
-
-**Third pass (backend lane, 2026-10-07), from
-`f1c55020:future-work/compiler/codex-rereview-response-frontend.md`
-items 5 and 7.** A slot reserved before a trial's checkpoint keeps its
-identity until no trial is open, and its fill waits in the checker's
-`deferred_fills` column; the builder's fill log is gone (§3.9.5). GADTs
-are removed: `Rigid`, `HAS_RIGID`, the GADT refinements in TIR and the
-`Evidence` callee record are gone (§3.4, §3.9.2, §3.10.1, §3.25).
-§3.19's column table follows crates/hd_check/DESIGN.md (type checking) §13: watch edges, join
-items, deferred fills and open literal classes are append-only columns,
-and the GADT arm equalities are gone.
-
-Edits in other files:
-
-| File | Edit |
-| --- | --- |
-| [crates/hd_tir/DESIGN.md](../../crates/hd_tir/DESIGN.md) | TIR's encoding rewritten (columns, `Ref` without a `consts` column, the capture table, sub-bodies, side tables, wire form, size asserts); §17 items 1 to 10 of crates/hd_check/DESIGN.md (type checking) that touch TIR or §4.13 applied; see its header note |
-| [crates/hd_syntax/DESIGN.md](../../crates/hd_syntax/DESIGN.md) | §4.1 `TokenBuf` and §4.4 `GreenTree` point to §3.11 and §3.13 for their final layouts |
-| [crates/hd_resolve/DESIGN.md](../../crates/hd_resolve/DESIGN.md) | §4.11.1 blob `types` section uses the pool's tag, data and `extra` encoding with blob-local operands; §4.12.1 `ImplTable` columns point to §3.17 |
-| [crates/hd_cache/DESIGN.md](../../crates/hd_cache/DESIGN.md) | §5.4 entry header and sections point to §3.20; §5.5 `mtime_ns` is `i64` |
-| [crates/hd_mono/DESIGN.md](../../crates/hd_mono/DESIGN.md) | §13.2 `InstanceSet` and §13.8 `CodeEntry` point to §3.22 for their columns |
-
 ## 3. Core Data Structures
 
-This chapter defines every data structure the compiler keeps. §3.1 to
+This chapter covers the data structures the compiler keeps. §3.1 to
 §3.10 give the shared rules: IDs, paths, interners, types, arenas,
 poison, spans, diagnostics, the data-oriented encoding and each IR's
-contract. §3.11 to §3.23 design each structure in full. §3.24 sums their
-memory, and §3.25 defines the schema that generates their code.
+contract. §3.11 to §3.23 describe each structure.
 
-**Where each structure is designed.**
-
-| Structure | Section | Built by | Freed |
-| --- | --- | --- | --- |
-| IDs and sentinels | §3.1 | | |
-| stable paths, path hashes | §3.2 | resolution, interface readers | process |
-| strings and symbols | §3.3 | lexer, interface readers | process |
-| InternPool: types, rows, lists, constants | §3.9.2 | resolution, checker, readers | process |
-| diagnostics and fix-its | §3.8 | every pass | after output |
-| tokens and line tables | §3.11 | lexer | with the file's tree |
-| layout cursor, skim state | §3.12 | parser | per parse |
-| green tree, wire form, JS decoder | §3.13 | parser | after `ModuleFinish` |
-| header skeleton, item index | §3.14 | header pass, parser | with the module scope |
-| name-resolution tables | §3.15 | `FolderIface`, `ModulePrep` | process (frozen) |
-| folder interface and blob | §3.16 | `FolderIface` | process (mapped) |
-| impl tables | §3.17 | `FolderIface` | process (frozen) |
-| TIR | §3.18, [§4.13.11](../../crates/hd_tir/DESIGN.md#41311-the-typed-ir-tir) | checker | after `ModuleFinish` writes it |
-| per-body checker scratch | §3.19 | `Body` | per body (reused) |
-| cache entries, manifest | §3.20 | `ModuleFinish`, driver | on disk |
-| task graph | §3.21 | driver, tasks | end of run |
-| instance table, code entries | §3.22 | collection, `Emit` | end of build; on disk |
-| Wasm emission buffers | §3.23 | `Emit`, `Link` | per instance (reused) |
+| Structure | Section | Code |
+| --- | --- | --- |
+| IDs and sentinels | §3.1 | `hd_base` |
+| stable paths, path hashes | §3.2 | `hd_intern::PathTable` |
+| strings and symbols | §3.3 | `hd_intern::ShardedInterner` |
+| InternPool: types, rows, lists | §3.4, §3.9.2 | `hd_types::pool` |
+| diagnostics and fix-its | §3.8 | `hd_diag::buf::DiagBuf` |
+| tokens and line tables | §3.11 | `hd_syntax::TokenBuf` |
+| layout cursor | §3.12 | `hd_syntax::LayoutCursor` |
+| green tree and its wire form | §3.13 | `hd_syntax::GreenTree` |
+| header skeleton, item index | §3.14 | `hd_syntax::HeaderSkeleton`, `ItemIndex` |
+| name-resolution tables | §3.15 | `hd_resolve::ModuleScope` |
+| folder interface and blob | §3.16 | `hd_resolve::FolderIface` |
+| impl tables | §3.17 | `hd_types::solver::ImplTable` |
+| TIR | §3.18, [§4.13.11](../../crates/hd_tir/DESIGN.md#41311-the-typed-ir-tir) | `hd_tir::ir::Body` |
+| per-body checker state | §3.19 | `hd_check::body::Ck`, `hd_types::unify::InferTable` |
+| cache entries | §3.20 | `hd_cache::store` |
+| task graph | §3.21 | `hd_sched::TaskGraph` |
+| instance table, code entries | §3.22 | `hd_mono::layout::InstanceTable`, `hd_wasm::Code` |
+| Wasm emission state | §3.23 | `hd_wasm::emit` |
 
 ### 3.1 IDs And Their Scopes
 
-Every ID is a `u32` newtype. IDs are cheap to compare and never reach
-output or a hash. Each has a stable form used at boundaries.
+Every ID is a `u32` newtype made by `hd_base`'s `id!` macro, with
+`NONE = u32::MAX`, `get() -> Option<Self>`, `idx()`, `raw()` and
+`from_raw()`. IDs derive `Eq` and `Hash`, not `Ord`, and have no
+`StableHash` impl, so code that sorts by an ID or hashes one into a key
+does not compile.
 
 | ID | Scope | Indexes | Stable form at boundaries |
 | --- | --- | --- | --- |
 | `Symbol` | run | interned string (§3.3) | the string |
-| `PackageId` | run | resolved package | `root`, or `HOST_PATH@VERSION` plus tree hash, or a workspace-relative path for a path dependency |
+| `PackageId` | run | resolved package | the package identity |
 | `FileId` | run | source file | package plus package-relative path |
-| `ModuleId` | run | module, dense | package plus module path, as `shop.cart` |
-| `FolderId` | run | folder, dense | package plus folder path, as `src/shop` |
+| `ModuleId`, `FolderId` | run | module, folder; dense | package plus path |
 | `PathId` | run | a node of the stable-path trie (§3.2) | the printed path |
-| `DefId` | run | any declaration, member, variant or impl; a `PathId` whose node is an item | `StablePath` (§3.2) |
-| `Index` | run (global) or body (local) | an InternPool item (§3.9.2) | the entry's own type or constant table (§3.20.2) |
-| `Ty`, `TyList`, `RowId`, `AssocList` | as `Index` | an `Index` whose tag is a type, list or row | as `Index` |
+| `DefId` | run | any declaration, member, variant or impl; a `PathId` whose node is an item | its path (§3.2) |
+| `Ty`, `TyList`, `RowId` | run (global) or body (local) | an InternPool item (§3.9.2) | the entry's own type table (§3.20.2) |
 | `TokenIdx`, `NodeIdx` | file | token, green node | byte offsets |
 | `ItemIdx` | module | item in source order | item path |
-| `InferVar`, `LocalId`, `Inst`, `CaptureId`, `SubId` | body | inference variable, local, TIR instruction, capture, sub-body | none: never leaves the body |
-| `TaskId` | run | scheduler task | none |
-| `InstId` | build | collected instance | `InstanceKey` (§3.22) |
+| `InferVar`, `LocalId`, `SubId`, `CaptureId`, `LabelId` | body | inference variable, local, sub-body, capture, label | none: never leaves the body |
+| `InstId` | build | collected instance | instance key (§3.22) |
 
-```rust
-// hd_base: IDs implement Eq and Hash, not Ord and not StableHash.
-// Sorting anything for output needs an explicit content key (§6.5).
-macro_rules! id { ($name:ident) => {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
-    #[repr(transparent)]
-    pub struct $name(u32);
-    impl $name {
-        pub const NONE: Self = Self(u32::MAX);
-        #[inline] pub fn get(self) -> Option<Self> { (self.0 != u32::MAX).then_some(self) }
-        #[inline] pub fn idx(self) -> usize { debug_assert!(self.0 != u32::MAX); self.0 as usize }
-    }
-    const _: () = assert!(core::mem::size_of::<$name>() == 4);
-} }
-id!(Symbol); id!(FileId); id!(ModuleId); id!(FolderId); id!(PathId); id!(DefId);
-```
-
-**Sentinel rule (mine).** `NONE = u32::MAX` means "absent" in every
-column, in memory and on disk. Index 0 is a real item, so a column is
-indexed without an offset. An API that returns an optional ID returns
-`Option<Id>` through `get()`; storage never holds `Option<Id>`, which
-would be 8 bytes. D1 used `NonZeroU32`; one rule for memory and wire is
-simpler than two, and `bytemuck` can cast any column whose items are
-`u32` newtypes.
-
-**Narrow IDs.** Where a count is bounded by the language, a column may
-use `u16` (a generic parameter's index, a tuple arity, a field index):
-the limits of §4.15 keep them in range, and the builder asserts it.
-
-Making IDs unsortable and unhashable for stable hashes is a compile-time
-guard for prior-art lesson 2 (mine): code that tries to sort by an ID or
-hash one into a key does not compile.
+**Sentinel rule.** `NONE` means "absent" in every column, in memory and
+on disk. Index 0 is a real item, so a column is indexed without an
+offset. Storage never holds `Option<Id>`, which would be 8 bytes.
 
 ### 3.2 Stable Paths And Stable Hashing
 
-**Purpose and consumers.** A stable path names a declaration across
-runs, machines and checkouts. Interface blobs, cache keys, instance keys,
-diagnostics and the program database print or hash it. In a run, code
-compares `DefId`s and never builds a path.
+A stable path names a declaration across runs, machines and checkouts.
+Interface blobs, cache keys, instance keys and diagnostics print or hash
+it. In a run, code compares `DefId`s and never builds a path.
 
-**Layout: a hash-consed trie (mine).** Every package, module segment and
-item segment is one trie node. A `DefId` is a `PathId` whose node is an
-item. Equal paths are the same node, so path equality is one compare.
+**Layout: a hash-consed trie.** Every package, module segment and item
+segment is one node of `PathTable`. Equal paths are the same node, so
+path equality is one compare. Columns are `AppendVec`s: `parent`, `seg`
+(the segment text), `kind` (`Package | Module | Item | Member | Variant
+| Impl | Hidden`), `hash` and `def_module`. A dedup index of 16 locked
+shards maps `(parent, kind, segment)` to the node; appends take one lock.
 
-```rust
-pub struct PathTable {                    // a ShardedInterner (§3.3) over PathNode
-    parent: AppendVec<PathId>,            // 4 B; NONE for a package root
-    seg:    AppendVec<u32>,               // 4 B; Symbol, or an index into impl_segs
-    kind:   AppendVec<PathKind>,          // 1 B; Package | Module | Item | Member | Variant | Impl | Hidden
-    hash:   AppendVec<Hash128>,           // 16 B; the stable path hash, computed at intern
-    // per-item data, filled once by the task that declares the item (set-once slots)
-    def_module: AppendVec<ModuleId>,      // 4 B; NONE for non-items
-    def_loc:    AppendVec<u32>,           // 4 B; header NodeIdx, or an interface record (high bit)
-}
-pub struct ImplSeg { pub head: Hash128, pub ordinal: u16 }   // in a side vector `impl_segs`
-#[repr(u8)] pub enum PathKind { Package, Module, Item, Member, Variant, Impl, Hidden }
+- **The path hash is incremental.** `hash(node) = H("path", hash(parent),
+  kind, segment)`, computed once at intern time, so every `DefId` has its
+  128-bit stable hash in one load. A package root hashes against zero.
+- `Hash128` is xxh3-128.
 
-pub struct StablePath<'a> { pub table: &'a PathTable, pub id: PathId }  // a view; Display prints it
-```
+**Stable hashing.** `StableHasher` is streaming xxh3-128 that starts
+from a tag string. Integers hash little-endian at their declared width;
+strings and lists hash their length first. No `usize` is hashed.
 
-- **The path hash is incremental (mine).**
-  `hash(node) = xxh3_128(hash(parent) ‖ kind ‖ segment bytes)`. One hash
-  per new node, at intern time, so every `DefId` has its 128-bit stable
-  hash in one load. Interface blobs, cache keys and instance keys use it
-  directly. A package root hashes its `PackageKey` text.
-- An impl segment is the hash of its head's normalized text plus an
-  ordinal among identical heads in the module (identical heads are
-  `overlapping-impl` anyway).
-- **Collisions.** Within one interface blob, the writer checks that no two
-  paths share a hash, as rustc checks `DefPathHash` per crate. A collision
-  is an internal error naming both paths. With 128 bits it is not
-  expected.
-- `Hash128` is xxh3-128. The algorithm is named in the cache layout file,
-  so a later remote cache can move to BLAKE3 without ambiguity.
-- Program-database symbols are the printed stable path, as
-  `github.com/acme/json@2.1.0/json.parse/Parser.next`
-  (Q6 (`git show f1c55020:future-work/compiler/research.md`)).
+**Hash tables in memory** are indexes, never the only storage of data.
+The design used fixed-seed tables and forbade iterating one outside
+`hd_base` (a clippy `disallowed_methods` entry), so no table order can
+reach output; the determinism matrix would vary the seed (§8.1).
 
-**Stable hashing.**
+Implementation differs: in-run tables are `std` `HashMap`s with a
+per-process random seed, and no lint forbids iterating them (for example
+`crates/hd_intern/src/paths.rs:53`). An order leak is found only if a
+test happens to hit it.
 
-```rust
-pub struct StableHasher(xxh3::Xxh3);             // 128-bit, streaming, fixed seed 0
-pub trait StableHash {
-    fn stable_hash(&self, h: &mut StableHasher, cx: &StableCx);
-}
-// StableCx maps run IDs to stable forms: a DefId writes its path hash,
-// a Ty writes its canonical encoding (§3.20.2), a Symbol writes its bytes.
-```
-
-- `StableHash` is derived only for types listed in the schema (§3.25),
-  whose ID fields the schema knows. A run ID has no `StableHash` impl, so
-  it cannot enter a key by accident.
-- Integers hash little-endian at their declared width. Lists hash their
-  length first. Strings hash length then bytes. No `usize` is hashed.
-
-**Hash tables in memory.** Every in-run hash table is a
-`hashbrown::HashTable<u32>` whose values are row numbers into columns,
-hashed by `foldhash` with a fixed seed. It is an index, never storage
-(§3.9.4). Iteration over a table is forbidden outside `hd_base` (a
-clippy `disallowed_methods` entry), so no table order reaches output. The
-determinism matrix runs with a varied seed (§8.1) to prove it.
-
-**Identity, lifetime, growth.** `PathId`s are run-scoped, the table lives
-for the process, and it only grows. A REPL session adds the input's
-items, bounded by the session's code (§7.9).
-
-**Determinism.** Node IDs depend on interning order; nothing prints or
-sorts them. Content order for output uses the printed path bytes.
-
-**Wire form.** None: blobs and entries carry their own path tables of
-`(parent, segment)` records, written from the trie and re-interned on
-read (§3.16, §3.20.2).
-
-**Memory.** 33 bytes per node in the columns plus about 8 bytes of index
-at a load factor of 7/8 near 41 bytes. A 10k-line package with std
-touches about 15,000 nodes: about 0.6 MB.
-
-**Accessors.** `paths.intern(parent, kind, seg) -> PathId`,
-`paths.parent(id)`, `paths.hash(id)`, `paths.print(id, &mut String)`,
-`paths.def_module(id)`. Code outside `hd_base` sees `DefId` and these
-methods only.
+**Wire form.** None: blobs and entries carry their own path rows of
+`(parent, kind, segment)`, written from the trie and re-interned on read
+(§3.20.2).
 
 ### 3.3 Interners
 
 | Interner | Holds | Concurrency | Lifetime |
 | --- | --- | --- | --- |
-| strings (`Symbol`) | identifiers, module and package names, literal text that types name (string prefixes, keys) | `ShardedInterner` | process |
-| stable paths (`PathId`) | the trie of §3.2 | `ShardedInterner` | process |
-| InternPool (`Ty`) | types with no inference variables, rows, lists and constant values | one `Cols`, one append lock, 64 dedup shards, a per-thread read-through table (§3.9.2) | process |
-| body-local pool | types holding `InferVar`s or rigid placeholders, in the InternPool's columns | hash-consed through a body-local table; one fresh pool per body, dropped with it | body |
+| strings (`Symbol`) | identifiers, module and package names | `ShardedInterner`: 16 locked dedup shards, one append lock | run |
+| stable paths (`PathId`) | the trie of §3.2 | the same scheme | run |
+| InternPool (`Ty`) | types with no inference variables, rows, lists | one set of columns, one append lock, 64 dedup shards, a per-thread read-through table | run |
+| body-local pool | types holding `InferVar`s | hash-consed through a body-local table; one pool per body | body |
 
-**One generic (mine).** The string and path interners are one structure:
+The parser interns names into a per-parse `hd_intern::Interner`.
 
-```rust
-pub struct ShardedInterner<C: Columns> {
-    locals: Box<[CachePadded<Local<C>>]>,      // one per worker thread, plus one for the driver
-    index:  [CachePadded<Mutex<HashTable<(u32 /*hash*/, u32 /*id*/)>>>; 64],
-}
-struct Local<C> { cols: C /* AppendVecs */, len: AtomicU32 }
-// A string/path id packs the owner and the row: bits 25..30 owner thread, 0..24 row.
-// The type pool does not use owner bits: a global `Ty` is a plain row, and a
-// body-local index sets bit 31, a 4-bit pool generation in bits 27..30, and
-// the row in bits 0..26 (§3.9.2). The generation overlaps the tier bits
-// 29..30 the design reserved for carry and module rows — an open layout
-// decision. Bit 31 stays reserved for TIR constants.
-```
+1. **Lookup** hashes the content, locks one shard and probes it.
+2. **Miss**: append under the append lock, publish the length, insert
+   into the shard.
+3. **Read** of an existing ID takes no lock. `AppendVec` never moves an
+   item (§3.9.4).
+4. **Pre-seeding.** `InternPool::default` interns the primitives in
+   `Prim::ALL` order, then `Never`, `Poison`, the empty list, the empty
+   row and `void` (the empty tuple), so `Ty::I32` and friends are
+   constants.
+5. **Per-thread read-through table (pool only).** The hottest keys
+   (`i32`, `string`, `Option[i32]`) land on fixed shards. So each thread
+   keeps a direct-mapped table of 4,096 slots in front of the shards. A
+   hit is checked against the item's content, with no lock. An interned
+   item never changes, so a slot is never stale.
 
-1. **Lookup** hashes the content, locks the shard `hash % 64`, and probes
-   with the stored 32-bit hash before comparing content.
-2. **Miss**: append to the calling thread's columns, then publish
-   `len` with `Release`, then insert into the shard and unlock. The type
-   pool has no per-thread columns: a miss appends to the one `Cols`
-   under its single append lock, which keeps the columns row-aligned.
-3. **Read** of an existing ID takes no lock. An ID is obtained only from
-   the index (after its mutex's acquire) or from data published after it,
-   so the item is visible. `AppendVec` never moves an item (§3.9.4).
-4. **Capacity.** 64 owner threads and 2^25 rows per owner. The thread
-   count is `min(cores, 8)` by default
-   (`f1c55020:future-work/compiler/open-questions.md`); over-capacity is an internal
-   error, not a user limit.
-   **Every packed record holds a full ID (Codex re-review N-I3).** An ID
-   uses 31 bits, so no record may pack a tag into those bits: a head key
-   is a `u8` kind plus a `u32` payload, and a TIR callee choice is a kind
-   word plus a value word. A `const` assertion per packed type checks
-   that its payload field is 32 bits wide, and the determinism matrix's
-   ID shift (§8.1) also runs with every ID interned by owner 63, so a
-   legal thread count never depends on which thread interned first.
-5. **Pre-seeding.** Keywords, prelude names, primitive types, `Poison`,
-   the empty list, the empty row and common `Option[prim]` types are
-   built at compile time into `static` columns of owner 0, so a fresh
-   process allocates nothing for them (the `startup` target) and their
-   IDs are constants, such as `Ty::I32`. A lookup tries this static table
-   (a perfect hash) before it touches a shard. The type pool is the
-   exception: it has no static table and no per-owner columns.
-   `InternPool::default` interns the primitives in `Prim::ALL` order,
-   then `Never`, `Poison`, the empty list and the empty row, so
-   `Ty::I32` and friends are still constants, but from a fixed
-   loop, not from compiled columns.
-6. **Per-worker read-through table (systems review, finding 9).** Hits
-   took the shard lock too, and the hottest keys (`i32`, `string`,
-   `Option[i32]`) land on fixed shards, so 8 workers passed a few cache
-   lines back and forth. So each worker keeps a direct-mapped table of
-   4,096 slots, `(hash: u32, id: u32)`, in front of the shards. A lookup
-   probes its slot and compares content with the item at `id`, with no
-   lock. On a miss it takes the shard path above and fills the slot. An
-   interned item never changes, so a slot is never stale and needs no
-   invalidation. The table is 32 KB per worker per interner and lives as
-   long as the worker.
+The design also gave the string and path interners per-thread columns
+with owner bits in the ID, a compiled static table for pre-seeded
+names, and the read-through table. The code locks one shard per lookup
+instead. That is simpler, and with string and path interning off the
+hottest path the saving was never measured.
 
-**Cost of interning** (a cold 10k-line check with std; the review's
-estimates of the call counts):
-
-| Path | Calls | Cost per call | Total |
-| --- | --- | --- | --- |
-| shard lock on every lookup (before) | about 200,000 | 20 to 40 ns uncontended; 60 to 150 ns when another core wrote the line | 4 to 30 ms of CPU |
-| static table hit | an estimated 30% | about 5 ns | under 0.3 ms |
-| per-worker table hit | an estimated 50 to 60% | 5 to 10 ns | about 1 ms |
-| shard path on a miss | an estimated 10 to 20% | 20 to 150 ns | 0.4 to 6 ms |
-
-Slice 3 counts lock acquisitions and contended waits per run and sets the
-table size from the hit rate.
-
-**Strings.** The string interner's columns are `bytes: AppendVec<u8>`
-and `span: AppendVec<(u32 /*offset*/, u32 /*len*/)>`. A `Symbol` resolves
-to `&str` with two loads. Strings are UTF-8 and NFC-checked by the lexer
-before interning. Decoded literal values that only TIR needs (escapes
-processed) go to the pool's `bytes` column as `Str` constants, not here.
-
-- An ID's value depends on which thread interned first. That is harmless
-  because no ID is printed, sorted or hashed (§6.5). The determinism
-  matrix shifts IDs on purpose to prove it (§8.1).
-- In the browser there is one owner and the shards' mutexes are
-  uncontended.
-
-**Memory.** A symbol costs its bytes plus 8 bytes of span and about 9
-bytes of index: about 25 bytes for a 10-byte name. A 10k-line check
-interns about 20,000 symbols with std: about 0.5 MB.
+An ID's value depends on which thread interned first. That is harmless
+because no ID is printed, sorted or hashed.
 
 ### 3.4 Types
 
-A type is an index into the InternPool (§3.9.2). `TyView` below is the
-**decoded view** that the accessor layer returns (§3.25). It is not how
-types are stored: storage is a one-byte tag, a `u32` data word, a `u32`
-meta word and, for variable parts, words in the pool's `extra` column.
-It is the API of [crates/hd_check/DESIGN.md (type checking) §1.4](../../crates/hd_check/DESIGN.md#14-the-type-accessor-api);
-the generated pool views implement `TyRead` and `TyBuild`.
+A type is an index into the InternPool (§3.9.2). Storage is a one-byte
+tag, a `u32` data word, a `u32` meta word and, for variable parts, words
+in the pool's `extra` and `tys` columns. `TyData` is the decoded view,
+owned for simplicity; `Types` reads and builds through the global pool
+and, inside a body, the body's local pool.
 
-```rust
-/// A type: an InternPool index. Bit 31 set: an index into the current body's local pool.
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Ty(u32);
+`TyData` forms: `Prim` (`i8` to `u64`, `usize`, `f32`, `f64`, `bool`,
+`char`, `string`), `Never`, `Poison`, `Adt { def, args }`,
+`Tuple { elems, rest }`, `Option`, `Fn { params, result, row, suspends,
+inputs }`, `TraitValue { def, args, bindings }`, `Param`,
+`Assoc { assoc, trait_, self_ty, args }`, `Mut`, `Infer`, `Canon` (a
+solver placeholder), `Row` (a row in a row-argument slot) and `Context`.
+`void` is the empty tuple.
 
-pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
-    Prim(Prim),                      // i8..u64, usize, f32, f64, bool, char, string, void
-    Never,
-    Poison,                          // see §3.6
-    Adt { def: DefId, args: &'a [Ty] },
-    Tuple { elems: &'a [Ty], rest: Option<Ty> },   // rest element of tuple rest types
-    Option(Ty),                      // T? is Option[T]; its own tag for speed only
-    Fn { params: &'a [Ty], result: Ty, row: RowId, suspends: bool },
-    TraitValue { def: DefId, args: &'a [Ty], bindings: &'a [(DefId, Ty)] },
-    Param(ParamRef),                 // (owner DefId, index); declared, never inferred
-    Assoc { assoc: DefId, tref: TraitRefView<'a> },  // an unnormalized projection
-    Mut(Ty),                         // the mutable view `mut T`; `T` alone is readonly
-    Infer(InferVar),                 // body-local only; the variable's kind is in the inference table
-}
-```
-
-- **Projections name their item (crates/hd_check/DESIGN.md (trait solver) change 15).** `Assoc`
-  holds the associated type's own `DefId` and the instantiated trait
-  reference `TraitRefView { trait_, self_ty, args }`, so
-  `<S as Add[i32]>::Out` and `<S as Add[i64]>::Out` are different types
-  ([crates/hd_check/DESIGN.md (trait solver) §2.1](../../crates/hd_check/DESIGN.md#21-trait-references)). D1's
-  `{ base, trait_, name }` lost the trait arguments and the supertrait
-  path. The trait is the item's declaring trait, so the pool stores only
-  the item, the self type and the arguments (§3.9.2).
-- **Bindings are keyed by item.** An `AssocList` pairs an associated
-  type's `DefId` with its type, not a name, as crates/hd_check/DESIGN.md (trait solver) §2.1 asks.
-- **`Mut`, not `Readonly`** (crates/hd_check/DESIGN.md (type checking) §17 item 1). In the spec
-  `T` is the readonly view and `mut T` the marked form
-  ([Views](../../spec/lang/04-type-system.md#views)).
+- **Projections name their item.** `Assoc` holds the associated type's
+  `DefId` and the full trait reference, so `<S as Add[i32]>::Out` and
+  `<S as Add[i64]>::Out` are different types.
+- **Bindings are keyed by item**, not by name.
+- **`Mut`, not `Readonly`.** In the spec `T` is the readonly view and
+  `mut T` the marked form ([Views](../../spec/lang/04-type-system.md#views)).
 - **One inference form.** A literal is an `Infer` variable whose kind
-  (general, integer literal, float literal) lives in the inference table
-  (§3.19), because unification merges kinds. So there is no `IntLit`
-  and no float-literal tag.
-- `TyList`, `AssocList` and `RowId` are interned slices, so type equality
-  is one integer comparison for global types.
-- A global type never contains a local one. Interning into the global
-  pool rejects an item whose `HAS_LOCAL` flag is set.
-- **How body-created types are interned without copies.** A body builds
-  types with variables in its local pool. When the body finishes (or a
-  type becomes variable-free earlier), `resolve` replaces variables by
-  their bindings and interns the result in the global pool. Equal content
-  gives the equal `Ty` whichever thread interns it. There is one pool, not
-  a copy per thread (lesson 5), and no ID escapes (lesson 2).
+  (general, integer literal, signed integer literal, float literal)
+  lives in the inference table (§3.19), because unification merges
+  kinds.
+- `TyList` and `RowId` are interned, so type equality is one integer
+  comparison for global types.
+- A global type never contains a local one: building a type that holds
+  an inference variable without a local pool panics.
+- Body types with variables live in the body's local pool. `resolve`
+  replaces variables by their bindings and interns the result globally.
+  Equal content gives the equal `Ty` whichever thread interns it.
 
-**Rows.** A row in the pool is one item: its keys, its declared row
-parameters, and, outside the global pool only, pending private rows:
+**Rows.** A row is one pool item: its keys, sorted, and its declared row
+parameters. Printing and hashing re-sort keys by canonical content
+(§3.20.2), never by `Ty` value.
 
-```rust
-pub struct RowView<'a> {
-    pub keys: &'a [Ty],                  // sorted by Ty value for in-run merges
-    pub params: &'a [RowParamRef],       // declared row parameters listed in the row
-    pub pending: &'a [PendingPart],      // never global: see "Pending rows" below
-}
-/// RowVar(g) as seen from one call (crates/hd_check/DESIGN.md (type checking) §5.1): g's solved row,
-/// with g's generics replaced by `subst`, minus the keys in `minus`.
-pub struct PendingPart { pub var: RowVar, pub subst: TyList, pub minus: RowId }
-```
-
-Keys are sorted by `Ty` value for linear merges inside a run. Printing
-and hashing re-sort them by canonical content (§3.20.2), never by `Ty`
-value (the tsgo lesson). `subst` lists the callee's type arguments and
-then its row arguments; a row is a pool item too, so one interned list
-holds both.
-
-**Pending rows (crates/hd_check/DESIGN.md (type checking) §5.5 and §17 item 1).** A `RowVar`
-names a private callable of the module, so a pending row is valid for
-the whole module, not for one body. Its solution is known only in M3.
-So a type that holds one (the `HAS_ROWVAR` flag) and no inference
-variable lives in a **row tier** until `ModuleFinish` ends (mine):
-
-| Tier | Written by | Read by | Freed |
-| --- | --- | --- | --- |
-| module tier | M1, which is serial: private signatures and M1 bodies | every body of the module | at the end of `ModuleFinish` |
-| body carry | `finish` of one M2 body: its types that still hold a pending row | M3 only | at the end of `ModuleFinish` |
-
-- **Encoding.** A non-global `Index` uses bits 29..30 for its tier: 0
-  body-local, 1 body carry, 2 module tier (§3.9.2). A carry index is
-  relative to its own body's result, so parallel bodies never share a
-  column, and no lock is needed.
-- **No hash-consing**, as in the local pool. `finish` moves each
-  local item that holds a pending row, and no variable, to the carry,
-  children first, memoized per local item.
-- **Never on disk.** M3 replaces every row-tier type before the `tir`
-  and `check` entries are written. The wire writer asserts that no
-  pending part and no non-global index reaches an entry or an interface.
-- `mk` interns a type in the global pool only when it has neither
-  `HAS_INFER` nor `HAS_ROWVAR`.
+**Omitted rows.** A private callable with an omitted row has its row
+solved from row facts beside the types (`hd_check/src/results.rs`:
+`RowFacts`, `RowEdge`), so no type holds a pending row. The design kept
+pending rows inside types, in a "row tier" of the pool that lived until
+`ModuleFinish`, then swept them out. Keeping them out of the pool is
+simpler: the pool needs no tier bits, and nothing has to be rewritten
+before an entry is written.
 
 ### 3.5 Arenas And Lifetimes
 
-| Arena | Holds | Created | Freed |
-| --- | --- | --- | --- |
-| session | interners, path table, global pool, frozen interfaces and their memo tables, impl tables, solver memo, task result slots | process start | process end (REPL: never; it is bounded, §7.9) |
-| file | source bytes, `TokenBuf`, `GreenTree`, line tables | parse | after its module's `ModuleFinish`, unless `hd fmt`, `hd fix` or the playground keeps the tree |
-| folder build | the use worklist, header lowering scratch, the blob writer's buffers | `FolderIface` start | its end; the result is the frozen blob |
-| worker | one `BodyCx` and one set of TIR columns (§3.19), the emission buffers (§3.23) | worker start | worker end; truncated to empty per body or instance, never shrunk |
-| module result | each body's TIR moved out of the worker columns, `DiagBuf`s, row and init facts | the end of each body | `ModuleFinish`, after writing the `check` and `tir` entries |
-| build | the instance table, vtable and import sets, mapped `tir` and `code` entries | collection start | end of the build |
+| Arena | Holds | Lifetime |
+| --- | --- | --- |
+| session | interners, path table, global pool, frozen interfaces, impl tables, solver memo, task result slots | the run (a REPL keeps its session) |
+| file | source text, `TokenBuf`, `GreenTree`, item index | the run, once parsed |
+| body | the local pool, the inference table, the checker state, the body's TIR columns | one body check; the TIR moves into the module's result |
+| build | the instance table, layouts, code entries | one program's build |
 
-**Frozen versus per-task.** A `FolderIface` is written once, by its task,
-into a `OnceLock` slot, and read only by tasks that the graph orders after
-it. A `ModuleScope` is the same. Body tasks therefore read shared data with
-no locks. The only shared mutable structures are the append-only
-interners, the interface memo tables (§3.16) and the solver memo, whose
-answers are pure functions of frozen inputs (§4.12.2).
+**Frozen versus per-task.** A task writes its result once into a
+`OnceLock` slot, read only by tasks that the graph orders after it. So
+body tasks read shared data with no locks. The only shared mutable
+structures are the append-only interners and the solver memo, whose
+answers are pure functions of frozen inputs.
 
-**Moving a body out of the worker columns.** At `finish`, the builder
-copies the body's ranges of each column into one exact-size allocation
-in the module result (one `memcpy` per column, §3.18) and truncates the
-worker columns to empty. The worker keeps its capacity for the next
-body, so steady-state checking allocates once per body for the output.
+The design reused one set of per-worker columns body after body and
+copied each body out at its end. The code builds each body's columns
+fresh. That is simpler, and the saved allocation was never measured.
 
 ### 3.6 The Poison Type
 
@@ -481,532 +204,246 @@ body, so steady-state checking allocates once per body for the output.
 3. Any check whose operand or expected type contains poison stays silent.
    Only the error that created the poison reports. The `HAS_POISON` meta
    flag (§3.9.2) makes "contains poison" one load.
-4. Sources of poison: an unknown name (reported once per name per body), a
-   broken header (reported once in its module), a syntax error node, a
-   failed limit, and an item whose interface is poison.
+4. Sources of poison: an unknown name, a broken header, a syntax error
+   node, a failed limit, and an item whose interface is poison.
 5. A poisoned item still exports: its interface record carries `Poison`
    where its type is unknown, so dependents check the rest without noise.
 
 ### 3.7 Spans And Files
 
-```rust
-pub struct Span { pub file: FileId, pub lo: u32, pub hi: u32 }   // byte offsets; 12 B
-pub struct SpanIdx(u32);   // body-local: an index into the body's span column, for blame and diagnostics
-```
+`Span { file: FileId, lo: u32, hi: u32 }` is 12 bytes of byte offsets.
 
-- Line and column are computed only when output is rendered, from the
-  file's line table (§3.11).
-- A body stores spans as `NodeIdx` (TIR's `syn` column) or as `SpanIdx`
-  into its own `(lo, hi)` columns. The file is implied by the body.
-- In a cache entry whose key includes the file's `source_hash` (`check`,
-  `tir`, `code`), a span into that file is a byte range.
-- **Token anchors (Codex review A3, re-review N9).** Every other span on
-  disk is a `TokenAnchor { decl: path row, tok: u32, count: u32,
-  lo_in_tok: u16, hi_in_tok: u16 }`: the index of the first token among
-  the declaration's tokens (whitespace and comments are not tokens), the
-  number of tokens, and byte offsets inside the first and last token.
-  That covers every span in an `iface`, `coh` or `init` entry, whose
-  keys ignore positions, and a `check` span into another file. Output
-  resolves it through the file's `locs` entry and a re-lex of that one
-  declaration ([crates/hd_cache/DESIGN.md §5.3](../../crates/hd_cache/DESIGN.md#53-key-composition)). So a
-  blank line above a declaration, or spaces and comments inside it,
-  change no semantic key and leave no stale position. The API hash
-  covers the declaration's tokens, so an anchor is valid whenever the
-  key that stored it hits.
+- Line and column are computed only when output is rendered.
+- A body stores spans as `NodeIdx` (TIR's `syn` column).
+- In a `check` entry, positions are written relative to the module's
+  code lines (the skeleton's `code_lines`), so a comment or blank-line
+  edit moves them without changing the module's semantic key.
+- **Token anchors.** An `iface` entry stores locations as
+  `hd_resolve::anchor::Anchor { decl, member, tok, count }`: the
+  declaration's index among the file's top-level nodes, the block
+  member, the first token counted from the declaration's first token,
+  and the token count. A blank line above a declaration, or spaces and
+  comments inside it, change no interface key and leave no stale
+  position.
+
+Implementation differs: the design's anchor named the declaration by
+its path row and kept byte offsets inside the first and last token; the
+code names it by position among top-level nodes, with whole tokens; not
+judged.
+
 - Doc tests map their spans back to the `##` line that holds them
   ([`cli.test.doc.location`](../../spec/cli/command-line.md#r-cli.test.doc.location)).
-- Offsets are `u32`, so a file is at most 4 GiB. The practical limit is
-  16 MiB (§4.15).
 
 ### 3.8 Diagnostic Records
 
-**Purpose and consumers.** Every pass reports through a `DiagBuf`.
-`ModuleFinish` sorts, deduplicates by root key and writes them to the
-`check` entry. The renderer reads them at output; `hd fix` reads fix-its.
+Every pass reports through a `DiagBuf`. The driver sorts diagnostics
+into content order, keeps one per root cause, and writes them to the
+`check` entry. The renderer reads them at output; `hd fix` reads
+fix-its.
 
-**Layout.** Diagnostics are rare: zero in clean code. So the per-record
-cost matters less than two other things: rollback (a trial's diagnostics
-must truncate, TC-5) and the wire form. A `DiagBuf` is columns:
+**Layout.** A `DiagBuf` is columns, one row per diagnostic: `code`,
+`severity`, `primary` span, `message`, `labels`, `fixes` and
+`root: Option<RootKey>`, plus pooled label, fix-it and edit columns and
+one `text` buffer. A `RootKey` is `(item DefId, cause, value)`.
+`FixSafety::Exact` marks a fix-it that passed the re-parse check, which
+`hd fix` applies.
 
-```rust
-pub struct DiagBuf {
-    // one row per diagnostic
-    code:     Vec<Code>,          // u16, generated from the spec's code list
-    severity: Vec<Severity>,      // u8: Error | Warning
-    primary:  Vec<Span>,          // 12 B
-    message:  Vec<MsgId>,         // u16 template id
-    args:     Vec<Range32>,       // into `arg_kind`/`arg_val`
-    labels:   Vec<Range32>,       // into the label columns
-    notes:    Vec<Range32>,
-    fixes:    Vec<Range32>,
-    root:     Vec<RootKey>,       // 12 B: one diagnostic per root cause (§4.14)
-    // pooled parts
-    arg_kind: Vec<ArgKind>,       // u8: Ty | Def | Sym | Int | Text | Span | Code
-    arg_val:  Vec<[u32; 2]>,      // the value: a Ty, a DefId, a Symbol, an i64, a text range
-    label_span: Vec<Span>, label_msg: Vec<MsgRef>,
-    note_msg: Vec<MsgRef>,
-    fix_title: Vec<MsgRef>, fix_safety: Vec<FixSafety>, fix_edits: Vec<Range32>,
-    edit_file: Vec<FileId>, edit_lo: Vec<u32>, edit_hi: Vec<u32>, edit_text: Vec<Range32>,
-    text: Vec<u8>,                // edit text and literal message text
-}
-pub struct Range32 { pub start: u32, pub len: u32 }
-pub struct RootKey { pub item: DefId, pub cause: CauseKind /* u8 */, pub value: u32 }
-pub struct MsgRef { pub id: MsgId, pub args: Range32 }
-pub enum FixSafety { Exact, Suggestion }   // Exact passed the re-parse check; `hd fix` applies it
-```
+- **Checkpoint.** `DiagMark` holds the column lengths; rollback
+  truncates them, as a trial needs (TC-5).
+- Messages are stored as text, rendered when reported through stable
+  paths, so a message is the same on every run. Rendering into compact
+  or JSON form happens at output, so `--format` never enters a key.
+  The design's typed message arguments and generated per-template
+  builders are not built; text is simpler and already deterministic.
+- `--max-errors` caps output, not storage, so summary counts stay exact.
 
-- A diagnostic row costs about 60 bytes plus its parts. A typical one
-  with two arguments, one label and one fix-it costs about 150 bytes.
-- **Message arguments are typed, not strings.** They render through
-  stable paths with the shortest unambiguous name, so a message is the
-  same on every run and machine.
-- **Checkpoint.** A `DiagBuf` checkpoint is the lengths of its row and
-  part columns; rollback truncates them.
-
-**Identity.** A diagnostic has no ID. `ModuleFinish` orders by the total
-key of §4.14 and drops exact duplicates and repeated root keys.
-
-**Lifetime.** One `DiagBuf` per body, moved into the module result, then
-sorted into the module's buffer and written. Header diagnostics live in
-the folder's blob (`diags` section).
-
-**Wire form.** The `diags` section of a `check` entry or blob is the same
-columns, with `Ty` and `DefId` arguments remapped through the entry's
-type and path tables and spans in stable form (§3.20.2). Rendering
-happens at output, so `--format` never enters a key.
-
-**Memory.** Tens of KB even for a broken 10k-line package; capped in
-output by `--max-errors`, not in storage, so summary counts stay exact.
-
-**Accessors.** `diags.report(code, span).arg_ty(t).label(span, msg)
-.fix(title, edits).emit()`, a generated builder per message template that
-takes exactly the template's typed arguments, so a missing or
-mistyped argument does not compile.
-
-**Structured `NotImplemented` carries an optional span** (`dc19fda8`,
-`60f37949`). `hd_base::unsupported::NotImplemented` has
-`span: Option<Span>`; `.at(span)` sets it only when none is set, so the
-innermost node that knows its position wins as the error unwinds, and
-the driver falls back to the sentinel span when no stage knew the
-position. Checker stages set it at the construct; emit-stage sites do
-not yet (see the backlog).
+**Structured `NotImplemented` carries an optional span.**
+`hd_base::unsupported::NotImplemented` has `span: Option<Span>`;
+`.at(span)` sets it only when none is set, so the innermost node that
+knows its position wins as the error unwinds, and the driver falls back
+to a sentinel span when no stage knew the position.
 
 ### 3.9 Data-Oriented Encoding
 
-Added with D2, after the owner asked whether this design is truly
-data-oriented. Every IR is stored as columns of fixed-size items with
-`u32` indices between them. There are no `Box`es, no pointers and no
-variable-size enums in storage. Each IR's encoding is chosen by who reads
-it.
-
-Sources, credited where each idea is used:
-
-- **Zig**: Sema emits AIR directly, with no tree lowered later. ZIR and
-  AIR store each instruction as a one-byte tag plus an 8-byte data word
-  whose meaning depends on the tag, with variable operands in an
-  `extra: []u32` array. `MultiArrayList` stores a struct's fields as
-  separate arrays. The InternPool stores types and values the same way,
-  with per-thread shards and a thread ID in the index's high bits since
-  Zig 0.14. The tokenizer stores only a tag and a start offset.
-- **Carbon** SemIR: the checker emits the semantic IR directly; typed
-  instruction kinds over value stores, read through typed accessors
-  (`inst.As<T>()`), and IR blocks as ranges.
-- **Yuku**, a Zig JS/TS parser
-  ([write-up](https://www.arshad.fyi/writings/data-oriented-design-in-yukus-parser)):
-  52-byte nodes (a 44-byte tagged union plus an 8-byte span) asserted at
-  compile time; children in an `extras` array as `{start, len}`; five
-  scratch buffers flushed with one bulk copy; rewinding by
-  `shrinkRetainingCapacity`; strings as source spans unless decoded; a
-  40-byte header then position-independent columns; a generated
-  `Int32Array` decoder in JavaScript; and the layout derived from one
-  definition at compile time. It parses an 8 MB file into 852,919 nodes
-  in about 19 ms.
-- **Vx**: flat type and HIR streams per worker, 256-bit IDs, an epoch
-  merge, and `.vxm` metadata cast with `bytemuck`. The streams and the
-  cast are used here; the IDs and the merge were not adopted
-  (Comparison With Vx (`git show f1c55020:future-work/compiler/research.md`)).
-- **rust-analyzer**: typed views generated from an ungrammar (§4.4).
+Tokens, the green tree, the InternPool, TIR and diagnostics are stored as
+columns of fixed-size items with `u32` indices between them. Each
+encoding is chosen by who reads it. The ideas come from Zig (AIR, the
+InternPool, `MultiArrayList`), Carbon's SemIR, and the Yuku parser's
+flat nodes and scratch buffers. Interfaces, impl tables and the checker
+state are ordinary Rust structs.
 
 #### 3.9.1 Four IRs, And The Stopping Point Of Each
 
-The owner asked whether all these IRs are needed and what they cost in
-memory (2026-10-07). There are four: tokens with the syntax tree, the
-interface, TIR, and Wasm.
+There are four: tokens with the syntax tree, the interface, TIR, and
+Wasm.
 
 ```text
-tokens (transient) ─► syntax tree ─► interface (cached, memory-mapped) ─► TIR, one per body ─► Wasm
+tokens ─► syntax tree ─► interface (cached) ─► TIR, one per body ─► Wasm
 ```
 
-- **TIR** is one typed IR per body, emitted directly by the checker. There
-  is no checked tree that is later lowered to a mid-level IR. hd has no
-  borrow checker, so it has no reason for rustc's THIR and MIR split.
-  Zig's Sema emits AIR and Carbon's checker emits SemIR the same way.
-- **No monomorphized IR.** Emission walks the generic TIR under a type
-  substitution and writes each instance's Wasm at once (§13.8). TIR is
-  cached per module; Wasm bytes are cached per instance.
-- **The item index** is an index over the syntax tree and the interface,
-  not a copy of either (§3.14).
+- **TIR** is one typed IR per body, emitted directly by the checker.
+  There is no checked tree that is later lowered to a mid-level IR. hd
+  has no borrow checker, so it has no reason for rustc's THIR and MIR
+  split.
+- **No monomorphized IR.** Optimization plans rewrite TIR bodies;
+  emission walks TIR under a type substitution and writes each
+  instance's Wasm at once. TIR is cached per module; Wasm per instance.
 
-| IR | Consumers | Encoding | Why |
-| --- | --- | --- | --- |
-| tokens | the parser, skim mode, the formatter | columns (§3.11) | read in order, one or two columns at a time |
-| syntax tree | `hd fmt`, `hd fix`, `hd doc`, the playground's JS, the program database (Later) | compact columns, plus named-field typed views generated from `hd.ungram` in Rust and in JS (§3.13) | outside readers want Yuku's ergonomics; storage stays at 14 bytes per node |
-| folder interface | resolution, the checker, `hd doc`, D2 | its blob, read in place through views (§3.16) | memory-mapped from the cache; never decoded into a second copy |
-| TIR | D2: collection and emission | Zig-style tag + 8-byte data + `extra` (§3.18) | internal; dense |
-| Wasm code entries | the linker | bytes plus relocation columns (§3.22) | patched in place |
+| IR | Consumers | Encoding |
+| --- | --- | --- |
+| tokens | the parser, skim, the formatter | columns (§3.11) |
+| syntax tree | the checker, `hd fmt`, `hd fix`, `hd doc` | columns with typed views (§3.13) |
+| folder interface | resolution, the checker, `hd doc`, collection | its blob, read in place (§3.16) |
+| TIR | collection and emission | tag + 8-byte data + `extra` (§3.18) |
+| Wasm code entries | the linker | bytes plus relocations (§3.22) |
 
-The InternPool (§3.9.2) is storage that all of them share, not an IR.
-The syntax tree is the only IR that leaves the compiler, so it is the
-only one with named-field views at its boundary. TIR and the pool are
-internal, so they take the dense encoding, and the accessor layer
-(§3.25) gives the compiler's own code named fields anyway.
+Implementation differs: interface blobs and entries are decoded into
+Rust structs when read (`decode_items` in
+`crates/hd_resolve/src/iface.rs:1146`; TIR in `Collect`). The design
+read them in place, so a warm run did no decode work for records it
+never touched and held no second copy.
 
 #### 3.9.2 The InternPool
 
-**Purpose and consumers.** One pool holds every global type, interned
-list, row and constant value. Resolution writes header types; interface
-readers write types decoded from blobs; the checker writes body types and
-literal constants; the solver and the checker read types on every step;
-collection and emission read types and constants under substitution.
-Reads are random access by `Index`, one item at a time; the type sweep
-and the TIR codec read many items in column order.
+One pool holds every global type, interned list and row. Resolution
+writes header types; interface readers write types decoded from blobs;
+the checker writes body types; the solver, collection and emission
+read them.
 
-**Layout.** One `Cols`, shared by every thread (no per-owner columns):
+**Layout.** One set of columns, shared by every thread:
 
-```rust
-pub struct PoolCols {
-    tag:   AppendVec<PoolTag>,   // 1 B
-    data:  AppendVec<u32>,       // 4 B: inline payload, or an offset into `extra`
-    meta:  AppendVec<u32>,       // flags only (HAS_INFER | HAS_POISON | HAS_PARAM | HAS_ASSOC | HAS_CANON)
-    extra: AppendVec<u32>,       // variable parts
-    tys:   AppendVec<Ty>,        // list items, lent as `&[Ty]`
-    bytes: AppendVec<u8>,        // string and byte constants
-}
-#[repr(transparent)] pub struct Meta(u32);   // flags only: no node count is stored
-pub struct Ty(u32);   // a plain global row; bit 31 clear
-                      // bit 31 set: body-local; bits 27..30 pool generation, bits 0..26 row
-const _: () = assert!(core::mem::size_of::<PoolTag>() == 1);
-```
+| Column | Item |
+| --- | --- |
+| `tag` | `PoolTag`, 1 byte |
+| `data` | `u32`: an inline payload, or an offset into `extra` |
+| `meta` | `u32` flags: `HAS_INFER`, `HAS_POISON`, `HAS_PARAM`, `HAS_ASSOC`, `HAS_CANON` |
+| `extra` | `u32` words: variable parts |
+| `tys` | `Ty`: list items, lent as `&[Ty]` |
 
-`Meta` holds what crates/hd_check/DESIGN.md (type checking) §1.4 needs in one load: the flags.
-The designed node count for the `type-too-large` limit (§4.15) is not
-built: nothing stores it, and the limit reads it nowhere yet. `meta` is
-computed from the children's flags at intern time. The global pool
-rejects `HAS_INFER`: building a variable-holding type against it panics.
+Tags: `Prim`, `Never`, `Poison`, `Adt`, `Tuple`, `TupleRest`, `Option`,
+`Fn`, `TraitValue`, `Param`, `Assoc`, `Mut`, `Infer`, `Canon`, `List`,
+`Row`, `RowTy`, `Context`. Tags with a record keep its first `extra`
+word in `data`; the record's length follows from the tag and, for rows
+and trait values, from counts inside it.
 
-| Tag | `data` | `extra` record | Local only |
-| --- | --- | --- | --- |
-| `Prim` | the `Prim` | none | |
-| `Never`, `Poison` | 0 | none | |
-| `Option`, `Mut` | the inner `Ty` | none | |
-| `Infer` | the `InferVar` | none | yes |
-| `Param` | offset | `[owner DefId, index]` | |
-| `Adt` | offset | `[DefId, args TyList]` | |
-| `Tuple` | offset | `[elems TyList, rest Ty or NONE]` | |
-| `Fn` | offset | `[params TyList, result Ty, row RowId, flags]`; flags bit 0: suspends | |
-| `TraitValue` | offset | `[DefId, args TyList, bindings AssocList]` | |
-| `Assoc` | offset | `[assoc DefId, self Ty, trait args TyList]`; the trait is the item's declaring trait | |
-| `TyList` | offset | `[start, len]` into `tys` | |
-| `AssocList` | offset | `[len, (item DefId, Ty) × len]`, sorted by the item's path hash at intern | |
-| `Row` | offset | `[nkeys, key Ty × nkeys, nparams, RowParamRef × nparams, npending, (RowVar, subst TyList, minus RowId) × npending]` | pending part only: carry or module tier |
-| `Int` | offset | `[ty, low word, high word]` | |
-| `Float` | offset | `[ty, low word, high word]` (the bits) | |
-| `Bool`, `Unit` | the value | none; pre-seeded | |
-| `Char` | the scalar | none | |
-| `Str` | offset | `[byte offset, length]` into `bytes` | |
-| `Aggregate` | offset | `[ty, count, value Index × count]` | identity-free values only (tuples, enums) |
-| `ItemConst` | offset | `[DefId, type args TyList]`: a function or a payloadless variant as a value | |
-
-- **Constant encoding fixed.** D1's `IntSmall` put the value in `data` and
-  the type in `extra`, which left no word for the offset. Every typed
-  constant now keeps `[ty, ...]` in `extra`; only untyped `Bool`, `Unit`
-  and `Char` are inline.
-- **Lists are items in their own column.** A `TyList`'s items live in
-  the typed `tys` column and its `extra` record is `[start, len]`, so
-  `list_items` lends `&[Ty]` with no cast (lending `&[Ty]` from `u32`
-  words would need unsafe outside `AppendVec`). `Adt` equality stays a
-  compare of two words. Every `extra` record has a fixed width except
-  rows and trait values, which carry their counts inside.
-- **Items are fixed size**: 9 bytes in the tag, data and meta columns,
-  plus `extra` words for compound items, plus an 8-byte index entry.
-  Measured shapes give about 20 bytes of columns per type and 28 with its
-  index entry; `TyList`s are shared, which is why the average is low.
+- **Lists are items in their own column.** A list's record is
+  `[start, len]` into `tys`, so `list_items` lends `&[Ty]` with no cast.
+- `meta` is computed from the children's flags at intern time.
 - **No per-thread copies.** Threads share one pool. Appends serialize on
-  the one append lock, which is Zig 0.14's scheme, not Vx's merge.
-- Primitives, `Poison`, `Never`, `void`, the empty `TyList`, the empty
-  row, `true`, `false` and `()` are pre-seeded in a fixed order at
-  `InternPool::default` (§3.3).
+  the one append lock, which is Zig 0.14's scheme.
+- **Constants are not in the pool.** TIR keeps each body's constants as
+  `(Ty, u64)` rows and its string literals in the body (§3.18). The
+  design pooled them globally; per-body rows are simpler, and a
+  constant never needed sharing across bodies.
 
-**The body-local pool (mine: hash-consed).** It has the same columns
-in the checking call's arena, plus a body-local dedup table: interning
-the same content twice returns the same index. It must be hash-consed
-because the checker compares variable-holding types with `==`. A local
-type that becomes variable-free is interned globally by `resolve`. The
-pool is never truncated on rollback: trials truncate the TIR, the
-diagnostics, the pending obligations and the union-find trail, never the
-pool, so an index stays valid after a rollback. One body owns one fresh
-pool (`LocalPool::new` per `check_fn`, `check_default`, `check_init`),
-not one pool per worker; it is dropped with the body.
+**The body-local pool** has the same columns plus a body-local dedup
+table, so interning the same content twice returns the same index. It
+must be hash-consed because the checker compares variable-holding types
+with `==`. It is never truncated on rollback, so an index stays valid
+after a trial. A local index sets bit 31, carries its pool's 4-bit
+generation in bits 27..30, and the row in bits 0..26; reading it against
+another body's pool fails loudly.
 
-**Identity and indexing.** A global `Ty` is a plain row. A body-local
-index sets bit 31, carries its pool's 4-bit generation in bits 27..30,
-and the row in bits 0..26. Reading an index against another body's pool
-fails loudly on the generation. The generation overlaps the tier bits
-29..30 the design reserved for carry and module rows — recorded here as
-an open layout decision. Owner 63 needs no reservation: there are no
-owner bits. A `Ty`, `TyList`, `RowId`
-or constant is an index whose tag the typed accessor asserts in debug
-builds.
+**Determinism.** Index values depend on thread order. They never reach
+output: printing goes through stable paths, hashing through the
+canonical encoding of §3.20.2.
 
-**Lifetime and growth.** The global pool lives for the process. Each
-append takes the one append lock and never moves an item. A body's local
-pool is dropped at its end; nothing truncates it mid-body.
-
-**Determinism.** `Index` values depend on thread order. They never reach
-output: printing goes through stable paths, hashing through the canonical
-encoding of §3.20.2. Row keys are sorted by `Ty` value only for in-run
-merges.
-
-**Wire form.** None for the pool itself. Each cache entry and blob holds
-a **type table**: the pool's tag, data and `extra` encoding over the
-entry's own path, string and type indices, written in first-use order.
-A reader interns each record into the pool on first use and memoizes
-the resulting `Index` (§3.20.2).
-
-**Memory.** A cold check of a 10k-line package with std interns about
-60,000 items: about 1.7 MB. A warm check touches about 10,000: about
-0.3 MB.
-
-**Accessors.** Generated from `pool.ir` (§3.25): `pool.view(t) ->
-TyView`, `pool.meta(t)`, `pool.mk(TyNew::Adt { def, args })`,
-`pool.list(&[Ty]) -> TyList`, `pool.row(...)`, and `pool.konst(...)`.
-Only `hd_types` sees the raw columns.
+**Wire form.** None for the pool itself. Each cache entry holds a type
+table over its own path, string and type rows (§3.20.2).
 
 #### 3.9.3 The Dense Encoding
 
 TIR uses the pool's shape with two more columns (its full definition is
-§4.13.11):
-
-```rust
-pub struct Ir<Tag> {
-    tags: Vec<Tag>,              // 1 byte
-    data: Vec<[u32; 2]>,         // 8 bytes; meaning set by the tag
-    ty: Vec<Ty>,                 // 4 bytes: the instruction's result type
-    syn: Vec<NodeIdx>,           // 4 bytes: the syntax node, so the span is exact
-    extra: Vec<u32>,             // operand lists and rare-size payloads
-    side: SideTables,            // rare data: origins of generated code, hole candidates, await facts
-}
-pub const NONE: u32 = u32::MAX;  // "no child", as in Yuku
-```
+§4.13.11): `tags` (1 byte), `data` (`[u32; 2]`), `ty` (the result type),
+`syn` (the syntax node) and `extra` (operand lists and records), plus
+side columns.
 
 - **Operands by index.** An operand is a `u32` reference. A list of
   operands is `{start, len}` in `extra`.
-- **Rare data in side tables**, keyed by instruction index, so common
-  instructions stay small. A typed hole's candidate names, the origin
-  chain of generated code and the facts at each suspension point live
-  there.
-- **Compile-time asserts** fix each item's size: `const _: () =
-  assert!(size_of::<[u32; 2]>() == 8);` and one per `extra` record, so an
-  instruction can never grow by accident (Yuku).
+- **Rare data in side columns**, keyed by instruction index, so common
+  instructions stay small: suspension points (`susp`) and literal
+  fallbacks.
 - **Order.** Every operand has a lower index than its user, so a loop
-  from 0 to n visits operands first (Yuku, Zig's AIR). Instructions are
-  appended in evaluation order, and each block lists its instructions in
-  `extra`, so emission walks block lists front to back.
+  from 0 to n visits operands first. Each block lists its instructions
+  in `extra`, so emission walks block lists front to back.
 
 #### 3.9.4 Tables As Struct-Of-Arrays
 
-The item index, the path table, impl tables, TIR locals and interface
-sections are columns indexed by an ID, never `Vec<struct>` with `HashMap`
-storage:
-
-- A pass that reads one property (all item kinds, all local types) reads
-  one dense column.
-- **Hash maps are only indexes.** A `HashTable<u32>` may point into the
-  columns. No data lives only in a map, so iterating a map never decides
-  output order (§6.5).
-- Sorted sections with binary search replace maps where the table is
-  frozen and its order is content, as the interface blob's export index
-  does.
-- **When not to split (mine).** A record whose every access reads all of
-  its fields stays one struct: a task node (§3.21), a relocation
-  (§3.22), a manifest record (§3.20.3). Splitting them would add a load
-  per field and buy nothing.
-- **Measured, not mandated (Codex review, I5).** Columns win for scans:
-  the call scan over `tags`, the type sweep over `ty`. A mixed-access
-  table, where one step reads a tag, its payload, its type and its span
-  together, may be a small array of structs instead. Slice 3 measures the
-  checker's hot tables both ways and keeps the faster. Per-record sizes
-  come from size asserts. Per-line sizes and nanosecond figures assume
-  typical code and hot cache lines; they are estimates.
+The pool, the path table, the item index, the module scope, impl tables
+and TIR locals are columns indexed by an ID. A pass that reads one
+property reads one dense column. A record whose every access reads all
+its fields stays one struct, such as a task node (§3.21).
 
 **Building blocks** in `hd_base`:
 
-```rust
-/// Growable column whose items never move: chunk k holds 2^(k+10) items.
-/// Readers index without a lock; only the owner appends.
-pub struct AppendVec<T> { chunks: [AtomicPtr<T>; 22], len: AtomicU32 }
+- `AppendVec<T>`: a growable column whose items never move. Chunk `k`
+  holds `2^(k+10)` items; 22 chunks. Readers index without a lock;
+  appends hold the column's writer lock.
+- `Col<T> = Box<[T]>`: an exact-size frozen column.
+- `Range32 { start, len }`: a range of `extra` words or of another
+  column.
 
-/// Exact-size frozen column: the result of a finished task.
-pub type Col<T> = Box<[T]>;
-
-/// A range of `extra` words or of another column.
-#[repr(C)] pub struct Range32 { pub start: u32, pub len: u32 }
-
-/// Column view over borrowed bytes (a mapped blob or entry): checked once, then cast.
-pub struct LeCol<'a, T: Pod> { words: &'a [T] }
-```
-
-`AppendVec` index math is two instructions: the chunk is
-`31 - lzcnt((i >> 10) + 1)`, the offset follows. Its 22 chunks hold
-2^32 items in all, and the first chunk is 1,024 items, so an empty
-interner costs nothing but its header.
-
-`AppendVec` is the workspace's one audited unsafe exception. The
-workspace lint is `unsafe_code = "deny"`; only the `hd_base` module that
-implements `AppendVec` has `#[allow(unsafe_code)]`, and every unsafe block
-has a `// SAFETY:` comment. Its owner alone allocates chunks and writes
-items through the raw chunk pointers, then publishes the initialized
-prefix with a release store to `len`. Readers acquire `len` before
-dereferencing an indexed chunk, so they can reach only initialized,
-never-moved items. No other module may contain unsafe code
-(reconciliation, item 6 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
+`AppendVec` is the workspace's one audited unsafe exception in the
+compiler proper. Only its module in `hd_base` has `#[allow(unsafe_code)]`.
+A chunk pointer is stored with a release store before any item in it is
+published; slot `i` is written once, before `len` is raised past it with
+a release store; readers acquire `len` and read only slots below it.
 
 #### 3.9.5 Building: Scratch Buffer, Checkpoints, Truncation
 
-- **One scratch buffer per worker** (Yuku). A builder that collects a
-  variable list (call arguments, a block's instructions) pushes onto the
-  scratch buffer, then flushes the range into `extra` when the list is
-  done and truncates the scratch back to its checkpoint. Nested lists nest
-  checkpoints.
-- **Rollback is truncation.** Every column is append-only while a body is
-  checked, so a checkpoint is a tuple of lengths: instructions, `extra`,
-  scratch, locals, captures, side tables, the local pool, the inference
-  trail, buffered diagnostics, obligations and facts. Undoing a trial
-  truncates them all and pops the trail. The parser's speculative paths
-  and the checker's candidate trials use this one protocol, which
-  replaces the prototype's two rollback mechanisms with different
-  guarantees (CA-05, §3.10.4).
-- The parser's event vector is the same pattern: recovery truncates the
-  events of a failed attempt.
-- **Writes after the fact** are allowed in these places only, each a
-  fixed-size word or a column written once: the final type sweep
-  rewrites `ty`; `finish` fills the capture-mode column from the
-  checker's solution (§3.18, crates/hd_check/DESIGN.md (type checking) §17 item 10); a `close_*`
-  call writes the label row of the loop or block it closes; a
-  **reserved slot** is filled once; and M3 makes the two writes below.
-  None moves an instruction.
-- **M3's writes (crates/hd_check/DESIGN.md (type checking) §5.5 steps 5 and 6).** Both run in
-  `ModuleFinish`, after the row solve, before the `tir` entry is
-  written:
-  1. **Provider patch.** A call to a private callee with an omitted row
-     holds a 3-word `Providers` record of kind `Pending { call }`, where
-     `call` indexes the body's `PendingCall` list. M3 visits the list in
-     order. For each record it appends that call's `(key, provider)`
-     pairs at the end of the body's `extra`, then rewrites the 3-word
-     record in place as `Keys { start, len }`. When the call's caller is
-     a closure, a pair not bound by a `with` takes its provider `Ref`
-     from the closure's context parameter, which every closure takes
-     (N-I2), so it reads the closure's context bundle by key. Appending never moves an
-     earlier word, so every other offset stays valid. The body's
-     `extra` is re-frozen once, after its last append.
-  2. **Row sweep.** M3 first maps each module-tier item, then each
-     body's carry items, to a global type: each pending part becomes
-     `subst(row(g)) − minus`, merged into the row's keys and parameters.
-     The result is memoized per item. Then M3 rewrites every word whose
-     index has a row tier: the `ty` and `local_ty` columns, and each
-     word of `extra` records that the schema marks as a type or row
-     operand (§3.25), which is the same list the wire remap uses. The
-     tier is in the word itself, so the scan costs no pool load.
-  Both walks go in body order, then instruction or record order, so the
-  appended ranges and the memo are the same on every run. Global
-  interning is by content, so the resulting types do not depend on
-  thread order either.
-- **Reserved slots (Codex review, I2).** The checker does not always
-  check in evaluation order. It may postpone an argument, look at a right
-  operand first, or learn an arm's coercion only at the join. A block's
-  list is evaluation order, not append order, so the builder hands out a
-  slot in the open block's list (`reserve`) and the checker fills it
-  later (`fill`). A slot can hold an instruction, a coercion of an arm's
-  tail, or a callee record of a stalled method call. Every slot is filled
-  before `finish`, and the verifier rejects an empty one.
-- **A slot is an instruction, not a scratch word (Codex re-review
-  N-I1).** An arm's tail coercion is filled at the join, after the arm's
-  block has closed and its scratch range was flushed into `extra` and
-  truncated. So `reserve` appends a real instruction with tag `Slot` to
-  the `insts` columns and pushes its `Inst` into the open block's list
-  like any other instruction. The slot's identity is that `Inst`, which
-  lives as long as the body. `fill` writes the slot's fixed-size operand
-  words once, so it is one of the writes after the fact above:
-  - one instruction: the slot becomes that instruction's tag and
-    operands, or a `Coerce` of the value it names;
-  - several instructions, such as a postponed argument with its own
-    calls: they are appended to `insts` as usual, their list goes to
-    `extra`, and the slot becomes `Splice { list }`. Emission and the
-    verifier read a `Splice` as its instructions in place, with no
-    scope of its own.
-- **A slot keeps its identity until no trial is open (Codex re-review
-  N10, with N-I1).** A slot reserved after the innermost open
-  checkpoint is filled at once; rollback truncates it with `insts`. A
-  slot reserved before that checkpoint is never filled during the
-  trial. The checker appends the fill to its `deferred_fills` column
-  instead, as a `(slot Inst, fill)` pair
-  ([crates/hd_check/DESIGN.md (type checking) §3.5](../../crates/hd_check/DESIGN.md#35-the-trail-and-the-one-rollback-contract)).
-  Rollback truncates that column, so a discarded candidate's callee or
-  coercion never reaches an older slot. When no trial is open, the
-  checker applies the column in order through `fill` and clears it.
-  - So a slot whose fill may be deferred must still name the same
-    instruction when the fill is applied, after every trial has closed.
-    A durable `Slot` instruction gives that: its `Inst` is older than
-    the checkpoint, and no rollback or scratch flush moves it.
-  - A deferred `Splice` fill names instructions that the trial
-    appended. If the trial is kept, they stay in `insts` and the fill
-    applies. If it is rolled back, both go together.
-  - So no filled slot is ever emptied again, and the builder keeps no
-    fill log. An earlier draft logged pre-checkpoint fills and emptied
-    them on rollback; that log is gone.
+- **Scratch buffer.** A builder that collects a variable list (call
+  arguments, a block's instructions) pushes onto a scratch buffer, then
+  flushes the range into `extra` and truncates the scratch back. Nested
+  lists nest checkpoints.
+- **Rollback is truncation.** Every column is append-only while a body
+  is checked, so a checkpoint is a tuple of lengths. `TirCheckpoint`
+  holds the lengths of instructions, `extra`, scratch, locals, captures,
+  sub-bodies, labels, suspension rows, constants and strings. The
+  checker's `Checkpoint` (`hd_check/src/trial.rs`) adds the inference
+  trail, the diagnostics' `DiagMark`, pending goals and its own stacks.
+  Undoing a trial truncates them all and unwinds the trail. The local
+  pool is never truncated.
+- **Writes after the fact** are allowed only as a fixed-size word or a
+  column written once: the final type sweep rewrites `ty`; `finish`
+  writes the capture modes; closing a loop writes its label row; a
+  **reserved slot** is filled once. None moves an instruction.
+- **Reserved slots.** The checker does not always check in evaluation
+  order. A block's list is evaluation order, so the builder appends a
+  placeholder instruction (`reserve`, tag `Hole`) and the checker fills
+  it later (`fill`), once. The TIR verifier rejects an unfilled slot.
 
-```rust
-#[derive(Copy, Clone)]
-pub struct TirCheckpoint {          // the builder's part; the checker adds its own (crates/hd_check/DESIGN.md (type checking) §3.5)
-    insts: u32, extra: u32, scratch: u32, locals: u32, captures: u32,
-    subs: u32, labels: u32, side_susp: u32, side_origin: u32, side_hole: u32, local_pool: u32,
-}                                   // deferred slot fills are the checker's column, in its `Checkpoint`
-const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 44);
-```
+Implementation differs: the design filled a slot reserved before an open
+trial's checkpoint only after every trial closed, through a
+`deferred_fills` column, and let a slot become a `Splice` of several
+instructions. The code has neither; not judged.
+
+Implementation differs: the design patched pending provider records
+(`Providers::Pending`) in `ModuleFinish` once omitted rows were solved.
+The tag exists in `hd_tir`, but no code writes it; how such calls get
+their providers is in `hd_check/src/results.rs`; not judged.
 
 #### 3.9.6 One Schema, Generated Accessors
 
-Each IR and each wire form has one schema file, and `cargo xtask
-codegen` generates the tag enums, size asserts, builders, typed views,
-verifiers, printers and wire codecs from it. The schema language, the
-generated output and what it costs are in §3.25.
+Planned, not built: see §3.25.
 
 #### 3.9.7 Byte Budgets And Linear Passes
 
 | Item | Size | Fields |
 | --- | --- | --- |
 | token | 9 B + 1 bit | kind 1, start 4, end 4; line-first bit (§3.11) |
-| physical line | 10 B | start 4, first token 4, indent 2 (§3.11) |
+| physical line | 10 B + flags | start 4, first token 4, indent 2 (§3.11) |
 | syntax node | 14 B | kind 2, first token 4, last token 4, subtree length 4 (§3.13) |
-| item index entry | 13 B | node or record 4, parent 4, name 4, kind 1 (§3.14) |
-| path node | 33 B | parent 4, segment 4, kind 1, hash 16, module 4, location 4 (§3.2) |
-| pool item | 9 B + `extra` | about 20 B per type on average (§3.9.2) |
-| TIR instruction | 17 B + `extra` | tag 1, data 8, type 4, syntax node 4; budget 24 B with `extra` (§3.18) |
-| TIR local | 13 B | type 4, name 4, syntax node 4, flags 1 |
-| task node | 48 B | §3.21 |
-| relocation | 9 B | offset 4, kind 1, target 4 (§3.22) |
-
-CI measures the averages on std and the generated packages and fails on
-a regression past the budget, as the size asserts do for a single item.
+| pool item | 9 B + `extra` | tag 1, data 4, meta 4 (§3.9.2) |
+| TIR instruction | 17 B + `extra` | tag 1, data 8, type 4, syntax node 4 (§3.18) |
 
 Passes that are one linear scan over columns: lexing; tree building from
-events; skeleton extraction; TIR's final type sweep (resolve every `ty`,
-one column); collecting calls for init summaries and fact records (a scan
-of `tags`); TIR hashing and serialization (column copies plus a remap of
-ID words, §3.20.2); collection's call scan per instance (§13.2); liveness
-at suspension points (one backward scan per block); relocation patching;
-interface blob writing. Emission walks block lists in order: a forward
-scan with a stack of open blocks.
+events; TIR's final type sweep; collecting calls for init summaries (a
+scan of `tags`); TIR serialization (column copies plus a remap of ID
+words, §3.20.2). Emission walks block lists in order with a stack of
+open blocks.
+
+Planned, not built: CI measurement of these averages on std, failing on
+a regression past the budget.
 
 #### 3.9.8 What It Buys: Locality And Memory
 
@@ -1014,1260 +451,434 @@ scan with a stack of open blocks.
   sweep reads `ty` and the local pool; the call scan reads `tags`. A
   column of 4-byte items puts 16 to a cache line, where a tree of boxed
   enums would put one node per line or less.
-- **Memory.** §3.24 gives each structure's bytes and the peaks for a
-  check and a build. A warm check after a one-function edit holds one
-  module's tree and TIR, under a megabyte, beside the `hd` binary's own
-  pages and the pool.
-- **No per-thread copies.** Interfaces are frozen and shared; the pool is
-  shared with per-thread appends; each worker has one set of body
-  columns, reused body after body. Parallel checking therefore adds
-  little memory, which the `parallel-speedup` exit test bounds at 1.5x
-  the memory of one thread (§9).
-- **Serialization is copying plus a remap.** Interface blobs, `tir`
-  entries and code entries are columns written as position-independent
-  little-endian bytes. Columns of plain numbers are copied; columns of
-  run IDs go through the entry's tables (§3.20.2). Reading maps the file
-  and casts (Yuku's memcpy property, and Vx's `bytemuck` cast).
+- **Serialization is copying plus a remap.** TIR columns of plain
+  numbers are copied; columns of run IDs go through the entry's tables
+  (§3.20.2).
 
 ### 3.10 IR Abstraction Contracts
 
-Added with D2, after the owner asked how abstract the checked IR is.
 Each IR has a contract: what is already decided in it, what is
-deliberately not in it, its lifetime and size, and the invariants its
-verifier checks. A pass may rely on the contract of its input and must
-establish the contract of its output.
+deliberately not in it, and the invariants its verifier checks. A pass
+may rely on the contract of its input and must establish the contract of
+its output.
 
 #### 3.10.1 What Each IR Holds
 
 | IR | Resolved in it | Deliberately not in it |
 | --- | --- | --- |
-| tokens | token kinds and spans, line facts, string frames | decoded literal values (decoded on demand into a small pool, as Yuku does), names, layout decisions |
+| tokens | token kinds and spans, line facts | decoded literal values, names, layout decisions |
 | syntax tree | full syntax, every layout token, every comment by position | names, types, desugaring |
-| item index | which syntax node or interface record each item is, its parent, its name lookup | anything the node or record already holds |
-| folder interface | every public signature as pool-encoded types; re-exports followed to the real declaration; impl heads; templates with resolution tables; per-item hashes | bodies, private items (except hidden template items), fact values, doc text, layouts |
-| TIR | every name as a `DefId` or a local; every type; every callee (static, trait method with its bound, impl or builtin choice, trait value, function value); every coercion as an instruction; operators on primitives as primitive instructions and all others as trait calls; indexing as calls; pipe, interpolation, string prefixes, literal suffixes, compound assignment, comprehensions and `?` desugared; evaluation order as instruction order; default arguments; named arguments mapped to parameter slots; `for` over std ranges, lists and maps as dedicated loops, and every other `for` desugared to the protocol; match decision trees as switch instructions; cleanup scopes with their `defer` suites; suspension points; hook points; providers per call; closure captures with their sharing mode; structured control flow | layouts; boxing; capture cells; vtables and dictionaries; frame layouts and state-machine dispatch; overflow and bounds check sequences (a profile choice); instantiation |
-| Wasm code entry | instructions, locals, Wasm types as canonical descriptors | indices (symbolic relocations), folding, section layout |
+| item index | which syntax node each item is, its parent, its name lookup | anything the node already holds |
+| folder interface | every public signature as pool types; re-exports followed to the real declaration; impl heads; templates; hashes | bodies, private items (except hidden template items), fact values, doc text, layouts |
+| TIR | every name as a `DefId` or a local; every type; every callee (static, trait method with its choice, trait value, function value); every coercion as an instruction; operators on primitives as primitive instructions and all others as trait calls; indexing as calls; pipe, interpolation, string prefixes, literal suffixes, compound assignment, comprehensions and `?` desugared; evaluation order as instruction order; default and named arguments mapped to parameter slots; match decision trees; cleanup scopes with their `defer` suites; suspension points; providers per call; closure captures with their sharing mode; structured control flow | layouts; boxing; capture cells; vtables and dictionaries; frame layouts and state-machine dispatch; overflow and bounds check sequences (a profile choice); instantiation |
+| Wasm code entry | instructions, locals, symbolic relocations | indices, section layout |
 
-Everything in TIR's right column is decided during emission, per instance
-and per tier (§12, §14, §15). Nothing in it needs a second IR.
+Everything in TIR's right column is decided during emission, per
+instance and per tier. Nothing in it needs a second IR.
 
 #### 3.10.2 Lifetimes, Sizes And Peak Memory
 
-Estimates for typical hd code: about 35 bytes, 8 tokens, 10 syntax nodes
-and 7 TIR instructions per source line. §3.24 sums them per command.
-
-| IR | Lifetime | Bytes per source line |
-| --- | --- | --- |
-| tokens and line tables | with their file's tree | about 85 |
-| syntax tree | from parse to its module's `ModuleFinish`, or to the end of `hd fmt` or `hd fix` | about 145 |
-| item index | with its module scope | under 5 |
-| interface | memory-mapped for the run; shared by every process that maps it | about 40 per public line; 0 for private code |
-| TIR | from a body's check to its module's `ModuleFinish`, which writes the `tir` entry and frees it; emission maps the entry | about 180 in memory; about 210 on disk |
-| Wasm code entries | from emission to the link that reads them; mapped from the cache | about 40 |
-| linked module | the link and the precompile | about 30 per reachable line |
-
-**A check never keeps TIR**: it writes the `tir` entry and drops it, so
-a later build reuses it. Every finished module's tree and TIR are freed
-at `ModuleFinish`. The peaks are in §3.24: about 13 MB for a warm check
-and about 22 MB for a cold one, inside the `resources` target of 50 MB.
-
-**A build** adds collection, emission (one instance at a time per worker,
-reading mapped `tir` entries), the linked module and Cranelift's compile
-memory, which dominates. No monomorphized IR exists at any point. The
-`resources` metric records build peaks; it sets no target for them.
+Planned, not built: per-IR size estimates checked against a measured
+peak. The design's estimates assumed layouts (§3.5, §3.16) that the code
+does not use.
 
 #### 3.10.3 Invariants And Verifiers
 
-Each verifier runs in the compiler's debug builds, in CI on std and the
-conformance suite, and in verify mode (§5.6). A failure is an internal
-error naming the item, never a user diagnostic. The structural part of
-each verifier is generated from the schema (§3.25).
+A verifier failure is an internal error naming the item, never a user
+diagnostic.
 
-| IR | Verifier checks |
-| --- | --- |
-| tokens and tree | text round-trips byte for byte; token ranges increase; subtree sizes nest; every layout token sits between real tokens |
-| item index | every entry names a header node or an interface record; parents precede children; every synthetic impl names its opt-in |
-| folder interface | validate on write and decode-compare (§4.10, step 8); on load, the bounds checks of §3.16 |
-| InternPool | an item's `extra` offsets lie in bounds; a global item mentions no local index; `meta` equals the value recomputed from the children; hash-consing holds (re-interning an item returns its index) |
-| TIR | §4.13.11: operands precede users; types are global after the sweep; every operand's type equals what its position expects; control-flow targets enclose their exits; cleanup and suspension rules hold; every capture has a mode |
-| cache entries | header, checksum and section bounds on every read; in verify mode, decode and compare with a recompute (§5.6) |
-| Wasm | `wasmparser` validation of the linked module; every index immediate in a code entry has a relocation (debug builds emit a sentinel index and check that none survives the patch) |
+| IR | Verifier checks | Where |
+| --- | --- | --- |
+| tokens and tree | text round-trips byte for byte | `GreenTree::reconstruct`, `hd_syntax` tests |
+| TIR | operands precede users; every reserved slot is filled; the structural rules of §4.13.11 | `hd_tir::ir::verify`, on every `finish` |
+| cache entries | magic, kind, length, checksum and section bounds on every read | `hd_cache::store::decode_entry` |
+| Wasm | `wasmparser` validation of the linked module | driver tests |
 
-#### 3.10.4 Prototype Failures And The Rules That Prevent Them
-
-The audit's findings (`docs/audit/compiler/findings-2026-10-04.md` and
-`architecture-directions-2026-10-05.md`, deleted 2026-10-15; read them with
-`git show 44890c30:audit/compiler/NAME`):
-
-| Prototype failure | Rule here |
-| --- | --- |
-| CA-01: packages flattened into joined source; identity reconstructed later | modules and folders are real units from discovery (§4.7); every declaration is a `DefId` with a stable path (§3.2); no source is ever joined |
-| CA-02: types are canonical strings | types are InternPool items (§3.9.2); text exists only when a diagnostic renders (§3.8) |
-| CA-03: one broad mutable checker object; bodies checked several times for private row inference | a body task owns its columns and reads frozen tables (§3.5); omitted results are inferred once, in M1; omitted rows are solved from constraints in M3 and patched into call provider lists, never by rechecking (§4.13.1); a debug counter asserts each body is checked exactly once per run |
-| CA-04: HIR already holds capture cells, dictionary plans, provider packs and suspension indices; suspension CFG built in the emitter; ABI spread over several consumers | TIR's right column (§3.10.1): it holds sharing modes, not cells; dispatch choices, not dictionaries; suspension points and their cleanup facts, not frames. The state machine is built by emission from those explicit facts, one rule for every target (§14.2). One ABI description generates every side (§17.1) |
-| CA-05: two rollback mechanisms with different guarantees | one checkpoint protocol: truncation of append-only columns plus the inference trail (§3.9.5) |
-| CA-06: reachability at HIR and at WAT level select different dependencies | one collection over TIR includes runtime helpers, codecs, imports and types (§13.2); the linker adds nothing outside the instance set, and fails if a relocation names a symbol outside it |
-| CA-07: no HIR verifier; internal failures rethrown; panics without source attribution; timeouts that cannot interrupt a body | a verifier per IR (§3.10.3); task-boundary internal errors (§6.4); site tables (§15.5); epoch interruption (§17.8) |
-| separate generation paths for ordinary cleanup and suspension cleanup | one cleanup scope per TIR `Scope` instruction; ordinary exits and cancellation both run that scope's suites, and the TIR verifier checks that every suspension point names the scopes it would clean up (§4.13.11, §14.6) |
-| F-506: frames keep every local | per-suspension-point liveness, cleanup reads included (§14.2) |
-| F-552: suspension code grows about N³ | one dispatch case per basic block of a flattened region (§14.2) |
-| CS-01: a process-global set of spans grows across compilations | no process-global mutable state except the interners and memo tables, whose contents are pure functions of their keys; per-run facts live in run arenas; `long-session` tests the REPL (§7.8) |
-| CS-02: diagnostic registries keyed by file path and offsets, without compilation identity | diagnostics carry a `RootKey` over `DefId`s (§3.8); origins of generated code are a TIR side table per body, so no registry outlives its body |
-| F-626: speculation clones checker state | the trail and truncation (§3.9.5) |
+Planned, not built: verifiers for the item index, the interface (beyond
+decode checks) and the pool, and a verify mode that recomputes cache
+entries on hits.
 
 ### 3.11 Tokens And Line Tables
 
-**Purpose and consumers.** The lexer writes tokens as the parser pulls
-them. The parser reads `kind` one token at a time with one token of
-lookahead; the layout cursor reads `kind`, the line-first bit and the
+The lexer writes `TokenBuf`. The parser reads `kind` with one token of
+lookahead; the layout cursor reads `kind`, the line-first bits and the
 line table; the tree, the formatter and diagnostics read `start` and
-`end`. Skim mode stores no tokens (§3.12).
+`end`.
 
-**Layout.**
-
-```rust
-pub struct TokenBuf {
-    pub kind:  Vec<TokenKind>,        // 1 B; significant tokens only
-    pub start: Vec<u32>,              // 4 B; byte offset
-    pub end:   Vec<u32>,              // 4 B; exclusive
-    pub line_first: BitVec,           // 1 bit: the first token on its physical line
-    // physical lines
-    pub line_start: Vec<u32>,         // 4 B; byte offset of each line
-    pub line_tok:   Vec<TokenIdx>,    // 4 B; first token on the line, or NONE for a blank or comment-only line
-    pub line_indent: Vec<u16>,        // 2 B; column of the first non-blank byte
-    pub line_flags: Vec<u8>,          // 1 B: NON_ASCII | HAS_TAB | CONTINUES_STRING
-    // comments, in order
-    pub com_start: Vec<u32>, pub com_end: Vec<u32>, pub com_kind: Vec<CommentKind>, // Plain | Doc | ModuleDoc
-    // decoded values, only for tokens whose text needs work (escapes, NFC, numeric parse)
-    pub decoded: Vec<(TokenIdx, Index)>,   // sorted by token; a pool constant
-}
-#[repr(u8)] pub enum TokenKind { /* numbered by class: ranges for operators, keywords, expression starts (§4.1) */ }
-const _: () = assert!(core::mem::size_of::<TokenKind>() == 1);
-```
+**Layout.** Token columns `kind` (1 byte, significant tokens only),
+`start`, `end` and `line_first` (a bit set in `u32` words); line columns
+`line_start`, `line_tok` (first token, or `NONE` for a blank or
+comment-only line), `line_indent` and `line_flags`; comment columns
+`com_start`, `com_end` and `com_kind` (`Plain | Doc | ModuleDoc`).
 
 - **Why `start` and `end` (not Zig's start only).** Zig recomputes a
   token's end by re-lexing it. hd's string frames and interpolation make
   re-lexing a single token depend on the frame stack, and diagnostics,
-  the formatter and node spans read `end` constantly. 4 bytes per token
-  is the price of a span in two loads.
-- **D1's `indent` and `depth` columns are gone (mine).** Indentation is
-  a fact of a line, not of a token, so it is a line column. Bracket depth
-  is tracked by the layout cursor as it walks, the only reader.
-- **Token kinds** number the classes so that "operator", "keyword" and
-  "starts an expression" are range tests, and a 256-entry static table
-  gives each kind's precedence and flags in one load (Yuku's packed tag,
-  kept in a side table here because the kind is one byte).
+  the formatter and node spans read `end` constantly.
+- **Indentation is a line column**, not a token column. Bracket depth is
+  tracked by the layout cursor as it walks, the only reader.
 
-**Identity.** `TokenIdx(u32)` per file; `NONE` for "no token". Layout
-tokens are not in `TokenBuf`; the tree holds them (§3.13).
+**Identity.** `TokenIdx` per file. Layout tokens are not in `TokenBuf`;
+the tree holds them (§3.13).
 
-**Lifetime and owner.** The file arena; built by the `Parse(file)` task
-and freed with the tree.
-
-**Growth.** `reserve(source_len / 4)` tokens and `source_len / 30`
-lines before lexing (Yuku's estimate, adjusted for hd's longer tokens);
-the vectors grow by doubling past that.
-
-**Determinism.** Pure function of the bytes.
-
-**Wire form.** Part of the tree's wire form (§3.13).
-
-**Memory.** 9 bytes per token plus 11 bytes per line plus 9 bytes per
-comment: about 85 bytes per source line.
-
-**Accessors.** `toks.kind(i)`, `toks.span(i) -> (u32, u32)`,
-`toks.text(i, src) -> &str`, `toks.line_of(offset)` by binary search over
-`line_start`, `toks.value(i) -> Index` that decodes on first call.
+**Accessors.** `kind(i)`, `span(i)`, `text(i, src)`, `is_line_first(i)`.
 
 ### 3.12 Layout Cursor And Skim State
 
-**Purpose and consumers.** The layout cursor turns tokens into tokens
-plus virtual layout tokens for the parser (§4.2). Skim mode (§4.3) runs
-the same lexer frame machine without storing tokens to find a body's
-end.
+The layout cursor turns tokens into tokens plus virtual layout tokens
+(`Newline | Indent | Dedent | SuiteEnd`) for the parser. It holds a
+stack of open indented blocks (statement column, bracket depth, header
+column), the bracket depths of open same-line suites, and a queue of
+pending layout tokens. Its decisions are recorded as zero-width positions
+in the tree's layout columns, not in the token stream.
 
-**Layout.** All three are small stacks, owned by one parse:
-
-```rust
-pub struct LayoutCursor<'t> {
-    toks: &'t TokenBuf,
-    pos: TokenIdx,
-    depth: u16,                          // bracket depth, tracked here (§3.11)
-    indents: SmallVec<[u16; 16]>,        // depth-zero indentation stack
-    suites: SmallVec<[OpenSuite; 8]>,    // 8 B each
-    pending: SmallVec<[Layout; 4]>,      // virtual tokens due before `pos`
-}
-#[repr(C)] pub struct OpenSuite {
-    kind: SuiteKind,           // u8: Indented | SameLine
-    closure: bool,             // the lex.closure.* end rules apply
-    delim_depth: u16,          // bracket depth at the colon
-    reference_indent: u16,     // lex.nested.reference
-    statement_indent: u16,     // lex.nested.body-depth
-}
-const _: () = assert!(core::mem::size_of::<OpenSuite>() == 8);
-
-pub struct LexFrames { stack: SmallVec<[Frame; 8]> }   // shared by full lexing and skim mode
-pub enum Frame { Code { bracket_depth: u16 }, Str { delimiter: u8, raw: bool, prefix: bool } }
-```
-
-**Identity, lifetime, growth.** No IDs. The stacks live on the parsing
-thread's stack; past 16 indentation levels or 8 suites they spill to the
-heap, bounded by the nesting limit (§4.15).
-
-**Determinism.** Pure function of the tokens.
-
-**Wire form.** None. Its decisions are recorded as zero-width positions in
-the tree's parallel layout columns, not as entries in the real-token stream
-(M2 gap 1).
-
-**Memory.** Under 1 KB per parse.
-
-**Accessors.** `peek`, `bump`, `open_suite` (§4.2).
+Skim (`hd_syntax::skim`) lexes the file and finds body ranges, `use`
+lines and the hashes from the token columns (§3.14).
 
 ### 3.13 The Green Tree, Its Wire Format And The JS Decoder
 
-**Purpose and consumers.** The tree is the full syntax of one file. The
-header pass and the checker read it through typed views (`FnDecl`,
-`MatchExpr`); the formatter walks it in preorder with tokens and layout
-tokens interleaved; fix-its and `hd doc` find nodes by offset; the
-playground's JavaScript reads it from the wire form.
+The tree is the full syntax of one file. The header pass and the checker
+read it through typed views; the formatter walks it in preorder with
+tokens and layout tokens interleaved; fix-its and `hd doc` find nodes by
+offset.
 
-**Layout.**
+**Layout.** Node columns `kind` (`SyntaxKind`, 2 bytes), `first_token`,
+`last_token` (inclusive; first > last for an empty node) and
+`subtree_len`; layout columns `layout_at` and `layout_kind`; parse-error
+columns `err_node` and `err_code`.
 
-```rust
-pub struct GreenTree {
-    kind:        Vec<SyntaxKind>,   // 2 B
-    first_token: Vec<TokenIdx>,     // 4 B
-    last_token:  Vec<TokenIdx>,     // 4 B; inclusive; first > last for an empty node
-    subtree_len: Vec<u32>,          // 4 B; preorder: node i's subtree is i .. i + subtree_len[i]
-    // zero-width layout positions in side columns, in order
-    layout_at:   Vec<TokenIdx>,     // 4 B; the token before which it sits
-    layout_kind: Vec<Layout>,       // 1 B: Newline | Indent | Dedent | SuiteEnd
-    // parse errors, in order
-    err_node:    Vec<NodeIdx>, err_code: Vec<Code>,
-}
-#[repr(transparent)] pub struct SyntaxKind(u16);
-const _: () = assert!(core::mem::size_of::<SyntaxKind>() == 2);
-```
-
-- **Preorder with subtree sizes.** A child walk is a loop: the first
-  child is `i + 1`, the next sibling `j + subtree_len[j]`. Skipping a
-  subtree is one addition. A node's tokens not covered by its children
-  are its own tokens, so tokens need no node column.
-- **Parent links** are built on demand into a `Vec<NodeIdx>` for the
-  formatter and fix-its, in one preorder pass.
+- **Preorder with subtree sizes.** The first child is `i + 1`, the next
+  sibling `j + subtree_len[j]`. Skipping a subtree is one addition. A
+  node's tokens not covered by its children are its own tokens.
+- **Parent links** are built on demand (`parent_links`) in one pass.
 - **Recovery by truncation.** The parser's event vector is append-only
-  and truncated to a checkpoint after a failed attempt (§3.9.5). The tree
-  is built from the events in one pass after parsing.
+  and truncated to a checkpoint after a failed attempt. The tree is built
+  from the events in one pass after parsing.
 
-**Identity.** `NodeIdx(u32)` per file, `NONE` for absent. A node's
-identity across parses is its `(kind, first token start)`, which is what
-fix-its and the program database use.
+**Wire format.** `GreenTree::to_wire` writes one little-endian buffer:
+magic `HDST`, format 1, flags, a table of 16 section offsets, then
+8-byte aligned sections: token kinds, starts and ends, line-first bits,
+line starts, UTF-16 line starts (for JavaScript columns), line flags,
+comments, node kinds, first and last tokens, subtree lengths, layout
+positions, errors and the source.
 
-**Lifetime and owner.** The file arena (§3.5). A skimmed file's header
-tree is kept in its skeleton (§3.14).
-
-**Growth.** Events and nodes `reserve(tokens * 5 / 4)`; layout tokens
-`reserve(lines)`.
-
-**Determinism.** Pure function of the bytes.
-
-**Wire format.** One buffer, little-endian, every section 8-byte
-aligned, no pointers, sent from the compiler worker to the page with one
-copy into an `ArrayBuffer`:
-
-```text
-offset  size  field
-0       4     magic "HDST"
-4       2     format number (bumped on any change), 2 flags (HAS_SOURCE)
-8       4×12  section table: byte offset of each section below, in order
-56      ...   sections
-  tok_kind    u8  × ntok        (padded to 8)
-  tok_start   u32 × ntok
-  tok_end     u32 × ntok
-  line_first  u32 × ceil(ntok/32)
-  line_start  u32 × nline
-  line_utf16  u32 × nline       UTF-16 offset of each line start, for JS columns
-  line_flags  u8  × nline       (padded)
-  com         (u32, u32, u8 → padded u32) × ncom
-  node_kind   u16 × nnode       (padded)
-  node_first  u32 × nnode
-  node_last   u32 × nnode
-  node_len    u32 × nnode
-  layout      (u32 at, u32 kind) × nlayout
-  errors      (u32 node, u32 code) × nerr
-  source      u8 × nbytes       only with HAS_SOURCE
-```
-
-- Counts are in the section table's derived lengths; a decoder checks
-  that every section lies inside the buffer and is aligned, once.
-- **UTF-16 columns (after Yuku).** JavaScript indexes strings in UTF-16.
-  `line_utf16` and the `NON_ASCII` line flag let the decoder convert a
-  byte offset to a UTF-16 offset with one subtraction on ASCII lines and
-  a short scan on other lines.
-- **Versioning.** The format number is generated from the schema's hash
-  (§3.25); the JS decoder is generated in the same commit, so they never
-  disagree. A mismatch throws.
-
-**The generated JavaScript decoder.**
-
-```js
-// generated by `cargo xtask codegen` from hd.ungram and tree.ir; do not edit
-export class Tree {
-  constructor(buf) {
-    const u32 = new Uint32Array(buf, 0, 14);
-    if (u32[0] !== 0x54534448) throw new Error("not an hd tree");    // "HDST"
-    if ((u32[1] & 0xffff) !== FORMAT) throw new Error("tree format mismatch");
-    const off = (k) => u32[2 + k];
-    this.kind  = new Uint16Array(buf, off(8), this.nnode = (off(9) - off(8)) >> 1);
-    this.first = new Uint32Array(buf, off(9), this.nnode);
-    this.last  = new Uint32Array(buf, off(10), this.nnode);
-    this.len   = new Uint32Array(buf, off(11), this.nnode);
-    // ... tokens, lines, layout, errors the same way
-  }
-  *children(i) { for (let c = i + 1, end = i + this.len[i]; c < end; c += this.len[c]) yield c; }
-}
-// one class per ungrammar node, with named accessors, as in Rust:
-export class FnDecl {
-  constructor(tree, i) { this.tree = tree; this.i = i; }
-  get name()   { return this.tree.childOfKind(this.i, K.NAME); }
-  get params() { return this.tree.childOfKind(this.i, K.PARAM_LIST); }
-  get body()   { return this.tree.childOfKind(this.i, K.BLOCK); }
-}
-```
-
-No objects are built per node. The page creates a view object only for
-the node it inspects, as Yuku's decoder does.
-
-**Memory.** 14 bytes per node, about 10 nodes per line, plus layout
-tokens: about 145 bytes per line. The wire form adds 4 bytes per line
-for `line_utf16` and the source when sent.
-
-**Accessors.** Rust: `tree.node(i) -> NodeRef`, generated `FnDecl::cast
-(node)`, `fn_decl.params()`, `node.tokens()`, `node.span()`. Agents see
-named accessors only; the raw columns are private to `hd_syntax`.
+Planned, not built: a generated JavaScript decoder over this buffer for
+the playground, with one view class per node kind.
 
 ### 3.14 The Header Skeleton And The Item Index
 
-**Purpose and consumers.** The skeleton is the header pass's output for
-one file: its uses, its header tree, its items and two hashes. The item
-index of a module is the union of its files' skeleton items, or, for a
-module known only through its folder's blob, the blob's item records.
-Resolution, `ModulePrep` and the checker look items up by name and walk
-them in source order.
+**The skeleton** is the header pass's output for one file,
+`HeaderSkeleton`: `source_hash`, `api_text_hash`, `token_hash` (the code
+lines without plain comments, so a comment edit keeps it), `code_lines`,
+`bodies` (byte ranges of each header and body, with the header's kind),
+`uses` (byte ranges of `use` lines) and `broken`.
 
-**Layout.** One structure for both (mine): the skeleton's item columns
-are the item index, so nothing is copied between them.
+**The item index** comes from the full parse (`hd_syntax::ItemIndex`, in
+`Parse`): columns `at` (the header node), `parent`, `name`, `kind`
+(`Function | Data | Enum | Trait | Impl | Alias | Test | Statement`) and
+`flags`, plus a `by_name` index. `name` and `kind` are copied from the
+tree on purpose: name lookup and "all functions" filters run before any
+view decode.
 
-```rust
-pub struct Skeleton {
-    pub source_hash: Hash128,
-    pub api_text_hash: Hash128,          // §4.5
-    pub tree: GreenTree,                 // headers, with SKIPPED_BODY nodes; or the full tree
-    pub items: ItemIndex,
-    pub uses: UseTable,
-    pub doc: Vec<(u32, u32)>,            // doc comment ranges; the text stays in the source
-    pub broken: bool,                    // some header failed to parse
-}
-pub struct ItemIndex {                   // ItemIdx = source order
-    pub at:     Col<u32>,                // 4 B: header NodeIdx, or an interface item record (bit 31 set)
-    pub parent: Col<ItemIdx>,            // 4 B: NONE at top level; methods, variants, fields
-    pub name:   Col<Symbol>,             // 4 B: NONE for impls and statements
-    pub kind:   Col<ItemKind>,           // 1 B: Fn | Data | Enum | Trait | Impl | Alias | Let | Stmt | Field | Variant | Member | Test
-    pub flags:  Col<ItemFlags>,          // 1 B: PUB | RESULT_OMITTED | ROW_OMITTED | BROKEN | SYNTHETIC | TEST_ONLY
-    pub by_name: HashTable<u32>,         // index: Symbol -> first top-level ItemIdx
-}
-pub struct UseTable {                    // one row per `use` line or group member
-    pub segs:  Col<Range32>,             // into `seg_syms`
-    pub seg_syms: Col<Symbol>,
-    pub alias: Col<Symbol>,              // NONE when absent
-    pub flags: Col<u8>,                  // PUB | TEST_ONLY | GROUP | GLOB
-    pub node:  Col<NodeIdx>,
-}
-```
-
-- `name` and `kind` are copied from the tree on purpose: name lookup and
-  "all functions" filters run before any view decode, and the two columns
-  cost 5 bytes per item. Everything else (visibility details, generics,
-  spans) is read through the typed views or the interface reader.
-- Derived impls and error impls are `SYNTHETIC` items in the module of
-  their declaration
-  ([`trait.own.module.generated`](../../spec/lang/09-traits.md#r-trait.own.module.generated)),
-  whose `at` is the `@derive` node.
-
-**Identity.** `ItemIdx(u32)` per module. An item's `DefId` is interned
-from the module's `PathId` and the item's segment when resolution first
-needs it, and stored in the module scope's `def` column (§3.15).
-
-**Lifetime and owner.** Built by `Skim(file)` or `Parse(file)`; frozen
-in the file's slot; freed with the module scope at the end of the run, or
-with the tree for parsed files.
-
-**Growth.** Exact-size columns (`Col`), built from scratch vectors at the
-end of the header pass.
-
-**Determinism.** Source order. `by_name` is an index only.
-
-**Wire form.** The skeleton itself is not cached. Its hashes and the
-`uses` paths are in the stat manifest (§3.20.3); its public content is in
-the folder blob.
-
-**Memory.** 14 bytes per item plus 9 per use: under 5 bytes per source
-line. A skimmed file's header tree is about 15% of its full tree.
-
-**Accessors.** `items.iter_top()`, `items.lookup(sym)`, `items.children
-(i)`, `items.view(i) -> ItemView` (a typed view over the tree node or the
-blob record, the same enum either way).
+Implementation differs: the design's skeleton also carried a header-only
+tree and the item index, so `FolderIface` built a folder's interface
+without parsing bodies, and skim stored no tokens. The code fully parses
+every file of a folder whose interface misses
+(`crates/hd_driver/src/lib.rs:2523`), and skim lexes the whole file
+(`crates/hd_syntax/src/skim.rs:44`). An interface rebuild costs a full
+parse of the folder.
 
 ### 3.15 Name-Resolution Tables
 
-**Purpose and consumers.** A module scope answers "what does this name
-mean here" for headers and bodies. The folder's export index answers it
-for uses from other folders. `ModulePrep` builds scopes; the checker
-reads them on every unqualified name; the use worklist reads and writes
-the folder's pending exports while it runs.
+A module scope answers "what does this name mean here" for headers and
+bodies. `ModulePrep` builds it; the checker reads it on every
+unqualified name.
 
-**Layout.**
-
-```rust
-pub struct ModuleScope {                 // frozen after ModulePrep
-    pub module: ModuleId,
-    // one row per name visible at module level
-    pub name:    Col<Symbol>,
-    pub binding: Col<Binding>,           // 8 B
-    pub origin:  Col<u8>,                // Own | Use | PubUse | Prelude
-    pub use_row: Col<u32>,               // the UseTable row that brought it, or NONE
-    pub index:   HashTable<u32>,         // Symbol -> row
-    // per item of the module, parallel to its ItemIndex
-    pub def:     Col<DefId>,
-    pub local_impls: LocalImpls,         // §3.17
-}
-#[repr(C)] pub struct Binding { pub kind: BindingKind /* u8 */, _pad: [u8; 3], pub value: u32 }
-pub enum BindingKind { Item, Module, Prelude, Ambiguous /* value: range of candidates */, Poison }
-const _: () = assert!(core::mem::size_of::<Binding>() == 8);
-
-pub struct FolderExports {               // the use worklist's state; frozen into the blob's exports section
-    pub module: Col<ModuleId>, pub name: Col<Symbol>,
-    pub target: Col<DefId>,              // the real declaration, chains followed
-    pub state:  Col<u8>,                 // Resolved | Pending | Visiting | Loop
-    pub index:  HashTable<u32>,          // (module, name) -> row
-}
-```
+`hd_resolve::ModuleScope`, frozen after `ModulePrep`: one row per name
+visible at module level, with `name`, `binding` (an 8-byte `Binding`:
+`Item | Module | Prelude | Ambiguous | Poison` plus a value), `origin`
+(`Own | Use | PubUse | Prelude`) and `use_row`; an `index` from name to
+row; `def`, the module's items as `DefId`s; and the module paths that
+`Module` bindings name.
 
 - **Body scopes are not here.** Local names live in the checker's scope
   stack (§3.19).
-- **Ambiguity** keeps its candidates in a side column, so the error lists
-  them in content order.
-- The module scope's `def` column is the bridge from `ItemIdx` to
-  `DefId`: one load.
+- A second binding of a name from a different origin is ambiguous.
 
-**Identity, lifetime.** Rows are module-local `u32`s. `ModuleScope` is
-written once into its module's `OnceLock` slot and lives for the run.
-`FolderExports` lives during the folder task, then its rows are written
-into the blob's exports section sorted by bytes.
-
-**Growth.** Built in scratch vectors, then frozen to `Col`s of exact
-size.
-
-**Determinism.** Rows in (origin, source order). The worklist runs in
-(module path, source order), so the loop errors are the same on every
-run (§4.9).
-
-**Wire form.** None for scopes; exports go into the blob (§3.16).
-
-**Memory.** 21 bytes per visible name plus 8 of index; a module with 100
-names and 50 uses costs about 4 KB.
-
-**Accessors.** `scope.lookup(sym) -> Option<Binding>`, `scope.def(item)`,
-`exports.resolve(module, sym)`.
+A folder's exports are part of its interface (§3.16).
 
 ### 3.16 The Folder Interface: In Memory And As A Blob
 
-**Purpose and consumers.** A folder's interface is everything a
-dependent's check can read: public items and their signatures, impl
-heads, templates, hidden template items, per-item hashes. Resolution
-reads exports by name; the checker reads signatures, fields and variants
-by item; the solver reads impl heads through impl tables (§3.17);
-coherence reads the `heads` section; `hd doc` reads items in order; D2
-reads layouts of public `data` types. Access is by name or item, a few
-records per use.
+A folder's interface is everything a dependent's check can read: public
+items and their signatures, impl heads, templates, hidden template
+items, hashes. Resolution reads exports by name; the checker reads
+signatures, fields and variants by item; the solver reads impl heads
+through impl tables (§3.17); coherence reads all heads; `hd doc` reads
+items in order.
 
-**In memory the interface is its blob.**
+**In memory.** `FolderIface` holds the decoded `items` (with a `by_def`
+index), `exports` (with an index by module and name), the `blob` bytes,
+`api_hash` and `deep_hash`, and, outside every hash, item anchors,
+private names, `pub use` loop names and a REPL input's module uses.
 
-```rust
-pub struct FolderIface {
-    pub folder: FolderId,
-    pub blob: Blob,                          // mapped from the cache, embedded (std), or owned (just built)
-    pub api_hash: Hash128, pub deep_hash: Hash128, pub heads_hash: Hash128,
-    // run memo: blob-local index -> run ID, filled on first use, first writer wins
-    ty_memo:   Box<[AtomicU32]>,             // per type record -> Index, NONE until interned
-    path_memo: Box<[AtomicU32]>,             // per path record -> PathId
-    sym_memo:  Box<[AtomicU32]>,             // per string -> Symbol
-    pub impl_tables: Box<[(ModuleId, ImplTable)]>,   // §3.17
-}
-pub enum Blob { Mapped(memmap2::Mmap), Static(&'static [u8]), Owned(Box<[u8]>) }
-```
+**The `iface` entry** has six sections: the blob, header diagnostics,
+anchors, private names, loop names and module uses. The blob is the
+entry-local tables (§3.20.2), then the items, then the exports sorted by
+(module path, name).
 
-- **Lazy decode.** `reader.item(name)` binary-searches the exports
-  section by name bytes and decodes one record. `reader.ty(r)` interns
-  type record `r` into the pool on first use: it interns its children
-  first (records are written children first, so this is a loop, not
-  recursion), then stores the `Index` in `ty_memo[r]`.
-- **Racing readers are harmless.** Two body tasks that intern the same
-  record get the same `Index`, because the pool hash-conses. Both store
-  it; the second store writes the same value.
+- `private_names` lets cross-folder lookup tell `private-import` from
+  `unknown-import` without exposing a private item. Anchors keep
+  positions out of the interface; no record stores a file offset. Both
+  are outside `api_hash` and `deep_hash`.
+- **Canonical bytes.** Rows are written in content order: table rows in
+  first-use order of a walk over items in source order, exports sorted
+  by bytes. Never by run IDs or hash-map order.
+- `deep_hash(F) = H("deep", api_hash(F), sorted [(path(G), deep_hash(G))
+  for G in mentions(F)])`.
 
-**Blob layout.** The cache entry container of §3.20.1 with kind `iface`.
-All sections are little-endian, 8-byte aligned, and referenced by section
-index; every offset inside a section is relative to the section.
+Implementation differs: the design kept the blob as the in-memory
+interface, decoded one record on first use through memo arrays, and
+memory-mapped it from the cache. The code decodes every item when the
+entry is read (`crates/hd_resolve/src/iface.rs:1146`), so a warm run pays
+for every record of every folder it reads, std's included.
 
-| Section | Rows | Row layout (bytes) |
-| --- | --- | --- |
-| `strings` | one per distinct string, sorted by bytes | `off u32, len u32` (8) plus a bytes area |
-| `paths` | one per stable path the blob names, parents first | `parent u32, seg u32, kind u8, pad 3` (12); `seg` is a string index or an `impl_segs` row |
-| `impl_segs` | one per impl path segment | `head Hash128, ordinal u16, pad 6` (24) |
-| `path_hash` | parallel to `paths` | `Hash128` (16); checked against the run's trie on re-intern |
-| `ty_tag`, `ty_data`, `ty_extra` | one per type, list or row, children first | the pool encoding of §3.9.2 with blob-local operands: `DefId` as a path row, `Symbol` as a string row, `Ty` as a type row (1 + 4 + words) |
-| `items` | public and hidden items, in (module path, source order) | `path u32, kind u8, vis u8, flags u16, module u32, sig u32, generics Range32, members Range32, anchor u32` (36) |
-| `generics` | generic parameters | `name u32, variance u8, flags u8, index u16, bounds Range32, default u32` (20) |
-| `bounds` | bounds of parameters, impls and supertraits | `trait_ty u32` (4): a `TraitValue` type row |
-| `members` | fields, variants, trait members, associated types | `name u32, kind u8, flags u8, pad 2, ty u32, payload Range32, result u32, default_tokens Range32` (32) |
-| `exports` | (module, name) -> item, sorted by (module path bytes, name bytes) | `module u32, name u32, item u32` (12) |
-| `private_names` | private declarations, sorted by (module path bytes, name bytes); diagnostic lookup only, outside every semantic hash | `module u32, name u32, kind u8, pad 3, anchor u32` (16) |
-| `impls` | every impl head of the folder | `path u32, trait u32, self_ty u32, args u32, generics Range32, bounds Range32, owner u32, by_member u32, head_key u32, flags u32` (48); `flags` has `API` (in `api_hash`) or heads-only |
-| `templates` | one per template | `impl u32, tokens Range32, resolve Range32` (20) plus the token text bytes and a resolution table of `(token offset u32, path u32)` |
-| `item_hash` | parallel to `items` | `shallow Hash128, deep Hash128` (32) |
-| `mentions` | other folders the api sections name | `folder path u32, deep Hash128` (20) |
-| `anchors` | declaration-relative locations for items, impl heads and diagnostics | `decl path u32, tok u32, count u32, lo_in_tok u16, hi_in_tok u16` (16) |
-| `diags` | header diagnostics | the `DiagBuf` wire columns (§3.8) |
-
-**M3 gaps 2 and 5.** `private_names` lets cross-folder lookup distinguish
-`private-import` from `unknown-import` without exposing a private item.
-The item, impl and diagnostic rows point into `anchors`; no interface
-record stores an absolute file offset. Both sections are omitted from
-`api_hash`, `deep_hash`, `heads_hash` and per-item hashes.
-
-- **Fixed-width rows, ranges for variable parts.** No row has a length
-  field inside it. A reader computes a row's address as `base + i *
-  width`, after one bounds and alignment check per section.
-- **The type section is the pool's encoding (mine).** D1's 16-byte
-  `TypeRecord { tag, flags, a, b, c }` is replaced by the pool's tag,
-  data and `extra` columns with blob-local operands. The schema generates
-  both, the remap between them is mechanical (§3.20.2), and one verifier
-  covers both.
-- **Canonical bytes.** Rows are written in content order: strings sorted
-  by bytes, paths and types in first-use order of a walk over items in
-  (module path, source order), exports sorted by bytes. Never by run IDs
-  or hash-map order. Two runs on the same inputs write the same bytes;
-  the determinism matrix compares them (§8.1).
-- **Std's blobs** are one pack embedded in the binary: a table of
-  `(folder path, offset, length)` followed by the blobs, each 8-byte
-  aligned, read as `Blob::Static` with no copy.
-
-**Identity.** Blob-local rows are `u32` indices; `NONE` for absent. The
-run IDs they map to are memoized in the three memo arrays.
-
-**Lifetime and owner.** One `FolderIface` per folder in a `OnceLock`
-slot for the run. Mapped blobs stay mapped until the process exits; the
-memo arrays are the only per-run allocation (4 bytes per record).
-
-**Growth.** The writer sizes every section exactly in a counting pass,
-then writes once into one `Vec<u8>`.
-
-**Determinism.** As above: canonical bytes, and the three hashes over
-them (§4.11.2, §4.11.3).
-
-**Validation on load.** The container header and checksum (§3.20.1);
-each section in bounds and aligned; the toolchain key equal to the run's.
-Row contents are checked lazily: every index a row holds is checked
-against its section's row count when the accessor decodes it, and an
-out-of-range index is an internal error that names the blob and drops it
-as a cache miss. Verify mode runs the full verifier on every blob.
-
-**Memory.** About 40 bytes of blob per public source line, mapped and
-shared across processes, plus 12 bytes of memo per type, path and string
-record when the blob is opened. A 10k-line package with 3,000 public
-lines has about 120 KB of blobs; the std pack is about 1 MB in the
-binary, of which a check touches a few hundred KB of pages.
-
-**Accessors.** Generated from `iface.ir`: `reader.item(i) -> ItemRec`,
-`rec.generics() -> impl Iterator<Item = GenericRec>`, `reader.ty(rec.sig)
--> Ty`, `reader.def(rec.path) -> DefId`, `reader.export(module, name)`.
-The builder side is `IfaceWriter` with one `push_*` per section. Agents
-never compute an offset.
+Planned, not built: std's blobs embedded as one pack in the binary
+(`hd_stdpack`). Today the driver embeds std's sources and builds std's
+interfaces into the cache on first use.
 
 ### 3.17 Impl Tables
 
-**Purpose and consumers.** The solver asks for the impls of one trait in
-one owner module, fast-rejected by the head's outer constructor
-(§4.12.1). Coherence asks for all heads of one trait across folders.
-Method lookup asks for the inherent impls of one type.
+The solver asks for the impls of one trait, fast-rejected by the head's
+outer constructor. Coherence asks for all heads of one trait. Method
+lookup asks for the inherent impls of one type.
 
-**Layout.** An index over the blob's `impls` section, built once when
-the folder interface is frozen or opened:
+`hd_types::solver::ImplTable`, built by `hd_resolve::impl_table`, has row columns `trait_`, `def`,
+`head_key`, `arg_key`, `n_params`, `head_self`, `head_args`, `plan` (the
+bound plan), `assoc`, `origin` and `rank`; `by_trait`, each trait's row
+range; and `by_key`, the rows of each trait sorted by head key.
 
-```rust
-pub struct ImplTable {                   // per module; rows sorted by (trait path hash, head key, source order)
-    pub trait_:   Col<DefId>,            // 4 B; NONE for inherent impls
-    pub head_key: Col<HeadKey>,          // 8 B: kind u8, payload u32 (padded)
-    pub rec:      Col<u32>,              // 4 B; the blob's impls row
-    pub generic:  BitBox,                // 1 bit: the head has type parameters
-    pub by_trait: HashTable<u32>,        // index: trait DefId -> first row; rows of one trait are contiguous
-}
-pub struct HeadKey { kind: u8, payload: u32 }   // Ctor(DefId) | Prim(Prim) | Tuple(arity) | TupleAny | Fn | Param
-pub struct LocalImpls { /* the same columns, for a body-visible local impl table of one module (§4.12.1) */ }
-```
-
-- **Sorting by the trait's path hash**, not by `DefId`: the hash is
-  content, so the row order and therefore candidate order are the same
-  on every run, and the solver returns candidates in content order
-  (crates/hd_check/DESIGN.md (type checking) §12).
-- A head key is a kind byte plus a full `u32` payload: a `DefId`,
-  `Prim` or arity. An earlier draft packed the kind into the top 3 bits,
-  which cannot hold a `DefId` from owner thread 16 or above (Codex
-  re-review N-I3). The column costs 4 more bytes per impl row.
-- **Tuple templates and numeric families are rows.** A tuple template
-  has head key `TupleAny` and a numeric family head key `Param`
+- `HeadKey` is `Ctor(DefId) | Prim | Tuple(arity) | TupleAny | Fn |
+  SuspendFn | Param | Any`, a full-width payload per kind.
+- Rows are sorted by `rank`, a content hash, so candidate order is the
+  same on every run.
+- **Tuple templates and numeric families are rows**, with head keys
+  `TupleAny` and `Param`
   ([crates/hd_check/DESIGN.md (trait solver) §3.9](../../crates/hd_check/DESIGN.md#39-compiler-supplied-impls)).
-  Their evidence is `Impl`, like any written impl.
-- **Sealed traits have no rows.** `Any`, `AnyVal`, `AnyRef`,
-  `Inspectable`, `Tuple`, `Num`, `Integer`, `Float` and `Suspend` are
-  answered from the type's form. The solver answers them with
-  `Evidence::Builtin`, and TIR records a `Builtin` choice (§3.18).
-
-**Identity, lifetime.** Rows are module-local. The table is frozen with
-its folder and lives for the run.
-
-**Growth.** Exact size, built from the blob section in one pass and one
-sort.
-
-**Determinism.** Content order as above.
-
-**Wire form.** None: the `impls` section is the persistent form.
-
-**Memory.** 12 bytes plus a bit per impl, plus the index. Std has about
-2,000 impls: about 40 KB when every std folder is opened.
-
-**Accessors.** `table.for_trait(def) -> &[row]`, `table.head(row) ->
-ImplRec` through the blob reader.
+- **Sealed traits have no rows.** They are answered from the type's form
+  (`hd_types::sealed`).
 
 ### 3.18 TIR
 
 The full encoding, instruction catalog and builder are in
-[§4.13.11](../../crates/hd_tir/DESIGN.md#41311-the-typed-ir-tir). This section is
-the structure's design card.
+[§4.13.11](../../crates/hd_tir/DESIGN.md#41311-the-typed-ir-tir).
 
-**Purpose and consumers.** One typed IR per body (§3.9.1). The checker
-writes it through the builder only. `ModuleFinish` fills pending
-providers and writes it. Collection scans `tags` per instance for calls,
-closures, coercions and host calls. Emission walks block lists in order
-under a substitution.
+**Layout.** `hd_tir::ir::Body`, one per body:
 
-**Layout.** Columns, one set per worker while a body is built, then one
-exact-size copy per body in the module result:
+| Column | Item | Read by |
+| --- | --- | --- |
+| `tags` | `Tag`, 1 byte | everyone; collection scans it alone |
+| `data` | `[u32; 2]` | emission, collection |
+| `ty` | `Ty` | the type sweep, emission |
+| `syn` | `NodeIdx` | diagnostics |
+| `extra` | `u32` | operand lists, callee and coercion records |
+| locals: `local_ty`, `local_name`, `local_syn`, `local_flags` | | emission, the checker |
+| subs: `sub_root`, `sub_params`, `sub_parent`, `sub_flags` | | emission of closures |
+| captures: `cap_local`, `cap_mode` | | emission of closures |
+| `label_inst` | | emission |
+| `consts`, `strings` | `(Ty, u64)`; literal text | emission; indexed by a constant `Ref` |
+| `susp` | `SuspRow`, 16 bytes | suspension lowering |
+| `fallback` | | panic reports for defaulted literals |
 
-| Column | Item | Bytes | Read by |
-| --- | --- | --- | --- |
-| `tags` | `TirTag` | 1 | everyone; collection scans it alone |
-| `data` | `[u32; 2]` | 8 | emission, collection for calls |
-| `ty` | `Ty` | 4 | the type sweep, emission |
-| `syn` | `NodeIdx` | 4 | diagnostics; written to disk as spans |
-| `extra` | `u32` | 4 each | operand lists, callee and coercion records |
-| locals: `local_ty`, `local_name`, `local_syn`, `local_flags` | | 13 per local | emission (Wasm locals), the program database |
-| subs: `sub_root`, `sub_params`, `sub_parent`, `sub_flags` | | 17 per sub-body | emission of closures |
-| captures: `cap_local`, `cap_mode` | | 5 per capture | emission of closures |
-| `consts` | `(Ty, u64)` | 12 per constant | emission; indexed by a constant `Ref` |
-| side: suspension points, origins, hole candidates | sorted by `Inst` | 12 to 16 per row | suspension lowering, tools |
-
-**Identity.** `Inst`, `LocalId`, `SubId`, `CaptureId` and `LabelId` are
-body-local `u32`s. A `Ref` is an `Inst` below 2^31, or, with bit 31 set,
-a row in the body's `consts` table (M1 finding 2). A constant row holds
-its global `Ty` and 64 value bits, so constants need no instruction and
-cannot alias another body's table.
-
-**Lifetime and owner.** The worker's columns, truncated to empty at each
-body's start; the body's copy in the module result, with its carry of
-pending-row types (§3.4), until `ModuleFinish` patches providers, sweeps
-rows (§3.9.5) and writes the `tir` entry; then freed. Emission maps the
-entry.
-
-**Growth and scratch.** Worker columns keep their capacity, so after the
-first few bodies a worker allocates only the per-body output copy.
-Variable lists go through the scratch buffer (§3.9.5).
+**Identity.** Instruction, local, sub-body, capture and label indices are
+body-local `u32`s. A `Ref` is an instruction below 2^31, or, with bit 31
+set, a row in the body's `consts`, so constants need no instruction.
 
 **Determinism.** Instructions are in evaluation order, locals and
-captures in creation order, side rows in instruction order. The run IDs
-inside are remapped on write (§3.20.2), so the entry's bytes and the
-per-item TIR hash are run-independent.
+captures in creation order. Run IDs are remapped on write (§3.20.2), so
+the entry's bytes and the TIR hash are run-independent.
 
-**Wire form.** The `tir` entry (§3.20.4).
-
-**Memory.** About 7 instructions per line at 17 bytes plus about 7 bytes
-of `extra`, locals and side rows: about 180 bytes per line in memory.
-
-**Accessors.** `tir.view(i) -> TirView` with named fields per tag;
-`TirBuilder` (§4.13.11); `tir.blocks()`, `tir.locals()`. Generated from
-`tir.ir` (§3.25).
+**Wire form.** The TIR section of the `check` entry (§3.20.4), each body
+under its item's path hash, so `Collect` decodes only the bodies it
+reaches.
 
 ### 3.19 Per-Body Checker Scratch
 
-The algorithms are crates/hd_check/DESIGN.md (type checking)'s; its §13 lists the fields. This
-section fixes their storage.
+Everything a body check mutates is in `hd_check::body::Ck`, made per
+body: the TIR builder, the local pool, the inference table, scope and
+loop stacks, pending goals, fuel and the body's memo. `BodyCx` holds the
+module-level context the bodies share.
 
-**Purpose and consumers.** Everything a body check mutates, owned by one
-`BodyCx` per worker and reused body after body.
-
-**Layout.** Four groups, each columns indexed by a body-local ID:
-
-| Group | Columns (bytes per row) | Row count, typical body |
-| --- | --- | --- |
-| inference table, by `InferVar` | `parent` 4, `rank` 1, `kind` 1, `value` 4, `blame` 4, `watch_head` 4, `lit_flags` 1 (19) | 10 to 500 |
-| trail | `undo` 8 (tag 1 + index 4, padded), `old` 4 (12) | cleared at each statement boundary outside trials |
-| obligations, by row | `goal` 16, `span` 4, `state` 1 (21); watch lists are the `watch_edges` column below | 0 to 50 |
-| locals, by `LocalId` | `name` 4, `ty` 4, `span` 4, `flags` 1 (13); shared with TIR's local columns (one set, written by the builder) | 5 to 200 |
-| spans, by `SpanIdx` | `lo` 4, `hi` 4 (8) | one per blamed site |
-| context stacks | `scopes` 16, `loops` 16, `fns` 28, `avail` 4, `assigned` bit stack | depth of nesting |
-| append-only columns (Codex re-review N10) | `watch_edges` 12, `scope_binds` 12, `join_items` 8, `deferred_fills` 8, `lit_open` 4, `lit_members` 8 | few per statement |
-| outputs | `DiagBuf` (§3.8), `row_facts` 20, `pending_calls`, `init_facts` 12 | few |
-| scratch | `scratch_tys`, `scratch_refs`, `scratch_args`, `spine` | cleared per use |
-
-- **One local table (mine).** D1 had local columns in TIR and
-  crates/hd_check/DESIGN.md (type checking) §13 had its own. They hold the same rows, so the
-  builder owns one set and the checker reads it; the checker's flags are
-  the TIR `local_flags` column, written through the trail.
+- **Inference table** (`hd_types::unify::InferTable`): columns `parent`,
+  `rank`, `binding` and `kind`, plus the trail.
+- **One local table.** The checker uses TIR's local columns, written
+  through the builder.
 - **Union-find: union by rank, undone by the trail.** Links, rank
-  changes and kind changes are each trailed (`Parent`, `Rank`, `Kind`
-  undo entries, plus `Bind`/`Rebind` for bindings), and a rollback
-  restores each one exactly. There is deliberately no path compression:
-  lookups are reads (`root` takes `&self` and writes nothing), and each
+  changes and kind changes are each trailed (`Parent`, `Rank`, `Kind`,
+  plus `Bind`/`Rebind`), and a rollback restores each one exactly. There
+  is deliberately no path compression: `root` is a read, and each
   compressed link would need its own trail entry.
-- **`Goal` at 16 bytes** is a tag plus three `u32` operands (a type, a
-  trait, an interned argument list); its size is asserted.
-- **Checkpoint.** crates/hd_check/DESIGN.md (type checking) §3.5's `Checkpoint` holds the trail
-  length, the output and obligation lengths, and a `TirCheckpoint`
-  (§3.9.5). The local pool has no length in either: it is never
-  truncated, so an index survives a rollback.
+- **Checkpoint** (§3.9.5): the trail length and variable count
+  (`TrialMark`), the output lengths and a `TirCheckpoint`. The local pool
+  has no length in it: it is never truncated, so an index survives a
+  rollback.
 
-**Identity.** All IDs are numbered from 0 per body (§6.5 rule 2).
-
-**Lifetime and owner.** One `BodyCx` per worker, in the worker arena.
-Each body truncates every column to zero, so capacity carries over and
-no body allocates for scratch after warm-up. M1's depth-first walk keeps
-one `BodyCx` per open body on its stack, bounded by the module's item
-count.
-
-**Growth.** Doubling vectors that never shrink within a run. A body
-whose scratch grew past 4 MB releases the excess at its end (mine), so
-one huge body does not pin memory for the rest of the run.
-
-**Determinism.** Per-body numbering; obligations retried in creation
-order.
-
-**Wire form.** None.
-
-**Memory.** A typical body uses a few KB; the cap per worker after a huge
-body is 4 MB. Eight workers: well under 1 MB typical, 32 MB at most.
-
-**Accessors.** Plain Rust methods on `BodyCx`; the inference table's
-columns are private to the unifier module.
+The design reused one scratch set per worker; the code allocates per
+body, which is simpler (§3.5).
 
 ### 3.20 Cache Entries And The Manifest
 
 #### 3.20.1 The Entry Container
 
-Every cache entry kind (§5.2) uses one container, so one reader, one
-checksum and one verifier serve all of them (mine).
+Every cache entry kind uses one container, so one reader and one
+checksum serve all of them (`hd_cache::store`).
 
-```rust
-#[repr(C)]
-pub struct EntryHeader {        // 64 bytes, little-endian
-    magic: [u8; 4],             // "HDCE"
-    kind: u16,                  // EntryKind
-    layout: u16,                // the entry kind's format number, from its schema's hash
-    key: Hash128,               // the key this entry answers
-    toolchain: Hash128,         // toolchain_key (§5.3)
-    payload_len: u64,
-    checksum: u64,              // xxh3-64 of everything after the header
-    nsections: u32,
-    flags: u32,                 // HAS_DIAGNOSTICS, ...
-}
-#[repr(C)]
-pub struct SectionEntry { kind: u16, flags: u16, rows: u32, offset: u64 }   // 16 bytes, after the header
-const _: () = assert!(core::mem::size_of::<EntryHeader>() == 64);
-const _: () = assert!(core::mem::size_of::<SectionEntry>() == 16);
-```
+- **Header**, 64 bytes, little-endian: magic `HDCE`, kind (`u16`),
+  layout (`u16`), key and toolchain key (`Hash128` each), payload length
+  (`u64`), checksum (the low 64 bits of xxh3-128 over everything after
+  the header), section count and flags (`HAS_DIAGNOSTICS`, `HAS_TIR`).
+- **Section table**: 16 bytes per section, `kind u16, flags u16, rows
+  u32, offset u64`. Each payload starts with its `u32` length.
+- **Validation on load:** magic, kind, length, checksum and section
+  bounds. Any failure is a miss (§5.4).
+- **Versioning.** `hd_cache::LAYOUT_VERSION` is part of every toolchain
+  key, so a layout change misses instead of misreading. Old entries are
+  never read, only evicted.
 
-- **Validation on load:** magic, kind, layout, key and toolchain equal
-  to the expected ones; `payload_len` equal to the file length minus 64;
-  checksum; each section in bounds and 8-byte aligned. Any failure is a
-  miss, and the file is deleted (§5.4). The checksum costs about 30 µs
-  per MB, which is cheaper than one wrong answer.
-- **Zero-copy.** Entries over 64 KiB are memory-mapped, smaller ones read
-  into one aligned buffer. Sections are cast to `LeCol<T>` (§3.9.4).
-- **Endianness.** Little-endian only. Every target host is
-  little-endian, and a big-endian build refuses to compile `hd_cache`
-  rather than byte-swap.
-- **Versioning.** `layout` is generated from the schema of that entry
-  kind (§3.25), so any change to a section's rows changes it. The cache
-  layout version in `toolchain_key` covers the container itself. Old
-  entries are never read, only evicted.
-
-#### 3.20.2 The Wire Rule: Entry-Local Tables (mine)
+#### 3.20.2 The Wire Rule: Entry-Local Tables
 
 **No run ID is ever written to disk or hashed.** Pool indices, `DefId`s,
-`Symbol`s, `FileId`s and `NodeIdx`s depend on the run. An entry that
-holds them is wrong on the next run, and a hash over them changes with
-thread timing. So every entry that holds types or names carries:
+`Symbol`s and `FileId`s depend on the run. So every entry that holds
+types or names carries its own tables (`hd_types::wire`):
 
 | Table | Rows | Replaces |
 | --- | --- | --- |
-| `strings` | sorted distinct strings | `Symbol` |
-| `paths` | stable paths, parents first, with their `Hash128` | `DefId`, `PathId`, `FileId` (a file is a path) |
-| `types` | the pool encoding over these tables, children first | `Ty`, `TyList`, `RowId`, constants |
+| paths | `(parent, kind, segment)`, parents first | `DefId`, `PathId` |
+| types | the pool encoding over these tables, children first | `Ty`, `TyList`, `RowId` |
+| symbols | strings | `Symbol` |
 
-For TIR, each body inside the module entry owns its own `strings`,
-`paths` and `types` tables. Its TIR hash is therefore a function of that
-body alone: adding or changing another body cannot renumber its rows.
-The size cost is deliberate—strings, paths and types shared by several
-bodies are repeated once per body
-(reconciliation, item 7 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
+For TIR, each body owns its own tables. Its TIR hash is therefore a
+function of that body alone: adding or changing another body cannot
+renumber its rows. Shared rows are repeated once per body on purpose.
 
-- **The writer** walks the columns once. For each word the schema marks
-  as an ID kind, it looks the ID up in a per-write memo (`HashTable` from
-  run ID to entry row) and appends a new row on a miss. Rows are created
-  in first-use order of that walk, which is content order, because the
-  columns are already in content order. Row keys in the `types` table are
-  re-sorted by their canonical encoding before writing, so a `Row`'s key
-  order is content order on disk.
-- **The reader** keeps three memo arrays, as the interface does (§3.16),
-  and translates a row to a run ID on first use.
-- **Spans** are written as `(lo, hi)` byte pairs in the entry's module
-  file; a span in another file adds the file's path row.
-- **Canonical encoding for hashing.** A per-item hash (TIR hash, item
-  interface hash) is xxh3-128 over the item's rows after remapping, with
-  the referenced type and path rows hashed by content (their path
-  hashes), never by row number. So two entries that list types in a
-  different order still give an item the same hash.
-- **Cost.** One memo probe per ID word. A `tir` entry of 1,000 lines has
-  about 20,000 ID words; at about 10 ns each, 0.2 ms per module.
-
-This rule corrects D2's "serialization is column copies" for TIR: the
-`ty` column and ID operands go through the remap; tags, local indices,
-instruction references and `extra` words that are not IDs are copied.
+- **The writer** looks each ID up in a per-write memo and appends a new
+  row on a miss, so rows are in first-use order of a walk that is
+  already in content order. Row keys, bindings and row parameters are
+  re-sorted by their own encoding before writing, so they are in content
+  order on disk.
+- **The reader** re-interns each row into the run's tables.
+- `hd_tir::wire` knows the ID-carrying words of each tag. A tag whose
+  words are not mapped is refused with a structured error, never written
+  with run IDs.
 
 #### 3.20.3 The Stat Manifest
 
-```rust
-#[repr(C)]
-pub struct ManifestRecord {     // 88 bytes; one per file, sorted by path bytes
-    path: Range32,              // into the manifest's string area
-    size: u64,
-    mtime_ns: i64,              // nanoseconds since the epoch; covers years 1678 to 2262
-    ctime_ns: i64,              // change time; no user API can set it (crates/hd_cache/DESIGN.md §5.5)
-    inode: u64,
-    source_hash: Hash128,
-    api_text_hash: Hash128,
-    uses: Range32,              // into the use-path area: module paths this file's non-test uses reach
-    role: u8, _pad: [u8; 7],
-}
-const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 88);
-```
-
-- One file, `build/.hd/manifest`, in the container format of §3.20.1
-  with kind `manifest` and key `H(package root path)` (the one key that
-  may hold a path, since the file never leaves the worktree).
-- **AoS on purpose**: each step of §5.5 reads a whole record.
-- Read whole at start (a 100-file package is about 9 KB), written whole
-  and atomically at the end when anything changed.
-- A second section holds the **last-run record** (crates/hd_cache/DESIGN.md §5.5.1): per
-  folder, module, package and program, the keys and hashes of the last
-  run, about 8 KB at 10k lines. It is read and written with the stat
-  records, so it costs no extra open or publish.
+Planned, not built: a stat manifest in `build/.hd/manifest`, one record
+per file (path, size, `mtime_ns`, `ctime_ns`, inode, source hash, api
+text hash, use paths, role), read whole at start, so a warm run hashes
+only files whose stat changed. It would also hold the last run's keys.
+`hd_cache::store::ManifestRecord` defines the record; nothing reads or
+writes it.
 
 #### 3.20.4 Entry Sections By Kind
 
-| Kind | Sections, beyond `strings`, `paths`, `types` | Typical size, 1,000-line module |
-| --- | --- | --- |
-| `iface` | §3.16 | 40 B per public line |
-| `check` | `diags`; `init_summary` (per function: read bindings, calls, dispatched methods, as path rows); `row_results` (per private callee: solved keys); `facts` (the program-database records); `module_meta` (counts, `poisoned`); `reads` (crates/hd_cache/DESIGN.md §5.3.1: kind, path row, name row, hash; 24 B); `locs` (per declaration: path row, byte offset, line; 12 B); `headers` (private signatures and private data and enum layouts, by stable path; walking skeleton, SK-1, crates/hd_cache/DESIGN.md §5.2); and, only when the module has no error, the TIR sections below | 2 to 20 KB, plus the TIR |
-| TIR sections of `check` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash); `tir_meta` (the module's TIR content hash and literal list, crates/hd_mono/DESIGN.md §11.3) | about 210 B per line |
-| `check-test` | `diags`, `registrations` (name text, body path), the overlay's TIR sections | small |
-| `graph` | one `parts` index (kind, part key, row range), then `diags` and the init orders of every non-empty part (crates/hd_cache/DESIGN.md §5.2) | small |
-| `pkgres` | `diags` plus a few rows | small |
-| `depfiles` | manifest-like records without stat fields | 56 B per file |
-| `codepack` | an index (code key, offset, length) sorted by key, then the members' code entries (§3.22) | about 40 B per line per instance; about 30 KB per folder group at 10k lines |
-| `clpack` | an index (wasmtime's function key, offset, length), then the compiled functions | about 4 to 8 times the group's Wasm |
-| `packhint` | the program's pack keys | under 1 KB |
-| `link`, `cwasm` | one `bytes` section | the module |
+| Kind | Content |
+| --- | --- |
+| `iface` | §3.16 |
+| `check` | diagnostics; module meta; items (private signatures and inferred results); the TIR, one section of bodies; row results; the init summary; `dbg` references; frame names; a REPL input's bindings |
+| `graph` | one part: a folder's header findings (`hdr`), the coherence result (`coh`) or a folder's init order (`init`) |
+| `depfiles` | a dependency package's file skims |
+| `parse` | empty: the source parses cleanly |
+| `code` | one instance's Wasm code (§3.22) |
+| `link` | the linked module |
 
-The TIR sections store spans as two columns, not `syn`, so emission
-never needs the syntax tree (mine). That is why they are about 30 bytes
-per line larger on disk than in memory.
-
-**Memory, for all cache structures.** Entries are mapped for the moment
-they are needed, and a reader touches only the sections it uses: output
-reads `diags`, D2 reads the TIR sections, early cutoff reads `reads`. A
-warm check after a private body edit reads the manifest with its
-last-run record and the previous `pkgres` (crates/hd_cache/DESIGN.md §5.5.1), and writes
-one `check` entry, the `pkgres` entry and the manifest.
+Positions in `check` entries are relative to code lines (§3.7), so
+emission never needs the syntax tree. The kinds `check-test`, `pkgres`,
+`codepack`, `clpack`, `packhint` and `cwasm` are declared in
+`EntryKind` but not written.
 
 ### 3.21 The Scheduler's Task Graph
 
-**Purpose and consumers.** The driver and finished tasks add tasks and
-edges; the executor pops ready tasks; tasks read their dependencies'
-result slots (§6.1).
+The driver and finished tasks add tasks and edges; the executor pops
+ready tasks; tasks read their dependencies' result slots.
 
-**Layout.** A task is touched as a whole, so it is one struct (§3.9.4):
+`hd_sched::TaskGraph` holds a `Vec` of task nodes and a ready queue. A
+node is `kind`, `waiting_on`, `successors`, `state` (`Waiting | Ready |
+Running | Done | Cancelled`) and `priority`. `TaskId` is its index, in
+creation order.
 
-```rust
-#[repr(C, align(16))]
-pub struct TaskNode {                      // 48 bytes
-    kind: TaskKind,                        // 12 B: tag u8 + a u32 ID payload + a spare u32 (tasks are per module or coarser, never per item)
-    waiting_on: AtomicU32,                 // unfinished dependencies
-    state: AtomicU8,                       // Waiting | Ready | Running | Done | Cancelled
-    _pad: [u8; 3],
-    priority: u32,                         // §6.3
-    succ: parking_lot::Mutex<u32>,         // first edge in `edges`; NONE when empty, DONE once completed
-    created: u32,                          // creation order, the serial tie-break
-    _rest: [u8; 8],
-}
-pub struct Edge { to: TaskId, next: u32 }  // 8 B, a linked list per task, pushed under the source's `succ` lock
-pub struct TaskGraph {
-    nodes: AppendVec<TaskNode>,
-    edges: AppendVec<Edge>,
-    by_key: [Mutex<HashTable<u32>>; 16],   // (TaskKind) -> TaskId, so a task is created once
-}
-const _: () = assert!(core::mem::size_of::<TaskNode>() == 48);
-```
+- **An edge from a finished task counts as satisfied at once.**
+- **Creation guard.** `add_held` starts a task with `waiting_on = 1`; the
+  creator adds its edges, then `release` drops the guard. So a task never
+  becomes Ready while its edges are still being added.
+- **The pool executor** (feature `threads`) runs ready tasks on rayon's
+  work-stealing pool; the graph sits behind one mutex, held only to add,
+  edge, release or complete.
+- **Result slots** are per-kind `OnceLock`s in the driver, indexed by
+  the dense file, folder or module ID.
 
-- **Edges are a list under one small lock per task** (Codex re-review
-  N2 and N-S1). An earlier draft pushed edges by CAS and let a pusher
-  that saw `Done` satisfy its own edge. The completing task could walk
-  the same edge too, so one edge was satisfied twice and a task could run
-  early. The lock gives one linearization point per producer:
-  - **Register** `A -> B`: lock `A.succ`. If it holds `DONE`, unlock and
-    count the edge as satisfied; `B.waiting_on` is not incremented.
-    Otherwise increment `B.waiting_on`, push the edge, unlock. One or the
-    other, never both.
-  - **Complete** `A`: lock `A.succ`, take the list head, store `DONE`,
-    unlock. Then walk the detached list and decrement each successor's
-    `waiting_on`, outside the lock. The list is detached once, so each
-    edge is satisfied once.
-  - **Creation guard.** A new task starts with `waiting_on = 1`. The
-    creator registers all of its edges, then drops the guard with one
-    decrement. So a task never becomes Ready while its edges are still
-    being added. Whoever takes `waiting_on` to 0 makes the task Ready.
-  - Critical sections are a few instructions, and a 10k-line package has
-    about 600 tasks, so contention is not measurable. A lock-free
-    protocol comes back only if a profile shows this lock, with an
-    interleaving model test (loom) for it.
-- **Result slots** are per-kind `Box<[OnceLock<T>]>` indexed by the
-  dense file, folder or module ID, sized at discovery.
+The design had atomic per-node counters and a lock per node's edge list.
+One mutex over the graph is simpler and sound, and a run has a few
+hundred tasks, each far longer than the lock.
 
-**Identity.** `TaskId(u32)`, creation order. `by_key` deduplicates.
-
-**Lifetime.** One graph per run, freed at the end.
-
-**Growth.** `AppendVec`s; a 10k-line package makes about 600 tasks cold
-(about six per module, plus folder and package tasks; crates/hd_sched/DESIGN.md §6.2
-granularity rule) and a few warm.
-
-**Determinism.** Task IDs and executor order never reach output (§6.5).
-The serial executor's tie-break is `created`.
-
-**Wire form.** None.
-
-**Memory.** 48 bytes per task plus 8 per edge: about 50 KB cold for 10k
-lines.
-
-**Accessors.** `graph.add(kind, deps) -> TaskId`, `graph.slot::<K>(id)`.
+**Determinism.** Task IDs and executor order never reach output. The
+serial executor picks FIFO, by priority then creation order, or by a
+seeded shuffle.
 
 ### 3.22 Codegen: The Instance Table And Code Entries
 
-**Purpose and consumers.** Collection (§13.2) builds the instance set of
-one program; emission reads one instance at a time; link reads every
-code entry of the set in key order.
+Collection builds the instance set of one program; emission reads one
+instance at a time; link reads every code entry of the set in key
+order.
 
-**Instance table layout.**
+**Instance table** (`hd_mono::layout::InstanceTable`), columns by
+`InstId`: `item`, `sub` (the item or a closure sub-body), `args` (the
+concrete type arguments), `known` (the known closures of a specialized
+instance), `depth` (type-argument nesting, §13.4), `parent` (the
+requesting instance, for the depth diagnostic) and `key` (the instance
+key). An index maps `(item, sub, args, known)` to the instance.
 
-```rust
-pub struct InstanceTable {                 // per program; columns by InstId
-    item:   Vec<DefId>,                    // 4 B
-    sub:    Vec<u16>,                      // 2 B; closure sub-body, 0 for the item itself
-    args:   Vec<TyList>,                   // 4 B; pool list of concrete type arguments
-    body:   Vec<BodyRef>,                  // 8 B: mapped `tir` entry index, body row
-    depth:  Vec<u8>,                       // 1 B; type-argument nesting depth (§13.4)
-    parent: Vec<InstId>,                   // 4 B; the requesting instance, for the depth diagnostic
-    key:    Vec<Hash128>,                  // 16 B; instance key (§13.3), computed when first pushed
-    index:  HashTable<u32>,                // (item, sub, args) -> InstId: dedup with run IDs, no hashing of canon types
-    vtables: Vec<(Ty, DefId)>, vt_index: HashTable<u32>,
-    imports: Vec<HostMethodId>,            // sorted and deduplicated at the end
-    types:   Vec<Ty>, ty_index: HashTable<u32>,
-}
-```
+- **Dedup in run IDs, keys in content.** Collection dedups by run IDs
+  and computes the 128-bit instance key once per new instance. The key
+  sorts the set and names the code entry.
 
-- **Dedup in run IDs, keys in content (mine).** Collection dedups by
-  `(DefId, sub, TyList)`, three `u32` compares, and computes the 128-bit
-  instance key only once per new instance. The key is what sorts the
-  set and names the code entry.
-- At the end, a permutation sorted by `key` gives the emission and link
-  order (§6.5); the columns themselves are not moved.
+**Code entry** (`hd_wasm::Code`): parameter and result types, the body
+bytes (locals and instructions, index immediates as 5-byte padded LEBs),
+relocations sorted by offset, line anchors, and a suspending instance's
+other functions.
 
-**Code entry layout** (the `code` entry's sections):
+The design stored a relocation as 9 bytes whose target indexed a
+deduplicated per-entry table of instance keys, Wasm types and symbols,
+and packed code entries into per-folder `codepack` entries, never files
+of their own.
 
-| Section | Row | Bytes |
-| --- | --- | --- |
-| `body` | Wasm locals and instructions; index immediates as 5-byte padded LEBs | bytes |
-| `relocs` | `at u32, kind u8, pad 3, target u32` sorted by `at`; `kind` is `Func`, `Type`, `Global` or `Field` (crates/hd_mono/DESIGN.md §13.8) | 12 on disk, 9 in memory (packed) |
-| `targets` | `Hash128` instance keys, host method keys and getter symbols (a module's literal getter or span function, a fact's getter), deduplicated | 16 |
-| `symbols` | global symbols (module storage, immutable constants) and witness fields, as path and content-key rows | varies |
-| `wasm_types` | canonical Wasm type descriptors, as a small type table | varies |
-| `literals` | `(literal hash, module-local number)` of every pooled literal the body reads, for the code key | 20 |
-| `sites` | `at u32, kind u8, pad 3, item u32, inst u32`: an anchor, the item's path row and a TIR instruction index (crates/hd_mono/DESIGN.md §13.8, "Positions") | 16 |
-| `lines` | `at u32, item u32, inst u32` | 12 |
-| `sig` | the canonical signature, one row | small |
-
-- A relocation's `target` indexes `targets` (for `Func`), `wasm_types`
-  (for `Type`) or `symbols` (for `Global` and `Field`), by its `kind`.
-  So a relocation is 9 bytes, and an instance key is stored once per
-  entry, not once per call site.
-- **No `Site` and no `Data` relocation** (lowering pass). A site is the
-  code offset of its stub call, and only link-generated functions name
-  the data segment. A literal use holds its module-local number as a
-  plain immediate, since that number depends only on its module.
-- Code entries are stored only as members of a `codepack` (§3.20.4,
-  crates/hd_cache/DESIGN.md §5.4), never as files of their own.
-
-**Identity.** `InstId` per program, `NONE` for absent. On disk, instance
-keys.
-
-**Lifetime.** The instance table lives for one program's build. Code
-entries are written by `Emit` and mapped by `Link`.
-
-**Growth.** Doubling vectors; a test plan collects programs in parallel,
-each with its own table.
-
-**Determinism.** Everything output-facing is sorted by instance key.
-
-**Memory.** About 43 bytes per instance plus its index; a 10k-line
-program with about 5,000 instances: about 0.3 MB. Code entries: about 40
-bytes per line per instance, mapped.
-
-**Accessors.** `set.push(item, sub, args) -> InstId`, `set.sorted()`,
-generated `CodeEntryReader` and `CodeEntryWriter`.
+Implementation differs: each relocation holds its full symbol
+(`Reloc::Func(Sym)` with a 16-byte key, `crates/hd_wasm/src/lib.rs:544`),
+and each instance's code is its own `code` entry
+(`crates/hd_driver/src/lib.rs:6634`). Entries are larger, and a cold
+build writes one cache file per instance.
 
 ### 3.23 Wasm Emission Buffers
 
-**Purpose and consumers.** One `Emit(inst)` walk writes one function's
-Wasm and its relocations. `Link` writes the module.
+One `Emit` task writes one instance's Wasm and its relocations; `Link`
+writes the module. Emission state (`hd_wasm::emit::Em`) is made per
+instance: the assembler buffer, value and local maps, the control stack,
+cleanup scopes and suspension state.
 
-**Layout.** Per worker, reused per instance:
-
-```rust
-pub struct EmitBufs {
-    code: Vec<u8>,                       // the body being written; wasm-encoder's sink
-    relocs: Vec<PackedReloc>,            // 9 B: at u32, kind u8, target u32
-    targets: Vec<Hash128>, target_index: HashTable<u32>,
-    value_local: Vec<u32>,               // by Inst: the Wasm local holding the value, or NONE
-    local_types: Vec<ValType>,           // the function's locals
-    blocks: Vec<OpenBlock>,              // the open-block stack, 12 B each
-    subst: HashTable<(u32, u32)>,        // generic Ty -> substituted Ty, per instance
-    layout: HashTable<(u32, u32)>,       // substituted Ty -> layout class row, per worker (types are global)
-    sites: Vec<SiteRow>, lines: Vec<(u32, u32)>,
-}
-#[repr(C, packed)] pub struct PackedReloc { at: u32, kind: u8, target: u32 }
-const _: () = assert!(core::mem::size_of::<PackedReloc>() == 9);
-```
-
-- `value_local` is sized to the body's instruction count and filled with
-  `NONE` per instance: a direct index, not a map.
-- The layout memo is per worker for the whole build, since layouts are a
-  function of global types; the substitution memo is per instance.
-- **Link** writes into one `Vec<u8>` reserved at the sum of the entries'
-  body sizes plus the sections' estimates, and patches relocations in
-  place (§13.10).
-
-**Lifetime.** Per worker, truncated per instance; released at the end of
-the build.
-
-**Growth.** Doubling; a body past 1 MB releases the excess afterwards,
-as §3.19 does.
+The design reused per-worker buffers with direct-indexed value columns.
+Per-instance state is simpler, and the saving was never measured.
 
 **Determinism.** Wasm locals are numbered in TIR order; relocation order
 is offset order.
 
-**Wire form.** The `code` entry (§3.22).
-
-**Memory.** A few hundred KB per worker. Cranelift's own memory, outside
-these buffers, dominates a build.
-
-**Accessors.** `Emitter` methods per TIR tag; the relocation-recording
-wrapper of §15.7.
-
-### 3.24 Memory Budget
-
-Assumptions: a generated 10k-line package of 100 files, 20 folders, 10k
-lines at 35 bytes, 8 tokens, 10 nodes and 7 TIR instructions per line;
-the largest module 1,000 lines; 8 workers; std as an embedded pack. The
-binary's resident pages are an estimate that the `startup` metric
-measures.
-
-The column and pool rows below assume the dense four-byte storage of the
-audited `hd_base::AppendVec`; replacing each slot with `OnceLock` would
-invalidate these totals. This is the cost basis for the single unsafe
-exception in §3.9.4
-(reconciliation, item 6 (`git show f1c55020:future-work/compiler/reconciliation.md`)).
-
-| Structure | Section | Warm check, one-function edit | Cold check | Build (cold, adds) |
-| --- | --- | --- | --- | --- |
-| `hd` binary pages touched, runtime, allocator | | 8.0 MB | 8.0 MB | +6 MB (Cranelift, wasmtime code) |
-| stat manifest | §3.20.3 | 0.01 MB | 0.01 MB | |
-| sources in flight | §3.5 | 0.04 MB | 0.3 MB (8 modules) | |
-| tokens and line tables | §3.11 | 0.09 MB | 0.7 MB (8 × 1,000 lines) | |
-| green trees | §3.13 | 0.15 MB | 1.2 MB | |
-| skeletons of skimmed files | §3.14 | 0.3 MB (headers of the rest) | 0 | |
-| item index, scopes, exports | §3.14, §3.15 | 0.1 MB | 0.4 MB | |
-| strings and symbols | §3.3 | 0.3 MB | 0.5 MB | +0.1 MB |
-| stable path trie | §3.2 | 0.3 MB | 0.6 MB | +0.1 MB |
-| InternPool | §3.9.2 | 0.3 MB | 1.7 MB | +0.5 MB (instance types) |
-| interface blobs and memos | §3.16 | 0.6 MB (std pages and package blobs) | 1.2 MB | |
-| impl tables | §3.17 | 0.02 MB | 0.05 MB | |
-| solver memo | §4.12.2 | 0.2 MB | 1.0 MB | +0.5 MB |
-| TIR in module results | §3.18 | 0.18 MB (one module) | 1.4 MB (8 modules) | |
-| checker scratch | §3.19 | 0.5 MB | 0.8 MB | |
-| diagnostics | §3.8 | 0.01 MB | 0.05 MB | |
-| cache entry write buffers | §3.20 | 0.4 MB | 1.0 MB | |
-| task graph | §3.21 | 0.03 MB | 0.15 MB | +0.2 MB |
-| instance table | §3.22 | | | +0.3 MB |
-| emission buffers | §3.23 | | | +2 MB (8 workers) |
-| mapped `tir` and `code` entries | §3.20, §3.22 | | | +2.5 MB |
-| linked module and link buffer | §13.10 | | | +0.6 MB |
-| Cranelift compile memory | §18 | | | +20 to 40 MB (estimate, 8 workers) |
-| allocator slack, about 15% | | 1.7 MB | 2.9 MB | +5 MB |
-| **Total** | | **about 13 MB** | **about 22 MB** | **about 60 to 80 MB** |
-| **Target** | docs/compiler/goals.md | **50 MB** (warm check) | none set | none set |
-
-- **Status: an estimate, not a measurement.** The rows are computed from
-  the size asserts and the stated assumptions. Process RSS also holds
-  maps, memo tables, thread stacks and touched pages that only a
-  measurement shows. The `resources` script measures it in slice 4
-  (`f1c55020:future-work/compiler/build-order.md` §9.1).
-- **Warm check margin: about 37 MB, by estimate.** The largest risks are the binary's
-  pages, which `startup` measures, and the solver memo, which grows with
-  distinct goals and is bounded by the program, not by time.
-- **Startup (≤ 10 MB).** Pre-seeded symbols, paths and types are static
-  data in the binary; the std pack is mapped lazily. An empty-file check
-  touches the binary's pages, one skeleton and a few std blobs: about
-  9 MB.
-- **CPU (≤ 0.2 CPU-s warm).** The warm path's data work is linear in the
-  edited module: lexing and parsing about 35 KB, checking 1,000 lines,
-  remapping about 20,000 ID words for the `tir` entry, and reading about
-  100 entry headers. The `edit-latency` and `resources` scripts measure
-  it.
-- **A build** is dominated by Cranelift; this design adds about 6 MB of
-  its own structures to a cold check. The `resources` metric records it
-  without a target.
-
 ### 3.25 The Schema Language
 
-**One definition per structure** generates its Rust layout, its typed
-views and builders, its verifier's structural checks, its printer, its
-wire codec with the ID remap, and, for the tree, the JavaScript decoder.
-
-**Files.**
-
-| Schema | Generates | Crate |
-| --- | --- | --- |
-| `hd_syntax/hd.ungram` | syntax kinds, typed views in Rust and JS | `hd_syntax` |
-| `hd_syntax/tree.ir` | the tree wire format, its JS decoder | `hd_syntax` |
-| `hd_types/pool.ir` | pool tags, `TyView`, `mk`, meta computation, the type-table codec | `hd_types` |
-| `hd_resolve/iface.ir` | blob sections, `IfaceReader`, `IfaceWriter` | `hd_resolve` |
-| `hd_tir/tir.ir` | `TirTag`, `TirView`, builder helpers, verifier, printer, `tir` entry codec | `hd_tir` |
-| `hd_cache/entries.ir` | the container, section kinds, manifest, `check`, `code` entries | `hd_cache` |
-| `hd_diag/codes.ir` | `Code`, message templates and their typed builders | `hd_diag`; read from the spec's code list |
-
-**The language.** A small declarative text format, parsed by the
-generator. Operand kinds are its core: each kind names a Rust type, a
-verifier check, a printer, and its wire treatment.
-
-```text
-# kinds: one line each; `id` kinds are remapped on the wire
-kind inst   u32  id=none   check=before_self     print="%{n}"
-kind ref    u32  id=const  check=before_self_or_const
-kind local  u32  id=none   check=lt(locals)
-kind ty     u32  id=type   check=global_after_finish
-kind def    u32  id=path
-kind sym    u32  id=string
-kind block  u32  id=none   check=tag(Block)
-kind list<K>     range     # {start, len} into extra, elements of kind K
-
-record Callee  = Item { def: def, targs: list<ty> }
-               | TraitMethod { trait: def, method: sym, self_ty: ty, targs: list<ty>, choice: Choice }
-record Choice  = Impl { def: def } | Bound { index: u16 } | TraitValue { trait: def } | Builtin { which: BuiltinImpl }
-record Providers = Keys { pairs: list<(ty, ref)> } | Context { ctx: ref } | Pending { call: u32 }   # 3 words
-
-inst Call {
-  a: extra Callee
-  b: extra { args: list<ref>, providers: Providers }
-  ty: "the callee's result, substituted"
-  verify: args_match_params, providers_match_row
-}
-inst LocalSet { a: local, b: ref, ty: void, verify: value_ty_eq_local }
-```
-
-- An instruction lists its two data words; `extra` records are named
-  records. The generator computes each record's word count and emits a
-  size assert per record and per tag.
-- `verify:` names hand-written semantic checks; the structural ones
-  (operand order, ranges in bounds, tags of referenced instructions,
-  every ID word of the right kind) come from the operand kinds alone.
-- Tables (interface sections, cache sections) use `table` blocks with
-  the same kinds; a `table` row's width is computed, and `aos` marks a
-  table stored as one struct (§3.9.4).
-
-**What it generates, per schema.** The `#[repr(u8)]` tag enum; the size
-asserts; one `View` enum of small `Copy` structs with named fields, where
-lists are slice views; builder functions that take typed arguments; the
-structural verifier; a printer for `hd debug tir` and snapshots; the
-wire writer and reader with the remap of §3.20.2; the format number,
-which is the hash of the schema's normalized text; and for the tree, the
-JavaScript decoder.
-
-**What agents see.**
-
-```rust
-match tir.view(i) {
-    TirView::Call(Call { callee, args, providers }) => {
-        for a in args.iter(&tir) { /* a: Ref */ }
-        if let CalleeView::TraitMethod { choice: Choice::Builtin { which }, .. } = callee.view(&tir) { .. }
-    }
-    TirView::LocalSet(LocalSet { local, value }) => { .. }
-    _ => {}
-}
-let r = b.call(Callee::item(def, targs), &args, Providers::Keys(&provs), ty, syn);
-```
-
-Raw columns are `pub(crate)` in each IR's crate, so other crates cannot
-index words; a reviewer can grep for `data[` outside the generated
-module to find a violation.
-
-**Which tool generates (recommendation: a checked-in generator).**
-
-| Option | For | Against |
-| --- | --- | --- |
-| `build.rs` | always in sync; no extra command | output hidden in `target/`; agents and reviewers cannot read or grep it; slows every build; a build script failure is hard to read |
-| proc macro over Rust declarations | schema next to the code; IDE sees the source | generated code invisible; long compile times for big `match`es; cannot emit JavaScript or docs; macro errors are poor |
-| **checked-in generator, `cargo xtask codegen`** | output is plain Rust and JS in the repo, readable, greppable and reviewable in diffs; zero cost per build; one tool emits Rust, JS and docs | can drift: CI regenerates and fails on any diff |
-
-**Recommendation:** the checked-in generator, which D1's §2.2 already
-names, and rust-analyzer uses for its syntax. Agents writing the
-compiler read generated code as ordinary code, which matters more than
-saving one command. The CI diff check removes the drift risk.
-
-**What the accessor layer costs.** Decoding a view is a tag load, one
-8-byte load and a slice computation. It is inlined, so it costs about a
-nanosecond and no allocation. The costs that are real: a generated
-module per IR to keep in sync (CI regenerates and diffs it), longer
-compile times of the generated `match`es, and debugging that goes through
-the printer instead of a derived `Debug` on a tree. The printer is
-therefore part of the first slice of each IR.
+Planned, not built: one declarative schema per IR and wire form,
+checked in with its generator (`cargo xtask codegen`), producing tag
+enums, size asserts, typed views and builders, structural verifiers,
+printers, wire codecs with the ID remap, and the tree's JavaScript
+decoder. A checked-in generator was preferred over `build.rs` and proc
+macros because its output is readable, greppable and costs nothing per
+build; CI would regenerate and fail on a diff. Today TIR's tags and
+operand kinds come from one `macro_rules!` table in
+`crates/hd_tir/src/ir.rs`, and the diagnostic codes from
+`spec/tools/diagnostic-codes.ts`.

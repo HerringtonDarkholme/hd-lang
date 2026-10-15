@@ -14,8 +14,9 @@ for its imports and header, and parsed on demand into a green tree
 (`hd_syntax`). `hd_project` maps files to modules, folders and packages.
 `hd_resolve` builds each folder's interface: names, signatures, impl
 tables and content hashes. `hd_check` checks each module's bodies against
-those interfaces and emits one typed IR (TIR, `hd_tir`) per body, plus
-coherence and initialization-order results. For a program, `hd_mono`
+those interfaces and emits one typed IR (TIR, `hd_tir`) per body; the
+driver's `Coherence` and `InitOrder` tasks add the overlap and
+initialization-order results. For a program, `hd_mono`
 collects the reachable instances from the TIR, `hd_opt` runs the pass
 pipeline chosen by engine target and level, and `hd_wasm` emits and links
 one Wasm GC module. The CLI runs it on V8 through Node (`host/*.mjs`), or
@@ -32,7 +33,8 @@ Shared base:
   profile, engine target and level. Leaf crate.
 - `hd_intern`: interned strings and stable paths.
 - `hd_diag`: diagnostic codes and records.
-- `hd_types`: the type pool, inference primitives, rows and solver data.
+- `hd_types`: the type pool, unification, rows, the trait solver and the
+  entry-local tables that carry types into cache entries.
 - `hd_host_abi`: the one host ABI table: capability traits, methods,
   codecs, wait flags and import names.
 
@@ -46,8 +48,8 @@ Front half:
   their hashes, visibility. [DESIGN.md](../../crates/hd_resolve/DESIGN.md)
 - `hd_structure`: the compiler-supplied `Structure` generator that writes
   TIR bodies for derivations and tuples.
-- `hd_check`: body checking, the trait solver, exhaustiveness, facts,
-  coherence and initialization; emits TIR.
+- `hd_check`: body checking, exhaustiveness, facts, header checks and
+  initialization summaries; emits TIR.
   [DESIGN.md](../../crates/hd_check/DESIGN.md)
 - `hd_tir`: TIR columns, builder, verifier, printer, wire form and TIR
   hash. [DESIGN.md](../../crates/hd_tir/DESIGN.md)
@@ -85,7 +87,8 @@ Tools and front ends:
   [DESIGN.md](../../crates/hd_stdpack/DESIGN.md)
 - `hd_web`: the playground's compile session for `wasm32`, over an
   in-memory store. [DESIGN.md](../../crates/hd_web/DESIGN.md)
-- `hd_testkit`: the determinism matrix and the `KNOWN_FAILURES.tsv` reader (dev only).
+- `hd_testkit`: the determinism matrix, test scratch directories and the
+  `KNOWN_FAILURES.tsv` reader (dev only).
 
 ## Invariants
 
@@ -113,7 +116,7 @@ Tools and front ends:
 - [lowering-catalog.md](lowering-catalog.md): the lowering of each data
   type and syntax form, with its cost.
 - [engines-and-test-runner.md](engines-and-test-runner.md): engines, tiers
-  and the test runner (§18 to §20).
+  and the test runner (§18 to §22).
 - [testing-the-compiler.md](testing-the-compiler.md): determinism and
   soundness tests (§8, §21).
 - [tiering.md](tiering.md): the dev and optimized pipelines and the pass
