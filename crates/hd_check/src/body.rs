@@ -1647,11 +1647,17 @@ impl Ck<'_, '_> {
         let want = self.strip_mut(self.infer.resolve(pool, want));
         // `from` meets `to` in a position: equal (`Some(false)`), or
         // convertible only by a representation change (`Some(true)`).
+        // Child-to-supertrait widening rebuilds the trait value, as a
+        // trait-value construction does
+        // (`types.variance.repr.excluded`).
         let pair = |this: &mut Self, from: Ty, to: Ty| -> Option<bool> {
             if this.can_unify(from, to) {
                 return Some(false);
             }
             if this.elem_converts(from, to) {
+                return Some(true);
+            }
+            if this.widens(from, to) {
                 return Some(true);
             }
             this.repr_change(from, to, depth + 1).then_some(true)
@@ -1737,6 +1743,40 @@ impl Ck<'_, '_> {
         let ok = self.infer.unify(self.pool(), a, b).is_ok();
         self.infer.rollback(snap);
         ok
+    }
+
+    /// Whether `from` widens to `to` through a supertrait, rebuilding
+    /// the trait value: the same inheritance the coercion applies
+    /// (`trait.dyn.widen`), so the error names the representation
+    /// change instead of a plain mismatch.
+    fn widens(&mut self, from: Ty, to: Ty) -> bool {
+        let pool = self.pool();
+        let from = self.strip_mut(self.infer.resolve(pool, from));
+        let to = self.strip_mut(self.infer.resolve(pool, to));
+        let (
+            TyData::TraitValue {
+                def: from_def,
+                args: from_args,
+                ..
+            },
+            TyData::TraitValue { def: to_def, .. },
+        ) = (pool.get(from), pool.get(to))
+        else {
+            return false;
+        };
+        if from_def == to_def {
+            return false;
+        }
+        let Some(widened) = supertrait_args(self.cx.lookup, pool, from_def, from_args, to_def, 0)
+        else {
+            return false;
+        };
+        let widened = pool.intern_ty(&TyData::TraitValue {
+            def: to_def,
+            args: widened,
+            bindings: vec![],
+        });
+        self.can_unify(widened, to)
     }
 
     /// A concrete value of type `got` converts to the trait value type

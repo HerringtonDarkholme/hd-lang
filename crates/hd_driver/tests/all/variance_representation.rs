@@ -114,3 +114,36 @@ fn erase() -> fn() -> string:
 ";
     assert_eq!(codes(src), vec![Code::TypeMismatch]);
 }
+
+#[test]
+fn child_trait_widening_inside_a_list_names_the_representation_change() {
+    // `types.variance.no-insertion`: `dyn Dog` widens to `dyn Animal`,
+    // rebuilding each element's trait value.
+    let src = "trait Animal:
+    fn name(self) -> string
+
+trait Dog < Animal:
+    fn bark(self) -> string
+
+fn widen(items: List[dyn Dog]) -> List[dyn Animal]:
+    items
+";
+    assert_eq!(codes(src), vec![REPR]);
+}
+
+#[test]
+fn unrelated_trait_values_stay_a_type_mismatch() {
+    let src = "trait Animal:
+    fn name(self) -> string
+
+trait Cat:
+    fn meow(self) -> string
+
+fn widen(items: List[dyn Dog]) -> List[dyn Cat]:
+    items
+
+trait Dog:
+    fn bark(self) -> string
+";
+    assert_eq!(codes(src), vec![Code::TypeMismatch]);
+}
