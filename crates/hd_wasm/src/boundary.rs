@@ -546,7 +546,7 @@ impl BTy {
                     .collect::<Option<Vec<_>>>()?,
             })),
             12 => BTy::Json(Box::new(JsonB {
-                vts: decode_vts(r, 0)?,
+                vts: decode_vts(r)?,
                 encode: if r.u8() == 1 { Some(r.hash()) } else { None },
                 decode: if r.u8() == 1 {
                     Some(JsonDecode {
@@ -557,7 +557,7 @@ impl BTy {
                 } else {
                     None
                 },
-                decoded: decode_vts(r, 0)?,
+                decoded: decode_vts(r)?,
             })),
             _ => return None,
         })
