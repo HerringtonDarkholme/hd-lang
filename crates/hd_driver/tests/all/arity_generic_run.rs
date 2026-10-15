@@ -103,6 +103,34 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
+fn an_impl_head_binds_its_function_row_parameter() {
+    let main = r#"use std.function.Fn
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[O, $R] Describe for Fn[(i32,), O, $ R]:
+    fn describe(self) -> string:
+        "function"
+
+fn bump(x: i32) -> i32 $ Console:
+    println(x)
+    x + 1
+
+pub fn main() -> void $ Console:
+    f := fn(x: i32) -> i32: x + 1
+    println(f.describe())
+    println(f(41))
+    println(bump.describe())
+    println(bump(9))
+"#;
+    assert_eq!(
+        output_of("fn-row-impl", main),
+        "function\n42\nfunction\n9\n10\n"
+    );
+}
+
+#[test]
 fn a_spread_through_a_value_passes_each_element() {
     // Ten `i64`s make a tuple the layout boxes; the bang call suspends.
     let main = format!(

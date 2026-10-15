@@ -22,7 +22,7 @@ use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
     Selection, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
 use crate::layout::{
@@ -583,12 +583,14 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
             TyData::Fn {
                 params: a,
                 result: r,
+                row: ar,
                 inputs: ai,
                 ..
             },
             TyData::Fn {
                 params: b,
                 result: s,
+                row: br,
                 inputs: bi,
                 ..
             },
@@ -615,8 +617,33 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
                 );
             }
             unify(pool, owner, r, s, out);
+            unify_row(pool, owner, ar, br, out);
         }
+        (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
         _ => {}
+    }
+}
+
+/// Matches an impl head's row parameters, filling their instance arguments
+/// with the concrete row as a `TyData::Row`, just as `unify` does for type
+/// parameters. `Types::subst_row` consumes that same representation.
+fn unify_row(
+    pool: &InternPool,
+    owner: DefId,
+    pattern: RowId,
+    actual: RowId,
+    out: &mut Vec<Option<Ty>>,
+) {
+    for p in pool.row_data(pattern).params {
+        if p.owner != owner {
+            continue;
+        }
+        let i = p.index as usize;
+        if out.len() <= i {
+            out.resize(i + 1, None);
+        }
+        let row = pool.intern_ty(&TyData::Row(actual));
+        out[i].get_or_insert(row);
     }
 }
 
