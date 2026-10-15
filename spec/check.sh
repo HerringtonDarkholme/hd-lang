@@ -156,7 +156,7 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$spec_dir" \
     "$repo_dir/docs/future-work/OPEN_ISSUES.md" \
     "$repo_dir/website/guide/OVERVIEW.md" \
-    "$repo_dir/website/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/website/guide/WORKING_WITH_DATA.md" \
     "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \
     --include='*.md'; then
     fail "versioned or provisional language labels found"
@@ -175,7 +175,7 @@ node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir"
 if grep -R -n -E 'fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \
     "$repo_dir/website/guide/OVERVIEW.md" \
-    "$repo_dir/website/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/website/guide/WORKING_WITH_DATA.md" \
     "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \
     --include='*.md' --include='*.hd'; then
     fail "obsolete mutability syntax found"

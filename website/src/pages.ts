@@ -91,7 +91,6 @@ export const PAGES: readonly PageSource[] = [
   ),
   page("website/guide/README.md", "guide/index.html", "Guide", "Guide"),
   page("website/guide/OVERVIEW.md", "guide/overview.html", "Language Overview", "Guide"),
-  page("website/guide/LANGUAGE_TOUR.md", "guide/language-tour.html", "Language Tour", "Guide"),
   page(
     "website/guide/WORKING_WITH_DATA.md",
     "guide/working-with-data.html",

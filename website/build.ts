@@ -64,16 +64,24 @@ function siteLink(base: string, output: string): string {
   return base + output.replace(/(^|\/)index\.html$/, "$1");
 }
 
-/** Rewrites a link written in a repository Markdown file to its site URL. */
-function linkResolver(base: string, errors: string[]): RenderEnv["resolveLink"] {
+/**
+ * Rewrites a link written in a repository Markdown file to its site URL.
+ * `tourOutputs` maps each tour page's source to its output path, so a link
+ * to website/tour/NN-slug.md opens that tour page.
+ */
+function linkResolver(
+  base: string,
+  errors: string[],
+  tourOutputs: ReadonlyMap<string, string>,
+): RenderEnv["resolveLink"] {
   return (href, source) => {
     if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) return href;
     const hash = href.indexOf("#");
     const path = decodeURIComponent(hash < 0 ? href : href.slice(0, hash));
     const fragment = hash < 0 ? "" : href.slice(hash);
     const target = posix.normalize(posix.join(posix.dirname(source), path)).replace(/\/$/, "");
-    const page = pageBySource.get(target);
-    if (page) return siteLink(base, page.output) + fragment;
+    const output = pageBySource.get(target)?.output ?? tourOutputs.get(target);
+    if (output) return siteLink(base, output) + fragment;
     // A link to the playground's directory opens the site's playground page.
     if (target === "website/playground") return siteLink(base, PLAYGROUND_PAGE) + fragment;
     const onDisk = join(REPO_DIR, target);
@@ -180,7 +188,11 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
-  const resolveLink = linkResolver(base, linkErrors);
+  const resolveLink = linkResolver(
+    base,
+    linkErrors,
+    new Map(tour.map((page) => [page.source, tourOutput(page)])),
+  );
   const search: SearchEntry[] = [];
   const written: string[] = [];
   const write = async (output: string, html: string): Promise<void> => {

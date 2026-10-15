@@ -166,7 +166,7 @@ and choose it with `hd --engine wasmtime ...` or `HD_ENGINE=wasmtime`.
 ## Start
 
 Read the [guide](website/guide/README.md), take the
-[Language Tour](website/guide/LANGUAGE_TOUR.md), and run `hd help` for the
+[tour](website/tour/01-hello.md), and run `hd help` for the
 commands ([The `hd` Command](website/guide/COMMANDS.md)). The
 [specification](spec/README.md) holds the exact rules, and the standard
 library is in [lib/std](lib/std/). To work on the compiler, see

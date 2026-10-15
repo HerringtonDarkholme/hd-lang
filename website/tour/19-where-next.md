@@ -10,8 +10,9 @@ The tour showed one claim per page. To keep going:
   several files, the WebAssembly the compiler makes, and share links. Its
   examples menu has longer programs, such as tests on a fake clock and
   property tests.
-- [The Language Tour guide](../guide/LANGUAGE_TOUR.md) covers the whole
-  language on one page, with the details these pages leave out.
+- [Learn hd in 10 Minutes](../guide/LEARN_IN_10_MINUTES.md) puts the
+  syntax on one page, and [Working With Data](../guide/WORKING_WITH_DATA.md)
+  shows everyday jobs: JSON config, files, packages, and wiring a program.
 - [The specification](../../spec/README.md) states every rule, numbered, with
   the diagnostics the compiler reports and the conformance tests behind them.
 
@@ -28,7 +29,7 @@ enum Next:
 fn why(next: Next) -> string:
     match next:
         .Playground => "the playground: whole projects, the WebAssembly, share links"
-        .Guide => "the guide: the whole language on one page"
+        .Guide => "the guide: the syntax on one page, and everyday jobs"
         .Spec => "the spec: every rule, numbered, with its diagnostics"
 
 pub fn main() -> void $ Console:
@@ -38,6 +39,6 @@ pub fn main() -> void $ Console:
 
 ```output
 the playground: whole projects, the WebAssembly, share links
-the guide: the whole language on one page
+the guide: the syntax on one page, and everyday jobs
 the spec: every rule, numbered, with its diagnostics
 ```

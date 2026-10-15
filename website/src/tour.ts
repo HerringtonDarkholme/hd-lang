@@ -163,5 +163,5 @@ export function tourIndexBody(pages: readonly TourPage[], input: TourRender): st
 <ol class="tour-index">
 ${items}
 </ol>
-<p>Want the whole language on one page? Read the <a href="${pageUrl("guide/language-tour.html")}">Language Tour</a> guide.</p>`;
+<p>Want the syntax on one page? Read <a href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn hd in 10 Minutes</a>.</p>`;
 }

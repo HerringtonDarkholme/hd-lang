@@ -5,9 +5,10 @@ WebAssembly GC. It is designed for code that AI agents write and humans
 review: types sit at the boundaries, dependencies are declared in signatures,
 and suspension points are marked at every call.
 
-This page is a fast tour. Every example parses with the compiler. The
-[Language Tour](LANGUAGE_TOUR.md) covers the same ground in more depth, and
-the [specification](../../spec/README.md) is the normative reference.
+This page is the syntax on one page, by example. Every example parses with
+the compiler. Each topic links to its page of the [tour](../tour/01-hello.md),
+where you run and change the code; the
+[specification](../../spec/README.md) is the normative reference.
 
 ## Hello
 
@@ -19,7 +20,7 @@ println("hello, hd-lang")
 ```
 
 Blocks open with a header that ends in `:`, followed by an indented body or a
-same-line body.
+same-line body. `$ Console` is a requirement row: the function may print.
 
 ```hd
 fn greet(name: string) -> void $ Console:
@@ -30,13 +31,9 @@ fn shout(name: string) -> void $ Console: println(name.upper())
 greet("Ada")
 ```
 
-The `$ Console` part is a requirement row. It is explained
-[below](#requirements-and-providers).
-
 A program that reads input or files makes bang calls, such as `read_line!()`,
-and only a `!` function may make them. So its entry point is `main!`, not
-`main`. Inside `main!`, `println` writes and returns, or you can write with
-`$.use(Console).write_line!` to handle the `ConsoleError`.
+and only a `!` function may make them, so its entry point is `main!`
+([tour: suspension](../tour/16-suspension.md)):
 
 ```text
 use std.console.{ConsoleInput, read_line}
@@ -51,182 +48,101 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
     $.use(Console).write_line!("words: $words")
 ```
 
-Written as plain `pub fn main()`, the same body is rejected:
-`bang-call-outside-suspension: a bang call needs a suspending function or
-closure`. The fix is the `!` in `main!`. See
-[Suspension with `fn!`](#suspension-with-fn).
+## Bindings, Numbers, and Strings
 
-## Bindings and Values
-
-`:=` binds a name that cannot be reassigned, with an inferred type. `let`
-declares a variable that can be reassigned; its type annotation is optional.
+`:=` binds a name that cannot be reassigned. `let` declares a variable that
+can be ([tour: values and mut](../tour/02-values-and-mut.md)).
 
 ```hd
 name := "Ada"
-age := 36
 let attempts = +0
 attempts = attempts + 1
 ```
 
-Numbers have explicit widths: `i8` to `i64`, `u8` to `u64`, `f32`, and
-`f64`. A plain integer literal takes its width from the uses in its
-function, even through a range or a list. When none needs one, it is
-`usize`, or `i32` if a literal it meets has a sign, as `-1` or `+5`.
-Write `1.0`, not `1`, for a float. Other primitives are `bool`, `char`,
-and `string`. A string is UTF-8 bytes, as in Go: `len()` counts
-bytes, and a loop over its characters is `for c in s.chars()`. Lengths
-and indices are `usize`, an unsigned type distinct from `u32`, so an
-index is never negative; `usize(n)` converts a `u32` to it.
-
-```hd
-let big: i64 = 9000
-let ratio: f64 = 0.5
-let initial: char = 'A'
-mask := 0xFF_00
-million := 1_000_000
-narrow := i16(big)
-```
-
-Strings interpolate `$name` and `${expression}`; a `$` that starts neither,
-as in `"costs $5"`, is plain text. A name directly before the quote is a
-prefix function: `r"..."`, from `use std.text.r`, keeps backslashes as
-written and still interpolates.
+Numbers have explicit widths: `i8` to `i64`, `u8` to `u64`, `usize` for
+lengths and indices, `f32`, and `f64`. A plain integer literal takes its type
+from its uses; with none, it is `usize`, or `i32` when written with a sign,
+as `+5`. Conversions are calls, and none is implicit. Strings interpolate
+`$name` and `${expression}`, are UTF-8 bytes, and slice by byte range
+([tour: strings and numbers](../tour/03-strings-and-numbers.md)).
 
 ```hd
 use std.text.r
 
+let big: i64 = 9000
+narrow := i16(big)
+mask := 0xFF_00
+initial := 'A'
 summary := "User ${user.name} has ${posts.len()} posts"
+first := summary[0..4]
 pattern := r"\d+ costs $5"
-```
-
-Logic uses `&&`, `||`, and prefix `!`. `is` compares the identity of two
-references, while `==` compares values.
-
-```hd
-ok := ready && !failed || forced
-same := left is right
 ```
 
 ## Collections
 
 `List[T]` and `Map[K, V]` come from the prelude, and tuples are built in.
 Comprehensions put the clauses before `=>` and the produced value after it.
+A list you will change is `mut List[T]`
+([tour: collections](../tour/10-lists-and-maps.md)).
 
 ```hd
 names := ["Ada", "Grace", "Linus"]
 scores := {"Ada": 10, "Grace": 12}
-point := (10, 20)
-let (x, y) = point
-
+let (x, y) = (10, 20)
 long_names := [for name in names if name.len() > 3 => name]
-by_name := {for user in users => user.name: user.score}
-```
-
-An empty `[]` or `{}` has no elements to infer a type from, and the compiler
-types each statement on its own: a later `push` does not tell an earlier
-`let todos = []` what it holds. So annotate the binding. A list you will
-change is `mut List[T]`, and the annotation already carries the `mut`.
-
-```hd
-let todos: mut List[Todo] = []
-todos.push(Todo { title: "buy milk", done: false })
+total := scores.get("Ada").unwrap_or(0)
+let todos: mut List[string] = []
+todos.push("buy milk")
 ```
 
 ## Functions
 
-Parameters and results are typed. The last expression of a body is its
-value, and `return` is only needed for an early exit. Calls can mix
-positional and named arguments, with positional ones first.
+Parameters and results are typed, and the last expression is the value.
+Parameters may have defaults, and calls may name arguments. Closures use the
+same `fn` syntax, generic parameters go in square brackets, and a bound is
+written with `<` ([tour: functions](../tour/03-functions.md),
+[generics](../tour/10-generics.md)).
 
 ```hd
-fn connect(host: string, port: i32 = 443, tls: bool = true) -> string:
+fn connect(host: string, port: i32 = 443) -> string:
     if host == "":
         return "no host"
     "$host:$port"
 
-connect("localhost", port=8080, tls=false)
-```
-
-Closures use the same `fn` syntax. Generic parameters go in square brackets,
-and a bound is written with `<`.
-
-```hd
+connect("localhost", port=8080)
 inc := fn(x: i32) -> i32: x + 1
-
-fn first[T](items: List[T]) -> T?:
-    if items.len() == 0:
-        .None
-    else:
-        items[0]
 
 fn show[T < Display](value: T) -> string:
     value.to_string()
 ```
 
+A pipe feeds a value into the next step, and `_` marks where it goes
+([tour: pipes](../tour/08-pipes.md)): `cents |> discounted(_, 10) |> format`.
+
 ## Control Flow
 
-The whole list: `if` (with `else if` and `else`), `match`, `for`, `while`,
-`break`, `continue`, and `else` on a `for` or `while`. `return` leaves a
-function. There is no `loop`: an endless loop is `while true:`, left with
-`break` or `return`. Without a `break`, nothing after it runs, so a function
-may end with the loop and return from inside it. `if`, `match`, and loops
-with `else` are expressions. A `match` must be exhaustive.
+The whole list: `if`, `match`, `for`, `while`, `break`, `continue`, and
+`else` on a loop. There is no `loop`; write `while true:`. `if`, `match`, and
+loops with `else` are expressions, and a `match` must be exhaustive
+([tour: control flow](../tour/07-expressions.md)).
 
 ```hd
-label := if score >= 90:
-    "excellent"
-else if score >= 70:
-    "passing"
-else:
-    "needs work"
-
-let total = +0
-for value in values:
-    if value < 0:
-        continue
-    total = total + value
+label := if score >= 90: "excellent" else: "passing"
 
 found := for name in names:
     if name.starts_with("G"):
         break name
 else:
     "nobody"
-
-let tries: i32 = 0
-while true:
-    tries = tries + 1
-    if tries == 3:
-        break
-```
-
-A `while` with `else` works like the `for` above: `break value` gives the
-loop's value, and `else` gives it when the condition turns false.
-
-```hd
-fn first_empty_slot(slots: List[string]) -> string:
-    let index: usize = 0
-    while index < slots.len():
-        if slots[index] == "":
-            break "slot ${index}"
-        index = index + 1
-    else:
-        "full"
 ```
 
 `defer:` registers cleanup that runs when the enclosing block exits.
 
-```hd
-fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
-    let handle: mut FileHandle = $.use(Files).open!(path)?
-    defer:
-        _ := handle.close()
-    handle.read!()
-```
+## Data and Mutability
 
-## Data Types and Mutability
-
-`data` declares a nominal record. Values are shared references. A field may
-have a default, and construction uses a typed literal.
+`data` declares a record; a field may have a default, and `...` copies a
+value with changes. `T` is a readonly view and `mut T` a mutable one, and
+`let mut` asks for the mutable one ([tour: data](../tour/09-data.md)).
 
 ```hd
 data User:
@@ -234,72 +150,21 @@ data User:
     email: string
     nickname: string? = .None
 
-user := User { id: "u1", email: "ada@example.com" }
-renamed := User { ...user, nickname: "ada" }
-```
-
-Mutation permission is part of the type: `T` is readonly and `mut T` is
-mutable. A readonly reference can never be upgraded to `mut`. `:=` and a
-plain `let` bind the readonly view; `let mut` asks for `mut T`.
-
-```hd
 fn normalize(user: mut User) -> void:
     user.email = user.email.trim().lower()
 
-fn inspect(user: User) -> string:
-    user.email
-
 let mut draft = User { id: "u2", email: " Grace@Example.com " }
 normalize(draft)
+renamed := User { ...draft, nickname: "grace" }
 ```
 
-The `mut` goes on the type: a parameter is `name: mut T`, and `mut name: T`
-is a syntax error. A function that fills in a list it is given:
+## Enums, Optionals, and Errors
+
+An `enum` is a closed set of variants, which may carry fields. `.Variant`
+names one where the type is known. `==` on an enum needs `@derive(Eq)`
+([tour: enums](../tour/04-enums-and-match.md)).
 
 ```hd
-data Todo:
-    title: string
-    done: bool
-
-fn add_todo(todos: mut List[Todo], title: string) -> void:
-    todos.push(Todo { title: title, done: false })
-
-let todos: mut List[Todo] = []
-add_todo(todos, "write docs")
-```
-
-A bare type name inside a `data` block embeds that type. Its `pub` fields
-and methods are promoted onto the outer type. This is composition, not
-inheritance. The `...` prefix copies a value into the embedded part.
-
-```hd
-data Timestamps:
-    pub created_at: i64
-    pub updated_at: i64
-
-data Post:
-    Timestamps
-    title: string
-
-post := Post {
-    Timestamps: ...Timestamps { created_at: 0, updated_at: 0 },
-    title: "Hello",
-}
-println(post.created_at)
-```
-
-## Enums, Optionals, and Results
-
-An `enum` is a closed set of variants, and a variant may carry named
-payload fields. Where the expected type is known, `.Variant` names a
-variant. A `match` must cover every variant, so adding a variant to `Shape`
-below makes the compiler point at each `match` that needs a new arm
-(`nonexhaustive-match`). Avoid a `_` arm when you want that to-do list. Comparing two values with `==`
-needs `@derive(Eq)` on the enum, as written on `Shape` below; `match` does not.
-Without it, `==` is rejected: `type-mismatch: type 'Shape' does not implement Eq`.
-
-```hd
-@derive(Eq)
 enum Shape:
     Circle(radius: f64)
     Rect(width: f64, height: f64)
@@ -310,215 +175,72 @@ fn area(shape: Shape) -> f64:
         .Rect(width, height) => width * height
 ```
 
-`T?` is the prelude enum `Option[T]`, with variants `.Some(value)` and
-`.None`. `Result[T, E]` has `.Ok(value)` and `.Err(error)`. A plain value is
-accepted where an optional is expected.
-
-```hd
-fn find(names: List[string], prefix: string) -> string?:
-    for name in names:
-        if name.starts_with(prefix):
-            return name
-    .None
-
-match find(names, "A"):
-    .Some(name) => println(name)
-    .None => println("not found")
-```
-
-Optionals and results are must-use values. Discard one on purpose with
-`_ := expression`.
-
-## Errors and `?`
-
-Failures are values in the signature, not hidden exceptions, so a caller
-cannot forget that a call can fail. Postfix `?` keeps the happy path short: it
-unwraps `.Some` or `.Ok` and returns `.None` or `.Err` from the
-current function. When the error types differ, `?` converts the error once
-through a `From` implementation on the function's error type.
-
-```hd
-use std.convert.From
-
-enum FsError:
-    NotFound(path: string)
-
-enum SyncError:
-    Fs(error: FsError)
-
-impl From[FsError] for SyncError:
-    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
-
-fn read_config(path: string) -> Result[string, FsError]:
-    .Err(FsError.NotFound(path))
-
-fn sync(path: string) -> Result[string, SyncError]:
-    config := read_config(path)?
-    .Ok(config)
-```
-
-`std.error.Error` is the standard error trait. `Result[T, dyn Error]` holds any
-error that implements it, much like `anyhow` in Rust.
-
-```hd
-use std.error.Error
-
-impl Display for FsError:
-    fn to_string(self) -> string:
-        match self:
-            FsError.NotFound(path) => "not found: " + path
-
-impl Error for FsError
-
-fn load(path: string) -> Result[string, dyn Error]:
-    text := read_config(path)?
-    .Ok(text)
-```
-
-Usually `@error` writes those implementations for you, as Rust's
-`thiserror` does. `@error("...")` gives a variant its message, `@from`
-generates the `From` conversion, and `@source` marks a cause without one.
-`@error` needs no import:
+`T?` is `Option[T]`: `.Some(value)` or `.None`. `Result[T, E]` is
+`.Ok(value)` or `.Err(error)`. Postfix `?` unwraps, or returns the `.None` or
+`.Err` from the current function. `@error` writes an error enum's messages
+and conversions ([tour: option](../tour/05-option.md),
+[errors](../tour/06-errors.md), [error context](../tour/15-error-context.md)).
 
 ```hd
 @error
 enum ConfigError:
     @error("config not found: $path")
     Missing(path: string)
-    @error("cannot read $path")
-    Read(path: string, @source error: FsError)
-    @error("cannot load config")
-    Load(@from error: FsError)
+
+fn read_config(path: string) -> Result[string, ConfigError]:
+    .Err(ConfigError.Missing(path))
+
+fn port(path: string) -> Result[string, ConfigError]:
+    text := read_config(path)?
+    .Ok(text.trim())
 ```
 
 ## Traits
 
-Traits describe behavior, and every implementation is explicit. A generic
-bound dispatches statically. A trait used as a value type dispatches
-dynamically, and its type is written `dyn Trait`.
+A trait lists methods, and each implementation is explicit. A bound
+dispatches statically; `dyn Trait` dispatches dynamically. `@derive` writes
+standard implementations ([tour: traits](../tour/11-traits.md),
+[derive](../tour/18-derive.md)).
 
 ```hd
 trait Describe:
     fn describe(self) -> string
 
-    fn label(self) -> string:
-        "item: " + self.describe()
-
 impl Describe for User:
-    fn describe(self) -> string:
-        self.email
+    fn describe(self) -> string: self.email
 
-fn print_all(items: List[dyn Describe]) -> void $ Console:
-    for item in items:
-        println(item.label())
-```
-
-Inherent methods live in `impl Type` blocks. `@derive` generates standard
-and library trait implementations, and `by` delegates a trait to an embedded
-field (`by Structure` instead applies a derivation template).
-
-```hd
 @derive(Eq, Hash)
 data Point:
     x: i32
     y: i32
-
-impl Point:
-    pub fn moved(self, dx: i32) -> Point:
-        Point { ...self, x: self.x + dx }
-
-data Service:
-    Logger
-
-impl Describe for Service by Logger
 ```
 
-## Inspectable Values
+## Requirements and Suspension
 
-`std.inspect.Inspectable` erases a value while remembering its concrete
-type. Only `Inspectable` values, and values of traits that extend it such
-as `Error`, can be downcast back.
-
-```hd
-use std.inspect.{Inspectable, TypeId}
-
-fn describe_value(value: dyn Inspectable) -> string:
-    if value.runtime_type() == TypeId::of::[i32]():
-        return "an i32"
-    match value.downcast::[User]():
-        .Some(user) => "user " + user.email
-        .None => "something else"
-```
-
-## Requirements and Providers
-
-A function that reads the clock, sends mail, or queries a database is hard
-to test and hard to review when it reaches for a global: the test must patch
-the global, and the signature hides what the function touches. A requirement
-row after `$` lists the traits a function needs from its context, so the
-signature shows it. `$.use` retrieves a provider, and `$.with` supplies
-providers for a block, so a test installs a fixed clock or a fake mailer with
-no mocking library. There is no hidden global state: a missing provider is a
-compile-time error (`missing-requirement`).
+A row after `$` lists the traits a function needs. `$.use` retrieves a
+provider and `$.with` supplies one for a block, so a test installs a fake
+([tour: requirements](../tour/12-requirements.md),
+[least authority](../tour/17-least-authority.md)). A name ending in `!`
+can suspend, and so does every call to it
+([tour: suspension](../tour/16-suspension.md)).
 
 ```hd
 trait Clock:
     fn now(self) -> i64
 
 fn stamp(message: string) -> string $ Clock:
-    clock := $.use(Clock)
-    "${clock.now()}: $message"
-
-data FixedClock:
-    at: i64
-
-impl Clock for FixedClock:
-    fn now(self) -> i64: self.at
+    "${$.use(Clock).now()}: $message"
 
 $.with(Clock=FixedClock { at: 42 }):
     println(stamp("ready"))
 ```
 
-## Suspension with `fn!`
+## Modules, Tests, and Packages
 
-A name ending in `!` marks a function that can suspend, such as for I/O or
-waiting. Every call that may suspend is written with `!` too, so suspension
-points are visible in review. Calling a suspending function without `!`
-builds a cold `Suspend[T]` value instead of running it.
-
-```hd
-trait Database:
-    fn get_user!(self, id: string) -> Result[User?, DbError]
-
-fn load_user!(id: string) -> Result[User?, DbError] $ Database:
-    $.use(Database).get_user!(id)
-
-fn load_both!(a: string, b: string) -> Result[(User?, User?), DbError] $ Database:
-    first := load_user!(a)?
-    second := load_user!(b)?
-    .Ok((first, second))
-```
-
-Non-suspending code drives a suspension with `std.task.block_on`.
-
-```hd
-use std.task.block_on
-
-fn load_now(id: string) -> Result[User?, DbError] $ Database:
-    let pending: mut Suspend[Result[User?, DbError]] = load_user(id)
-    block_on(pending)
-```
-
-`println` drives its write the same way, so it has `block_on`'s rules. In
-`main!` or a test body, where a driver is already running, it writes and
-returns. In a forbidden context such as `defer`, a default expression, or a
-`fact`, a direct call is an error and an indirect one panics.
-
-## Modules, Entry Points, and Tests
-
-Each file is a module named by its path under `src/`, and `mod.hd` indexes a
-directory. Declarations are private unless marked `pub`. `use` roots are
-`pkg`, `std`, `dep`, `self`, and `super`.
+Each file is a module named by its path under `src/`, and declarations are
+private unless marked `pub`. `use` roots are `pkg`, `std`, `dep`, `self`, and
+`super` ([tour: modules](../tour/14-modules.md)). A file's tests live in a
+`tests:` block ([tour: tests](../tour/13-tests.md)).
 
 ```hd
 use pkg.user.types.{User, UserId}
@@ -527,14 +249,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
     console.write_line!("starting")?
     .Ok(())
-```
 
-A file's tests live in one `tests:` block, compiled only by `hd test`. Each
-`it("name"):` call is a test case that runs in a fresh program instance and
-may call suspending functions directly. Unit tests get no host providers, so
-provider scopes supply every dependency as a fake.
-
-```hd
 tests:
     use std.testing.assert_equal
 
@@ -543,60 +258,16 @@ tests:
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
 ```
 
-An integration test is a file directly under `tests/`. It sees the package
-as a dependent does, so it imports public names through `pkg`; its `it` calls
-are at the file's top level, not inside a `tests:` block. `hd test` starts in
-the package root, so a fixture path is relative to that root:
-
-```hd
-use pkg.{Item, total_value}
-use std.fs.{FsRead, read_text}
-use std.path.Path
-use std.testing.assert_equal
-
-it("totals the inventory fixture"):
-    expected := read_text!(Path("tests/fixtures/inventory-total.txt"))?
-    items := [Item { name: "pen", price: +250 }]
-    assert_equal(total_value(items).to_string(), expected.trim(), reason="fixture total")
-    .Ok(())
-```
-
-### Using a Local Library
-
-A path dependency names any local package. Neither package needs a
-workspace, so create the two side by side:
-
-```sh
-mkdir mystore && cd mystore
-hd new --lib money
-hd new --app shop
-cd shop && hd add ../money
-```
-
-`hd add` writes the dependency into the app's `shop/hd.toml`, under the
-package's own name:
+After `hd add ../money`, another package's public names are `dep.money`
+([tour: packages](../tour/14-packages.md),
+[Packages And Dependencies](WORKING_WITH_DATA.md#packages-and-dependencies)):
 
 ```text
-[package]
-name = "shop"
-
-[dependencies]
-money = { path = "../money" }
-```
-
-The app reaches the library as `dep.money`, and the library's `pub` items in
-`money/src/lib.hd` are its interface:
-
-```text
-use dep.money
+use dep.money.{of_cents, show}
 
 pub fn main() -> void $ Console:
-    price := money.of_cents(+1250)
-    println("total: ${money.show(price)}")
+    println("total: ${show(of_cents(1250))}")
 ```
-
-Run commands inside a package directory: `cd shop && hd run`, or
-`cd ../money && hd test`.
 
 ## The Prelude
 
@@ -639,34 +310,11 @@ are in the [text module](../../spec/std/text.md).
 | `s.pad_start(width)`, `s.pad_end(width)` | `string` |
 | `s.repeat(n)` | `string` |
 
-```hd
-fn setting(line: string) -> string:
-    match line.split_once("="):
-        .Some((key, value)) => "${key.trim()} is ${value.trim()}"
-        .None => "no setting"
-```
-
-## Annotations
-
-Annotations attach typed metadata to declarations. A library derives
-information for whole types, such as validators or schemas, as an ordinary
-trait with an associated function, and the result is an ordinary runtime
-value.
-
-```hd
-@derive(Validate)
-data Signup:
-    @max_len(80)
-    display_name: string
-    email: string
-
-validator := Signup::validator()
-```
-
 ## Where Next
 
-- The [Language Tour](LANGUAGE_TOUR.md) explains each feature with more
-  examples and design notes.
+- The [tour](../tour/01-hello.md) runs each topic in the browser.
+- [Working With Data](WORKING_WITH_DATA.md) shows everyday jobs: JSON
+  config, files, timeouts, wiring a program, and packages.
 - The [Language Overview](OVERVIEW.md) covers the purpose and priorities of
   the design.
 - The [specification](../../spec/README.md) is the precise reference, starting

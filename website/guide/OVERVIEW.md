@@ -94,8 +94,9 @@ an active Wasm stack.
 
 ## Document Boundaries
 
-- The [Language Tour](LANGUAGE_TOUR.md) teaches the accepted language through
-  examples.
+- The [tour](../tour/01-hello.md) and
+  [Learn hd-lang in 10 Minutes](LEARN_IN_10_MINUTES.md) teach the accepted
+  language through examples.
 - The [formal specification](../../spec/README.md) defines normative syntax and
   semantics.
 - [Use Scenarios](../../docs/use-scenarios.md) records product requirements and expected

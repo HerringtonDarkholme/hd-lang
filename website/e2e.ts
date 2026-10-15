@@ -315,7 +315,7 @@ try {
   });
 
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
-    const { page } = await openPage("tour/12-requirements/", { ready: "#tour-editor .cm-editor" });
+    const { page } = await openPage("tour/14-requirements/", { ready: "#tour-editor .cm-editor" });
     const output = page.locator("#tour-output");
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-test");
@@ -343,7 +343,7 @@ try {
     await page.context().close();
 
     // A page with only tests has no Run button, and Ctrl+Enter tests.
-    const tests = await openPage("tour/13-tests/", { ready: "#tour-editor .cm-editor" });
+    const tests = await openPage("tour/15-tests/", { ready: "#tour-editor .cm-editor" });
     assert.equal(await tests.page.locator("#tour-run").count(), 0, "no Run button");
     await tests.page.locator("#tour-status", { hasText: "Ready" }).waitFor({
       timeout: FIRST_REPLY_MS,
@@ -359,7 +359,7 @@ try {
   await step(
     "a tour page with several files shows a tab per file and runs them together",
     async () => {
-      const { page } = await openPage("tour/14-modules/", { ready: "#tour-editor .cm-editor" });
+      const { page } = await openPage("tour/16-modules/", { ready: "#tour-editor .cm-editor" });
       const output = page.locator("#tour-output");
       const tab = (name: string) => page.locator(".tour-tab", { hasText: name });
       assert.equal(await tab("main.hd").getAttribute("aria-selected"), "true");

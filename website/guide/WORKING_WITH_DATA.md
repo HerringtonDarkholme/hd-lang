@@ -1,11 +1,12 @@
 # Working With Data
 
-This page covers everyday jobs that the
-[Language Tour](LANGUAGE_TOUR.md) does not: reading JSON into typed
-config, tests that live in the documentation, concurrent work with a
-timeout, file reads and writes, and pulling fields out of log lines. Each
-program below runs as written; the tests pass with `hd test FILE` (or in
-package mode, `hd test`).
+This page covers everyday jobs that the [tour](../tour/01-hello.md) and
+[Learn hd in 10 Minutes](LEARN_IN_10_MINUTES.md) do not: reading JSON
+into typed config, tests that live in the documentation, concurrent work
+with a timeout, file reads and writes, pulling fields out of log lines,
+wiring a program's providers in `main`, and splitting a program into
+packages. Each `hd` program below runs as written; the tests pass with
+`hd test FILE` (or in package mode, `hd test`).
 
 ## Reading Configuration As JSON
 
@@ -237,6 +238,100 @@ tests:
 Write the pattern as a raw string, `r"..."`, so `\d` needs no second
 backslash. A pattern that does not compile is a `RegexError`, not a panic.
 
+## Wiring A Program
+
+An application's own traits, such as a `Mailer` and a `Repo`, are not host
+capabilities: no host supplies them. Library code asks for them in its row,
+`$ Mailer + Repo`, and `main` is the composition root. It builds the
+concrete adapters and installs them with `$.with`, so its own row lists
+only what the host supplies, here `Console`. A test is another
+composition root: it installs fakes the same way, with no mocking library.
+The rules are in
+[Provider Scopes](../../spec/lang/11-requirements-and-suspension.md#provider-scopes):
+
+```hd
+trait Repo:
+    fn save(self, name: string) -> string
+
+trait Mailer:
+    fn send(self, to: string) -> string
+
+fn register(name: string, email: string) -> string $ Mailer + Repo:
+    saved := $.use(Repo).save(name)
+    sent := $.use(Mailer).send(email)
+    "$saved; $sent"
+
+data FileRepo:
+    root: string
+
+impl Repo for FileRepo:
+    fn save(self, name: string) -> string: "file:${self.root}/$name"
+
+data SmtpMailer:
+    endpoint: string
+
+impl Mailer for SmtpMailer:
+    fn send(self, to: string) -> string: "smtp:${self.endpoint}:$to"
+
+data MemoryRepo:
+    namespace: string
+
+impl Repo for MemoryRepo:
+    fn save(self, name: string) -> string: "memory:${self.namespace}:$name"
+
+data OutboxMailer:
+    label: string
+
+impl Mailer for OutboxMailer:
+    fn send(self, to: string) -> string: "outbox:${self.label}:$to"
+
+pub fn main() -> void $ Console:
+    $.with(Mailer=SmtpMailer { endpoint: "smtp.example.com" }, Repo=FileRepo { root: "data/users" }):
+        println(register("Ada", "ada@example.com"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("registers with test adapters"):
+        $.with(Mailer=OutboxMailer { label: "test" }, Repo=MemoryRepo { namespace: "case" }):
+            assert_equal(register("Ada", "ada@example.com"), "memory:case:Ada; outbox:test:ada@example.com", reason="the installed fakes")
+```
+
+The production and the test adapters share no concrete type; each only
+implements the trait. In a package, the traits and `register` go in a
+library module, and each way of wiring them is its own executable. Each
+`[[executable]]` table names an entry module, so `src/main.hd` wires
+production and `src/dev.hd` wires the in-memory adapters
+([Executables](../../spec/cli/command-line.md#executables)):
+
+```toml
+[package]
+name = "accounts"
+
+[[executable]]
+name = "app"
+module = "main"
+
+[[executable]]
+name = "dev"
+module = "dev"
+```
+
+```text
+# src/dev.hd
+use pkg.{Mailer, MemoryRepo, OutboxMailer, Repo, register}
+
+pub fn main() -> void $ Console:
+    $.with(Mailer=OutboxMailer { label: "local" }, Repo=MemoryRepo { namespace: "dev" }):
+        println(register("Ada", "ada@example.com"))
+```
+
+`hd run app` and `hd run dev` run the two. When one executable must
+choose at startup, give each branch its own `$.with`. Its row then lists
+every host capability either branch uses, such as `$ Console + Env` to
+read `APP_ENV`, while `Mailer` and `Repo` stay out of it, because both
+branches install them.
+
 ## Testing The Whole Program
 
 A unit test runs on fakes; an integration test runs the real thing. Three
@@ -276,6 +371,105 @@ The first run fails until you record the snapshot with `hd test
 change is re-recorded with another `--update`, and the diff is the review.
 Tests that need deterministic randomness or arguments bind `SeededRandom`
 or `MapArgs` the same way as `MemoryFs`.
+
+## Packages And Dependencies
+
+A program larger than a file is a package: an `hd.toml` manifest beside a
+`src/` folder. Each file under `src/` is a module named by its path, so
+`src/shop/cart.hd` is `shop.cart`. A folder that holds modules needs a
+`mod.hd`, the folder's own module, and its `pub use` lines list what the
+folder offers. A `use` starts at one of five roots: `pkg` for this
+package, `std` for the standard library, `dep.NAME` for a dependency, and
+`self` and `super` for the current module and its parent. The rules are in
+[Path-Inferred Modules](../../spec/lang/10-modules.md#path-inferred-modules)
+and [Use Roots](../../spec/lang/10-modules.md#use-roots).
+
+A path dependency names any local package, and neither package needs a
+workspace. Create a library and an application side by side, then add
+the library to the application:
+
+```sh
+hd new --lib money
+hd new --app shop
+cd shop
+hd add ../money
+```
+
+`hd add` writes the requirement into `shop/hd.toml`, under the library's
+package name:
+
+```toml
+[package]
+name = "shop"
+
+[dependencies]
+money = { path = "../money" }
+```
+
+The library's `pub` items in `money/src/lib.hd` are its interface:
+
+```hd
+## An amount of money in whole cents.
+pub data Money:
+    pub cents: i64
+
+## The amount `cents`.
+pub fn of_cents(cents: i64) -> Money:
+    Money { cents: cents }
+
+## The amount as dollars and cents, such as `$12.50`.
+pub fn show(money: Money) -> string:
+    rest := (money.cents % 100).to_string().pad_start(2, '0')
+    "$${money.cents / 100}.$rest"
+```
+
+The application reaches it as `dep.money`, by the key in its manifest:
+
+```text
+# shop/src/main.hd
+use dep.money.{of_cents, show}
+
+pub fn main() -> void $ Console:
+    println("total: ${show(of_cents(1250))}")
+```
+
+Run commands inside a package directory: in `shop`, `hd run` prints
+`total: $12.50`.
+
+A released package is a repository path and a minimum version, as
+`json = "github.com/acme/json@2.1.0"`. `hd add acme/json` adds the newest
+release of a GitHub repository, and `hd add acme/json@2.1` the newest 2.1
+release. `hd update` moves every dependency to the newest release on its
+compatibility line, `hd remove NAME` deletes one, and `hd fetch` fetches
+what the cache lacks. They keep `hd.sum`, the recorded hashes, up to date;
+commit it beside the manifest
+([Dependency Commands](../../spec/cli/command-line.md#dependency-commands)).
+
+A tagged release cannot hold a bare path requirement, since the path
+means nothing in a fetched copy. A package that you release adds the
+version a fetched copy should use, as Cargo does
+([Path Requirements](../../spec/lang/10-modules.md#path-requirements)):
+
+```toml
+[dependencies]
+money = { path = "../money", version = "0.4.2" }
+```
+
+Several packages of one repository can share one version selection and
+one `hd.sum` through a workspace: an `hd.toml` at the root that lists the
+members and declares no package. At the root, `hd test` tests every member
+and `-p NAME` picks one, as in `hd run -p shop`
+([Workspace Mode](../../spec/cli/command-line.md#workspace-mode)):
+
+```toml
+[workspace]
+members = ["money", "shop"]
+```
+
+A workspace root has no package, so it has no `tasks/`. Tasks for the
+whole repository go in a member of their own, such as `tools/`, as
+Cargo's xtask pattern does: `hd run -p tools release` runs
+`tools/tasks/release.hd`.
 
 ## Publishing A Package
 
