@@ -1120,11 +1120,11 @@ impl Deserializer for JsonReader:
         while index < choices.len():
             if choices[index].name == name:
                 base := "${self.path}.$name"
-                match payload:
-                    .Object(fields) =>
-                        self.push(ReadFrame { base: base, home: self.path, items: [], keys: [], fields: fields })
-                        return .Ok(index)
+                fields := match payload:
+                    .Object(found) => found
                     _ => return .Err(JsonError.WrongType(base, "object"))
+                self.push(ReadFrame { base: base, home: self.path, items: [], keys: [], fields: fields })
+                return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path, name))
 
