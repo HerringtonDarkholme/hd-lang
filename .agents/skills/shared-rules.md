@@ -140,13 +140,16 @@ blocks.forEach((m, i) => {
   change needs `bash spec/check.sh` and `pnpm run website:build`, not the
   full `pnpm run check`. A change to `crates/` or `lib/std/` adds
   `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
-  `cargo test`.
-- Worker agents never run the full `pnpm run check`. Only the merge
-  subagent runs it, with `pnpm run test:ui` (REPL, website, playground),
-  once per merge.
+  `cargo test`. A change to `crates/`, `lib/std/`, `host/` or `website/`
+  also runs `pnpm run test:web-compiler` (it has a size gate), and one to
+  `host/` or `website/` runs `pnpm run test:ui`.
+- Nobody runs the full `pnpm run check` locally; CI runs the full suite.
+  The orchestrator merges directly in the main checkout and runs the checks
+  the change needs.
 - Never wait for a check with an `until` or `while … sleep` loop. Run it in
   the foreground with a timeout, or in the background and wait for its
-  completion notification. Wait for CI with `gh run watch`.
+  completion notification. Never wait on CI; the orchestrator checks CI at
+  its regular summaries and fixes a red run first.
 - Background agents run one at a time. Don't start a full check while
   another agent's full check runs, unless the owner asks for parallel runs.
 - Before any check, run `git fetch origin` and rebase on `origin/main`. A

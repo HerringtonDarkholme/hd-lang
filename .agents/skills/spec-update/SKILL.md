@@ -138,8 +138,9 @@ the spec, and it adds exactly what the decision says, no more.
     | also `crates/` or `lib/std/` | the row above, plus `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test -q` |
     | the website or playground code | also `pnpm run website:e2e` |
 
+    A change to `crates/` or `lib/std/` also runs `pnpm run test:web-compiler`.
     Run `git fetch origin` and rebase on `origin/main` first. Never run the
-    full `pnpm run check`: the merge subagent runs it once per merge.
+    full `pnpm run check`; CI runs the full suite.
 
 12. **Integrate.** Make logical commits (spec and fixtures, compiler,
     issue-list cleanup, docs), each message naming the decision and the rule
