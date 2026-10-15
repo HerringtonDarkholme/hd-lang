@@ -142,6 +142,12 @@ async function supervise(module, config) {
       worker.on("message", (m) => {
         if (stopped) return;
         if (m.type === "line") {
+          // A result ends the case or row being watched, so nothing is
+          // left to stop until the next one begins. A stop between this
+          // result and the worker's next message, or its exit, would
+          // report the same case or row a second time.
+          limitAt = timeout = null;
+          clear();
           writeOut(m.text);
         } else if (m.type === "case") {
           limitAt = timeout = null;

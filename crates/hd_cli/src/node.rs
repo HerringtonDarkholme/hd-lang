@@ -4,7 +4,7 @@
 //! relocatable.
 
 use std::fmt::Write as _;
-use std::io::{BufRead as _, BufReader, Write as _};
+use std::io::{BufRead, BufReader, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -394,22 +394,62 @@ pub fn run_cases(
         .spawn()
         .map_err(|e| format!("node: {e}"))?;
     let stdout = child.stdout.take().ok_or("node: no standard output")?;
-    let mut seen = 0;
-    for line in BufReader::new(stdout).lines() {
-        let line = line.map_err(|e| format!("node: {e}"))?;
-        let r = parse_case(&line).ok_or_else(|| format!("node: unreadable result `{line}`"))?;
-        seen += usize::from(r.last());
-        done(r);
-    }
+    let tests: Vec<u32> = cases.iter().map(|c| c.test).collect();
+    let read = read_results(BufReader::new(stdout), &tests, done);
+    let seen = match read {
+        Ok(seen) => seen,
+        Err(e) => {
+            // The host broke its protocol; it has nothing more to say.
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(e);
+        }
+    };
     let out = child.wait_with_output().map_err(|e| format!("node: {e}"))?;
     if seen != cases.len() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let reason = match stderr.trim() {
+            "" => out.status.to_string(),
+            text => text.to_owned(),
+        };
         return Err(format!(
-            "node: the test host stopped after {seen} of {} cases: {}",
-            cases.len(),
-            String::from_utf8_lossy(&out.stderr).trim()
+            "node: the test host stopped after {seen} of {} cases: {reason}",
+            cases.len()
         ));
     }
     Ok(())
+}
+
+/// Reads the test host's result lines for the cases `tests` (their test
+/// export indices), hands each result to `done`, and returns how many
+/// cases ended. A case ends once, with its only result or its table's
+/// last row; a result after that, or of a case the host was not given,
+/// is an error.
+fn read_results(
+    input: impl BufRead,
+    tests: &[u32],
+    done: &mut dyn FnMut(CaseRun),
+) -> Result<usize, String> {
+    let mut ended = vec![false; tests.len()];
+    let mut seen = 0;
+    for line in input.lines() {
+        let line = line.map_err(|e| format!("node: {e}"))?;
+        let r = parse_case(&line).ok_or_else(|| format!("node: unreadable result `{line}`"))?;
+        let at = tests.iter().position(|t| *t == r.test).ok_or_else(|| {
+            format!("node: a result of a case the test host was not given `{line}`")
+        })?;
+        if ended[at] {
+            return Err(format!(
+                "node: the test host reported a case again after it ended `{line}`"
+            ));
+        }
+        if r.last() {
+            ended[at] = true;
+            seen += 1;
+        }
+        done(r);
+    }
+    Ok(seen)
 }
 
 /// Reads one flat JSON object of the test host.
@@ -525,7 +565,37 @@ mod tests {
 
     use hd_run::{Grants, Limit};
 
-    use super::{HostCase, Snapshot, TestEnv, host_config, parse_case};
+    use super::{HostCase, Snapshot, TestEnv, host_config, parse_case, read_results};
+
+    /// Each case ends once (#161): the host's stream that once reported a
+    /// time-limit cut twice is an error, never `2 of 1 cases`.
+    #[test]
+    fn counts_each_case_once() {
+        let cut = r#"{"test":3,"status":3,"trapped":true,"stdout":"","stderr":"","us":550000}"#;
+        let rows = [
+            r#"{"test":5,"row":0,"rows":2,"status":0,"trapped":false,"stdout":"","stderr":"","us":1}"#,
+            r#"{"test":5,"row":1,"rows":2,"status":0,"trapped":false,"stdout":"","stderr":"","us":1}"#,
+        ];
+        let mut got = Vec::new();
+        let input = format!("{cut}\n{}\n{}\n", rows[0], rows[1]);
+        let seen = read_results(input.as_bytes(), &[3, 5, 7], &mut |r| got.push(r.test));
+        assert_eq!(seen, Ok(2));
+        assert_eq!(got, [3, 5, 5]);
+
+        let twice = format!("{cut}\n{cut}\n");
+        let mut got = Vec::new();
+        let seen = read_results(twice.as_bytes(), &[3], &mut |r| got.push(r.test));
+        assert_eq!(
+            seen,
+            Err(format!(
+                "node: the test host reported a case again after it ended `{cut}`"
+            ))
+        );
+        assert_eq!(got, [3]);
+
+        let stranger = read_results(cut.as_bytes(), &[4], &mut |_| {});
+        assert!(stranger.is_err());
+    }
 
     #[test]
     fn writes_the_host_config() {
