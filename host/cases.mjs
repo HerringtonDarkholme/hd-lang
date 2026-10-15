@@ -57,7 +57,8 @@ const DISCARD = "std.testing: case discarded";
 //   `remove(dir)`, for the temporary directories and regression files.
 // - `notify(message)`: what the case loop is doing, for a supervisor that
 //   stops a body running past its timeout: `case` (`ci`), `rows`
-//   (`rows`), `row` (`row`), `deadline` (`at`, `ms`) and `done`.
+//   (`rows`), `row` (`row`), `limit` (`at`, the end of a `--time-limit`
+//   for the case or row that began), `deadline` (`at`, `ms`) and `done`.
 // - `emit(record)`: one result.
 class Runner {
   constructor({ module, config, createHost, files, notify, emit }) {
@@ -67,6 +68,18 @@ class Runner {
     this.files = files;
     this.notify = notify;
     this.emit = emit;
+    // When the `--time-limit` of the case or row now running ends
+    // (`config.timeLimitMs`; cli.limit.test), or null.
+    this.deadline = null;
+  }
+
+  // Starts the time limit of a case, or of the next row of a table; the
+  // runs of a property case share the case's.
+  begin() {
+    const ms = this.config.timeLimitMs ?? null;
+    if (ms === null) return;
+    this.deadline = now() + ms;
+    this.notify({ type: "limit", at: this.deadline });
   }
 
   // One run of a case's body in a fresh instance: its `k`th, with the
@@ -94,6 +107,7 @@ class Runner {
         seed: c.seed,
         snapshot: c.snapshot ?? null,
         runner,
+        deadline: this.deadline,
       },
     );
     const t0 = performance.now();
@@ -385,12 +399,14 @@ export async function runCases(options, start = { case: 0, row: 0, rows: 0 }) {
   for (let ci = start.case; ci < cases.length; ci++) {
     const c = cases[ci];
     runner.notify({ type: "case", ci });
+    runner.begin();
     const ctl = new Case(runner, c);
     // Every row runs; one failing row hides no other.
     const rowsFrom = async (from, rows) => {
       for (let row = from; row < rows; row++) {
         ctl.row = row;
         runner.notify({ type: "row", row });
+        runner.begin();
         runner.emit(result(c, await runner.runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
       }
     };

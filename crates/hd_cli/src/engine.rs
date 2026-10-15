@@ -111,6 +111,7 @@ impl TestSession {
                     cwd: env.cwd,
                     program: env.program,
                     programs,
+                    wall_ms: limits.wall_ms,
                 };
                 crate::node::run_cases(wasm, &env, cases, done)
             }

@@ -21,11 +21,16 @@
 // the supervisor stops the worker, reports the run as a `time-limit`
 // panic, and starts a new worker at the next row or case.
 //
+// A `--time-limit` (`timeLimitMs`, cli.limit.test) gives each case, and each
+// row of a table, its own deadline, which the host cuts its waits at
+// (core.mjs `env.deadline`). A body still running past it is stopped the
+// same way, with the report of a program that ran past its time limit.
+//
 // One JSON line per result record (cases.mjs) goes to standard output.
 import { readFileSync, writeSync } from "node:fs";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { runCases } from "./cases.mjs";
-import { createHost, nodeFiles, timeLimitReport } from "./node.mjs";
+import { createHost, nodeFiles, PROGRAM_TIME_LIMIT, timeLimitReport } from "./node.mjs";
 
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.
@@ -89,21 +94,38 @@ async function supervise(module, config) {
       let at = { ci: start.case, row: start.row > 0 ? start.row : null, rows: start.rows || null };
       let timer = null;
       let stopped = false;
+      // When the case's or row's `--time-limit` ends, and the current
+      // run's timeout (`at`, `ms`); the earlier of the two stops the run.
+      let limitAt = null;
+      let timeout = null;
       const clear = () => {
         if (timer !== null) clearTimeout(timer);
         timer = null;
       };
+      const arm = () => {
+        clear();
+        const program = limitAt !== null && (timeout === null || limitAt <= timeout.at);
+        const target = program ? limitAt : timeout?.at;
+        if (target === undefined || target === null) return;
+        timer = setTimeout(
+          () => stop(program ? null : timeout.ms),
+          Math.max(0, target - now()) + GRACE_MS,
+        );
+      };
+      // `ms` is the timeout that ran out, or null for the program's
+      // `--time-limit`.
       const stop = (ms) => {
         stopped = true;
         worker.terminate();
         const c = config.cases[at.ci];
+        const shown = ms ?? config.timeLimitMs;
         const line = {
           test: c.test,
           status: 3,
           trapped: true,
           stdout: "",
-          stderr: timeLimitReport(ms),
-          us: Math.round((ms + GRACE_MS) * 1000),
+          stderr: ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms),
+          us: Math.round((shown + GRACE_MS) * 1000),
         };
         if (at.row !== null && at.rows !== null) {
           writeOut(JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
@@ -122,19 +144,25 @@ async function supervise(module, config) {
         if (m.type === "line") {
           writeOut(m.text);
         } else if (m.type === "case") {
-          clear();
+          limitAt = timeout = null;
+          arm();
           at = { ci: m.ci, row: null, rows: null };
         } else if (m.type === "rows") {
           at.rows = m.rows;
           if (at.row === null) at.row = 0;
         } else if (m.type === "row") {
-          clear();
+          limitAt = timeout = null;
+          arm();
           at.row = m.row;
+        } else if (m.type === "limit") {
+          limitAt = m.at;
+          arm();
         } else if (m.type === "deadline") {
-          clear();
-          timer = setTimeout(() => stop(m.ms), Math.max(0, m.at - now()) + GRACE_MS);
+          timeout = { at: m.at, ms: m.ms };
+          arm();
         } else if (m.type === "done") {
-          clear();
+          timeout = null;
+          arm();
         }
       });
       worker.on("error", fail);

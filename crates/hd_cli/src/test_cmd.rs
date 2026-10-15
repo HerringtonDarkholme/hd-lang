@@ -238,21 +238,13 @@ pub fn command(args: &[OsString]) -> ExitCode {
         ignored: 0,
         unsupported: 0,
     };
-    if o.engine == crate::engine::EngineKind::Node {
-        for (flag, present) in [
-            ("--max-heap", o.limits.heap_bytes.is_some()),
-            ("--time-limit", o.limits.wall_ms.is_some()),
-        ] {
-            if present {
-                report.rep.diag(&report::Diag::new(
-                    None,
-                    hd_diag::Severity::Warning,
-                    &format!(
-                        "{flag} is ignored on Node until W5; use --engine wasmtime for enforcement"
-                    ),
-                ));
-            }
-        }
+    if o.engine == crate::engine::EngineKind::Node && o.limits.heap_bytes.is_some() {
+        // Node enforces `--time-limit` (host/test.mjs) but has no heap cap.
+        report.rep.diag(&report::Diag::new(
+            None,
+            hd_diag::Severity::Warning,
+            "--max-heap is ignored on Node until W5; use --engine wasmtime for enforcement",
+        ));
     }
     if o.file.is_some() && !o.packages.is_empty() {
         return report

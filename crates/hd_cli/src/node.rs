@@ -242,14 +242,20 @@ pub struct TestEnv<'a> {
     /// The programs its `Process` provider starts by name, an integration
     /// test's or a doc test's (`cli.test.process`).
     pub programs: Option<&'a Programs>,
+    /// The `--time-limit` in milliseconds that each case gets on its own
+    /// (`cli.limit.test`).
+    pub wall_ms: Option<u64>,
 }
 
 /// The test host's configuration: the program's shared environment, then
 /// each case's.
 fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
     let programs = env.programs.map_or("null", |p| p.json.as_str());
+    let limit = env
+        .wall_ms
+        .map_or(String::new(), |ms| format!("\"timeLimitMs\":{ms},"));
     let mut out = format!(
-        "{{\"program\":{},\"args\":[],\"programs\":{programs},\"cases\":[",
+        "{{\"program\":{},\"args\":[],{limit}\"programs\":{programs},\"cases\":[",
         quote(env.program)
     );
     for (i, c) in cases.iter().enumerate() {
@@ -547,6 +553,7 @@ mod tests {
             cwd: Some(Path::new("/pkg")),
             program: "tests/report.hd",
             programs: None,
+            wall_ms: Some(300),
         };
         // `Path::join` writes the platform separator after the root, so
         // Windows has `/pkg\__snapshots__` (JSON-escaped below).
@@ -554,7 +561,7 @@ mod tests {
         assert_eq!(
             host_config(&env, &cases),
             format!(
-                r#"{{"program":"tests/report.hd","args":[],"programs":null,"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
+                r#"{{"program":"tests/report.hd","args":[],"timeLimitMs":300,"programs":null,"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
             )
         );
     }

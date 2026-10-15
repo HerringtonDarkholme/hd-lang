@@ -211,3 +211,136 @@ fn node_time_limit_ends_a_child_process_wait() {
     assert_eq!(output.stderr, TIME_PANIC);
     assert!(started.elapsed() < Duration::from_secs(20));
 }
+
+/// A package `probe` with `lib` as its `src/lib.hd`, and `tests` as the
+/// integration test file `tests/waits.hd`, run by `hd test` on V8 under
+/// `--time-limit=limit`.
+fn test_run(name: &str, lib: &str, tests: &str, limit: &str) -> Output {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::create_dir_all(dir.join("tests")).unwrap();
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"probe\"\n").unwrap();
+    std::fs::write(dir.join("src/lib.hd"), lib).unwrap();
+    std::fs::write(dir.join("tests/waits.hd"), tests).unwrap();
+    let mut command = hd(&dir);
+    command.args(["test", "--engine=node", limit]);
+    finish(
+        spawn(command, Stdio::null()),
+        Duration::from_mins(1),
+        "hd test",
+    )
+}
+
+const SPIN: &str = "fn forever(stop: i32) -> i32:
+    let total: i32 = 0
+    while total != stop:
+        total = (total + 1) % 1000
+    total
+
+tests:
+    use std.testing.{assert, it_each}
+
+    it(\"spins\"):
+        _ := forever(-1)
+
+    it(\"fast\"):
+        assert(true, reason=\"ok\")
+
+    it_each(\"rows\", [1, -1, 2], body=fn!(value: i32):
+        assert(forever(value) == value, reason=\"ends\")
+    )
+";
+
+/// The report is the one `--engine=wasmtime` prints for the same package.
+#[test]
+fn node_test_time_limit_fails_a_busy_case_and_row_like_wasmtime() {
+    let started = Instant::now();
+    let output = test_run("node-test-busy", SPIN, "", "--time-limit=300ms");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "PANIC src/lib.hd:10: spins\n    \
+         panic: time-limit: the program exceeded its time limit\n    \
+         repro: hd test src/lib.hd --filter \"spins\"\n\
+         PANIC src/lib.hd:16: rows[1]\n    \
+         panic: time-limit: the program exceeded its time limit\n    \
+         repro: hd test src/lib.hd --filter \"rows[1]\"\n\
+         test result: FAILED. 3 passed; 2 failed; 0 ignored\n",
+        "{output:?}"
+    );
+    assert_eq!(output.stderr, b"", "{output:?}");
+    assert_eq!(output.status.code(), Some(1));
+    assert!(started.elapsed() < Duration::from_secs(30));
+}
+
+const WAITS: &str = "use std.time.{ms, s, sleep}
+use std.net.Net
+
+it(\"sleeps\"):
+    println(\"before\")
+    sleep!(30s)
+
+it(\"accepts\"):
+    let mut net = $.use(Net)
+    let mut server = match net.listen!(\"127.0.0.1\", 0):
+        .Ok(l) => l
+        .Err(_) => return
+    match server.accept!():
+        .Ok(_) => println(\"accepted\")
+        .Err(e) => println(\"${e}\")
+
+it(\"fast\"):
+    sleep!(1ms)
+";
+
+#[test]
+fn node_test_time_limit_cuts_host_waits_at_the_limit() {
+    let started = Instant::now();
+    let output = test_run(
+        "node-test-waits",
+        "pub fn one() -> i32:\n    1\n",
+        WAITS,
+        "--time-limit=500ms",
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "PANIC tests/waits.hd:4: sleeps\n    \
+         panic: time-limit: the program exceeded its time limit\n    \
+         repro: hd test tests/waits.hd --filter \"sleeps\"\n\
+         PANIC tests/waits.hd:8: accepts\n    \
+         panic: time-limit: the program exceeded its time limit\n    \
+         repro: hd test tests/waits.hd --filter \"accepts\"\n\
+         test result: FAILED. 1 passed; 2 failed; 0 ignored\n",
+        "{output:?}"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    // Two waits of 30 s and an accept that never ends, cut at 500 ms each.
+    assert!(started.elapsed() < Duration::from_secs(30));
+}
+
+/// `cli.limit.test`: each case has the whole limit on its own.
+#[test]
+fn node_test_time_limit_applies_to_each_case_on_its_own() {
+    let tests = "use std.time.{ms, sleep}
+
+it(\"first\"):
+    sleep!(ms(400))
+
+it(\"second\"):
+    sleep!(ms(400))
+
+it(\"third\"):
+    sleep!(ms(400))
+";
+    let output = test_run(
+        "node-test-each",
+        "pub fn one() -> i32:\n    1\n",
+        tests,
+        "--time-limit=1s",
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "test result: ok. 3 passed; 0 failed; 0 ignored\n",
+        "{output:?}"
+    );
+    assert_eq!(output.status.code(), Some(0));
+}
