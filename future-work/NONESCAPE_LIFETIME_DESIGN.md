@@ -2265,13 +2265,14 @@ not repeated. The decisions about closing moved to
 | NE-S10, category calculation (round 4) | "NonEscapable" is the instantiated category from stored fields, a fixed point for recursion, never argument spelling. `Tag[Conn]` and `Field[S, F]` are ordinary. Generic data declares no category for now (owner, 2026-10-14). | `ne.data.category`, `ne.param.nonescapable`, `ne.data.generic`, C18 |
 | NE-S11, precision boundaries (round 4) | C11, C12, C15, and C19 are known limits; "exact" means exact substitution of published signatures. A closure's reach is exactly what it captures, and capturing nothing tracked gives the empty reach and no root (owner, 2026-10-14). | requirement 10, L1, L5, L7, L8, `ne.closure.reach`, C20 |
 | OQ1, a fresh handle's lifetime (round 5) | Candidate (a): the language does not fix it, and library API authors manage it, for example with scoped callback APIs such as `with_conn!(addr, fn(c: ^Conn): ...)`. A fresh root reaches `static` from creation, as a REPL handle does. D1 and D2 still send a NonEscapable value only into `^` parameter positions, and the reach rules still bite on `^` parameters and providers. `ne.call.global` rejects a NonEscapable argument by category, not by reach. Round 3's D8 verdict is dropped, and L7 (C15) is inert. Candidates (b), a frame-local root that never fits `static`, and (c), a scope that owns it, are not taken (owner, 2026-10-14). | `ne.root.free`, `ne.root.site`, `ne.call.fresh`, `ne.call.global`, `ne.top.store`, `ne.body.result`, D8, R7, R10, D4, C15, C20, L7 |
+| Where a fresh handle may go (round 5) | All three flows are allowed: a fresh handle stored into a top-level object (`ne.top.store`, a reach test), a fresh handle erased into a local `dyn Inspectable` and passed to an unmarked parameter, and a fresh handle captured by a closure that an unmarked parameter takes. A fresh handle is effectively handed over, so it may be `static` and escape; hd has no moves, so the creating body still holds its local alias, which is fine because the library manages the lifetime (owner, 2026-10-14). | `ne.top.store`, `ne.call.global`, [5.4](#54-closure-fields), D8 |
 | OQ3, `Suspend` and the category (round 5) | Option 1: a `Suspend` field does not count toward the category, like a function type. Soundness comes from the frame's `run` reach. The agent-detail flag is removed (owner, 2026-10-14). | `ne.data.declare`, `ne.data.category` |
 | Round-4 agent details (round 5) | Accepted: `^{}` mints a root only for a NonEscapable result; a function type's result bound may stand inside a type argument; a `^{self}` store counts as mutable storage for variance; wrappers join `run` and `out` (owner, 2026-10-14). | `ne.root.site`, `ne.call.fresh`, `ne.syntax.one-reach`, `ne.var.dyn`, `ne.suspend.stored` |
 | Closure fields (round 5) | A clarification of existing rules, not a new decision: a function-typed field never makes its type NonEscapable; the closure's reach flows into the holder and is checked at global positions; a declared slot is the opt-in. | [5.4](#54-closure-fields) |
 
 ### 14.2 Open
 
-What is left is the later-pass item and one question that OQ1 raised.
+What is left is the later-pass item.
 
 
 1. **Annotation handles over NonEscapable types (owner, later).** An
@@ -2284,23 +2285,6 @@ What is left is the later-pass item and one question that OQ1 raised.
    slot path of `ne.handle.get`. The owner said this may need a change,
    for a later pass. `build` and generated templates need the same
    substitution (`ne.handle.build`).
-2. **Where a fresh handle may go (new, from OQ1).** The doc follows the
-   owner's wording: the category rules apply to `^` parameter positions,
-   and the reach rules to `^` parameters and providers. Read that way,
-   three flows are accepted that round 4 rejected, and the owner has not
-   seen them listed. A fresh handle stored into a top-level object, as
-   `KEEP.push(d)` in section 2 does (`ne.top.store`, a reach test). A
-   fresh handle erased into a local `dyn Inspectable`, which is not a root
-   type, and then passed to an unmarked parameter. A fresh handle
-   captured by a closure that an unmarked parameter takes, as in D8 and
-   `Button` ([5.4](#54-closure-fields)). In each, the category is the only
-   check, and the value is not NonEscapable at the point of the flow.
-   **Recommendation.** Accept all three: they are the REPL handle kept in
-   a top-level binding (`ne.top.static`), and a library that wants a
-   bound takes a scoped callback. If the owner wants the first one
-   rejected, `ne.top.store` gains a category test, as `ne.call.global`
-   has.
-
 ## Parked: Closing And Cleanup
 
 **Parked by the owner, 2026-10-14:** "closing method cannot be modelled
