@@ -38,7 +38,6 @@ import { runtime } from "./runtime.ts";
 import { serdeThroughput } from "./serde-throughput.ts";
 import { sizeStartupHeap } from "./size-startup-heap.ts";
 import { startup } from "./startup.ts";
-import { suiteCpu } from "./suite-cpu.ts";
 import { suspensionOverhead } from "./suspension-overhead.ts";
 import { testLatency } from "./test-latency.ts";
 import { textThroughput } from "./text-throughput.ts";
@@ -65,7 +64,6 @@ export const METRICS: readonly Metric[] = [
   startup,
   concurrency,
   disk,
-  suiteCpu,
   parallelSpeedup,
   cacheContention,
   cacheGrowth,

@@ -1,7 +1,0 @@
-# code: syntax-error
-# line: 4
-
-/// documentation
-
-fn f() -> i32:
-    1

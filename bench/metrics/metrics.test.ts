@@ -210,7 +210,6 @@ describe("runner", () => {
         "startup",
         "concurrency",
         "disk",
-        "suite-cpu",
         "parallel-speedup",
         "cache-contention",
         "cache-growth",
@@ -453,8 +452,8 @@ describe("pillar 3 helpers", () => {
 
   it("reads a conformance summary and a TSV", () => {
     const output =
-      "pass  a.hd\nconformance: 90 passed, 10 failed, 100 selected (language: 1 of 1)\nconformance: 3 passed, 1 failed, 4 selected\n3 passed after a serial retry\n";
-    assert.deepEqual(conformanceCounts(output), { passed: 93, selected: 100 });
+      "........\ndriver conformance on node: pass 90, known 1, fail 9, unsupported 0, total 100\n  unsupported:Link (1):\nCLI conformance on node: pass 4, known 0, fail 0, unsupported 0, total 4\n";
+    assert.deepEqual(conformanceCounts(output), { passed: 94, selected: 103 });
     assert.equal(conformanceCounts("nothing"), undefined);
     assert.deepEqual(tsvRows("path\treason\na\tb\n\nc\td\n"), ["a\tb", "c\td"]);
   });

@@ -495,7 +495,7 @@ Nine raw-Wasm provider tests and the engine-selection tests pass on macOS.
 TestRunner and PropertyRunner fixtures remain on Node under M22a's explicit deferral.
 The driver reports each remaining path and invocation count.
 `HD_CONFORMANCE_TIER=lang` or `std` selects runtime cases for isolated timing.
-Neither non-default engine modes nor tier-filtered measurements rewrite `CONFORMANCE.md`.
+Tier-filtered measurements skip the `KNOWN_FAILURES.tsv` check; the wasmtime modes apply it with the engine `wasmtime`.
 
 The following single samples use eight workers on the shared macOS machine, from main commit `00018201` plus M22a.
 Times include selected-suite compilation and execution, but exclude Cargo compilation.
@@ -653,13 +653,13 @@ Every Cargo invocation uses the dev profile and the worktree's scratch `HD_CACHE
 | --- | --- |
 | `cargo fmt --check` | Pass |
 | `cargo clippy --workspace --all-targets -- -D warnings` | Pass |
-| `HD_UPDATE_CONFORMANCE=1 cargo test --workspace` | Pass |
+| `HD_UPDATE_CONFORMANCE=1 cargo test --workspace` (since retired) | Pass |
 | `cargo test --workspace` | Pass |
 | `bash spec/check.sh` | Pass; existing citation warnings remain |
 | `pnpm run website:build` | Pass |
 | `node --experimental-strip-types test/run-portable.ts --changed` | Pass; no changed fixtures |
 
-Both completed workspace runs pass all 205 native runtime tests and leave `compiler/CONFORMANCE.md` unchanged.
+Both completed workspace runs pass all 205 native runtime tests and leave the conformance report (since retired) unchanged.
 Driver conformance takes 69.98 seconds with report updating and 96.92 seconds without updates; these are not benchmarks.
 M24 adds no dependency or unsafe code, and leaves frozen specification and fixture files unchanged.
 
@@ -940,7 +940,7 @@ at identical paths; setup-only commands are excluded from those totals.
 
 Final formatting and workspace all-targets release clippy passed.
 Both required full release workspace test passes succeeded after the final fixes.
-The updating pass left `CONFORMANCE.md` unchanged; spec checks and the website build also passed.
+The updating pass left the conformance report (since retired) unchanged; spec checks and the website build also passed.
 
 Review found snapshot and regression file operations bypassed host deadlines.
 Guest imports now reuse the filesystem provider's bounded pipe reads and writes.

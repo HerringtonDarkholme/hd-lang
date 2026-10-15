@@ -13,6 +13,6 @@ keeps them); open ones live in a GitHub issue or in one of the files below.
 Compiler work that is noted but not scheduled lives in P4 GitHub issues.
 
 Notes for the compiler's design are in
-[`docs/compiler/goals.md`](../../docs/compiler/goals.md). The
-conformance state is in [`CONFORMANCE.md`](../../CONFORMANCE.md) and
+[`docs/compiler/goals.md`](../../docs/compiler/goals.md). Every
+conformance case passes except the rows of
 [`KNOWN_FAILURES.tsv`](../../KNOWN_FAILURES.tsv).

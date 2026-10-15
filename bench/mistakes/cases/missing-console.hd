@@ -1,5 +1,0 @@
-# code: missing-requirement
-# line: 5
-
-pub fn main() -> void:
-    println("hi")

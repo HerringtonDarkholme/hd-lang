@@ -93,7 +93,7 @@ jobs:
         run: cargo build --release --workspace --all-features --bin hd
 
       - name: Test
-        run: cargo test --release --workspace --all-features -- --skip specification_conformance_does_not_regress
+        run: cargo test --release --workspace --all-features -- --skip specification_conformance_passes_except_known_failures
 
   # The wasmtime host has code per operating system (process groups, Job
   # objects, pipes), so its crates are also checked and tested on Windows

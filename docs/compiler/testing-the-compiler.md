@@ -97,14 +97,14 @@ edits in a scripted session that recheck more than one module.
 
 - **Portable conformance suite.** The new compiler answers the command
   contract (`hd parse`, `hd check`, `hd test`, exit codes, `code:` in
-  diagnostics; the portable README, deleted with the prototype). Its own
-  `KNOWN_FAILURES.tsv` is the spec sync, as the prototype's is.
+  diagnostics; the portable README, deleted with the prototype). Every
+  indexed case must pass except a row of the root `KNOWN_FAILURES.tsv`
+  (`path`, `issue`, `engine`, `reason`); a listed case that passes fails
+  too, so the list is the exact spec sync.
 - **CLI tier against the binary.** The CLI cases (`cli-cases.tsv`) run
   in `hd_cli/tests/cli_conformance.rs` against the built `hd` binary
-  (`CARGO_BIN_EXE_hd`), with their own pass list in the last section of
-  `CONFORMANCE.md` (`## CLI Conformance`). The driver suite no
-  longer lists CLI cases and keeps that section when it rewrites the
-  report.
+  (`CARGO_BIN_EXE_hd`), under the same rule; their rows are `cli/NAME`.
+  Each tier prints its pass, known, fail and unsupported counts.
 - **Against the frozen prototype.** Run both on the conformance suite and
   on generated programs; compare accept or reject and the set of
   diagnostic codes per file, not messages. Each disagreement is triaged as
@@ -141,8 +141,8 @@ needs them internally: equal keys must give equal bytes.
 The portable runtime cases run on wasmtime (in `hd`) and in a headless
 browser (Chromium with and without JSPI, and Firefox), with **one**
 `KNOWN_FAILURES.tsv`. A case that passes on one engine and fails on the
-other is a bug, never a per-engine known failure; this is the Day 1
-cross-backend rule.
+other is a bug with its own issue, and its row names that engine; this
+is the Day 1 cross-backend rule.
 
 ### 21.3 Differential Tests Against The Prototype
 

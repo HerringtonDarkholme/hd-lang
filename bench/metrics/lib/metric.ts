@@ -34,7 +34,7 @@ export interface MetricContext {
   readonly repoRoot: string;
   /** Prints a progress line to stderr. */
   readonly log: (line: string) => void;
-  /** `--suite`: run the metrics that take minutes, such as `suite-cpu`. */
+  /** `--suite`: run the metrics that take minutes, such as the `conformance` pass rate. */
   readonly suite?: boolean;
   /** `--max`: also run the largest scales, such as 64 concurrent processes. */
   readonly max?: boolean;

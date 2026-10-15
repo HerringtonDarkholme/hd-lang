@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -276,17 +276,31 @@ fn skim_and_full_parse_agree_on_skeletons() {
     assert!(failures.is_empty(), "{}\n", failures.join("\n"));
 }
 
+/// The parse-phase cases of `spec/conformance/cases.tsv` through the parser
+/// alone. A case listed in the root `KNOWN_FAILURES.tsv` (columns `path`,
+/// `issue`, `engine`, `reason`) may fail, and must fail: a listed parse case
+/// that passes is an error, so the list stays exact. Parsing does not depend on the
+/// engine, so a row for any engine counts. Rows for other phases belong to
+/// the driver tier (`hd_driver/tests/conformance.rs`).
 #[test]
 fn parse_phase_conformance() {
     let root = repository_root();
     let known_text =
         fs::read_to_string(root.join("KNOWN_FAILURES.tsv")).expect("KNOWN_FAILURES.tsv");
-    let known: BTreeMap<&str, &str> = known_text
-        .lines()
-        .skip(1)
-        .filter_map(|row| row.split_once('\t'))
+    let mut lines = known_text.lines();
+    assert_eq!(
+        lines.next(),
+        Some("path\tissue\tengine\treason"),
+        "KNOWN_FAILURES.tsv header"
+    );
+    let known: BTreeSet<&str> = lines
+        .filter(|row| !row.is_empty())
+        .map(|row| {
+            let columns: Vec<&str> = row.split('\t').collect();
+            assert_eq!(columns.len(), 4, "bad KNOWN_FAILURES.tsv row: {row}");
+            columns[0]
+        })
         .collect();
-    let mut seen_known = BTreeSet::new();
     let cases = fs::read_to_string(root.join("spec/conformance/cases.tsv")).expect("cases.tsv");
     let mut failures = Vec::new();
     for row in cases.lines().skip(1) {
@@ -302,30 +316,20 @@ fn parse_phase_conformance() {
             .iter()
             .map(|diagnostic| diagnostic.code.as_str())
             .collect();
-        if columns[2] == "accept" {
-            if !actual.is_empty() {
-                if known.contains_key(columns[0]) {
-                    seen_known.insert(columns[0]);
-                } else {
-                    failures.push(format!("{} expected accept, got {actual:?}", columns[0]));
-                }
-            }
-        } else if let Some(expected) = columns[2].strip_prefix("reject:")
-            && !actual.contains(&expected)
-        {
-            if known.get(columns[0]) == Some(&expected) {
-                seen_known.insert(columns[0]);
-            } else {
-                failures.push(format!(
-                    "{} expected {expected}, got {actual:?}",
-                    columns[0]
-                ));
-            }
-        }
-    }
-    for path in known.keys() {
-        if !seen_known.contains(path) {
-            failures.push(format!("stale known failure: {path}"));
+        let failure = if columns[2] == "accept" {
+            (!actual.is_empty()).then(|| format!("expected accept, got {actual:?}"))
+        } else if let Some(expected) = columns[2].strip_prefix("reject:") {
+            (!actual.contains(&expected)).then(|| format!("expected {expected}, got {actual:?}"))
+        } else {
+            None
+        };
+        match (failure, known.contains(columns[0])) {
+            (Some(why), false) => failures.push(format!("{} {why}", columns[0])),
+            (None, true) => failures.push(format!(
+                "{} passes now: remove its row from KNOWN_FAILURES.tsv",
+                columns[0]
+            )),
+            _ => {}
         }
     }
     assert!(failures.is_empty(), "{}\n", failures.join("\n"));

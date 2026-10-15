@@ -31,7 +31,7 @@ function usage(): string {
     "--pillar N     run only the metrics of pillar N (1, 2, 3, or gate)",
     "--list         list the metrics and exit",
     "--keep-temp    keep temporary directories, for debugging",
-    "--suite        also run the metrics that take minutes (suite-cpu, conformance)",
+    "--suite        also run the metrics that take minutes (the conformance pass rate)",
     "--max          also run the largest scales (64 concurrent checks)",
     "--long         run long-run-memory for 10 minutes instead of 60 s",
   ].join("\n");

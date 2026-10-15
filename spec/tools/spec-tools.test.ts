@@ -10,7 +10,7 @@ import { knownCodes } from "./spec-prose.ts";
 import { audit, auditTotals, normalizeSentence } from "./spec-audit.ts";
 import { chapterNames, loadCorpus, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
 import { counts } from "./spec-counts.ts";
-import { compilerPassList, coverage, coverageReport } from "./spec-coverage.ts";
+import { compilerPasses, coverage, coverageReport } from "./spec-coverage.ts";
 import {
   areaOf,
   type Citation,
@@ -625,14 +625,13 @@ test("compiler coverage counts rules cited by passing new-compiler fixtures", ()
       cite("spec/conformance/cases.tsv", second.id, `typing/valid/fail.hd\ttype\taccept`),
     ],
   };
-  const passes = compilerPassList(`before
-<!-- pass-list-start -->
-\`\`\`text
-parse/valid/pass.hd
-\`\`\`
-<!-- pass-list-end -->
-after
-`);
+  const passes = compilerPasses(
+    "path\tphase\texpectation\tspecification\nparse/valid/pass.hd\tparse\taccept\tx\ntyping/valid/fail.hd\ttype\taccept\tx\n",
+    "case\trules\nbuild-ok\tx\n",
+    "path\tissue\tengine\treason\ntyping/valid/fail.hd\t#1\t\tunsupported\n",
+  );
+  assert.deepEqual([...passes].sort(), ["cli/build-ok", "parse/valid/pass.hd"]);
+  assert.throws(() => compilerPasses("", "", "path\texpected\n"), /header/);
   const result = coverage(corpus, index, passes);
   const own = result.chapters.find((chapter) => chapter.chapter === first.chapter)!;
   assert.equal(own.cited, 2);

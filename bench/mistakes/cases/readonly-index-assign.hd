@@ -1,6 +1,0 @@
-# code: readonly-root
-# line: 6
-
-fn f() -> void:
-    let m: Map[i32, string] = {}
-    m[1] = "a"

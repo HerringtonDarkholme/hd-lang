@@ -117,9 +117,13 @@ the spec, and it adds exactly what the decision says, no more.
    the numbered or stdlib chapters: that ID was retired before, so choose
    another.
 8. **Update the compiler.** Implement the decision in the Rust compiler
-   (`crates/`) with tests. When it is too large for this change, list the
-   new fixtures the compiler fails in the root `KNOWN_FAILURES.tsv`, as the
-   existing rows do. Never change the spec to match the compiler.
+   (`crates/`) with tests. Every indexed conformance case must pass. When
+   the work is too large for this change, give each new fixture the
+   compiler fails a row in the root `KNOWN_FAILURES.tsv`
+   (columns `path`, `issue`, `engine`, `reason`) with the GitHub issue that tracks it;
+   leave `engine` empty unless only one engine fails. Remove a row once its
+   case passes: the conformance tests fail on a listed case that passes.
+   Never change the spec to match the compiler.
 9. **Clean up the issue list.** Remove the decision's question from
    `future-work/OPEN_ISSUES.md`.
 10. **Update everything that shows the behavior.** Examples and prose in
@@ -167,6 +171,7 @@ the spec, and it adds exactly what the decision says, no more.
 - The decision is in the spec, in the tier the tier test gives, with rule
   IDs; named in the commit message; and out of `OPEN_ISSUES.md`.
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
-- The compiler implements it, or `KNOWN_FAILURES.tsv` records the gap.
+- The compiler implements it, or a `KNOWN_FAILURES.tsv` row with an issue
+  records the gap.
 - All checks in step 11 pass, and the commits are pushed as a
   fast-forward.

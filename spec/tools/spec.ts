@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { audit, auditReport, auditTotals } from "./spec-audit.ts";
 import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
-import { compilerPassList, coverage, coverageReport } from "./spec-coverage.ts";
+import { compilerPasses, coverage, coverageReport } from "./spec-coverage.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
 import { glossary, glossaryDuplicates, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
 import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
@@ -101,7 +101,11 @@ export function run(
     if (options.positional.length > 0) throw new UsageError("coverage takes no arguments");
     const corpus = loadCorpus(roots.spec);
     const passes = options.flags.has("--compiler")
-      ? compilerPassList(readFileSync(resolve(roots.repo, "CONFORMANCE.md"), "utf8"))
+      ? compilerPasses(
+          readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8"),
+          readFileSync(resolve(roots.spec, "conformance", "cli-cases.tsv"), "utf8"),
+          readFileSync(resolve(roots.repo, "KNOWN_FAILURES.tsv"), "utf8"),
+        )
       : undefined;
     const result = coverage(corpus, buildIndex(corpus, roots.repo), passes);
     try {

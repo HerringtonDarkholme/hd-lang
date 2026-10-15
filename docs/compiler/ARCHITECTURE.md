@@ -85,7 +85,7 @@ Tools and front ends:
   [DESIGN.md](../../crates/hd_stdpack/DESIGN.md)
 - `hd_web`: the playground's compile session for `wasm32`, over an
   in-memory store. [DESIGN.md](../../crates/hd_web/DESIGN.md)
-- `hd_testkit`: the determinism matrix (dev only).
+- `hd_testkit`: the determinism matrix and the `KNOWN_FAILURES.tsv` reader (dev only).
 
 ## Invariants
 

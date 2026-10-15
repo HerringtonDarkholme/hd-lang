@@ -26,13 +26,33 @@ function isFixtureCitation(file: string): boolean {
   return file.startsWith("spec/conformance/") && file !== "spec/conformance/README.md";
 }
 
-/** The checked-in paths which the new compiler's Q18 gate passes. */
-export function compilerPassList(report: string): Set<string> {
-  const match = /<!-- pass-list-start -->\s*```text\n([\s\S]*?)\n```\s*<!-- pass-list-end -->/.exec(
-    report,
-  );
-  if (!match) throw new Error("CONFORMANCE.md has no pass list");
-  return new Set(match[1]!.split(/\r?\n/).filter((line) => line !== ""));
+/**
+ * The indexed cases the Rust compiler passes: every case of `cases.tsv`
+ * and every `cli/NAME` of `cli-cases.tsv`, except the paths the root
+ * `KNOWN_FAILURES.tsv` lists (header `path issue engine reason`) for any
+ * engine.
+ */
+export function compilerPasses(
+  cases: string,
+  cliCases: string,
+  knownFailures: string,
+): Set<string> {
+  const rows = (text: string) =>
+    text
+      .split(/\r?\n/)
+      .slice(1)
+      .filter((line) => line !== "")
+      .map((line) => line.split("\t"));
+  const header = knownFailures.split(/\r?\n/, 1)[0];
+  if (header !== "path\tissue\tengine\treason") {
+    throw new Error("KNOWN_FAILURES.tsv must start with the header path, issue, engine, reason");
+  }
+  const known = new Set(rows(knownFailures).map((columns) => columns[0]!));
+  const indexed = [
+    ...rows(cases).map((columns) => columns[0]!),
+    ...rows(cliCases).map((columns) => `cli/${columns[0]!}`),
+  ];
+  return new Set(indexed.filter((path) => !known.has(path)));
 }
 
 function passedCitation(file: string, text: string, passed: ReadonlySet<string>): boolean {

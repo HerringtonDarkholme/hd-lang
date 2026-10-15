@@ -1,7 +1,0 @@
-# code: unknown-method
-# line: 7
-
-fn f() -> string:
-    out := "a"
-    out + "b"
-        .Ok(())

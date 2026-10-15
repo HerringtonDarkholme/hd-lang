@@ -3,6 +3,8 @@
 //! and the differential harness (`docs/compiler/testing-the-compiler.md` §8.1, §8.2). The
 //! matrix runs one build under several executors (serial orders and the
 //! pool) and compares bytes; the fuzzer and the harness are not written yet.
+//! `known_failures` reads the root `KNOWN_FAILURES.tsv` for the conformance
+//! tiers.
 
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -10,6 +12,8 @@ use std::path::{Path, PathBuf};
 use hd_base::{NotImplemented, Stage, StageResult};
 use hd_driver::Executor;
 use hd_sched::SerialOrder;
+
+pub mod known_failures;
 
 /// A fresh scratch directory that removes itself, read-only entries
 /// included, when it drops, so a test run leaves nothing under

@@ -1,6 +1,0 @@
-# code: missing-let
-# line: 5
-
-fn f() -> i32:
-    x: i32 = 1
-    x

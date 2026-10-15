@@ -26,7 +26,7 @@ pnpm run metrics -- --only edit-latency,fmt       # several
 pnpm run metrics -- --pillar 1                    # one pillar
 pnpm run metrics -- --list                        # list the metrics
 pnpm run metrics -- --hd "/path/to/hd" --only cold-check
-pnpm run metrics -- --pillar 2 --suite --max      # with the slow and large runs
+pnpm run metrics -- --pillar 2 --max              # with the large runs
 pnpm run metrics -- --pillar gate --suite         # the correctness gate, with conformance
 pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 ```
@@ -37,8 +37,8 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
 - `--keep-temp` keeps the temporary directories, for debugging a script.
-- `--suite` runs `suite-cpu` and the `conformance` pass rate, which take
-  minutes; without it, those lines are `n/a` with "run with --suite".
+- `--suite` runs the `conformance` pass rate, which takes minutes;
+  without it, that line is `n/a` with "run with --suite".
 - `--max` adds the largest scale: 64 concurrent checks in `concurrency`.
 - `--long` runs `long-run-memory` for 10 minutes instead of 60 s.
 
@@ -122,7 +122,6 @@ Notes on the choices:
 | `startup` | wall time, CPU time and peak RSS of `hd --version` (or `hd version`, else `hd help`) and of `hd check empty.hd`, median of 5 | ≤ 20 ms; ≤ 10 MB | CPU and RSS lines: no `/usr/bin/time` |
 | `concurrency` | N = 1, 4, 16 (and 64 with `--max`) `hd check` processes at once, each in its own copy of the small package, one shared empty `HD_CACHE` | p95 ≤ 1.5x of N = 1 up to N = cores; total CPU sublinear in N | CPU line: no `/usr/bin/time` |
 | `disk` | files `hd check`, `hd test` and `hd build` add to the small package, plus the toolchain | ≤ 10 MB | never |
-| `suite-cpu` | CPU time of `test/run-portable.ts --suite conformance --compiler HD` | ≤ 60 s | without `--suite` |
 | `parallel-speedup` | cold check of the 50k package (10k when 50k times out) with 1 thread, then with one per core | ≥ 0.6 × cores, up to 8 cores | no documented thread count |
 | `cache-contention` | 8 checks at once that fetch one dependency into one empty cache; the same for a compilation cache | no corruption; fetched or written once | no git, `hd add` or `HD_CACHE`; no compilation cache |
 | `cache-growth` | compilation cache size after 100 edits and checks, with the documented cap set to 5 MB | ≤ 5 MB | no compilation cache, or no documented cap |
@@ -138,9 +137,6 @@ Notes on the choices:
 - **Bounds this harness proposes.** `long-session` allows 100 KiB per kept input
   (scaled by the page size), and `concurrency` scales its bound past the core count to
   1.5x × N / cores. The owner may change both.
-- **`suite-cpu`** counts the conformance runner's own CPU time with the
-  hd processes it waits for. It does not judge the suite's pass or fail;
-  the note gives its exit status. Its timeout is 30 minutes.
 - **`startup`** judges CPU time against the 20 ms wall target too. Its wall
   time includes `/usr/bin/time`'s own start, about 1 ms.
 - **`long-session`** runs the REPL's session in the `hd_cli` test, since bare
@@ -235,12 +231,12 @@ Notes on the choices:
 
 | Script | Measures | Target | n/a when |
 | --- | --- | --- | --- |
-| `conformance` | `test/run-portable.ts --suite conformance --compiler HD`: passed / selected cases; and the rows of `test/portable/KNOWN_FAILURES.tsv` | 100%; 0 known failures | pass rate: without `--suite` |
+| `conformance` | the rows of the root `KNOWN_FAILURES.tsv`; with `--suite`, the cargo conformance tiers (`hd_driver --test conformance`, `hd_cli --test cli_conformance`): passed / unlisted cases | 100%; 0 known failures | pass rate: without `--suite` |
 | `incremental-soundness` | a seeded script of 16 edits to the small package: after each, `hd check --tests --format json` in the working copy, with its own cache, against a fresh copy with an empty cache; `hd test --format json` too every 4th edit | 100% match | no compilation cache: a 4-edit sample still runs |
 
-- **Conformance** selects the cases of `test/portable/cases.tsv`, so the
-  listed known failures are excluded from the pass rate, and a case that
-  fails only by the time limit reruns once, as the runner does.
+- **Conformance** reads the tiers' summary lines, so the listed known
+  failures are excluded from the pass rate. It runs the checkout's dev
+  build through cargo; the `--hd` command is not used.
 - **Soundness edits** are a private body edit, a public signature edit, a
   type error put into a body or taken out, a broken test expectation or its
   repair, and a new public function. Two runs match when they exit alike and

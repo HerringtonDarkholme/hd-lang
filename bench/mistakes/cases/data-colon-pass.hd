@@ -1,5 +1,0 @@
-# code: syntax-error
-# line: 5
-
-data RefusingProcess:
-    pass

@@ -1,7 +1,7 @@
 //! Every `hd` command test except the CLI conformance runner, linked once. They
 //! spawn `hd` as a child process, so none shares process state with another.
-//! `cli_conformance.rs` stays a separate target: it owns the CLI section of
-//! CONFORMANCE.md and runs its own worker pool.
+//! `cli_conformance.rs` stays a separate target: it judges the whole CLI tier
+//! against `KNOWN_FAILURES.tsv` and runs its own worker pool.
 
 mod affected;
 mod cache_gc;

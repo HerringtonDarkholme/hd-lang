@@ -4,30 +4,30 @@
 //! `expect.txt` against the `hd` binary, and judges exit status, standard
 //! streams and files.
 //!
-//! A case that needs a host service the sandbox lacks is unsupported, not
-//! failed. Cases recorded as passing in the "CLI Conformance" section of
-//! `CONFORMANCE.md` may not regress. Set `HD_UPDATE_CONFORMANCE=1`
-//! to rewrite that section. `HD_CONFORMANCE_ONLY=a,b` runs the cases whose
-//! name contains one of the parts and prints each verdict.
+//! A case that needs a host service the sandbox lacks is unsupported.
+//! Every case must pass, except a case listed as `cli/NAME` in the root
+//! `KNOWN_FAILURES.tsv` (`hd_testkit::known_failures`) for the engine; a
+//! listed case that passes fails the test too, and unsupported counts as
+//! not passing. A full run prints the counts and failure buckets.
+//! `HD_CONFORMANCE_ONLY=a,b` runs the cases whose name contains one of the
+//! parts and prints each verdict.
 //! `HD_CONFORMANCE_ENGINE=wasmtime-only` selects Wasmtime for program commands
 //! without overriding explicit engine flags. `wasmtime` compares fresh complete
 //! Node/Wasmtime fixture runs at identical paths, judging by Wasmtime. Program
-//! and test commands both select the engine. Selected modes never rewrite the
-//! report; comparison excludes setup commands and explicit-engine steps.
+//! and test commands both select the engine. Comparison excludes setup
+//! commands and explicit-engine steps.
 //! Both Wasmtime modes need `hd` built with `--features wasmtime`; without it
 //! they are refused.
 
 use std::collections::BTreeSet;
-use std::fmt::Write as _;
-use std::io::Read;
+use std::io::{Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-const HEADING: &str = "\n## CLI Conformance\n";
-const PASS_START: &str = "<!-- cli-pass-list-start -->";
-const PASS_END: &str = "<!-- cli-pass-list-end -->";
+use hd_testkit::known_failures::{self, Outcome};
+
 const LIMIT: Duration = Duration::from_mins(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -602,10 +602,6 @@ fn suite_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/conformance")
 }
 
-fn report_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../CONFORMANCE.md")
-}
-
 fn work_root() -> PathBuf {
     std::env::temp_dir().join(format!("hd-cli-conformance-{}", std::process::id()))
 }
@@ -1107,68 +1103,8 @@ fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
     results
 }
 
-// --------------------------------------------------------------- report
-
-fn render_section(names: &[String], results: &[Verdict]) -> String {
-    let mut pass = Vec::new();
-    let mut fail = Vec::new();
-    let mut unsupported = Vec::new();
-    for (name, verdict) in names.iter().zip(results) {
-        match verdict {
-            Verdict::Pass => pass.push(name.as_str()),
-            Verdict::Fail(why) => fail.push((name.as_str(), why.as_str())),
-            Verdict::Unsupported(why) => unsupported.push((name.as_str(), why.as_str())),
-        }
-    }
-    pass.sort_unstable();
-    let mut out = String::from(HEADING);
-    out.push_str(
-        "\nThe CLI tier (`spec/conformance/cli-cases.tsv`) runs in\n`hd_cli/tests/cli_conformance.rs` against the `hd` binary.\n\n",
-    );
-    writeln!(
-        out,
-        "| Pass | Fail | Unsupported | Total |\n| ---: | ---: | ---: | ---: |\n| {} | {} | {} | {} |",
-        pass.len(),
-        fail.len(),
-        unsupported.len(),
-        names.len()
-    )
-    .expect("write report");
-    if !unsupported.is_empty() {
-        out.push_str("\nUnsupported:\n\n");
-        for (name, why) in &unsupported {
-            writeln!(out, "- `cli/{name}`: {why}").expect("write report");
-        }
-    }
-    out.push_str(
-        "\n`HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.\n\n",
-    );
-    out.push_str(PASS_START);
-    out.push_str("\n```text\n");
-    for name in pass {
-        writeln!(out, "cli/{name}").expect("write report");
-    }
-    out.push_str("```\n");
-    out.push_str(PASS_END);
-    out.push('\n');
-    out
-}
-
-fn pass_list(report: &str) -> BTreeSet<String> {
-    let Some((_, after)) = report.split_once(PASS_START) else {
-        return BTreeSet::new();
-    };
-    let Some((body, _)) = after.split_once(PASS_END) else {
-        return BTreeSet::new();
-    };
-    body.lines()
-        .filter(|line| !line.is_empty() && !line.starts_with("```"))
-        .map(str::to_owned)
-        .collect()
-}
-
 #[test]
-fn cli_conformance_does_not_regress() {
+fn cli_conformance_passes_except_known_failures() {
     let selected = match std::env::var("HD_CONFORMANCE_ENGINE") {
         Ok(value) => Some(value),
         Err(std::env::VarError::NotPresent) => None,
@@ -1193,47 +1129,44 @@ fn cli_conformance_does_not_regress() {
         return;
     }
     let results = run_all(&all, mode);
-    if mode == EngineMode::Default && std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() {
-        let old = std::fs::read_to_string(report_path()).expect("CONFORMANCE.md");
-        let head = old
-            .split_once(HEADING)
-            .map_or(old.as_str(), |(head, _)| head);
-        let mut report = head.to_owned();
-        report.push_str(&render_section(&all, &results));
-        std::fs::write(report_path(), report).expect("write report");
-        return;
-    }
-    let report = std::fs::read_to_string(report_path())
-        .expect("CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
-    let baseline = pass_list(&report);
-    assert!(
-        !baseline.is_empty(),
-        "the checked-in CLI pass list is empty"
-    );
-    let regressed: Vec<String> = baseline
+    let engine = match mode.forced_engine() {
+        Some(engine) => engine.to_owned(),
+        None => std::env::var("HD_ENGINE")
+            .ok()
+            .filter(|engine| !engine.is_empty())
+            .unwrap_or_else(|| "node".to_owned()),
+    };
+    let paths: Vec<String> = all.iter().map(|name| format!("cli/{name}")).collect();
+    let outcomes: Vec<Outcome<'_>> = paths
         .iter()
-        .filter(|path| {
-            let verdict = path
-                .strip_prefix("cli/")
-                .and_then(|name| all.iter().position(|n| n == name))
-                .map(|index| &results[index]);
-            verdict != Some(&Verdict::Pass)
-        })
-        .map(|path| {
-            let why = path
-                .strip_prefix("cli/")
-                .and_then(|name| all.iter().position(|n| n == name))
-                .map_or_else(
-                    || "no such case".to_owned(),
-                    |i| format!("{:?}", results[i]),
-                );
-            format!("{path}: {why}")
+        .zip(&results)
+        .map(|(path, verdict)| Outcome {
+            path,
+            bucket: match verdict {
+                Verdict::Pass => None,
+                Verdict::Fail(why) => Some(format!("fail: {why}")),
+                Verdict::Unsupported(why) => Some(format!("unsupported: {why}")),
+            },
         })
         .collect();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let known = known_failures::load(&root);
+    let (summary, errors) = known_failures::judge(
+        "CLI",
+        &engine,
+        &known,
+        |path| path.starts_with("cli/"),
+        &outcomes,
+    );
+    // Straight to stdout, past the test harness's capture, so a passing run
+    // shows the counts too.
+    std::io::stdout()
+        .write_all(summary.as_bytes())
+        .expect("print the summary");
     assert!(
-        regressed.is_empty(),
-        "previously passing CLI cases regressed:\n{}",
-        regressed.join("\n")
+        errors.is_empty(),
+        "CLI conformance cases break the KNOWN_FAILURES.tsv rule:\n{}",
+        errors.join("\n")
     );
 }
 

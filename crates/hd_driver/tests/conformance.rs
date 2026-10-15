@@ -1,11 +1,12 @@
 //! The specification conformance suite through the new compiler.
 //!
-//! Unsupported language surface is progress data, not a failing test.
-//! Crashes always fail. Cases recorded as passing in `CONFORMANCE.md`
-//! may not regress. Set `HD_UPDATE_CONFORMANCE=1` to replace the report
-//! and its embedded pass list with the current result. The CLI tier runs in
-//! `hd_cli/tests/cli_conformance.rs`, which owns the last section of the
-//! report; this test keeps that section when it rewrites the file.
+//! Every indexed case must pass, except a case listed in the root
+//! `KNOWN_FAILURES.tsv` (`hd_testkit::known_failures`) for the judging
+//! engine; a listed case that passes fails the test too, so the list stays
+//! exact. Unsupported surface counts as not passing, and crashes always
+//! fail. A full run prints the pass, known, fail and unsupported counts and
+//! the failure buckets. The CLI tier runs in
+//! `hd_cli/tests/cli_conformance.rs` under the same rule.
 //!
 //! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
 //! fixture profiles, on both engines and judges by wasmtime.
@@ -15,12 +16,11 @@
 //! compare mode builds each runnable program once per target. The
 //! default, Node, builds for `V8` only.
 //! Test outcomes are compared without their nondeterministic elapsed time.
-//! Neither mode rewrites the report or falls back after a wasmtime error.
+//! Neither mode falls back to Node after a wasmtime error.
 //! Both need the `wasmtime` feature (`cargo test --features wasmtime`).
 //! `HD_CONFORMANCE_PIPELINE=optimized` builds every case through the
 //! optimized pipeline (`hd_opt::passes::OPTIMIZED`) instead of the dev one, with
-//! the checked build profile, and never rewrites the report; the cases
-//! that pass today must still pass. `dev` is the default.
+//! the checked build profile, under the same rule. `dev` is the default.
 //! `HD_CONFORMANCE_WASM_DIGEST=record|check` records the hash of every
 //! Wasm module a runtime case runs (its entry under each profile, its test
 //! programs and its scenario drive), in
@@ -29,7 +29,7 @@
 //! files and fails on any difference. It proves a refactor leaves the
 //! emitted code byte-identical; it needs the full runtime suite.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
-//! timing, without rewriting the report or checking the full pass list.
+//! timing, without applying the rule.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -53,11 +53,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_syntax::parse;
 use hd_testkit::Scratch;
-
-const START_COMMIT: &str = "103dd1e3";
-const PASS_START: &str = "<!-- pass-list-start -->";
-const PASS_END: &str = "<!-- pass-list-end -->";
-const CLI_HEADING: &str = "\n## CLI Conformance\n";
+use hd_testkit::known_failures::{self, Outcome};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
@@ -105,10 +101,6 @@ fn root() -> PathBuf {
 
 fn suite_root() -> PathBuf {
     root().join("spec/conformance")
-}
-
-fn report_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../CONFORMANCE.md")
 }
 
 fn cases() -> Vec<Case> {
@@ -1887,12 +1879,6 @@ fn chapter(case: &Case) -> String {
         .to_owned()
 }
 
-fn directory(case: &Case) -> String {
-    Path::new(&case.path)
-        .parent()
-        .map_or_else(String::new, |path| path.to_string_lossy().into_owned())
-}
-
 fn add_count(counts: &mut Counts, verdict: &Verdict) {
     match verdict {
         Verdict::Pass => counts.pass += 1,
@@ -1901,105 +1887,9 @@ fn add_count(counts: &mut Counts, verdict: &Verdict) {
     }
 }
 
-fn table(out: &mut String, values: &BTreeMap<String, Counts>) {
-    out.push_str("| Group | Pass | Fail | Unsupported | Total |\n");
-    out.push_str("| --- | ---: | ---: | ---: | ---: |\n");
-    for (name, counts) in values {
-        let total = counts.pass + counts.fail + counts.unsupported;
-        writeln!(
-            out,
-            "| `{name}` | {} | {} | {} | {total} |",
-            counts.pass, counts.fail, counts.unsupported
-        )
-        .expect("write report");
-    }
-}
-
-fn render_report(cases: &[Case], results: &[Verdict]) -> String {
-    let mut total = Counts::default();
-    let mut chapters: BTreeMap<String, Counts> = BTreeMap::new();
-    let mut directories: BTreeMap<String, Counts> = BTreeMap::new();
-    let mut buckets: BTreeMap<String, Vec<&str>> = BTreeMap::new();
-    let mut passed = Vec::new();
-    for (case, verdict) in cases.iter().zip(results) {
-        add_count(&mut total, verdict);
-        add_count(chapters.entry(chapter(case)).or_default(), verdict);
-        add_count(directories.entry(directory(case)).or_default(), verdict);
-        match verdict {
-            Verdict::Pass => passed.push(case.path.as_str()),
-            Verdict::Fail(bucket) => buckets
-                .entry(format!("fail:{bucket}"))
-                .or_default()
-                .push(&case.path),
-            Verdict::Unsupported(stage) => buckets
-                .entry(format!("unsupported:{stage}"))
-                .or_default()
-                .push(&case.path),
-            Verdict::Crash(message) => buckets
-                .entry(format!("crash:{message}"))
-                .or_default()
-                .push(&case.path),
-        }
-    }
-    passed.sort_unstable();
-    let mut out = format!(
-        "# New Compiler Conformance\n\nStatus: measured 2026-10-07 against `{START_COMMIT}`. This is implementation\ncoverage, not accepted language behavior. The Cargo test runs every indexed\nfixture; unsupported surface records progress without failing.\n\n## Summary\n\n| Pass | Fail | Unsupported | Total |\n| ---: | ---: | ---: | ---: |\n| {} | {} | {} | {} |\n\n## By Chapter\n\n",
-        total.pass,
-        total.fail,
-        total.unsupported,
-        total.pass + total.fail + total.unsupported
-    );
-    table(&mut out, &chapters);
-    out.push_str("\n## By Directory\n\n");
-    table(&mut out, &directories);
-    out.push_str("\n## Failure Buckets\n\n");
-    out.push_str("A failure bucket is the first diagnostic code. An unsupported bucket is the\ncompiler stage that first declined the case.\n\n");
-    out.push_str("| Bucket | Cases |\n| --- | ---: |\n");
-    for (bucket, paths) in &buckets {
-        writeln!(out, "| `{bucket}` | {} |", paths.len()).expect("write report");
-    }
-    for (bucket, paths) in buckets {
-        writeln!(
-            out,
-            "\n<details><summary><code>{bucket}</code> ({})</summary>\n",
-            paths.len()
-        )
-        .expect("write report");
-        for path in paths {
-            writeln!(out, "- `{path}`").expect("write report");
-        }
-        out.push_str("\n</details>\n");
-    }
-    out.push_str("\n## Checked-In Pass List\n\n");
-    out.push_str("`HD_UPDATE_CONFORMANCE=1` replaces this list with every case that passes.\n\n");
-    out.push_str(PASS_START);
-    out.push('\n');
-    out.push_str("```text\n");
-    for path in passed {
-        writeln!(out, "{path}").expect("write report");
-    }
-    out.push_str("```\n");
-    out.push_str(PASS_END);
-    out.push('\n');
-    out
-}
-
-fn pass_list(report: &str) -> BTreeSet<String> {
-    let Some((_, after)) = report.split_once(PASS_START) else {
-        return BTreeSet::new();
-    };
-    let Some((body, _)) = after.split_once(PASS_END) else {
-        return BTreeSet::new();
-    };
-    body.lines()
-        .filter(|line| !line.is_empty() && !line.starts_with("```"))
-        .map(str::to_owned)
-        .collect()
-}
-
 /// `HD_CONFORMANCE_ONLY=a,b`: run only the cases whose path or rule
 /// contains one of the comma-separated parts, print each verdict with the
-/// first diagnostic or unsupported reason, and skip the pass-list check.
+/// first diagnostic or unsupported reason, and skip the known-failure rule.
 fn filtered(cases: Vec<Case>) -> Option<Vec<Case>> {
     let only = std::env::var("HD_CONFORMANCE_ONLY").ok()?;
     let parts: Vec<&str> = only.split(',').filter(|part| !part.is_empty()).collect();
@@ -2111,7 +2001,7 @@ fn workers() -> usize {
 }
 
 /// Runs every case on a pool of worker threads. Results stay in case
-/// order, so the report is identical to the sequential run. `serial` is
+/// order, so the verdicts match the sequential run. `serial` is
 /// the case index, so each runtime case still gets unique
 /// `conformance-{serial}.wasm` and `.json` names under
 /// `CARGO_TARGET_TMPDIR` and workers never share a file.
@@ -2154,7 +2044,7 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
 }
 
 #[test]
-fn specification_conformance_does_not_regress() {
+fn specification_conformance_passes_except_known_failures() {
     let mode = engine_mode();
     let all = cases();
     let only = filtered(all.clone());
@@ -2191,38 +2081,39 @@ fn specification_conformance_does_not_regress() {
         print_filtered(&cases, &results, &store);
         return;
     }
-    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some()
-        && mode == EngineMode::Node
-        && !optimized_pipeline()
-    {
-        let mut report = render_report(&cases, &results);
-        if let Ok(old) = std::fs::read_to_string(report_path())
-            && let Some((_, cli)) = old.split_once(CLI_HEADING)
-        {
-            report.push_str(CLI_HEADING);
-            report.push_str(cli);
-        }
-        std::fs::write(report_path(), report).expect("write report");
-        return;
-    }
-    let report = std::fs::read_to_string(report_path())
-        .expect("CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
-    let baseline = pass_list(&report);
-    assert!(!baseline.is_empty(), "the checked-in pass list is empty");
-    let current: BTreeSet<&str> = cases
+    let engine = match mode {
+        EngineMode::Node => "node",
+        EngineMode::Compare | EngineMode::WasmtimeOnly => "wasmtime",
+    };
+    let outcomes: Vec<Outcome<'_>> = cases
         .iter()
         .zip(&results)
-        .filter(|(_, verdict)| **verdict == Verdict::Pass)
-        .map(|(case, _)| case.path.as_str())
+        .map(|(case, verdict)| Outcome {
+            path: &case.path,
+            bucket: match verdict {
+                Verdict::Pass => None,
+                Verdict::Fail(code) => Some(format!("fail:{code}")),
+                Verdict::Unsupported(stage) => Some(format!("unsupported:{stage}")),
+                Verdict::Crash(message) => Some(format!("crash:{message}")),
+            },
+        })
         .collect();
-    let regressed: Vec<_> = baseline
-        .iter()
-        .filter(|path| !current.contains(path.as_str()))
-        .cloned()
-        .collect();
+    let known = known_failures::load(&root());
+    let (summary, errors) = known_failures::judge(
+        "driver",
+        engine,
+        &known,
+        |path| !path.starts_with("cli/"),
+        &outcomes,
+    );
+    // Straight to stdout, past the test harness's capture, so a passing run
+    // shows the counts too.
+    std::io::stdout()
+        .write_all(summary.as_bytes())
+        .expect("print the summary");
     assert!(
-        regressed.is_empty(),
-        "previously passing conformance cases regressed:\n{}",
-        regressed.join("\n")
+        errors.is_empty(),
+        "conformance cases break the KNOWN_FAILURES.tsv rule:\n{}",
+        errors.join("\n")
     );
 }

@@ -38,7 +38,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_doc` | Documentation extraction and rendering; `hd_base`, `hd_resolve` | [`hd doc`](hd_cli/DESIGN.md#77-hd-doc) |
 | `hd_stdpack` | Build-time standard-library packer; `hd_base`, `hd_driver`, `hd_project` | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
 | `hd_web` | Playground compile session over an in-memory store; `hd_cache`, `hd_driver`, `hd_project`, `hd_sched` | [Browser runner](../docs/compiler/engines-and-test-runner.md#184-the-browser-runner), [playground](hd_cli/DESIGN.md#79-the-playground), [playground on Wasm](hd_web/DESIGN.md) |
-| `hd_testkit` | Determinism and incremental-test support; `hd_base`, `hd_driver`, `hd_sched` | [Testing the checker](hd_check/DESIGN.md#14-testing), [determinism and soundness tests](../docs/compiler/testing-the-compiler.md) |
+| `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader; `hd_base`, `hd_driver`, `hd_sched` | [Testing the checker](hd_check/DESIGN.md#14-testing), [determinism and soundness tests](../docs/compiler/testing-the-compiler.md) |
 | `hd_cli` | Native `hd` binary, disk sources/cache, threaded execution, and Node/V8 engine, plus `hd_run_wasmtime` with the `wasmtime` feature; `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Command flows](hd_cli/DESIGN.md) |
 
 In dependency order, the main path is:
@@ -191,9 +191,12 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
   `crates/hd_driver/tests/tir/`.
 - CLI compile/run samples are in `examples/` and exercised by
   `crates/hd_cli/tests/all/run.rs`.
-- The implementation-neutral suite is in `spec/conformance/`; temporary
-  disagreements with this compiler are listed in
-  [`KNOWN_FAILURES.tsv`](../KNOWN_FAILURES.tsv).
+- The implementation-neutral suite is in `spec/conformance/`. Every
+  indexed case must pass except a row of
+  [`KNOWN_FAILURES.tsv`](../KNOWN_FAILURES.tsv) (`path`, `issue`,
+  `engine`, `reason`), and a listed case that passes fails too. Both
+  tiers (`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`)
+  print their counts.
 
 From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace
