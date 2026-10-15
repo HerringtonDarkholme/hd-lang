@@ -10,8 +10,9 @@ stay in this browser, and **Reset** brings back the original.
 
 `$ Console` after the signature is a requirement. It is the whole list of
 outside things this program may use: it may print, and nothing else. No library
-it calls can quietly read your files or open a socket unless `main` grants it,
-so a reviewer learns the program's reach from one line.
+it calls can quietly ask to read your files or open a socket unless `main`
+grants it, so a reviewer learns what the code asks for from one line. A row
+bounds what code asks for, not what a value you pass it already carries.
 
 ```hd
 # Press Run, or Ctrl+Enter. Then change the name and run it again.

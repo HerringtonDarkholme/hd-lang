@@ -36,7 +36,7 @@ fn with_tax(cents: i32, percent: i32) -> i32:
     cents + cents * percent / 100
 
 fn format_cents(cents: i32) -> string:
-    "$${cents / 100}.${cents % 100}"
+    "$${cents / 100}.${(cents % 100).to_string().pad_start(2, '0')}"
 ```
 
 ```edit

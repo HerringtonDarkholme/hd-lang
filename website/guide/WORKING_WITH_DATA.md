@@ -1,6 +1,6 @@
 # Working With Data
 
-This page covers five everyday jobs that the
+This page covers everyday jobs that the
 [Language Tour](LANGUAGE_TOUR.md) does not: reading JSON into typed
 config, tests that live in the documentation, concurrent work with a
 timeout, file reads and writes, and pulling fields out of log lines. Each

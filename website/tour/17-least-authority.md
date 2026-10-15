@@ -5,12 +5,13 @@ title: Least authority in main
 # `main`'s row is everything the program may touch
 
 A program's `main` lists its requirements after `$` like any other function,
-and that row is the most any code below it can reach. This one says
+and that row is the most any code below it can ask for. This one says
 `$ Console`: it may print, and nothing else. No helper, however deep, and no
 library, however updated, can open a file, call the network, or read the clock
 behind its back, because a call that needs more than `main` grants does not
 compile. To give the program more, you widen one line, where a reviewer sees
-it.
+it. A row bounds what code asks for, not what a value you pass it already
+carries.
 
 ```hd
 pub fn main!() -> void $ Console:  # ← the console, and nothing else

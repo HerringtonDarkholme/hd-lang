@@ -35,8 +35,8 @@ The `$ Console` part is a requirement row. It is explained
 
 A program that reads input or files makes bang calls, such as `read_line!()`,
 and only a `!` function may make them. So its entry point is `main!`, not
-`main`. Inside `main!`, write with `$.use(Console).write_line!`, because
-`println` panics under a running driver.
+`main`. Inside `main!`, `println` writes and returns, or you can write with
+`$.use(Console).write_line!` to handle the `ConsoleError`.
 
 ```text
 use std.console.{ConsoleInput, read_line}
@@ -52,8 +52,8 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
 ```
 
 Written as plain `pub fn main()`, the same body is rejected:
-`bang-call-outside-suspension: a bang call requires a suspending driver
-context`. The fix is the `!` in `main!`. See
+`bang-call-outside-suspension: a bang call needs a suspending function or
+closure`. The fix is the `!` in `main!`. See
 [Suspension with `fn!`](#suspension-with-fn).
 
 ## Bindings and Values
@@ -395,7 +395,7 @@ enum ConfigError:
 
 Traits describe behavior, and every implementation is explicit. A generic
 bound dispatches statically. A trait used as a value type dispatches
-dynamically, with no `dyn` marker.
+dynamically, and its type is written `dyn Trait`.
 
 ```hd
 trait Describe:
@@ -509,9 +509,10 @@ fn load_now(id: string) -> Result[User?, DbError] $ Database:
     block_on(pending)
 ```
 
-`println` drives its write the same way, so it has `block_on`'s rules: it
-panics inside `main!` or a test body, where a driver is already running.
-Suspending code writes with `$.use(Console).write_line!` instead.
+`println` drives its write the same way, so it has `block_on`'s rules. In
+`main!` or a test body, where a driver is already running, it writes and
+returns. In a forbidden context such as `defer`, a default expression, or a
+`fact`, a direct call is an error and an indirect one panics.
 
 ## Modules, Entry Points, and Tests
 
@@ -562,19 +563,18 @@ it("totals the inventory fixture"):
 
 ### Using a Local Library
 
-Today a path dependency works between members of one workspace. Put both
-packages under a root directory whose `hd.toml` lists them:
+A path dependency names any local package. Neither package needs a
+workspace, so create the two side by side:
 
 ```sh
 mkdir mystore && cd mystore
-printf '[workspace]\nmembers = ["money", "shop"]\n' > hd.toml
 hd new --lib money
 hd new --app shop
+cd shop && hd add ../money
 ```
 
-The specification says `hd new` adds the new directory to `members` itself;
-the current `hd` does not, so write the list as above. Then name the library
-in the app's `shop/hd.toml`:
+`hd add` writes the dependency into the app's `shop/hd.toml`, under the
+package's own name:
 
 ```text
 [package]
@@ -595,10 +595,8 @@ pub fn main() -> void $ Console:
     println("total: ${money.show(price)}")
 ```
 
-Run commands inside a member directory: `cd shop && hd run`, or
-`cd money && hd test`. At the workspace root the current `hd` stops with
-`the prototype does not support workspaces yet`, and `hd add money ../money@0.0.0`
-fails with `invalid-requirement` outside a workspace.
+Run commands inside a package directory: `cd shop && hd run`, or
+`cd ../money && hd test`.
 
 ## The Prelude
 
@@ -609,7 +607,7 @@ These names need no `use` in any module ([Prelude](../../spec/lang/10-modules.md
 | Types | `bool`, `i8` to `i64`, `u8` to `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `never`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result` |
 | Traits | `Display`, `Debug`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Hasher`, `Iterator`, `Iterable` |
 | Other types | `Ordering`, `Console`, `ConsoleError`, `Suspend`, `Poll`, `PollContext`, `Waker` |
-| Functions | `println`, `panic`, `debug` |
+| Functions | `println`, `panic`, `debug`, `dbg` |
 | Tests only | `it` |
 
 Everything else is imported: `From`, `Error`, `Inspectable`, `block_on`,
