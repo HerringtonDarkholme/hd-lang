@@ -11,7 +11,7 @@ application, `--lib` for a library:
 
 ```sh
 $ hd new orders --app
-Created application package 'orders' in orders
+created application package `orders` in /home/you/orders
 ```
 
 The layout is small: an `hd.toml` manifest, `src/main.hd` for the entry
@@ -62,7 +62,7 @@ the package, and `hd build` writes the Wasm:
 
 ```sh
 $ hd check
-orders: ok
+check result: ok. errors: 0; warnings: 0
 $ hd build
 $ hd build --release
 ```
@@ -83,9 +83,9 @@ runs only the cases whose name contains a word:
 
 ```sh
 $ hd test
-tests/orders.hd: 1 passed
+test result: ok. 1 passed; 0 failed; 0 ignored
 $ hd test --filter "prints"
-tests/orders.hd: 1 passed
+test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
 A unit test runs on fakes alone; an integration test under `tests/` gets
@@ -100,7 +100,33 @@ $ hd test --format json
 {"kind":"summary","errors":0,"warnings":0,"passed":1,"failed":0,"ignored":0,"status":0}
 ```
 
-Read next: [Test Runs](../spec/cli/command-line.md#test-runs).
+You edit one module and want feedback in seconds, not the whole suite.
+After a full pass, `hd` records each test program's fingerprint: its
+sources, dependencies, manifest settings, and `hd` version. `hd test
+--affected` then runs only the programs whose fingerprint changed, and the
+summary counts the rest:
+
+```sh
+$ hd test --affected
+test result: ok. 0 passed; 0 failed; 0 ignored; 1 program skipped
+```
+
+A filtered run or a failing program records nothing, so `--affected` never
+skips a test that failed or did not run. `hd clean` removes the records.
+
+A runaway loop should fail, not hang. `--time-limit` gives each test case,
+and `hd run` and `hd FILE` give the program, a deadline; past it the
+program panics with `time-limit`:
+
+```sh
+$ hd test --time-limit 5s
+$ hd run --time-limit 30s
+panic: time-limit: the program exceeded its time limit
+```
+
+Read next: [Test Runs](../spec/cli/command-line.md#test-runs),
+[Affected Tests](../spec/cli/command-line.md#affected-tests), and
+[Program Limits](../spec/cli/command-line.md#program-limits).
 
 ## Dependencies And Workspaces
 
@@ -127,25 +153,38 @@ and [Workspaces](../spec/lang/10-modules.md#workspaces).
 
 ## Debug And Explore
 
-You want to see a value while it runs, or ask where a name comes from.
-`dbg(x)` prints the value with its source location on standard error. `hd
-explain CODE` prints what the specification says about a diagnostic code,
-and `hd def NAME` shows where a name is defined:
+You want to see a value while it runs, or read what a function promises.
+`dbg(x)` prints the value with its source location on standard error.
+`hd doc NAME` prints one item's documentation, and no file is written:
 
-```sh
-$ hd explain missing-requirement
-missing-requirement: error
-$ hd def main
-src/main.hd:1:1: function pkg.main.main
-  pub fn main() -> void $ Console
+````sh
+$ hd doc std.text.split
+```hd
+pub fn split(self, separator: string) -> List[string]
 ```
+
+Splits the string around each occurrence of `separator`, in order.
+
+Reference: std.text.string.split in the standard library reference
+````
+
+NAME is a module path and an item, as in `text.slugify` for your own
+package, or `std.text.split` for the standard library, where the output
+is the signature, a summary, and a reference link. A module name
+alone, as in `hd doc std.text`, prints the module's page. `hd help
+COMMAND` prints one command's usage and flags.
 
 `hd` with no arguments on a terminal opens the interactive session; each
 line is evaluated and printed with its type. Text piped into `hd` runs as
 a program instead, so a session cannot be scripted through standard input.
-An input may not redeclare a name an earlier input declared
+A later input may use the top-level bindings and declarations of earlier
+ones, but may not redeclare a name an earlier input declared
 (`duplicate-binding`, `duplicate-type`); to change a declaration, start a
-new session or give the new one another name.
+new session or give the new one another name. An input that panics adds
+nothing to the session, and the session goes on. An input that starts with
+`:` is a command: `:help` lists them, `:quit` (or `:q`, `:exit`) ends the
+session, and `:reload` reads the package's files again after you edit
+them, keeping the inputs that still check.
 
 ```sh
 $ hd
@@ -154,7 +193,7 @@ $ hd
 ```
 
 Every diagnostic command takes `--format json` for one JSON object per
-diagnostic, with the rule IDs that explain it. Read next:
+diagnostic. Read next:
 [Machine Output](../spec/cli/command-line.md#machine-output).
 
 ## Common Errors And Their Fixes
@@ -174,4 +213,4 @@ diagnostic, with the rule IDs that explain it. Read next:
 - `bang-call-outside-suspension`: the call suspends, so its caller must be
   a suspending function: `fn!`, or `main!`.
 
-Each message names its code; `hd explain CODE` links the rules behind it.
+Each message names its code, and the rule IDs it cites are in the specification.
