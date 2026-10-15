@@ -515,6 +515,14 @@ pub enum GSym {
     /// constant `i32` that link assigns, by family and the body's
     /// instance key.
     WitnessField(Hash128, Hash128, VT),
+    /// A closure that captures nothing (lowering-catalog.md, "Numbering"):
+    /// an immutable constant global per closure code, by its instance key,
+    /// that link fills with `struct.new` of the environment `VT` over the
+    /// code's `ref.func`. Function values have no identity
+    /// (`expr.is.function-none`), so every evaluation reads the one value.
+    /// It is local to its module: a session module defines its own and
+    /// never exports it.
+    Closure(Hash128, VT),
 }
 
 impl GSym {
@@ -525,7 +533,8 @@ impl GSym {
             | GSym::Rt(_, v)
             | GSym::Canon(_, v)
             | GSym::Witness(_, _, v)
-            | GSym::WitnessField(_, _, v) => v,
+            | GSym::WitnessField(_, _, v)
+            | GSym::Closure(_, v) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -558,6 +567,11 @@ impl GSym {
                 w.hash(*e);
                 v.encode(w);
             }
+            GSym::Closure(k, v) => {
+                w.u8(5);
+                w.hash(*k);
+                v.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
@@ -567,6 +581,7 @@ impl GSym {
             2 => GSym::Canon(r.hash(), VT::decode(r, 0)?),
             3 => GSym::Witness(r.hash(), r.hash(), VT::decode(r, 0)?),
             4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r, 0)?),
+            5 => GSym::Closure(r.hash(), VT::decode(r, 0)?),
             _ => return None,
         })
     }
@@ -1233,6 +1248,7 @@ impl Externs {
                 for (_, r) in &c.relocs {
                     if let Reloc::Global(g) = r
                         && !matches!(g, GSym::Rt(..))
+                        && !module_local(g)
                     {
                         self.globals.insert(g.clone());
                     }
@@ -1321,7 +1337,9 @@ pub fn func_key(s: &Sym) -> Option<String> {
 /// The session key of a global, hashes as 32 lowercase hex digits:
 /// `bind.<path>.<component>`, `rt.<name>`, `canon.<type>`,
 /// `wit.<family>.<args>` and `witf.<family>.<body>`. The value type is not
-/// in the key; instantiation checks it against the import's type.
+/// in the key; instantiation checks it against the import's type. A
+/// constant closure's `clo.<code>` names it in errors only: it is local to
+/// its module (`module_local`), so it is never a session key.
 #[must_use]
 pub fn global_key(g: &GSym) -> String {
     match g {
@@ -1330,6 +1348,7 @@ pub fn global_key(g: &GSym) -> String {
         GSym::Canon(h, _) => format!("canon.{:032x}", h.0),
         GSym::Witness(f, a, _) => format!("wit.{:032x}.{:032x}", f.0, a.0),
         GSym::WitnessField(f, e, _) => format!("witf.{:032x}.{:032x}", f.0, e.0),
+        GSym::Closure(k, _) => format!("clo.{:032x}", k.0),
     }
 }
 
@@ -1346,12 +1365,24 @@ pub fn is_session_key(name: &str) -> bool {
 }
 
 /// A global `link` defines as a constant: a witness, a witness field, a
-/// canonical value. Any other global is a mutable, defaultable cell.
+/// canonical value, a constant closure. Any other global is a mutable,
+/// defaultable cell.
 fn constant_global(g: &GSym) -> bool {
     matches!(
         g,
-        GSym::Witness(..) | GSym::WitnessField(..) | GSym::Canon(_, VT::Ref(..))
+        GSym::Witness(..)
+            | GSym::WitnessField(..)
+            | GSym::Canon(_, VT::Ref(..))
+            | GSym::Closure(..)
     )
+}
+
+/// A global each module defines for itself, even in a session: a constant
+/// closure. Its value is a pure function of code the module can name, and
+/// function values have no identity, so sharing it would buy a few bytes
+/// per later module at the cost of one more kind of session key.
+fn module_local(g: &GSym) -> bool {
+    matches!(g, GSym::Closure(..))
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal
@@ -1491,6 +1522,10 @@ pub fn link(
                     .find(|w| w.0 == *family && w.1 == *args)
             {
                 calls.extend(w.2.iter().flatten().map(|k| Sym::Inst(*k)));
+            }
+            // A constant closure's code may be an earlier module's.
+            if let GSym::Closure(k, _) = g {
+                calls.insert(Sym::Inst(*k));
             }
         }
         let defined: BTreeSet<&Sym> = all.iter().map(|a| &a.0).collect();
@@ -1632,6 +1667,25 @@ pub fn link(
             );
             continue;
         }
+        if let GSym::Closure(k, v) = g {
+            let (VT::Ref(env, _), Some(&f)) = (v, func_idx.get(&Sym::Inst(*k))) else {
+                return unsupported("a constant closure without an environment or code");
+            };
+            let env = types.of(env);
+            globals.global(
+                GlobalType {
+                    val_type: types.val(g.vt()),
+                    mutable: false,
+                    shared: false,
+                },
+                &ConstExpr::extended([Instruction::RefFunc(f), Instruction::StructNew(env)]),
+            );
+            global_idx.insert(
+                g.clone(),
+                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+            );
+            continue;
+        }
         if let GSym::Canon(_, VT::Ref(t, _)) = g {
             let idx = types.of(t);
             globals.global(
@@ -1734,7 +1788,7 @@ pub fn link(
             export_sec.export(&key, ExportKind::Func, func_idx[s]);
         }
         for (g, &i) in &global_idx {
-            if !imported(g) {
+            if !imported(g) && !module_local(g) {
                 export_sec.export(&global_key(g), ExportKind::Global, i);
             }
         }

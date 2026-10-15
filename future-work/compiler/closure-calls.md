@@ -117,10 +117,12 @@ Also rejected:
   and a function's code depends on its callers' data. It costs more than
   C and gains nothing over it.
 - **Concrete adapter types or opaque returns:** owner-rejected API.
-- **Capture-free closures as constant globals** (codegen.md table, not
-  built yet) saves one allocation and one interning per construction.
-  The bench builds about 5 closures in total, so no gain here; it stays
-  a separate item.
+- **Capture-free closures as constant globals** (codegen.md table)
+  saves one allocation and one interning per construction. The bench
+  builds about 5 closures in total, so no gain here; it stays a separate
+  item. Built in #49 as plain lowering in every pipeline: a closure whose
+  environment holds no value is `global.get` of an immutable global per
+  closure code (`GSym::Closure`).
 
 ### 3.1 Option A2 in detail
 

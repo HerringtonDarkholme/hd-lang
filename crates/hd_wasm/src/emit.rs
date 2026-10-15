@@ -2889,12 +2889,18 @@ impl Em<'_> {
     /// A closure value: its code, the instance collection recorded (a
     /// closure body, or a function reference's adapter, codegen.md
     /// §13.11), and the captured locals `caps` (indices into
-    /// `cap_local`).
+    /// `cap_local`). A closure whose environment holds no value is the
+    /// constant global of its code (`GSym::Closure`), read without
+    /// allocating.
     fn closure_value(&mut self, i: u32, caps: std::ops::Range<usize>, ty: Ty) -> StageResult<()> {
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             return unsupported("a closure that collection did not record");
         };
         let (env, fields) = self.env_of(caps, ty)?;
+        if fields.is_empty() {
+            self.a.global_get(GSym::Closure(key, VT::r(env)));
+            return self.store(i);
+        }
         self.a.ref_func(Sym::Inst(key));
         for (_, l) in fields {
             self.a.get(l);

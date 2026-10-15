@@ -329,7 +329,7 @@ per build, `crates/hd_wasm/src/layout.rs` :117) carries it to every
 | --- | --- | --- | --- | --- |
 | closure code field (E1) | typed | abstract | typed | wasmtime: abstract is -21.5% dev and -31.3% release on closures; V8: abstract is +2.8% to +6.3% (closure-calls.md §7) |
 | E2, code index plus table (future) | | candidate | | closure-calls.md §3 |
-| capture-free closures as globals (future) | all | all | all | not engine-specific: such a choice belongs in no profile |
+| capture-free closures as globals (built, #49) | all | all | all | not engine-specific: plain lowering in `hd_wasm`, in no profile |
 
 A choice goes into the profile only if it is engine-specific and
 measured on at least two engines. A choice that helps every engine is

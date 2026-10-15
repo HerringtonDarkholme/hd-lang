@@ -166,8 +166,9 @@ translation of every instruction.
 
 - Every direct call stays a `call`; every `CallDyn` and `CallValue` is a
   `call_ref`.
-- Every construction allocates: a closure, its cells, an `Iterator`, a
-  box over the bound, a `Range` value.
+- Every construction allocates: a capturing closure, its cells, an
+  `Iterator`, a box over the bound, a `Range` value. A capture-free
+  closure is a constant global (#49).
 - Every literal read calls its module's literal getter, and every fact
   read its fact's getter.
 - Checks follow the spec's profile rules, which are semantics, not
