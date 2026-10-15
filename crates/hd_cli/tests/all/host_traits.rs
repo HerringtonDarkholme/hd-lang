@@ -733,10 +733,10 @@ pub fn main!() -> void $ Console + Net + Args:
     match net.connect!(\"bad host\", 80):
         .Ok(_) => println(\"connected\")
         .Err(e) => println(\"${debug(e)}\")
-    let mut a = match net.bind_udp!(\"127.0.0.1\", 0):
+    let mut b = match net.bind_udp!(\"127.0.0.1\", udp):
         .Ok(s) => s
         .Err(e) => return println(\"${e}\")
-    let mut b = match net.bind_udp!(\"127.0.0.1\", udp):
+    let mut a = match net.bind_udp!(\"127.0.0.1\", 0):
         .Ok(s) => s
         .Err(e) => return println(\"${e}\")
     _ := a.send_to!(\"127.0.0.1\", udp, \"hey\".to_utf8())
@@ -748,10 +748,20 @@ pub fn main!() -> void $ Console + Net + Args:
         .Err(e) => println(\"${e}\")
 ";
 
-/// A free loopback port.
+/// A free loopback TCP port.
 fn free_port() -> u16 {
     std::net::TcpListener::bind("127.0.0.1:0")
         .and_then(|l| l.local_addr())
+        .expect("a free port")
+        .port()
+}
+
+/// A free loopback UDP port. The TCP and UDP port spaces are separate, so
+/// a free TCP port can be held by another process's UDP socket, and
+/// `bind_udp!` reports an address in use as `Refused`.
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind("127.0.0.1:0")
+        .and_then(|s| s.local_addr())
         .expect("a free port")
         .port()
 }
@@ -764,7 +774,7 @@ fn free_port() -> u16 {
 /// Everything stays on the loopback interface.
 #[test]
 fn net_opens_sockets_inside_the_grant() {
-    let (tcp, udp) = (free_port(), free_port());
+    let (tcp, udp) = (free_port(), free_udp_port());
     let dir = work("host-net");
     write(&dir.join("main.hd"), NET_PROGRAM);
     let out = run(
