@@ -157,6 +157,62 @@ test("a rebuild serves every host call from the journal and prints nothing", asy
   repl.session.close();
 });
 
+test("later inputs edit an earlier input's type's facts, before and after a rebuild", async () => {
+  const repl = new Repl();
+  await repl.start();
+  // A walker that writes each member's `Column` fact, or else its name.
+  const columns = `use std.structure.{Structure, Field, Variant, Walker}
+
+data Column:
+    name: string
+
+trait Columns:
+    fn columns(self) -> string
+
+data Header:
+    out: string
+
+impl[S] Walker[S] for Header:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        name := match h.info.facts.find::[Column]():
+            .Some(c) => c.name
+            .None => h.info.name
+        self.out = "\${self.out}\${name};"
+        .Ok(())
+
+impl[T] Columns for T by Structure:
+    fn columns(self) -> string:
+        let mut w = Header { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+`;
+  for (const source of [
+    columns,
+    "data Row:\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
+    // A block with no trait, then a derivation block with member lines.
+    'impl Row by Structure:\n    total += [Column { name: "sum_total" }]\n',
+    'impl Columns for Row by Structure:\n    id = [Column { name: "key" }]\n    cache = pass\n',
+  ]) {
+    assert.equal(await repl.input(source), 0, repl.err);
+  }
+  assert.equal(await repl.input("Row { id: +1, total: +2 }.columns()\n"), 0);
+  const shown = '"key;sum_total;" : string\n';
+  assert.deepEqual(repl.printed(), [shown, ""]);
+  const journal = repl.session.journal()!;
+  repl.session = repl.fresh();
+  const rebuilt = await repl.session.rebuild(repl.rebuilder(), journal);
+  assert.deepEqual(rebuilt, { kept: [0, 1, 2, 3, 4, 5], skipped: [], dropped: [], reason: null });
+  assert.deepEqual(repl.printed(), ["", ""]);
+  assert.equal(await repl.input("Row { id: +3, total: +4 }.columns()\n"), 0);
+  assert.deepEqual(repl.printed(), [shown, ""]);
+  repl.session.close();
+});
+
 test("a stop cancels a waiting input; a rebuild skips it and drops from the first divergence", async () => {
   const repl = new Repl();
   await repl.start();

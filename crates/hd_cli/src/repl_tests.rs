@@ -445,14 +445,10 @@ fn a_later_input_derives_for_an_earlier_type() {
     assert_eq!(t.out, "true : bool\nfalse : bool\nfalse : bool\n");
 }
 
-/// A session is one module for member lines too (`annot.block.lines`,
-/// `annot.no-trait.then-blocks`): a block with no trait in one input and a
-/// later input's derivation block edit an earlier input's type, and the
-/// derived columns show both. `total` keeps its declaration fact under the
-/// added ones, `id` is renamed, and `cache` is left out.
-#[test]
-fn later_inputs_edit_an_earlier_type_s_facts() {
-    let lib = r#"use std.structure.{Structure, Field, Variant, Walker}
+/// `src/lib.hd` for the member-line tests: a `Column` fact and a
+/// `Columns` template whose walker writes each member's column name (its
+/// `Column` fact or else its own name) and how many facts it has.
+const COLUMNS_LIB: &str = r#"use std.structure.{Structure, Field, Variant, Walker}
 
 data Column:
     name: string
@@ -485,29 +481,74 @@ impl[T] Columns for T by Structure:
         _ := Structure::walk(self, w)
         w.out
 "#;
-    let dir = package("repl-member-lines", &[("src/lib.hd", lib)]);
-    let script = Script::of(&[
-        "data Row:",
-        "    @column(\"row_id\")",
-        "    id: i32",
-        "    @\"cents\"",
-        "    total: i32",
-        "    cache: i32 = +0",
-        "",
-        "use std.structure.Structure",
-        "",
-        "impl Row by Structure:",
-        "    total += [column(\"sum_total\")]",
-        "",
-        "impl Columns for Row by Structure:",
-        "    id = [column(\"key\")]",
-        "    total += [true]",
-        "    cache = pass",
-        "",
-        "Row { id: +1, total: +2 }.columns()",
-    ]);
+
+/// The member-line session: input 1 declares `Row`, input 3 is a block
+/// with no trait for it, input 4 a derivation block with member lines.
+const MEMBER_LINES: &[&str] = &[
+    "data Row:",
+    "    @column(\"row_id\")",
+    "    id: i32",
+    "    @\"cents\"",
+    "    total: i32",
+    "    cache: i32 = +0",
+    "",
+    "use std.structure.Structure",
+    "",
+    "impl Row by Structure:",
+    "    total += [column(\"sum_total\")]",
+    "",
+    "impl Columns for Row by Structure:",
+    "    id = [column(\"key\")]",
+    "    total += [true]",
+    "    cache = pass",
+    "",
+    "Row { id: +1, total: +2 }.columns()",
+];
+
+/// A session is one module for member lines too (`annot.block.lines`,
+/// `annot.no-trait.then-blocks`): a block with no trait in one input and a
+/// later input's derivation block edit an earlier input's type, and the
+/// derived columns show both. `total` keeps its declaration fact under the
+/// added ones, `id` is renamed, and `cache` is left out.
+#[test]
+fn later_inputs_edit_an_earlier_type_s_facts() {
+    let dir = package("repl-member-lines", &[("src/lib.hd", COLUMNS_LIB)]);
+    let script = Script::of(MEMBER_LINES);
     let t = session_in(&dir, script, |_| {});
     assert_eq!(t.out, "\"key/1;sum_total/3;\" : string\n");
+}
+
+/// `cli.repl.rebuild`: after `:reload` builds every input again from its
+/// text, the block with no trait and the derivation block's member lines
+/// still edit the earlier input's type, and a derivation written after the
+/// rebuild sees the block's facts too.
+#[test]
+fn member_lines_survive_a_rebuild() {
+    let dir = package("repl-member-lines-reload", &[("src/lib.hd", COLUMNS_LIB)]);
+    let mut lines = MEMBER_LINES.to_vec();
+    lines.extend([
+        ":reload",
+        "Row { id: +1, total: +2 }.columns()",
+        "data Pair:",
+        "    a: i32",
+        "    b: i32",
+        "",
+        "impl Pair by Structure:",
+        "    b += [column(\"second\")]",
+        "",
+        ":reload",
+        "impl Columns for Pair by Structure",
+        "Pair { a: +1, b: +2 }.columns()",
+    ]);
+    let t = session_in(&dir, Script::of(&lines), |_| {});
+    assert_eq!(
+        t.out,
+        "\"key/1;sum_total/3;\" : string\n\
+         reloaded: 5 inputs replayed\n\
+         \"key/1;sum_total/3;\" : string\n\
+         reloaded: 8 inputs replayed\n\
+         \"a/0;second/1;\" : string\n"
+    );
 }
 
 /// A later input implements `src/lib.hd`'s trait for an earlier input's
