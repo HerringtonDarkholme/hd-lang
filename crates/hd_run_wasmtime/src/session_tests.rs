@@ -1407,9 +1407,12 @@ fn host_operations_release_all_the_heap_they_hold() {
     });
     let fifo = Fifo::new("balance-fifo");
     let fifo_path = fifo.0.clone();
-    // Each read of the FIFO opens it, which lets the next write go on.
+    // One write per read, each started only when the test asks for it: a
+    // writer that opened while the previous reader was still open would
+    // add its bytes to that read.
+    let (go, gate) = std::sync::mpsc::channel::<()>();
     let feeder = std::thread::spawn(move || {
-        for _ in 0..3 {
+        while gate.recv().is_ok() {
             write_fifo(&fifo_path, &vec![b'x'; 100_000]);
         }
     });
@@ -1443,6 +1446,9 @@ fn host_operations_release_all_the_heap_they_hold() {
                 ),
                 ("race!(slow(), nap())\n".to_owned(), "\"timeout\" : string\n".to_owned()),
             ] {
+                if input.starts_with("slurp!") {
+                    go.send(()).expect("the feeder waits");
+                }
                 assert_eq!(repl.input(&input), Outcome::Exit(0), "{}", text(&io.err));
                 assert_eq!(text(&io.out), shown);
             }
@@ -1454,6 +1460,7 @@ fn host_operations_release_all_the_heap_they_hold() {
             "a reservation outlived its operation"
         );
     });
+    drop(go);
     feeder.join().expect("the feeder");
 }
 
