@@ -8,6 +8,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use super::api::{Failure, check_deadline};
+use crate::limits::Reservation;
+
+/// How much a special file's read takes before it asks the heap budget.
+const CHUNK: usize = 64 * 1024;
 
 /// Whether opening `path` can wait on another process: a FIFO, a device,
 /// a socket, or a Windows named pipe. A regular file, a directory, and a
@@ -26,7 +30,14 @@ pub(crate) fn is_special(path: &Path) -> bool {
     false
 }
 
-pub(crate) fn read(path: &Path, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
+/// The whole file. With `held`, the bytes are reserved in chunks as they
+/// are read, so a stream longer than the budget fails with
+/// `Failure::Exhausted` instead of growing without bound.
+pub(crate) fn read(
+    path: &Path,
+    deadline: Option<Instant>,
+    held: Option<&mut Reservation>,
+) -> Result<Vec<u8>, Failure> {
     let mut file = open(path, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
@@ -42,10 +53,34 @@ pub(crate) fn read(path: &Path, deadline: Option<Instant>) -> Result<Vec<u8>, Fa
         )));
     }
     let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|err| Failure::new("read", err))?;
+    match held {
+        None => {
+            file.read_to_end(&mut bytes)
+                .map_err(|err| Failure::new("read", err))?;
+        }
+        Some(held) => read_charged(&mut file, &mut bytes, held)?,
+    }
     check_deadline(deadline)?;
     Ok(bytes)
+}
+
+/// Reads to the end, reserving each chunk before keeping it.
+fn read_charged(
+    file: &mut File,
+    bytes: &mut Vec<u8>,
+    held: &mut Reservation,
+) -> Result<(), Failure> {
+    let mut chunk = vec![0; CHUNK];
+    loop {
+        let count = match file.read(&mut chunk) {
+            Ok(0) => return Ok(()),
+            Ok(count) => count,
+            Err(err) if err.kind() == ErrorKind::Interrupted => continue,
+            Err(err) => return Err(Failure::new("read", err)),
+        };
+        held.grow(count).map_err(|_| Failure::Exhausted)?;
+        bytes.extend_from_slice(&chunk[..count]);
+    }
 }
 
 pub(crate) fn write(

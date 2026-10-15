@@ -47,8 +47,9 @@ pub enum Done {
     Net(crate::net::Done),
     /// `Http.send!`: the response or the failure.
     Http(crate::http::client::Sent),
-    /// An `Fs` call on a special file: its encoded result.
-    Fs(crate::codec::Enc),
+    /// An `Fs` call on a special file: its encoded result, and the heap its
+    /// data holds.
+    Fs(crate::codec::Enc, crate::limits::Reservation),
     /// An operation whose data would pass the heap budget: it ended its
     /// work, and `.finish` panics `heap-exhausted`
     /// (`std-host.op.heap.exhausted`).

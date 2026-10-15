@@ -1370,8 +1370,8 @@ fn a_rebuilt_session_makes_no_network_call() {
 
 /// `std-host.op.heap`: what host operations hold is released at each
 /// `.finish` and at each abort. After many `run!`, `connect!`, `write!`,
-/// `read!` and `get!` calls, and a `race!` that cancels a `run!`, the heap
-/// ledger counts the store's memory alone again.
+/// `read!` and `get!` calls, a FIFO `read_bytes!`, and a `race!` that
+/// cancels a `run!`, the heap ledger counts the store's memory alone again.
 #[cfg(unix)]
 #[test]
 fn host_operations_release_all_the_heap_they_hold() {
@@ -1405,7 +1405,17 @@ fn host_operations_release_all_the_heap_they_hold() {
             let _ = stream.write_all(&body);
         }
     });
+    let fifo = Fifo::new("balance-fifo");
+    let fifo_path = fifo.0.clone();
+    // Each read of the FIFO opens it, which lets the next write go on.
+    let feeder = std::thread::spawn(move || {
+        for _ in 0..3 {
+            write_fifo(&fifo_path, &vec![b'x'; 100_000]);
+        }
+    });
     let declarations = [
+        "use std.fs.FsRead\nuse std.path.Path\n",
+        "fn slurp!(path: string) -> string $ FsRead:\n    match $.use(FsRead).read_bytes!(Path(path)):\n        .Ok(bytes) => \"read ${bytes.len()}\"\n        .Err(e) => \"${e}\"\n",
         "use std.process.{Process, ProcessError, ProcessOutput}\nuse std.net.{Net, NetError}\nuse std.http.{Http, HttpError, get}\nuse std.task.race\nuse std.time.{Clock, ms, sleep}\n",
         PROCESS_INPUTS[1],
         "fn fetch!(port: u16) -> string $ Net:\n    let mut net = $.use(Net)\n    let mut stream = match net.connect!(\"127.0.0.1\", port):\n        .Ok(s) => s\n        .Err(e) => return \"${e}\"\n    let written = stream.write!([1, 2, 3])\n    match stream.read!(100):\n        .Ok(bytes) => \"read ${bytes.len()} ${written.is_ok()}\"\n        .Err(e) => \"${e}\"\n",
@@ -1427,6 +1437,10 @@ fn host_operations_release_all_the_heap_they_hold() {
                 ),
                 (format!("fetch!({port})\n"), "\"read 2 true\" : string\n".to_owned()),
                 (format!("page!(\"{url}\")\n"), "\"status 200 100000\" : string\n".to_owned()),
+                (
+                    format!("slurp!({})\n", hd_path(&fifo.0)),
+                    "\"read 100000\" : string\n".to_owned(),
+                ),
                 ("race!(slow(), nap())\n".to_owned(), "\"timeout\" : string\n".to_owned()),
             ] {
                 assert_eq!(repl.input(&input), Outcome::Exit(0), "{}", text(&io.err));
@@ -1440,6 +1454,7 @@ fn host_operations_release_all_the_heap_they_hold() {
             "a reservation outlived its operation"
         );
     });
+    feeder.join().expect("the feeder");
 }
 
 /// The session inputs that declare `fetch!` over the `Http` provider and

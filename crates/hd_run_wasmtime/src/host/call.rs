@@ -144,9 +144,12 @@ pub(crate) fn call(
             }
         },
         Kind::Fs { finish: true, .. } => {
-            let Done::Fs(encoded) = finished(caller, params)? else {
+            let Done::Fs(encoded, held) = finished(caller, params)? else {
                 return Err(not_completed());
             };
+            // Released before the copy into the exchange buffer, which the
+            // store's memory growth counts.
+            drop(held);
             Ret::encoded(encoded)
         }
         Kind::Fs {
@@ -160,17 +163,13 @@ pub(crate) fn call(
                 Some(environment) => environment.cwd.clone(),
                 None => std::env::current_dir().map_err(|e| Stop::Internal(e.to_string()))?,
             };
-            match fs::start(key, method, &b, &host.grants, host.deadline(), &cwd)? {
+            let ledger = host.heap.ledger();
+            match fs::start(key, method, &b, &host.grants, host.deadline(), &cwd, ledger)? {
                 fs::Start::Ready(e) => Ret::ready(e)?,
-                fs::Start::Run(job) => {
-                    match host
-                        .reactor
-                        .offload(async move { Done::Fs(job.run().await) })
-                    {
-                        Ok(h) => Ret::pair(1, h),
-                        Err(error) => Ret::ready(fs::not_run(&error))?,
-                    }
-                }
+                fs::Start::Run(job) => match host.reactor.offload(job.run()) {
+                    Ok(h) => Ret::pair(1, h),
+                    Err(error) => Ret::ready(fs::not_run(&error))?,
+                },
             }
         }
         Kind::ProcessStart => {

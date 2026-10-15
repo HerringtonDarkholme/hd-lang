@@ -7,6 +7,7 @@ use crate::codec::Enc;
 
 use super::api::{Failure, check_deadline, entry, error};
 use super::io::{open, read, write};
+use crate::limits::Reservation;
 
 /// A guest path against the case's directory. An empty argument stays
 /// empty: Node rejects it instead of treating it as the working directory.
@@ -19,23 +20,36 @@ pub(crate) fn at(cwd: &Path, path: &str) -> std::path::PathBuf {
     }
 }
 
+/// Where and under what limits a call runs.
+pub(crate) struct Env<'a> {
+    pub(crate) cwd: &'a Path,
+    pub(crate) deadline: Option<Instant>,
+    /// Set for a special file: what its reads hold counts against the heap
+    /// budget.
+    pub(crate) held: Option<&'a mut Reservation>,
+}
+
 pub(crate) fn run(
     method: &str,
     path: &str,
     to: Option<&str>,
     payload: Option<&[u8]>,
     e: &mut Enc,
-    deadline: Option<Instant>,
-    cwd: &Path,
+    env: Env<'_>,
 ) -> Result<(), Failure> {
+    let Env {
+        cwd,
+        deadline,
+        held,
+    } = env;
     check_deadline(deadline)?;
     let actual = at(cwd, path);
     match method {
         "read_bytes" => {
-            e.leb(0).bytes(&read(&actual, deadline)?);
+            e.leb(0).bytes(&read(&actual, deadline, held)?);
         }
         "read_text" => {
-            let bytes = read(&actual, deadline)?;
+            let bytes = read(&actual, deadline, held)?;
             check_deadline(deadline)?;
             if let Ok(text) = std::str::from_utf8(&bytes) {
                 e.leb(0).str(text);

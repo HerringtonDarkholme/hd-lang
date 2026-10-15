@@ -4,6 +4,7 @@
 use std::fs;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use hd_run::Grants;
@@ -11,6 +12,7 @@ use hd_run::Grants;
 use super::api::{Job, Start, start};
 use super::test_support::TempDir;
 use crate::codec::{Dec, Enc};
+use crate::limits::{Ledger, is_heap_exhausted};
 
 fn fifo(dir: &TempDir) -> String {
     let path = dir.path("fifo");
@@ -19,6 +21,15 @@ fn fifo(dir: &TempDir) -> String {
 }
 
 fn begin(method: &str, path: &str, payload: Option<&[u8]>) -> Start {
+    begin_with(&Ledger::new(u64::MAX), method, path, payload).expect("start")
+}
+
+fn begin_with(
+    ledger: &Arc<Ledger>,
+    method: &str,
+    path: &str,
+    payload: Option<&[u8]>,
+) -> wasmtime::Result<Start> {
     let mut args = Enc::default();
     args.str(path);
     if let Some(bytes) = payload {
@@ -36,8 +47,8 @@ fn begin(method: &str, path: &str, payload: Option<&[u8]>) -> Start {
         &Grants::default(),
         None,
         &std::env::current_dir().unwrap(),
+        ledger,
     )
-    .expect("start")
 }
 
 fn job(method: &str, path: &str, payload: Option<&[u8]>) -> Job {
@@ -117,7 +128,7 @@ fn a_fifo_read_with_a_writer_reads_everything() {
     let mut writer = release(&path, true);
     writer.write_all(&payload).unwrap();
     drop(writer);
-    let encoded = reader.join().unwrap();
+    let (encoded, _held) = reader.join().unwrap().expect("within the budget");
     let mut dec = Dec::new(encoded.done());
     assert_eq!(dec.leb().unwrap(), 0);
     assert_eq!(dec.bytes().unwrap(), payload);
@@ -132,7 +143,10 @@ fn a_fifo_write_waits_for_a_reader() {
     let mut text = String::new();
     release(&path, false).read_to_string(&mut text).unwrap();
     assert_eq!(text, "through the pipe");
-    assert_eq!(writer.join().unwrap().done(), &[0]);
+    assert_eq!(
+        writer.join().unwrap().expect("within the budget").0.done(),
+        &[0]
+    );
 }
 
 #[test]
@@ -152,4 +166,96 @@ fn dropping_a_waiting_job_returns_at_once_and_leaves_the_thread() {
     // Let the lingering thread finish: a writer arrives and closes.
     drop(release(&path, true));
     drop(runtime);
+}
+
+/// A job on `ledger`, as `.start` makes it.
+fn job_on(ledger: &Arc<Ledger>, method: &str, path: &str, payload: Option<&[u8]>) -> Job {
+    match begin_with(ledger, method, path, payload).expect("start") {
+        Start::Run(job) => job,
+        Start::Ready(_) => panic!("{method} of a FIFO ran inline"),
+    }
+}
+
+/// `std-host.op.heap.exhausted`: a FIFO that streams more than the budget
+/// ends the read at the budget, where it would otherwise grow without
+/// bound. The bytes it reserved are released with the job.
+#[test]
+fn a_fifo_read_past_the_heap_budget_is_exhausted() {
+    let dir = TempDir::new();
+    let path = fifo(&dir);
+    let ledger = Ledger::new(100_000);
+    let reading = job_on(&ledger, "read_bytes", &path, None);
+    let reader = std::thread::spawn(move || reading.run_blocking());
+    let mut writer = release(&path, true);
+    // The reader stops at the budget and closes its end: the write ends in
+    // a broken pipe, never in 10 MB held.
+    let sent = writer.write_all(&vec![7; 10_000_000]);
+    assert!(sent.is_err(), "the reader went on past the budget");
+    drop(writer);
+    let Err(error) = reader.join().unwrap() else {
+        panic!("the read passed the heap budget");
+    };
+    assert!(is_heap_exhausted(&error.into()));
+    assert_eq!(ledger.charged(), 0, "the failed read kept a reservation");
+}
+
+/// A FIFO read within the budget holds what it read until `.finish`
+/// drops the reservation, and the ledger returns to zero.
+#[test]
+fn a_fifo_read_holds_its_bytes_until_finish() {
+    let dir = TempDir::new();
+    let path = fifo(&dir);
+    let ledger = Ledger::new(1_000_000);
+    let reading = job_on(&ledger, "read_bytes", &path, None);
+    let reader = std::thread::spawn(move || reading.run_blocking());
+    let mut writer = release(&path, true);
+    writer.write_all(&vec![7; 300_000]).unwrap();
+    drop(writer);
+    let (_, held) = reader.join().unwrap().expect("within the budget");
+    assert_eq!(ledger.charged(), 300_000);
+    drop(held);
+    assert_eq!(ledger.charged(), 0);
+}
+
+/// A write's payload is reserved at `.start`, and a payload past the
+/// budget panics there, before the FIFO is opened.
+#[test]
+fn a_fifo_write_reserves_its_payload_at_start() {
+    let dir = TempDir::new();
+    let path = fifo(&dir);
+    let ledger = Ledger::new(10);
+    let Err(error) = begin_with(&ledger, "write_bytes", &path, Some(&[0; 11])) else {
+        panic!("a payload past the budget started");
+    };
+    assert!(is_heap_exhausted(&error));
+    assert_eq!(ledger.charged(), 0);
+    let writing = job_on(&ledger, "write_bytes", &path, Some(&[1; 10]));
+    assert_eq!(ledger.charged(), 10);
+    let writer = std::thread::spawn(move || writing.run_blocking());
+    let mut bytes = Vec::new();
+    release(&path, false).read_to_end(&mut bytes).unwrap();
+    assert_eq!(bytes, [1; 10]);
+    let (_, held) = writer.join().unwrap().expect("within the budget");
+    drop(held);
+    assert_eq!(ledger.charged(), 0);
+}
+
+/// An inline regular file holds nothing: its data goes straight to the
+/// program's memory, which the budget already counts.
+#[test]
+fn a_regular_file_is_not_charged() {
+    let dir = TempDir::new();
+    let file = dir.path("file");
+    fs::write(&file, vec![1; 1000]).unwrap();
+    let ledger = Ledger::new(0);
+    let Start::Ready(read) = begin_with(&ledger, "read_bytes", &file, None).unwrap() else {
+        panic!("a regular file was offloaded");
+    };
+    assert_eq!(Dec::new(read.done()).leb().unwrap(), 0);
+    let Start::Ready(wrote) = begin_with(&ledger, "write_bytes", &file, Some(&[2; 1000])).unwrap()
+    else {
+        panic!("a regular file was offloaded");
+    };
+    assert_eq!(wrote.done(), &[0]);
+    assert_eq!(ledger.charged(), 0);
 }
