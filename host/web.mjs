@@ -11,7 +11,14 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import { createCoreHost, createSession, Enc, HostContract, isAsciiUrl } from "./core.mjs";
+import {
+  createCoreHost,
+  createSession,
+  Enc,
+  HostContract,
+  isAsciiUrl,
+  writtenHost,
+} from "./core.mjs";
 
 // `Method`'s variants (std.http), by index, as the wire names them.
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
@@ -29,9 +36,6 @@ const HTTP = {
 
 // The text of a request the browser refused (std-http.playground.refused).
 const REFUSED = "the browser refused the request: a network error or CORS";
-
-// The page's origin: the worker's, which is the page's.
-const ownOrigin = () => globalThis.location?.origin;
 
 // Each `name: value` line of `getAllResponseHeaders`, as a pair, in order.
 const headerPairs = (text) =>
@@ -61,7 +65,14 @@ export function browserSend({ method, url, headers, body, timeout }) {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
     return { error: "InvalidUrl", text: url };
   // The grant covers the page's own origin alone (std-http.playground.origin).
-  if (parsed.origin !== ownOrigin()) return { error: "NotGranted", text: parsed.hostname };
+  // The host is the one as written (std-http.url.grant, .no-normalize),
+  // not WHATWG's rewrite of it; the scheme and port are the origin's.
+  const host = writtenHost(url);
+  const own = globalThis.location;
+  const ownHost = own?.hostname.replace(/^\[(.*)\]$/, "$1").toLowerCase();
+  if (host !== ownHost || parsed.protocol !== own?.protocol || parsed.port !== own?.port) {
+    return { error: "NotGranted", text: host };
+  }
   const xhr = new XMLHttpRequest();
   try {
     xhr.open(method, parsed.href, false);

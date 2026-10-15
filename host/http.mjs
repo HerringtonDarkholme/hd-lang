@@ -20,7 +20,7 @@
 //   `Timeout` (std-http.send.timeout).
 import http from "node:http";
 import https from "node:https";
-import { isAsciiUrl } from "./core.mjs";
+import { isAsciiUrl, writtenHost } from "./core.mjs";
 import { workerData } from "node:worker_threads";
 import { createGrant } from "./node.mjs";
 
@@ -58,7 +58,7 @@ const failure = (e, host) => {
 };
 
 // One request without redirects, within `ms` milliseconds.
-const once = (url, method, headers, body, ms) =>
+const once = (url, host, method, headers, body, ms) =>
   new Promise((done) => {
     if (ms <= 0) {
       done(err("Timeout"));
@@ -81,18 +81,30 @@ const once = (url, method, headers, body, ms) =>
     // Headers go to Node as a raw list, which keeps repeated names in
     // order but makes Node skip its own `Host`; an HTTP/1.1 request
     // needs one (RFC 9112 3.2), so the URL's authority supplies it unless
-    // the request names its own.
-    const all = sized.some(([n]) => /^host$/i.test(n)) ? sized : [["Host", url.host], ...sized];
-    const req = lib.request(url, { method, headers: all.flat(), agent: false });
+    // the request names its own. The host is the one as written, not
+    // WHATWG's rewrite of it (std-http.url.no-normalize); a name such as
+    // `127.1` is the resolver's to resolve.
+    const shown = host.includes(":") ? `[${host}]` : host;
+    const authority = url.port ? `${shown}:${url.port}` : shown;
+    const all = sized.some(([n]) => /^host$/i.test(n)) ? sized : [["Host", authority], ...sized];
+    const req = lib.request({
+      protocol: url.protocol,
+      host,
+      port: url.port || undefined,
+      path: url.pathname + url.search,
+      method,
+      headers: all.flat(),
+      agent: false,
+    });
     const timer = setTimeout(() => {
       settle(err("Timeout"));
       req.destroy();
     }, ms);
-    req.on("error", (e) => settle(failure(e, url.hostname)));
+    req.on("error", (e) => settle(failure(e, host)));
     req.on("response", (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
-      res.on("error", (e) => settle(failure(e, url.hostname)));
+      res.on("error", (e) => settle(failure(e, host)));
       res.on("end", () => {
         const groups = new Map();
         for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
@@ -111,6 +123,7 @@ const once = (url, method, headers, body, ms) =>
 async function send(r) {
   const grant = createGrant(r.grants);
   let { method, url, body } = r;
+  let written = url;
   const deadline = Date.now() + (r.timeout ?? DEFAULT_TIMEOUT_MS);
   for (let redirects = 0; ; redirects++) {
     let u;
@@ -121,10 +134,10 @@ async function send(r) {
       return err("InvalidUrl", url);
     }
     if (u.protocol !== "http:" && u.protocol !== "https:") return err("InvalidUrl", url);
-    const host = u.hostname.replace(/^\[(.*)\]$/, "$1");
+    const host = writtenHost(written);
     const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
     if (!grant.coversHost("Http", host, port)) return err("NotGranted", host);
-    const got = await once(u, method, r.headers, body, deadline - Date.now());
+    const got = await once(u, host, method, r.headers, body, deadline - Date.now());
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
     if (got.error || ![301, 302, 303, 307, 308].includes(got.status) || location === undefined) {
       return got;
@@ -132,6 +145,11 @@ async function send(r) {
     // A Location outside printable ASCII is no RFC 3986 URL.
     if (!isAsciiUrl(location)) return err("InvalidUrl", location);
     url = new URL(location, u).href;
+    // A relative Location keeps the host as written; an absolute one
+    // brings its own.
+    if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location)) {
+      written = /^\/\//.test(location) ? `${u.protocol}${location}` : location;
+    }
     if (redirects === REDIRECTS) return err("TooManyRedirects", url);
     if (got.status === 303 || ((got.status === 301 || got.status === 302) && method === "POST")) {
       method = "GET";

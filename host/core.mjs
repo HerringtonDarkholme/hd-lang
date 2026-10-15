@@ -91,6 +91,17 @@ export const isAsciiUrl = (text) => {
   return !authority.slice(authority.lastIndexOf("@") + 1).includes("%");
 };
 
+// The host of an absolute URL as written, in lowercase and without the
+// brackets of an IPv6 literal (std-http.url.grant, .no-normalize): `new URL`
+// rewrites `127.1` to `127.0.0.1` and drops a trailing dot's meaning, which
+// a grant must not see.
+export const writtenHost = (text) => {
+  const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(text)?.[1] ?? "";
+  const hostport = authority.slice(authority.lastIndexOf("@") + 1);
+  const v6 = /^\[([^\]]*)\]/.exec(hostport);
+  return (v6 ? v6[1] : hostport.replace(/:[^:]*$/, "")).toLowerCase();
+};
+
 // A program's capability grant as `hd` resolved it (Grant Precedence):
 // each trait with a limit maps to `false`, a total deny, or the list of its
 // scope entries, whose paths are absolute and resolved; a trait it leaves

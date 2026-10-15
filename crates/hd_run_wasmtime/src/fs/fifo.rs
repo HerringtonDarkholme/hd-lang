@@ -5,6 +5,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use hd_run::Grants;
@@ -163,9 +164,30 @@ fn dropping_a_waiting_job_returns_at_once_and_leaves_the_thread() {
         .block_on(async { tokio::time::timeout(Duration::from_millis(100), waiting.run()).await });
     assert!(outcome.is_err(), "no writer has come, so the read waits");
     assert!(started.elapsed() < Duration::from_secs(2));
-    // Let the lingering thread finish: a writer arrives and closes.
-    drop(release(&path, true));
+    // The lingering thread must end, and dropping the runtime waits for it.
+    // A writer that opens and closes once can come before the reader's
+    // `open` returns, which leaves the reader in `read` for good on macOS.
+    // So a helper keeps opening and closing an end that never blocks until
+    // the thread is gone; each close ends the read of a reader that is in.
+    let finished = Arc::new(AtomicBool::new(false));
+    let helper = {
+        let (path, finished) = (path.clone(), finished.clone());
+        std::thread::spawn(move || {
+            while !finished.load(Ordering::SeqCst) {
+                let end = fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&path)
+                    .unwrap();
+                std::thread::sleep(Duration::from_millis(20));
+                drop(end);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        })
+    };
     drop(runtime);
+    finished.store(true, Ordering::SeqCst);
+    helper.join().unwrap();
 }
 
 /// A job on `ledger`, as `.start` makes it.

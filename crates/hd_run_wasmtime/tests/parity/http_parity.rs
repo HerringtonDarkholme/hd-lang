@@ -296,6 +296,78 @@ fn http_initial_and_redirect_grants_cover_host_and_port() {
     assert!(target.seen.lock().unwrap().is_empty());
 }
 
+/// `std-http.url.grant`, `.no-normalize`: a host is matched and connected
+/// as written, in lowercase. `127.1` is a name for the resolver, not the
+/// address `127.0.0.1`, so only a `127.1` entry grants it.
+#[test]
+fn http_host_is_taken_as_written_in_lowercase() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|_| (raw(200, &[("Content-Length", "0")], b""), Duration::ZERO));
+    let port = server.port();
+    let mut p = Program::new();
+    // The IPv4 shorthand is no `127.0.0.1`, so that entry does not cover it.
+    for written in ["127.1", "0x7f.1", "2130706433", "127.0.0.1."] {
+        p.call_waiting(
+            "hd:Http",
+            "send",
+            request(0, &format!("http://{written}:{port}/"), &[], b"", None),
+            error(0, written),
+        );
+    }
+    // A host is compared in lowercase, and reported in lowercase.
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &format!("http://EXAMPLE.test:{port}/"), &[], b"", None),
+        error(0, "example.test"),
+    );
+    assert_program(
+        &scratch,
+        p,
+        vec![("Http", Limit::Entries(vec![format!("127.0.0.1:{port}")]))],
+        || {},
+    );
+    assert!(server.seen.lock().unwrap().is_empty());
+}
+
+/// A `127.1` entry grants `127.1`, which the resolver turns into the
+/// loopback address; the `Host` header is the host as written, in lowercase.
+#[test]
+fn http_short_ipv4_host_connects_when_granted_as_written() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|_| (raw(200, &[("Content-Length", "0")], b""), Duration::ZERO));
+    let port = server.port();
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &format!("http://127.1:{port}/"), &[], b"", None),
+        response(200, &[("Content-Length", "0")], b""),
+    );
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &format!("http://LocalHost:{port}/"), &[], b"", None),
+        response(200, &[("Content-Length", "0")], b""),
+    );
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Http",
+            Limit::Entries(vec![format!("127.1:{port}"), format!("localhost:{port}")]),
+        )],
+        || {},
+    );
+    let seen = server.seen.lock().unwrap();
+    // Each engine sends both requests.
+    assert_eq!(seen.len(), 4);
+    for (i, r) in seen.iter().enumerate() {
+        let host = if i % 2 == 0 { "127.1" } else { "localhost" };
+        assert_eq!(r.values("Host"), [format!("{host}:{port}")]);
+    }
+}
+
 #[test]
 fn http_redirect_limit_precedes_next_hop_grant() {
     let scratch = Scratch::new();
