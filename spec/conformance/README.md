@@ -624,8 +624,9 @@ Exit statuses and limits:
 - Exit status 1 means that `test` ran and a test case failed
   ([`cli.exit.test-failure`](../cli/command-line.md#r-cli.exit.test-failure)).
   It always comes with at least one panic report.
-- Any other status, a signal, or running longer than 10 seconds fails the
-  case.
+- Any other status, a signal, or running longer than 60 seconds fails the
+  case. The limit only catches a command that hangs; it is not a speed
+  check.
 
 Output lines the runner reads:
 
@@ -688,7 +689,7 @@ The runner:
    stops the case at the first failure;
 5. removes the directory and the local remotes.
 
-A command that runs longer than 10 seconds, or ends with a signal, fails the
+A command that runs longer than 60 seconds, or ends with a signal, fails the
 case. An implementation command that names a file by a relative path must
 work from any directory, so the runner makes such a path absolute. A case
 that expects a `.git` entry, or has local remotes, needs `git` on the

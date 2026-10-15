@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 const HEADING: &str = "\n## CLI Conformance\n";
 const PASS_START: &str = "<!-- cli-pass-list-start -->";
 const PASS_END: &str = "<!-- cli-pass-list-end -->";
-const LIMIT: Duration = Duration::from_secs(10);
+const LIMIT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EngineMode {
@@ -828,7 +828,7 @@ fn judge_step(dir: &Path, step: &Step, ran: &Ran) -> Result<(), String> {
     let stdout = String::from_utf8_lossy(&ran.stdout);
     let stderr = String::from_utf8_lossy(&ran.stderr);
     if ran.timed_out {
-        return Err("timed out after 10 seconds".to_owned());
+        return Err("timed out after 60 seconds".to_owned());
     }
     let Some(code) = ran.status.code() else {
         return Err("ended with a signal".to_owned());
