@@ -341,19 +341,28 @@ impl Cx<'_> {
         }
         let opens: Vec<Ty> = (0..n).map(|k| open_param(pool, k)).collect();
         let (item, args) = match self.select(trait_, from, pool.list(targs), None)? {
-            Picked::Impl(impl_, mut impl_args) => match env.impl_method(impl_, m) {
-                Some(mi) if env.body(mi).is_some() => {
-                    impl_args.extend(opens);
-                    (mi, impl_args)
+            Picked::Impl(impl_, mut impl_args) => {
+                // As in `method_target`: a derived implementation on a
+                // nominal newtype forwards to the base implementation.
+                if self.env.is_derived_newtype_impl(impl_)
+                    && let Some(base) = self.erase_self_ty(from)
+                {
+                    return self.erased_target(trait_, m, base, targs, parent);
                 }
-                Some(_) => return err("a compiler-supplied generic method in a vtable"),
-                None => {
-                    let mut all = vec![from];
-                    all.extend_from_slice(targs);
-                    all.extend(opens);
-                    (m, all)
+                match env.impl_method(impl_, m) {
+                    Some(mi) if env.body(mi).is_some() => {
+                        impl_args.extend(opens);
+                        (mi, impl_args)
+                    }
+                    Some(_) => return err("a compiler-supplied generic method in a vtable"),
+                    None => {
+                        let mut all = vec![from];
+                        all.extend_from_slice(targs);
+                        all.extend(opens);
+                        (m, all)
+                    }
                 }
-            },
+            }
             Picked::Builtin => return err("a compiler-supplied generic method in a vtable"),
         };
         let args = pool.list(&args);

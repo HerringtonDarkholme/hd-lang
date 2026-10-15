@@ -138,7 +138,7 @@ impl BTy {
         json: Option<(&BoundaryMap, bool)>,
     ) -> StageResult<BTy> {
         let pool = lay.pool;
-        let t = lay.strip(t);
+        let t = lay.erase(t);
         let what = || format!("`{}` at the host boundary", pool.display(t));
         if depth > MAX_DEPTH {
             return unsupported(what());

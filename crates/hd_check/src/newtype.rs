@@ -2,17 +2,16 @@
 //! `trait.derive.newtype.base`): each applies the base type's method to the
 //! wrapped values and wraps the result back. Header lowering declares one
 //! method per method of the trait, with the trait's signature at `Self` =
-//! the newtype (`hd_resolve::lower`, as for a delegation); the bodies are
-//! written here by the same forwarder that writes a delegation's
-//! (`crate::delegate`), with `Self` positions converted on the way in and
-//! out.
+//! the newtype (`hd_resolve::lower`, as for a delegation). Erased newtypes
+//! forward to their base implementation directly, so no adapter bodies are
+//! built here; only the position findings are reported, by the same
+//! forwarder that writes a delegation's (`crate::delegate`).
 
 use hd_base::{DefId, StageResult};
 use hd_diag::DiagBuf;
 use hd_intern::PathKind;
 use hd_resolve::{ImplKind, ItemData};
 use hd_syntax::NodeRef;
-use hd_tir::Body;
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Prim, Ty, TyData};
 
@@ -27,19 +26,21 @@ pub struct DeriveFinding {
     pub message: String,
 }
 
-/// The bodies of the methods of every `@derive` on the newtype `newtype`,
-/// declared at `node`. A method with `Self` anywhere but the receiver,
-/// `Self`, `Self?`, `Result[Self, E]` or `List[Self]` has no body and is
-/// one finding (`trait.derive.newtype.self-error`).
-pub fn derived_newtype_bodies(
+/// The problems with the methods of every `@derive` on the newtype
+/// `newtype`, declared at `node`: a method with `Self` anywhere but the
+/// receiver, `Self`, `Self?`, `Result[Self, E]` or `List[Self]` is one
+/// finding (`trait.derive.newtype.self-error`). Erased newtypes forward
+/// to their base implementation directly, so no adapter bodies are
+/// built; the position analysis still runs to report its findings.
+pub fn derived_newtype_findings(
     cx: &BodyCx<'_>,
     newtype: DefId,
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
-) -> StageResult<(Vec<Body>, Vec<DeriveFinding>)> {
+) -> StageResult<Vec<DeriveFinding>> {
     let names = &cx.names;
     let pool = names.pool;
-    let (mut out, mut findings) = (Vec::new(), Vec::new());
+    let mut findings = Vec::new();
     for it in cx.lookup.own {
         let ItemData::Impl {
             trait_,
@@ -81,7 +82,7 @@ pub fn derived_newtype_bodies(
                 tm: names.member(*trait_, PathKind::Member, names.text(name)),
             };
             match fwd.body(cx, &sig, node, diags)? {
-                Forwarded::Body(b) => out.push(*b),
+                Forwarded::Body(_) => {}
                 Forwarded::Position(message) => findings.push(DeriveFinding {
                     impl_: it.def,
                     message,
@@ -90,7 +91,7 @@ pub fn derived_newtype_bodies(
             }
         }
     }
-    Ok((out, findings))
+    Ok(findings)
 }
 
 /// How a derived newtype's method values cross between the newtype and

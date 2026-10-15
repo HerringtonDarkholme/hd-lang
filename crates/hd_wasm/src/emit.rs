@@ -163,12 +163,11 @@ fn i32_of(i: usize) -> i32 {
     i32::try_from(i).expect("index")
 }
 
-/// The integer kind of a scalar type: bits, signed, float.
-fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
-    let t = match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
-    };
+/// The integer kind of a scalar type: bits, signed, float. Nominal
+/// newtypes erase to their base, as values do.
+fn num(lay: &Lay<'_>, t: Ty) -> (u8, bool, bool) {
+    let t = lay.erase(t);
+    let pool = lay.pool;
     match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::I8 => (8, true, false),
@@ -640,6 +639,17 @@ impl Em<'_> {
             Tag::Intrinsic => self.intrinsic(i, a, bw, ty)?,
             Tag::Coerce => self.coerce(i, a, bw, ty)?,
             Tag::NewData => {
+                if self.lay.is_newtype(ty) {
+                    // An erased newtype has no struct of its own:
+                    // construction forwards the one base value.
+                    let rec = self.rec(bw);
+                    let [r] = rec.as_slice() else {
+                        return unsupported("a newtype construction without one value");
+                    };
+                    let vs = self.vts(ty)?;
+                    self.load_as(*r, &vs)?;
+                    return self.store(i);
+                }
                 let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
                     return unsupported("a data value without a struct layout");
                 };
@@ -687,6 +697,18 @@ impl Em<'_> {
             }
             Tag::Field | Tag::FieldSet => {
                 let base_t = self.ty_of(a);
+                if self.lay.is_newtype(base_t) {
+                    // Unwrapping an erased newtype forwards the value
+                    // itself: there is no wrapper struct to read.
+                    let vs = self.vts(ty)?;
+                    if self.b.tags[i as usize] == Tag::Field {
+                        self.load_as(a, &vs)?;
+                    } else {
+                        let r = self.rec(bw);
+                        self.load_as(r[1], &vs)?;
+                    }
+                    return self.store_from(i, &vs);
+                }
                 let Shape::Data { ty: st, fields } = self.lay.shape(base_t)? else {
                     return unsupported("a field of a value without a struct layout");
                 };
@@ -1274,7 +1296,7 @@ impl Em<'_> {
     /// (`expr.op.std.intrinsic-method`) both come here.
     fn prim_value(&mut self, op: PrimOp, ops: &[u32], ty: Ty) -> StageResult<()> {
         let t0 = ops.first().map_or(Ty::I32, |r| self.ty_of(*r));
-        let (bits, signed, float) = num(self.pool(), t0);
+        let (bits, signed, float) = num(&self.lay, t0);
         let vt0 = self.vts(t0)?;
         if !matches!(vt0.as_slice(), [VT::I32 | VT::I64 | VT::F32 | VT::F64]) {
             return unsupported(format!("the operator {op:?} on this layout"));
@@ -1455,7 +1477,7 @@ impl Em<'_> {
         let Some(to) = to.first().cloned() else {
             return unsupported("a numeric cast to a type without a value");
         };
-        let (tbits, tsigned, tfloat) = num(self.pool(), ty);
+        let (tbits, tsigned, tfloat) = num(&self.lay, ty);
         self.comp(op, 0, from)?;
         let mut x = self.a.s();
         match (from, &to) {
@@ -2249,6 +2271,9 @@ impl Em<'_> {
             self.push_type_id(self_ty, ty)?;
             return self.store(i);
         }
+        // Erased newtypes share their base's intrinsic lowerings: the
+        // values are the base's values.
+        let self_ty = self.lay.erase(self_ty);
         let shape = self.lay.shape(self_ty)?;
         // The intrinsic methods of the primitives' std operator and
         // comparison implementations compute what the operator computes
@@ -2275,7 +2300,7 @@ impl Em<'_> {
                     self.a.end();
                     return Ok(());
                 }
-                let (_, signed, _) = num(self.pool(), self_ty);
+                let (_, signed, _) = num(&self.lay, self_ty);
                 self.comp(args[0], 0, v)?;
                 self.a.call(Sym::Helper(Helper::IntToStr {
                     wide: *v == VT::I64,
@@ -2337,7 +2362,7 @@ impl Em<'_> {
         if dv.as_slice() != [VT::I32] {
             return unsupported("an `Ordering?` that is not a tagged pair");
         }
-        let (_, _, float) = num(self.pool(), self.ty_of(ops[0]));
+        let (_, _, float) = num(&self.lay, self.ty_of(ops[0]));
         if float {
             // Ordered exactly when neither operand is NaN; `.None` has a
             // zero payload, as a constructed one does.
@@ -3520,7 +3545,7 @@ impl Em<'_> {
                 params,
             });
         }
-        if !inline_map_key(self.pool(), kt) {
+        if !inline_map_key(self.pool(), self.env(), kt) {
             return unsupported("a map key whose operations collection did not select");
         }
         Ok(match key {

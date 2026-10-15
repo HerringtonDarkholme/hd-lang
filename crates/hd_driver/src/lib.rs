@@ -4133,8 +4133,10 @@ impl Run<'_> {
                 }
             }
         }
-        // The methods of `@derive` on a newtype: the base type's, applied
-        // to the wrapped values (spec 09 `trait.derive.newtype.base`).
+        // Erased newtypes forward `@derive` methods to their base
+        // implementation directly: only the position findings are
+        // reported here, and no adapter bodies are built (spec 09
+        // `trait.derive.newtype.base`).
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Newtype)
@@ -4142,16 +4144,8 @@ impl Run<'_> {
             if failed.is_some() && !self.analyze() {
                 break;
             }
-            match hd_check::newtype::derived_newtype_bodies(&cx, h.def, h.node, &mut diags) {
-                Ok((bs, findings)) => {
-                    lock(&self.report).body_ok += bs.len();
-                    for b in &bs {
-                        let path = names.path(b.item);
-                        if self.host.render_tir.iter().any(|p| *p == path) {
-                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
-                        }
-                    }
-                    bodies.extend(bs);
+            match hd_check::newtype::derived_newtype_findings(&cx, h.def, h.node, &mut diags) {
+                Ok(findings) => {
                     for f in findings {
                         diags.error(
                             Code::NewtypeDerivationSelf,
@@ -7261,6 +7255,12 @@ impl LayoutEnv for Env<'_> {
             })
             .contains(&def)
     }
+    fn newtype_base(&self, def: DefId) -> Option<Ty> {
+        match &self.p.items.get(&def)?.data {
+            ItemData::Newtype(inner) => Some(*inner),
+            _ => None,
+        }
+    }
 }
 
 impl Env<'_> {
@@ -7489,6 +7489,18 @@ impl ProgramEnv for Env<'_> {
             } => Some((*self_ty, *trait_args, it.generics.len())),
             _ => None,
         }
+    }
+    fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
+        let Some(it) = self.p.items.get(&impl_) else {
+            return false;
+        };
+        let ItemData::Impl { self_ty, kind, .. } = &it.data else {
+            return false;
+        };
+        if *kind != hd_resolve::ImplKind::Derived {
+            return false;
+        }
+        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(&def).is_some_and(|i| matches!(i.data, ItemData::Newtype(_))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let item = self.p.items.get(&method)?;

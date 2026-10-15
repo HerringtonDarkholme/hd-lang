@@ -62,6 +62,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
+    /// Whether `impl_` is a `@derive` implementation on a nominal
+    /// newtype: its methods forward to the base type's implementation,
+    /// so with erased newtypes calls use the base method directly and
+    /// no adapter instance is collected.
+    fn is_derived_newtype_impl(&self, impl_: DefId) -> bool;
     /// The method of `impl_` that implements the trait method `method`.
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
     /// A trait's own methods, in declaration order (the vtable shape),
@@ -1715,6 +1720,27 @@ impl Cx<'_> {
         }
     }
 
+    /// `t` with an outer nominal newtype erased to its base, keeping an
+    /// outer `mut`: `None` when `t` is no newtype. Derived-newtype
+    /// adapters forward to the base implementation, so with erased
+    /// newtypes calls use the base method directly (no adapter
+    /// instance).
+    fn erase_self_ty(&self, t: Ty) -> Option<Ty> {
+        let pool = self.pool;
+        let (inner, is_mut) = match pool.get(t) {
+            TyData::Mut(i) => (i, true),
+            _ => (t, false),
+        };
+        let base = crate::layout::strip_newtype(pool, self.env, inner);
+        (base != inner).then(|| {
+            if is_mut {
+                pool.intern_ty(&TyData::Mut(base))
+            } else {
+                base
+            }
+        })
+    }
+
     /// The target of a trait method at a concrete self type: the impl's
     /// method, the trait's default body, or a built-in lowering.
     fn method_target(
@@ -1738,6 +1764,15 @@ impl Cx<'_> {
                 return Ok(self.builtin_target(method, self_ty, targs));
             }
         };
+        // A derived implementation on a nominal newtype forwards to the
+        // base type's implementation: erase and select there, collecting
+        // no adapter instance. Hand-written methods on newtypes keep
+        // their bodies.
+        if self.env.is_derived_newtype_impl(impl_)
+            && let Some(base) = self.erase_self_ty(self_ty)
+        {
+            return self.method_target(trait_, method, base, targs, None, parent);
+        }
         match self.env.impl_method(impl_, method) {
             Some(m) if self.env.body(m).is_some() => {
                 let mut all = impl_args;
@@ -2036,7 +2071,7 @@ impl Cx<'_> {
         let Some(&key) = pool.list_items(args).first() else {
             return err("a map type without a key");
         };
-        if layout::inline_map_key(pool, key) {
+        if layout::inline_map_key(pool, self.env, key) {
             return Ok(None);
         }
         let Some((eq_trait, eq_method, hash_of)) = self.env.map_key_items() else {

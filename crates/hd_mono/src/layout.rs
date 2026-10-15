@@ -5,7 +5,7 @@
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use std::collections::{HashMap, HashSet};
 
-use hd_types::{InternPool, Prim, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 /// The A1 class of a move-only type argument (§13.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -80,10 +80,41 @@ pub enum StdKind {
 
 /// Whether a map key type hashes and compares inline (codegen.md §13.12):
 /// an integer, `bool`, `char` or `string`, whose `Eq` and `Hash` are
-/// std's fixed ones. Every other key calls its own impls.
+/// std's fixed ones, erasing newtypes to their base. Every other key
+/// calls its own impls.
 #[must_use]
-pub fn inline_map_key(pool: &InternPool, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Prim(p) if !matches!(p, Prim::F32 | Prim::F64))
+pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
+    matches!(
+        pool.get(strip_newtype(pool, env, t)),
+        TyData::Prim(p) if !matches!(p, Prim::F32 | Prim::F64)
+    )
+}
+
+/// Follows nominal newtypes to their bases, substituting arguments: a
+/// newtype erases to its base at run time (`types.newtype.construct-ref`,
+/// `types.newtype.construct-value`), so value layouts see the base. Type
+/// identity stays nominal; only layouts strip.
+#[must_use]
+pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
+    let mut t = t;
+    // A newtype cycle has no values, so collection never lays one out;
+    // the guard keeps a pathological declaration from hanging layout.
+    let mut seen = HashSet::new();
+    while let TyData::Adt { def, args } = pool.get(t) {
+        if !seen.insert(def) {
+            break;
+        }
+        let Some(base) = env.newtype_base(def) else {
+            break;
+        };
+        let argv = pool.list_items(args);
+        t = pool.subst(base, &|p: ParamRef| {
+            (p.owner == def)
+                .then(|| argv.get(usize::from(p.index)).copied())
+                .flatten()
+        });
+    }
+    t
 }
 
 /// What layouts need to know about declared types (enum shapes).
@@ -99,6 +130,10 @@ pub trait LayoutEnv {
     /// Which built-in std type `def` is, if any. Required: a default of
     /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
     fn std_kind(&self, def: DefId) -> StdKind;
+    /// The base type a nominal newtype erases to at run time, over its
+    /// own parameters (`types.newtype.construct-ref`,
+    /// `types.newtype.construct-value`); `None` for any other item.
+    fn newtype_base(&self, def: DefId) -> Option<Ty>;
 }
 
 /// The layout of a type (§15.1 and the value table of §15.2). Every type
@@ -108,6 +143,7 @@ pub trait LayoutEnv {
 /// are laid out first, innermost first (`value_enums`), so the recursion
 /// is only as deep as tuples and optionals nest.
 pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
+    let t = strip_newtype(pool, env, t);
     let mut memo: HashMap<Ty, Layout> = HashMap::new();
     for e in value_enums(pool, env, t) {
         let l = layout_in(pool, env, e, &memo)?;
@@ -123,7 +159,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
 pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
-    let mut stack = vec![(t, false)];
+    let mut stack = vec![(strip_newtype(pool, env, t), false)];
     while let Some((t, finished)) = stack.pop() {
         if finished {
             out.push(t);
@@ -157,6 +193,7 @@ fn layout_in(
     t: Ty,
     memo: &HashMap<Ty, Layout>,
 ) -> StageResult<Layout> {
+    let t = strip_newtype(pool, env, t);
     if let Some(l) = memo.get(&t) {
         return Ok(l.clone());
     }
@@ -897,6 +934,9 @@ mod tests {
         fn std_kind(&self, _: DefId) -> StdKind {
             StdKind::Other
         }
+        fn newtype_base(&self, _: DefId) -> Option<Ty> {
+            None
+        }
     }
 
     /// Declared enums for `recursive_enums`, by raw id.
@@ -916,6 +956,9 @@ mod tests {
         }
         fn std_kind(&self, _: DefId) -> StdKind {
             StdKind::Other
+        }
+        fn newtype_base(&self, _: DefId) -> Option<Ty> {
+            None
         }
     }
 

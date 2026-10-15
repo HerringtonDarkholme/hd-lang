@@ -23,7 +23,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
-use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, value_enums};
+use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, strip_newtype, value_enums};
 use hd_mono::{ProgramEnv, class_ref, is_class_ref, is_open, key_order, own_count, subst};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -615,6 +615,20 @@ impl<'a> Lay<'a> {
         }
     }
 
+    /// The type as values see it: `mut` stripped and nominal newtypes
+    /// erased to their bases (`types.newtype.construct-ref`,
+    /// `types.newtype.construct-value`). Only value layouts erase;
+    /// identity stays nominal.
+    pub(crate) fn erase(&self, t: Ty) -> Ty {
+        strip_newtype(self.pool, self.env, self.strip(t))
+    }
+
+    /// Whether `t` is nominally a newtype: values of `t` erase to their
+    /// base, so construction and unwrapping forward the value itself.
+    pub(crate) fn is_newtype(&self, t: Ty) -> bool {
+        matches!(self.pool.get(self.strip(t)), TyData::Adt { def, .. } if self.env.newtype_base(def).is_some())
+    }
+
     /// A trait value's vtable key (codegen.md §13.5, "As built (#193)"):
     /// the trait, its arguments and the binding of every associated type
     /// the trait reaches, so a slot naming `Self::Item` has a concrete
@@ -824,7 +838,7 @@ impl<'a> Lay<'a> {
     /// The Wasm values of a type in locals, parameters and results.
     pub fn vts(&self, t: Ty) -> StageResult<Vec<VT>> {
         let pool = self.pool;
-        let t = self.strip(t);
+        let t = self.erase(t);
         // An open value is the caller's representation, viewed as `eqref`
         // (codegen.md §13.5.1).
         if is_class_ref(pool, t) || is_open(pool, t) {
@@ -937,7 +951,7 @@ impl<'a> Lay<'a> {
     /// (`hd_mono::layout::recursive_enums`), so it ends.
     fn flat(&self, t: Ty) -> StageResult<Vec<Flat>> {
         let pool = self.pool;
-        let t = self.strip(t);
+        let t = self.erase(t);
         if is_class_ref(pool, t) {
             return Ok(vec![Flat::V(VT::Eq)]);
         }
@@ -1587,7 +1601,7 @@ impl<'a> Lay<'a> {
     /// its parts.
     pub fn shape(&self, t: Ty) -> StageResult<Shape> {
         let pool = self.pool;
-        let t = self.strip(t);
+        let t = self.erase(t);
         if is_class_ref(pool, t) {
             return Ok(Shape::ClassRef);
         }

@@ -234,3 +234,46 @@ type Tag(string)
 ";
     assert_eq!(codes_of(keyed), vec![Code::NewtypeDerivationSelf]);
 }
+
+#[test]
+fn a_newtype_wraps_no_new_object() {
+    // `types.newtype.construct-ref`: constructing over an `AnyRef` base
+    // creates no new object, so the wrapper and the base are identical
+    // through `dyn Any`.
+    let main = "\
+data User:
+    name: string
+
+type Owner(User)
+
+fn same(a: dyn Any, b: dyn Any) -> bool:
+    a is b
+
+pub fn main() -> void $ Console:
+    u := User { name: \"ada\" }
+    println(same(Owner(u), u))
+";
+    assert_eq!(output_of("identity", main), "true\n");
+}
+
+#[test]
+fn handwritten_methods_on_newtypes_keep_their_bodies() {
+    // Only `@derive` implementations forward; a written method on a
+    // newtype still runs its own body.
+    let main = "\
+data User:
+    name: string
+
+type Owner(User)
+
+impl Owner:
+    pub fn tag(self) -> string:
+        \"owner\"
+
+pub fn main() -> void $ Console:
+    u := User { name: \"ada\" }
+    println(Owner(u).tag())
+    println(User(Owner(u)).name)
+";
+    assert_eq!(output_of("handwritten", main), "owner\nada\n");
+}
