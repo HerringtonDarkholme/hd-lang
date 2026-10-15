@@ -150,6 +150,10 @@ opts in, and graph lifetimes.
 first release has no serializable closures. The decision above waits
 until after it.
 
+**Design study (#166, 2026-10-15).** Reopened under the owner's goals of
+remote calls, data fetching, security, caching, and a minimal wire:
+[Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md).
+
 ### Observability Hooks
 
 **Problem.** There is no task-local carrier for trace context and no

@@ -45,7 +45,9 @@ action at a distance.
 - **Access control and tenancy**
   ([Open Issues](OPEN_ISSUES.md#access-control-and-tenancy-expressibility)).
 - **Serializable closures**, not in v1 (2026-10-06)
-  ([Open Issues](OPEN_ISSUES.md#serializable-closures-and-incremental-computation)).
+  ([Open Issues](OPEN_ISSUES.md#serializable-closures-and-incremental-computation));
+  reopened as a design study, #166
+  ([study](SERIALIZABLE_CLOSURE_DESIGN.md)).
 - **Observability and replay hooks**: the hook API and replay come after
   the reserved no-op hook points (2026-10-06)
   ([Open Issues](OPEN_ISSUES.md#observability-hooks)).
