@@ -1,6 +1,6 @@
 # Agent Skills For hd
 
-This folder holds four reusable skills for agents that work on hd's
+This folder holds five reusable skills for agents that work on hd's
 design. Each is a standard [Agent Skills](https://agentskills.io/home)
 folder, `SKILL.md` with `name` and `description` frontmatter.
 
@@ -10,8 +10,9 @@ folder, `SKILL.md` with `name` and `description` frontmatter.
 | [`complexity-reducer`](skills/complexity-reducer/SKILL.md) | find cuts and merges in a design or spec area, with soundness and rule accounting |
 | [`brainstorm`](skills/brainstorm/SKILL.md) | survey other languages and compare three to five options for an open question |
 | [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, compiler, docs, checks, and push |
+| [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
 
-All four follow [skills/shared-rules.md](skills/shared-rules.md): the owner
+All five follow [skills/shared-rules.md](skills/shared-rules.md): the owner
 decides design, agents only ask (only `spec-update` edits the spec, and only
 to apply a decision), and the git, safety, and writing rules.
 
