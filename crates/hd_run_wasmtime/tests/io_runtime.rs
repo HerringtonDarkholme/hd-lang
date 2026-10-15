@@ -2,6 +2,9 @@
 //! program that makes no offloaded host call starts no thread. Its own
 //! test binary, so no other test in the process starts the runtime.
 
+#[path = "support/hd_source.rs"]
+mod hd_source;
+
 use hd_driver::{Executor, Goal, Host, NoClock};
 use hd_project::MemorySources;
 use hd_run::{Grants, HostSetup, Limits};
@@ -24,9 +27,9 @@ fn regular_file_fs_calls_start_no_io_runtime() {
     std::fs::create_dir_all(&dir).expect("makes a directory");
     let file = dir.join("data.txt");
     let source = format!(
-        "use std.fs.{{FsRead, FsWrite, read_text, write_text}}\nuse std.path.Path\n\npub fn main!() -> void $ Console + FsRead + FsWrite:\n    _ := write_text!(Path(\"{file}\"), \"inline\")\n    println(read_text!(Path(\"{file}\")).unwrap_or(\"failed\"))\n    println(read_text!(Path(\"{dir}\")).is_ok())\n",
-        file = file.display(),
-        dir = dir.display(),
+        "use std.fs.{{FsRead, FsWrite, read_text, write_text}}\nuse std.path.Path\n\npub fn main!() -> void $ Console + FsRead + FsWrite:\n    _ := write_text!(Path({file}), \"inline\")\n    println(read_text!(Path({file})).unwrap_or(\"failed\"))\n    println(read_text!(Path({dir})).is_ok())\n",
+        file = hd_source::hd_path(&file),
+        dir = hd_source::hd_path(&dir),
     );
     let ran = run_main(&source);
     let _ = std::fs::remove_dir_all(&dir);

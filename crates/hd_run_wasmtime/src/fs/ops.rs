@@ -244,6 +244,28 @@ mod tests {
             assert_eq!(invoke(method, &path, None).done(), expected.done());
         }
     }
+    /// A directory used as a file is `IsADirectory` on every OS, whatever
+    /// code the OS gives (Windows: "Incorrect function" on read, "The
+    /// parameter is incorrect" on a write-open).
+    #[test]
+    fn a_directory_read_or_written_as_a_file_is_a_directory_error() {
+        let dir = TempDir::new();
+        let path = dir.0.to_string_lossy().into_owned();
+        for method in ["read_text", "read_bytes"] {
+            assert_eq!(
+                invoke(method, &path, None).done(),
+                error(&path, 5).done(),
+                "{method}"
+            );
+        }
+        for method in ["write_bytes", "write_text", "append_text"] {
+            assert_eq!(
+                invoke(method, &path, Some(b"no")).done(),
+                error(&path, 5).done(),
+                "{method}"
+            );
+        }
+    }
     #[test]
     fn recursive_mkdir_and_stat_have_node_edge_behavior() {
         let dir = TempDir::new();

@@ -219,6 +219,11 @@ mod tests {
     use std::net::{TcpListener, TcpStream};
     use std::time::{Duration, Instant};
 
+    /// The fixture's guarantee: against a peer that never reads, every
+    /// write returns within its budget with a timeout, not a hang. How
+    /// much a socket takes before it blocks differs by OS (Windows
+    /// loopback absorbs megabytes whatever the send buffer says), so
+    /// write bounded chunks until one runs out of budget.
     #[test]
     fn response_fixture_bounds_backpressured_writes() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -227,10 +232,17 @@ mod tests {
         let socket = socket2::Socket::from(client);
         socket.set_send_buffer_size(4096).unwrap();
         let mut stream: TcpStream = socket.into();
-        let payload = vec![0; 16 * 1024 * 1024];
-        let start = Instant::now();
-        let result = write_response_with_budget(&mut stream, &payload, Duration::from_millis(30));
-        assert!(start.elapsed() < Duration::from_secs(2));
+        let chunk = vec![0; 1024 * 1024];
+        let mut result = Ok(());
+        // At most 1 GiB: no socket buffers that much for an idle peer.
+        for _ in 0..1024 {
+            let start = Instant::now();
+            result = write_response_with_budget(&mut stream, &chunk, Duration::from_millis(30));
+            assert!(start.elapsed() < Duration::from_secs(2));
+            if result.is_err() {
+                break;
+            }
+        }
         assert!(matches!(
             result.unwrap_err().kind(),
             std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock

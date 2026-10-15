@@ -454,7 +454,21 @@ mod tests {
                 address.port(),
             ))
             .unwrap_err();
-        assert_eq!(error.variant, 3);
-        assert_eq!(error.text, format!("localhost:{}", address.port()));
+        // The error kept is the first candidate's. Where a closed port
+        // refuses at once, that is `Refused`. Windows refuses a closed
+        // loopback port only after about two seconds, past the 250 ms
+        // attempt timer, so there the first candidate's error is its
+        // timeout: an `Other` that names the first address.
+        match error.variant {
+            3 => assert_eq!(error.text, format!("localhost:{}", address.port())),
+            4 => assert!(
+                error
+                    .text
+                    .starts_with(&format!("connect {refused_address}: ")),
+                "{}",
+                error.text
+            ),
+            variant => panic!("unexpected error variant {variant}: {}", error.text),
+        }
     }
 }

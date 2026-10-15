@@ -3,7 +3,7 @@
 //! so nothing here polls.
 
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use std::time::Instant;
 
@@ -30,6 +30,11 @@ pub(crate) fn read(path: &Path, deadline: Option<Instant>) -> Result<Vec<u8>, Fa
     let mut file = open(path, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
+    if st.is_dir() {
+        // Windows reads a directory handle with "Incorrect function"; no
+        // OS is asked, so every OS reports the same `IsADirectory`.
+        return Err(Failure::new("read", ErrorKind::IsADirectory.into()));
+    }
     if st.is_file() && st.len() > 0x7fff_ffff {
         return Err(Failure::Message(format!(
             "File size ({}) is greater than 2 GiB",
@@ -78,7 +83,17 @@ pub(crate) fn open(
         options.custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
     }
     check_deadline(deadline)?;
-    options.open(path).map_err(|err| Failure::new("open", err))
+    options.open(path).map_err(|err| {
+        // Windows refuses a write-open of a directory with "The parameter
+        // is incorrect"; a path that is a directory is `IsADirectory`
+        // whatever the OS code is, as the Unix `EISDIR` already is.
+        let err = if write && path.is_dir() {
+            ErrorKind::IsADirectory.into()
+        } else {
+            err
+        };
+        Failure::new("open", err)
+    })
 }
 
 /// A path in the Windows device namespace, where named pipes and other

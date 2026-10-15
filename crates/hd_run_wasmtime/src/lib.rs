@@ -30,6 +30,9 @@ mod core;
 mod deadline;
 mod engine;
 mod fs;
+#[cfg(test)]
+#[path = "../tests/support/hd_source.rs"]
+mod hd_source;
 mod host;
 mod http;
 mod instance;

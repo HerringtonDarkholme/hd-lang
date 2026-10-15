@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 use hd_run::{HostSetup, Outcome};
 
+use crate::hd_source::{hd_path, hd_string};
 use crate::{EngineConfig, HostIo, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
 
 #[path = "session_parity_tests.rs"]
@@ -530,9 +531,15 @@ fn an_input_makes_bang_calls_at_top_level() {
         "use std.time.{sleep, Duration}\n".to_owned(),
         "sleep!(Duration.milliseconds(+1))\n".to_owned(),
         "use std.fs.{read_text}\nuse std.path.{Path}\n".to_owned(),
-        format!("text := read_text!(Path(\"{manifest}\")).unwrap_or(\"\")\n"),
+        format!(
+            "text := read_text!(Path({})).unwrap_or(\"\")\n",
+            hd_string(manifest)
+        ),
         "println(text.contains(\"hd_run_wasmtime\"))\n".to_owned(),
-        format!("read_text!(Path(\"{manifest}/missing\")).is_ok()\n"),
+        format!(
+            "read_text!(Path({})).is_ok()\n",
+            hd_string(&format!("{manifest}/missing"))
+        ),
     ];
     with_session(|session, io| {
         let mut repl = repl(session);
@@ -1000,8 +1007,8 @@ fn a_rebuilt_session_repeats_no_host_call() {
         "use std.time.{now}\nuse std.fs.{read_text}\nuse std.path.{Path}\nuse std.console.{read_line}\n".to_owned(),
         "started := now().unix_milliseconds()\n".to_owned(),
         format!(
-            "text := read_text!(Path(\"{}\")).unwrap_or(\"\")\n",
-            path.display()
+            "text := read_text!(Path({})).unwrap_or(\"\")\n",
+            hd_path(&path)
         ),
         "answer := read_line!()\n".to_owned(),
         "println(\"read ${text}\")\n".to_owned(),
@@ -1235,7 +1242,8 @@ fn a_rebuilt_session_runs_no_child_again() {
     let script = format!("printf ran >> {}; printf out", path.display());
     let mut inputs: Vec<String> = PROCESS_INPUTS.iter().map(|s| (*s).to_owned()).collect();
     inputs.push(format!(
-        "out := run!(\"/bin/sh\", [\"-c\", \"{script}\"])\n"
+        "out := run!(\"/bin/sh\", [\"-c\", {}])\n",
+        hd_string(&script)
     ));
     inputs.push("out\n".to_owned());
     with_session(|session, io| {
@@ -1708,7 +1716,7 @@ fn a_race_ends_a_fifo_read_at_the_sleep() {
         for input in FS_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let built = repl.build(&format!("race!(slurp(\"{}\"), nap())\n", fifo.0.display()));
+        let built = repl.build(&format!("race!(slurp({}), nap())\n", hd_path(&fifo.0)));
         let started = Instant::now();
         assert_eq!(repl.run(built), Outcome::Exit(0), "{}", text(&io.err));
         let took = started.elapsed();
@@ -1736,7 +1744,7 @@ fn a_fifo_read_with_a_writer_reads_everything_in_a_session() {
         for input in FS_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let shown = repl.input(&format!("slurp!(\"{}\")\n", fifo.0.display()));
+        let shown = repl.input(&format!("slurp!({})\n", hd_path(&fifo.0)));
         assert_eq!(shown, Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "\"read 200000\" : string\n");
     });
@@ -1756,7 +1764,7 @@ fn a_stop_during_a_fifo_read_cancels_the_input() {
         for input in FS_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let built = repl.build(&format!("x := slurp!(\"{}\")\n", fifo.0.display()));
+        let built = repl.build(&format!("x := slurp!({})\n", hd_path(&fifo.0)));
         let stopping = {
             let stopper = stopper.clone();
             std::thread::spawn(move || {
@@ -1795,7 +1803,7 @@ fn a_rebuilt_session_reads_no_fifo_again() {
         write_fifo(&path, b"journaled");
     });
     let mut inputs: Vec<String> = FS_INPUTS.iter().map(|s| (*s).to_owned()).collect();
-    inputs.push(format!("out := slurp!(\"{}\")\n", fifo.0.display()));
+    inputs.push(format!("out := slurp!({})\n", hd_path(&fifo.0)));
     inputs.push("out\n".to_owned());
     with_session(|session, io| {
         let mut repl = repl_with_prelude(session);
