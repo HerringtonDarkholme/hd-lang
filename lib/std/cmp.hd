@@ -244,11 +244,11 @@ impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
         if self.len() != other.len():
             return false
         for (key, value) in self:
-            match other.get(key):
-                .Some(found) =>
-                    if found != value:
-                        return false
+            found := match other.get(key):
+                .Some(hit) => hit
                 .None => return false
+            if found != value:
+                return false
         true
 
 impl[T < Ord] Ord for List[T]:
