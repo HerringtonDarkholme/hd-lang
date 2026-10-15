@@ -67,8 +67,11 @@ export function browserSend({ method, url, headers, body, timeout }) {
   // The grant covers the page's own origin alone (std-http.playground.origin).
   // The host is the one as written (std-http.url.grant, .no-normalize),
   // not WHATWG's rewrite of it; the scheme and port are the origin's.
+  // The page's origin is the worker's; only its `origin` string is relied
+  // on, as every location has one.
   const host = writtenHost(url);
-  const own = globalThis.location;
+  const origin = globalThis.location?.origin;
+  const own = origin ? new URL(origin) : undefined;
   const ownHost = own?.hostname.replace(/^\[(.*)\]$/, "$1").toLowerCase();
   if (host !== ownHost || parsed.protocol !== own?.protocol || parsed.port !== own?.port) {
     return { error: "NotGranted", text: host };
