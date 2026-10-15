@@ -1,4 +1,3 @@
-use std::fs::Metadata;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -10,8 +9,9 @@ use crate::codec::{Dec, Enc};
 use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Done;
 
-use super::io::{is_special, open, read, write};
+use super::io::{open, read, write};
 use super::ops::{Env, at, run};
+use super::sandbox::{Place, Sandbox, Stat, is_escape};
 
 pub(crate) const READ: &[&str] = &["read_bytes", "read_text", "list_dir", "stat"];
 pub(crate) const WRITE: &[&str] = &[
@@ -40,7 +40,7 @@ pub(crate) enum Start {
     Ready(Enc),
     /// A special file (`std-fs.special-file`): the call waits on the
     /// blocking pool, and `.finish` delivers its result.
-    Run(Job),
+    Run(Box<Job>),
 }
 
 /// A call on a special file, ready to run off the program thread.
@@ -52,6 +52,9 @@ pub(crate) struct Job {
     method: String,
     path: String,
     to: Option<String>,
+    /// Where the call acts, and where a `rename` moves to.
+    place: Place,
+    to_place: Option<Place>,
     payload: Option<Vec<u8>>,
     cwd: PathBuf,
     /// Whether the file is special, so that its reads are charged.
@@ -71,7 +74,7 @@ impl Job {
     /// is within the spec: a special file has no deadline guarantee
     /// beyond "other tasks run" (`std-fs.special-file.deadline`), and a
     /// cancelled write may have happened (`std-fs.cancel.write`).
-    pub(crate) async fn run(self) -> Done {
+    pub(crate) async fn run(self: Box<Self>) -> Done {
         let ledger = Arc::clone(&self.ledger);
         match tokio::task::spawn_blocking(move || self.run_blocking()).await {
             Ok(Ok((encoded, held))) => Done::Fs(encoded, held),
@@ -84,26 +87,32 @@ impl Job {
     }
 
     /// The call, run on this thread, which waits for the file.
-    pub(crate) fn run_blocking(mut self) -> Result<(Enc, Reservation), HeapExhausted> {
+    pub(crate) fn run_blocking(mut self: Box<Self>) -> Result<(Enc, Reservation), HeapExhausted> {
         let encoded = self
-            .execute(None)
+            .execute(None, None)
             .unwrap_or_else(|| Ok(error_text("the file operation ran past a deadline")))?;
         Ok((encoded, self.held))
     }
 
     /// The encoded result, or `None` once the deadline passed.
-    fn execute(&mut self, deadline: Option<Instant>) -> Option<Result<Enc, HeapExhausted>> {
+    fn execute(
+        &mut self,
+        deadline: Option<Instant>,
+        sandbox: Option<&Sandbox>,
+    ) -> Option<Result<Enc, HeapExhausted>> {
         let mut e = Enc::default();
         let result = run(
             &self.method,
             &self.path,
-            self.to.as_deref(),
+            &self.place,
+            self.to_place.as_ref(),
             self.payload.as_deref(),
             &mut e,
             Env {
                 cwd: &self.cwd,
                 deadline,
                 held: self.special.then_some(&mut self.held),
+                sandbox,
             },
         );
         if check_deadline(deadline).is_err() {
@@ -134,7 +143,9 @@ fn error_text(text: &str) -> Enc {
 
 /// Executes relative paths in the case's directory without changing the
 /// process-wide working directory. Encoded paths and errors retain the
-/// guest's original spelling. A regular file or a directory runs here;
+/// guest's original spelling. Under a grant with scope entries, the call
+/// acts under the handle of the granted directory that covers it
+/// (`sandbox`). A regular file or a directory runs here;
 /// anything else (a FIFO, a device, a named pipe) comes back as a `Job`,
 /// whose data counts against the heap budget of `ledger`; a payload past
 /// it panics `heap-exhausted` (`std-host.op.heap.exhausted`). An inline
@@ -145,6 +156,7 @@ pub(crate) fn start(
     method: &str,
     bytes: &[u8],
     grants: &Grants,
+    sandbox: &Sandbox,
     deadline: Option<Instant>,
     cwd: &Path,
     ledger: &Arc<Ledger>,
@@ -186,7 +198,21 @@ pub(crate) fn start(
             )));
         }
     }
-    let special = OPENING.contains(&method) && is_special(&at(cwd, &path));
+    // `stat`, `remove` and `rename` act on a final symbolic link itself.
+    let follow = !matches!(method, "stat" | "remove" | "rename");
+    let create = method == "create_dir_all";
+    let place_of = |p: &str| sandbox.place(grants, key, &at(cwd, p), follow, create);
+    let Some(place) = place_of(&path) else {
+        return Ok(Start::Ready(error(&path, 2)));
+    };
+    let to_place = match &to {
+        Some(p) => match place_of(p) {
+            Some(place) => Some(place),
+            None => return Ok(Start::Ready(error(p, 2))),
+        },
+        None => None,
+    };
+    let special = OPENING.contains(&method) && place.is_special();
     let held = match &payload {
         Some(bytes) if special => ledger.reserve(bytes.len())?,
         _ => Reservation::empty(ledger),
@@ -195,6 +221,8 @@ pub(crate) fn start(
         method: method.to_owned(),
         path,
         to,
+        place,
+        to_place,
         payload,
         cwd: cwd.to_owned(),
         special,
@@ -202,9 +230,9 @@ pub(crate) fn start(
         held,
     };
     if special {
-        return Ok(Start::Run(job));
+        return Ok(Start::Run(Box::new(job)));
     }
-    match job.execute(deadline) {
+    match job.execute(deadline, Some(sandbox)) {
         Some(encoded) => Ok(Start::Ready(encoded?)),
         None => Err(crate::host::Stop::TimeLimit.into()),
     }
@@ -221,8 +249,9 @@ pub(crate) fn call_until_at(
     cwd: &Path,
 ) -> wasmtime::Result<Enc> {
     let ledger = Ledger::new(u64::MAX);
+    let sandbox = Sandbox::default();
     Ok(
-        match start(key, method, bytes, grants, deadline, cwd, &ledger)? {
+        match start(key, method, bytes, grants, &sandbox, deadline, cwd, &ledger)? {
             Start::Ready(encoded) => encoded,
             Start::Run(job) => job.run_blocking()?.0,
         },
@@ -263,10 +292,16 @@ pub(crate) enum Failure {
         path: Option<String>,
     },
     Message(String),
+    /// The path would leave the granted directory that covers it
+    /// (`sandbox`): `NotGranted`.
+    NotGranted,
 }
 
 impl Failure {
     pub(crate) fn new(syscall: &'static str, error: io::Error) -> Self {
+        if is_escape(&error) {
+            return Self::NotGranted;
+        }
         Self::System {
             error,
             syscall,
@@ -289,8 +324,8 @@ pub(crate) fn check_deadline(deadline: Option<Instant>) -> Result<(), Failure> {
 // the wait: the thread lingers until its I/O ends
 // (`std-fs.special-file.deadline`).
 pub(crate) fn read_file_until(path: &Path, deadline: Option<Instant>) -> io::Result<Vec<u8>> {
-    let owned = path.to_owned();
-    bounded(path, deadline, move || read(&owned, None, None)).map_err(file_failure)
+    let place = Place::Ambient(path.to_owned());
+    bounded(path, deadline, move || read(&place, None, None)).map_err(file_failure)
 }
 
 pub(crate) fn write_file_until(
@@ -298,9 +333,9 @@ pub(crate) fn write_file_until(
     bytes: &[u8],
     deadline: Option<Instant>,
 ) -> io::Result<()> {
-    let (owned, bytes) = (path.to_owned(), bytes.to_vec());
+    let (place, bytes) = (Place::Ambient(path.to_owned()), bytes.to_vec());
     let result = bounded(path, deadline, move || {
-        let mut file = open(&owned, true, false, None)?;
+        let mut file = open(&place, true, false, None)?;
         write(&mut file, &bytes, None)
     });
     result.map_err(file_failure)
@@ -312,7 +347,7 @@ fn bounded<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, Failure> + Send + 'static,
 ) -> Result<T, Failure> {
     check_deadline(deadline)?;
-    let Some(limit) = deadline.filter(|_| is_special(path)) else {
+    let Some(limit) = deadline.filter(|_| Place::Ambient(path.to_owned()).is_special()) else {
         let result = work()?;
         check_deadline(deadline)?;
         return Ok(result);
@@ -339,18 +374,13 @@ fn file_failure(failure: Failure) -> io::Error {
         Failure::Exhausted => io::ErrorKind::OutOfMemory.into(),
         Failure::System { error, .. } => error,
         Failure::Message(message) => io::Error::other(message),
+        Failure::NotGranted => io::ErrorKind::PermissionDenied.into(),
     }
 }
 
-pub(crate) fn entry(e: &mut Enc, path: &str, st: &Metadata) {
-    let kind = if st.file_type().is_symlink() {
-        2
-    } else {
-        u64::from(st.is_dir())
-    };
-    e.str(path)
-        .leb(kind)
-        .leb(if st.is_dir() { 0 } else { st.len() });
+pub(crate) fn entry(e: &mut Enc, path: &str, st: &Stat) {
+    let kind = if st.link { 2 } else { u64::from(st.dir) };
+    e.str(path).leb(kind).leb(if st.dir { 0 } else { st.len });
 }
 
 pub(crate) fn error(path: &str, variant: u64) -> Enc {
@@ -365,6 +395,7 @@ pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -
             unreachable!("a deadline and an exhausted heap are host stops, not Fs errors")
         }
         Failure::Message(message) => return error(message, 7),
+        Failure::NotGranted => return error(path, 2),
         Failure::System {
             error,
             syscall,

@@ -164,7 +164,16 @@ pub(crate) fn call(
                 None => std::env::current_dir().map_err(|e| Stop::Internal(e.to_string()))?,
             };
             let ledger = host.heap.ledger();
-            match fs::start(key, method, &b, &host.grants, host.deadline(), &cwd, ledger)? {
+            match fs::start(
+                key,
+                method,
+                &b,
+                &host.grants,
+                &host.sandbox,
+                host.deadline(),
+                &cwd,
+                ledger,
+            )? {
                 fs::Start::Ready(e) => Ret::ready(e)?,
                 fs::Start::Run(job) => match host.reactor.offload(job.run()) {
                     Ok(h) => Ret::pair(1, h),

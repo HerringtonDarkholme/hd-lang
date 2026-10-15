@@ -1,0 +1,6 @@
+# The table grants FsRead under data/ alone. `..` is resolved before the
+# grant compares the path, so data/../secret.txt names secret.txt, outside
+# data/: the read returns NotGranted, and the program goes on.
+run: hd run
+stdout: data/a.txt: from data
+stdout: data/../secret.txt: not granted

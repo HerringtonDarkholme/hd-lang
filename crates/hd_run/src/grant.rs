@@ -39,11 +39,10 @@ pub struct Grants {
 /// The traits whose scope entries are paths.
 const PATH_KEYS: &[&str] = &["FsRead", "FsWrite"];
 
-/// A path with `..` and `.` resolved and symbolic links followed as far as
-/// the path exists, so no path escapes a granted directory
-/// (`cli.cap.scope.path.resolved`).
+/// A path with `..` and `.` resolved by its text alone: `a/b/../c` is
+/// `a/c`, whatever `a/b` is.
 #[must_use]
-pub fn resolve_path(path: &Path) -> PathBuf {
+pub fn lexical_path(path: &Path) -> PathBuf {
     let mut lexical = PathBuf::new();
     for c in path.components() {
         match c {
@@ -54,6 +53,15 @@ pub fn resolve_path(path: &Path) -> PathBuf {
             other => lexical.push(other),
         }
     }
+    lexical
+}
+
+/// A path with `..` and `.` resolved and symbolic links followed as far as
+/// the path exists, so no path escapes a granted directory
+/// (`cli.cap.scope.path.resolved`).
+#[must_use]
+pub fn resolve_path(path: &Path) -> PathBuf {
+    let lexical = lexical_path(path);
     // Canonicalize the longest existing ancestor, then add the rest.
     let mut rest = Vec::new();
     let mut base = lexical.as_path();

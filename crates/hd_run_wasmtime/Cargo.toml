@@ -13,6 +13,11 @@ hd_host_abi = { path = "../hd_host_abi" }
 hd_run = { path = "../hd_run" }
 # Session inputs (`f1c55020:future-work/compiler/repl-plan.md` §2.3): the session module name and keys.
 hd_wasm = { path = "../hd_wasm" }
+# The path sandbox (`fs/sandbox.rs`): a granted directory is opened once
+# and every file operation resolves under its handle (`cli.cap.scope.path`).
+# `cap-fs-ext` adds the opens that do not follow a final symbolic link.
+cap-fs-ext = { version = "=4.0.3", default-features = false, features = ["std"] }
+cap-std = "=4.0.3"
 getrandom = "0.4"
 socket2 = "0.6"
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }

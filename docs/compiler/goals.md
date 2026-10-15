@@ -271,9 +271,11 @@ For the open literal variables of
 
 - An HTTP server and streaming bodies: not built yet; see #186.
 - **A race-free path sandbox.** Granted directories are opened once as
-  directory handles, and every file operation resolves relative to them.
-  Implementation differs: `Grants::covers_path` resolves symlinks and
-  existing ancestors, then the provider opens the path by name. Worse:
-  a symlink swapped between the check and the open escapes the grant.
+  directory handles, and every file operation resolves relative to them,
+  as the wasmtime host does (`hd_run_wasmtime/src/fs/sandbox.rs`).
+  Implementation differs: the Node host (`host/node.mjs`) checks
+  `coversPath`, then opens the path by name, since Node has no `openat`.
+  Worse: there, a symlink swapped between the check and the open escapes
+  the grant (docs/audit/diagnostic-notes.md).
 - Runtime code loading: parked in
   [Open Issues](../future-work/OPEN_ISSUES.md#library-and-host-design-work).

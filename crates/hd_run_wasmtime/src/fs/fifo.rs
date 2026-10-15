@@ -46,13 +46,14 @@ fn begin_with(
         method,
         args.done(),
         &Grants::default(),
+        &super::Sandbox::default(),
         None,
         &std::env::current_dir().unwrap(),
         ledger,
     )
 }
 
-fn job(method: &str, path: &str, payload: Option<&[u8]>) -> Job {
+fn job(method: &str, path: &str, payload: Option<&[u8]>) -> Box<Job> {
     match begin(method, path, payload) {
         Start::Run(job) => job,
         Start::Ready(_) => panic!("{method} of a FIFO ran inline"),
@@ -191,7 +192,7 @@ fn dropping_a_waiting_job_returns_at_once_and_leaves_the_thread() {
 }
 
 /// A job on `ledger`, as `.start` makes it.
-fn job_on(ledger: &Arc<Ledger>, method: &str, path: &str, payload: Option<&[u8]>) -> Job {
+fn job_on(ledger: &Arc<Ledger>, method: &str, path: &str, payload: Option<&[u8]>) -> Box<Job> {
     match begin_with(ledger, method, path, payload).expect("start") {
         Start::Run(job) => job,
         Start::Ready(_) => panic!("{method} of a FIFO ran inline"),

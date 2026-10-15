@@ -1,5 +1,8 @@
 //! Filesystem providers with native errors and scoped grants. Grants are
-//! checked against resolved paths before any filesystem access.
+//! checked against resolved paths before any filesystem access, and under
+//! a grant with scope entries every operation resolves under the handle of
+//! a granted directory (`sandbox`), so a path cannot leave the grant
+//! between the check and the open.
 //!
 //! A regular file or a directory runs inline on the program thread, with
 //! the deadline checked before and after (`api::start`). A special file (a
@@ -15,7 +18,11 @@ pub(crate) mod api;
 pub(crate) mod fifo;
 pub(crate) mod io;
 pub(crate) mod ops;
+pub(crate) mod sandbox;
+#[cfg(test)]
+mod sandbox_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 
 pub(crate) use api::{READ, Start, WRITE, not_run, read_file_until, start, write_file_until};
+pub(crate) use sandbox::Sandbox;

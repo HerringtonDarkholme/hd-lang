@@ -48,6 +48,9 @@ pub struct Host {
     pub(crate) args: Vec<String>,
     pub(crate) program: String,
     pub(crate) grants: Grants,
+    /// The handles of the granted directories that file operations
+    /// resolve under (`fs::sandbox`).
+    pub(crate) sandbox: crate::fs::Sandbox,
     pub(crate) noticed: HashSet<String>,
     pub(crate) net: net::Client,
     pub(crate) heap: crate::limits::HeapBudget,
@@ -97,6 +100,7 @@ impl Host {
             args,
             program,
             grants,
+            sandbox: crate::fs::Sandbox::default(),
             noticed: HashSet::new(),
             net: net::Client::default(),
             heap: crate::limits::HeapBudget::new(crate::limits::Ledger::new(memory_bytes)),

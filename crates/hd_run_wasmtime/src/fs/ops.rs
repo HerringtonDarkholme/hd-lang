@@ -1,4 +1,3 @@
-use std::fs;
 use std::io;
 use std::path::Path;
 use std::time::Instant;
@@ -6,7 +5,8 @@ use std::time::Instant;
 use crate::codec::Enc;
 
 use super::api::{Failure, check_deadline, entry, error};
-use super::io::{below_a_file, open, read, write};
+use super::io::{open, read, write};
+use super::sandbox::{Place, Sandbox, below_a_file};
 use crate::limits::Reservation;
 
 /// A guest path against the case's directory. An empty argument stays
@@ -27,12 +27,19 @@ pub(crate) struct Env<'a> {
     /// Set for a special file: what its reads hold counts against the heap
     /// budget.
     pub(crate) held: Option<&'a mut Reservation>,
+    /// Set for a call that runs inline: a `remove` or a `rename` first
+    /// drops the handles of granted directories it takes away, which
+    /// Windows would not let it remove while they are open.
+    pub(crate) sandbox: Option<&'a Sandbox>,
 }
 
+/// Runs `method` at `place`, the sandbox's place for the guest's `path`
+/// (`to` for the destination of a `rename`).
 pub(crate) fn run(
     method: &str,
     path: &str,
-    to: Option<&str>,
+    place: &Place,
+    to: Option<&Place>,
     payload: Option<&[u8]>,
     e: &mut Enc,
     env: Env<'_>,
@@ -41,15 +48,15 @@ pub(crate) fn run(
         cwd,
         deadline,
         held,
+        sandbox,
     } = env;
     check_deadline(deadline)?;
-    let actual = at(cwd, path);
     match method {
         "read_bytes" => {
-            e.leb(0).bytes(&read(&actual, deadline, held)?);
+            e.leb(0).bytes(&read(place, deadline, held)?);
         }
         "read_text" => {
-            let bytes = read(&actual, deadline, held)?;
+            let bytes = read(place, deadline, held)?;
             check_deadline(deadline)?;
             if let Ok(text) = std::str::from_utf8(&bytes) {
                 e.leb(0).str(text);
@@ -57,7 +64,7 @@ pub(crate) fn run(
                 *e = error(path, 6);
             }
         }
-        "stat" => match fs::symlink_metadata(&actual) {
+        "stat" => match place.symlink_metadata() {
             Ok(st) => {
                 entry(e.leb(0).leb(1), path, &st);
             }
@@ -73,20 +80,22 @@ pub(crate) fn run(
         },
         "list_dir" => {
             #[cfg(windows)]
-            if fs::metadata(&actual).is_ok_and(|st| !st.is_dir()) {
+            if place.metadata().is_ok_and(|st| !st.dir) {
                 return Err(Failure::new("scandir", io::ErrorKind::NotADirectory.into()));
             }
             // Incremental heap ordering allows checks during ordering, not just
             // around one potentially large, uncancellable sort operation.
             let mut names = std::collections::BinaryHeap::new();
-            let entries = fs::read_dir(&actual)
-                .map_err(|err| Failure::new("scandir", below_a_file(&actual, err)))?;
+            let (dir, entries) = place
+                .read_dir()
+                .map_err(|err| Failure::new("scandir", below_a_file(place, err)))?;
             for item in entries {
                 check_deadline(deadline)?;
-                let item = item.map_err(|err| Failure::new("scandir", err))?;
-                names.push(std::cmp::Reverse(
-                    item.file_name().to_string_lossy().into_owned(),
-                ));
+                let name = item.map_err(|err| Failure::new("scandir", err))?;
+                names.push(std::cmp::Reverse((
+                    name.to_string_lossy().into_owned(),
+                    name,
+                )));
             }
             let under = if path.ends_with('/') {
                 path.to_owned()
@@ -94,11 +103,10 @@ pub(crate) fn run(
                 format!("{path}/")
             };
             let mut found = Vec::new();
-            while let Some(std::cmp::Reverse(n)) = names.pop() {
+            while let Some(std::cmp::Reverse((shown, name))) = names.pop() {
                 check_deadline(deadline)?;
-                let p = format!("{under}{n}");
-                if let Ok(st) = fs::symlink_metadata(actual.join(&n)) {
-                    found.push((p, st));
+                if let Ok(st) = dir.child(&name).symlink_metadata() {
+                    found.push((format!("{under}{shown}"), st));
                 }
             }
             e.leb(0).leb(u64::try_from(found.len()).unwrap_or(u64::MAX));
@@ -108,17 +116,17 @@ pub(crate) fn run(
             }
         }
         "write_bytes" | "write_text" => {
-            let mut file = open(&actual, true, false, deadline)?;
+            let mut file = open(place, true, false, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
             e.leb(0);
         }
         "append_text" => {
-            let mut file = open(&actual, true, true, deadline)?;
+            let mut file = open(place, true, true, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
             e.leb(0);
         }
         "create_dir_all" => {
-            if fs::metadata(&actual).is_ok_and(|st| !st.is_dir()) {
+            if place.metadata().is_ok_and(|st| !st.dir) {
                 *e = error(path, 4);
             } else {
                 if path.is_empty() {
@@ -126,25 +134,39 @@ pub(crate) fn run(
                     *e = error(path, 0);
                     return Ok(());
                 }
-                mkdir(&actual, deadline).map_err(|err| shown_mkdir_failure(err, cwd, path))?;
+                mkdir(place, &at(cwd, path), deadline)
+                    .map_err(|err| shown_mkdir_failure(err, cwd, path))?;
                 e.leb(0);
             }
         }
         "remove" => {
-            if fs::symlink_metadata(&actual)
+            let dir = place
+                .symlink_metadata()
                 .map_err(|err| Failure::new("lstat", err))?
-                .is_dir()
-            {
-                check_deadline(deadline)?;
-                fs::remove_dir(&actual).map_err(|err| Failure::new("rmdir", err))?;
+                .dir;
+            check_deadline(deadline)?;
+            if let Some(sandbox) = sandbox {
+                sandbox.forget(place);
+            }
+            if dir {
+                place
+                    .remove_dir()
+                    .map_err(|err| Failure::new("rmdir", err))?;
             } else {
-                check_deadline(deadline)?;
-                fs::remove_file(&actual).map_err(|err| Failure::new("unlink", err))?;
+                place
+                    .remove_file()
+                    .map_err(|err| Failure::new("unlink", err))?;
             }
             e.leb(0);
         }
         "rename" => {
-            fs::rename(&actual, at(cwd, to.unwrap_or_default()))
+            let to = to.ok_or_else(|| Failure::Message("a rename has no destination".into()))?;
+            if let Some(sandbox) = sandbox {
+                sandbox.forget(place);
+                sandbox.forget(to);
+            }
+            place
+                .rename(to)
                 .map_err(|err| Failure::new("rename", err))?;
             e.leb(0);
         }
@@ -153,42 +175,47 @@ pub(crate) fn run(
     Ok(())
 }
 
-fn mkdir(path: &Path, deadline: Option<Instant>) -> Result<(), Failure> {
+/// Makes the directory at `place` and its missing parents. `shown` is the
+/// guest's path at the same depth, which an error names.
+fn mkdir(place: &Place, shown: &Path, deadline: Option<Instant>) -> Result<(), Failure> {
     check_deadline(deadline)?;
-    match fs::create_dir(path) {
+    match place.create_dir() {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                mkdir(parent, deadline)?;
+            if let Some(parent) = place.parent() {
+                mkdir(&parent, shown.parent().unwrap_or(shown), deadline)?;
                 check_deadline(deadline)?;
                 // Retry after the parent exists, including a race with another creator.
-                return mkdir_finish(path, fs::create_dir(path));
+                return mkdir_finish(place, shown, place.create_dir());
             }
-            Err(mkdir_failure(path, err))
+            Err(mkdir_failure(shown, err))
         }
-        result => mkdir_finish(path, result),
+        result => mkdir_finish(place, shown, result),
     }
 }
 
-fn mkdir_finish(path: &Path, result: io::Result<()>) -> Result<(), Failure> {
+fn mkdir_finish(place: &Place, shown: &Path, result: io::Result<()>) -> Result<(), Failure> {
     match result {
         Ok(()) => Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => match fs::metadata(path) {
-            Ok(st) if st.is_dir() => Ok(()),
-            Ok(_) => Err(mkdir_failure(path, err)),
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => match place.metadata() {
+            Ok(st) if st.dir => Ok(()),
+            Ok(_) => Err(mkdir_failure(shown, err)),
             // Node's recursive mkdir follows an existing symlink: a dangling
             // target yields ENOENT, and a loop yields ELOOP, rather than EEXIST.
-            Err(err) => Err(mkdir_failure(path, err)),
+            Err(err) => Err(mkdir_failure(shown, err)),
         },
-        Err(err) => Err(mkdir_failure(path, err)),
+        Err(err) => Err(mkdir_failure(shown, err)),
     }
 }
 
 fn mkdir_failure(path: &Path, error: io::Error) -> Failure {
-    Failure::System {
-        error,
-        syscall: "mkdir",
-        path: Some(path.to_string_lossy().into_owned()),
+    match Failure::new("mkdir", error) {
+        Failure::System { error, syscall, .. } => Failure::System {
+            error,
+            syscall,
+            path: Some(path.to_string_lossy().into_owned()),
+        },
+        refused => refused,
     }
 }
 

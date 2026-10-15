@@ -346,10 +346,13 @@ the variant index and the path.
 - **Path sandbox.** Granted directories are opened once as `cap-std`
   directory handles, and every file operation resolves relative to them,
   which removes a check-then-use race on symbolic links, as the host
-  capabilities spec asks. Implementation differs: `hd_run_wasmtime/src/fs`
-  checks the grant against the resolved path, then opens it with
-  `std::fs`, which is worse: a symbolic link swapped between the check
-  and the open escapes the grant.
+  capabilities spec asks (`fs/sandbox.rs`). A handle is opened at its
+  first use, from the file system root without following any link, and
+  kept for the run. An operation on a granted entry itself goes through
+  the entry's parent by name and never follows a link there. A `remove`
+  or `rename` that takes a granted directory away drops its handle, so a
+  directory made again at that path is opened afresh. A trait with no
+  limit acts by name with `std::fs`.
 
 ### 17.6 Host Calls In The Browser
 

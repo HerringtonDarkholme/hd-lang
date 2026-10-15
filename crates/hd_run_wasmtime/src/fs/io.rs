@@ -1,44 +1,27 @@
-//! Plain blocking `std::fs` I/O. A regular file or a directory runs on the
-//! program thread (`api::start`); a special file runs on the blocking pool,
-//! so nothing here polls.
+//! Plain blocking file I/O at a `Place`. A regular file or a directory runs
+//! on the program thread (`api::start`); a special file runs on the
+//! blocking pool, so nothing here polls.
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{ErrorKind, Read, Write};
-use std::path::Path;
 use std::time::Instant;
 
 use super::api::{Failure, check_deadline};
+use super::sandbox::{Place, below_a_file};
 use crate::limits::Reservation;
 
 /// How much a special file's read takes before it asks the heap budget.
 const CHUNK: usize = 64 * 1024;
 
-/// Whether opening `path` can wait on another process: a FIFO, a device,
-/// a socket, or a Windows named pipe. A regular file, a directory, and a
-/// path that does not exist or cannot be inspected are not (the open
-/// reports the error at once).
-pub(crate) fn is_special(path: &Path) -> bool {
-    // std cannot tell a Windows pipe from a file, and inspecting a pipe
-    // opens it, so this goes by the name.
-    #[cfg(windows)]
-    if device_path(&path.to_string_lossy()) {
-        return true;
-    }
-    #[cfg(unix)]
-    return std::fs::metadata(path).is_ok_and(|st| !st.is_file() && !st.is_dir());
-    #[cfg(not(unix))]
-    false
-}
-
 /// The whole file. With `held`, the bytes are reserved in chunks as they
 /// are read, so a stream longer than the budget fails with
 /// `Failure::Exhausted` instead of growing without bound.
 pub(crate) fn read(
-    path: &Path,
+    place: &Place,
     deadline: Option<Instant>,
     held: Option<&mut Reservation>,
 ) -> Result<Vec<u8>, Failure> {
-    let mut file = open(path, false, false, deadline)?;
+    let mut file = open(place, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
     if st.is_dir() {
@@ -94,43 +77,25 @@ pub(crate) fn write(
 }
 
 pub(crate) fn open(
-    path: &Path,
+    place: &Place,
     write: bool,
     append: bool,
     deadline: Option<Instant>,
 ) -> Result<File, Failure> {
-    let mut options = OpenOptions::new();
-    if write {
-        options
-            .write(true)
-            .create(true)
-            .truncate(!append)
-            .append(append);
-    } else {
-        options.read(true);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_BACKUP_SEMANTICS;
-        // libuv opens directories too; a read then returns EISDIR, rather
-        // than failing the open with Windows' ERROR_ACCESS_DENIED.
-        options.custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
-    }
     check_deadline(deadline)?;
-    let file = options.open(path).map_err(|err| {
+    let file = place.open(write, append).map_err(|err| {
         // Windows refuses a write-open of a directory with "The parameter
         // is incorrect"; a path that is a directory is `IsADirectory`
         // whatever the OS code is, as the Unix `EISDIR` already is.
-        let err = if write && path.is_dir() {
+        let err = if write && place.metadata().is_ok_and(|st| st.dir) {
             ErrorKind::IsADirectory.into()
         } else {
             err
         };
-        Failure::new("open", below_a_file(path, err))
+        Failure::new("open", below_a_file(place, err))
     })?;
     // An append-open of a directory succeeds on Windows (the backup flag
-    // above) and fails only at the write, as "Incorrect function". The
+    // of `Place::open`) and fails only at the write, as "Incorrect function". The
     // handle itself says what was opened, so no path check can race.
     if write
         && file
@@ -143,33 +108,10 @@ pub(crate) fn open(
     Ok(file)
 }
 
-/// Windows reports a path below a file as "path not found", where Unix and
-/// Node report `ENOTDIR` and the spec's `NotADirectory` (the rule
-/// `std-fs.memory.error.not-directory`). When the open found nothing and
-/// the nearest existing ancestor is not a directory, say so.
-#[cfg(windows)]
-pub(crate) fn below_a_file(path: &Path, err: std::io::Error) -> std::io::Error {
-    if err.kind() == ErrorKind::NotFound
-        && path
-            .ancestors()
-            .skip(1)
-            .find_map(|ancestor| std::fs::metadata(ancestor).ok())
-            .is_some_and(|st| !st.is_dir())
-    {
-        return ErrorKind::NotADirectory.into();
-    }
-    err
-}
-
-#[cfg(not(windows))]
-pub(crate) fn below_a_file(_: &Path, err: std::io::Error) -> std::io::Error {
-    err
-}
-
 /// A path in the Windows device namespace, where named pipes and other
 /// devices live: `\\.\pipe\name` and its spellings, and a UNC pipe share.
 #[cfg(windows)]
-fn device_path(path: &str) -> bool {
+pub(crate) fn device_path(path: &str) -> bool {
     let normalized = path.replace('/', "\\");
     let path = normalized.to_ascii_lowercase();
     if path.starts_with(r"\\.\")
