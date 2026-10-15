@@ -12,7 +12,9 @@
 //   its target (std-http.send.redirect). A 303, or a 301 or 302 of a
 //   `POST`, continues as a `GET` without a body, as `fetch` does.
 // - Every status is a response (std-http.send.status). Headers keep their
-//   order and repeats (std-http.headers.pairs); the body is whole
+//   repeats (std-http.headers.pairs); a name arrives in lowercase, and the
+//   values of one name keep their order, grouped at the name's first
+//   appearance (std-http.headers.case, .order). The body is whole
 //   (std-http.bodies).
 // - A request that takes longer than its timeout, or 30 s by default, is
 //   `Timeout` (std-http.send.timeout).
@@ -92,10 +94,13 @@ const once = (url, method, headers, body, ms) =>
       res.on("data", (c) => chunks.push(c));
       res.on("error", (e) => settle(failure(e, url.hostname)));
       res.on("end", () => {
-        const pairs = [];
+        const groups = new Map();
         for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
-          pairs.push([res.rawHeaders[i], res.rawHeaders[i + 1]]);
+          const name = res.rawHeaders[i].toLowerCase();
+          if (!groups.has(name)) groups.set(name, []);
+          groups.get(name).push(res.rawHeaders[i + 1]);
         }
+        const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
         settle({ status: res.statusCode, headers: pairs, body: Buffer.concat(chunks) });
       });
     });

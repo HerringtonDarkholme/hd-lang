@@ -32,13 +32,16 @@ fn request(
     e.0
 }
 
+/// The expected response. Both hosts deliver a header name in lowercase
+/// (`std-http.headers.case`), so the expectation lowercases the names the
+/// fixture server writes; the values of one name keep their order.
 fn response(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
     let mut e = Enc::default()
         .leb(0)
         .leb(u64::from(status))
         .leb(headers.len() as u64);
     for (name, value) in headers {
-        e = e.str(name).str(value);
+        e = e.str(&name.to_ascii_lowercase()).str(value);
     }
     e.bytes(body).0
 }
@@ -87,6 +90,49 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
     for r in &*seen {
         assert_eq!(r.values("Host"), [format!("127.0.0.1:{}", server.port())]);
     }
+}
+
+/// `std-http.headers.order`: the values of one name keep their order, so a
+/// name that repeats with another name between its values is delivered
+/// with its values together. Names compare ignoring case, so `X-A` and
+/// `x-a` are one name.
+#[test]
+fn http_values_of_one_name_keep_their_order_across_other_names() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|_| {
+        let wire = raw(
+            200,
+            &[
+                ("X-A", "1"),
+                ("Y", "mid"),
+                ("x-a", "2"),
+                ("Z", "end"),
+                ("X-a", "3"),
+                ("Content-Length", "0"),
+            ],
+            b"",
+        );
+        (wire, Duration::ZERO)
+    });
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &server.url("/order"), &[], b"", None),
+        response(
+            200,
+            &[
+                ("x-a", "1"),
+                ("x-a", "2"),
+                ("x-a", "3"),
+                ("y", "mid"),
+                ("z", "end"),
+                ("content-length", "0"),
+            ],
+            b"",
+        ),
+    );
+    assert_program(&scratch, p, vec![], || {});
 }
 
 #[test]
@@ -717,7 +763,7 @@ fn http_self_signed_loopback_certificate_is_tls_error_on_both_providers() {
 fn http_chunked_request_response_and_informational_response_are_exact() {
     let scratch = Scratch::new();
     let server = HttpFixture::new(|_| {
-        (b"HTTP/1.1 100 Continue\r\nX-Interim: discarded\r\n\r\nHTTP/1.1 200 Test\r\nTransfer-Encoding: chunked\r\nX-Final: retained\r\n\r\n2\r\n\0\xff\r\n2\r\nab\r\n0\r\n\r\n".to_vec(), Duration::ZERO)
+        (b"HTTP/1.1 103 Early Hints\r\nLink: discarded\r\n\r\nHTTP/1.1 200 Test\r\nTransfer-Encoding: chunked\r\nX-Final: retained\r\n\r\n2\r\n\0\xff\r\n2\r\nab\r\n0\r\n\r\n".to_vec(), Duration::ZERO)
     });
     let mut p = Program::new();
     p.call_waiting(
@@ -778,27 +824,17 @@ fn http_bodyless_statuses_and_redirect_without_location_are_responses() {
 }
 
 #[test]
-fn http_malformed_response_and_redirect_location_preserve_error_text() {
+fn http_malformed_redirect_location_preserves_error_text() {
     let scratch = Scratch::new();
-    let server = HttpFixture::new(|r| {
-        let bytes = if r.target == "/redirect" {
-            raw(
-                302,
-                &[("Location", "http://[bad/"), ("Content-Length", "0")],
-                b"",
-            )
-        } else {
-            b"HTTP/1.1 200 Test\r\nBad Header: value\r\nContent-Length: 0\r\n\r\n".to_vec()
-        };
-        (bytes, Duration::ZERO)
+    let server = HttpFixture::new(|_| {
+        let head = raw(
+            302,
+            &[("Location", "http://[bad/"), ("Content-Length", "0")],
+            b"",
+        );
+        (head, Duration::ZERO)
     });
     let mut p = Program::new();
-    p.call_waiting(
-        "hd:Http",
-        "send",
-        request(0, &server.url("/response"), &[], b"", None),
-        error(3, "Parse Error: Invalid header token"),
-    );
     p.call_waiting(
         "hd:Http",
         "send",

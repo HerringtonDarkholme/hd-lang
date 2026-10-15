@@ -13,7 +13,6 @@ use crate::reactor::{Done, Reactor, Work};
 
 use super::Headers;
 use super::client::{Job, Sent, Start, finish, start};
-use super::headers::header_end;
 
 /// Offloads `job` onto the `hd-io` runtime, as `send.start` does, and
 /// returns the operation's handle.
@@ -120,6 +119,13 @@ pub(crate) fn read_request(stream: &mut TcpStream) -> Vec<u8> {
             }
         }
     }
+}
+
+fn header_end(bytes: &[u8]) -> Option<usize> {
+    bytes
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|at| at + 4)
 }
 
 pub(crate) fn write_response(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {

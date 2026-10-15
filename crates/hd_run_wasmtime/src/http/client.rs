@@ -142,8 +142,7 @@ pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Target, Failur
 mod tests {
     use super::{Job, Start, finish, start};
     use crate::http::connector::Cancel;
-    use crate::http::request::{Request, outgoing, send as send_blocking};
-    use crate::http::target::Target;
+    use crate::http::request::{Request, send as send_blocking};
     use crate::http::test_support::{
         bounded_accept, delivered, finished, offload, read_request, request, response, send,
         server, unlimited, write_response,
@@ -365,29 +364,32 @@ mod tests {
         server.join().unwrap();
     }
 
+    /// `std-http.headers.case`, `.order` and `.pairs`: names arrive in
+    /// lowercase, and the values of one name keep their order.
     #[test]
-    fn client_keeps_status_raw_headers_bytes_and_does_not_decode_gzip() {
-        let (url, server) = server(b"HTTP/1.1 103 Early Hints\r\nLink: ignored\r\n\r\nHTTP/1.1 500 Error\r\nX-A: first\r\nx-B: \xe9\r\nX-A: second\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n\r\n\xff\0z".to_vec());
+    fn client_keeps_status_headers_bytes_and_does_not_decode_gzip() {
+        let (url, server) = server(b"HTTP/1.1 500 Error\r\nX-A: first\r\nx-B: \xe9\r\nX-A: second\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n\r\n\xff\0z".to_vec());
         let r = request("GET", &url, &vec![], &[], 1000);
         let encoded = send(r.done(), &Grants::default());
         let (status, headers, body) = response(encoded.done());
         assert_eq!(status, 500);
         assert_eq!(body, b"\xff\0z");
-        assert_eq!(
-            headers,
-            [
-                ("X-A".into(), "first".into()),
-                ("x-B".into(), "é".into()),
-                ("X-A".into(), "second".into()),
-                ("Content-Encoding".into(), "gzip".into()),
-                ("Content-Length".into(), "3".into())
-            ]
-        );
-        let wire = server.join().unwrap();
-        assert_eq!(
-            wire,
-            outgoing(&Target::parse(&url).unwrap(), "GET", &vec![], &[]).unwrap()
-        );
+        let values = |name: &str| {
+            headers
+                .iter()
+                .filter(|(n, _)| n.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(values("x-a"), ["first", "second"]);
+        assert_eq!(values("x-b"), ["é"]);
+        assert_eq!(values("content-encoding"), ["gzip"]);
+        assert_eq!(values("content-length"), ["3"]);
+        assert_eq!(headers.len(), 5);
+        assert!(headers.iter().all(|(n, _)| *n == n.to_ascii_lowercase()));
+        let wire = String::from_utf8(server.join().unwrap()).unwrap();
+        assert!(wire.starts_with("GET /path?q=1 HTTP/1.1\r\n"), "{wire}");
+        assert!(wire.contains("connection: close\r\n"), "{wire}");
     }
 
     #[test]
@@ -402,16 +404,32 @@ mod tests {
             let r = request(method, &url, &headers, b"request-body", 1000);
             let encoded = send(r.done(), &Grants::default());
             assert_eq!(response(encoded.done()).0, 200);
-            assert_eq!(
-                server.join().unwrap(),
-                outgoing(
-                    &Target::parse(&url).unwrap(),
-                    method,
-                    &headers,
-                    b"request-body"
-                )
-                .unwrap()
+            let wire = String::from_utf8(server.join().unwrap()).unwrap();
+            assert!(
+                wire.starts_with(&format!("{method} /path?q=1 HTTP/1.1\r\n")),
+                "{wire}"
             );
+            assert!(wire.contains("x-one: one\r\n"), "{wire}");
+            assert!(wire.contains("x-one: three\r\n"), "{wire}");
+            assert!(
+                wire.find("x-one: one").unwrap() < wire.find("x-one: three").unwrap(),
+                "{wire}"
+            );
+            assert!(wire.ends_with("\r\n\r\nrequest-body"), "{wire}");
         }
+    }
+
+    /// A response with a malformed header is a connect failure, whose
+    /// message is the provider's own (`std-http.error.connect`).
+    #[test]
+    fn a_malformed_response_header_is_a_connect_error() {
+        let (url, server) =
+            server(b"HTTP/1.1 200 OK\r\nBad Header: value\r\nContent-Length: 0\r\n\r\n".to_vec());
+        let r = request("GET", &url, &vec![], &[], 1000);
+        let encoded = send(r.done(), &Grants::default());
+        let mut d = crate::codec::Dec::new(encoded.done());
+        assert_eq!(d.leb().unwrap(), 1);
+        assert_eq!(d.leb().unwrap(), 3);
+        server.join().unwrap();
     }
 }

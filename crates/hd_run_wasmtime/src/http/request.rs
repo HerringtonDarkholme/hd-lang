@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use hd_run::Grants;
+use ureq::http::{HeaderName, HeaderValue};
 use ureq::unversioned::transport::{Connector, RustlsConnector};
 
 use crate::codec::{Dec, Enc};
@@ -11,7 +12,6 @@ use crate::limits::{HeapExhausted, Ledger, Reservation};
 use super::client::granted_url;
 use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
 use super::target::{Target, resolve};
-use super::transport::RawConnector;
 use super::{Headers, is_token};
 
 pub(crate) struct Request {
@@ -209,20 +209,14 @@ fn once(
         ))
         .into());
     };
-    let raw = outgoing(url, &method, &request.headers, &request.body)?;
-    let captured = Arc::new(Mutex::new(None));
+    let internal = outgoing(url, &method, &request.headers)?;
     let candidates = Arc::new(Mutex::new(None));
     let connector = HttpTcpConnector {
         deadline,
         candidates: candidates.clone(),
         cancel: cancel.clone(),
     }
-    .chain(RustlsConnector::default())
-    .chain(RawConnector {
-        raw,
-        captured: captured.clone(),
-        head: method == "HEAD",
-    });
+    .chain(RustlsConnector::default());
     let config = ureq::Agent::config_builder()
         .max_redirects(0)
         .http_status_as_error(false)
@@ -246,29 +240,38 @@ fn once(
             lookup: None,
         },
     );
-    // Node's raw headers skip automatic Basic Authorization. URL-to-HTTP
-    // options still validates percent-encoded credentials before sending.
+    // The URL's credentials never become an Authorization header, but a
+    // malformed percent-encoding is still an error.
     for credential in &url.credentials {
         check_credentials(credential)?;
     }
-    // The raw transport writes the actual method/body. HEAD is the one
-    // method whose response-body framing differs; no ureq request body
-    // means its stricter method/content-length checks cannot alter Node's
-    // wire request (including explicit framing supplied by the caller).
-    let internal = ureq::http::Request::builder()
-        .method(if method == "HEAD" { "HEAD" } else { "GET" })
-        .uri(url.uri())
-        .header("connection", "close")
-        .body(())
-        .map_err(|e| Failure::Other(e.to_string()))?;
-    let mut response = agent.run(internal).map_err(|e| failure(&e, url))?;
+    // An empty body sends no body, so a GET carries no `content-length`.
+    let sent = if request.body.is_empty() {
+        agent.run(
+            internal
+                .body(())
+                .map_err(|e| Failure::Other(e.to_string()))?,
+        )
+    } else {
+        agent.run(
+            internal
+                .body(request.body.as_slice())
+                .map_err(|e| Failure::Other(e.to_string()))?,
+        )
+    };
+    let mut response = sent.map_err(|e| failure(&e, url))?;
     let status = response.status().as_u16();
+    // `std-http.headers.case` and `.order`: ureq's header map lowercases
+    // each name and keeps the values of one name in order.
+    let headers = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            let text = value.as_bytes().iter().copied().map(char::from).collect();
+            (name.as_str().to_owned(), text)
+        })
+        .collect();
     let (body, held) = read_body(response.body_mut(), url, ledger)?;
-    let headers = captured
-        .lock()
-        .map_err(|_| Failure::Other("the Http header lock is poisoned".into()))?
-        .take()
-        .ok_or_else(|| Failure::Connect("the response has no complete headers".into()))?;
     Ok(Response {
         status,
         headers,
@@ -328,75 +331,36 @@ fn latin1(value: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
+/// The request ureq sends, without its body: the caller's headers in
+/// order, with ureq supplying `Host` and the body's framing, and
+/// `Connection: close` unless the caller names its own.
 pub(crate) fn outgoing(
     url: &Target,
     method: &str,
     headers: &Headers,
-    body: &[u8],
-) -> Result<Vec<u8>, Failure> {
-    let mut pairs = headers.clone();
-    for (name, value) in &pairs {
+) -> Result<ureq::http::request::Builder, Failure> {
+    let mut builder = ureq::http::Request::builder().method(method).uri(url.uri());
+    for (name, value) in headers {
+        let invalid = |what: &str| Failure::Other(format!("{what} [\"{name}\"]"));
         if !is_token(name) {
-            return Err(Failure::Other(format!(
-                "Header name must be a valid HTTP token [\"{name}\"]"
-            )));
+            return Err(invalid("Header name must be a valid HTTP token"));
         }
-        if value.chars().any(|c| {
-            let code = u32::from(c);
-            code != 9 && (code < 32 || code == 127 || code > 255)
-        }) {
-            return Err(Failure::Other(format!(
-                "Invalid character in header content [\"{name}\"]"
-            )));
-        }
+        let bytes = latin1(value)
+            .filter(|bytes| bytes.iter().all(|b| *b == 9 || (*b >= 32 && *b != 127)))
+            .ok_or_else(|| invalid("Invalid character in header content"))?;
+        let value = HeaderValue::from_bytes(&bytes)
+            .map_err(|_| invalid("Invalid character in header content"))?;
+        let name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| invalid("Header name must be a valid HTTP token"))?;
+        builder = builder.header(name, value);
     }
-    let has = |pairs: &Headers, name: &str| pairs.iter().any(|(n, _)| n.eq_ignore_ascii_case(name));
-    if !body.is_empty() && !has(&pairs, "content-length") && !has(&pairs, "transfer-encoding") {
-        pairs.push(("Content-Length".into(), body.len().to_string()));
-    }
-    if !has(&pairs, "host") {
-        pairs.insert(0, ("Host".into(), url.authority.clone()));
-    }
-    if !has(&pairs, "connection") {
-        pairs.push(("Connection".into(), "close".into()));
-    }
-    if !has(&pairs, "content-length")
-        && !has(&pairs, "transfer-encoding")
-        && !matches!(
-            method,
-            "GET" | "HEAD" | "DELETE" | "OPTIONS" | "TRACE" | "CONNECT"
-        )
+    if !headers
+        .iter()
+        .any(|(n, _)| n.eq_ignore_ascii_case("connection"))
     {
-        // Node renders raw header arrays in the request constructor, before
-        // end() supplies an empty body's length, so it uses chunked here.
-        pairs.push(("Transfer-Encoding".into(), "chunked".into()));
+        builder = builder.header("connection", "close");
     }
-    let chunked = pairs.iter().any(|(name, value)| {
-        name.eq_ignore_ascii_case("transfer-encoding")
-            && value
-                .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-                .any(|word| word.eq_ignore_ascii_case("chunked"))
-    });
-    let target = &url.path_and_query;
-    let mut raw = format!("{method} {target} HTTP/1.1\r\n").into_bytes();
-    for (name, value) in pairs {
-        raw.extend_from_slice(name.as_bytes());
-        raw.extend_from_slice(b": ");
-        raw.extend(latin1(&value).unwrap_or_default());
-        raw.extend_from_slice(b"\r\n");
-    }
-    raw.extend_from_slice(b"\r\n");
-    if chunked {
-        if !body.is_empty() {
-            raw.extend_from_slice(format!("{:x}\r\n", body.len()).as_bytes());
-            raw.extend_from_slice(body);
-            raw.extend_from_slice(b"\r\n");
-        }
-        raw.extend_from_slice(b"0\r\n\r\n");
-    } else {
-        raw.extend_from_slice(body);
-    }
-    Ok(raw)
+    Ok(builder)
 }
 
 fn check_credentials(value: &str) -> Result<(), Failure> {
@@ -421,9 +385,8 @@ fn check_credentials(value: &str) -> Result<(), Failure> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, Request, encode, outgoing};
+    use super::{Failure, Request, encode};
     use crate::codec::{Dec, Enc};
-    use crate::http::target::Target;
     use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
     use std::net::TcpListener;
@@ -560,28 +523,50 @@ mod tests {
     }
 
     #[test]
-    fn outgoing_preserves_authority_header_pairs_latin1_and_framing() {
-        let url = Target::parse("http://[::1]:8080/p?q#fragment").unwrap();
-        let headers = vec![
-            ("X-First".into(), "one".into()),
-            ("x-Second".into(), "é".into()),
-            ("X-First".into(), "two".into()),
-        ];
-        let raw = outgoing(&url, "GET", &headers, b"body").unwrap();
-        assert_eq!(raw, b"GET /p?q HTTP/1.1\r\nHost: [::1]:8080\r\nX-First: one\r\nx-Second: \xe9\r\nX-First: two\r\nContent-Length: 4\r\nConnection: close\r\n\r\nbody");
-        let raw = outgoing(&url, "POST", &vec![], &[]).unwrap();
-        assert_eq!(raw, b"POST /p?q HTTP/1.1\r\nHost: [::1]:8080\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n");
-        let raw = outgoing(
-            &url,
-            "HEAD",
-            &vec![
-                ("hOsT".into(), "custom".into()),
-                ("Transfer-Encoding".into(), "chunked".into()),
+    fn requests_keep_header_values_in_order_and_ureq_frames_the_body() {
+        let wire = |method: &str, headers: Vec<(&str, &str)>, body: &[u8]| {
+            let (url, server) = crate::http::test_support::server(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec(),
+            );
+            let headers = headers
+                .into_iter()
+                .map(|(n, v)| (n.into(), v.into()))
+                .collect();
+            let r = request(method, &url, &headers, body, 1000);
+            assert_eq!(send(r.done(), &Grants::default()).done()[0], 0);
+            let authority = url["http://".len()..]
+                .split('/')
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            (
+                String::from_utf8_lossy(&server.join().unwrap()).into_owned(),
+                authority,
+            )
+        };
+        let (text, authority) = wire(
+            "GET",
+            vec![
+                ("X-First", "one"),
+                ("x-Second", "\u{e9}"),
+                ("X-First", "two"),
             ],
-            b"body",
-        )
-        .unwrap();
-        assert_eq!(raw, b"HEAD /p?q HTTP/1.1\r\nhOsT: custom\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nbody\r\n0\r\n\r\n");
+            b"",
+        );
+        assert!(text.contains(&format!("host: {authority}\r\n")), "{text}");
+        let one = text.find("x-first: one").unwrap();
+        assert!(one < text.find("x-first: two").unwrap(), "{text}");
+        assert!(
+            text.contains("x-second: \u{e9}\r\n") || text.contains("x-second: \u{fffd}"),
+            "{text}"
+        );
+        let (text, _) = wire("POST", vec![("hOsT", "custom.example:88")], b"body");
+        assert!(text.contains("host: custom.example:88\r\n"), "{text}");
+        assert!(text.contains("content-length: 4\r\n"), "{text}");
+        assert!(text.ends_with("\r\n\r\nbody"), "{text}");
+        let (text, _) = wire("PUT", vec![("Transfer-Encoding", "chunked")], b"body");
+        assert!(text.ends_with("4\r\nbody\r\n0\r\n\r\n"), "{text}");
+        assert!(!text.contains("content-length"), "{text}");
     }
 
     #[test]
