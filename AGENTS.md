@@ -4,11 +4,14 @@ hd is a language design project. The owner decides every design question
 through Q&A; agents research, stress-test, write design records, and ask.
 
 For design work, use the skills in [.agents/skills](.agents/skills):
-`stress-test`, `complexity-reducer`, `brainstorm`, and `spec-update` (to
-apply a decided owner decision). Each follows
+`stress-test`, `complexity-reducer`, `brainstorm`, `spec-update` (to
+apply a decided owner decision), and `write-issue`. Each follows
 [.agents/skills/shared-rules.md](.agents/skills/shared-rules.md), which
 also holds the git and safety rules for this repo. See
 [.agents/README.md](.agents/README.md) for which harness reads what.
+The compiler's build, test and gate commands are in
+[crates/README.md](crates/README.md), and docs are indexed in
+[docs/README.md](docs/README.md).
 
 ## Design Cost Order
 
@@ -39,8 +42,7 @@ The language tier names a std item only when the compiler must know it: a
 lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
 `assert`, `assert_equal`, `println`). Any other std API that the owner
 decides lives in `spec/std/`. Undecided std design goes to
-[docs/future-work/OPEN_ISSUES.md](docs/future-work/OPEN_ISSUES.md); the archived
-STDLIB draft keeps its background.
+[docs/future-work/OPEN_ISSUES.md](docs/future-work/OPEN_ISSUES.md).
 
 **The tier test.** Could `lib/std` implement the item in ordinary hd, over
 language-tier items only, with no compiler knowledge of its name, and keep
@@ -65,9 +67,7 @@ A stdlib chapter may cite any language rule. A language chapter links to
 language-tier fixture or example uses only language-tier std items.
 Undecided std items appear in no spec example.
 
-Owner direction, 2026-09-28; tiers from
-Spec Tiers, 2026-09-30,
-whose migration is complete.
+Owner direction, 2026-09-28 and 2026-09-30.
 
 ## Spec Text Tools
 
@@ -111,5 +111,4 @@ This rule does **not** apply to:
 - specification text and conformance fixtures;
 - the compiler itself (the Rust crates in `crates/`).
 
-Those tasks use the normal model. Owner direction, 2026-09-29, revised
-the same day to split implementation from probing (batch 13, Q11).
+Those tasks use the normal model. Owner direction, 2026-09-29.

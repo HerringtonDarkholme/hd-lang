@@ -150,8 +150,7 @@ blocks.forEach((m, i) => {
 - Background agents run one at a time. Don't start a full check while
   another agent's full check runs, unless the owner asks for parallel runs.
 - Before any check, run `git fetch origin` and rebase on `origin/main`. A
-  stale `origin/main` makes `--changed` select other agents' fixtures too,
-  and the push would be rejected anyway.
+  stale `origin/main` gets the push rejected anyway.
 - Never read, print, or copy credential files: `~/.npmrc`, `~/.netrc`,
   `~/.git-credentials`, `~/.ssh/*`, `.env` files, `~/.config/gh/*`, or any
   token store.

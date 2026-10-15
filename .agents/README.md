@@ -28,6 +28,7 @@ AGENTS.md                      repo instructions; points here
     complexity-reducer/SKILL.md
     brainstorm/SKILL.md
     spec-update/SKILL.md
+    write-issue/SKILL.md
 .claude/skills -> ../.agents/skills   committed symlink, for Claude Code
 ```
 

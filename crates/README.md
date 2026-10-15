@@ -1,97 +1,47 @@
 # The hd Compiler
 
 The Rust compiler is the Cargo workspace at the repository root. It
-compiles hd source through typed IR to Wasm, then runs the module with V8
-through Node. It is the only compiler: the TypeScript prototype in `src/`
-was deleted on 2026-10-12 (#145).
+compiles hd source through typed IR to Wasm, then runs the module on V8
+through Node, or in process on wasmtime. Rust commands below run from the
+repository root. The toolchain is pinned in
+[`rust-toolchain.toml`](../rust-toolchain.toml).
 
-Rust commands below run from the repository root. The workspace pins its
-toolchain in [`rust-toolchain.toml`](../rust-toolchain.toml).
+The [architecture map](../docs/compiler/ARCHITECTURE.md) explains the
+pipeline, the crate boundaries, and the design docs. Direct dependencies are
+in each crate's `Cargo.toml`.
 
-## Crate Graph
+## Crates
 
-The table lists direct workspace dependencies. External dependencies are in
-the crate manifests. The design links explain each crate's intended boundary.
-
-| Crate | Role and direct workspace dependencies | Design |
+| Crate | Role | Design |
 | --- | --- | --- |
-| `hd_base` | IDs, spans, hashes, fuel, and shared low-level values such as the build profile, engine target and optimization level; leaf crate | [Core data structures](../docs/compiler/data-structures.md#3-core-data-structures) |
-| `hd_intern` | Interned strings and stable paths; `hd_base` | [Interners](../docs/compiler/data-structures.md#33-interners) |
-| `hd_diag` | Diagnostic codes and records; `hd_base` | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
-| `hd_syntax` | Lexer, layout, parser, green tree, and skeletons; `hd_base`, `hd_diag`, `hd_intern` | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
-| `hd_fmt` | Green-tree formatter; `hd_base`, `hd_syntax` | [Formatting command](hd_cli/DESIGN.md#76-hd-fmt-hd-fix) |
-| `hd_project` | Manifests, source discovery, modules, folders, and package graph; `hd_base`, `hd_syntax` | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
-| `hd_types` | Type storage, inference primitives, rows, and solver data; `hd_base`, `hd_intern` | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
-| `hd_host_abi` | Shared host import and ABI descriptions; `hd_base` | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |
-| `hd_resolve` | Names, folder interfaces, hashes, ownership, and visibility; `hd_base`, `hd_diag`, `hd_host_abi`, `hd_intern`, `hd_project`, `hd_syntax`, `hd_types` | [Resolution and interfaces](hd_resolve/DESIGN.md) |
-| `hd_tir` | Typed IR, builder, verifier, printer, and wire form; `hd_base`, `hd_intern`, `hd_types` | [TIR](hd_tir/DESIGN.md#41311-the-typed-ir-tir), [TIR storage](../docs/compiler/data-structures.md#318-tir) |
-| `hd_check` | Body checking, exhaustiveness, facts, coherence, and initialization; `hd_base`, `hd_diag`, `hd_intern`, `hd_resolve`, `hd_syntax`, `hd_tir`, `hd_types` | [Body checking](hd_tir/DESIGN.md#413-body-checking), [type checking](hd_check/DESIGN.md), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
-| `hd_mono` | Reachable-instance collection and monomorphization, applying body plans (`hd_mono::plan`); `hd_base`, `hd_tir`, `hd_types` | [Monomorphization and merging](hd_mono/DESIGN.md#13-monomorphization-and-merging) |
-| `hd_opt` | Pass manager: pass declarations, body-unit passes and the planner collection applies, pipelines as data keyed by (engine target, level) with their knobs, the validator, and the pass hash; `hd_base`, `hd_mono`, `hd_tir` | [Optimization pipelines](hd_opt/DESIGN.md) |
-| `hd_wasm` | Wasm GC emission and linking, and each engine target's lowering profile (`Lowering`); `hd_base`, `hd_host_abi`, `hd_mono`, `hd_tir`, `hd_types` | [Emitting from TIR](hd_mono/DESIGN.md#12-emitting-from-tir), [Wasm layout](hd_wasm/DESIGN.md) |
-| `hd_cache` | Cache keys, entry framing, memory store, and optional disk store; `hd_base` | [Cache](hd_cache/DESIGN.md#5-cache) |
-| `hd_deps` | Remote dependencies for `hd_cli`: version selection, fetching with `git`, the version cache, tree hashes, and `hd.sum`; `hd_diag`, `hd_project` | [Dependencies](../spec/cli/command-line.md#dependencies) |
-| `hd_run` | Engine-neutral program loading and run outcomes; `hd_base`, `hd_cache`, `hd_wasm` | [Runtime](hd_run_wasmtime/DESIGN.md#16-runtime), [execution engines](../docs/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
-| `hd_run_wasmtime` | Wasmtime-side engine boundary; `hd_cache`, `hd_run` | [Runtime and host interface](hd_run_wasmtime/DESIGN.md), [wasmtime configuration](../docs/compiler/engines-and-test-runner.md#181-wasmtime-configuration) |
-| `hd_sched` | Serial, stepping, and threaded task executors; leaf workspace crate | [Scheduler](hd_sched/DESIGN.md) |
-| `hd_driver` | Owns the task graph and assembles compiler outputs; all core front- and back-half crates | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
-| `hd_doc` | Documentation extraction and rendering; `hd_base`, `hd_resolve` | [`hd doc`](hd_cli/DESIGN.md#77-hd-doc) |
-| `hd_stdpack` | Build-time standard-library packer; `hd_base`, `hd_driver`, `hd_project` | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
-| `hd_web` | Playground compile session over an in-memory store; `hd_cache`, `hd_driver`, `hd_project`, `hd_sched` | [Browser runner](../docs/compiler/engines-and-test-runner.md#184-the-browser-runner), [playground](hd_cli/DESIGN.md#79-the-playground), [playground on Wasm](hd_web/DESIGN.md) |
-| `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader; `hd_base`, `hd_driver`, `hd_sched` | [Testing the checker](hd_check/DESIGN.md#14-testing), [determinism and soundness tests](../docs/compiler/testing-the-compiler.md) |
-| `hd_cli` | Native `hd` binary, disk sources/cache, threaded execution, and Node/V8 engine, plus `hd_run_wasmtime` with the `wasmtime` feature; `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Command flows](hd_cli/DESIGN.md) |
-
-In dependency order, the main path is:
-
-```text
-source
-  -> hd_syntax -> hd_project -> hd_resolve
-  -> hd_check  -> hd_tir     -> hd_mono -> hd_wasm
-                                    \-> hd_opt
-  -> hd_driver -> hd_run     -> hd_cli/Node
-```
-
-`hd_cache` and `hd_sched` are services supplied to `hd_driver`.
-`hd_host_abi` is shared by resolution and code generation. `hd_fmt`, `hd_doc`,
-`hd_stdpack`, `hd_web`, `hd_run_wasmtime`, and `hd_testkit` sit beside the
-native compile-and-run path.
-
-## Pipeline And Tasks
-
-Stages are reported in this order. The middle stages form a dependency graph,
-so rows next to each other can run concurrently rather than as one serial
-pipeline.
-
-| Stage | Task kind and unit | Result |
-| --- | --- | --- |
-| Discover | driver setup, one package | source and manifest inventory |
-| Skim | `Skim(file)` | imports and header skeleton |
-| Parse | `Parse(file)`, created on demand | tokens and green tree |
-| FolderGraph | `FolderGraph`, one package | acyclic folder dependency graph |
-| FolderIface | `FolderIface(folder)` | resolved, encoded public interface |
-| HeaderCheck | `HeaderCheck(folder)` | bound and header diagnostics |
-| ModulePrep | `ModulePrep(module)` | scope, signatures, and checker inputs |
-| Body | `Body(module)` | checked bodies and TIR |
-| ModuleFinish | `ModuleFinish(module)` | stable module result and cache entry |
-| TestOverlay | `TestOverlay(module)` | checked `tests:` overlay |
-| Coherence | `Coherence`, one task for changed trait keys | overlap diagnostics |
-| InitOrder | `InitOrder(folder)` | module initialization order |
-| PackageResult | `PackageResult`, one package | sorted diagnostics and package result |
-| Collect | `Collect`, one program | reachable monomorphized instances |
-| Emit | `Emit(instance)` | one relocatable Wasm code entry |
-| Link | `Link`, one program | deterministic Wasm module |
-| Precompile | `Precompile`, engine work | engine-specific compiled artifact |
-| Run | `RunCase(case)`, runner work | exit, panic, or internal outcome |
-
-The driver currently schedules through `Link`. The CLI hands linked bytes to
-the Node/V8 engine directly; `Precompile` and `RunCase` remain task kinds for
-the later test-runner pipeline.
+| `hd_base` | IDs, spans, hashes, fuel, build profile, engine target and level; leaf crate | [Core data structures](../docs/compiler/data-structures.md#3-core-data-structures) |
+| `hd_intern` | Interned strings and stable paths | [Interners](../docs/compiler/data-structures.md#33-interners) |
+| `hd_diag` | Diagnostic codes and records | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
+| `hd_syntax` | Lexer, layout, parser, green tree, and skeletons | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
+| `hd_fmt` | Green-tree formatter | [`hd fmt`, `hd fix`](hd_cli/DESIGN.md#76-hd-fmt-hd-fix) |
+| `hd_project` | Manifests, source discovery, modules, folders, package graph | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
+| `hd_types` | Type storage, inference primitives, rows, solver data | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md) |
+| `hd_host_abi` | Host import and ABI descriptions | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |
+| `hd_resolve` | Names, folder interfaces, hashes, ownership, visibility | [Resolution and interfaces](hd_resolve/DESIGN.md) |
+| `hd_tir` | Typed IR, builder, verifier, printer, wire form | [TIR](hd_tir/DESIGN.md#41311-the-typed-ir-tir), [TIR storage](../docs/compiler/data-structures.md#318-tir) |
+| `hd_structure` | The compiler-supplied `Structure` generator for derivations and tuples | [Type checking](hd_check/DESIGN.md) |
+| `hd_check` | Body checking, trait solving, exhaustiveness, facts, coherence, initialization | [Body checking](hd_tir/DESIGN.md#413-body-checking), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
+| `hd_mono` | Reachable-instance collection and monomorphization | [Monomorphization and merging](hd_mono/DESIGN.md#13-monomorphization-and-merging) |
+| `hd_opt` | Pass manager and pipelines keyed by (engine target, level) | [Optimization pipelines](hd_opt/DESIGN.md) |
+| `hd_wasm` | Wasm GC emission, linking, and each target's lowering profile | [Emitting from TIR](hd_mono/DESIGN.md#12-emitting-from-tir), [Wasm layout](hd_wasm/DESIGN.md) |
+| `hd_cache` | Cache keys, entry framing, memory and disk stores | [Cache](hd_cache/DESIGN.md#5-cache) |
+| `hd_deps` | Remote dependencies: version selection, `git` fetching, tree hashes, `hd.sum` | [Dependencies](../spec/cli/command-line.md#dependencies) |
+| `hd_run` | Engine-neutral program loading and run outcomes | [Runtime](hd_run_wasmtime/DESIGN.md#16-runtime), [execution engines](../docs/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
+| `hd_run_wasmtime` | The wasmtime engine and its host providers | [Runtime and host interface](hd_run_wasmtime/DESIGN.md) |
+| `hd_sched` | Serial, stepping, and threaded task executors; leaf crate | [Scheduler](hd_sched/DESIGN.md) |
+| `hd_driver` | The task graph of a run; assembles compiler outputs | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
+| `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_cli/DESIGN.md#77-hd-doc) |
+| `hd_stdpack` | Build-time standard-library packer | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
+| `hd_web` | Playground compile session over an in-memory store | [Playground on Wasm](hd_web/DESIGN.md) |
+| `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader | [Testing the compiler](../docs/compiler/testing-the-compiler.md) |
+| `hd_cli` | The `hd` binary: commands, disk sources and cache, Node engine, REPL | [Command flows](hd_cli/DESIGN.md) |
 
 ## Build And Run
-
-Build the native binary once, then use the forms implemented at this
-commit. `hd FILE.hd` runs one file. `hd run [NAME]` and `hd build [FILE.hd]`
-work on the package whose `hd.toml` is at or above the working directory:
 
 ```sh
 cargo build -p hd_cli
@@ -100,16 +50,11 @@ cargo build -p hd_cli
 (cd examples/fib && ../../target/debug/hd build)
 ```
 
-`hd FILE.hd` and `hd run` compile and execute with Node/V8. `hd run` runs the
-package's one executable (`src/main.hd`, or `main.hd` in the package
-directory), and `hd run NAME` runs the executable or the task `tasks/NAME.hd`
-that NAME names; `hd run FILE` is an error. `hd build` writes each executable
-to `build/debug/NAME.wasm` (`build/release/` with `--release`), and
-`hd build FILE.hd` writes `build/debug/files/STEM.wasm`. Outside a package,
-`hd run` and `hd build` are errors that suggest `hd new`. Every rejected
-command line exits with status 101. `--release` selects the release profile,
-whose integer arithmetic wraps and whose shift counts are masked; `hd test
---release` stays checked.
+`hd help` lists the commands and `hd help COMMAND` a command's flags. The
+rules for each command are in [spec/cli/](../spec/cli/README.md), and the
+day-to-day use is in [The `hd` Command](../website/guide/COMMANDS.md).
+`--release` selects the release profile, whose integer arithmetic wraps and
+whose shift counts are masked; `hd test --release` stays checked.
 
 ## Wasmtime Engine
 
@@ -130,7 +75,7 @@ with `this build of hd has no wasmtime engine; rebuild with --features
 wasmtime`. It never falls back to Node.
 
 Every build that runs is tuned for the engine that runs it
-([crates/hd_opt/DESIGN.md (optimization pipelines)](hd_opt/DESIGN.md) §5): `hd run`,
+([optimization pipelines](hd_opt/DESIGN.md), §5): `hd run`,
 `hd FILE`, `hd test` and `hd build` take the engine from `--engine`, else
 `HD_ENGINE`, else Node, so `hd build --engine wasmtime` writes a module
 tuned for wasmtime, which `hd --engine wasmtime FILE.wasm` runs. Every
@@ -216,8 +161,10 @@ HD_UPDATE_GOLDEN=1 cargo test -p hd_driver --test all checker::std_bodies_match_
 The repository hook is [`.githooks/pre-commit`](../.githooks/pre-commit).
 `pnpm install --frozen-lockfile` runs the root `prepare` script, which sets
 `core.hooksPath` to `.githooks`. When staged Rust or compiler manifest files
-change, the hook runs `cargo fmt --all --check` and workspace Clippy with all
-features and warnings denied. It does nothing for a documentation-only commit.
+change, the hook runs `cargo fmt --all --check` and
+`cargo clippy --all-targets -- -D warnings` on the default members, so a commit
+never builds wasmtime. CI lints with `--workspace --all-features`. The hook
+does nothing for a documentation-only commit.
 
 ## Disk Cache
 
@@ -230,18 +177,13 @@ The CLI stores compiled objects in an `obj` directory:
 | Other Unix with `XDG_CACHE_HOME` | `$XDG_CACHE_HOME/hd/obj` |
 | Other Unix fallback | `$HOME/.cache/hd/obj` |
 
-There is no cache-cleaning subcommand yet. Stop running `hd`, then delete only
-that `obj` directory. For disposable development runs, make the target
-unambiguous:
+`hd cache gc` evicts the least recently used entries down to the size cap
+(10 GiB, or `HD_CACHE_MAX_SIZE`). `hd clean --cache` removes fetched
+dependency versions, not compiled objects. To drop compiled objects, stop
+running `hd` and delete only the `obj` directory. For disposable development
+runs, make the target unambiguous:
 
 ```sh
 HD_CACHE=/private/tmp/hd-cache ./target/debug/hd examples/hello/hello.hd
 rm -rf /private/tmp/hd-cache/obj
 ```
-
-The next compile recreates it.
-
-## Status And Planning
-
-- [Compiler architecture](../docs/compiler/ARCHITECTURE.md): the code map and
-  the design docs. Open work is tracked in GitHub issues.

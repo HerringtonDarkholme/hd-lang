@@ -166,8 +166,9 @@ and choose it with `hd --engine wasmtime ...` or `HD_ENGINE=wasmtime`.
 ## Start
 
 Read the [guide](website/guide/README.md), take the
-[Language Tour](website/guide/LANGUAGE_TOUR.md), and use the
-[specification](spec/README.md) for the exact rules. The Rust compiler is
-the Cargo workspace at the repository root ([crates/README.md](crates/README.md)).
-The standard library is in [lib/std](lib/std/), and the open design questions in
-[future-work](docs/future-work/README.md).
+[Language Tour](website/guide/LANGUAGE_TOUR.md), and run `hd help` for the
+commands ([The `hd` Command](website/guide/COMMANDS.md)). The
+[specification](spec/README.md) holds the exact rules, and the standard
+library is in [lib/std](lib/std/). To work on the compiler, see
+[crates/README.md](crates/README.md). [docs/](docs/README.md) indexes the
+compiler design, the open design questions, and the audit logs.
