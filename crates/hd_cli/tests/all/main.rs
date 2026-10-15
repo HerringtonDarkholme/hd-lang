@@ -3,6 +3,7 @@
 //! `cli_conformance.rs` stays a separate target: it owns the CLI section of
 //! CONFORMANCE.md and runs its own worker pool.
 
+mod affected;
 mod check_cmd;
 mod dbg;
 mod deps;

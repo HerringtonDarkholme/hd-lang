@@ -439,6 +439,12 @@ pub struct Output {
     /// The optimization level whose pipeline built this output
     /// ([`Packages::level`]).
     pub level: OptLevel,
+    /// The run's toolchain key (cache.md §5.3): the compiler build and the
+    /// std sources it built with.
+    pub toolchain: Hash128,
+    /// The content key of the pipeline that built this output
+    /// (opt-pipeline.md §3.3), for its `target` and `level`.
+    pub pipeline: Hash128,
 }
 
 impl Output {
@@ -1660,6 +1666,8 @@ fn build_packages_inner(
         session_added,
         target: packages.target,
         level: packages.level,
+        toolchain: run.toolchain,
+        pipeline: run.pipeline,
     }
 }
 

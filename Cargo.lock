@@ -583,6 +583,7 @@ name = "hd_cli"
 version = "0.0.0"
 dependencies = [
  "ctrlc",
+ "hd_base",
  "hd_cache",
  "hd_check",
  "hd_deps",

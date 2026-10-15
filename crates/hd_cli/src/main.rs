@@ -5,6 +5,7 @@
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`,
 //! or wasmtime in-process with `--engine wasmtime`; `engine.rs`).
 
+mod affected;
 mod caps;
 mod check_cmd;
 mod clean_cmd;

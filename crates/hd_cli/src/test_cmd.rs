@@ -22,6 +22,7 @@ use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
 };
 
+use crate::affected;
 use crate::caps::CapFlag;
 use crate::engine::{CaseRun, HostCase, Snapshot, TestEnv, TestPrograms, TestSession};
 use crate::report::{self, Reporter};
@@ -46,6 +47,9 @@ struct Options {
     engine: crate::engine::EngineKind,
     release: bool,
     limits: crate::engine::ProgramLimits,
+    /// `--affected`: only the test programs whose fingerprint differs from
+    /// their record run (`cli.test.affected`).
+    affected: bool,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
@@ -68,6 +72,7 @@ fn parse_with_engine(
         engine,
         release: false,
         limits: crate::engine::ProgramLimits::default(),
+        affected: false,
     };
     let mut i = 0;
     while i < args.len() {
@@ -133,6 +138,8 @@ fn parse_with_engine(
         }
         if text == "--update" {
             o.update = true;
+        } else if text == "--affected" {
+            o.affected = true;
         } else if text == "--filter" || text.starts_with("--filter=") {
             o.filter = Some(value("--filter")?);
         } else if text == "--seed" || text.starts_with("--seed=") {
@@ -237,6 +244,9 @@ pub fn command(args: &[OsString]) -> ExitCode {
         failed: 0,
         ignored: 0,
         unsupported: 0,
+        skipped: 0,
+        failing: Vec::new(),
+        unrun: Vec::new(),
     };
     if o.engine == crate::engine::EngineKind::Node && o.limits.heap_bytes.is_some() {
         // Node enforces `--time-limit` (host/test.mjs) but has no heap cap.
@@ -383,6 +393,17 @@ struct Selected {
     /// The `<module>` of its snapshot files' folder
     /// (`std-testing.snapshot-file.module`).
     snapshots: String,
+    /// Its test program (`cli.test.program`), by index into the package's
+    /// [`TestProgramRecord`]s.
+    record: usize,
+}
+
+/// A test program (`cli.test.program`) and its fingerprint
+/// (`cli.test.fingerprint`): a module's unit tests, an integration test
+/// file, or a doc test, which are each built on their own.
+struct TestProgramRecord {
+    id: String,
+    fingerprint: hd_base::Hash128,
 }
 
 /// The `<module>` part of a snapshot file's path for a case in `file`
@@ -499,6 +520,9 @@ fn test_one(
                 .is_none_or(|t| !hd_driver::has_tests_block(&String::from_utf8_lossy(&t)))
         })
         .collect();
+    // Every source file, which a program that starts the package's
+    // executables and tasks reads (`cli.test.process`).
+    let every = program.sources.clone();
     program.sources.retain(|p| !untested.iter().any(|u| u == p));
     let integration_file = hd_driver::integration_test_file;
     let docs = if file.is_some_and(integration_file) {
@@ -538,6 +562,21 @@ fn test_one(
         ..program.packages()
     };
     let package = &program.package;
+    // `cli.test.fingerprint`: what every program's fingerprint holds
+    // besides its own sources.
+    let common = affected::common(&affected::Settings {
+        root,
+        engine: o.engine,
+        release: o.release,
+        seed: o.seed,
+        update: o.update,
+        limits: o.limits,
+        caps: &o.caps,
+        program: &program,
+    });
+    let data = affected::data(root, &every, program.single_file);
+    let mut every_hash = None;
+    let mut records: Vec<TestProgramRecord> = Vec::new();
     let mut built: Vec<Built> = Vec::new();
     let mut selected: Vec<Selected> = Vec::new();
     // The programs' modules, each kept once for their panic frames.
@@ -561,6 +600,68 @@ fn test_one(
         let mut out = build_packages(&host, package, &packages, &goal);
         crate::note_built(&out);
         let mut found = report::from_output(&out, None);
+        // `cli.test.program`: the program of a doc test or an integration
+        // test file, else one per module of the unit-test program.
+        let (doc_record, case_records) = {
+            let read = affected::Build::new(&out, &sources);
+            let mut extra = Vec::new();
+            if path.is_some() && out.wasm.as_deref().is_some_and(starts_programs) {
+                extra.push(*every_hash.get_or_insert_with(|| affected::all_sources(&every)));
+            }
+            // A program that can read environment variables
+            // (`std.host.Env`) depends on them.
+            if path.is_some() && out.wasm.as_deref().is_some_and(|w| imports(w, "hd:Env")) {
+                extra.push(affected::environment());
+            }
+            if let Some(d) = doc {
+                let mut h = hd_base::StableHasher::new("hd-doc-test");
+                h.str(&format!("{:?}", d.test.compile_fail));
+                extra.push(h.finish());
+            }
+            let data = if path.is_some() {
+                data.package
+            } else {
+                data.unit
+            };
+            // A program's record, made on its first case: its id, the files
+            // it is built from beside std's and the dependencies', and the
+            // cases it holds.
+            let mut add = |id: String,
+                           mine: &dyn Fn(&TestCase) -> bool,
+                           own: &dyn Fn() -> hd_base::Hash128| {
+                if let Some(i) = records.iter().position(|r| r.id == id) {
+                    return i;
+                }
+                let mut sources = vec![own()];
+                sources.extend_from_slice(&extra);
+                let cases: Vec<&TestCase> = out.tests.iter().filter(|c| mine(c)).collect();
+                let fingerprint = affected::fingerprint(common, &id, &sources, data, &cases);
+                records.push(TestProgramRecord { id, fingerprint });
+                records.len() - 1
+            };
+            let program_id = match (path, doc) {
+                (_, Some(d)) => Some(d.test.name.clone()),
+                (Some(p), None) => Some(format!("test {p}")),
+                (None, None) => None,
+            };
+            let doc_record = program_id
+                .as_ref()
+                .filter(|_| doc.is_some_and(|d| d.test.compile_fail.is_some()))
+                .map(|id| add(id.clone(), &|_| true, &|| read.all()));
+            let case_records: Vec<usize> = out
+                .tests
+                .iter()
+                .map(|case| match &program_id {
+                    Some(id) => add(id.clone(), &|_| true, &|| read.all()),
+                    None => add(
+                        format!("unit {}", case.file),
+                        &|c| c.file == case.file,
+                        &|| read.module(package, &case.file),
+                    ),
+                })
+                .collect();
+            (doc_record, case_records)
+        };
         // `module.test.doc.compile-fail`: it never runs, and passes only
         // when compiling it reports its code.
         if let Some(d) = doc
@@ -599,6 +700,7 @@ fn test_one(
                 },
                 fixed: Some(fixed),
                 snapshots: snapshot_module(&d.file),
+                record: doc_record.unwrap_or_default(),
             });
             built.push(Built {
                 wasm: None,
@@ -619,7 +721,7 @@ fn test_one(
                 diags.push(x);
             }
         }
-        for mut case in std::mem::take(&mut out.tests) {
+        for (mut case, record) in std::mem::take(&mut out.tests).into_iter().zip(case_records) {
             if let Some(d) = doc {
                 case.file.clone_from(&d.file);
                 case.line = u32::try_from(d.line(case.line as usize)).unwrap_or(u32::MAX);
@@ -629,6 +731,7 @@ fn test_one(
                 snapshots: snapshot_module(&case.file),
                 case,
                 fixed: None,
+                record,
             });
         }
         // A doc test's file is the source file of its block.
@@ -673,6 +776,27 @@ fn test_one(
             None => format!("`{}` registers no test case", f.display()),
         }));
     }
+    // `cli.test.affected.where`: the records live in a package's build
+    // directory; a FILE outside any package has none, so it records nothing
+    // and `--affected` runs all of it.
+    let kept = (!program.single_file).then(|| affected::Records::at(root));
+    // `cli.test.affected`: a program whose fingerprint is the one recorded
+    // when it last passed in full is skipped.
+    let fresh: Vec<bool> = records
+        .iter()
+        .map(|r| {
+            o.affected
+                && kept
+                    .as_ref()
+                    .is_some_and(|k| k.passed(&r.id, r.fingerprint))
+        })
+        .collect();
+    report.skipped += records
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| fresh[*i] && selected.iter().any(|s| s.record == *i))
+        .count();
+    selected.retain(|s| !fresh[s.record]);
     for s in &mut selected {
         s.case.file = program.sources.display(&s.case.file);
         if let Some(m) = member {
@@ -693,11 +817,10 @@ fn test_one(
     // `cli.test.builds-executables`: when an integration test or a doc
     // test can start a program, the package's executables and tasks are
     // built first, for the runner's `Process` provider.
-    let starts = built.iter().any(|b| {
+    let starts = built.iter().enumerate().any(|(i, b)| {
         b.cwd.is_some()
-            && b.wasm.as_deref().is_some_and(|w| {
-                hd_run::module_imports(w).is_ok_and(|i| i.iter().any(|(m, _)| m == "hd:Process"))
-            })
+            && selected.iter().any(|s| s.program == i)
+            && b.wasm.as_deref().is_some_and(starts_programs)
     });
     let programs = if starts {
         Some(build_programs(
@@ -709,7 +832,49 @@ fn test_one(
     } else {
         None
     };
-    run(&selected, &built, &env, programs.as_ref(), o, report)
+    let result = run(&selected, &built, &env, programs.as_ref(), o, report);
+    // `cli.test.affected.failed`: a program a case of which failed loses
+    // its record, even when the run stopped early.
+    let mut failed = vec![false; records.len()];
+    for i in std::mem::take(&mut report.failing) {
+        failed[selected[i].record] = true;
+    }
+    let mut unrun = vec![false; records.len()];
+    for i in std::mem::take(&mut report.unrun) {
+        unrun[selected[i].record] = true;
+    }
+    let Some(kept) = kept else {
+        return result;
+    };
+    for (r, _) in records.iter().zip(&failed).filter(|(_, f)| **f) {
+        if let Err(e) = kept.forget(&r.id) {
+            return Err(report.rep.fail(&e));
+        }
+    }
+    result?;
+    // `cli.test.affected.record`: a program whose every case ran and
+    // passed in an unfiltered run is recorded. An ignored case has its
+    // outcome from its source alone; a case that cannot run yet did not run.
+    if o.filter.is_none() {
+        for (i, r) in records.iter().enumerate() {
+            if !failed[i] && !unrun[i] && selected.iter().any(|s| s.record == i) {
+                kept.record(&r.id, r.fingerprint);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether a test program can start the package's executables and tasks
+/// (`cli.test.process`): it imports `Process`.
+fn starts_programs(wasm: &[u8]) -> bool {
+    imports(wasm, "hd:Process")
+}
+
+/// Whether a test program imports from the host module `module`. A module
+/// whose imports cannot be read counts as one that does.
+fn imports(wasm: &[u8], module: &str) -> bool {
+    hd_run::module_imports(wasm).map_or(true, |i| i.iter().any(|(m, _)| m == module))
 }
 
 /// The package's executables and tasks, built for the test runner's
@@ -1143,6 +1308,12 @@ struct Report {
     failed: usize,
     ignored: usize,
     unsupported: usize,
+    /// The test programs `--affected` skipped (`cli.test.affected`).
+    skipped: usize,
+    /// The package's selected cases that failed, and that could not run,
+    /// by index, for its records (`cli.test.affected.record`).
+    failing: Vec<usize>,
+    unrun: Vec<usize>,
 }
 
 impl Report {
@@ -1175,6 +1346,7 @@ impl Report {
                 }
                 CaseResult::Failed { message } => {
                     self.failed += 1;
+                    self.failing.push(i);
                     let _ = writeln!(t, "FAIL {at}: {name}");
                     for l in message.lines() {
                         let _ = writeln!(t, "    {l}");
@@ -1192,6 +1364,7 @@ impl Report {
                     frames,
                 } => {
                     self.failed += 1;
+                    self.failing.push(i);
                     let panic = if message.is_empty() {
                         format!("panic: {category}")
                     } else {
@@ -1213,6 +1386,7 @@ impl Report {
                 }
                 CaseResult::TimedOut => {
                     self.failed += 1;
+                    self.failing.push(i);
                     let _ = writeln!(t, "PANIC {at}: {name}\n    panic: time-limit");
                     ("failed", "panic: time-limit".to_owned())
                 }
@@ -1223,6 +1397,7 @@ impl Report {
                 }
                 CaseResult::Unsupported { what } => {
                     self.unsupported += 1;
+                    self.unrun.push(i);
                     let _ = writeln!(t, "UNSUPPORTED {at}: {name} ({what} cannot run yet)");
                     // JSON has no fourth outcome; as in text, it fails nothing.
                     ("ignored", format!("unsupported: {what} cannot run yet"))
@@ -1270,6 +1445,15 @@ impl Report {
         );
         if self.unsupported > 0 {
             let _ = write!(self.text, "; {} unsupported", self.unsupported);
+        }
+        // `cli.test.affected`: the programs `--affected` skipped, when it
+        // skipped any.
+        match self.skipped {
+            0 => {}
+            1 => self.text.push_str("; 1 program skipped"),
+            n => {
+                let _ = write!(self.text, "; {n} programs skipped");
+            }
         }
         self.text.push('\n');
         self.flush();

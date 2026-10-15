@@ -17,6 +17,7 @@ path = "src/main.rs"
 wasmtime = ["dep:hd_run_wasmtime", "dep:hd_syntax", "dep:hd_resolve", "dep:rustyline", "dep:ctrlc"]
 
 [dependencies]
+hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache", features = ["disk"] }
 hd_check = { path = "../hd_check" }
 hd_deps = { path = "../hd_deps" }
