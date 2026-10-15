@@ -243,3 +243,75 @@ fn affected_works_on_wasmtime_and_the_engine_reruns() {
     );
     assert_eq!(summary(&root, &["--affected"]), ALL_PASS);
 }
+
+/// `cli.test.fingerprint` for uses only test code makes (#238): a
+/// `tests:` block, a test module, an integration test file and a doc test
+/// use `money.coins`, which no library code uses, and an integration test
+/// file uses a dev dependency. An edit of either reruns the programs
+/// that read it.
+#[test]
+fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
+    let world = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-affected-test-only");
+    let root = world.join("shop");
+    let files: [(&str, &str); 9] = [
+        (
+            "shop/hd.toml",
+            "[package]\nname = \"shop\"\n\n[dev-dependencies]\nfixtures = { path = \"../fixtures\" }\n",
+        ),
+        (
+            "shop/src/money/coins.hd",
+            "pub fn cents() -> i32:\n    100\n",
+        ),
+        ("shop/src/stock.hd", STOCK),
+        (
+            "shop/src/ledger.hd",
+            "## The total.\n##\n## ```hd\n## use pkg.money.coins.{cents}\n## use pkg.ledger.{total}\n\
+             ## use std.testing.assert_equal\n##\n\
+             ## assert_equal(total() + cents(), 103, reason=\"doc\")\n## ```\n\
+             pub fn total() -> i32:\n    3\n\n\
+             tests:\n    use pkg.money.coins.cents\n    use std.testing.assert_equal\n\n    \
+             it(\"adds cents\"):\n        assert_equal(total() + cents(), 103, reason=\"block\")\n",
+        ),
+        (
+            "shop/src/ledger_test.hd",
+            "use pkg.money.coins.cents\nuse std.testing.assert_equal\n\n\
+             it(\"checks cents\"):\n    assert_equal(cents(), 100, reason=\"module\")\n",
+        ),
+        (
+            "shop/tests/bill.hd",
+            "use pkg.money.coins.cents\nuse std.testing.assert_equal\n\n\
+             it(\"bills\"):\n    assert_equal(cents(), 100, reason=\"file\")\n",
+        ),
+        (
+            "shop/tests/sample.hd",
+            "use dep.fixtures.sample\nuse std.testing.assert_equal\n\n\
+             it(\"samples\"):\n    assert_equal(sample(), 10, reason=\"dev\")\n",
+        ),
+        ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
+        ("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    10\n"),
+    ];
+    for (path, text) in files {
+        let path = world.join(path);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    assert_eq!(
+        summary(&root, &[]),
+        "test result: ok. 6 passed; 0 failed; 0 ignored\n"
+    );
+    std::fs::write(
+        root.join("src/money/coins.hd"),
+        "pub fn cents() -> i32:\n    50 + 50\n",
+    )
+    .expect("edit");
+    assert_eq!(
+        ran(&root, &["--affected"]),
+        ["adds cents", "bills", "checks cents", "doc ledger.total[0]"]
+    );
+    std::fs::write(
+        world.join("fixtures/src/lib.hd"),
+        "pub fn sample() -> i32:\n    5 + 5\n",
+    )
+    .expect("edit");
+    assert!(ran(&root, &["--affected"]).contains(&"samples".to_owned()));
+}

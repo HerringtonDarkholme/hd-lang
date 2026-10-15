@@ -801,3 +801,102 @@ fn std_skims_come_from_the_toolchain_entry() {
         assert_eq!(healed.counters.hit("depfiles"), 1);
     }
 }
+
+/// A library module whose `tests:` block, and a test module beside it,
+/// use `money.coins`, which no library code uses (#238).
+const LEDGER: &str = "\
+pub fn total() -> i32:
+    3
+
+tests:
+    use pkg.money.coins.cents
+    use std.testing.assert_equal
+
+    it(\"adds cents\"):
+        assert_equal(total() + cents(), 103, reason=\"block\")
+";
+
+const LEDGER_TEST: &str = "\
+use pkg.money.coins.cents
+use std.testing.assert_equal
+
+it(\"checks cents\"):
+    assert_equal(cents(), 100, reason=\"module\")
+";
+
+fn ledger(coins: &str) -> MemorySources {
+    let mut s = MemorySources::default();
+    s.insert("src/ledger.hd", LEDGER);
+    s.insert("src/ledger_test.hd", LEDGER_TEST);
+    s.insert("src/money/coins.hd", coins);
+    s
+}
+
+fn test_run(store: &MemoryStore, src: &MemorySources, executor: Executor) -> Output {
+    let host = Host {
+        render_tir: &[],
+        sources: src,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    build(
+        &host,
+        "shop",
+        &Goal::Tests {
+            module: None,
+            filter: None,
+        },
+    )
+}
+
+/// The test role's `check` keys reach every folder test code reads
+/// (#238): a `tests:` block's use and a test module's use of a folder
+/// that no library code uses. Warm, both checks hit; a body edit of the
+/// used folder rechecks it alone; an edit of its API rechecks both, which
+/// report the call, never a stale pass.
+#[test]
+fn test_code_uses_reach_the_test_check_keys() {
+    const COINS: &str = "pub fn cents() -> i32:\n    100\n";
+    let own = |r: &Output| -> Vec<String> {
+        r.counters
+            .modules_checked
+            .iter()
+            .filter(|m| m.starts_with("shop."))
+            .cloned()
+            .collect()
+    };
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let cold = test_run(&store, &ledger(COINS), executor);
+        assert!(cold.diags.is_empty(), "{}", cold.render());
+        assert_eq!(
+            own(&cold),
+            ["shop.ledger", "shop.ledger_test", "shop.money.coins"],
+            "{executor:?}"
+        );
+        let warm = test_run(&store, &ledger(COINS), executor);
+        assert!(warm.diags.is_empty(), "{}", warm.render());
+        assert!(own(&warm).is_empty(), "{executor:?}: {:?}", own(&warm));
+
+        let body = test_run(&store, &ledger(&COINS.replace("100", "50 + 50")), executor);
+        assert!(body.diags.is_empty(), "{}", body.render());
+        assert_eq!(own(&body), ["shop.money.coins"], "{executor:?}");
+
+        let api = COINS.replace("cents()", "cents(n: i32)");
+        let r = test_run(&store, &ledger(&api), executor);
+        assert_eq!(
+            own(&r),
+            ["shop.ledger", "shop.ledger_test", "shop.money.coins"],
+            "{executor:?}"
+        );
+        let located = r.render_located();
+        assert_eq!(
+            located.matches("argument-count").count(),
+            2,
+            "{executor:?}: {located}"
+        );
+        assert!(located.contains("src/ledger.hd:9:"), "{located}");
+        assert!(located.contains("src/ledger_test.hd:5:"), "{located}");
+    }
+}
