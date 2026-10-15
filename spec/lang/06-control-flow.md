@@ -500,7 +500,7 @@ fn grade(score: i32) -> string:
 
 | Rule | Coverage |
 | --- | --- |
-| r[flow.match.cover.enum] Enum | A nominal enum, including `Option[T]` (written `T?`), requires every inhabitable variant, accounting for payload constraints, or a catch-all pattern. |
+| r[flow.match.cover.enum] Enum | A nominal enum, including `Option[T]` (written `T?`), requires every variant, accounting for payload constraints, or a catch-all pattern. A variant whose payload has type `never` still needs an arm, as `.Err(e) => e`. |
 | r[flow.match.cover.bool] Bool | `bool` is covered by both `true` and `false`, or by a catch-all pattern. |
 | r[flow.match.cover.tuple] Tuple | A tuple pattern covers the tuple values covered recursively by its element patterns. |
 | r[flow.match.cover.unit] Unit | `void` is covered by the [unit pattern](#unit-pattern) `()`, or by a catch-all pattern. |
