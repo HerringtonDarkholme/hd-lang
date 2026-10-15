@@ -185,6 +185,24 @@ test("a stop cancels an input that waits; its defer suite runs", async () => {
   assert.deepEqual(fresh.printed(), ["0 : usize\n", ""]);
 });
 
+test("a module use of an earlier input survives a rebuild", async () => {
+  const w = new Worker();
+  await w.start();
+  await w.input(1, "use std.path\n");
+  await w.input(2, "use std.cmp as c\n");
+  await w.input(3, 'println(path.Path("a").join("b").parent().is_some())\n');
+  const fresh = new Worker();
+  const rebuilt = await w.rebuildIn(fresh);
+  assert.deepEqual([rebuilt.ok, rebuilt.dropped, rebuilt.error], [true, [], null]);
+  assert.deepEqual(fresh.printed(), ["", ""], "a rebuild prints nothing");
+  await fresh.input(4, 'println(path.Path("a").join("b").parent().is_some())\n');
+  assert.deepEqual(fresh.printed(), ["true\n", ""]);
+  await fresh.input(5, "println(c.max(1, 2))\n");
+  assert.deepEqual(fresh.printed(), ["2\n", ""]);
+  const again = await fresh.input(6, "fn path() -> usize: 1\n");
+  assert.match(again.diagnostics[0]!, /duplicate-binding: .*repl#1/);
+});
+
 test("a terminated worker's session comes back in a fresh one under the same numbers", async () => {
   const w = new Worker();
   await w.start();

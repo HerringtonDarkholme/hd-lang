@@ -720,6 +720,28 @@ fn a_module_use_reaches_later_inputs() {
     assert!(t.out.contains("duplicate-binding"), "{}", t.out);
 }
 
+/// `cli.repl.uses.other` and `cli.repl.rebuild`: a module use of an earlier
+/// input, with or without an alias, still reaches later inputs after
+/// `:reload` runs the inputs again.
+#[test]
+fn a_module_use_survives_a_rebuild() {
+    let t = session(&[
+        "use std.path",
+        "use std.cmp as c",
+        "path.Path(\"a\").join(\"b\").parent().is_some()",
+        ":reload",
+        "path.Path(\"a\").join(\"b\").parent().is_some()",
+        "c.max(+1, +2)",
+        "fn path() -> i32: +1",
+    ]);
+    let lines: Vec<&str> = t.out.lines().collect();
+    assert_eq!(lines[0], "true : bool", "{}", t.out);
+    assert_eq!(lines[1], "reloaded: 3 inputs replayed", "{}", t.out);
+    assert_eq!(lines[2], "true : bool", "{}", t.out);
+    assert_eq!(lines[3], "2 : i32", "{}", t.out);
+    assert!(t.out.contains("duplicate-binding"), "{}", t.out);
+}
+
 /// `cli.repl.outside`: outside any package the session uses only `std`.
 #[test]
 fn outside_a_package_only_std_is_used() {

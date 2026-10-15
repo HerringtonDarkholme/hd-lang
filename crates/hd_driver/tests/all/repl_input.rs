@@ -751,6 +751,22 @@ fn an_input_does_not_redeclare_a_module_name() {
     }
 }
 
+/// A redeclared module name is reported against the input that used the
+/// module, not against a later input that merely reads the name.
+#[test]
+fn a_redeclared_module_name_names_the_first_input() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(1, "use std.path\n");
+    repl.input(2, "println(path.Path(\"a\").parent().is_some())\n");
+    repl.input(3, "use std.cmp as c\n");
+    let out = repl.build(4, "fn path() -> i32:\n    +2\n");
+    let text = out.render();
+    assert!(out.wasm.is_none(), "{text}");
+    assert!(text.contains("is already declared by repl#1"), "{text}");
+}
+
 /// A session is one module for implementation placement (`trait.own.*`):
 /// an input implements a trait or adds methods for a type that an earlier
 /// input or `src/lib.hd` declares, and a later input calls them.

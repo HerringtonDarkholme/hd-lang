@@ -5286,6 +5286,18 @@ pub fn build_folder(
                     continue;
                 }
                 if let Some(target) = sc.modules.get(b.value as usize) {
+                    // A name an earlier input left in the session is in
+                    // this scope too; only the input's own uses are its
+                    // record, so a redeclaration names the first input.
+                    let inherited = m.session.as_ref().is_some_and(|outer| {
+                        outer.scope.lookup(name).is_some_and(|ob| {
+                            ob.kind == BindingKind::Module
+                                && outer.scope.modules.get(ob.value as usize) == Some(target)
+                        })
+                    });
+                    if inherited {
+                        continue;
+                    }
                     let local = names.text(name).to_owned();
                     out.module_uses
                         .push((m.path.clone(), local, target.clone()));
