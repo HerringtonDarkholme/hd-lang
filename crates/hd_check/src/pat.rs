@@ -58,6 +58,11 @@ enum P {
     /// An integer literal or range pattern: the values `lo..=hi`, none
     /// when `lo > hi` (`flow.match.cover.integer`).
     Int(i128, i128),
+    /// A string literal's cooked value: equal strings match the same
+    /// values (`flow.match.unreachable`).
+    Str(String),
+    /// A float literal's bits: equal bits match the same values.
+    Flt(u64),
     Lit,
 }
 
@@ -1207,6 +1212,38 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ exhaustiveness
 
+    /// The cooked value of a plain string literal pattern: `None` for an
+    /// interpolated or prefixed string, which stays opaque.
+    fn string_value(&self, p: NodeRef<'_>) -> Option<String> {
+        let raw = self.cx.src.text(self.cx.src.first(p));
+        if !raw.starts_with('"') {
+            return None;
+        }
+        let mut pieces = Vec::new();
+        crate::expr::decode_piece(
+            crate::expr::strip_piece(raw, TokenKind::String),
+            &mut pieces,
+        );
+        let mut out = String::new();
+        for piece in pieces {
+            match piece {
+                crate::expr::Piece::Text(s) => out.push_str(&s),
+                crate::expr::Piece::Name(_) => return None,
+            }
+        }
+        Some(out)
+    }
+
+    /// The bits of a float literal pattern, parsed as expressions parse
+    /// one: an integer text or anything unparsable stays opaque (`None`).
+    fn float_value(&self, p: NodeRef<'_>) -> Option<u64> {
+        let text = self.cx.src.text(self.cx.src.first(p)).replace('_', "");
+        if text.parse::<u64>().is_ok() {
+            return None;
+        }
+        text.parse::<f64>().ok().map(f64::to_bits)
+    }
+
     /// The scalar value of a char literal pattern, decoding escapes.
     fn char_value(&self, p: NodeRef<'_>) -> Option<u32> {
         let raw = self.cx.src.text(self.cx.src.first(p));
@@ -1253,6 +1290,12 @@ impl Ck<'_, '_> {
                             .map_or(P::Lit, |v| P::Int(v, v)),
                         _ => P::Lit,
                     }
+                }
+                Some(TokenKind::String) if self.strip(t) == Ty::STRING => {
+                    self.string_value(p).map_or(P::Lit, P::Str)
+                }
+                Some(TokenKind::Number) if matches!(self.pool().get(self.strip(t)), TyData::Prim(p) if p.is_float()) => {
+                    self.float_value(p).map_or(P::Lit, P::Flt)
                 }
                 _ => P::Lit,
             },
@@ -1440,7 +1483,7 @@ impl Ck<'_, '_> {
                         v.extend(r[1..].iter().cloned());
                         Some(v)
                     }
-                    P::Ctor(..) | P::Lit | P::Int(..) => None,
+                    P::Ctor(..) | P::Lit | P::Int(..) | P::Str(_) | P::Flt(_) => None,
                     P::Wild => {
                         let mut v = vec![P::Wild; arity];
                         v.extend(r[1..].iter().cloned());
@@ -1454,6 +1497,19 @@ impl Ck<'_, '_> {
         let ints = m.iter().any(|r| matches!(r[0], P::Int(..)));
         match head {
             P::Int(lo, hi) => self.useful_int(m, q, tys, (*lo, *hi), depth),
+            // A string or float column: only the same value matches, so
+            // the arm is useful when no earlier row matches it
+            // (`flow.match.unreachable`).
+            P::Str(s) => !m.iter().any(|r| match &r[0] {
+                P::Wild => true,
+                P::Str(t) => t == s,
+                _ => false,
+            }),
+            P::Flt(b) => !m.iter().any(|r| match &r[0] {
+                P::Wild => true,
+                P::Flt(c) => c == b,
+                _ => false,
+            }),
             P::Ctor(c, args) => {
                 let ftys = self
                     .ctors(t)

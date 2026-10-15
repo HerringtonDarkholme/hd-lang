@@ -1432,3 +1432,21 @@ fn pub_on_a_local_declaration_is_a_syntax_error() {
     let out = program("fn outer() -> i32:\n    pub fn helper() -> i32:\n        1\n    helper()\n");
     assert_eq!(codes(&out), [Code::SyntaxError], "{}", out.render());
 }
+/// `flow.match.unreachable`: duplicate string, float, tuple and payload
+/// literal arms are unreachable.
+#[test]
+fn duplicate_literal_arms_are_unreachable() {
+    for src in [
+        "fn f(s: string) -> i32:\n    match s:\n        \"a\" => 1\n        \"a\" => 2\n        _ => 3\n",
+        "fn f(x: f64) -> i32:\n    match x:\n        1.5 => 1\n        1.5 => 2\n        _ => 3\n",
+        "fn f(p: (string, i32)) -> i32:\n    match p:\n        (\"a\", _) => 1\n        (\"a\", 2) => 2\n        _ => 3\n",
+    ] {
+        let out = program(src);
+        assert_eq!(
+            codes(&out),
+            [Code::UnreachableMatchArm],
+            "{src}\n{}",
+            out.render()
+        );
+    }
+}
