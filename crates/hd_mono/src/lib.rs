@@ -1204,43 +1204,6 @@ impl Cx<'_> {
     /// The target of a call of `def` at full arguments `args`.
     fn target(&mut self, def: DefId, args: TyList, parent: InstId) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
-        // A std function whose body the compiler supplies, though its
-        // source has a placeholder body (`race!`'s frame, the categorized
-        // `panic`, `std.rt`'s `entry_write`, the string byte primitives).
-        if let Some(key) = self.env.intrinsic(def).filter(|k| {
-            matches!(
-                k.as_str(),
-                "task_race_frame"
-                    | "suspend_cancel"
-                    | "type_id_of"
-                    | "panic"
-                    | "entry_write"
-                    | "dbg_write"
-                    | "repl_write"
-                    | "list_truncate"
-                    | "bytes_len"
-                    | "bytes_at"
-                    | "bytes_slice"
-                    | "bytes_concat"
-                    | "string_from_bytes"
-                    | "char_scalar"
-                    | "char_from_scalar"
-                    | "format_f64"
-                    | "format_f32"
-                    | "format_f64_fixed"
-                    | "string_lower"
-                    | "string_upper"
-                    | "parse_f64"
-            )
-        }) {
-            return Ok(CallTarget {
-                key: Hash128(0),
-                item: def,
-                args,
-                ret: subst(self.pool, self.env, def, args, ret),
-                kind: TargetKind::Intrinsic(key),
-            });
-        }
         if let Some(key) = self
             .env
             .intrinsic(def)
@@ -1248,16 +1211,11 @@ impl Cx<'_> {
         {
             return self.dbg_target(def, &key, args, parent);
         }
-        if self.env.body(def).is_none() {
-            let Some(key) = self.env.intrinsic(def) else {
-                return Err(NotImplemented::new(
-                    Stage::Collect,
-                    format!(
-                        "a call of the body-less `{}`, which is not an intrinsic",
-                        self.env.describe(def)
-                    ),
-                ));
-            };
+        // Every other intrinsic goes through the backend's lowering table,
+        // even when its std declaration has a source body. That body is only
+        // a placeholder: compiling it would turn an unlowered intrinsic into
+        // a run-time `panic("intrinsic")` instead of a build error.
+        if let Some(key) = self.env.intrinsic(def) {
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,
@@ -1265,6 +1223,15 @@ impl Cx<'_> {
                 ret: subst(self.pool, self.env, def, args, ret),
                 kind: TargetKind::Intrinsic(key),
             });
+        }
+        if self.env.body(def).is_none() {
+            return Err(NotImplemented::new(
+                Stage::Collect,
+                format!(
+                    "a call of the body-less `{}`, which is not an intrinsic",
+                    self.env.describe(def)
+                ),
+            ));
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let args = self.classify(def, self.pool.list_items(args), own_from)?;
