@@ -290,7 +290,7 @@ Linux dependencies and Wasmtime types; it is not a full engine check.
 Static review found Node's Windows path-prefix check and libuv's nested
 Linux CPU-quota calculation can diverge from Rust's implementations.
 These platform-specific issues are recorded in
-[Diagnostic Notes](../../audit/diagnostic-notes.md), not claimed as verified parity.
+[Diagnostic Notes](../audit/diagnostic-notes.md), not claimed as verified parity.
 
 The 12 CLI engine tests pass, including startup denial for every core
 provider. Driver conformance before and after W2 runs 129 runtime
@@ -369,7 +369,7 @@ The original M19 Windows cross-check stopped while building `ring`.
 M21's pinned Zig-backed cross-target checks passed; native Windows execution
 remains unverified.
 DNS cancellation and observed Node/spec discrepancies are recorded in
-[Diagnostic Notes](../../audit/diagnostic-notes.md).
+[Diagnostic Notes](../audit/diagnostic-notes.md).
 
 Driver conformance on the current checker runs 131 runtime programs on
 both engines: 130 match exactly, and the documented unbounded-recursion
@@ -548,7 +548,7 @@ Status: implemented and verified; this review establishes no new accepted langua
 This review changes no language or library rules.
 It covers commits `3707b290`, `43993c72`, `91337f6f`, `0f319ffc`,
 `0613e39f`, `3459768f`, `ec517898`, and W4's current integration.
-The feedback went to Muse as job M24 (git history of `audit/muse_task.md`; Muse jobs are now GitHub issues labeled `muse`).
+The feedback went to Muse as job M24 (git history of `docs/audit/muse_task.md`; Muse jobs are now GitHub issues labeled `muse`).
 
 | Feedback | Assessment and evidence | Action |
 | --- | --- | --- |
@@ -561,11 +561,11 @@ The feedback went to Muse as job M24 (git history of `audit/muse_task.md`; Muse 
 | Owner's quality assessment | Agree with the underlying criticism. Exact parity accumulated avoidable policy and hid native failure paths. | Prioritize removals, explicit ownership and failure cleanup over cosmetic file moves. Remove unused dependency features; retain libraries only for demonstrated capabilities. |
 | Replay readiness | Agree with the required boundaries, not a claim that replay is implemented. `wake(handles)` ignores handle values; completion wrote them earlier. Import replies mix scalar returns with direct memory writes. Abort and termination lack named central controls. | Make wake delivery consume its batch, centralize encoded import replies and existing abort/stop cleanup. Add no recorder, cancellation export or journal feature. |
 
-The replay check follows [Live Execution §§5–6](../../future-work/live-execution.md#5-replay).
+The replay check follows [Live Execution §§5–6](../future-work/live-execution.md#5-replay).
 HTTP and Net timeout outcomes already return through dispatch.
 Their private clock reads need not become separate journal events.
 Busy epoch deadlines are nonreplayable stops, not deterministic root cancellation,
-as [§7.3](../../future-work/live-execution.md#73-stops-ctrl-c-while-running) distinguishes.
+as [§7.3](../future-work/live-execution.md#73-stops-ctrl-c-while-running) distinguishes.
 
 Rust's std filesystem, process and socket APIs remain the first choice.
 The engine, TLS/HTTP, entropy, hostname and JSON dependencies supply substantive functionality.

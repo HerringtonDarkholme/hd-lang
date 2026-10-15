@@ -12,7 +12,7 @@ specification holds what it decided, and git history holds its decision table.
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Waiting on other areas.** The spec lists these as
-[undecided parts](../spec/lang/14-annotations.md#undecided-parts); each waits
+[undecided parts](../../spec/lang/14-annotations.md#undecided-parts); each waits
 for the owner, and Typed Derivation
 gives their background:
 
@@ -21,7 +21,7 @@ gives their background:
 | Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library (STDLIB). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library (STDLIB). |
-| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `facts_of(f).find::[M]()` reads ([Function Facts](../spec/lang/14-annotations.md#function-facts)). |
+| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `facts_of(f).find::[M]()` reads ([Function Facts](../../spec/lang/14-annotations.md#function-facts)). |
 
 M30 deferred template constants, typed shared constants, and composing
 templates until a real template needs them; they are not in the spec.
@@ -29,7 +29,7 @@ templates until a real template needs them; they are not in the spec.
 #### Parked: Dead-Fact Warnings
 
 The commit titled `BA: Defer dead-fact warnings` removed these four rules
-from [Facts](../spec/lang/14-annotations.md#facts):
+from [Facts](../../spec/lang/14-annotations.md#facts):
 
 > 9. r[annot.fact.unused-non-std] A type-level fact whose type comes from a package other than `std`, where that package supplies no template that the type derives, gets a warning, reported on its decorator. Warning: `unused-derivation-fact`.
 >
@@ -86,7 +86,7 @@ outputs.
 Owner decision, 2026-10-05: one format-neutral `Serialize` and
 `Deserialize` implementation per type, many formats, as in Rust's serde
 and Swift's `Codable`
-([Serialization](../spec/lang/14-annotations.md#serialization)). These
+([Serialization](../../spec/lang/14-annotations.md#serialization)). These
 parts wait:
 
 | Question | State |
@@ -119,7 +119,7 @@ blanket implementation with a per-type override and ruled it out of scope.
 ### Serializable Closures And Incremental Computation
 
 **Problem.** Closures have unspecified identity
-([Identity](../spec/lang/05-expressions.md#identity)) and no stable code
+([Identity](../../spec/lang/05-expressions.md#identity)) and no stable code
 identity, serializable capture contract, cache invalidation rule, or
 graph-lifetime mechanism. Since `mut fn` was removed, a function type also
 does not say whether a callback mutates its captures, so an incremental
@@ -134,7 +134,7 @@ process-local and expose only named registered computations.
 adopt option 1 when durable replay identity is settled. Provide weak references
 inside the standard runtime, or explicit disposal, for incremental graph
 nodes; user-visible finalizers are ruled out
-([`data.repr.runtime-only`](../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only)).
+([`data.repr.runtime-only`](../../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only)).
 
 **Unblocks.** Persisted callbacks, safe incremental caches, distributed work,
 and bounded graph lifetimes.
@@ -213,9 +213,9 @@ redacted-output part also waits for `Secret[T]`.
 **Problem.** One surface remains intentionally unsupported and must be
 diagnosed: direct permission weakening combined with generic variance.
 Bound methods are now `value::name` references
-([Method References](../spec/lang/07-functions.md#method-references), MR1). Runtime type tests beyond exact-type recovery from
+([Method References](../../spec/lang/07-functions.md#method-references), MR1). Runtime type tests beyond exact-type recovery from
 `Inspectable` values stay unsupported
-([Runtime Type Identity](../spec/lang/09-traits.md#runtime-type-identity)).
+([Runtime Type Identity](../../spec/lang/09-traits.md#runtime-type-identity)).
 
 **Direction.** Keep weakening with variance deferred, and design it only
 with a motivating requirement; it must preserve representation.
@@ -296,7 +296,7 @@ is what sharing values across threads or actors without copying needs
 **Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
 `fn(v): v * 2`; there is no `_` lambda shorthand, and no `f(_, a)` capture
 (PL13). The pipe owns `_` inside a step
-([Pipe Expressions](../spec/lang/05-expressions.md#pipe-expressions)), `it` is
+([Pipe Expressions](../../spec/lang/05-expressions.md#pipe-expressions)), `it` is
 the prelude test function, and `$0` collides with requirements and
 interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
 step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
@@ -305,7 +305,7 @@ shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 ### ContextError Construction
 
 **Deferred (CONTEXT-FIELDS, batch 72, 2026-10-03).** The fields of
-[`ContextError`](../spec/std/error.md#error-context) stay private.
+[`ContextError`](../../spec/std/error.md#error-context) stay private.
 Revisit: a public `ContextError::new(message, cause)` and
 `message(self) -> string`, keeping the layout private, if users need to
 wrap by hand or match on it.
@@ -323,7 +323,7 @@ is minor, and adding an enum variant is breaking, for now. The full
 starting classification table is in git history
 (`git show 382a3c1d:future-work/PACKAGES.md`, section 3.3). Also open: which
 targets take the root-application role. The package model itself is
-specified in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
+specified in [Package Manifest](../../spec/lang/10-modules.md#package-manifest).
 
 ## Library And Host Design Work
 
@@ -336,7 +336,7 @@ that needs no decision lives in GitHub issues.
 - **Final `std.task` API.** Signatures, behavior, and the complete
   intrinsic set for the compiler-intrinsic combinators, such as racing,
   timeout, and heterogeneous scheduling (`retry!` is a library loop:
-  [Task](../spec/std/task.md#retry)). `Task[T]` is decided as structured
+  [Task](../../spec/std/task.md#retry)). `Task[T]` is decided as structured
   scopes only (`scope!`, `start`, `join!`; STDLIB decision 11, 2026-09-26),
   which needs a new polling intrinsic, and must not weaken one-shot
   `Suspend[T]` semantics.

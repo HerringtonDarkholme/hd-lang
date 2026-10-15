@@ -120,7 +120,7 @@ exit 1, and `--list` prints each one.
 ## Finding Citations
 
 `refs RULE-ID` lists every place that cites a rule: Markdown prose in
-`spec/`, `guide/`, `future-work/`, and `docs/`, fixture comments and the index
+`spec/`, `website/guide/`, and `docs/`, fixture comments and the index
 files, the root `KNOWN_FAILURES.tsv`, `lib/std` comments, and comments in
 the Rust compiler under `crates/`. A citation is a `#r-<id>` anchor or a bare rule ID.
 
@@ -137,8 +137,8 @@ such as `retired in commit 35a38958 "Spec pass 42: remove shapes; ..."`.
 
 | Where | A dead citation |
 | --- | --- |
-| `spec/`, fixtures, `guide/`, `lib/std` | fails, and `spec/check.sh` fails |
-| `future-work/`, `docs/`, `KNOWN_FAILURES.tsv`, `crates/` | warns |
+| `spec/`, fixtures, `website/guide/`, `lib/std` | fails, and `spec/check.sh` fails |
+| `docs/future-work/`, `docs/`, `KNOWN_FAILURES.tsv`, `crates/` | warns |
 | a line that records history, such as "(since retired)" | is allowed |
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'

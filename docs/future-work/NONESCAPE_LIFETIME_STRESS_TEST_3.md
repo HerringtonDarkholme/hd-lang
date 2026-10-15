@@ -42,19 +42,19 @@ does not invalidate the owner's underlying decision.
 | Fresh resources may escape, and closing is outside the guarantee | OQ1; [parked closing](NONESCAPE_LIFETIME_DESIGN.md#parked-closing-and-cleanup) |
 
 The language-tier dependencies are
-[type identity and variance](../spec/lang/04-type-system.md),
-[iteration protocols](../spec/lang/06-control-flow.md#iteration-protocols),
-[function constructors](../spec/lang/07-functions.md#function-type-constructors),
-[method references](../spec/lang/07-functions.md#method-references),
-[captures](../spec/lang/07-functions.md#captures),
-[data](../spec/lang/08-data-and-enums.md), and
-[suspension](../spec/lang/11-requirements-and-suspension.md).
+[type identity and variance](../../spec/lang/04-type-system.md),
+[iteration protocols](../../spec/lang/06-control-flow.md#iteration-protocols),
+[function constructors](../../spec/lang/07-functions.md#function-type-constructors),
+[method references](../../spec/lang/07-functions.md#method-references),
+[captures](../../spec/lang/07-functions.md#captures),
+[data](../../spec/lang/08-data-and-enums.md), and
+[suspension](../../spec/lang/11-requirements-and-suspension.md).
 The stdlib dependencies are
-[collections](../spec/std/collections.md),
-[iterators](../spec/std/iter.md),
-[optionals](../spec/std/option.md), and
-[tasks](../spec/std/task.md).
-The [actual iterator representation](../lib/std/iter.hd) is evidence in R42.
+[collections](../../spec/std/collections.md),
+[iterators](../../spec/std/iter.md),
+[optionals](../../spec/std/option.md), and
+[tasks](../../spec/std/task.md).
+The [actual iterator representation](../../lib/std/iter.hd) is evidence in R42.
 No CLI design change is needed.
 
 The examples approximate library shapes. `Conn` and `open` use this
@@ -833,7 +833,7 @@ The following are all diagnostics, verbatim except for replacing the
 temporary source path by `FILE`. Each rejected invocation also ends
 with `0/1 clean`; each accepted invocation prints `1/1 clean`.
 Named function-type parameters are proposed by D8; the current
-[function type rule](../spec/lang/07-functions.md#function-types-and-values) forbids them.
+[function type rule](../../spec/lang/07-functions.md#function-types-and-values) forbids them.
 Lifetime prefixes and slots are also proposed rather than specified.
 No rejection of currently specified syntax remains in these blocks.
 

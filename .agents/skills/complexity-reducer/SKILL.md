@@ -82,8 +82,8 @@ The owner's past cuts show the kind of result wanted:
 
 ## Output
 
-File: `future-work/<AREA>_SIMPLIFICATION.md`, linked from
-`future-work/README.md`. Sections, in order:
+File: `docs/future-work/<AREA>_SIMPLIFICATION.md`, linked from
+`docs/future-work/README.md`. Sections, in order:
 
 1. Title and a status line ("simplification review, YYYY-MM-DD; changes
    no decision, spec text, or compiler code"), with links to the area.
@@ -113,7 +113,7 @@ File: `future-work/<AREA>_SIMPLIFICATION.md`, linked from
 - Every cut has before and after examples that parse, an absorbing rule, a
   cost, a soundness verdict, and a complete accounting table.
 - The summary ranks all cuts, and each cut ends with one question.
-- `future-work/README.md` links the report, and `bash spec/check.sh` and
+- `docs/future-work/README.md` links the report, and `bash spec/check.sh` and
   `pnpm run website:build` pass.
 - The final message to the caller gives the report path and the top cuts
   with their soundness verdicts.

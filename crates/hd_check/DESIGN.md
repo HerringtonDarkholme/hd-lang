@@ -1862,7 +1862,7 @@ first release (owner, 2026-10-07); there is no `todo()`.
 
 ### 10.5 Fix-Its For Common Mistakes
 
-The writing log (`audit/hd-writing-log.md`) and the
+The writing log (`docs/audit/hd-writing-log.md`) and the
 diagnostics wishlist (deleted 2026-10-15; `git show
 44890c30:audit/diagnostics-wishlist-2026-10-06.md`)
 give the checker's most frequent codes. In the log: `type-mismatch` (24

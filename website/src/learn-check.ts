@@ -8,7 +8,7 @@ import { createMarkdown, fencedBlocks } from "./markdown.ts";
 import { editedCode, TOUR_MAIN, type TourPage } from "./tour-pages.ts";
 
 /** The learn page's source; every ```hd block in it must parse. */
-export const LEARN_PAGE = "guide/LEARN_IN_10_MINUTES.md";
+export const LEARN_PAGE = "website/guide/LEARN_IN_10_MINUTES.md";
 
 /** The repository root, where `cargo` builds `hd`. */
 const REPO_DIR = resolve(import.meta.dirname, "../..");

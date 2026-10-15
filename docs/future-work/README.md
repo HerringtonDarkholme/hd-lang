@@ -2,7 +2,7 @@
 
 These documents cover deferred, undecided, or not yet applied work outside
 the accepted language specification. Accepted language behavior belongs in
-the [formal specification](../spec/README.md), which is authoritative. Once
+the [formal specification](../../spec/README.md), which is authoritative. Once
 a record is applied or superseded, it is deleted; git history keeps it.
 
 ## Direction
@@ -31,4 +31,4 @@ action at a distance.
   owner did not make explicitly, kept for the stdlib audit.
 
 The compiler's design is in
-[docs/compiler/ARCHITECTURE.md](../docs/compiler/ARCHITECTURE.md).
+[docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).

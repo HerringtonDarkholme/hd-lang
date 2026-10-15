@@ -84,17 +84,21 @@ const page = (source: string, output: string, navTitle: string, section: string)
 export const PAGES: readonly PageSource[] = [
   page("README.md", "index.html", "Home", "Start"),
   page(
-    "guide/LEARN_IN_10_MINUTES.md",
+    "website/guide/LEARN_IN_10_MINUTES.md",
     "guide/learn-in-10-minutes.html",
     "Learn in 10 Minutes",
     "Start",
   ),
-  page("guide/README.md", "guide/index.html", "Guide", "Guide"),
-  page("guide/OVERVIEW.md", "guide/overview.html", "Language Overview", "Guide"),
-  page("guide/LANGUAGE_TOUR.md", "guide/language-tour.html", "Language Tour", "Guide"),
-  page("guide/WORKING_WITH_DATA.md", "guide/working-with-data.html", "Working With Data", "Guide"),
-  page("guide/COMMANDS.md", "guide/commands.html", "The `hd` Command", "Guide"),
-  page("guide/USE_SCENARIOS.md", "guide/use-scenarios.html", "Use Scenarios", "Guide"),
+  page("website/guide/README.md", "guide/index.html", "Guide", "Guide"),
+  page("website/guide/OVERVIEW.md", "guide/overview.html", "Language Overview", "Guide"),
+  page("website/guide/LANGUAGE_TOUR.md", "guide/language-tour.html", "Language Tour", "Guide"),
+  page(
+    "website/guide/WORKING_WITH_DATA.md",
+    "guide/working-with-data.html",
+    "Working With Data",
+    "Guide",
+  ),
+  page("website/guide/COMMANDS.md", "guide/commands.html", "The `hd` Command", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
   // The number comes from the file name, so a removed chapter (13, GADTs)
   // renumbers nothing and every URL stays.

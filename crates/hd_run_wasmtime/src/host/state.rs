@@ -61,7 +61,7 @@ pub struct Host {
     pub(crate) interrupt: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) memory_bytes: u64,
     timeout_millis: Option<i64>,
-    /// A REPL session's journal (`future-work/live-execution.md` §4), which every host
+    /// A REPL session's journal (`docs/future-work/live-execution.md` §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
     pub(crate) journal: Option<hd_run::journal::Recorder>,
     /// While a session's rebuild replays an input: the record its host

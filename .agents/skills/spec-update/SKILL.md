@@ -27,7 +27,7 @@ the spec, and it adds exactly what the decision says, no more.
 
 1. The decision IDs, for example `EQ-1` or "FN_TYPE Q2".
 2. Where each is recorded. Look in:
-   - the **Owner Decisions** section of a `future-work/*.md` record;
+   - the **Owner Decisions** section of a `docs/future-work/*.md` record;
    - the commit messages, the record of what is already applied
      (`git log --grep '<decision ID>'`). A decision a commit applied is
      done; do not apply it twice. OPEN_ISSUES holds only open questions.
@@ -36,7 +36,7 @@ the spec, and it adds exactly what the decision says, no more.
 
 1. **Read the decision and its scope.** Quote the decision text. List every
    spec section, diagnostic, fixture, and example it touches (`grep` the
-   spec, including `spec/std/`, `spec/conformance/`, `guide/`, `website/` (including
+   spec, including `spec/std/`, `spec/conformance/`, `website/guide/`, `website/` (including
    `website/playground/`), `crates/`, and `lib/std/`). If the text leaves a rule
    open, stop and ask the owner.
    Never fill a gap with a default.
@@ -125,16 +125,16 @@ the spec, and it adds exactly what the decision says, no more.
    case passes: the conformance tests fail on a listed case that passes.
    Never change the spec to match the compiler.
 9. **Clean up the issue list.** Remove the decision's question from
-   `future-work/OPEN_ISSUES.md`.
+   `docs/future-work/OPEN_ISSUES.md`.
 10. **Update everything that shows the behavior.** Examples and prose in
-   `guide/`, the website, the playground's examples, and `future-work/`
+   `website/guide/`, the website, the playground's examples, and `docs/future-work/`
    design records (mark the decision applied, with a spec link).
 11. **Run the checks the change needs**, and fix what fails. Pick by what
     the diff touches:
 
     | The change touches | Run |
     | --- | --- |
-    | only `spec/`, `guide/`, `future-work/`, fixtures, or indexes | `bash spec/check.sh`, `cargo test -q --test conformance`, and `pnpm run website:build` |
+    | only `spec/`, `website/guide/`, `docs/future-work/`, fixtures, or indexes | `bash spec/check.sh`, `cargo test -q --test conformance`, and `pnpm run website:build` |
     | also `crates/` or `lib/std/` | the row above, plus `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test -q` |
     | the website or playground code | also `pnpm run website:e2e` |
 

@@ -4,7 +4,7 @@ This directory contains the normative language specification.
 
 The numbered chapters describe one evolving language specification. Features
 are either specified, explicitly unsupported, or listed in
-[Open Issues](../future-work/OPEN_ISSUES.md); hd-lang does not divide the language into
+[Open Issues](../docs/future-work/OPEN_ISSUES.md); hd-lang does not divide the language into
 versioned subsets.
 
 ## Contents
@@ -32,7 +32,7 @@ command finds and runs a package or a single file, is specified in
 [Command Line](cli/command-line.md).
 
 Deferred language design and the runtime, library, ABI, product, and tooling
-backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
+backlog are tracked in [Open Issues](../docs/future-work/OPEN_ISSUES.md).
 
 Runtime and standard-library behavior that is not language semantics is
 sketched in the archived
@@ -162,7 +162,7 @@ states it as a requirement. Explicitly open issues are not implementation
 freedom to guess silently: an implementation must diagnose unsupported syntax
 until the issue is resolved by a later specification revision.
 
-Unresolved decisions are recorded in [Open Issues](../future-work/OPEN_ISSUES.md). The
+Unresolved decisions are recorded in [Open Issues](../docs/future-work/OPEN_ISSUES.md). The
 draft is not complete until every issue required for parsing, type checking, or
 execution has either been specified or explicitly classified as unsupported or
 runtime and library work.

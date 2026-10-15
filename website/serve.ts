@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   };
   await watchPlayground(PLAYGROUND_DIST, schedule);
   await rebuild(outDir);
-  for (const directory of ["spec", "guide", "future-work", "website/assets"])
+  for (const directory of ["spec", "website/guide", "website/assets"])
     try {
       watch(join(REPO_DIR, directory), { recursive: true }, schedule);
     } catch {

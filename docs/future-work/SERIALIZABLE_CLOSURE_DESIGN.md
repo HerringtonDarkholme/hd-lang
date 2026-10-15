@@ -86,17 +86,17 @@ Shipping arbitrary closures is in scope only where it serves these goals.
 
 | Existing rule | What it gives a design |
 | --- | --- |
-| [`module.boundary.allowed`](../spec/lang/10-modules.md#r-module.boundary.allowed) | The value types that already cross: scalars, `string`, tuples, lists, maps, data, enums, optionals, results. |
-| [`module.boundary.not-safe`](../spec/lang/10-modules.md#r-module.boundary.not-safe) | Mutable types, `dyn` values, closures, and live handles never cross. |
-| [`module.boundary.rows`](../spec/lang/10-modules.md#r-module.boundary.rows) | Requirement rows are host bindings, never serialized. |
-| [`module.register.row`](../spec/lang/10-modules.md#r-module.register.row) | A registered entry's row is checked against the host's profile before user code runs. |
-| [`module.boundary.serialize.exact`](../spec/lang/10-modules.md#r-module.boundary.serialize.exact) | A type's `Serialize` decides exactly what leaves hd, so a result type is an exposure decision. |
-| [`module.boundary.deserialize.no-dyn`](../spec/lang/10-modules.md#r-module.boundary.deserialize.no-dyn) | The target type comes from the signature, never from the data. |
-| [`fn.capture.no-providers`](../spec/lang/07-functions.md#r-fn.capture.no-providers) | A closure takes no provider from a `$.with` around it; keys go in its row. |
-| [`req.determinism.depends`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends) | Code between host calls is deterministic, so host results determine a run. A cache can be keyed by them. |
-| [`cli.engine.same-behavior`](../spec/cli/command-line.md#r-cli.engine.same-behavior) | One compiled module behaves the same on every engine. |
-| [`annot.facts-of.target`](../spec/lang/14-annotations.md#r-annot.facts-of.target) | An intrinsic may require its argument to name a module-level function. |
-| [`req.combinator.all-typing`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.all-typing) | An intrinsic may have a written typing rule instead of a signature. |
+| [`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed) | The value types that already cross: scalars, `string`, tuples, lists, maps, data, enums, optionals, results. |
+| [`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe) | Mutable types, `dyn` values, closures, and live handles never cross. |
+| [`module.boundary.rows`](../../spec/lang/10-modules.md#r-module.boundary.rows) | Requirement rows are host bindings, never serialized. |
+| [`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row) | A registered entry's row is checked against the host's profile before user code runs. |
+| [`module.boundary.serialize.exact`](../../spec/lang/10-modules.md#r-module.boundary.serialize.exact) | A type's `Serialize` decides exactly what leaves hd, so a result type is an exposure decision. |
+| [`module.boundary.deserialize.no-dyn`](../../spec/lang/10-modules.md#r-module.boundary.deserialize.no-dyn) | The target type comes from the signature, never from the data. |
+| [`fn.capture.no-providers`](../../spec/lang/07-functions.md#r-fn.capture.no-providers) | A closure takes no provider from a `$.with` around it; keys go in its row. |
+| [`req.determinism.depends`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends) | Code between host calls is deterministic, so host results determine a run. A cache can be keyed by them. |
+| [`cli.engine.same-behavior`](../../spec/cli/command-line.md#r-cli.engine.same-behavior) | One compiled module behaves the same on every engine. |
+| [`annot.facts-of.target`](../../spec/lang/14-annotations.md#r-annot.facts-of.target) | An intrinsic may require its argument to name a module-level function. |
+| [`req.combinator.all-typing`](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.all-typing) | An intrinsic may have a written typing rule instead of a signature. |
 | [`ne.call.global`](NONESCAPE_LIFETIME_DESIGN.md#44-call-sites) | A NonEscapable value is rejected by category, whatever its reach; a fresh handle reaches `static` and is still rejected. |
 
 The lifetime design's D5 keeps function types uniform: one rule for every
@@ -424,10 +424,10 @@ twice.
 
 **Wire.** A call is its call identity plus its arguments; a result is a
 boundary value. The transport encoding stays an implementation detail
-([`module.host.boundary-abi`](../spec/lang/10-modules.md#r-module.host.boundary-abi),
+([`module.host.boundary-abi`](../../spec/lang/10-modules.md#r-module.host.boundary-abi),
 issue #51). Values that are hashed or sealed use one canonical encoding:
 map entries in key order, floats by their bits
-([`module.boundary.float-bits`](../spec/lang/10-modules.md#r-module.boundary.float-bits)).
+([`module.boundary.float-bits`](../../spec/lang/10-modules.md#r-module.boundary.float-bits)).
 
 ### C.2 Shape 1: Remote Functions
 
@@ -1058,9 +1058,9 @@ pub fn signup_rules!() -> Rules $ Settings:
 The browser calls `too_short` locally on rules it fetched; the server
 calls it again before saving. No code moves. L in every shape: the
 determinism promise is per compiled program
-([`req.determinism.same-program`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)),
+([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)),
 so two programs may disagree where map iteration order matters
-([`types.map.order.deterministic`](../spec/lang/04-type-system.md#r-types.map.order.deterministic)).
+([`types.map.order.deterministic`](../../spec/lang/04-type-system.md#r-types.map.order.deterministic)).
 The server's answer is the one that counts.
 
 #### P28. A query that reads module state

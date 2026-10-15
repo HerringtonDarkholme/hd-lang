@@ -25,7 +25,7 @@
 //! it is `cancelled` (`cli.repl.cancel`). Either way it then ends as a
 //! panicking input does, and the host operations it left are dropped.
 //!
-//! The session records a journal in memory (`future-work/live-execution.md` §4, job
+//! The session records a journal in memory (`docs/future-work/live-execution.md` §4, job
 //! J1): an `Input` row as each input starts, a row for each of its host
 //! calls, written where the host dispatches imports, its `Wake` and
 //! `Cancel` driver events, and an `End` row with how it ended. It is the

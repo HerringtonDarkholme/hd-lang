@@ -195,7 +195,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
     "```",
     "A record: `data.embed.width` (since retired).",
   ].join("\n");
-  const found = citationsIn("guide/X.md", markdown, "guide", isRuleId);
+  const found = citationsIn("website/guide/X.md", markdown, "guide", isRuleId);
   assert.deepEqual(
     found.map((c) => [c.line, c.form, c.target, c.history]),
     [
@@ -265,10 +265,10 @@ test("refs --dead fails only gated areas and allows history", () => {
     citations: [
       cite("spec/lang/02-grammar.md", "lex.widget.one", false, "01-lexical-structure.md"),
       cite("spec/lang/02-grammar.md", "lex.widget.one", false, "02-grammar.md"),
-      cite("guide/TOUR.md", "lex.widget.old"),
+      cite("website/guide/TOUR.md", "lex.widget.old"),
       cite("spec/README.md", "lex.widget.old", true),
       cite("src/x.ts", "lex.widget.old"),
-      cite("future-work/X.md", "lex.gone.away"),
+      cite("docs/future-work/X.md", "lex.gone.away"),
     ],
   };
   const dead = deadCitations(index);
@@ -276,10 +276,10 @@ test("refs --dead fails only gated areas and allows history", () => {
     dead.map((c) => [c.file, c.failing, c.history]),
     [
       ["spec/lang/02-grammar.md", true, false],
-      ["guide/TOUR.md", true, false],
+      ["website/guide/TOUR.md", true, false],
       ["spec/README.md", false, true],
       ["src/x.ts", false, false],
-      ["future-work/X.md", false, false],
+      ["docs/future-work/X.md", false, false],
     ],
   );
   assert.match(dead[0]!.reason, /rule is in spec\/lang\/01-lexical-structure.md/);

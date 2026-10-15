@@ -70,8 +70,8 @@ when the owner reviews it.
 | 78 (#234) | `Set.insert` and `Set.remove` return whether the set changed. `Set` iterates in insertion order, and its `Eq` ignores order. | Rust's `HashSet` API and Map ordering. | confirmed |
 | 81 (#237) | `zip` and `chain` call `other.iter()` once, when they are called, and read `other` only through that iterator. | Rust's `zip` and `chain` call `into_iter` at the call. | own |
 | 81 (#237) | An `Iterator` argument to `zip` or `chain` stays an error. The spec notes two workarounds: collect it first, or make it the receiver. | `Iterator` does not implement `Iterable` (`flow.for.iterator-not-iterable`). | own |
-| 81 (#237) | `std.cmp.max(a, b)` returns `a` on a tie, so it also gives the first of equal values. It was `b`, Rust's choice, and is not in the spec. | One first-among-equals rule for every `min` and `max`, as in Python. | own; specified in pass 89 ([Min And Max](../spec/std/cmp.md#min-and-max)) |
-| 81 (#237) | The unspecified `List.zip` in `lib/std` keeps its `List[U]` argument. | The decision covers the specified `Iterator` adapters only. | changed: pass 89 specifies `List.zip(other: List[U])` as an eager method, beside `List.map` ([List Access And Building](../spec/std/collections.md#list-access-and-building)) |
+| 81 (#237) | `std.cmp.max(a, b)` returns `a` on a tie, so it also gives the first of equal values. It was `b`, Rust's choice, and is not in the spec. | One first-among-equals rule for every `min` and `max`, as in Python. | own; specified in pass 89 ([Min And Max](../../spec/std/cmp.md#min-and-max)) |
+| 81 (#237) | The unspecified `List.zip` in `lib/std` keeps its `List[U]` argument. | The decision covers the specified `Iterator` adapters only. | changed: pass 89 specifies `List.zip(other: List[U])` as an eager method, beside `List.map` ([List Access And Building](../../spec/std/collections.md#list-access-and-building)) |
 
 ## Time
 
@@ -94,7 +94,7 @@ when the owner reviews it.
 | 71 (#221) | `ErrorReport` implements `Display` as the message, then one `caused by: X` line per cause. `chain` stops at the first `.None`. | It matches the Entry Results text. | own |
 | 72 (#223) | `ContextError` displays as its message, and its `cause` is the wrapped error. | anyhow's `context`. | confirmed (fields stay private, revisit later) |
 | 77 (#229) | `ContextError` Debug is `ContextError { message: "...", cause: "<cause Display>" }`. | `debug_struct` style. | own |
-| 81 (#237) | `lib/std/console.hd` declares `ConsoleError`, and its `Display` text for `Closed` is `console closed`. | The spec leaves the text open. Declaring it in std costs nothing in the footprint. | own; pass 89 adds `Eq` and `Debug` and specifies the text ([Console Errors](../spec/std/console.md#console-errors)) |
+| 81 (#237) | `lib/std/console.hd` declares `ConsoleError`, and its `Display` text for `Closed` is `console closed`. | The spec leaves the text open. Declaring it in std costs nothing in the footprint. | own; pass 89 adds `Eq` and `Debug` and specifies the text ([Console Errors](../../spec/std/console.md#console-errors)) |
 
 ## JSON
 

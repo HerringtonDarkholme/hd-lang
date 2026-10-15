@@ -1,6 +1,6 @@
 ---
 name: stress-test
-description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the compiler, and ranking what breaks as questions for the owner. Use when a design record in future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under future-work/; never decides or edits decisions, spec, or compiler.
+description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the compiler, and ranking what breaks as questions for the owner. Use when a design record in docs/future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under docs/future-work/; never decides or edits decisions, spec, or compiler.
 ---
 
 # Stress Test
@@ -16,7 +16,7 @@ spec. The output is evidence and questions for the owner, never a decision.
 
 ## When To Use
 
-- A design record in `future-work/` gained or changed owner decisions.
+- A design record in `docs/future-work/` gained or changed owner decisions.
 - The owner asks whether a decision set holds up, or asks for a retest
   after fixes. A round N report maps round N-1's problems to their status.
 - Not for a question with no decision yet: use the `brainstorm` skill.
@@ -66,11 +66,11 @@ spec. The output is evidence and questions for the owner, never a decision.
    names the cases, and **Candidates**: one to three fixes, each phrased as
    a question for the owner. Do not reopen alternatives the record rejected.
 8. **Write and link.** Write the report, add a one-to-three-line entry to
-   `future-work/README.md`, and run the checks in the shared rules.
+   `docs/future-work/README.md`, and run the checks in the shared rules.
 
 ## Output
 
-File: `future-work/<TOPIC>_STRESS_TEST.md`, or `<TOPIC>_STRESS_TEST_<N>.md`
+File: `docs/future-work/<TOPIC>_STRESS_TEST.md`, or `<TOPIC>_STRESS_TEST_<N>.md`
 for round N. Sections, in order:
 
 1. Title and a status line: "design review, YYYY-MM-DD; changes no
@@ -108,7 +108,7 @@ report is removed once its decisions are in the specification.
 - Every case has a translation, a verdict, and its blocks in the Parse Log.
 - Every problem has an effect, the cases it hits, and one to three
   candidate questions.
-- `future-work/README.md` links the report, and `bash spec/check.sh` and
+- `docs/future-work/README.md` links the report, and `bash spec/check.sh` and
   `pnpm run website:build` pass.
 - The final message to the caller gives the report path, the verdict
   summary, and the top three problems.

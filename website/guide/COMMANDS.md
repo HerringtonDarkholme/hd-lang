@@ -1,7 +1,7 @@
 # The `hd` Command
 
 This page is the task-oriented guide to the `hd` command. The normative
-reference is [Command Line](../spec/cli/command-line.md); this page shows
+reference is [Command Line](../../spec/cli/command-line.md); this page shows
 each job the way you would do it, with real output.
 
 ## Start A Project
@@ -30,7 +30,7 @@ The manifest names the package; everything else is convention:
 name = "orders"
 ```
 
-Read next: [Package Mode](../spec/cli/command-line.md#package-mode).
+Read next: [Package Mode](../../spec/cli/command-line.md#package-mode).
 
 ## Run A Program
 
@@ -52,8 +52,8 @@ $ hd run seed    # runs tasks/seed.hd
 seeded
 ```
 
-Read next: [Running A Package](../spec/cli/command-line.md#running-a-package)
-and [Tasks](../spec/cli/command-line.md#tasks).
+Read next: [Running A Package](../../spec/cli/command-line.md#running-a-package)
+and [Tasks](../../spec/cli/command-line.md#tasks).
 
 An implementation may offer more than one engine to run programs on.
 `hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
@@ -68,7 +68,7 @@ $ echo $?
 101
 ```
 
-Read next: [Engines](../spec/cli/command-line.md#engines).
+Read next: [Engines](../../spec/cli/command-line.md#engines).
 
 ## Check And Build
 
@@ -89,7 +89,7 @@ build/debug/orders.wasm
 build/release/orders.wasm
 ```
 
-Read next: [Building And Checking](../spec/cli/command-line.md#building-and-checking).
+Read next: [Building And Checking](../../spec/cli/command-line.md#building-and-checking).
 
 ## Test
 
@@ -139,9 +139,9 @@ $ hd run --time-limit 30s
 panic: time-limit: the program exceeded its time limit
 ```
 
-Read next: [Test Runs](../spec/cli/command-line.md#test-runs),
-[Affected Tests](../spec/cli/command-line.md#affected-tests), and
-[Program Limits](../spec/cli/command-line.md#program-limits).
+Read next: [Test Runs](../../spec/cli/command-line.md#test-runs),
+[Affected Tests](../../spec/cli/command-line.md#affected-tests), and
+[Program Limits](../../spec/cli/command-line.md#program-limits).
 
 ## Dependencies And Workspaces
 
@@ -163,8 +163,8 @@ repository share one selection through a workspace manifest:
 members = ["libs/ui", "libs/shared"]
 ```
 
-Read next: [Dependency Commands](../spec/cli/command-line.md#dependency-commands)
-and [Workspaces](../spec/lang/10-modules.md#workspaces).
+Read next: [Dependency Commands](../../spec/cli/command-line.md#dependency-commands)
+and [Workspaces](../../spec/lang/10-modules.md#workspaces).
 
 ## Debug And Explore
 
@@ -209,7 +209,7 @@ $ hd
 
 Every diagnostic command takes `--format json` for one JSON object per
 diagnostic. Read next:
-[Machine Output](../spec/cli/command-line.md#machine-output).
+[Machine Output](../../spec/cli/command-line.md#machine-output).
 
 ## Common Errors And Their Fixes
 

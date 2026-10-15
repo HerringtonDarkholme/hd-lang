@@ -4229,7 +4229,7 @@ impl Ck<'_, '_> {
 /// Substitutes one owner's parameters.
 /// A callee with no final function parameter takes no trailing block
 /// (`grammar.call.trailing-block.eligible`); no diagnostic code names that
-/// yet (audit/diagnostic-notes.md), so it stays a stop.
+/// yet (docs/audit/diagnostic-notes.md), so it stays a stop.
 /// The arguments of a form that takes neither a trailing block nor a
 /// positional spread.
 impl Ck<'_, '_> {

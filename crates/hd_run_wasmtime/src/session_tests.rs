@@ -431,7 +431,7 @@ fn later_inputs_read_and_assign_earlier_bindings() {
     });
 }
 
-/// The `prices` example of `future-work/live-execution.md` §2.2, with std's `Map`
+/// The `prices` example of `docs/future-work/live-execution.md` §2.2, with std's `Map`
 /// stored by index: a function of input 2 reads the map input 1 binds,
 /// after input 3 stored into it.
 #[test]

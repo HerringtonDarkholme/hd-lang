@@ -14,7 +14,7 @@
 //
 // Exit status: 0 on success; 1 when `audit --strict` finds a warning or
 // `refs --dead` finds a failing citation (a dead citation in spec/, a
-// fixture, guide/, or lib/std that does not record history), or when
+// fixture, website/guide/, or lib/std that does not record history), or when
 // `rewrite --fail-on` names a kind the rewrite trips; 2 on a usage error.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

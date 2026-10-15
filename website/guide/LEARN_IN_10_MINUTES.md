@@ -7,7 +7,7 @@ and suspension points are marked at every call.
 
 This page is a fast tour. Every example parses with the compiler. The
 [Language Tour](LANGUAGE_TOUR.md) covers the same ground in more depth, and
-the [specification](../spec/README.md) is the normative reference.
+the [specification](../../spec/README.md) is the normative reference.
 
 ## Hello
 
@@ -602,7 +602,7 @@ fails with `invalid-requirement` outside a workspace.
 
 ## The Prelude
 
-These names need no `use` in any module ([Prelude](../spec/lang/10-modules.md#prelude)):
+These names need no `use` in any module ([Prelude](../../spec/lang/10-modules.md#prelude)):
 
 | Kind | Names |
 | --- | --- |
@@ -620,7 +620,7 @@ import.
 ## Common String Methods
 
 A string is UTF-8 bytes, so `len()` counts bytes. The rest of the methods
-are in the [text module](../spec/std/text.md).
+are in the [text module](../../spec/std/text.md).
 
 | Method | Result |
 | --- | --- |
@@ -671,6 +671,6 @@ validator := Signup::validator()
   examples and design notes.
 - The [Language Overview](OVERVIEW.md) covers the purpose and priorities of
   the design.
-- The [specification](../spec/README.md) is the precise reference, starting
-  with the [Type System](../spec/lang/04-type-system.md) and
-  [Requirements and Suspension](../spec/lang/11-requirements-and-suspension.md).
+- The [specification](../../spec/README.md) is the precise reference, starting
+  with the [Type System](../../spec/lang/04-type-system.md) and
+  [Requirements and Suspension](../../spec/lang/11-requirements-and-suspension.md).

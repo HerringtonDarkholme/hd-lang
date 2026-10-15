@@ -1095,7 +1095,7 @@ each verifier is generated from the schema (§3.25).
 
 #### 3.10.4 Prototype Failures And The Rules That Prevent Them
 
-The audit's findings (`audit/compiler/findings-2026-10-04.md` and
+The audit's findings (`docs/audit/compiler/findings-2026-10-04.md` and
 `architecture-directions-2026-10-05.md`, deleted 2026-10-15; read them with
 `git show 44890c30:audit/compiler/NAME`):
 

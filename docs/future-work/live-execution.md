@@ -1,12 +1,12 @@
 # New Compiler Design: Live Execution (REPL, Replay, Resume)
 
-Part of the [compiler design](../docs/compiler/ARCHITECTURE.md).
+Part of the [compiler design](../compiler/ARCHITECTURE.md).
 
 Status: Design, not decided, 2026-10-07. Corrected 2026-10-12 to the owner's
 decisions in [REPL Decisions](#repl-decisions-2026-10-12-and-2026-10-13) (Q8): marked
 **[Decided 2026-10-12]** in place. Where an unmarked section still says
 "shadowing", the marked note wins: the spec now forbids redefinition
-([`cli.repl.redeclare.*`](../spec/cli/command-line.md)).
+([`cli.repl.redeclare.*`](../../spec/cli/command-line.md)).
 
 ## Summary
 
@@ -25,7 +25,7 @@ by-product that lets it rebuild.
 | What is a session? | Its inputs (source text), a live program instance, and a journal |
 | How does an input run? | Checked against the earlier inputs' interfaces, compiled to one small Wasm module, linked into the session's one `Store`, run once |
 | Redefinition? | ~~**Shadowing**, as OCaml, GHCi, Scala, Kotlin and Swift do. Earlier code and values keep the old item. The REPL prints a note naming the earlier items that still use it~~ **[Decided 2026-10-12: none.]** An input must not redeclare a name an earlier input declared: `duplicate-type` for types, traits and aliases, `duplicate-binding` for functions and bindings (`cli.repl.redeclare.*`). No shadowing, no stale-caller note |
-| What is journaled? | Host-call results, wake batches, cancellations, and an input marker per input. Nothing else is nondeterministic ([`req.determinism.depends`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends)) |
+| What is journaled? | Host-call results, wake batches, cancellations, and an input marker per input. Nothing else is nondeterministic ([`req.determinism.depends`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends)) |
 | Where is it recorded? | In the host, by a wrapper around the providers and the driver loop. **No compiled hooks are needed**, so the same debug or release binary can be recorded and replayed |
 | When does the REPL replay? | Only to rebuild: a browser Stop of a busy input, a page reload, a share link, and `:reload` after the package's files change |
 | What if a rebuild diverges? | The rebuild keeps the longest prefix of inputs that checks and replays identically. The first divergent input and every later one are dropped and reported. Host calls are never repeated live |
@@ -122,9 +122,9 @@ Session
 - The live instance is the fast path. Each input costs its own check,
   compile and run, never a rerun of earlier inputs.
 - The session acts as code inside `src/lib.hd`
-  ([`cli.repl.package.lib`](../spec/cli/command-line.md#r-cli.repl.package.lib)),
+  ([`cli.repl.package.lib`](../../spec/cli/command-line.md#r-cli.repl.package.lib)),
   so it is one **program instance** in the spec's sense
-  ([`module.init.program-instance`](../spec/lang/10-modules.md#r-module.init.program-instance)).
+  ([`module.init.program-instance`](../../spec/lang/10-modules.md#r-module.init.program-instance)).
 
 ### 2.2 Checking One Input
 
@@ -143,17 +143,17 @@ lookup(name):
   top-level bindings with their types) are frozen into a small interface,
   as a folder interface is (crates/hd_resolve/DESIGN.md §4.11). Later
   inputs read it and never re-check it. Types are fixed per input
-  ([`cli.repl.input-types`](../spec/cli/command-line.md#r-cli.repl.input-types)).
+  ([`cli.repl.input-types`](../../spec/cli/command-line.md#r-cli.repl.input-types)).
 - **Declarations see earlier bindings.** A function in input 5 may read
   input 2's `log`. The prototype forbade this. The spec already allows
   it: the session is code inside `lib.hd`, and a module's top-level
   bindings are available to its functions
-  ([`module.init.storage`](../spec/lang/10-modules.md#r-module.init.storage)).
+  ([`module.init.storage`](../../spec/lang/10-modules.md#r-module.init.storage)).
   Definite initialization holds by construction, because an earlier
   input's bindings have already run.
 - **Input kinds.** A declaration input adds items. A statement input runs.
   An expression input runs and shows its value
-  ([`cli.repl.value`](../spec/cli/command-line.md#r-cli.repl.value)). An
+  ([`cli.repl.value`](../../spec/cli/command-line.md#r-cli.repl.value)). An
   input may mix declarations and statements, as a script does.
 - **Arenas.** Each input's compiler arenas are freed after it runs. Only
   interned names and types, and the frozen input interfaces, persist
@@ -183,7 +183,7 @@ crates/hd_cli/DESIGN.md §20.5 already sketches. This design fills in the linker
    and of earlier inputs' top-level bindings) exists once per session.
    The first input that reaches a module emits its storage globals and
    runs its init group, as
-   [`module.init.cycle.once`](../spec/lang/10-modules.md#r-module.init.cycle.once)
+   [`module.init.cycle.once`](../../spec/lang/10-modules.md#r-module.init.cycle.once)
    asks. Later inputs import those globals.
 4. **Exports.** The module exports every instance and global it defines,
    under its instance key. The session records them in `symbols`.
@@ -249,7 +249,7 @@ Option D is what the framing proposed. It fails on five counts:
    different host call. The rebuild must stop there and drop every later
    input. A redefinition would destroy the session's tail. Going live
    instead would repeat effects, which breaks
-   [`cli.repl.host.once`](../spec/cli/command-line.md#r-cli.repl.host.once).
+   [`cli.repl.host.once`](../../spec/cli/command-line.md#r-cli.repl.host.once).
 3. **A type redefinition can make earlier inputs ill-typed.** Redefining
    `data Point` with other fields makes input 4's `Point(x: 1, y: 2)`
    an error. The rebuild stops there too.
@@ -257,7 +257,7 @@ Option D is what the framing proposed. It fails on five counts:
    session with one slow input pays for it again on each fix.
 5. **It contradicts the spec.** "A later input never changes the type of
    an earlier input's binding"
-   ([`cli.repl.input-types`](../spec/cli/command-line.md#r-cli.repl.input-types)).
+   ([`cli.repl.input-types`](../../spec/cli/command-line.md#r-cli.repl.input-types)).
    Option D changes earlier bindings' values and possibly their types.
 
 Replay is still right for a **rebuild of the same code** (a lost worker,
@@ -319,14 +319,14 @@ error, and the fix is to redefine the type.
 reads (a static fact: binding reads are direct global accesses) has its
 global cleared, so `big := load()` entered ten times keeps one value
 alive, not ten. Clearing is not observable
-([`req.determinism.weak`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.weak)).
+([`req.determinism.weak`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.weak)).
 
 ## 4. The Journal
 
 ### 4.1 Testing The Framing
 
 The framing's premise holds. By
-[`req.determinism.depends`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends),
+[`req.determinism.depends`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends),
 an instance's behavior depends only on its compiled program, its
 profile, its entry arguments, and the ordered sequence of host-call
 results, wakes and cancellations. Every one of those crosses the host
@@ -342,9 +342,9 @@ API:
 | environment, arguments | `Env` and `Args` provider calls |
 
 Code between host calls has no other source of nondeterminism
-([`req.determinism.no-other-source`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.no-other-source)).
+([`req.determinism.no-other-source`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.no-other-source)).
 A NaN's payload is canonical before hashing, display and any boundary
-([`types.display.nan-canonical`](../spec/lang/04-type-system.md#r-types.display.nan-canonical)),
+([`types.display.nan-canonical`](../../spec/lang/04-type-system.md#r-types.display.nan-canonical)),
 so engine NaN differences cannot reach the host.
 
 **The simplification the framing missed:** because all of this crosses
@@ -416,7 +416,7 @@ Row     = kind: u8, index: uleb, len: uleb, payload: [u8; len], crc32: u32
 | --- | --- |
 | execution id | 128 random bits, chosen at the start of a run or a REPL session; recorded in the header |
 | event index | the row's position, from 0, in that execution |
-| code identity (`hd run`) | the hash of the program's Wasm bytes; two builds are the same program when their bytes are identical ([`req.determinism.same-program`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)) |
+| code identity (`hd run`) | the hash of the program's Wasm bytes; two builds are the same program when their bytes are identical ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)) |
 | code identity (REPL) | per input, the hash of that input's module, in its `Input` row |
 
 ### 4.5 Where It Lives
@@ -577,7 +577,7 @@ its handle.
 with `--journal`, and refuse to resume, a program whose **import list**
 contains a method that opens such a handle. The import list is exact,
 because only reachable host methods are imported
-([`cli.cap.total.needs`](../spec/cli/command-line.md#r-cli.cap.total.needs)),
+([`cli.cap.total.needs`](../../spec/cli/command-line.md#r-cli.cap.total.needs)),
 so this is a static check before anything runs, like a total deny. It
 needs one flag per method in the ABI table (`opens_handle`).
 
@@ -599,16 +599,16 @@ continue-as-new).
 ### 7.1 Panics
 
 The spec rules exist: the REPL reports the panic and continues
-([`cli.repl.panic`](../spec/cli/command-line.md#r-cli.repl.panic)); the
+([`cli.repl.panic`](../../spec/cli/command-line.md#r-cli.repl.panic)); the
 input adds no binding
-([`cli.repl.panic.binding`](../spec/cli/command-line.md#r-cli.repl.panic.binding));
+([`cli.repl.panic.binding`](../../spec/cli/command-line.md#r-cli.repl.panic.binding));
 its changes to earlier values and its host calls remain
-([`cli.repl.panic.mutations`](../spec/cli/command-line.md#r-cli.repl.panic.mutations)).
+([`cli.repl.panic.mutations`](../../spec/cli/command-line.md#r-cli.repl.panic.mutations)).
 
 | Concern | Design |
 | --- | --- |
 | the store after a trap | wasmtime leaves the `Store` usable after a trap; earlier instances keep their state. In the browser, a trap throws in the worker, which stays alive |
-| the input's own instance | poisoned ([`flow.panic.poison`](../spec/lang/06-control-flow.md#r-flow.panic.poison)): its exports are not added to `symbols`, so no later input links to it. Its declarations are dropped with its bindings |
+| the input's own instance | poisoned ([`flow.panic.poison`](../../spec/lang/06-control-flow.md#r-flow.panic.poison)): its exports are not added to `symbols`, so no later input links to it. Its declarations are dropped with its bindings |
 | escaped values | a closure that the input stored into an earlier value before panicking still works. If it reads storage the input never initialized, that read panics in the calling input. This is artificial code, so no rule is added |
 | the journal | the input's rows stay, with `End(panic, category)`. A rebuild replays it: it panics again at the same point and reproduces its mutations |
 
@@ -619,9 +619,9 @@ control, so Ctrl-C (or the playground's Stop) **cancels** the input's
 root:
 
 1. The driver calls a new export, `hd.cancel()`, which cancels the root
-   suspension as [`req.cancel.steps`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.steps)
+   suspension as [`req.cancel.steps`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.steps)
    describes: `defer` suites run, and external operations are aborted
-   ([`req.cancel.external-abort`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort)).
+   ([`req.cancel.external-abort`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort)).
 2. The journal gets a `Cancel` row at that poll count. Cancellation
    deliveries are inputs in the determinism rule, so this replays
    exactly.
@@ -643,10 +643,10 @@ repeated, and their changes to earlier values are not restored. A later
 input that depended on those changes will most likely diverge, and the
 rebuild drops it then. This is the same limit the spec already states
 for host limits
-([`req.determinism.limits`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.limits)).
+([`req.determinism.limits`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.limits)).
 
 The `--time-limit` panic
-([`flow.panic.time-limit`](../spec/lang/06-control-flow.md#r-flow.panic.time-limit))
+([`flow.panic.time-limit`](../../spec/lang/06-control-flow.md#r-flow.panic.time-limit))
 is a stop of the same kind.
 
 **A way to make stops deterministic (Later).** The emitter could meter
@@ -725,7 +725,7 @@ inputs to a new worker and ran their host calls again.
 
 The prototype runs a file without `main` with REPL semantics, silently.
 That mixes two models. The spec already defines such a file: it is a
-**script** ([`module.init.script`](../spec/lang/10-modules.md#r-module.init.script)).
+**script** ([`module.init.script`](../../spec/lang/10-modules.md#r-module.init.script)).
 So Run executes it as `hd FILE` does: its top-level statements are the
 entry behavior, and expression values are not printed. Inputs with
 printed values belong in the REPL panel. "Open in REPL" can move a
@@ -847,9 +847,9 @@ Listed, not made.
 ### 11.1 Spec
 
 The REPL rows below were applied in spec pass S1e (owner, 2026-10-07),
-as [Redefinition](../spec/cli/command-line.md#redefinition),
-[Interrupting An Input](../spec/cli/command-line.md#interrupting-an-input)
-and [Rebuilding A Session](../spec/cli/command-line.md#rebuilding-a-session);
+as [Redefinition](../../spec/cli/command-line.md#redefinition),
+[Interrupting An Input](../../spec/cli/command-line.md#interrupting-an-input)
+and [Rebuilding A Session](../../spec/cli/command-line.md#rebuilding-a-session);
 `cli.repl.panic.binding` was extended by a sibling rule,
 `cli.repl.panic.declarations`. The running (Later) and Determinism rows
 are not applied.
@@ -872,21 +872,21 @@ are not applied.
 
 | File | Change |
 | --- | --- |
-| [crates/hd_cli/DESIGN.md](../crates/hd_cli/DESIGN.md) §7.8 | the scope stack, input interfaces, declarations that see bindings, shadowing and the stale-caller note; link here |
+| [crates/hd_cli/DESIGN.md](../../crates/hd_cli/DESIGN.md) §7.8 | the scope stack, input interfaces, declarations that see bindings, shadowing and the stale-caller note; link here |
 | crates/hd_cli/DESIGN.md §20.5 | the session linker (`symbols`, imports by instance key, first-reacher owns storage), the prelude module, the recorder; mark "a panic in an input is open question 6" as answered by the spec and §7 here; add `:reload` |
 | crates/hd_cli/DESIGN.md §7.9, §20.6 | REPL state split between the workers, IndexedDB sessions, Stop by cancel then terminate and rebuild |
-| [docs/compiler/engines-and-test-runner.md](../docs/compiler/engines-and-test-runner.md) §18.3 | a REPL `Store` lives for the session and uses on-demand allocation, not a pooling slot |
+| [docs/compiler/engines-and-test-runner.md](../compiler/engines-and-test-runner.md) §18.3 | a REPL `Store` lives for the session and uses on-demand allocation, not a pooling slot |
 | docs/compiler/engines-and-test-runner.md §18.4 | the browser runner's cancel message, grace period and rebuild |
 | docs/compiler/engines-and-test-runner.md §18.5 | the REPL does not need the hot-reload table in the first release; late binding would be its first user |
-| [crates/hd_run_wasmtime/DESIGN.md](../crates/hd_run_wasmtime/DESIGN.md) §16.4 | `EntryKind::ReplInput` already exists; add the export naming scheme for input modules |
+| [crates/hd_run_wasmtime/DESIGN.md](../../crates/hd_run_wasmtime/DESIGN.md) §16.4 | `EntryKind::ReplInput` already exists; add the export naming scheme for input modules |
 | crates/hd_run_wasmtime/DESIGN.md §17.1 | per-method flags in the ABI table: `output` (echoed on replay) and, for resume Later, `opens_handle` |
 | crates/hd_run_wasmtime/DESIGN.md §17.9 | `Recorder` and `Replayer` as `Provider` wrappers; the driver writes `Wake`, `Block` and `Cancel` rows |
 | crates/hd_run_wasmtime/DESIGN.md §17.10 | the JS glue gets the same recorder, replayer and row format |
-| [crates/hd_wasm/DESIGN.md](../crates/hd_wasm/DESIGN.md#new-compiler-design-suspension-lowering) §14.4 | a third export, `hd.cancel()`, which cancels the root |
+| [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md#new-compiler-design-suspension-lowering) §14.4 | a third export, `hd.cancel()`, which cancels the root |
 | crates/hd_wasm/DESIGN.md §14.7 | record and replay need no hooks; the hooks remain for tracing and interleaving exploration |
-| [crates/hd_mono/DESIGN.md](../crates/hd_mono/DESIGN.md) §13.1 | a REPL input's roots are its statements; collection consults the session's `symbols` and emits only misses |
-| [crates/hd_cache/DESIGN.md](../crates/hd_cache/DESIGN.md) | input module keys: TIR hash plus the hashes of imported symbols |
-| [docs/compiler/goals.md](../docs/compiler/goals.md) | the REPL row of `long-session`, after open question 2 |
+| [crates/hd_mono/DESIGN.md](../../crates/hd_mono/DESIGN.md) §13.1 | a REPL input's roots are its statements; collection consults the session's `symbols` and emits only misses |
+| [crates/hd_cache/DESIGN.md](../../crates/hd_cache/DESIGN.md) | input module keys: TIR hash plus the hashes of imported symbols |
+| [docs/compiler/goals.md](../compiler/goals.md) | the REPL row of `long-session`, after open question 2 |
 | `f1c55020:future-work/compiler/open-questions.md` | 23.1-6 (a panic in the REPL) points to the spec rules and §7 here |
 | `website/playground/README.md` | a file without `main` runs as a script; Stop restores the session from the journal |
 

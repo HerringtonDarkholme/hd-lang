@@ -43,12 +43,12 @@ Dependencies include both specification tiers:
 
 | Area | Specification |
 | --- | --- |
-| Readonly views, nested mutation, polarity, newtypes | [Type System](../spec/lang/04-type-system.md#access-permission), especially `types.readonly.nested`, `types.polarity`, and `types.newtype.construct-ref` |
-| Function constructors, captures, bound and unbound method values | [Functions](../spec/lang/07-functions.md#function-types-and-values), [Method References](../spec/lang/07-functions.md#method-references), and [Captures](../spec/lang/07-functions.md#captures) |
-| Fields, recursive declarations, optional payloads | [Data and Enums](../spec/lang/08-data-and-enums.md) |
-| Erasure, associated types, runtime recovery | [Traits](../spec/lang/09-traits.md#runtime-type-identity) |
-| Provider values, contexts, cold construction, callable weakening | [Requirements and Suspension](../spec/lang/11-requirements-and-suspension.md#provider-values), especially `req.suspend.type.equivalent` and `req.bind.captured` |
-| Library operations approximated below | [Collections](../spec/std/collections.md), [Task](../spec/std/task.md), [Net](../spec/std/net.md) |
+| Readonly views, nested mutation, polarity, newtypes | [Type System](../../spec/lang/04-type-system.md#access-permission), especially `types.readonly.nested`, `types.polarity`, and `types.newtype.construct-ref` |
+| Function constructors, captures, bound and unbound method values | [Functions](../../spec/lang/07-functions.md#function-types-and-values), [Method References](../../spec/lang/07-functions.md#method-references), and [Captures](../../spec/lang/07-functions.md#captures) |
+| Fields, recursive declarations, optional payloads | [Data and Enums](../../spec/lang/08-data-and-enums.md) |
+| Erasure, associated types, runtime recovery | [Traits](../../spec/lang/09-traits.md#runtime-type-identity) |
+| Provider values, contexts, cold construction, callable weakening | [Requirements and Suspension](../../spec/lang/11-requirements-and-suspension.md#provider-values), especially `req.suspend.type.equivalent` and `req.bind.captured` |
+| Library operations approximated below | [Collections](../../spec/std/collections.md), [Task](../../spec/std/task.md), [Net](../../spec/std/net.md) |
 
 The shared parser prelude models synchronous test handles. `open` is a
 parser stub for an independent handle constructor; no example is executed.

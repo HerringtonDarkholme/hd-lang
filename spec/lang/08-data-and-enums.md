@@ -980,7 +980,7 @@ fn demo() -> void:
 
 Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
-[Open Issues](../../future-work/OPEN_ISSUES.md).
+[Open Issues](../../docs/future-work/OPEN_ISSUES.md).
 
 ## Typed Derivation Of Data And Enums
 

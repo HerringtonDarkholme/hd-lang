@@ -32,14 +32,14 @@ The language dependencies are:
 
 | Area | Specification under review |
 | --- | --- |
-| Views, shallow readonly access, variance, identity | [Type System](../spec/lang/04-type-system.md#access-permission), especially `types.readonly.nested`, `types.readonly.results`, and `types.polarity.mut` |
-| Cleanup registration, storage, results, suite restrictions | [Deferred Cleanup](../spec/lang/06-control-flow.md#deferred-cleanup) |
-| Function constructors, function values, method references, captures | [Functions](../spec/lang/07-functions.md#function-types-and-values), [Method References](../spec/lang/07-functions.md#method-references), and [Captures](../spec/lang/07-functions.md#captures) |
-| Fields, generic data, wrappers, GC | [Data and Enums](../spec/lang/08-data-and-enums.md#data-declarations) |
-| Trait values and runtime recovery | [Traits](../spec/lang/09-traits.md#runtime-type-identity) |
-| Providers, frames, polling, cancellation, `all!`, `race!` | [Requirements and Suspension](../spec/lang/11-requirements-and-suspension.md#suspendt-protocol) |
-| Field handles and construction | [Annotation handles](../spec/lang/14-annotations.md#typed-derivation) |
-| Concrete library behavior | [Net](../spec/std/net.md#socket-handles), [Task](../spec/std/task.md), [Iter](../spec/std/iter.md), and [Collections](../spec/std/collections.md) |
+| Views, shallow readonly access, variance, identity | [Type System](../../spec/lang/04-type-system.md#access-permission), especially `types.readonly.nested`, `types.readonly.results`, and `types.polarity.mut` |
+| Cleanup registration, storage, results, suite restrictions | [Deferred Cleanup](../../spec/lang/06-control-flow.md#deferred-cleanup) |
+| Function constructors, function values, method references, captures | [Functions](../../spec/lang/07-functions.md#function-types-and-values), [Method References](../../spec/lang/07-functions.md#method-references), and [Captures](../../spec/lang/07-functions.md#captures) |
+| Fields, generic data, wrappers, GC | [Data and Enums](../../spec/lang/08-data-and-enums.md#data-declarations) |
+| Trait values and runtime recovery | [Traits](../../spec/lang/09-traits.md#runtime-type-identity) |
+| Providers, frames, polling, cancellation, `all!`, `race!` | [Requirements and Suspension](../../spec/lang/11-requirements-and-suspension.md#suspendt-protocol) |
+| Field handles and construction | [Annotation handles](../../spec/lang/14-annotations.md#typed-derivation) |
+| Concrete library behavior | [Net](../../spec/std/net.md#socket-handles), [Task](../../spec/std/task.md), [Iter](../../spec/std/iter.md), and [Collections](../../spec/std/collections.md) |
 
 The socket prelude abbreviates real resource errors. It models synchronous
 test handles when cleanup sequencing is the subject, avoiding suspension

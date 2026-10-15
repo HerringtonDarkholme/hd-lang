@@ -12,7 +12,7 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
   (baseline report, architecture directions 2026-10-05, status quo): deleted
   on 2026-10-15 with the rest of the prototype audit; `git show
   44890c30:audit/compiler/baseline-2026-10-06.md` and its siblings in
-  `audit/compiler/` read them.
+  `docs/audit/compiler/` read them.
 
 ## Summary
 
@@ -78,7 +78,7 @@ Detailed design: [README.md](ARCHITECTURE.md)
   and the direct `block_on`/`println` ban still apply. Applied in S1e:
   [Facts](../../spec/lang/14-annotations.md#facts).
 - REPL redefinition is shadowing: earlier items keep the old definition
-  (`future-work/live-execution.md`). A rebuild may lose a stopped (busy, interrupted)
+  (`docs/future-work/live-execution.md`). A rebuild may lose a stopped (busy, interrupted)
   input's changes, with a spec rule and a REPL report. Applied in S1e:
   [Redefinition](../../spec/cli/command-line.md#redefinition),
   [Rebuilding A Session](../../spec/cli/command-line.md#rebuilding-a-session).
@@ -251,7 +251,7 @@ here (owner, 2026-10-06).
 | `edit-latency` | scripted one-function edit in a generated 10k-line package, then `hd check`; p50/p95 over 20 edits | p50 ≤ 50 ms, p95 ≤ 200 ms |
 | `cold-check` | cold `hd check` of the 10k-line package | ≤ 1 s |
 | `test-latency` | edit, then `hd test --filter one` | ≤ 300 ms |
-| `mistakes` | corpus of single-mistake programs (seeded from audit/hd-writing-log.md), each with its expected code: diagnostics per mistake, output bytes, and whether applying the `--format json` fix-it in a temporary copy makes `hd check` pass | 1 diagnostic in ≥ 95%; fix-it resolves ≥ 80%; diagnostic ≤ 60 tokens |
+| `mistakes` | corpus of single-mistake programs (seeded from docs/audit/hd-writing-log.md), each with its expected code: diagnostics per mistake, output bytes, and whether applying the `--format json` fix-it in a temporary copy makes `hd check` pass | 1 diagnostic in ≥ 95%; fix-it resolves ≥ 80%; diagnostic ≤ 60 tokens |
 | `answer-size` | bytes of `hd doc ITEM`, one failing `hd test`, `--format json` records on fixed inputs | fixed budgets, regression-gated |
 | `determinism` | same inputs run 10 times | byte-identical output |
 | `pathological` | compile-time stress cases, each with a time and memory budget: many overlapping impls (e.g. 1,600 `From` calls over two impls), deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget (e.g. ≤ 2 s, ≤ 200 MB); time grows near-linearly with size |
@@ -573,7 +573,7 @@ after.
   design pass later (owner, 2026-10-06).
 
 **Deferred** (owner, 2026-10-06): an API compatibility checker (see
-[API Compatibility Checking](../../future-work/OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
+[API Compatibility Checking](../future-work/OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
 `migrate` codemods, and a per-dependency capability audit. Whether each
 becomes an `hd` command or a third-party tool is decided later; either way
 it can read the public surface from `build/doc/md`, and from the program
@@ -770,7 +770,7 @@ which the prototype doesn't:
 - **A race-free path sandbox.** Use preopened directories rather than
   `realpath`-then-open; the prototype has a check-then-use race on swapped
   symlinks.
-- **Runtime code loading,** parked in [Open Issues](../../future-work/OPEN_ISSUES.md#library-and-host-design-work).
+- **Runtime code loading,** parked in [Open Issues](../future-work/OPEN_ISSUES.md#library-and-host-design-work).
 
 ### What The Arena Asks Of The Compiler (orchestrator's reading, not owner text)
 
@@ -779,7 +779,7 @@ which the prototype doesn't:
     latency on a small edit matters more than full-build speed. This is
     where incremental builds pay.
   - Diagnostics that name the fix cut retries, and so cut tokens. The
-    [hd writing log](../../audit/hd-writing-log.md) records which messages
+    [hd writing log](../audit/hd-writing-log.md) records which messages
     failed agents.
   - Deterministic, machine-readable output (`--format json`) keeps an
     agent from re-running commands to parse them.

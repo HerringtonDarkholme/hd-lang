@@ -108,8 +108,8 @@ async function main(args: readonly string[]): Promise<number> {
   }
   const directories = [
     specDirectory!,
-    resolve(repository, "guide"),
-    resolve(repository, "future-work"),
+    resolve(repository, "website/guide"),
+    resolve(repository, "docs/future-work"),
   ];
   const sources = (await Promise.all(directories.map(markdownPaths))).flat();
   for (const source of sources) {

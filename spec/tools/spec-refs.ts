@@ -49,9 +49,9 @@ export function areaOf(file: string): Area | undefined {
     return /\.(?:hd|tsv|md)$/.test(file) ? "fixtures" : undefined;
   if (file.startsWith("spec/tools/")) return file.endsWith(".md") ? "spec" : undefined;
   if (file.startsWith("spec/")) return file.endsWith(".md") ? "spec" : undefined;
-  if (file.startsWith("guide/")) return file.endsWith(".md") ? "guide" : undefined;
+  if (file.startsWith("website/guide/")) return file.endsWith(".md") ? "guide" : undefined;
   if (file.startsWith("lib/std/")) return file.endsWith(".hd") ? "lib-std" : undefined;
-  if (file.startsWith("future-work/")) return file.endsWith(".md") ? "records" : undefined;
+  if (file.startsWith("docs/future-work/")) return file.endsWith(".md") ? "records" : undefined;
   if (file.startsWith("docs/")) return file.endsWith(".md") ? "records" : undefined;
   if (file === "KNOWN_FAILURES.tsv") return "records";
   if (file.startsWith("crates/")) return /\.(?:rs|md)$/.test(file) ? "crates" : undefined;
@@ -130,7 +130,7 @@ export function citationsIn(
 
 /** Every file refs scans, repository-relative and sorted. */
 function scannedFiles(repoRoot: string): string[] {
-  const roots = ["spec", "guide", "lib/std", "future-work", "docs", "crates", "KNOWN_FAILURES.tsv"];
+  const roots = ["spec", "website/guide", "lib/std", "docs", "crates", "KNOWN_FAILURES.tsv"];
   const files: string[] = [];
   const walk = (path: string): void => {
     let stats;

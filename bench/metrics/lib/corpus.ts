@@ -1,6 +1,6 @@
 // The single-mistake corpus in bench/metrics/mistakes/.
 //
-// Each program holds exactly one mistake, taken from audit/hd-writing-log.md.
+// Each program holds exactly one mistake, taken from docs/audit/hd-writing-log.md.
 // Its header comments say what the mistake is and which code the
 // specification gives it; the mistake's line ends in the conformance line
 // marker `# diagnostic: CODE` (or `# warning: CODE`), as in

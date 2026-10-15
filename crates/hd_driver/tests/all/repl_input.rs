@@ -231,7 +231,7 @@ fn a_panicked_input_leaves_the_session() {
     repl.input(4, "println(kept())\n");
 }
 
-/// The `prices` example of `future-work/live-execution.md` §2.2 (std's `Map` stores by
+/// The `prices` example of `docs/future-work/live-execution.md` §2.2 (std's `Map` stores by
 /// index, not `insert`): input 2's function reads input 1's binding, and
 /// input 3's statement changes its value. Each reaches the binding through
 /// the global input 1 exports.

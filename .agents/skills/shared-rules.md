@@ -15,7 +15,7 @@ starting, and reread it before committing.
    labeled **Recommendation** and kept apart from the facts.
 3. Fix-style work adds no features. When a fix would need a design choice,
    the choice becomes an owner question (in the report, or in
-   [future-work/OPEN_ISSUES.md](../../future-work/OPEN_ISSUES.md)), never a
+   [docs/future-work/OPEN_ISSUES.md](../../docs/future-work/OPEN_ISSUES.md)), never a
    default to implement.
 4. Settle core design before advanced features. Do not ask about an
    advanced feature while the core it depends on is still open; say that it
@@ -31,7 +31,7 @@ before relying on one, because they change.
 
 - hd is written mostly by coding agents and read by humans: explicitness
   over inference where it adds a guarantee, and no action at a distance
-  ([future-work/README.md](../../future-work/README.md#direction)).
+  ([docs/future-work/README.md](../../docs/future-work/README.md#direction)).
 - Fewer mechanisms beat more: reuse an existing rule before adding one. Past
   cuts: `mut fn` removed (closures mutate captures freely), errors derived by
   the one `@error` intrinsic instead of derivation machinery, no marker templates,
@@ -63,13 +63,13 @@ Library" states the tier test and where each kind of rule goes.
   Order", is a stdlib-tier item.
 - A language-tier rule, example, or fixture never depends on a
   stdlib-tier item. Undecided std design stays in
-  [future-work/OPEN_ISSUES.md](../../future-work/OPEN_ISSUES.md).
+  [docs/future-work/OPEN_ISSUES.md](../../docs/future-work/OPEN_ISSUES.md).
 
 ## Writing
 
 - Follow [spec/STYLE.md](../../spec/STYLE.md) for any spec text: one rule per
   sentence, rule IDs, error examples, Why callouts. Never rename an existing
-  heading or anchor in `spec/`, `future-work/`, or `guide/`: the
+  heading or anchor in `spec/`, `docs/future-work/`, or `website/guide/`: the
   website, the anchor checker, and fixtures link to them. The one
   exception is a Spec Tiers move task, which deletes a moved heading and
   fixes every link to it.
@@ -117,7 +117,7 @@ blocks.forEach((m, i) => {
   }
   console.log(`block ${i + 1}: ${result}`);
 });
-' future-work/REPORT.md
+' docs/future-work/REPORT.md
 ```
 
 ## Tests And Fixtures
@@ -162,5 +162,5 @@ When the task is writing hd programs, follow AGENTS.md "Writing hd Code:
 Model Choice And A Feedback Log". Examples: `lib/std`, examples,
 playground code, and hd test files. It does not apply to spec text,
 fixtures, or the compiler. Log every syntax, type, API or semantic mistake in
-`audit/hd-writing-log.md`.
+`docs/audit/hd-writing-log.md`.
 

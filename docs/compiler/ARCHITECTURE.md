@@ -120,5 +120,5 @@ Tools and front ends:
   architecture.
 - [goals.md](goals.md): the owner's goals, the metrics and feature triage.
 
-Open designs stay in [`future-work/`](../../future-work/README.md), such as
-[live execution](../../future-work/live-execution.md).
+Open designs stay in [`docs/future-work/`](../future-work/README.md), such as
+[live execution](../future-work/live-execution.md).

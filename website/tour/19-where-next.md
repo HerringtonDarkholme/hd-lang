@@ -10,7 +10,7 @@ The tour showed one claim per page. To keep going:
   several files, the WebAssembly the compiler makes, and share links. Its
   examples menu has longer programs, such as tests on a fake clock and
   property tests.
-- [The Language Tour guide](../../guide/LANGUAGE_TOUR.md) covers the whole
+- [The Language Tour guide](../guide/LANGUAGE_TOUR.md) covers the whole
   language on one page, with the details these pages leave out.
 - [The specification](../../spec/README.md) states every rule, numbered, with
   the diagnostics the compiler reports and the conformance tests behind them.

@@ -645,7 +645,7 @@ data User:
 > language needs no macro system and no per-library compiler support.
 
 See also: [Derived Implementations](09-traits.md#derived-implementations),
-[Typed Derivation open points](../../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+[Typed Derivation open points](../../docs/future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 
 ### Opting In
 
@@ -1688,7 +1688,7 @@ fn demo() -> Cart:
 ### Undecided Parts
 
 These parts of typed derivation are open design questions, listed in
-[Open Issues](../../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+[Open Issues](../../docs/future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 An implementation must not guess them:
 
 | Part | State |
@@ -1696,7 +1696,7 @@ An implementation must not guess them:
 | Non-escaping handles | Whether a future non-escaping trait design makes handles non-escaping. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
-| Function targets | Deriving for functions, as tool adapters need ([parked tool adapters](../../future-work/OPEN_ISSUES.md#parked-tool-adapters)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
+| Function targets | Deriving for functions, as tool adapters need ([parked tool adapters](../../docs/future-work/OPEN_ISSUES.md#parked-tool-adapters)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
 
 ## Serialization
 
@@ -1742,7 +1742,7 @@ data Account:
 > so a type has exactly one serialized form for all formats. A derivation
 > block's member lines, such as `cache = pass`, configure that one form.
 > Per-format overriding is open, in
-> [Serialization Formats](../../future-work/OPEN_ISSUES.md#serialization-formats).
+> [Serialization Formats](../../docs/future-work/OPEN_ISSUES.md#serialization-formats).
 
 See also: [Boundary Encoding](10-modules.md#boundary-encoding),
 [Serde](../std/serde.md), [Typed JSON](../std/json.md#typed-json).

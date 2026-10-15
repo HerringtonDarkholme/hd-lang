@@ -147,7 +147,7 @@ it in `spec/conformance/cases.tsv`. While the Rust compiler fails it, also
 list it in the root `KNOWN_FAILURES.tsv`. A compiler bug that no fixture can
 show gets a GitHub issue, and a spec ambiguity
 gets a question in
-[future-work/OPEN_ISSUES.md](../../../future-work/OPEN_ISSUES.md). Classes:
+[docs/future-work/OPEN_ISSUES.md](../../../docs/future-work/OPEN_ISSUES.md). Classes:
 implementation bug, spec ambiguity, or correct handling (discarded).
 
 ## Layout

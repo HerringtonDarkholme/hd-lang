@@ -15,8 +15,8 @@ are typed, a missing one is a named error with its path, and an extra one
 is ignored, so a newer config still loads with an older binary. The type
 declares Serialize and Deserialize with `@derive(Serialize, Deserialize)`; nothing else
 is needed. The exact rules are in
-[Typed JSON](../spec/std/json.md#typed-json) and
-[Serde](../spec/std/serde.md):
+[Typed JSON](../../spec/std/json.md#typed-json) and
+[Serde](../../spec/std/serde.md):
 
 ```hd
 use std.json.{decode, JsonError}
@@ -69,8 +69,8 @@ fn retry_limit(text: string) -> Result[i32, JsonError]:
 The function's error type must accept the error: either the same type,
 or a type with a `From` implementation for it. So one function can use `?`
 on a time parse and a number parse if its error enum marks a variant
-`@from` for each ([Error Derivation](../spec/lang/14-annotations.md#error-derivation),
-[`?` on a Result](../spec/lang/04-type-system.md#r-types.result.propagate.one-step)).
+`@from` for each ([Error Derivation](../../spec/lang/14-annotations.md#error-derivation),
+[`?` on a Result](../../spec/lang/04-type-system.md#r-types.result.propagate.one-step)).
 
 ## Documentation That Runs As Tests
 
@@ -78,7 +78,7 @@ A code block in a doc comment that no one runs drifts out of date. A
 fenced `hd` block inside a `##` documentation comment is a doc test: `hd
 test` runs it like any other test, so the example in the docs is the
 example that compiles today. The rules are in
-[Doc Tests](../spec/lang/10-modules.md#doc-tests):
+[Doc Tests](../../spec/lang/10-modules.md#doc-tests):
 
 ```hd
 ## Money helpers.
@@ -111,7 +111,7 @@ order; `race!` returns the first to finish and cancels the rest. Both take
 cold suspensions — plain calls, not bang calls — so `race!(fetch_user(),
 slow())` starts two candidates and keeps one. A test binds a fake store
 and a manual clock, so the timeout never actually fires. The exact rules
-are in [Tasks](../spec/std/task.md). Two bounds of the pattern are worth
+are in [Tasks](../../spec/std/task.md). Two bounds of the pattern are worth
 knowing before you extend it. An implementation's method must repeat the
 trait's signature, row included, so a fake store that itself suspends —
 a slow one — needs the trait to declare the row, as in
@@ -171,7 +171,7 @@ tests:
 Importing a CSV, writing a report: the file system is a capability, so a
 test never touches a real one. `FsWrite` writes, `FsRead` reads, and a
 unit test binds `MemoryFs` for both. The exact rules are in
-[Fs](../spec/std/fs.md):
+[Fs](../../spec/std/fs.md):
 
 ```hd
 use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
@@ -195,14 +195,14 @@ tests:
 Paths are `Path` values, so `"reports/$name.txt"` is one argument, not
 string surgery on separators. Integration tests get the real file system
 and a fresh temporary directory per case; see
-[Temporary Directories](../spec/std/testing.md#temporary-directories).
+[Temporary Directories](../../spec/std/testing.md#temporary-directories).
 
 ## Scanning Logs With Regex
 
 Operations read logs: count the server errors by status, or find the
 minute that broke. `std.regex` compiles a pattern once and captures groups
 by number or name; it runs in linear time, so a hostile log line cannot
-stall the scan. The exact rules are in [Regex](../spec/std/regex.md):
+stall the scan. The exact rules are in [Regex](../../spec/std/regex.md):
 
 ```hd
 use std.num.parse_i32
@@ -244,8 +244,8 @@ tools cover the rest of the job: `snapshot_file` compares rendered text
 with a recorded file, `hd_run!` runs the package's own executable, and
 `temp_dir` gives each test case a directory of its own that the runner
 removes. The exact rules are in
-[Snapshot Files](../spec/std/testing.md#snapshot-files) and
-[Running Executables](../spec/std/testing.md#running-executables). In the
+[Snapshot Files](../../spec/std/testing.md#snapshot-files) and
+[Running Executables](../../spec/std/testing.md#running-executables). In the
 `shop` package, `src/report.hd` renders a report and
 `tests/report.hd` checks it end to end:
 
@@ -284,8 +284,8 @@ version is a git tag: `v2.3.0` at the repository root, `lint/v2.3.0` for
 a package in the `lint` subdirectory. A manifest never states its own
 version. `hd.sum`, committed beside the manifest, records the hash of
 each selected tree, and a fetched tree that differs is rejected. The
-exact rules are in [Versions](../spec/lang/10-modules.md#versions) and
-[Integrity](../spec/lang/10-modules.md#integrity):
+exact rules are in [Versions](../../spec/lang/10-modules.md#versions) and
+[Integrity](../../spec/lang/10-modules.md#integrity):
 
 ```sh
 git tag v2.3.0        # version 2.3.0 at the repository root
@@ -310,15 +310,15 @@ hd = "0.2.0"   # the minimum toolchain that builds this package
 ```
 
 `hd fetch` fetches every selected version the cache lacks, as CI does
-before a build. Read next: [Dependencies](../spec/cli/command-line.md#dependencies).
+before a build. Read next: [Dependencies](../../spec/cli/command-line.md#dependencies).
 
 ## Deeper Collections
 
 `List` and `Map` cover most days. Three more shapes cover the rest: `Set`
 for distinct values, `sorted` and `group_by` for ordering and bucketing,
 and the adapters on any iterator — `filter`, `map`, `fold`. The exact
-rules are in [Collections](../spec/std/collections.md) and
-[Iterators](../spec/std/iter.md):
+rules are in [Collections](../../spec/std/collections.md) and
+[Iterators](../../spec/std/iter.md):
 
 ```hd
 use std.collections.Set
@@ -354,7 +354,7 @@ tests:
 
 A `Set` keeps each value once, in the order it first appeared. `Deque`
 and `Heap` serve a queue and a priority queue; see
-[Collections](../spec/std/collections.md).
+[Collections](../../spec/std/collections.md).
 
 ## Points And Intervals In Time
 
@@ -362,7 +362,7 @@ Two types cover the clock: a `Timestamp` is a point in UTC time, and a
 `Duration` is a distance between two points. Text in and out is RFC 3339,
 so a config or a log line reads the same everywhere. An `Instant` is a
 monotonic reading for measuring intervals, never a wall time. The exact
-rules are in [Time](../spec/std/time.md):
+rules are in [Time](../../spec/std/time.md):
 
 ```hd
 use std.time.{Duration, Instant, Timestamp, min, s}
@@ -395,7 +395,7 @@ clock. A test binds `ManualClock`, so waiting costs no real time; see
 `trim` and `split` take text apart. The other direction has three tools:
 `join` for a list with a separator, `StringBuilder` for a loop that
 appends, and `repeat` for padding. `chars` and `bytes` walk a string by
-character or by byte. The exact rules are in [Text](../spec/std/text.md):
+character or by byte. The exact rules are in [Text](../../spec/std/text.md):
 
 ```hd
 use std.text.StringBuilder

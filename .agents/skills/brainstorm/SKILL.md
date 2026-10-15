@@ -17,7 +17,7 @@ recommendation is advice, labeled as such.
 
 ## When To Use
 
-- A question is open in `future-work/OPEN_ISSUES.md`, a design record, or
+- A question is open in `docs/future-work/OPEN_ISSUES.md`, a design record, or
   the owner's message, and no decision exists yet.
 - A stress test or simplification review raised a problem whose candidate
   fixes need a fuller comparison.
@@ -63,9 +63,9 @@ recommendation is advice, labeled as such.
 
 ## Output
 
-File: `future-work/<TOPIC>.md` (a survey and design options record, like
+File: `docs/future-work/<TOPIC>.md` (a survey and design options record, like
 the deleted FN_TYPE record), linked from
-`future-work/README.md`. Sections, in order:
+`docs/future-work/README.md`. Sections, in order:
 
 1. Title and a status line ("design exploration, YYYY-MM-DD; nothing here
    is decided or in the specification").
@@ -98,7 +98,7 @@ section.
 - The survey, every option, the comparison table, the recommendation, and
   the questions are present, and every hd block parses or is marked
   `# hypothetical syntax`.
-- `future-work/README.md` links the record, and `bash spec/check.sh` and
+- `docs/future-work/README.md` links the record, and `bash spec/check.sh` and
   `pnpm run website:build` pass.
 - The final message to the caller gives the file path, the options in one
   line each, and the recommendation.

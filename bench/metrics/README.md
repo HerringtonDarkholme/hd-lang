@@ -247,7 +247,7 @@ Notes on the choices:
 ## Mistake Corpus
 
 [`mistakes/`](mistakes) holds 72 programs, one per distinct mistake in
-[audit/hd-writing-log.md](../../audit/hd-writing-log.md), deduplicated.
+[docs/audit/hd-writing-log.md](../../docs/audit/hd-writing-log.md), deduplicated.
 Each holds exactly one mistake. Its header says what the mistake is, which
 log rows it comes from, and the code the specification gives it; its
 mistake line ends in the conformance line marker

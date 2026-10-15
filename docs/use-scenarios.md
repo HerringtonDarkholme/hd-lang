@@ -8,7 +8,7 @@ hd-lang is designed around two primary scenarios:
 This document records product requirements and design fit. It is not a second
 language specification. Accepted syntax and semantics live in the
 [formal specification](../spec/README.md), while unresolved work lives in
-[Open Issues](../future-work/OPEN_ISSUES.md).
+[Open Issues](future-work/OPEN_ISSUES.md).
 
 Each need is stated as an outcome a developer, reviewer, or operator can
 observe. *Mechanism* notes are non-normative: they trace an outcome to the
@@ -75,7 +75,7 @@ decorator before the function attaches a plain value, which an adapter reads
 with `facts_of(get_user).find::[M]()`
 ([Function Facts](../spec/lang/14-annotations.md#function-facts)).
 Deriving an adapter for a function is still undecided
-([parked tool adapters](../future-work/OPEN_ISSUES.md#parked-tool-adapters)),
+([parked tool adapters](future-work/OPEN_ISSUES.md#parked-tool-adapters)),
 so tools are registered by hand for now. The same registration
 model should extend to service endpoints, jobs, workflows, and host-callable
 Wasm functions.
@@ -402,4 +402,4 @@ The list describes desired capabilities, not separate language constructs.
 - cache, recomputation, and replay inspection tools.
 
 Specific unresolved APIs and sequencing choices are maintained only in
-[Open Issues](../future-work/OPEN_ISSUES.md).
+[Open Issues](future-work/OPEN_ISSUES.md).

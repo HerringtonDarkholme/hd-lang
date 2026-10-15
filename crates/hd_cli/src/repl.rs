@@ -61,7 +61,7 @@ Ctrl-C clears the line, or stops the input that runs.
 ";
 
 /// Said once, after the input in which the session's journal of host
-/// calls passed its cap (`future-work/live-execution.md` §4.6): recording stopped, so
+/// calls passed its cap (`docs/future-work/live-execution.md` §4.6): recording stopped, so
 /// the session cannot be rebuilt (`cli.repl.rebuild`). The session itself
 /// goes on.
 const JOURNAL_FULL: &str =

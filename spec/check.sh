@@ -81,10 +81,10 @@ fi
 
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
 # Dead rule citations (tools/README.md): citing a rule ID the chapters no
-# longer define fails in spec/, fixtures, guide/, and lib/std, unless the line
+# longer define fails in spec/, fixtures, website/guide/, and lib/std, unless the line
 # records history; records and src/ comments only warn.
 node --experimental-strip-types "$spec_dir/tools/spec.ts" refs --dead --brief ||
-    fail "a dead rule citation in spec/, a fixture, guide/, or lib/std (pnpm run spec refs --dead)"
+    fail "a dead rule citation in spec/, a fixture, website/guide/, or lib/std (pnpm run spec refs --dead)"
 # Glossary duplicates (S12): two entries must not name one term.
 node --experimental-strip-types "$spec_dir/tools/spec.ts" glossary --check ||
     fail "duplicate glossary terms (pnpm run spec glossary --check)"
@@ -154,10 +154,10 @@ fi
 
 if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$spec_dir" \
-    "$repo_dir/future-work/OPEN_ISSUES.md" \
-    "$repo_dir/guide/OVERVIEW.md" \
-    "$repo_dir/guide/LANGUAGE_TOUR.md" \
-    "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
+    "$repo_dir/docs/future-work/OPEN_ISSUES.md" \
+    "$repo_dir/website/guide/OVERVIEW.md" \
+    "$repo_dir/website/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \
     --include='*.md'; then
     fail "versioned or provisional language labels found"
 fi
@@ -174,9 +174,9 @@ node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir"
 # 2026-09-29); only the old `mut name:` parameter spelling is obsolete.
 if grep -R -n -E 'fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \
-    "$repo_dir/guide/OVERVIEW.md" \
-    "$repo_dir/guide/LANGUAGE_TOUR.md" \
-    "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
+    "$repo_dir/website/guide/OVERVIEW.md" \
+    "$repo_dir/website/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \
     --include='*.md' --include='*.hd'; then
     fail "obsolete mutability syntax found"
 fi
