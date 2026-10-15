@@ -5825,6 +5825,7 @@ pub fn entry(
     inits: &[hd_base::Hash128],
     entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
+    boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Vec<(String, Helper)>> {
     // Only the entry module's own init bodies may use `block_on`
     // (`req.drive.block-on.forbidden-contexts`).
@@ -5836,7 +5837,17 @@ pub fn entry(
         ("hd.init".into(), Helper::EntryInit { inits }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, lowering, main, key, report, Vec::new())?,
+            root_poll(
+                pool,
+                env,
+                path,
+                lowering,
+                main,
+                key,
+                report,
+                Vec::new(),
+                boundary,
+            )?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -5857,6 +5868,7 @@ pub fn script_entry(
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
     own: &[hd_base::Hash128],
+    boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Vec<(String, Helper)>> {
     let (before, after): (Vec<_>, Vec<_>) = match inits.iter().position(|k| *k == key) {
         Some(at) => (inits[..at].to_vec(), inits[at + 1..].to_vec()),
@@ -5872,7 +5884,7 @@ pub fn script_entry(
         ("hd.init".into(), Helper::EntryInit { inits: before }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, lowering, init, key, None, after)?,
+            root_poll(pool, env, path, lowering, init, key, None, after, boundary)?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -5888,6 +5900,7 @@ pub fn test_entry(
     lowering: Lowering,
     cases: &[(DefId, hd_base::Hash128, Option<hd_base::Hash128>)],
     inits: &[Vec<hd_base::Hash128>],
+    boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = Vec::new();
     for (j, ks) in inits.iter().enumerate() {
@@ -5903,7 +5916,17 @@ pub fn test_entry(
     for (i, (def, key, report)) in cases.iter().enumerate() {
         out.push((
             format!("hd.test.{i}"),
-            root_poll(pool, env, path, lowering, *def, *key, *report, Vec::new())?,
+            root_poll(
+                pool,
+                env,
+                path,
+                lowering,
+                *def,
+                *key,
+                *report,
+                Vec::new(),
+                boundary,
+            )?,
         ));
     }
     out.push(("hd.wake".into(), Helper::EntryWake));
@@ -5926,6 +5949,7 @@ pub fn scenario_entry(
     entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
     cleanup: Option<hd_base::Hash128>,
+    boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = entry(
         pool,
@@ -5937,6 +5961,7 @@ pub fn scenario_entry(
         inits,
         entry_inits,
         report,
+        boundary,
     )?;
     out.push(("hd.cancel".into(), Helper::EntryCancel));
     if let Some(func) = cleanup {
@@ -5958,6 +5983,7 @@ fn root_poll(
     key: hd_base::Hash128,
     report: Option<hd_base::Hash128>,
     then: Vec<(hd_base::Hash128, bool)>,
+    boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Helper> {
     let shared = Layouts::new(lowering);
     let lay = Lay::new(pool, env, path, &shared);
@@ -5993,7 +6019,7 @@ fn root_poll(
             // own, whose row comes from its declaration.
             let Some(host) = host else {
                 let key = p.rsplit(['.', '/']).next().unwrap_or("");
-                slots.push(profile_slot(&lay, key, name, m, sig)?);
+                slots.push(profile_slot(&lay, key, name, m, sig, boundary)?);
                 continue;
             };
             // A method the table does not list runs its default body,
@@ -6006,7 +6032,15 @@ fn root_poll(
             else {
                 return unsupported(format!("the host method `{name}`"));
             };
-            slots.push(host_slot(&lay, host.key, &HostRow::of(hm), m, sig, false)?);
+            slots.push(host_slot(
+                &lay,
+                host.key,
+                &HostRow::of(hm),
+                m,
+                sig,
+                false,
+                None,
+            )?);
         }
         providers.push((vt, slots));
     }
@@ -6064,7 +6098,15 @@ pub(crate) fn handle_slots(
         slots.push(Helper::HandleSlot {
             sig,
             payload: crate::boundary::handle_payload(),
-            inner: Box::new(host_slot(lay, host.key, &HostRow::of(hm), m, inner, true)?),
+            inner: Box::new(host_slot(
+                lay,
+                host.key,
+                &HostRow::of(hm),
+                m,
+                inner,
+                true,
+                None,
+            )?),
         });
     }
     Ok(slots)
@@ -6096,10 +6138,17 @@ impl HostRow<'_> {
 /// waits when the method suspends, and every argument and result crosses
 /// in the exchange buffer, so a result gets each check of its declared
 /// type (`module.profile.host-result.*`). A data type with a field that
-/// is not `pub` crosses only through its `Serialize` and `Deserialize`
-/// (`module.boundary.serialize.exact`, `.deserialize.exact`), which the
-/// boundary does not call yet: unsupported.
-fn profile_slot(lay: &Lay<'_>, key: &str, name: &str, m: DefId, sig: WTy) -> StageResult<Helper> {
+/// is not `pub` crosses as its JSON text through the codecs collection
+/// gathered for it (`module.boundary.serialize.exact`,
+/// `.deserialize.exact`).
+fn profile_slot(
+    lay: &Lay<'_>,
+    key: &str,
+    name: &str,
+    m: DefId,
+    sig: WTy,
+    boundary: &hd_mono::BoundaryMap,
+) -> StageResult<Helper> {
     use hd_host_abi::{Codec, Wait};
     let (pool, env) = (lay.pool, lay.env);
     let full = pool.list(&[hd_mono::class_ref(pool)]);
@@ -6111,9 +6160,6 @@ fn profile_slot(lay: &Lay<'_>, key: &str, name: &str, m: DefId, sig: WTy) -> Sta
         .map(|p| subst(pool, env, m, full, p))
         .collect();
     let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
-    for t in params.iter().chain([&ret]) {
-        crate::boundary::check_structural(lay, *t)?;
-    }
     let codecs = vec![Codec::Buffer(""); params.len()];
     let row = HostRow {
         name,
@@ -6129,7 +6175,7 @@ fn profile_slot(lay: &Lay<'_>, key: &str, name: &str, m: DefId, sig: WTy) -> Sta
             Wait::Never
         },
     };
-    host_slot(lay, key, &row, m, sig, false)
+    host_slot(lay, key, &row, m, sig, false, Some(boundary))
 }
 
 /// One vtable slot of a default-profile provider (runtime-and-host.md
@@ -6145,6 +6191,7 @@ fn host_slot(
     m: DefId,
     sig: WTy,
     handle: bool,
+    boundary: Option<&hd_mono::BoundaryMap>,
 ) -> StageResult<Helper> {
     use crate::boundary::BTy;
     use crate::rt::{ArgCodec, ResCodec};
@@ -6185,7 +6232,10 @@ fn host_slot(
             (Codec::Buffer(_), _) if hm.params.len() == 1 && lay.strip(pt) == Ty::STRING => {
                 ArgCodec::Str
             }
-            (Codec::Buffer(_), _) => ArgCodec::Buf(BTy::of(lay, pt)?),
+            (Codec::Buffer(_), _) => ArgCodec::Buf(match boundary {
+                Some(boundary) => BTy::of_json(lay, pt, boundary, true)?,
+                None => BTy::of(lay, pt)?,
+            }),
             (Codec::Scalar(_), [VT::Ref(t, false)]) if t.fields() == [VT::I64] => {
                 ArgCodec::DataI64((**t).clone())
             }
@@ -6204,7 +6254,10 @@ fn host_slot(
             ResCodec::Scalar(v.clone())
         }
         (Codec::Buffer(_), _) => {
-            let b = BTy::of(lay, ret)?;
+            let b = match boundary {
+                Some(boundary) => BTy::of_json(lay, ret, boundary, false)?,
+                None => BTy::of(lay, ret)?,
+            };
             if waits && b.is_tags() && rv == [VT::I32, VT::I32] {
                 ResCodec::Tags
             } else {

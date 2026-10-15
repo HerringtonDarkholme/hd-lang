@@ -10,9 +10,9 @@
 //! every length against the buffer's size, and returns its values and the
 //! end. A malformed or out-of-range result is the `host-contract` panic.
 
-use hd_base::StageResult;
 use hd_base::wire::{Reader, Writer};
-use hd_mono::subst;
+use hd_base::{Hash128, StageResult};
+use hd_mono::{BoundaryMap, JsonDecode, subst};
 use hd_types::{Prim, Ty, TyData};
 
 use crate::asm::{Asm, mem};
@@ -22,6 +22,24 @@ use crate::{Code, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
 /// How deep boundary types may nest: a recursive type does not cross.
 const MAX_DEPTH: u32 = 32;
+
+/// A data type with a field that is not `pub` at a host boundary: it
+/// crosses as its JSON text, written by its `Serialize` when leaving hd
+/// and rebuilt by its `Deserialize` when entering it
+/// (`module.boundary.serialize.exact`, `.deserialize.exact`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct JsonB {
+    /// The value's Wasm values, as `Lay::vts` lays them out.
+    pub vts: Vec<VT>,
+    /// `encode` at the value type, when the value leaves hd.
+    pub encode: Option<Hash128>,
+    /// `decode` at the value type plus its checked unwrap, when the value
+    /// enters hd.
+    pub decode: Option<JsonDecode>,
+    /// The `decode` result's Wasm values, which the decoder checks and
+    /// unwraps.
+    pub decoded: Vec<VT>,
+}
 
 /// A boundary type (runtime-and-host.md §17.4).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -67,6 +85,9 @@ pub enum BTy {
     /// A host handle (`hd_host_abi::HANDLES`), such as a socket: its
     /// handle number. It only crosses from the host.
     Handle(Box<HandleB>),
+    /// A data type with a field that is not `pub`: its JSON text, through
+    /// the codecs collection gathered for it.
+    Json(Box<JsonB>),
 }
 
 /// A host handle's trait value: its payload is a `payload` struct of the
@@ -77,43 +98,6 @@ pub struct HandleB {
     pub payload: WTy,
     pub vt: WTy,
     pub slots: Vec<Helper>,
-}
-
-/// Refuses a type that holds a data type with a field that is not `pub`:
-/// such a value crosses a profile's boundary only through its
-/// `Serialize` and `Deserialize` (`module.boundary.out`, `.in`,
-/// `.serialize.exact`), which the boundary does not call yet.
-pub fn check_structural(lay: &Lay<'_>, t: Ty) -> StageResult<()> {
-    let pool = lay.pool;
-    let mut seen = std::collections::HashSet::new();
-    let mut todo = vec![t];
-    while let Some(t) = todo.pop() {
-        let t = lay.strip(t);
-        if !seen.insert(t) {
-            continue;
-        }
-        match pool.get(t) {
-            TyData::Adt { def, args } => {
-                if lay.env.has_private_field(def) {
-                    return unsupported(format!(
-                        "`{}` at a profile's boundary, which crosses through its Serialize and Deserialize",
-                        (lay.path)(def)
-                    ));
-                }
-                todo.extend(pool.list_items(args).iter().copied());
-                for f in lay.env.data_fields(def).unwrap_or_default() {
-                    todo.push(subst(pool, lay.env, def, args, f));
-                }
-                for v in lay.env.enum_variants(def, args).unwrap_or_default() {
-                    todo.extend(v);
-                }
-            }
-            TyData::Option(inner) => todo.push(inner),
-            TyData::Tuple { elems, .. } => todo.extend(pool.list_items(elems).iter().copied()),
-            _ => {}
-        }
-    }
-    Ok(())
 }
 
 /// The payload struct of a host handle: its handle number.
@@ -136,10 +120,23 @@ impl BTy {
     /// The boundary type of `t`, or `unsupported` for a type that does not
     /// cross (a function, a trait value, a map, a recursive type).
     pub fn of(lay: &Lay<'_>, t: Ty) -> StageResult<BTy> {
-        Self::of_at(lay, t, 0)
+        Self::of_at(lay, t, 0, None)
     }
 
-    fn of_at(lay: &Lay<'_>, t: Ty, depth: u32) -> StageResult<BTy> {
+    /// The boundary type of `t` at a profile's boundary, where a data
+    /// type with a field that is not `pub` crosses as its JSON text
+    /// through `boundary`'s codecs: `out` for a value leaving hd, `!out`
+    /// for one entering it (`module.boundary.direction`).
+    pub fn of_json(lay: &Lay<'_>, t: Ty, boundary: &BoundaryMap, out: bool) -> StageResult<BTy> {
+        Self::of_at(lay, t, 0, Some((boundary, out)))
+    }
+
+    fn of_at(
+        lay: &Lay<'_>,
+        t: Ty,
+        depth: u32,
+        json: Option<(&BoundaryMap, bool)>,
+    ) -> StageResult<BTy> {
         let pool = lay.pool;
         let t = lay.strip(t);
         let what = || format!("`{}` at the host boundary", pool.display(t));
@@ -180,7 +177,7 @@ impl BTy {
                 } else {
                     BTy::List {
                         ty,
-                        elem: Box::new(Self::of_at(lay, e, depth + 1)?),
+                        elem: Box::new(Self::of_at(lay, e, depth + 1, json)?),
                     }
                 }
             }
@@ -195,7 +192,7 @@ impl BTy {
                         OptShape::Tagged(_) => OptForm::Tagged,
                         OptShape::Boxed(b, _) => OptForm::Boxed(b),
                     },
-                    inner: Box::new(Self::of_at(lay, inner, depth + 1)?),
+                    inner: Box::new(Self::of_at(lay, inner, depth + 1, json)?),
                 }
             }
             Shape::Data { ty, fields } => {
@@ -205,12 +202,50 @@ impl BTy {
                 if fields.is_empty() {
                     return unsupported(what());
                 }
+                if lay.env.has_private_field(def)
+                    && let Some((boundary, out)) = json
+                {
+                    let Some(codecs) = boundary.get(&t) else {
+                        return unsupported(format!(
+                            "`{}` at a profile's boundary without a collected JSON codec",
+                            (lay.path)(def)
+                        ));
+                    };
+                    let vts = lay.vts(t)?;
+                    if out {
+                        let Some(encode) = codecs.encode else {
+                            return unsupported(format!(
+                                "`{}` at a profile's boundary without its Serialize codec",
+                                (lay.path)(def)
+                            ));
+                        };
+                        return Ok(BTy::Json(Box::new(JsonB {
+                            vts,
+                            encode: Some(encode),
+                            decode: None,
+                            decoded: Vec::new(),
+                        })));
+                    }
+                    let (Some(decode), Some(decoded_ty)) = (codecs.decode, codecs.decoded) else {
+                        return unsupported(format!(
+                            "`{}` at a profile's boundary without its Deserialize codec",
+                            (lay.path)(def)
+                        ));
+                    };
+                    return Ok(BTy::Json(Box::new(JsonB {
+                        vts,
+                        encode: None,
+                        decode: Some(decode),
+                        decoded: lay.vts(decoded_ty)?,
+                    })));
+                }
                 let mut fs = Vec::new();
                 for f in lay.env.data_fields(def).unwrap_or_default() {
                     fs.push(Self::of_at(
                         lay,
                         subst(pool, lay.env, def, args, f),
                         depth + 1,
+                        json,
                     )?);
                 }
                 BTy::Data { ty, fields: fs }
@@ -224,7 +259,7 @@ impl BTy {
                 for (tys, fs) in vs.iter().zip(&e.fields) {
                     let mut v = Vec::new();
                     for (ft, (slots, _)) in tys.iter().zip(fs) {
-                        v.push((slots.clone(), Self::of_at(lay, *ft, depth + 1)?));
+                        v.push((slots.clone(), Self::of_at(lay, *ft, depth + 1, json)?));
                     }
                     variants.push(v);
                 }
@@ -254,7 +289,7 @@ impl BTy {
                 };
                 let mut es = Vec::new();
                 for e in pool.list_items(elems) {
-                    es.push(Self::of_at(lay, *e, depth + 1)?);
+                    es.push(Self::of_at(lay, *e, depth + 1, json)?);
                 }
                 // `void` is the empty tuple (`types.void`): it crosses as
                 // no value.
@@ -302,6 +337,7 @@ impl BTy {
                 None => elems.iter().flat_map(BTy::vts).collect(),
             },
             BTy::Handle(h) => vec![VT::Eq, VT::r(h.vt.clone())],
+            BTy::Json(j) => j.vts.clone(),
         }
     }
 
@@ -414,6 +450,27 @@ impl BTy {
                     s.encode(w);
                 }
             }
+            BTy::Json(j) => {
+                w.u8(12);
+                encode_vts(&j.vts, w);
+                match j.encode {
+                    Some(encode) => {
+                        w.u8(1);
+                        w.hash(encode);
+                    }
+                    None => w.u8(0),
+                }
+                match j.decode {
+                    Some(decode) => {
+                        w.u8(1);
+                        w.hash(decode.decode);
+                        w.hash(decode.is_ok);
+                        w.hash(decode.expect);
+                    }
+                    None => w.u8(0),
+                }
+                encode_vts(&j.decoded, w);
+            }
         }
     }
 
@@ -487,6 +544,20 @@ impl BTy {
                 slots: (0..r.count())
                     .map(|_| Helper::decode(r))
                     .collect::<Option<Vec<_>>>()?,
+            })),
+            12 => BTy::Json(Box::new(JsonB {
+                vts: decode_vts(r, 0)?,
+                encode: if r.u8() == 1 { Some(r.hash()) } else { None },
+                decode: if r.u8() == 1 {
+                    Some(JsonDecode {
+                        decode: r.hash(),
+                        is_ok: r.hash(),
+                        expect: r.hash(),
+                    })
+                } else {
+                    None
+                },
+                decoded: decode_vts(r, 0)?,
             })),
             _ => return None,
         })
@@ -844,6 +915,26 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
                 a.set(0);
                 first += n;
             }
+        }
+        BTy::Json(j) => {
+            let Some(encode) = j.encode else {
+                return unsupported("a boundary value leaving hd without its Serialize codec");
+            };
+            let text = BTy::Str.vts();
+            let out: Vec<u32> = text.iter().map(|v| a.local(v.clone())).collect();
+            for k in 0..j.vts.len() {
+                a.get(1 + u32_of(k));
+            }
+            a.call(Sym::Inst(encode));
+            for l in out.iter().rev() {
+                a.set(*l);
+            }
+            a.get(0);
+            for l in &out {
+                a.get(*l);
+            }
+            a.call(Sym::Helper(Helper::Enc(BTy::Str)));
+            a.set(0);
         }
         BTy::Handle(_) => return unsupported("a host handle passed to the host"),
         BTy::Tuple { boxed, elems } => {
@@ -1247,6 +1338,48 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
                 a.get(*v);
             }
             a.struct_new(ty);
+        }
+        BTy::Json(j) => {
+            let Some(codec) = j.decode else {
+                return unsupported("a boundary value entering hd without its Deserialize codec");
+            };
+            // The JSON text first, as every boundary string.
+            a.get(0);
+            a.call(Sym::Helper(Helper::Dec(BTy::Str)));
+            a.set(0);
+            let text: Vec<u32> = BTy::Str.vts().into_iter().map(|v| a.local(v)).collect();
+            for l in text.iter().rev() {
+                a.set(*l);
+            }
+            for l in &text {
+                a.get(*l);
+            }
+            a.call(Sym::Inst(codec.decode));
+            let res: Vec<u32> = j.decoded.iter().map(|v| a.local(v.clone())).collect();
+            for l in res.iter().rev() {
+                a.set(*l);
+            }
+            for l in &res {
+                a.get(*l);
+            }
+            a.call(Sym::Inst(codec.is_ok));
+            a.if_();
+            a.else_();
+            // A `deserialize` error is a `host-contract` panic the caller
+            // sees (`module.boundary.deserialize.exact`).
+            a.call(Sym::Helper(Helper::Panic(
+                "host-contract: a host boundary value does not deserialize".into(),
+            )));
+            a.s().unreachable();
+            a.end();
+            // Checked above, so this never fails: the value `decode` built.
+            for l in &res {
+                a.get(*l);
+            }
+            let checked = b"a host boundary decode already checked";
+            a.call(Sym::Helper(Helper::Lit(checked.to_vec())));
+            a.i64(i64::try_from(checked.len()).unwrap_or(0) << 32);
+            a.call(Sym::Inst(codec.expect));
         }
         BTy::Handle(h) => {
             get_len(&mut a, 0);

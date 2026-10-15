@@ -71,6 +71,11 @@ pub struct KnownItems {
     pub debug: DefId,
     /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
     pub dbg: DefId,
+    // std.json, std.serde
+    pub json_encode: DefId,
+    pub json_decode: DefId,
+    pub serialize: DefId,
+    pub deserialize: DefId,
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
@@ -198,6 +203,10 @@ impl KnownItems {
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
             dbg: item("std.format", "dbg"),
+            json_encode: item("std.json", "encode"),
+            json_decode: item("std.json", "decode"),
+            serialize: item("std.serde", "Serialize"),
+            deserialize: item("std.serde", "Deserialize"),
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),

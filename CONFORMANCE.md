@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2841 | 0 | 4 | 2845 |
+| 2844 | 0 | 1 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 130 | 0 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 359 | 0 | 0 | 359 |
-| `lang/10-modules.md` | 254 | 0 | 4 | 258 |
+| `lang/10-modules.md` | 257 | 0 | 1 | 258 |
 | `lang/11-requirements-and-suspension.md` | 259 | 0 | 0 | 259 |
 | `lang/14-annotations.md` | 153 | 0 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 105 | 0 | 1 | 106 |
-| `runtime/valid` | 926 | 0 | 3 | 929 |
+| `runtime/panic` | 106 | 0 | 0 | 106 |
+| `runtime/valid` | 928 | 0 | 1 | 929 |
 | `typing/invalid` | 1074 | 0 | 0 | 1074 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
@@ -75,14 +75,11 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `unsupported:Link` | 4 |
+| `unsupported:Link` | 1 |
 
-<details><summary><code>unsupported:Link</code> (4)</summary>
+<details><summary><code>unsupported:Link</code> (1)</summary>
 
 - `runtime/valid/resource-disposed-result.hd`
-- `runtime/valid/boundary-derived-round-trip.hd`
-- `runtime/panic/boundary-deserialize-error.hd`
-- `runtime/valid/boundary-redacted-round-trip.hd`
 
 </details>
 
@@ -411,6 +408,7 @@ runtime/panic/assert-equal-tuple-unequal.hd
 runtime/panic/assert-failure-in-main.hd
 runtime/panic/block-on-cancelled-suspension.hd
 runtime/panic/block-on-completed-suspension.hd
+runtime/panic/boundary-deserialize-error.hd
 runtime/panic/char-to-digit-radix-high.hd
 runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
@@ -546,7 +544,9 @@ runtime/valid/bound-inference-default.hd
 runtime/valid/bound-inference-explicit.hd
 runtime/valid/bound-inference-two-bounds.hd
 runtime/valid/bound-inference-user-trait.hd
+runtime/valid/boundary-derived-round-trip.hd
 runtime/valid/boundary-public-fields-cross.hd
+runtime/valid/boundary-redacted-round-trip.hd
 runtime/valid/bounded-blanket-impl.hd
 runtime/valid/bounded-blanket-supertraits.hd
 runtime/valid/branch-scopes-shadow.hd

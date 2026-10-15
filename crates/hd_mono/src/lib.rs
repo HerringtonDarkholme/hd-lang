@@ -76,6 +76,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// The compiler's lowering key of a body-less std function
     /// (`@intrinsic("key")`, or a compiler-supplied item by name).
     fn intrinsic(&self, def: DefId) -> Option<String>;
+    /// `std.json`'s `encode`, `decode`, their two trait declarations, and
+    /// `std.result`'s checked unwrap after a boundary `decode`.
+    fn json_items(&self) -> Option<JsonItems>;
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether a data type has a field that is not `pub`: its value crosses
@@ -256,6 +259,47 @@ pub struct VTable {
     pub parents: Vec<VTable>,
 }
 
+/// The `std.json` and `std.serde` items a host boundary codec calls: JSON
+/// `encode` and `decode` at a private-field type, the two traits the
+/// boundary direction needs, and `Result`'s checked unwrap after a
+/// boundary `decode` (`module.boundary.serialize.exact`,
+/// `.deserialize.exact`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct JsonItems {
+    pub encode: DefId,
+    pub decode: DefId,
+    pub serialize: DefId,
+    pub deserialize: DefId,
+    pub result_is_ok: DefId,
+    pub result_expect: DefId,
+}
+
+/// A boundary `decode` followed by its checked unwrap: the `decode`
+/// instance at the value type, and `is_ok` plus `expect` at the
+/// `decode` result's type arguments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct JsonDecode {
+    pub decode: Hash128,
+    pub is_ok: Hash128,
+    pub expect: Hash128,
+}
+
+/// The JSON codecs of one private-field boundary type, by crossing
+/// direction (`module.boundary.direction`): `encode` for a value leaving
+/// hd, `decode` for one entering it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct BoundaryCodecs {
+    pub encode: Option<Hash128>,
+    pub decode: Option<JsonDecode>,
+    /// The `decode` result type, whose Wasm values the boundary decoder
+    /// checks and unwraps.
+    pub decoded: Option<Ty>,
+}
+
+/// The JSON codecs of the private-field types in the entry rows'
+/// provider signatures, by stripped type.
+pub type BoundaryMap = HashMap<Ty, BoundaryCodecs>;
+
 /// The output of `Collect` (codegen.md §11.3).
 #[derive(Debug, Default)]
 pub struct Collected {
@@ -279,6 +323,10 @@ pub struct Collected {
     /// The witnesses of generic methods called through trait values
     /// (codegen.md §13.5.1), which link writes.
     pub witnesses: Witnesses,
+    /// The JSON codecs of the private-field types in the entry rows'
+    /// provider signatures, by stripped type, which the host boundary
+    /// calls instead of reading private fields directly.
+    pub boundary: BoundaryMap,
     /// With a [`Session`], the instances the collection reaches that an
     /// earlier module of the session already defines: they are not in
     /// `table`, and the module imports them. Empty without a session.
@@ -1370,6 +1418,114 @@ impl Cx<'_> {
         let picked = Picked::Impl(impl_, args);
         self.selected.insert(key, picked.clone());
         Ok(picked)
+    }
+
+    /// Collects the JSON codecs of the private-field types in the entry
+    /// rows' provider signatures, before the work queue scans: each host
+    /// capability method's arguments cross out of hd and its result
+    /// crosses in (`module.boundary.direction`), so an argument's private
+    /// types need `encode` and a result's need `decode` plus its checked
+    /// unwrap. Checking already reports a missing trait at the signature;
+    /// selection here keeps the codec instances reachable for emission.
+    fn note_boundary_codecs(&mut self, roots: &[(DefId, TyList)]) -> StageResult<()> {
+        let mut visited = HashSet::new();
+        for (def, args) in roots {
+            for key in self.env.row_keys(*def, *args) {
+                let TyData::TraitValue {
+                    def: trait_,
+                    args: targs,
+                    ..
+                } = self.pool.get(key)
+                else {
+                    continue;
+                };
+                if !visited.insert((trait_, targs)) {
+                    continue;
+                }
+                for m in self.env.trait_methods(trait_) {
+                    let mut full = vec![class_ref(self.pool)];
+                    full.extend(self.pool.list_items(targs).iter().copied());
+                    let full = self.pool.list(&full);
+                    let params = self.env.params(m).unwrap_or_default();
+                    for p in params.into_iter().skip(1) {
+                        self.note_boundary_value(subst(self.pool, self.env, m, full, p), true)?;
+                    }
+                    let ret = self.env.ret(m).unwrap_or(Ty::VOID);
+                    self.note_boundary_value(subst(self.pool, self.env, m, full, ret), false)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Records the JSON codec a private-field type in a boundary value
+    /// needs: `encode` when `out` (the value leaves hd), `decode` plus
+    /// its checked unwrap otherwise. A public wrapper still needs the
+    /// codecs of the private types inside it.
+    fn note_boundary_value(&mut self, ty: Ty, out: bool) -> StageResult<()> {
+        let mut todo = vec![ty];
+        let mut seen = HashSet::new();
+        while let Some(ty) = todo.pop() {
+            let mut ty = ty;
+            while let TyData::Mut(inner) = self.pool.get(ty) {
+                ty = inner;
+            }
+            if !seen.insert(ty) {
+                continue;
+            }
+            match self.pool.get(ty) {
+                TyData::Adt { def, args } => {
+                    if self.env.has_private_field(def) {
+                        self.note_private_boundary(ty, out)?;
+                    }
+                    todo.extend(self.pool.list_items(args).iter().copied());
+                    for field in self.env.data_fields(def).unwrap_or_default() {
+                        todo.push(subst(self.pool, self.env, def, args, field));
+                    }
+                    if let Some(variants) = self.env.enum_declared(def) {
+                        for variant in variants {
+                            for field in variant {
+                                todo.push(subst(self.pool, self.env, def, args, field));
+                            }
+                        }
+                    }
+                }
+                TyData::Option(inner) => todo.push(inner),
+                TyData::Tuple { elems, rest } => {
+                    todo.extend(self.pool.list_items(elems).iter().copied());
+                    todo.extend(rest);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn note_private_boundary(&mut self, ty: Ty, out: bool) -> StageResult<()> {
+        let Some(json) = self.env.json_items() else {
+            return err("a host boundary without its JSON codecs");
+        };
+        if out {
+            self.select(json.serialize, ty, TyList::EMPTY, None)?;
+            let encode = self.target(json.encode, self.pool.list(&[ty]), InstId::NONE)?;
+            self.out.boundary.entry(ty).or_default().encode = Some(encode.key);
+        } else {
+            self.select(json.deserialize, ty, TyList::EMPTY, None)?;
+            let decode = self.target(json.decode, self.pool.list(&[ty]), InstId::NONE)?;
+            let TyData::Adt { args, .. } = self.pool.get(decode.ret) else {
+                return err("a boundary `decode` without its `Result`");
+            };
+            let is_ok = self.target(json.result_is_ok, args, InstId::NONE)?;
+            let expect = self.target(json.result_expect, args, InstId::NONE)?;
+            let entry = self.out.boundary.entry(ty).or_default();
+            entry.decode = Some(JsonDecode {
+                decode: decode.key,
+                is_ok: is_ok.key,
+                expect: expect.key,
+            });
+            entry.decoded = Some(decode.ret);
+        }
+        Ok(())
     }
 
     /// A call of a compiler-supplied impl's method whose body the compiler
@@ -2508,6 +2664,9 @@ impl Cx<'_> {
         for (d, args) in refs {
             self.push(*d, Sub::Adapter, *args, InstId::NONE)?;
         }
+        let mut boundary_roots = vec![(root, TyList::EMPTY)];
+        boundary_roots.extend(extra.iter().copied());
+        self.note_boundary_codecs(&boundary_roots)?;
         // Breadth-first in push order (codegen.md §13.4): the first
         // instance over a limit is the same on every run.
         let mut next = 0;

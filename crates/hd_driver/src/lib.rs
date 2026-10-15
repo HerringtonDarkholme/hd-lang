@@ -32,7 +32,7 @@ use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
-use hd_mono::{Collected, ProgramEnv};
+use hd_mono::{Collected, JsonItems, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
 use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
@@ -6635,6 +6635,7 @@ impl Run<'_> {
                 &c.collected.inits,
                 entry_inits,
                 *report,
+                &c.collected.boundary,
             ),
             Roots::Script { def, key, own } => hd_wasm::script_entry(
                 &self.pool,
@@ -6645,10 +6646,17 @@ impl Run<'_> {
                 *key,
                 &c.collected.inits,
                 own,
+                &c.collected.boundary,
             ),
-            Roots::Tests { cases, inits } => {
-                hd_wasm::test_entry(&self.pool, &env, &path, self.lowering, cases, inits)
-            }
+            Roots::Tests { cases, inits } => hd_wasm::test_entry(
+                &self.pool,
+                &env,
+                &path,
+                self.lowering,
+                cases,
+                inits,
+                &c.collected.boundary,
+            ),
             Roots::Scenario {
                 def,
                 key,
@@ -6666,6 +6674,7 @@ impl Run<'_> {
                 entry_inits,
                 *report,
                 *cleanup,
+                &c.collected.boundary,
             ),
         };
         let Some(entry) = self.stage(Stage::Link, exports) else {
@@ -7259,6 +7268,47 @@ impl Env<'_> {
         self.p.items.get(&def)?.sig()
     }
 
+    /// `std.result`'s checked unwrap after a boundary `decode`: `is_ok`
+    /// to test the `decode` result, then `expect` for its value. The
+    /// methods live on `Result`'s inherent impl, whose path the path
+    /// table cannot name up front, so find them by declaration.
+    fn result_unwrap(&self) -> Option<(DefId, DefId)> {
+        let mut found = None;
+        for item in self.p.items.values() {
+            let ItemData::Impl {
+                trait_,
+                self_ty,
+                methods,
+                ..
+            } = &item.data
+            else {
+                continue;
+            };
+            if *trait_ != DefId::NONE {
+                continue;
+            }
+            let TyData::Adt { def, .. } = self.run.pool.get(*self_ty) else {
+                continue;
+            };
+            if def != self.run.known.result {
+                continue;
+            }
+            let mut is_ok = None;
+            let mut expect = None;
+            for (name, method) in methods {
+                match self.run.syms.resolve(*name) {
+                    "is_ok" => is_ok = Some(*method),
+                    "expect" => expect = Some(*method),
+                    _ => {}
+                }
+            }
+            if let (Some(is_ok), Some(expect)) = (is_ok, expect) {
+                found = Some((is_ok, expect));
+            }
+        }
+        found
+    }
+
     /// Whether a method has a `self` receiver; one without is an
     /// associated function.
     fn takes_self(&self, item: &Item) -> bool {
@@ -7487,6 +7537,18 @@ impl ProgramEnv for Env<'_> {
             return Some(self.run.syms.resolve(k).to_owned());
         }
         (def == self.run.known.block_on).then(|| "block_on".to_owned())
+    }
+    fn json_items(&self) -> Option<JsonItems> {
+        let k = &self.run.known;
+        let (result_is_ok, result_expect) = self.result_unwrap()?;
+        Some(JsonItems {
+            encode: k.json_encode,
+            decode: k.json_decode,
+            serialize: k.serialize,
+            deserialize: k.deserialize,
+            result_is_ok,
+            result_expect,
+        })
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(&def)?.data {
