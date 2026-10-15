@@ -10,5 +10,9 @@ pub(crate) fn make(path: &Path) {
         .arg(path)
         .status()
         .expect("runs mkfifo(1)");
-    assert!(status.success(), "mkfifo {} failed: {status}", path.display());
+    assert!(
+        status.success(),
+        "mkfifo {} failed: {status}",
+        path.display()
+    );
 }
