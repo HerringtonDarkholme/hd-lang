@@ -2943,7 +2943,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 124 | 0 | 0 | 124 |
+| 127 | 0 | 0 | 127 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3054,6 +3054,9 @@ cli/new-pages
 cli/new-pages-existing
 cli/new-path
 cli/new-vcs
+cli/panic-fallback-note
+cli/panic-location
+cli/panic-run-location
 cli/release-test-checked
 cli/release-wraps
 cli/task-beside-dir

@@ -292,7 +292,7 @@ struct Built {
 /// What names one program's panic frames (`cli.test.report.frame`): its
 /// sources' positions, and its line table, read on the program's first
 /// trap and shared by every case after it (wasm-layout.md §15.9, Q2).
-struct Frames {
+pub(crate) struct Frames {
     positions: hd_driver::Positions,
     table: std::sync::OnceLock<Option<hd_run::frames::LineTable>>,
     /// A doc test's program: its path, its source file, and the source
@@ -303,11 +303,29 @@ struct Frames {
 }
 
 impl Frames {
+    /// The frames of a program that is no doc test and no workspace
+    /// member's: `hd FILE` and `hd run` (`flow.panic.report`).
+    pub(crate) fn new(positions: hd_driver::Positions) -> Self {
+        Self {
+            positions,
+            table: std::sync::OnceLock::new(),
+            doc: None,
+            member: None,
+        }
+    }
+
     /// A trap's frames as `FILE:LINE FUNCTION` lines, panic site first,
     /// each function named as hd names it. A frame outside compiled hd
     /// code, or in a body the run did not check, is left out, and repeated
-    /// frames are collapsed ([`collapse`]).
-    fn lines(&self, wasm: &[u8], raw: &[(u32, u32)], src: &disk::DiskSources) -> Vec<String> {
+    /// frames are collapsed ([`collapse`]). When the panic site is an
+    /// operation whose integer type is a literal's `usize` default, a
+    /// `note:` line follows (`flow.panic.report.fallback`).
+    pub(crate) fn lines(
+        &self,
+        wasm: &[u8],
+        raw: &[(u32, u32)],
+        src: &disk::DiskSources,
+    ) -> Vec<String> {
         if raw.is_empty() {
             return Vec::new();
         }
@@ -317,8 +335,12 @@ impl Frames {
         else {
             return Vec::new();
         };
-        let lines: Vec<String> = table
-            .anchor(raw)
+        let anchors = table.anchor(raw);
+        let note = anchors
+            .first()
+            .and_then(|a| self.positions.fallback(&a.item, a.inst))
+            .map(fallback_note);
+        let lines: Vec<String> = anchors
             .into_iter()
             .filter_map(|a| {
                 let (file, line) = self.positions.line(&a.item, a.inst)?;
@@ -339,7 +361,20 @@ impl Frames {
                 Some(format!("{file}:{line} {}", self.positions.name(&a.item)))
             })
             .collect();
-        collapse(&lines)
+        let mut lines = collapse(&lines);
+        lines.extend(note);
+        lines
+    }
+}
+
+/// `flow.panic.report.fallback` and `.fix`: the panic site's integer type
+/// is a literal's `usize` default; `local` is the binding it reads.
+fn fallback_note(local: Option<&str>) -> String {
+    match local {
+        Some(name) => format!(
+            "note: `{name}` fell back to `usize` (no signed literal); write a signed literal such as `+1`, or annotate its type as in `let {name}: i32 = ...`"
+        ),
+        None => "note: this integer type fell back to `usize` (no signed literal); write a signed literal such as `+1`, or annotate a type such as `i32`".to_owned(),
     }
 }
 

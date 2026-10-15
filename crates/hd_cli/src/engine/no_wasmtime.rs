@@ -63,7 +63,7 @@ pub(crate) fn run_program(
     _level: hd_driver::OptLevel,
     _wasm: &[u8],
     _host: &HostSetup,
-) -> Result<Outcome, String> {
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     missing()
 }
 

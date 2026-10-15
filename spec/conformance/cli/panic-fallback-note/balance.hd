@@ -1,0 +1,4 @@
+pub fn main() -> void $ Console:
+    let balance = 100
+    balance = balance - 150
+    println("${balance}")

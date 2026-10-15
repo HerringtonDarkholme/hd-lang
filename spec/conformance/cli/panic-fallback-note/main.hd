@@ -1,0 +1,3 @@
+pub fn main() -> void $ Console:
+    count := 0
+    println("${count - 1}")

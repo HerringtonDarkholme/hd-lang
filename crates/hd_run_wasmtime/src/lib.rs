@@ -68,7 +68,8 @@ pub use io_runtime::io_started;
 pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
-    Captured, run, run_captured, run_captured_with_profile, run_with_guards, run_with_profile,
+    Captured, run, run_captured, run_captured_with_profile, run_traced_with_guards,
+    run_with_guards, run_with_profile,
 };
 pub use session::{Rebuilder, Rebuilt, Stopper, WasmtimeSession};
 pub use test_engine::{

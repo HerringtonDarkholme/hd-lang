@@ -8,6 +8,7 @@ use std::io::{BufRead, BufReader, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use hd_cache::CacheStore;
@@ -35,7 +36,13 @@ const FLOAT: &str = include_str!("../../../host/float.mjs");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
 
-pub struct NodeEngine;
+/// Node as the engine. `trace` receives the Wasm frames of a trap the run
+/// ended in, innermost first, which the caller symbolizes
+/// (`flow.panic.report`).
+#[derive(Default)]
+pub struct NodeEngine {
+    pub trace: Arc<Mutex<Vec<(u32, u32)>>>,
+}
 
 pub struct NodeModule {
     wasm: Vec<u8>,
@@ -55,6 +62,7 @@ struct NodeInstance {
     /// host enforces.
     wall_ms: Option<u64>,
     done: Option<Outcome>,
+    trace: Arc<Mutex<Vec<(u32, u32)>>>,
 }
 
 impl Engine for NodeEngine {
@@ -79,6 +87,7 @@ impl Engine for NodeEngine {
             grants: host.grants.clone(),
             wall_ms: host.limits.wall_ms,
             done: None,
+            trace: Arc::clone(&self.trace),
         }))
     }
 }
@@ -129,7 +138,8 @@ impl NodeInstance {
             Err(e) => return Outcome::Internal(e),
         };
         let config = dir.0.join("config.json");
-        let text = run_config(&self.program, &self.grants, self.wall_ms);
+        let frames = dir.0.join("frames.json");
+        let text = run_config(&self.program, &self.grants, self.wall_ms, Some(&frames));
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
@@ -140,6 +150,12 @@ impl NodeInstance {
             .arg(&config)
             .args(&self.args)
             .status();
+        if let Ok(text) = std::fs::read_to_string(&frames)
+            && let Some((raw, _)) = json_frames(&text)
+            && let Ok(mut trace) = self.trace.lock()
+        {
+            *trace = raw;
+        }
         match status {
             Ok(s) if s.success() => Outcome::Exit(0),
             Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
@@ -313,7 +329,7 @@ impl Programs {
             let module = dir.0.join(format!("program-{i}.wasm"));
             let config = dir.0.join(format!("program-{i}.json"));
             std::fs::write(&module, wasm).map_err(|e| format!("{}: {e}", module.display()))?;
-            std::fs::write(&config, run_config(name, grants, None))
+            std::fs::write(&config, run_config(name, grants, None, None))
                 .map_err(|e| format!("{}: {e}", config.display()))?;
             if i > 0 {
                 json.push(',');
@@ -334,11 +350,20 @@ impl Programs {
 }
 
 /// The run host's configuration (`run.mjs`): the program's `Args.program`,
-/// its grant, and its time limit in milliseconds.
-fn run_config(program: &str, grants: &Grants, wall_ms: Option<u64>) -> String {
+/// its grant, its time limit in milliseconds, and, for `hd run`, the file
+/// where it writes the frames of a trap.
+fn run_config(
+    program: &str,
+    grants: &Grants,
+    wall_ms: Option<u64>,
+    frames: Option<&Path>,
+) -> String {
     let limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
+    let frames = frames.map_or(String::new(), |f| {
+        format!(",\"framesFile\":{}", quote(&f.to_string_lossy()))
+    });
     format!(
-        "{{\"program\":{},\"grants\":{}{limit}}}",
+        "{{\"program\":{},\"grants\":{}{limit}{frames}}}",
         quote(program),
         grants_json(grants)
     )

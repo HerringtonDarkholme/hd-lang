@@ -1,0 +1,10 @@
+# A panic ends the program with status 3. After the panic line, hd names
+# the source location of the panic site and of each caller, innermost first,
+# as the test report does. This overflow is on a declared i32, so no
+# fallback note follows.
+run: hd main.hd
+exit: 3
+stdout: start
+stderr: panic: integer-overflow: integer overflow
+stderr:     main.hd:2 main.scale
+stderr:     main.hd:6 main.main

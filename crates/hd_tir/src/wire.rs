@@ -243,6 +243,15 @@ pub fn write_body(
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
     u32s(&mut w, b.syn.iter().map(|n| n.raw()));
     u32s(&mut w, b.local_syn.iter().map(|n| n.raw()));
+    u32s(
+        &mut w,
+        b.fallback
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
     let mut out = hashed.to_le_bytes().to_vec();
     out.extend_from_slice(&w.bytes);
     Ok(out)
@@ -322,6 +331,7 @@ pub fn read_body(
     b.label = r.str().into();
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
+    b.fallback = col(&mut r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
     if !r.ok() || b.data.len() != b.tags.len() || b.ty.len() != b.tags.len() {
         return None;
     }

@@ -1,0 +1,8 @@
+# `hd run` reports a panic's location as `hd FILE` does, with the file named
+# from the package root.
+run: hd run
+exit: 3
+stdout: start
+stderr: panic: integer-overflow: integer overflow
+stderr:     src/main.hd:2 scaler.main.scale
+stderr:     src/main.hd:6 scaler.main.main

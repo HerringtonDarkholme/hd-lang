@@ -186,6 +186,7 @@ impl Ck<'_, '_> {
                 .collect();
             if !lits.is_empty() {
                 for (t, k) in lits {
+                    self.note_fallback(t, k);
                     let d = match k {
                         VarKind::SignedIntLit => Ty::I32,
                         VarKind::IntLit => Ty::prim(hd_types::Prim::Usize),

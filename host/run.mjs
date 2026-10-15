@@ -2,7 +2,8 @@
 // `hd.poll` to completion (core.mjs); its status is the process's.
 // `argv[3]`, when it ends in `.json`, is the run's configuration that `hd`
 // writes: the program's `Args.program` (`program`), its capability grant
-// (`grants`), and its `--time-limit` in milliseconds (`timeLimitMs`). The
+// (`grants`), its `--time-limit` in milliseconds (`timeLimitMs`), and the
+// file where a trap's Wasm frames go (`framesFile`). The
 // program's arguments follow (`cli.args.pass`). The conformance runner's
 // configuration may name a fixture's runtime `profile` instead, whose
 // providers profiles.mjs holds.
@@ -16,7 +17,7 @@
 // so the two never both report. This thread also reads standard input for
 // the worker: a thread blocked in a read cannot be stopped, and the
 // process cannot exit while it waits.
-import { readFileSync, writeSync } from "node:fs";
+import { readFileSync, writeFileSync, writeSync } from "node:fs";
 import {
   isMainThread,
   MessageChannel,
@@ -102,7 +103,10 @@ async function runHere(module, config, args, sink, deadline = null, readLine = u
   });
   try {
     const instance = await WebAssembly.instantiate(module, host.imports);
-    const { status } = await host.run(instance.instance ?? instance, "hd.init", "hd.poll");
+    const { status, frames } = await host.run(instance.instance ?? instance, "hd.init", "hd.poll");
+    // The frames of a trap, for `hd` to name (`flow.panic.report`).
+    if (frames?.length && config.framesFile)
+      writeFileSync(config.framesFile, JSON.stringify(frames));
     return status;
   } finally {
     host.close();

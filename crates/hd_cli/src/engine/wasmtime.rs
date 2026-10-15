@@ -162,8 +162,8 @@ pub(crate) fn run_program(
     level: hd_driver::OptLevel,
     wasm: &[u8],
     host: &HostSetup,
-) -> Result<Outcome, String> {
-    hd_run_wasmtime::run_with_guards(
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    hd_run_wasmtime::run_traced_with_guards(
         hd_run_wasmtime::EngineConfig::pipeline(level),
         wasm,
         host,

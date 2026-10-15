@@ -99,7 +99,7 @@ pub fn run_with_profile(
     setup: &HostSetup,
     io: HostIo,
 ) -> Result<Outcome, String> {
-    run_profile_with_guards(config, profile, wasm, setup, io, || (), || ())
+    run_profile_with_guards(config, profile, wasm, setup, io, || (), || ()).map(|(o, _)| o)
 }
 
 /// Runs with caller-owned guards around native compilation and guest execution.
@@ -112,6 +112,21 @@ pub fn run_with_guards<P, G>(
     preparing: impl FnOnce() -> P + Send,
     guest: impl FnOnce() -> G + Send,
 ) -> Result<Outcome, String> {
+    run_traced_with_guards(config, wasm, setup, io, preparing, guest).map(|(o, _)| o)
+}
+
+/// [`run_with_guards`], and with the Wasm frames of the trap the run ended
+/// in, innermost first as function index and module byte offset (empty when
+/// it ended any other way), which the caller symbolizes through the
+/// module's line table (`flow.panic.report`).
+pub fn run_traced_with_guards<P, G>(
+    config: EngineConfig,
+    wasm: &[u8],
+    setup: &HostSetup,
+    io: HostIo,
+    preparing: impl FnOnce() -> P + Send,
+    guest: impl FnOnce() -> G + Send,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     run_profile_with_guards(
         config,
         RuntimeProfile::Default,
@@ -131,7 +146,7 @@ fn run_profile_with_guards<P, G>(
     io: HostIo,
     preparing: impl FnOnce() -> P + Send,
     guest: impl FnOnce() -> G + Send,
-) -> Result<Outcome, String> {
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     // A bounded store grows lazily rather than reserving the profile's
     // initial 64 MiB before the guest has allocated anything.
     if setup.limits.memory_bytes != u64::MAX {
@@ -157,10 +172,11 @@ fn run_profile_with_guards<P, G>(
                         .map_err(|e| match e {
                             StartError::Refused(m) | StartError::Engine(m) => m,
                         })?;
-                Ok(match inst.init() {
+                let outcome = match inst.init() {
                     Outcome::Exit(0) => hd_run::drive(&mut inst, usize::MAX),
                     other => other,
-                })
+                };
+                Ok((outcome, std::mem::take(&mut inst.last_frames)))
             })
             .map_err(|e| e.to_string())?
             .join()

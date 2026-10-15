@@ -61,6 +61,9 @@ struct Module {
 struct Body {
     syn: Vec<NodeIdx>,
     name: String,
+    /// Its operations whose `usize` type is a literal's default, by
+    /// instruction, each with the name of the local it reads.
+    fallback: Vec<(u32, Option<String>)>,
 }
 
 impl PositionPool {
@@ -141,6 +144,18 @@ impl Positions {
         Some((source.file.as_str(), line))
     }
 
+    /// Whether instruction `inst` of the body of `item` is an operation
+    /// whose `usize` type is a literal's default
+    /// (`flow.panic.report.fallback`): `Some` with the name of the local
+    /// it reads, when it reads one.
+    #[must_use]
+    pub fn fallback(&self, item: &str, inst: u32) -> Option<Option<&str>> {
+        let (_, source) = self.module_of(item)?;
+        let body = source.module()?.bodies.get(item)?;
+        let at = body.fallback.binary_search_by_key(&inst, |r| r.0).ok()?;
+        Some(body.fallback[at].1.as_deref())
+    }
+
     /// The function a frame in the body of the item with stable path
     /// `item` names (`cli.test.report.frame`): a test case's body by its
     /// registered name, as `test "sums prices"`, any other body by its
@@ -202,7 +217,25 @@ impl ModuleSource {
             let b = hd_tir::wire::read_body(r.blob(), &pool, &paths, &syms)?;
             let path = path_of(&paths, b.item);
             let name = names.remove(&path)?;
-            bodies.insert(path, Body { syn: b.syn, name });
+            let fallback = b
+                .fallback
+                .iter()
+                .map(|[inst, local]| {
+                    let name = local
+                        .checked_sub(1)
+                        .and_then(|l| b.local_name.get(l as usize))
+                        .map(|s| syms.resolve(*s).to_owned());
+                    (*inst, name)
+                })
+                .collect();
+            bodies.insert(
+                path,
+                Body {
+                    syn: b.syn,
+                    name,
+                    fallback,
+                },
+            );
         }
         Some(Module {
             bodies,

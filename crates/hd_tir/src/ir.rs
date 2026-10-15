@@ -466,6 +466,12 @@ pub struct Body {
     /// function's name), which a panic while it runs names
     /// (`annot.fact.eval.panic-runtime`); empty for any other kind.
     pub label: Box<str>,
+    /// The overflow-checked operations whose integer type is a literal's
+    /// `usize` default (`types.literal.local.default`): per row, the
+    /// instruction and the local it reads plus one, or 0 when it reads
+    /// none (`flow.panic.report.fallback`). Sorted by instruction. A
+    /// location-like column, outside the hash: it changes no code.
+    pub fallback: Vec<[u32; 2]>,
 }
 
 impl Body {
@@ -494,6 +500,7 @@ impl Body {
             consts: vec![],
             strings: vec![],
             label: "".into(),
+            fallback: vec![],
         }
     }
 
@@ -1143,6 +1150,9 @@ pub fn print(b: &Body) -> String {
         }
         let _ = writeln!(o, ".");
     }
+    for [inst, local] in &b.fallback {
+        let _ = writeln!(o, "fallback {inst} {local}");
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -1275,6 +1285,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
             }
             "extra" => b.extra = nums(1)?,
+            "fallback" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("fallback needs 2 fields".into()));
+                }
+                b.fallback.push([v[0], v[1]]);
+            }
             "const" => {
                 let t = word(f.get(1).copied().unwrap_or("")).map_err(e)?;
                 let bits: u64 = f

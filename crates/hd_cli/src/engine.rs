@@ -280,20 +280,25 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 }
 
 /// Runs a built program to its end on `kind`, with the process's standard
-/// streams. `level` selects wasmtime's engine options.
+/// streams, with the Wasm frames of the trap it ended in, innermost first
+/// (empty when it ended any other way). `level` selects wasmtime's engine
+/// options.
 pub(crate) fn run(
     kind: EngineKind,
     level: OptLevel,
     wasm: &[u8],
     host: &HostSetup,
-) -> Result<Outcome, String> {
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
             let store = DiskStore {
                 root: crate::cache_dir(),
             };
             let _guest = crate::memory_cap::enter_guest();
-            run_program(&crate::node::NodeEngine, wasm, &store, host).map_err(|e| e.to_string())
+            let node = crate::node::NodeEngine::default();
+            let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;
+            let frames = node.trace.lock().map(|t| t.clone()).unwrap_or_default();
+            Ok((outcome, frames))
         }
         EngineKind::Wasmtime => wasmtime::run_program(level, wasm, host),
     }

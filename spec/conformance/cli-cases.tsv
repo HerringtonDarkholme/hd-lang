@@ -123,3 +123,6 @@ dep-add-several-remote	cli.dep.add.several,cli.dep.add.report,cli.dep.no-prompt,
 dep-update-query-remote	cli.dep.update.query,cli.dep.update,cli.dep.update.release,cli.dep.query.partial,cli.dep.query.v-prefix,cli.dep.query.revision,cli.dep.add.lower,cli.dep.select,cli.dep.tidy
 dep-add-clash-remote	cli.dep.key.clash,cli.dep.key.name-flag,cli.dep.key.inferred,cli.dep.unchanged-on-error,cli.json.commands
 engine-unknown	cli.engine.flag,cli.engine.unknown,cli.engine.unknown.no-run,cli.exit.hd-failure
+panic-location	cli.file.run,cli.exit.program,cli.engine.same-behavior
+panic-run-location	cli.exit.program,cli.engine.same-behavior
+panic-fallback-note	cli.file.run,cli.exit.program,cli.engine.same-behavior

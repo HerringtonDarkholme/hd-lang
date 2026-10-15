@@ -1,0 +1,6 @@
+fn scale(n: i32) -> i32:
+    n * 2147483647
+
+pub fn main() -> void $ Console:
+    println("start")
+    println("${scale(3)}")

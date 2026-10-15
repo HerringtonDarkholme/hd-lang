@@ -1,0 +1,14 @@
+# The overflowing operation reads a binding whose literal had no signed form
+# and no other type, so its type fell back to usize. The report says so,
+# names the binding, and suggests a signed literal or a type annotation. The
+# category stays integer-overflow.
+run: hd main.hd
+exit: 3
+stderr: panic: integer-overflow: integer overflow
+stderr:     main.hd:3 main.main
+stderr:     note: `count` fell back to `usize` (no signed literal); write a signed literal such as `+1`, or annotate its type as in `let count: i32 = ...`
+run: hd balance.hd
+exit: 3
+stderr: panic: integer-overflow: integer overflow
+stderr:     balance.hd:3 balance.main
+stderr:     note: `balance` fell back to `usize` (no signed literal); write a signed literal such as `+1`, or annotate its type as in `let balance: i32 = ...`

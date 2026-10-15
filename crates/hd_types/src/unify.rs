@@ -153,6 +153,17 @@ impl InferTable {
         t
     }
 
+    /// The class of the variable `t` itself names, bound or not: what a
+    /// literal's variable stays after its class takes a type. `None` for
+    /// any other type.
+    #[must_use]
+    pub fn class_of(&self, pool: Types<'_>, t: Ty) -> Option<u32> {
+        match pool.get(t) {
+            TyData::Infer(v) => Some(self.root(v.raw())),
+            _ => None,
+        }
+    }
+
     /// The kind of an unbound variable, if `t` is one.
     #[must_use]
     pub fn kind_of(&self, pool: Types<'_>, t: Ty) -> Option<VarKind> {

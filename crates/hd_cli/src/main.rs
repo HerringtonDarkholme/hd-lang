@@ -437,11 +437,33 @@ fn compile(
     (profile, pipeline): (BuildProfile, Pipeline),
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
+    compile_traced(program, (profile, pipeline), rep).map(|c| c.wasm)
+}
+
+/// A compiled program and what names its panic's frames
+/// (`flow.panic.report`): none for a module that was built earlier.
+struct Compiled<'a> {
+    wasm: Vec<u8>,
+    frames: Option<(test_cmd::Frames, &'a disk::DiskSources)>,
+}
+
+/// [`compile`], keeping what `hd FILE` and `hd run` need to report a
+/// panic's source location.
+fn compile_traced<'a>(
+    program: &'a disk::Program,
+    (profile, pipeline): (BuildProfile, Pipeline),
+    rep: &mut Reporter,
+) -> Result<Compiled<'a>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    match build_goal_in(program, &goal, (profile, pipeline), false, rep)?.wasm {
-        Some(wasm) => Ok(wasm),
+    let out = build_goal_in(program, &goal, (profile, pipeline), false, rep)?;
+    let positions = out.positions(&mut hd_driver::PositionPool::default());
+    match out.wasm {
+        Some(wasm) => Ok(Compiled {
+            wasm,
+            frames: Some((test_cmd::Frames::new(positions), &program.sources)),
+        }),
         None => Err(rep.fail("no Wasm produced")),
     }
 }
@@ -451,7 +473,7 @@ fn compile(
 /// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
 /// `engine` runs it, with the engine options of `level`.
 fn execute(
-    wasm: &[u8],
+    built: &Compiled<'_>,
     program: &str,
     table: &[(String, hd_project::Grant)],
     table_dir: Option<&Path>,
@@ -460,6 +482,7 @@ fn execute(
     (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
 ) -> ExitCode {
+    let wasm = &built.wasm;
     if let Some(d) = caps::refusal(wasm, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
@@ -484,12 +507,22 @@ fn execute(
         program: program.to_owned(),
     };
     match engine::run(engine, level, wasm, &host) {
-        Ok(Outcome::Exit(code)) => rep.finish(code),
-        Ok(Outcome::Panic(p)) => {
+        Ok((Outcome::Exit(code), trap)) => {
+            // A panic's location follows the host's `panic:` line, as a
+            // test's report does (`flow.panic.report`).
+            if let Some((frames, sources)) = &built.frames {
+                for line in frames.lines(wasm, &trap, sources) {
+                    eprintln!("    {line}");
+                }
+            }
+            rep.finish(code)
+        }
+        Ok((Outcome::Panic(p), _)) => {
             eprintln!("panic: {}: {}", p.category, p.message);
             rep.finish(HD_FAILURE)
         }
-        Ok(Outcome::Internal(e)) | Err(e) => rep.fail(&e),
+        Ok((Outcome::Internal(e), _)) => rep.fail(&e),
+        Err(e) => rep.fail(&e),
     }
 }
 
@@ -584,9 +617,9 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     let pipeline = Pipeline::of(w.engine, w.release);
-    match compile(&program, (profile_of(w.release), pipeline), &mut rep) {
-        Ok(wasm) => execute(
-            &wasm,
+    match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
+        Ok(built) => execute(
+            &built,
             &file.to_string_lossy(),
             &program.capabilities,
             program.package_dir.as_deref(),
@@ -623,9 +656,9 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     let pipeline = Pipeline::of(engine, false);
-    match compile(&program, (BuildProfile::Checked, pipeline), &mut rep) {
-        Ok(wasm) => execute(
-            &wasm,
+    match compile_traced(&program, (BuildProfile::Checked, pipeline), &mut rep) {
+        Ok(built) => execute(
+            &built,
             "main.hd",
             &program.capabilities,
             program.package_dir.as_deref(),
@@ -679,8 +712,9 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
     }
+    let built = Compiled { wasm, frames: None };
     execute(
-        &wasm,
+        &built,
         &file.to_string_lossy(),
         &[],
         None,
@@ -884,8 +918,8 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     };
     program.only_program(&chosen.file);
     let pipeline = Pipeline::of(w.engine, w.release);
-    let wasm = match compile(&program, (profile_of(w.release), pipeline), &mut rep) {
-        Ok(wasm) => wasm,
+    let built = match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
+        Ok(built) => built,
         Err(code) => return code,
     };
     if chosen.is_task
@@ -894,7 +928,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         return rep.fail(&format!("{}: {e}", root.display()));
     }
     execute(
-        &wasm,
+        &built,
         &chosen.name,
         &program.capabilities,
         program.package_dir.as_deref(),

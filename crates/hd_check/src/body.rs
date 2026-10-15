@@ -8,7 +8,7 @@
 //! Expressions are in `expr`, calls and member lookup in `call`, patterns
 //! and `match` in `pat`, annotations in `ty`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -190,6 +190,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// earlier error to have left that `never`: one that nothing else
     /// solves is `never` at the end of the body.
     pub never_args: Vec<Ty>,
+    /// The literal classes that took the `usize` default, by class
+    /// (`InferTable::class_of`): the types `flow.panic.report.fallback`
+    /// reports.
+    pub fell_back: HashSet<u32>,
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
@@ -446,6 +450,7 @@ pub(crate) fn new_ck<'a, 'c>(
         subs: Vec::new(),
         pending: Vec::new(),
         never_args: Vec::new(),
+        fell_back: HashSet::new(),
         method_targs: Vec::new(),
         in_explicit_targs: false,
         default_owner: None,
@@ -2446,7 +2451,20 @@ impl Ck<'_, '_> {
                 continue;
             }
             if let Some(d) = k.literal_default() {
+                self.note_fallback(t, k);
                 let _ = self.infer.unify(pool, t, d);
+            }
+        }
+    }
+
+    /// Notes that the unbound literal class of `t` is about to take its
+    /// default, when that is `usize` (`flow.panic.report.fallback`).
+    pub(crate) fn note_fallback(&mut self, t: Ty, kind: VarKind) {
+        if kind == VarKind::IntLit {
+            let pool = self.pool();
+            let root = self.infer.shallow(pool, t);
+            if let Some(class) = self.infer.class_of(pool, root) {
+                self.fell_back.insert(class);
             }
         }
     }
@@ -2971,6 +2989,9 @@ impl Ck<'_, '_> {
                     .and_then(VarKind::literal_default)
                 {
                     Some(d) => {
+                        if let Some(k) = self.infer.kind_of(pool, r) {
+                            self.note_fallback(r, k);
+                        }
                         let _ = self.infer.unify(pool, r, d);
                         d
                     }
@@ -3124,6 +3145,59 @@ impl Ck<'_, '_> {
             _ if waited => (hd_tir::ir::ChoiceKind::Builtin, 0),
             _ => choice,
         })
+    }
+
+    /// Records the body's overflow-checked `usize` operations whose type
+    /// came from a literal's default, with the local such an operation
+    /// reads (`flow.panic.report.fallback`). `open` is the body's types
+    /// before they were resolved, which still name the classes that took
+    /// the default.
+    fn fallback_rows(&mut self, open: &[Ty]) {
+        if self.fell_back.is_empty() {
+            return;
+        }
+        let pool = self.pool();
+        let fell: Vec<bool> = open
+            .iter()
+            .map(|t| {
+                self.infer
+                    .class_of(pool, *t)
+                    .is_some_and(|c| self.fell_back.contains(&c))
+            })
+            .collect();
+        let checked = [
+            hd_tir::ir::PrimOp::Add as u32,
+            hd_tir::ir::PrimOp::Sub as u32,
+            hd_tir::ir::PrimOp::Mul as u32,
+            hd_tir::ir::PrimOp::Neg as u32,
+            hd_tir::ir::PrimOp::Pow as u32,
+        ];
+        let usize_ty = Ty::prim(hd_types::Prim::Usize);
+        let body = self.b.body_mut();
+        let mut rows = Vec::new();
+        for (i, tag) in body.tags.iter().enumerate() {
+            if *tag != Tag::Prim || !checked.contains(&body.data[i][0]) || body.ty[i] != usize_ty {
+                continue;
+            }
+            // The operands whose type took the default, among the
+            // instructions' values.
+            let fell_operands: Vec<usize> = body
+                .record(body.data[i][1])
+                .iter()
+                .filter(|r| **r & Ref::CONST_BIT == 0)
+                .map(|r| *r as usize)
+                .filter(|r| fell[*r])
+                .collect();
+            if !fell[i] && fell_operands.is_empty() {
+                continue;
+            }
+            let read = fell_operands
+                .iter()
+                .find(|r| body.tags[**r] == Tag::LocalGet)
+                .map_or(0, |r| body.data[*r][0] + 1);
+            rows.push([u32::try_from(i).expect("instructions"), read]);
+        }
+        body.fallback = rows;
     }
 
     fn finish(self, root: Ref) -> StageResult<Body> {
@@ -3280,6 +3354,7 @@ impl Ck<'_, '_> {
         self.close_assoc_self();
         self.opt_in_obligations()?;
         self.tuple_plan_steps()?;
+        let open = self.b.body_mut().ty.clone();
         for i in 0..n {
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);
@@ -3290,6 +3365,7 @@ impl Ck<'_, '_> {
             let z = self.zonk(t);
             self.b.body_mut().local_ty[i] = z;
         }
+        self.fallback_rows(&open);
         let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];
