@@ -1252,10 +1252,16 @@ pub enum Reloc {
 
 **Recursive descriptors (#120).** A `CanonWasmTy` naming a recursion
 group ([wasm-layout.md §15.3](wasm-layout.md#153-the-type-section)) is
-the group and a member index. The entry's bytes start with a table of the
-groups it names, directly or through another group, each once and after
-the groups it names; a descriptor names a group by its place there, so
-no group's encoding nests in another's.
+the group and a member index. The entry's bytes start with its type
+table (the `wasm_types` of data-structures.md §3.22): each distinct
+descriptor and group the entry names, directly or inside another, once
+and after the ones it names. A row names the descriptors it holds, and a
+member's group, by their places; so do the signature, the `Type`
+relocations and the types inside symbols. No descriptor is written twice
+and no row nests another. Link decodes the table once per entry, and
+equal descriptors come back as one shared value (#49: `main` of the
+dogfood `orders.hd` went from 1.88 MB to 36 KB, its decode from 14 to
+0.6 ms).
 
 **Stable numbering (lowering pass).** An emitted body holds no
 program-wide dense number that changes when something is added

@@ -63,7 +63,7 @@ impl ArgCodec {
         Some(match r.u8() {
             0 => ArgCodec::Str,
             1 => ArgCodec::DataI64(dec_wty(r)?),
-            2 => ArgCodec::Scalar(decode_vts(r, 0)?.pop()?),
+            2 => ArgCodec::Scalar(decode_vts(r)?.pop()?),
             3 => ArgCodec::Buf(BTy::decode(r)?),
             _ => return None,
         })
@@ -127,7 +127,7 @@ impl ResCodec {
     fn decode(r: &mut Reader<'_>) -> Option<ResCodec> {
         Some(match r.u8() {
             0 => ResCodec::Void,
-            1 => ResCodec::Scalar(decode_vts(r, 0)?.pop()?),
+            1 => ResCodec::Scalar(decode_vts(r)?.pop()?),
             2 => ResCodec::DataI64(dec_wty(r)?),
             3 => ResCodec::Tags,
             4 => ResCodec::Buf(BTy::decode(r)?),
@@ -435,7 +435,7 @@ fn enc_wty(t: &WTy, w: &mut Writer) {
 }
 
 fn dec_wty(r: &mut Reader<'_>) -> Option<WTy> {
-    match decode_vts(r, 0)?.pop()? {
+    match decode_vts(r)?.pop()? {
         VT::Ref(t, _) => Some(std::sync::Arc::unwrap_or_clone(t)),
         _ => None,
     }
@@ -493,7 +493,7 @@ impl KeyOps {
             _ => KeyOps::Call {
                 hash: Box::new(Sym::decode(r)?),
                 eq: Box::new(Sym::decode(r)?),
-                params: decode_vts(r, 0)?,
+                params: decode_vts(r)?,
             },
         })
     }
@@ -806,32 +806,32 @@ impl Helper {
                 code: dec_wty(r)?,
                 env: dec_wty(r)?,
                 list: dec_wty(r)?,
-                elem: decode_vts(r, 0)?,
+                elem: decode_vts(r)?,
                 opt: dec_opt(r)?,
             },
             20 => Helper::MapHash {
-                key: decode_vts(r, 0)?,
+                key: decode_vts(r)?,
                 ops: KeyOps::decode(r)?,
             },
             21 => Helper::MapFind {
                 map: dec_wty(r)?,
-                key: decode_vts(r, 0)?,
+                key: decode_vts(r)?,
                 ops: KeyOps::decode(r)?,
             },
             22 => Helper::MapPut {
                 map: dec_wty(r)?,
-                key: decode_vts(r, 0)?,
-                val: decode_vts(r, 0)?,
+                key: decode_vts(r)?,
+                val: decode_vts(r)?,
                 ops: KeyOps::decode(r)?,
             },
             23 => Helper::MapGrow {
                 map: dec_wty(r)?,
-                comps: decode_vts(r, 0)?,
+                comps: decode_vts(r)?,
             },
             24 => Helper::MapStep {
                 code: dec_wty(r)?,
                 env: dec_wty(r)?,
-                comps: decode_vts(r, 0)?,
+                comps: decode_vts(r)?,
                 tuple: if r.u8() == 1 { Some(dec_wty(r)?) } else { None },
                 opt: dec_opt(r)?,
             },
@@ -894,7 +894,7 @@ impl Helper {
             14 => Helper::WakeTake,
             t @ 15..=17 => {
                 let (list, base, poll, result) =
-                    (dec_wty(r)?, dec_wty(r)?, dec_wty(r)?, decode_vts(r, 0)?);
+                    (dec_wty(r)?, dec_wty(r)?, dec_wty(r)?, decode_vts(r)?);
                 match t {
                     15 => Helper::RaceCold {
                         list,
@@ -924,10 +924,10 @@ impl Helper {
             38 => Helper::EntryCall { func: r.hash() },
             9 => Helper::Adapter {
                 sig: dec_wty(r)?,
-                self_vts: decode_vts(r, 0)?,
+                self_vts: decode_vts(r)?,
                 target: Box::new(Sym::decode(r)?),
-                params: decode_vts(r, 0)?,
-                results: decode_vts(r, 0)?,
+                params: decode_vts(r)?,
+                results: decode_vts(r)?,
                 keys: r.u32(),
                 provs: (0..r.count()).map(|_| r.u32()).collect(),
             },
@@ -950,7 +950,7 @@ impl Helper {
                     None
                 };
                 let report = if r.u8() == 1 {
-                    Some((r.hash(), decode_vts(r, 0)?))
+                    Some((r.hash(), decode_vts(r)?))
                 } else {
                     None
                 };

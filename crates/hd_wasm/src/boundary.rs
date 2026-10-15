@@ -500,7 +500,7 @@ impl BTy {
                     .collect::<Option<Vec<_>>>()?,
             },
             9 => {
-                let slots = decode_vts(r, 0)?;
+                let slots = decode_vts(r)?;
                 let boxed = if r.u8() == 1 { Some(dec_wty(r)?) } else { None };
                 let subtypes = (0..r.count())
                     .map(|_| {
@@ -569,7 +569,7 @@ fn enc_wty(t: &WTy, w: &mut Writer) {
 }
 
 fn dec_wty(r: &mut Reader<'_>) -> Option<WTy> {
-    match decode_vts(r, 0)?.pop()? {
+    match decode_vts(r)?.pop()? {
         VT::Ref(t, _) => Some(std::sync::Arc::unwrap_or_clone(t)),
         _ => None,
     }

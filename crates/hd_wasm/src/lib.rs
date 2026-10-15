@@ -252,32 +252,29 @@ impl VT {
             v => v.clone(),
         }
     }
+    /// Writes the value type within a code entry: a reference names its
+    /// type by its place in the entry's type table (`Table`).
     fn encode(&self, w: &mut Writer) {
-        match self {
-            VT::I32 => w.u8(0),
-            VT::I64 => w.u8(1),
-            VT::F32 => w.u8(2),
-            VT::F64 => w.u8(3),
-            VT::Eq => w.u8(4),
-            VT::Ref(t, n) => {
-                w.u8(if *n { 6 } else { 5 });
-                t.encode(w);
-            }
-            VT::Func => w.u8(7),
-        }
+        with_interner(|t| t.vt(self, &mut w.bytes));
     }
-    fn decode(r: &mut Reader<'_>, depth: u8) -> Option<VT> {
-        Self::decode_in(r, depth, None)
+    /// Reads a value type within a code entry; `None` when malformed,
+    /// including a reference to a type that names a group member as
+    /// `Back` (only a group's members may).
+    fn decode(r: &mut Reader<'_>) -> Option<VT> {
+        let tag = r.u8();
+        Some(match tag {
+            5 | 6 => VT::Ref(table_type(r.u32())?, tag == 6),
+            _ => VT::scalar(tag)?,
+        })
     }
-    fn decode_in(r: &mut Reader<'_>, depth: u8, group: Option<u32>) -> Option<VT> {
-        Some(match r.u8() {
+    /// The value type of a tag with no type after it.
+    fn scalar(tag: u8) -> Option<VT> {
+        Some(match tag {
             0 => VT::I32,
             1 => VT::I64,
             2 => VT::F32,
             3 => VT::F64,
             4 => VT::Eq,
-            5 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), false),
-            6 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), true),
             7 => VT::Func,
             _ => return None,
         })
@@ -291,9 +288,9 @@ pub(crate) fn encode_vts(v: &[VT], w: &mut Writer) {
     }
 }
 
-pub(crate) fn decode_vts(r: &mut Reader<'_>, depth: u8) -> Option<Vec<VT>> {
+pub(crate) fn decode_vts(r: &mut Reader<'_>) -> Option<Vec<VT>> {
     let n = r.count();
-    (0..n).map(|_| VT::decode(r, depth)).collect()
+    (0..n).map(|_| VT::decode(r)).collect()
 }
 
 impl WTy {
@@ -346,80 +343,16 @@ impl WTy {
             }
         }
     }
+    /// Writes the type within a code entry: its place in the entry's
+    /// type table (`Table`).
     fn encode(&self, w: &mut Writer) {
-        match self {
-            WTy::Bytes => w.u8(0),
-            WTy::Array(v) => {
-                w.u8(1);
-                v.encode(w);
-            }
-            WTy::Struct { fields, sup, open } => {
-                w.u8(2);
-                encode_vts(fields, w);
-                w.u8(u8::from(*open));
-                match sup {
-                    Some(s) => {
-                        w.u8(1);
-                        s.encode(w);
-                    }
-                    None => w.u8(0),
-                }
-            }
-            WTy::Func(p, r) => {
-                w.u8(3);
-                encode_vts(p, w);
-                encode_vts(r, w);
-            }
-            WTy::Rec(g, i) => {
-                w.u8(4);
-                w.u32(table_index(g));
-                w.u32(*i);
-            }
-            WTy::Back(i) => {
-                w.u8(5);
-                w.u32(*i);
-            }
-        }
+        let i = with_interner(|t| t.ty(self));
+        w.u32(i);
     }
-    /// Decodes a type; `None` when malformed, including a `Back` outside
-    /// a group or past its end. `group` is the enclosing group's size.
-    fn decode(r: &mut Reader<'_>, depth: u8) -> Option<WTy> {
-        Self::decode_in(r, depth, None)
-    }
-    fn decode_in(r: &mut Reader<'_>, depth: u8, group: Option<u32>) -> Option<WTy> {
-        let depth = depth.checked_add(1).filter(|d| *d < 64)?;
-        let vts = |r: &mut Reader<'_>| -> Option<Vec<VT>> {
-            (0..r.count())
-                .map(|_| VT::decode_in(r, depth, group))
-                .collect()
-        };
-        Some(match r.u8() {
-            0 => WTy::Bytes,
-            1 => WTy::Array(VT::decode_in(r, depth, group)?),
-            2 => {
-                let fields = vts(r)?;
-                let open = r.u8() == 1;
-                let sup = if r.u8() == 1 {
-                    Some(Box::new(WTy::decode_in(r, depth, group)?))
-                } else {
-                    None
-                };
-                WTy::Struct { fields, sup, open }
-            }
-            3 => WTy::Func(vts(r)?, vts(r)?),
-            4 => {
-                let g = table_group(r.u32())?;
-                let i = r.u32();
-                ((i as usize) < g.len()).then_some(())?;
-                WTy::Rec(g, i)
-            }
-            5 => {
-                let i = r.u32();
-                (i < group?).then_some(())?;
-                WTy::Back(i)
-            }
-            _ => return None,
-        })
+    /// Reads a type within a code entry; `None` when malformed, or when
+    /// it names a group member as `Back`.
+    fn decode(r: &mut Reader<'_>) -> Option<WTy> {
+        table_type(r.u32()).map(Arc::unwrap_or_clone)
     }
     /// The type with a recursion group's member opened: its references to
     /// the group's members as `Rec` types (what a field read gives).
@@ -576,12 +509,12 @@ impl GSym {
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
         Some(match r.u8() {
-            0 => GSym::Binding(r.hash(), r.u32(), VT::decode(r, 0)?),
-            1 => GSym::Rt(r.str().to_owned(), VT::decode(r, 0)?),
-            2 => GSym::Canon(r.hash(), VT::decode(r, 0)?),
-            3 => GSym::Witness(r.hash(), r.hash(), VT::decode(r, 0)?),
-            4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r, 0)?),
-            5 => GSym::Closure(r.hash(), VT::decode(r, 0)?),
+            0 => GSym::Binding(r.hash(), r.u32(), VT::decode(r)?),
+            1 => GSym::Rt(r.str().to_owned(), VT::decode(r)?),
+            2 => GSym::Canon(r.hash(), VT::decode(r)?),
+            3 => GSym::Witness(r.hash(), r.hash(), VT::decode(r)?),
+            4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r)?),
+            5 => GSym::Closure(r.hash(), VT::decode(r)?),
             _ => return None,
         })
     }
@@ -666,8 +599,8 @@ impl Sym {
             1 => Sym::Import {
                 module: r.str().to_owned(),
                 name: r.str().to_owned(),
-                params: decode_vts(r, 0)?,
-                results: decode_vts(r, 0)?,
+                params: decode_vts(r)?,
+                results: decode_vts(r)?,
             },
             2 => Sym::Helper(Helper::decode(r)?),
             3 => Sym::Part(r.hash(), Part::from_tag(r.u8())?),
@@ -676,17 +609,154 @@ impl Sym {
     }
 }
 
-/// While a code entry is encoded or decoded, its recursion groups' table:
-/// each group the entry names, directly or through another group, once,
-/// after the groups it names, so a type names a group by its place in the
-/// table and no encoding nests one group in another.
+/// While a code entry is encoded or decoded, its type table: each
+/// distinct type and recursion group the entry names, directly or inside
+/// another type or group, once, after the types and groups it names. A
+/// row names the types it holds, and a `Rec` type its group, by their
+/// places, so no type is written twice and no row nests another; the
+/// rest of the entry names each type by its place too.
 enum Table {
-    /// Finding the groups the entry names directly.
-    Find(Vec<Arc<Group>>, HashSet<Hash128>),
-    /// Each group's place.
-    Enc(HashMap<Hash128, u32>),
-    /// The groups decoded so far.
-    Dec(Vec<Arc<Group>>),
+    Enc(Interner),
+    Dec(Vec<Row>),
+}
+
+/// A decoded row of the type table.
+enum Row {
+    /// A type, with how deeply the types it holds nest, and one past the
+    /// largest `Back` it names (0 when it names none): only a group's
+    /// members may name one.
+    Type {
+        ty: Arc<WTy>,
+        height: u8,
+        backs: u32,
+    },
+    Group(Arc<Group>),
+}
+
+/// The type table under construction while an entry is encoded.
+#[derive(Default)]
+struct Interner {
+    /// The rows' bytes, in order.
+    rows: Vec<u8>,
+    n: u32,
+    /// Each row's place, by its bytes: a row names the types it holds by
+    /// their places, so equal bytes are equal types.
+    at: HashMap<Vec<u8>, u32>,
+    /// The place of each shared descriptor met, by its address. The
+    /// descriptor is held, so no other one takes the address.
+    shared: HashMap<usize, (Arc<WTy>, u32)>,
+    /// Each group's place, by its hash.
+    groups: HashMap<Hash128, u32>,
+}
+
+impl Interner {
+    /// The place of a row, added if new.
+    fn row(&mut self, bytes: Vec<u8>) -> u32 {
+        if let Some(&i) = self.at.get(&bytes) {
+            return i;
+        }
+        let i = self.n;
+        self.n += 1;
+        self.rows.extend_from_slice(&bytes);
+        self.at.insert(bytes, i);
+        i
+    }
+    /// Writes a value type: its tag, then a reference's type's place.
+    fn vt(&mut self, v: &VT, out: &mut Vec<u8>) {
+        let tag = match v {
+            VT::I32 => 0,
+            VT::I64 => 1,
+            VT::F32 => 2,
+            VT::F64 => 3,
+            VT::Eq => 4,
+            VT::Ref(t, n) => {
+                let i = self.shared(t);
+                out.push(if *n { 6 } else { 5 });
+                out.extend_from_slice(&i.to_le_bytes());
+                return;
+            }
+            VT::Func => 7,
+        };
+        out.push(tag);
+    }
+    fn vts(&mut self, v: &[VT], out: &mut Vec<u8>) {
+        out.extend_from_slice(&u32::try_from(v.len()).expect("values").to_le_bytes());
+        for x in v {
+            self.vt(x, out);
+        }
+    }
+    /// A shared descriptor's place: each is walked once.
+    fn shared(&mut self, t: &Arc<WTy>) -> u32 {
+        let addr = Arc::as_ptr(t).addr();
+        if let Some(&(_, i)) = self.shared.get(&addr) {
+            return i;
+        }
+        let i = self.ty(t);
+        self.shared.insert(addr, (t.clone(), i));
+        i
+    }
+    /// A type's place, its row and the rows of the types it holds added
+    /// if new.
+    fn ty(&mut self, t: &WTy) -> u32 {
+        let mut b = Vec::new();
+        match t {
+            WTy::Bytes => b.push(0),
+            WTy::Array(v) => {
+                b.push(1);
+                self.vt(v, &mut b);
+            }
+            WTy::Struct { fields, sup, open } => {
+                b.push(2);
+                self.vts(fields, &mut b);
+                b.push(u8::from(*open));
+                match sup {
+                    Some(s) => {
+                        let i = self.ty(s);
+                        b.push(1);
+                        b.extend_from_slice(&i.to_le_bytes());
+                    }
+                    None => b.push(0),
+                }
+            }
+            WTy::Func(p, r) => {
+                b.push(3);
+                self.vts(p, &mut b);
+                self.vts(r, &mut b);
+            }
+            WTy::Rec(g, i) => {
+                let at = self.group(g);
+                b.push(4);
+                b.extend_from_slice(&at.to_le_bytes());
+                b.extend_from_slice(&i.to_le_bytes());
+            }
+            WTy::Back(i) => {
+                b.push(5);
+                b.extend_from_slice(&i.to_le_bytes());
+            }
+        }
+        self.row(b)
+    }
+    /// A group's place. The groups it names come first, each after the
+    /// groups it names, in a loop: adding one then finds the groups its
+    /// members name added.
+    fn group(&mut self, g: &Arc<Group>) -> u32 {
+        if let Some(&i) = self.groups.get(&g.hash) {
+            return i;
+        }
+        let groups = &self.groups;
+        let order = groups_after_parts(vec![g.clone()], &|p| groups.contains_key(&p.hash));
+        for p in order {
+            let mut b = vec![6];
+            b.extend_from_slice(&u32::try_from(p.len()).expect("group").to_le_bytes());
+            for m in p.iter() {
+                let i = self.ty(m);
+                b.extend_from_slice(&i.to_le_bytes());
+            }
+            let i = self.row(b);
+            self.groups.insert(p.hash, i);
+        }
+        self.groups[&g.hash]
+    }
 }
 
 thread_local! {
@@ -704,25 +774,119 @@ fn with_table<T>(table: Table, f: impl FnOnce() -> T) -> (T, Table) {
     (out, table)
 }
 
-/// A group's place in the current table (while finding, a placeholder).
-fn table_index(g: &Arc<Group>) -> u32 {
+/// Runs `f` on the table under construction.
+fn with_interner<T>(f: impl FnOnce(&mut Interner) -> T) -> T {
     TABLE.with(|c| match c.borrow_mut().as_mut() {
-        Some(Table::Find(found, seen)) => {
-            if seen.insert(g.hash) {
-                found.push(g.clone());
-            }
-            0
-        }
-        Some(Table::Enc(at)) => at[&g.hash],
-        _ => unreachable!("a recursion group is encoded only within a code entry"),
+        Some(Table::Enc(t)) => f(t),
+        _ => unreachable!("a type is encoded only within a code entry"),
     })
 }
 
-/// The decoded group at place `i`, if decoded already.
-fn table_group(i: u32) -> Option<Arc<Group>> {
+/// The decoded type at place `i`: `None` past the table, at a group, or
+/// at a type that names a `Back`.
+fn table_type(i: u32) -> Option<Arc<WTy>> {
     TABLE.with(|c| match c.borrow().as_ref() {
-        Some(Table::Dec(groups)) => groups.get(i as usize).cloned(),
+        Some(Table::Dec(rows)) => match rows.get(i as usize)? {
+            Row::Type { ty, backs: 0, .. } => Some(ty.clone()),
+            _ => None,
+        },
         _ => None,
+    })
+}
+
+/// Reads the type table; `None` when malformed: a row naming a place not
+/// before it or of the wrong kind, a `Back` outside a group or past its
+/// end, or types nested 64 deep.
+fn decode_rows(r: &mut Reader<'_>) -> Option<Vec<Row>> {
+    let n = r.count();
+    let mut rows = Vec::with_capacity(n);
+    for _ in 0..n {
+        let row = decode_row(r, &rows)?;
+        rows.push(row);
+    }
+    r.ok().then_some(rows)
+}
+
+/// The type row at place `i` of `rows`.
+fn row_type(rows: &[Row], i: u32) -> Option<(&Arc<WTy>, u8, u32)> {
+    match rows.get(i as usize)? {
+        Row::Type { ty, height, backs } => Some((ty, *height, *backs)),
+        Row::Group(_) => None,
+    }
+}
+
+/// Reads a row's value type, raising `height` and `backs` to its type's.
+fn row_vt(r: &mut Reader<'_>, rows: &[Row], height: &mut u8, backs: &mut u32) -> Option<VT> {
+    let tag = r.u8();
+    match tag {
+        5 | 6 => {
+            let (t, h, b) = row_type(rows, r.u32())?;
+            *height = (*height).max(h);
+            *backs = (*backs).max(b);
+            Some(VT::Ref(t.clone(), tag == 6))
+        }
+        _ => VT::scalar(tag),
+    }
+}
+
+fn row_vts(r: &mut Reader<'_>, rows: &[Row], height: &mut u8, backs: &mut u32) -> Option<Vec<VT>> {
+    (0..r.count())
+        .map(|_| row_vt(r, rows, height, backs))
+        .collect()
+}
+
+fn decode_row(r: &mut Reader<'_>, rows: &[Row]) -> Option<Row> {
+    let (mut h, mut b) = (0u8, 0u32);
+    let ty = match r.u8() {
+        0 => WTy::Bytes,
+        1 => WTy::Array(row_vt(r, rows, &mut h, &mut b)?),
+        2 => {
+            let fields = row_vts(r, rows, &mut h, &mut b)?;
+            let open = r.u8() == 1;
+            let sup = if r.u8() == 1 {
+                let (t, th, tb) = row_type(rows, r.u32())?;
+                h = h.max(th);
+                b = b.max(tb);
+                Some(Box::new(WTy::clone(t)))
+            } else {
+                None
+            };
+            WTy::Struct { fields, sup, open }
+        }
+        3 => {
+            let params = row_vts(r, rows, &mut h, &mut b)?;
+            WTy::Func(params, row_vts(r, rows, &mut h, &mut b)?)
+        }
+        4 => {
+            let Row::Group(g) = rows.get(r.u32() as usize)? else {
+                return None;
+            };
+            let i = r.u32();
+            ((i as usize) < g.len()).then_some(())?;
+            WTy::Rec(g.clone(), i)
+        }
+        5 => {
+            let i = r.u32();
+            b = i.checked_add(1)?;
+            WTy::Back(i)
+        }
+        6 => {
+            let n = u32::try_from(r.count()).ok()?;
+            let members = (0..n)
+                .map(|_| {
+                    let (t, _, tb) = row_type(rows, r.u32())?;
+                    (tb <= n).then(|| WTy::clone(t))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            return Some(Row::Group(Group::new(members)));
+        }
+        _ => return None,
+    };
+    let height = h.checked_add(1).filter(|h| *h < 64)?;
+    Some(Row::Type {
+        ty: Arc::new(ty),
+        height,
+        backs: b,
     })
 }
 
@@ -834,64 +998,38 @@ fn take_groups(t: WTy, out: &mut Vec<Arc<Group>>) {
     }
 }
 
-/// The bytes `body` writes, ID-free: first the table of the recursion
-/// groups its types name (`Table`), then what it writes.
-fn encode_grouped(body: &dyn Fn(&mut Writer)) -> Vec<u8> {
-    let ((), found) = with_table(Table::Find(Vec::new(), HashSet::new()), || {
-        body(&mut Writer::default());
-    });
-    let Table::Find(roots, _) = found else {
+/// The bytes `body` writes, ID-free: first the type table of the types it
+/// writes (`Table`), then what it writes, which names each type by its
+/// place in the table.
+fn encode_grouped(body: impl FnOnce(&mut Writer)) -> Vec<u8> {
+    let mut w = Writer::default();
+    let ((), table) = with_table(Table::Enc(Interner::default()), || body(&mut w));
+    let Table::Enc(t) = table else {
         unreachable!("the table set above")
     };
-    let groups = groups_after_parts(roots, &|_| false);
-    let at: HashMap<Hash128, u32> = groups
-        .iter()
-        .enumerate()
-        .map(|(k, g)| (g.hash, u32::try_from(k).expect("groups")))
-        .collect();
-    let (bytes, _) = with_table(Table::Enc(at), || {
-        let mut w = Writer::default();
-        w.len_of(&groups);
-        for g in &groups {
-            w.len_of(&g.members);
-            for m in g.iter() {
-                m.encode(&mut w);
-            }
-        }
-        body(&mut w);
-        w.bytes
-    });
-    bytes
+    let mut out = Writer::default();
+    out.u32(t.n);
+    out.bytes.reserve(t.rows.len() + w.bytes.len());
+    out.bytes.extend_from_slice(&t.rows);
+    out.bytes.extend_from_slice(&w.bytes);
+    out.bytes
 }
 
-/// Reads what `encode_grouped` wrote: the group table, then `body`;
-/// `None` when malformed.
+/// Reads what `encode_grouped` wrote: the type table, decoded once, then
+/// `body`; `None` when malformed.
 fn decode_grouped<T>(bytes: &[u8], body: impl FnOnce(&mut Reader<'_>) -> Option<T>) -> Option<T> {
     let mut r = Reader::new(bytes);
-    let (c, _) = with_table(Table::Dec(Vec::new()), || {
-        for _ in 0..r.count() {
-            let n = u32::try_from(r.count()).ok()?;
-            let members: Vec<WTy> = (0..n)
-                .map(|_| WTy::decode_in(&mut r, 0, Some(n)))
-                .collect::<Option<_>>()?;
-            let g = Group::new(members);
-            TABLE.with(|c| {
-                if let Some(Table::Dec(groups)) = c.borrow_mut().as_mut() {
-                    groups.push(g);
-                }
-            });
-        }
-        body(&mut r)
-    });
+    let rows = decode_rows(&mut r)?;
+    let (c, _) = with_table(Table::Dec(rows), || body(&mut r));
     r.ok().then_some(c?)
 }
 
 impl Code {
     /// The code entry's bytes (codegen.md §13.8): ID-free. First the
-    /// table of its recursion groups (`Table`), then the entry.
+    /// table of its types (`Table`), then the entry.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        encode_grouped(&|w| self.encode_into(w))
+        encode_grouped(|w| self.encode_into(w))
     }
 
     fn encode_into(&self, w: &mut Writer) {
@@ -935,8 +1073,8 @@ impl Code {
     }
 
     fn decode_from(r: &mut Reader<'_>, depth: u8) -> Option<Code> {
-        let params = decode_vts(r, 0)?;
-        let results = decode_vts(r, 0)?;
+        let params = decode_vts(r)?;
+        let results = decode_vts(r)?;
         let body = r.blob().to_vec();
         let n = r.count();
         let mut relocs = Vec::new();
@@ -944,7 +1082,7 @@ impl Code {
             let at = r.u32();
             let reloc = match r.u8() {
                 0 => Reloc::Func(Sym::decode(r)?),
-                1 => Reloc::Type(WTy::decode(r, 0)?),
+                1 => Reloc::Type(WTy::decode(r)?),
                 2 => Reloc::Global(GSym::decode(r)?),
                 _ => return None,
             };
@@ -1269,7 +1407,7 @@ impl Externs {
     /// a REPL session's prelude.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        encode_grouped(&|w| {
+        encode_grouped(|w| {
             w.u8(u8::from(self.first));
             w.u32(u32::try_from(self.funcs.len()).expect("functions"));
             for (s, (params, results)) in &self.funcs {
@@ -1292,7 +1430,7 @@ impl Externs {
             let mut funcs = BTreeMap::new();
             for _ in 0..r.count() {
                 let s = Sym::decode(r)?;
-                funcs.insert(s, (decode_vts(r, 0)?, decode_vts(r, 0)?));
+                funcs.insert(s, (decode_vts(r)?, decode_vts(r)?));
             }
             let mut globals = BTreeSet::new();
             for _ in 0..r.count() {
@@ -1982,7 +2120,7 @@ fn witness_init(
 mod tests {
     use super::{
         Code, Externs, GSym, Group, Hash128, LinkMode, MEMORY_KEY, Reloc, SESSION_MODULE, Sym,
-        Types, VT, WTy, func_key, global_key, link, rt,
+        Types, VT, WTy, Writer, func_key, global_key, link, rt,
     };
     use crate::asm::Asm;
     use std::sync::Arc;
@@ -2019,6 +2157,85 @@ mod tests {
             parts: vec![],
         };
         assert_eq!(Code::decode(&stray.encode()), None);
+    }
+
+    #[test]
+    fn a_malformed_type_table_is_a_miss() {
+        let code = Code {
+            params: vec![VT::r(nested(2))],
+            results: vec![],
+            body: vec![],
+            relocs: vec![],
+            lines: vec![],
+            parts: vec![],
+        };
+        let bytes = code.encode();
+        // Every truncation fails cleanly.
+        for n in 0..bytes.len() {
+            assert_eq!(Code::decode(&bytes[..n]), None, "cut at {n}");
+        }
+        // A row naming itself, a forward row or a group as a type.
+        let mut w = Writer::default();
+        w.u32(1);
+        w.bytes.extend([1, 5, 0, 0, 0, 0]);
+        assert_eq!(Code::decode(&w.bytes), None);
+        // Types nested 64 deep are a miss, as before the table; 63 decode.
+        let deep = |n: usize| Code {
+            params: vec![(0..n).fold(VT::I32, |v, _| VT::r(WTy::Array(v)))],
+            ..code.clone()
+        };
+        assert!(Code::decode(&deep(63).encode()).is_some());
+        assert_eq!(Code::decode(&deep(64).encode()), None);
+    }
+
+    /// A closure-like struct `depth` levels deep: each level's supertype
+    /// and field are the level below.
+    fn nested(depth: usize) -> WTy {
+        let mut t = WTy::Func(vec![VT::Eq], vec![VT::I32]);
+        for _ in 0..depth {
+            t = WTy::Struct {
+                fields: vec![VT::Func, VT::rn(t.clone())],
+                sup: Some(Box::new(t)),
+                open: true,
+            };
+        }
+        t
+    }
+
+    #[test]
+    fn an_entry_writes_each_type_once_and_decodes_it_once() {
+        let t = nested(12);
+        let n = 200;
+        let code = Code {
+            params: vec![VT::r(t.clone()), VT::rn(t.clone())],
+            results: vec![VT::r(WTy::Rec(group(), 0))],
+            body: vec![0; 5 * n],
+            relocs: (0..n)
+                .map(|k| {
+                    (
+                        u32::try_from(5 * k).expect("offset"),
+                        Reloc::Type(t.clone()),
+                    )
+                })
+                .collect(),
+            lines: vec![],
+            parts: vec![],
+        };
+        let bytes = code.encode();
+        let back = Code::decode(&bytes).expect("decodes");
+        assert_eq!(back, code);
+        // A relocation is its offset, kind and place: 9 bytes, however
+        // large its type.
+        let one = Code {
+            relocs: code.relocs[..1].to_vec(),
+            ..code.clone()
+        };
+        assert_eq!(bytes.len() - one.encode().len(), 9 * (n - 1));
+        // Equal types decode to one shared descriptor.
+        let (VT::Ref(a, _), VT::Ref(b, _)) = (&back.params[0], &back.params[1]) else {
+            panic!("references")
+        };
+        assert!(Arc::ptr_eq(a, b));
     }
 
     #[test]
