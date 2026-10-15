@@ -1412,3 +1412,16 @@ fn contextual_variants_with_an_expected_type_are_clean() {
         assert_eq!(item_codes(ok), [], "{ok}");
     }
 }
+/// `names.self-type.outside`: `Self` outside a trait or impl body names
+/// nothing, in a result, a parameter, or a field.
+#[test]
+fn self_outside_a_trait_or_impl_is_unknown() {
+    for src in [
+        "fn f() -> Self:\n    \"text\"\n",
+        "fn g(x: Self) -> i32:\n    1\n",
+        "data P:\n    s: Self\n",
+    ] {
+        let out = program(src);
+        assert_eq!(codes(&out), [Code::UnknownType], "{src}\n{}", out.render());
+    }
+}

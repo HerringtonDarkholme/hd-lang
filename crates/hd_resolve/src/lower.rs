@@ -1917,7 +1917,14 @@ impl Lower<'_, '_, '_> {
         };
         if segs.len() == 1 {
             if self.src.tkind(ft) == Some(TokenKind::KwSelfType) {
-                return gn.self_ty.unwrap_or(Ty::POISON);
+                let Some(self_ty) = gn.self_ty else {
+                    // `Self` outside a trait or impl body names nothing
+                    // (`names.self-type.outside`).
+                    let msg = "no type named `Self` here: `Self` names the implementing type inside a trait or impl";
+                    self.diags.error(Code::UnknownType, span, msg);
+                    return Ty::POISON;
+                };
+                return self_ty;
             }
             if let Some((_, t, _)) = gn
                 .tys
