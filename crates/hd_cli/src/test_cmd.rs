@@ -168,11 +168,13 @@ fn parse_with_engine(
     Ok(o)
 }
 
-/// The package root and, with a FILE, its path relative to that root.
-fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
+/// The package root and, with a FILE, its path relative to that root. A FILE
+/// that is a single-file program (`disk::is_alone`) has its directory for
+/// root, and `true` is returned with it.
+fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>, bool), String> {
     let Some(f) = file else {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-        return disk::package_root(&cwd).map(|r| (r, None)).ok_or_else(|| {
+        return disk::package_root(&cwd).map(|r| (r, None, false)).ok_or_else(|| {
             "outside any package, `hd test` needs a FILE; pass one, or create a package with `hd new`"
                 .to_owned()
         });
@@ -188,18 +190,22 @@ fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
     }
     let full = hd_run::canonicalize(f).map_err(|e| format!("{}: {e}", f.display()))?;
     let dir = full.parent().unwrap_or(Path::new("."));
-    let root = disk::package_root(dir).unwrap_or_else(|| dir.to_path_buf());
+    let alone = disk::is_alone(&full);
+    let root = disk::package_root(dir)
+        .filter(|_| !alone)
+        .unwrap_or_else(|| dir.to_path_buf());
     let rel = full
         .strip_prefix(&root)
         .map_err(|e| e.to_string())?
         .to_string_lossy()
         .replace('\\', "/");
-    Ok((root.clone(), Some(disk::listed_path(&root, &rel))))
+    Ok((root.clone(), Some(disk::listed_path(&root, &rel)), alone))
 }
 
-/// One package `hd test` tests: its root, FILE relative to it, and in
-/// workspace mode the member's directory below the workspace root.
-type Unit = (PathBuf, Option<String>, Option<String>);
+/// One package `hd test` tests: its root, FILE relative to it, in workspace
+/// mode the member's directory below the workspace root, and whether FILE
+/// is a single-file program (`disk::is_alone`).
+type Unit = (PathBuf, Option<String>, Option<String>, bool);
 
 /// What `hd test` tests: FILE's module, the package of the working
 /// directory, or in workspace mode every member (`cli.workspace.members`).
@@ -209,7 +215,7 @@ fn units(file: Option<&Path>, packages: &[String]) -> Result<Vec<Unit>, String> 
         if !packages.is_empty() {
             return Ok(disk::select_members(&cwd, packages)?
                 .into_iter()
-                .map(|(dir, rel)| (dir, None, Some(rel)))
+                .map(|(dir, rel)| (dir, None, Some(rel), false))
                 .collect());
         }
         if let Some((ws, members)) = disk::workspace_root(&cwd) {
@@ -221,13 +227,13 @@ fn units(file: Option<&Path>, packages: &[String]) -> Result<Vec<Unit>, String> 
                         .unwrap_or(&dir)
                         .to_string_lossy()
                         .replace('\\', "/");
-                    (dir, None, Some(member))
+                    (dir, None, Some(member), false)
                 })
                 .collect());
         }
     }
-    let (root, rel) = target(file)?;
-    Ok(vec![(root, rel, None)])
+    let (root, rel, alone) = target(file)?;
+    Ok(vec![(root, rel, None, alone)])
 }
 
 pub fn command(args: &[OsString]) -> ExitCode {
@@ -266,8 +272,15 @@ pub fn command(args: &[OsString]) -> ExitCode {
         Ok(u) => u,
         Err(e) => return report.rep.fail(&e),
     };
-    for (root, file, member) in units {
-        if let Err(code) = test_one(&root, file.as_deref(), member.as_deref(), &o, &mut report) {
+    for (root, file, member, alone) in units {
+        if let Err(code) = test_one(
+            &root,
+            file.as_deref(),
+            member.as_deref(),
+            alone,
+            &o,
+            &mut report,
+        ) {
             return code;
         }
     }
@@ -517,6 +530,7 @@ fn test_one(
     root: &Path,
     file: Option<&str>,
     member: Option<&str>,
+    alone: bool,
     o: &Options,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
@@ -524,11 +538,15 @@ fn test_one(
     // (`cli.memory.cap`); this member's builds are limited again.
     crate::memory_cap::rearm();
     let rep = &mut report.rep;
-    let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
-    // `cli.file.check-test`: outside any package, FILE is tested as a
-    // single-file program, whose declarations print under the file's stem
+    // `cli.file.check-test`, `cli.package.no-root`: a FILE outside any
+    // package or under no root is tested as a single-file program, which
+    // may use only std and whose declarations print under the file's stem
     // (`trait.typeid.name.single-file`), in its frames too.
-    program.single_file = disk::package_root(root).is_none();
+    let program = match file.filter(|_| alone) {
+        Some(f) => disk::load_file(&root.join(f)),
+        None => disk::load_package(root, "main"),
+    };
+    let mut program = program.map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }

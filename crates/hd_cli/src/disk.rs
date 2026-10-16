@@ -645,8 +645,31 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     Ok((sources, package))
 }
 
-/// A single-file program, or a module of the package that holds FILE:
-/// without an `hd.toml` above FILE, only FILE is a source (`cli.file.run`).
+/// Whether FILE, canonical, lies under one of the roots of the package at
+/// `root`: the source root, the test root, or `tasks`
+/// (`cli.package.no-root`). A package with no source directory takes every
+/// file under it, as `sources_of` does.
+pub fn under_root(root: &Path, full: &Path) -> bool {
+    let src = source_dir(root);
+    if !root.join(&src).is_dir() {
+        return true;
+    }
+    [src.as_str(), "tasks", "tests"]
+        .iter()
+        .any(|dir| full.starts_with(root.join(dir)))
+}
+
+/// Whether FILE is a single-file program for `hd check` and `hd test`
+/// (`cli.file.check-test`, `cli.package.no-root`): no package holds it, or
+/// the package holds it under no root. `full` is canonical.
+pub fn is_alone(full: &Path) -> bool {
+    let dir = full.parent().unwrap_or(Path::new("."));
+    package_root(dir).is_none_or(|root| !under_root(&root, full))
+}
+
+/// FILE as a single-file program, whether or not a package holds it
+/// (`cli.file.run`): only FILE is a source, and it may use only std
+/// (`module.single-file.definition`).
 pub fn load_file(target: &Path) -> Result<Program, String> {
     if target.extension().is_none_or(|x| x != "hd") {
         return Err(format!("{}: not an .hd file", target.display()));
@@ -661,18 +684,12 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         .to_string_lossy()
         .into_owned();
     let package = package_name(root)?;
-    let mut files = Vec::new();
-    let alone = package_root(root).is_none();
-    let as_written = alone.then(|| target.to_string_lossy().into_owned());
-    if alone {
-        let size = std::fs::metadata(target).map_or(0, |m| m.len());
-        files.push(SourceEntry {
-            path: name.clone(),
-            size,
-        });
-    } else {
-        walk(root, root, &mut files)?;
-    }
+    let as_written = Some(target.to_string_lossy().into_owned());
+    let size = std::fs::metadata(target).map_or(0, |m| m.len());
+    let files = vec![SourceEntry {
+        path: name.clone(),
+        size,
+    }];
     Ok(Program {
         sources: DiskSources {
             root: root.to_path_buf(),
@@ -686,7 +703,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         dev_requires: Vec::new(),
         deps: Vec::new(),
         problems: Vec::new(),
-        single_file: alone,
+        single_file: true,
         as_written,
         capabilities: match package_root(root) {
             Some(r) => capabilities(&r)?,

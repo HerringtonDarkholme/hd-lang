@@ -773,6 +773,7 @@ fn package_scripts_check_as_they_run_whichever_runs_first() {
     let files = [
         ("hd.toml", "[package]\nname = \"shop\"\n"),
         ("src/main.hd", CLEAN),
+        ("tasks/greet.hd", SCRIPT),
         ("tool.hd", SCRIPT),
     ];
     let check: &[&str] = &["check", "tool.hd"];
@@ -805,6 +806,44 @@ fn package_scripts_check_as_they_run_whichever_runs_first() {
             if words == run {
                 assert_eq!(r.out, "hello, Ada\n", "{}", r.err);
             }
+        },
+    );
+}
+
+/// `cli.file.run`, `cli.file.check-test`, `cli.package.no-root`,
+/// `module.single-file.definition`: a file under no root of a package is a
+/// single-file program that may use only std, so no command loads the
+/// package's modules, and a use of `pkg` is an error in each (#284).
+#[test]
+fn a_no_root_file_in_a_package_uses_only_std() {
+    let tool = "use pkg.main\n\nprintln(\"tool\")\n";
+    let tested = "tests:\n    it(\"runs\"):\n        pass\n\nuse pkg.main\n";
+    let files = [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("src/main.hd", CLEAN),
+        ("tasks/greet.hd", SCRIPT),
+        ("tool.hd", tool),
+        ("tested.hd", tested),
+    ];
+    let words: [&[&str]; 4] = [
+        &["tool.hd"],
+        &["check", "tool.hd"],
+        &["test", "tested.hd"],
+        &["check", "--tests", "tested.hd"],
+    ];
+    in_each_order(
+        "hd-no-root-uses-only-std",
+        &files,
+        &[&words, &[words[3], words[2], words[1], words[0]]],
+        &|words, r| {
+            let file = words.last().expect("a file");
+            assert_ne!(r.code, Some(0), "{words:?}");
+            assert!(
+                r.err.contains(&format!("{file}:")) && r.err.contains("unknown-module"),
+                "{words:?}: {}",
+                r.err
+            );
+            assert!(!r.err.contains("greet.hd"), "{words:?}: {}", r.err);
         },
     );
 }

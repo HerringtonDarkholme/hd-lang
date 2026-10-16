@@ -1,0 +1,11 @@
+# A file under no root of a package is a single-file program that may use
+# only std: no command loads the package's modules, so the printing task
+# script `tasks/greet.hd` takes no part in them.
+run: hd check tool.hd
+run: hd tool.hd
+stdout: hello, tool
+run: hd check --format json uses_pkg.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-module","file":"uses_pkg.hd","line":1},{"kind":"summary","errors":1,"status":101}]
+run: hd tool.hd
+stdout: hello, tool

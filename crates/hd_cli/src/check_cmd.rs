@@ -152,7 +152,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
     }
     let full = hd_run::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let dir = full.parent().unwrap_or(Path::new("."));
-    match disk::package_root(dir) {
+    match disk::package_root(dir).filter(|root| disk::under_root(root, &full)) {
         Some(root) => {
             let only = full.strip_prefix(&root).ok().map(|rel| {
                 let rel = rel
