@@ -146,6 +146,13 @@ where
 impl WasmtimeInstance {
     /// One `hd.poll` with the driver's own context: the status, or the
     /// trap that ended the drive.
+    /// The value of the module's exported `i32` global `name`, if it
+    /// exports one.
+    pub(crate) fn global_i32(&mut self, name: &str) -> Option<i32> {
+        let g = self.instance?.get_global(&mut self.store, name)?;
+        g.get(&mut self.store).i32()
+    }
+
     pub(crate) fn poll_with(&mut self, ctx: i32) -> Result<i32, wasmtime::Error> {
         self.poll
             .as_ref()

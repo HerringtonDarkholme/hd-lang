@@ -142,6 +142,53 @@ pub fn wake_table() -> GSym {
     GSym::Rt("wake".into(), VT::rn(WTy::Array(VT::I32)))
 }
 
+/// A waker node (`crates/hd_wasm/DESIGN.md` §14.4): an `all!`'s wake mask,
+/// its parent node (`eqref`, null at the top) and its slot there. A
+/// host leaf's registration has the same shape: its full handle, the node
+/// it sits under, and its slot.
+#[must_use]
+pub fn wake_node() -> WTy {
+    WTy::Struct {
+        fields: vec![VT::I32, VT::Eq, VT::I32],
+        sup: None,
+        open: false,
+    }
+}
+
+/// The node and slot that a host leaf polled now sits under: set by
+/// `all!` around each child's poll, cleared by `block_on`.
+#[must_use]
+pub fn wake_cur_node() -> GSym {
+    GSym::Rt("wnode".into(), VT::Eq)
+}
+
+/// The slot of [`wake_cur_node`].
+#[must_use]
+pub fn wake_cur_slot() -> GSym {
+    GSym::Rt("wslot".into(), VT::I32)
+}
+
+/// Each pending host handle's registration, by slot: a [`wake_node`]
+/// struct `(handle, node, slot)`.
+#[must_use]
+pub fn wakers_global() -> GSym {
+    GSym::Rt("wakers".into(), VT::rn(WTy::Array(VT::Eq)))
+}
+
+/// How many host leaves have registered: an `all!` child whose poll
+/// registers none has nothing that would wake it, so it stays woken.
+#[must_use]
+pub fn wake_regs() -> GSym {
+    GSym::Rt("wregs".into(), VT::I32)
+}
+
+/// How many `all!` children have been polled: a test-only count, exported
+/// as `hd.all_polls`.
+#[must_use]
+pub fn all_polls() -> GSym {
+    GSym::Rt("allpolls".into(), VT::I32)
+}
+
 /// The facts being evaluated (`annot.fact.eval.panic-runtime`): the label of
 /// the innermost facts body that runs, or null. A panic report names it.
 #[must_use]
@@ -183,13 +230,18 @@ pub fn owner_global() -> GSym {
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 5] {
+pub fn runtime_globals() -> [GSym; 10] {
     [
         wake_table(),
         fact_global(),
         forbid_global(),
         root_global(),
         owner_global(),
+        wake_cur_node(),
+        wake_cur_slot(),
+        wakers_global(),
+        wake_regs(),
+        all_polls(),
     ]
 }
 
@@ -366,6 +418,9 @@ pub enum Helper {
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
     WakeTake,
+    /// `(h)`: host handle `h` went Pending under the current waker node
+    /// and slot (§14.4).
+    WakeRegister,
     /// `race!`'s frame (std's `task_race_frame` intrinsic): `(list) -> frame`.
     RaceCold {
         list: WTy,
@@ -682,6 +737,7 @@ impl Helper {
             }
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
+            Helper::WakeRegister => w.u8(39),
             Helper::RaceCold {
                 list,
                 base,
@@ -891,6 +947,7 @@ impl Helper {
             },
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
+            39 => Helper::WakeRegister,
             t @ 15..=17 => {
                 let (list, base, poll, result) =
                     (dec_wty(r)?, dec_wty(r)?, dec_wty(r)?, decode_vts(r)?);
@@ -1542,6 +1599,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         }
         Helper::WakeMark => wake_mark(),
         Helper::WakeTake => wake_take(),
+        Helper::WakeRegister => wake_register(),
         Helper::RaceCold {
             list,
             base,
@@ -2238,6 +2296,8 @@ fn host_poll(
     a.get(f);
     a.get(n);
     a.struct_set(frame, nf - 1);
+    a.get(n);
+    a.call(Sym::Helper(Helper::WakeRegister));
     pending(&mut a);
     a.end();
     a.else_();
@@ -2245,6 +2305,8 @@ fn host_poll(
     a.call(Sym::Helper(Helper::WakeTake));
     a.s().i32_eqz();
     a.if_();
+    a.get(h);
+    a.call(Sym::Helper(Helper::WakeRegister));
     pending(&mut a);
     a.end();
     a.get(h);
@@ -2333,6 +2395,7 @@ fn wake_mark() -> Code {
     a.array_set(&arr);
     a.raw_get(t);
     a.global_set(wake_table());
+    wake_walk(&mut a, h);
     a.get(i);
     a.i32(1);
     a.s().i32_add();
@@ -2340,6 +2403,168 @@ fn wake_mark() -> Code {
     a.br(0);
     a.end();
     a.end();
+    a.finish(vec![])
+}
+
+/// Sets the wake bits of completed handle `h` (a local): its
+/// registration's slot in its node's mask, then each node's slot in its
+/// parent's, up to the top (`crates/hd_wasm/DESIGN.md` §14.4). A stale
+/// registration, of an earlier handle in the same slot, is ignored.
+fn wake_walk(a: &mut Asm, h: u32) {
+    let node = wake_node();
+    let tab = WTy::Array(VT::Eq);
+    let (t, reg, cur, bit) = (
+        a.local(VT::rn(tab.clone())),
+        a.local(VT::rn(node.clone())),
+        a.local(VT::Eq),
+        a.local(VT::I32),
+    );
+    a.global_get(wakers_global());
+    a.set(t);
+    a.block();
+    a.raw_get(t);
+    a.s().ref_is_null();
+    a.br_if(0);
+    a.get(h);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.s().i32_ge_u();
+    a.br_if(0);
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.get(h);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.array_get(&tab);
+    a.ref_cast(&node, true);
+    a.set(reg);
+    a.raw_get(reg);
+    a.s().ref_is_null();
+    a.br_if(0);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 0);
+    a.get(h);
+    a.s().i32_ne();
+    a.br_if(0);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 1);
+    a.set(cur);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 2);
+    a.set(bit);
+    a.loop_();
+    a.raw_get(cur);
+    a.s().ref_is_null();
+    a.br_if(1);
+    a.raw_get(cur);
+    a.ref_cast(&node, false);
+    a.set(reg);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 0);
+    a.i32(1);
+    a.get(bit);
+    a.s().i32_shl().i32_or();
+    a.struct_set(&node, 0);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 2);
+    a.set(bit);
+    a.raw_get(reg);
+    a.s().ref_as_non_null();
+    a.struct_get(&node, 1);
+    a.set(cur);
+    a.br(0);
+    a.end();
+    a.end();
+}
+
+/// `(h)`: host handle `h` went Pending under the current waker node and
+/// slot (`crates/hd_wasm/DESIGN.md` §14.4): counts the registration, and
+/// records `(h, node, slot)` under `h`'s slot when there is a node.
+fn wake_register() -> Code {
+    let node = wake_node();
+    let tab = WTy::Array(VT::Eq);
+    let mut a = Asm::new(vec![VT::I32]);
+    let (t, fresh, s, v) = (
+        a.local(VT::rn(tab.clone())),
+        a.local(VT::r(tab.clone())),
+        a.local(VT::I32),
+        a.local(VT::Eq),
+    );
+    a.global_get(wake_regs());
+    a.i32(1);
+    a.s().i32_add();
+    a.global_set(wake_regs());
+    a.get(0);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.set(s);
+    a.global_get(wakers_global());
+    a.set(t);
+    a.raw_get(t);
+    a.s().ref_is_null();
+    a.if_();
+    // No table yet and no node: nothing to record.
+    a.global_get(wake_cur_node());
+    a.s().ref_is_null();
+    a.if_();
+    a.s().return_();
+    a.end();
+    a.i32(16);
+    a.array_new_default(&tab);
+    a.set(t);
+    a.end();
+    // Grow when the slot is past the end.
+    a.get(s);
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.s().i32_ge_u();
+    a.if_();
+    a.get(s);
+    a.i32(2);
+    a.s().i32_mul();
+    a.i32(16);
+    a.s().i32_add();
+    a.array_new_default(&tab);
+    a.set(fresh);
+    a.get(fresh);
+    a.i32(0);
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.i32(0);
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.array_copy(&tab, &tab);
+    a.get(fresh);
+    a.set(t);
+    a.end();
+    // A leaf under no node clears a stale registration in its slot.
+    a.global_get(wake_cur_node());
+    a.s().ref_is_null();
+    a.i32(0);
+    a.s().i32_eq();
+    a.if_();
+    a.get(0);
+    a.global_get(wake_cur_node());
+    a.global_get(wake_cur_slot());
+    a.struct_new(&node);
+    a.set(v);
+    a.end();
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.get(s);
+    a.raw_get(v);
+    a.array_set(&tab);
+    a.raw_get(t);
+    a.global_set(wakers_global());
     a.finish(vec![])
 }
 
@@ -2443,6 +2668,7 @@ impl Helper {
             Helper::RuntimeType { .. } => "runtime_type".into(),
             Helper::WakeMark => "wake_mark".into(),
             Helper::WakeTake => "wake_take".into(),
+            Helper::WakeRegister => "wake_register".into(),
             Helper::RaceCold { .. } => "race_cold".into(),
             Helper::RacePoll { .. } => "race_poll".into(),
             Helper::RaceCancel { .. } => "race_cancel".into(),

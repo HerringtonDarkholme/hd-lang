@@ -2096,6 +2096,13 @@ pub fn link(
         mems.memory(memory);
     }
     export_sec.export(MEMORY_KEY, ExportKind::Memory, 0);
+    // The `all!` child poll count, for tests (`crates/hd_wasm/DESIGN.md`
+    // §14.5); only a program that polls an `all!` defines it.
+    if ext.is_none()
+        && let Some(&i) = global_idx.get(&rt::all_polls())
+    {
+        export_sec.export("hd.all_polls", ExportKind::Global, i);
+    }
     if ext.is_some() {
         for (s, _, _) in &all {
             let key = func_key(s).expect("an instance or a part");

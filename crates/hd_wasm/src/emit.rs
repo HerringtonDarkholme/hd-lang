@@ -2634,6 +2634,16 @@ impl Em<'_> {
                 self.a.end();
                 let ready = self.a.local(VT::I32);
                 let tmp: Vec<u32> = result.iter().map(|v| self.a.local(v.dflt())).collect();
+                // The polled subtree is its own root: its host leaves sit
+                // under no `all!` waker node (`crates/hd_wasm/DESIGN.md`
+                // §14.4) until `block_on` returns.
+                let (node, slot) = (self.a.local(VT::Eq), self.a.local(VT::I32));
+                self.a.global_get(crate::rt::wake_cur_node());
+                self.a.set(node);
+                self.a.global_get(crate::rt::wake_cur_slot());
+                self.a.set(slot);
+                self.a.ref_null_eq();
+                self.a.global_set(crate::rt::wake_cur_node());
                 self.a.block();
                 self.a.loop_();
                 self.a.get(s);
@@ -2653,6 +2663,10 @@ impl Em<'_> {
                 self.a.br(0);
                 self.a.end();
                 self.a.end();
+                self.a.raw_get(node);
+                self.a.global_set(crate::rt::wake_cur_node());
+                self.a.get(slot);
+                self.a.global_set(crate::rt::wake_cur_slot());
                 for (l, v) in tmp.iter().zip(&result) {
                     self.a.get(*l);
                     self.a.conv(&v.dflt(), v);
@@ -5164,6 +5178,10 @@ impl<'a> Em<'a> {
             self.a.if_();
             self.comp(*ch, 0, &VT::r(base.clone()))?;
             self.a.set(s);
+            self.a.global_get(crate::rt::all_polls());
+            self.a.i32(1);
+            self.a.s().i32_add();
+            self.a.global_set(crate::rt::all_polls());
             self.a.get(s);
             self.a.get(s);
             self.a.struct_get(&base, F_POLL);

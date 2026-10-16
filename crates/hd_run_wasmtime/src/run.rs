@@ -99,7 +99,46 @@ pub fn run_with_profile(
     setup: &HostSetup,
     io: HostIo,
 ) -> Result<Outcome, String> {
-    run_profile_with_guards(config, profile, wasm, setup, io, || (), || ()).map(|(o, _)| o)
+    run_profile_with_guards(config, profile, wasm, setup, io, || (), || (), None).map(|(o, _, _)| o)
+}
+
+/// [`run_captured_with_profile`] on the default profile, and the value of
+/// the module's exported `i32` global `global` when the run ends, such as
+/// the `all!` child poll count `hd.all_polls` (`crates/hd_wasm/DESIGN.md`
+/// §14.5).
+pub fn run_captured_reading(
+    config: EngineConfig,
+    wasm: &[u8],
+    setup: &HostSetup,
+    global: &str,
+) -> Result<(Captured, Option<i32>), String> {
+    let (out, err) = (Shared::default(), Shared::default());
+    let io = HostIo {
+        out: Box::new(out.clone()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let (outcome, _, value) = run_profile_with_guards(
+        config,
+        RuntimeProfile::Default,
+        wasm,
+        setup,
+        io,
+        || (),
+        || (),
+        Some(global),
+    )?;
+    let status = match outcome {
+        Outcome::Exit(code) => code,
+        Outcome::Panic(p) => return Err(format!("panic: {}: {}", p.category, p.message)),
+        Outcome::Internal(e) => return Err(e),
+    };
+    let captured = Captured {
+        stdout: out.take(),
+        stderr: err.take(),
+        status,
+    };
+    Ok((captured, value))
 }
 
 /// Runs with caller-owned guards around native compilation and guest execution.
@@ -135,8 +174,13 @@ pub fn run_traced_with_guards<P, G>(
         io,
         preparing,
         guest,
+        None,
     )
+    .map(|(o, frames, _)| (o, frames))
 }
+
+/// How a run ended, the trap's frames, and the global it was asked to read.
+type Ran = (Outcome, Vec<(u32, u32)>, Option<i32>);
 
 fn run_profile_with_guards<P, G>(
     mut config: EngineConfig,
@@ -146,7 +190,8 @@ fn run_profile_with_guards<P, G>(
     io: HostIo,
     preparing: impl FnOnce() -> P + Send,
     guest: impl FnOnce() -> G + Send,
-) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    read: Option<&str>,
+) -> Result<Ran, String> {
     // A bounded store grows lazily rather than reserving the profile's
     // initial 64 MiB before the guest has allocated anything.
     if setup.limits.memory_bytes != u64::MAX {
@@ -176,7 +221,8 @@ fn run_profile_with_guards<P, G>(
                     Outcome::Exit(0) => hd_run::drive(&mut inst, usize::MAX),
                     other => other,
                 };
-                Ok((outcome, std::mem::take(&mut inst.last_frames)))
+                let value = read.and_then(|name| inst.global_i32(name));
+                Ok((outcome, std::mem::take(&mut inst.last_frames), value))
             })
             .map_err(|e| e.to_string())?
             .join()
