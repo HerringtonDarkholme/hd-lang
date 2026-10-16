@@ -4800,7 +4800,7 @@ fn derivation_nodes(
 }
 
 /// The placement rules of derivation syntax (`annot.template.module`,
-/// `annot.block.module`, `annot.block.newtype.error`,
+/// `annot.template.unique`, `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
 /// the block or member. `extra` holds the targets of blocks that sit in
 /// another module of the session, and `blocked` the types that another
@@ -4814,6 +4814,8 @@ fn placement(
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
+    // The traits that already have their one template of each kind.
+    let mut templated: HashSet<(DefId, bool)> = HashSet::default();
     // The types that already have their one derivation block with no trait.
     for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
         let Some(it) = index.get(items, h.def) else {
@@ -4823,6 +4825,7 @@ fn placement(
             trait_,
             by,
             self_ty,
+            kind,
             ..
         } = &it.data
         else {
@@ -4844,6 +4847,20 @@ fn placement(
         };
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
+        }
+        // A trait has at most one template and one tuple template, so a
+        // second is an error (`annot.template.unique`,
+        // `annot.template.tuple.rules`); a misplaced one counts for nothing.
+        if matches!(kind, ImplKind::Template | ImplKind::TupleTemplate)
+            && msg.is_none()
+            && !templated.insert((*trait_, *kind == ImplKind::TupleTemplate))
+        {
+            let msg = if *kind == ImplKind::TupleTemplate {
+                "a trait has at most one tuple template"
+            } else {
+                "a trait has at most one template"
+            };
+            diags.error(Code::OverlappingImpl, src.span(h.node), msg);
         }
         let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
         // A type has at most one derivation block with no trait, so a

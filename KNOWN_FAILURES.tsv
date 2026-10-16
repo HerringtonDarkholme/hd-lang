@@ -1,6 +1,4 @@
 path	issue	engine	reason
-typing/invalid/second-template-for-trait.hd	#303		a second template for one trait checks clean; template-against-template overlap is not reported
-typing/invalid/second-tuple-template.hd	#303		a second tuple template for one trait checks clean; template-against-template overlap is not reported
 runtime/valid/resource-disposed-result.hd	#9		unsupported: stops at Link at the host boundary
 typing/invalid/derivation-block-trait-without-template.hd	#305		the checker accepts `impl Plain for Point by Structure` for a trait that has no template; it should report underivable-trait
 typing/invalid/derivation-block-comparison-trait.hd	#305		the checker accepts `impl Eq for Point by Structure`, a derivation block for a comparison trait; it should report underivable-trait
