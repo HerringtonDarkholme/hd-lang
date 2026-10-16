@@ -1068,6 +1068,9 @@ struct Run<'a> {
     lowering: hd_wasm::Lowering,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// The root package's per-body fuel, when a test sets it
+    /// ([`Packages::body_fuel`]).
+    body_fuel: Option<u64>,
     /// Per package, in the table's order: whether it is fetched, so not
     /// the user's own code (`module.dbg.own-code`).
     fetched: Vec<bool>,
@@ -1219,6 +1222,12 @@ pub struct Packages<'a> {
     /// not cached, since it depends on the session, except the prelude's
     /// ([`build_repl_prelude`]), which every session starts with.
     pub session: Option<&'a Session>,
+    /// A test-only hook: the fuel of each body of the root package's
+    /// modules, smaller than `Fuel::BODY_DEFAULT`, so a small program
+    /// reaches `item-too-complex` (`fn.limit.complexity.error`) fast.
+    /// It is part of those modules' check keys. `None` keeps the default;
+    /// every other package always does.
+    pub body_fuel: Option<u64>,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1560,6 +1569,7 @@ fn build_packages_inner(
                 BuildProfile::Checked
             }
         },
+        body_fuel: packages.body_fuel,
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -3996,6 +4006,14 @@ impl Run<'_> {
         }
     }
 
+    /// The fuel of each body of module `m`: the test's budget for the
+    /// root package ([`Packages::body_fuel`]), else `Fuel::BODY_DEFAULT`.
+    fn fuel_of(&self, m: usize) -> u64 {
+        self.body_fuel
+            .filter(|_| self.table.modules[m].package == 0)
+            .unwrap_or(hd_base::Fuel::BODY_DEFAULT)
+    }
+
     fn check_key(&self, m: usize) -> Option<Hash128> {
         let module = &self.table.modules[m];
         let templates = self.template_sources(m)?;
@@ -4036,6 +4054,10 @@ impl Run<'_> {
         }
         if self.runs_entry_behavior(m) {
             role.push_str("+entry-behavior");
+        }
+        if let Some(fuel) = self.body_fuel.filter(|_| module.package == 0) {
+            role.push_str("+fuel=");
+            role.push_str(&fuel.to_string());
         }
         Some(check_key(
             self.toolchain,
@@ -4383,6 +4405,7 @@ impl Run<'_> {
             }),
             file_name: &self.table.files[m],
             session: &session,
+            fuel: self.fuel_of(m),
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
@@ -5646,6 +5669,7 @@ impl Run<'_> {
             tests: None,
             file_name: &self.table.files[tm],
             session: &session,
+            fuel: self.fuel_of(tm),
         };
         Some(f(&tcx, &theads))
     }
@@ -5711,6 +5735,7 @@ impl Run<'_> {
             tests: None,
             file_name: &self.table.files[tm],
             session: &[],
+            fuel: self.fuel_of(tm),
         };
         let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
             return None;

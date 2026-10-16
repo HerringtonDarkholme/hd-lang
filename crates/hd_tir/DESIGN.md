@@ -1049,12 +1049,13 @@ same way on every run, thread count and cache state.
 | instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root; also row keys grown by polymorphic recursion | 32; 256 | `instantiation-too-deep`: a build error, and for rows a check error |
 | memory | process heap bytes | none by default; opt in with `--max-memory` or `HD_MAX_MEMORY` | `memory-limit`, naming the stage |
 
-Planned, not built: `file-too-large` (16 MiB), `type-too-large` (10,000
-nodes in one type), `match-too-complex` (exhaustiveness out of body
-fuel), and `item-too-complex` naming the item when a body runs out of
-fuel, with its TIR rolled back to one `Poison`
+A body that runs out of fuel is `item-too-complex` naming the item, with
+its TIR rolled back to one `Poison`
 ([crates/hd_check/DESIGN.md (type checking) §11.2](../hd_check/DESIGN.md#112-running-out)).
-The codes exist in `hd_diag`; nothing emits them.
+
+Planned, not built: `file-too-large` (16 MiB), `type-too-large` (10,000
+nodes in one type) and `match-too-complex` (exhaustiveness out of body
+fuel). The codes exist in `hd_diag`; nothing emits them.
 
 **The opt-in memory cap** (`crates/hd_cli/src/memory_cap.rs`). There is
 no default cap. When one is set, a tracking wrapper around the global

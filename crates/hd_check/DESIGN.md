@@ -1410,9 +1410,15 @@ When fuel runs out inside a body, the design reports `item-too-complex`
 on the item, once, keeps the diagnostics reported before, poisons the
 body and its M1 result, and replaces its TIR with a single poison value.
 
-Implementation differs: running out stops the body with a structured
-"not implemented" (`Ck::charge`), so the user sees an internal
-limitation instead of the spec's `item-too-complex`.
+Implementation: running out, in `Ck::charge` or as the solver's
+`OutOfFuel`, stops the check with `out_of_fuel`, and the entries of a
+function body (`check_fn_body`, which M1 uses too) and of a default
+(`check_default`) turn it into `item-too-complex` (`too_complex`).
+`BodyCx::fuel` is the budget; a driver test sets a small one through
+`Packages::body_fuel`, which is part of the check key.
+Implementation differs: a module's init body, a test case or
+registration, and a fact list still stop with a structured
+"not implemented".
 
 Other limits:
 

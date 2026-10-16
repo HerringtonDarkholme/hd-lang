@@ -61,6 +61,9 @@ pub struct BodyCx<'a> {
     /// is visible to the input's bodies as their own module's. Empty for
     /// any other module.
     pub session: &'a [hd_base::PathId],
+    /// The fuel of each body this context checks: `Fuel::BODY_DEFAULT`,
+    /// or a smaller budget a test sets to reach `item-too-complex` fast.
+    pub fuel: u64,
 }
 
 /// A module's `tests:` block, when its items are checked: its extent (a
@@ -107,6 +110,43 @@ impl BodyCx<'_> {
 
 pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
     Err(NotImplemented::new(Stage::Body, what))
+}
+
+/// What a check stops with when the body's fuel runs out, in its own
+/// steps or the solver's: the body's entry turns it into
+/// `item-too-complex` (`too_complex`).
+const OUT_OF_FUEL: &str = "the body's fuel ran out";
+
+pub(crate) fn out_of_fuel<T>() -> StageResult<T> {
+    unsupported(OUT_OF_FUEL)
+}
+
+/// Whether a check stopped because its body's fuel ran out.
+pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
+    e.stage == Stage::Body && e.what == OUT_OF_FUEL
+}
+
+/// `fn.limit.complexity.error` (`crates/hd_check/DESIGN.md` (type
+/// checking) §11.2): an item whose check ran out of fuel gets one
+/// `item-too-complex` at `at`. The diagnostics reported before stay, and
+/// its TIR is a single poison value.
+pub(crate) fn too_complex(
+    cx: &BodyCx<'_>,
+    (item, kind): (DefId, BodyKind),
+    at: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    diags.error(
+        Code::ItemTooComplex,
+        cx.src.span(at),
+        "checking this item needs more steps than the compiler allows; split it into smaller items",
+    );
+    let mut b = TirBuilder::new(item, kind);
+    let blk = b.open_block();
+    let p = b.emit(Tag::Poison, NONE, NONE, Ty::POISON, at.index());
+    let root = b.close_block(blk, Some(p), Ty::POISON, at.index());
+    b.finish(root, &[])
+        .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))
 }
 
 /// An open closure: its builder mark, the scope depth at its start, its
@@ -440,7 +480,7 @@ pub(crate) fn new_ck<'a, 'c>(
         env: ParamEnv::default(),
         loops: Vec::new(),
         diags,
-        fuel: Fuel::new(Fuel::BODY_DEFAULT),
+        fuel: Fuel::new(cx.fuel),
         memo: BodyMemo::default(),
         rets: vec![ret],
         gens: Vec::new(),
@@ -815,8 +855,29 @@ pub(crate) struct Infer {
 /// is a join variable, so the final value and every `return` operand take
 /// their least common type (`fn.decl.result-inferred.common`). With
 /// `infer.row`, the row is omitted: the body's bottom frame takes every
-/// key it uses (`req.row.omitted.inferred-private`).
+/// key it uses (`req.row.omitted.inferred-private`). A body that runs out
+/// of fuel is poisoned, its result too (`too_complex`).
 pub(crate) fn check_fn_body(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+    hooks: (
+        Option<&crate::derive::OptIn>,
+        Option<&std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
+    ),
+    infer: Infer,
+) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+    match fn_body_steps(cx, def, node, diags, hooks, infer) {
+        Err(e) if is_out_of_fuel(&e) => {
+            let body = too_complex(cx, (def, BodyKind::Fn), node, diags)?;
+            Ok((body, Ty::POISON, crate::results::RowFacts::default()))
+        }
+        r => r,
+    }
+}
+
+fn fn_body_steps(
     cx: &BodyCx<'_>,
     def: DefId,
     node: NodeRef<'_>,
@@ -897,8 +958,25 @@ pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
 
 /// Checks one default expression as a body of kind `Default`
 /// (`crates/hd_check/DESIGN.md` (type checking) §1.7): a data field's (no parameters) or a function
-/// parameter's (the earlier parameters are its parameters).
+/// parameter's (the earlier parameters are its parameters). A default
+/// that runs out of fuel is poisoned (`too_complex`).
 pub fn check_default(
+    cx: &BodyCx<'_>,
+    owner: DefId,
+    name: &str,
+    expr: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    match default_steps(cx, owner, name, expr, diags) {
+        Err(e) if is_out_of_fuel(&e) => {
+            let def = default_body_def(&cx.names, owner, name);
+            too_complex(cx, (def, BodyKind::Default), expr, diags)
+        }
+        r => r,
+    }
+}
+
+fn default_steps(
     cx: &BodyCx<'_>,
     owner: DefId,
     name: &str,
@@ -967,7 +1045,7 @@ impl Ck<'_, '_> {
         if self.fuel.charge(1) {
             Ok(())
         } else {
-            unsupported("the body's fuel ran out (limit diagnostic)")
+            out_of_fuel()
         }
     }
 
@@ -1933,7 +2011,7 @@ impl Ck<'_, '_> {
                 self.err(Code::TraitResolutionDepth, at, &msg);
                 Ok(None)
             }
-            Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
+            Answer::OutOfFuel => out_of_fuel(),
             other => unsupported(format!("solver answer {other:?}")),
         }
     }
@@ -2470,7 +2548,7 @@ impl Ck<'_, '_> {
                 Ok(true)
             }
             Answer::Stalled { .. } => Ok(false),
-            Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
+            Answer::OutOfFuel => out_of_fuel(),
             other => unsupported(format!("solver answer {other:?}")),
         }
     }
