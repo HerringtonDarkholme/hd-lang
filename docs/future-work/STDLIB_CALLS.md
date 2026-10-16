@@ -254,3 +254,191 @@ leftovers of the stdlib audit (task #239).
 | 281 | Property edge values (PROP-EDGE-VALUES): a generated case with `size` below 4 takes the edge its seed picks (seed modulo 4: low, high, zero, none) for every fresh draw. The runner rules gain `size` counting generated cases from 0 and consecutive seeds, so four cases cover all three edges. | An owner-approved behavior; a seed-picked edge keeps a discarded case's retry different, which a size-picked edge would not (a generator that always discards the edge would never leave size 0). | own |
 | 281 | The default `i32`, `i64`, `u32`, and `u64` generators draw one extra recorded choice (8: smallest, 9: largest, else a small value from -1000 to 1000 or 0 to 1000), so a replayed stream does not depend on the case's edge. | The type's own bounds must be reachable. Drawing the range with `int(MIN, MAX)` would make ordinary draws huge and make a stream mean different values per edge. | own |
 | 281 | Two fixtures that wrote `value + 1 == 1 + value` over a generated `i64` now use `wrapping_add`. | The largest `i64` is now generated within four cases, so the old property found a real overflow. | own |
+
+## Scripted Net (#256)
+
+`Net` has no deterministic provider, so code that opens a socket cannot
+be unit-tested ([Net Providers](../../spec/std/net.md#net-providers)).
+This call designs one on the model of `ScriptedHttp`. The spec is frozen,
+so the entry ends with the rules to add once the owner orders the edit.
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| #256 | `std.net` declares four providers beside `Net`: `ScriptedNet` (lookups and the handles that `connect!`, `listen!`, and `bind_udp!` return), `ScriptedStream` (a `TcpStream`), `ScriptedListener` (a `TcpListener`), and `ScriptedUdp` (a `UdpSocket`). All have private fields and implement `Debug`. None lives in `std.testing`. | `ScriptedHttp` lives in `std.http`, `BufferConsole` in `std.console`, `ScriptedProcess` in `std.process`: a provider sits with its trait. A socket needs its own scripted handle, since `Net` returns handles. | own |
+| #256 | The test builds each handle itself and keeps it: `ScriptedStream::new(reads) -> mut ScriptedStream`, `ScriptedListener::new(connections) -> mut ScriptedListener`, `ScriptedUdp::new(incoming) -> mut ScriptedUdp`. `ScriptedNet::new() -> mut ScriptedNet` takes no table; setup methods add to it (next row). Handles are `mut` values, so the copy that the net hands to the code under test is the copy the test holds, as `http` is after `$.with(Http=http)`. | One value per socket lets a test assert on exactly the connection it cares about. A table of every connection in `new` would need the accessor to name a connection. | own |
+| #256 | `ScriptedNet` setup: `add_host(host, addresses: List[string])` answers `lookup!`; `add_connection(address, stream)` queues a stream for `connect!`; `fail_connection(address, error: NetError)` queues an error for `connect!`; `add_listener(address, listener)` answers `listen!`; `add_udp(address, socket)` answers `bind_udp!`. An address is `host:port` as in `r[std-net.error.address]`. The connections for one address are served in queue order, one per call. | A queue per address lets a test script "the first connect is refused, the retry works". Errors share the queue so their order is exact. | own |
+| #256 | A call with nothing scripted fails at once with the `NetError` that a real network gives: `lookup!` of an unknown host is `.Dns(host)`; `connect!`, `listen!`, or `bind_udp!` of an address with no entry (or an emptied queue) is `.Refused(address)`. | `ScriptedHttp` also fails an unscripted call with an error, never a plausible answer. These two variants already mean "no such name" and "nobody there", so no new variant is needed. | own |
+| #256 | A read, accept, or receive past the end of the script returns `.Err(.Operation(.Other(message)))`, and `message` is `ScriptedStream has no more reads`, `ScriptedListener has no more connections`, or `ScriptedUdp has no more datagrams`. It never waits. | A provider that returns at once cannot hang, and a forgotten step shows up as a failure that names it. An empty `read!` result would look like a closed peer. | own |
+| #256 | End of stream is scripted, not implied: an empty chunk in `reads` is the peer's close, and every later `read!` on that stream returns the empty list again. | `r[std-net.read]` already makes an empty list the end of the stream. A script that ends without one is a test bug, so it errors (previous row). | own |
+| #256 | `ScriptedStream::new(reads: List[List[u8]])` returns the chunks in order, one per `read!`. A `read!(max)` returns at most `max` bytes of the front chunk and keeps the rest at the front. `ScriptedStream::failing(reads, error: NetError)` serves `reads`, then returns `.Err(.Operation(error))` from every later `read!` and `write!`. | The chunk is TCP's unit of arrival and `max` splitting matches `r[std-net.read]`. `failing` covers a reset or timeout in the middle of a reply. | own |
+| #256 | A test asserts on a stream with `written() -> List[u8]` (every byte of every `write!`, concatenated in order) and `is_closed() -> bool`. There is no per-call write list and no expected-writes script. | TCP keeps no write boundaries, so a per-call list would make a test depend on how the code chunks its writes. `BufferConsole.output()` is likewise a recording, and the test compares it itself; an expected-writes script would add a mismatch error to design. | own |
+| #256 | `ScriptedUdp::new(incoming: List[Datagram])` returns its datagrams in order from `receive!`, cut to `max` bytes. `sent() -> List[Datagram]` returns each `send_to!` as a `Datagram` with the destination's host and port. `is_closed()` is as for a stream. | `Datagram` already carries bytes, host, and port in both directions. A datagram is one unit, so unlike a stream it does keep its boundaries. | own |
+| #256 | `ScriptedListener::new(connections: List[mut ScriptedStream])` returns its streams in order from `accept!`. `is_closed()` is as for a stream. | One accept, one scripted peer. | own |
+| #256 | `ScriptedNet.requested() -> List[string]` returns the address of every `lookup!`, `connect!`, `listen!`, and `bind_udp!` call in order (the host alone for a lookup), the failed ones included. | The counterpart of `ScriptedHttp.sent()`; it lets a test count retries and check what was dialed. | own |
+| #256 | Every scripted handle is a closable handle: after `close`, each operation returns `.Err(.Disposed)`, and `close` itself returns `.Ok(())` once. No scripted operation consults a grant, so `NotGranted` appears only when a test injects it with `fail_connection` or `failing`. | `r[std-net.handles.closable]`; a scripted provider opens nothing, as `r[std-http.scripted.no-host]` says. | own |
+| #256 | Net has no timeout parameter, and `ScriptedNet` takes no `Clock`. A timeout test scripts the error with `ScriptedStream::failing(reads, .Other("timed out"))`. A program that races a read against `sleep` with `ManualClock` gets the read first, since a scripted read completes at once. | A read that never completes would be the hang this design rules out. `ManualClock` and `ScriptedNet` bind side by side with `$.with(Net=net, Clock=clock)` and share no state. | own |
+
+The three examples below parse clean with `scripts/hd-conformance.sh
+parse`; their `tests:` blocks need the implementation to run.
+
+A line-protocol client:
+
+```text
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream}
+
+fn text_of(bytes: List[u8]) -> string:
+    match string::from_utf8(bytes):
+        .Ok(text) => text
+        .Err(_) => ""
+
+fn lookup_value!(key: string) -> Result[string, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut stream = net.connect!("cache.local", 6379)?
+    match stream.write!("GET ${key}\n".to_utf8()):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("write failed"))
+    reply := match stream.read!(64):
+        .Ok(bytes) => text_of(bytes)
+        .Err(_) => return .Err(.Other("read failed"))
+    _ := stream.close()
+    .Ok(reply.trim())
+
+tests:
+    use std.testing.assert_equal
+
+    it("sends the command and returns the reply"):
+        let mut stream = ScriptedStream::new(["VALUE 42\n".to_utf8()])
+        let mut net = ScriptedNet::new()
+        net.add_connection("cache.local:6379", stream)
+        $.with(Net=net):
+            assert_equal(lookup_value!("answer"), .Ok("VALUE 42"), reason="reply")
+        assert_equal(stream.written(), "GET answer\n".to_utf8(), reason="the command")
+        assert_equal(stream.is_closed(), true, reason="closed")
+        assert_equal(net.requested(), ["cache.local:6379"], reason="one connect")
+
+    it("reports a failed read"):
+        let mut stream = ScriptedStream::failing([], NetError.Other("connection reset"))
+        let mut net = ScriptedNet::new()
+        net.add_connection("cache.local:6379", stream)
+        $.with(Net=net):
+            assert_equal(lookup_value!("answer"), .Err(.Other("read failed")), reason="reset")
+```
+
+A tiny echo server:
+
+```text
+use std.net.{Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream}
+
+fn serve_one!() -> Result[usize, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut listener = net.listen!("0.0.0.0", 7)?
+    let mut stream = match listener.accept!():
+        .Ok(connection) => connection
+        .Err(_) => return .Err(.Other("accept failed"))
+    let total: usize = 0
+    while true:
+        chunk := match stream.read!(1024):
+            .Ok(bytes) => bytes
+            .Err(_) => return .Err(.Other("read failed"))
+        if chunk.is_empty():
+            break
+        total = total + chunk.len()
+        match stream.write!(chunk):
+            .Ok(_) => pass
+            .Err(_) => return .Err(.Other("write failed"))
+    _ := stream.close()
+    _ := listener.close()
+    .Ok(total)
+
+tests:
+    use std.testing.assert_equal
+
+    it("echoes every chunk until the peer closes"):
+        let mut peer = ScriptedStream::new(["he".to_utf8(), "llo".to_utf8(), []])
+        let mut listener = ScriptedListener::new([peer])
+        let mut net = ScriptedNet::new()
+        net.add_listener("0.0.0.0:7", listener)
+        $.with(Net=net):
+            assert_equal(serve_one!(), .Ok(5), reason="five bytes")
+        assert_equal(peer.written(), "hello".to_utf8(), reason="echoed")
+        assert_equal(peer.is_closed(), true, reason="stream closed")
+
+    it("fails when nobody connects"):
+        let mut listener = ScriptedListener::new([])
+        let mut net = ScriptedNet::new()
+        net.add_listener("0.0.0.0:7", listener)
+        $.with(Net=net):
+            assert_equal(serve_one!(), .Err(.Other("accept failed")), reason="no connection scripted")
+```
+
+A retry loop and a UDP exchange:
+
+```text
+use std.net.{Datagram, Net, NetError, ScriptedNet, ScriptedStream, ScriptedUdp}
+
+fn connect_with_retry!(host: string, port: u16, attempts: usize) -> Result[void, NetError] $ Net:
+    let mut net = $.use(Net)
+    let last = NetError.Refused("${host}:${port}")
+    let tried: usize = 0
+    while tried < attempts:
+        match net.connect!(host, port):
+            .Ok(_) => return .Ok(())
+            .Err(error) => last = error
+        tried = tried + 1
+    .Err(last)
+
+fn ping!(host: string, port: u16) -> Result[bool, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut socket = net.bind_udp!("0.0.0.0", 0)?
+    match socket.send_to!(host, port, "ping".to_utf8()):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("send failed"))
+    match socket.receive!(16):
+        .Ok(datagram) => .Ok(datagram.bytes == "pong".to_utf8())
+        .Err(_) => .Ok(false)
+
+tests:
+    use std.testing.assert_equal
+
+    it("retries after a refused connection"):
+        let mut net = ScriptedNet::new()
+        net.fail_connection("db.local:5432", NetError.Refused("db.local:5432"))
+        net.add_connection("db.local:5432", ScriptedStream::new([]))
+        $.with(Net=net):
+            assert_equal(connect_with_retry!("db.local", 5432, 3), .Ok(()), reason="second try works")
+        assert_equal(net.requested().len(), 2, reason="two connects")
+
+    it("runs out of scripted connections with Refused"):
+        let mut net = ScriptedNet::new()
+        $.with(Net=net):
+            assert_equal(connect_with_retry!("db.local", 5432, 2), .Err(.Refused("db.local:5432")), reason="nothing scripted")
+
+    it("answers a ping with a scripted datagram"):
+        let mut socket = ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        let mut net = ScriptedNet::new()
+        net.add_udp("0.0.0.0:0", socket)
+        $.with(Net=net):
+            assert_equal(ping!("10.0.0.7", 9000), .Ok(true), reason="pong")
+        assert_equal(socket.sent(), [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="the ping")
+```
+
+**Spec edit needed** (for the owner to order; `spec/` stays untouched
+until then). In `spec/std/net.md`, replace the rule `r[std-net.provider.none]`
+and the sentence "`std.net` declares no deterministic provider" in the
+chapter intro and in Net Providers, and add a Scripted Net section with
+these rules:
+
+1. `r[std-net.scripted.decl]`: `std.net` declares `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, and `ScriptedUdp`, each implementing its trait (`Net`, `TcpStream`, `TcpListener`, `UdpSocket`) and `Debug`, with private fields.
+2. `r[std-net.scripted.new]`: the four `new` signatures, and `ScriptedStream::failing`.
+3. `r[std-net.scripted.setup]`: `add_host`, `add_connection`, `fail_connection`, `add_listener`, `add_udp`, and the address form `host:port`.
+4. `r[std-net.scripted.queue]`: connections for one address are served one per call, in queue order.
+5. `r[std-net.scripted.lookup-unknown]` and `r[std-net.scripted.refused]`: the `Dns` and `Refused` results for an unscripted call.
+6. `r[std-net.scripted.requested]`: `requested()` and what it records.
+7. `r[std-net.scripted.read]`, `.read-max`, `.eof`, and `.exhausted`: chunk order, the `max` split, the empty chunk as end of stream, and the error past the end of the script, with each message text.
+8. `r[std-net.scripted.write]`: `write!` records its bytes and returns `.Ok(())`; `written()` and `is_closed()`.
+9. `r[std-net.scripted.failing]`: the error after the reads, for `read!` and `write!`.
+10. `r[std-net.scripted.accept]` and `r[std-net.scripted.udp]`: accept order and its exhausted message; `receive!` order and cut, `sent()`.
+11. `r[std-net.scripted.closed]`: `Disposed` after `close`.
+12. `r[std-net.scripted.no-host]`: a scripted provider opens no socket and consults no grant.
+
+Also in `spec/std/testing.md`, Unit Test Providers: add the row `Net` | `ScriptedNet` | Scripted Net in net.md, and delete the sentence "Each host capability trait but `Net` has" (it becomes "Each host capability trait has") and the paragraph that says `Net` has no std provider. In `spec/cli/command-line.md` and the website, no change. Then file an implementation issue for `lib/std/net.hd` (about 150 lines of hd) and a conformance fixture per rule.
