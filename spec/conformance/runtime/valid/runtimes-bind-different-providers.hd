@@ -1,0 +1,31 @@
+# test: one body runs unchanged while each runtime binds its own provider at the requirement boundary
+# Spec 11 Programming Model: req.model.runtimes.
+
+trait Clock:
+    fn now(self) -> i64
+
+data SystemClock: pass
+
+impl Clock for SystemClock:
+    fn now(self) -> i64: 1700000000
+
+data FixedClock:
+    at: i64
+
+impl Clock for FixedClock:
+    fn now(self) -> i64: self.at
+
+fn stamp(label: string) -> string $ Clock:
+    "${label}@${$.use(Clock).now()}"
+
+fn production() -> string:
+    $.with(Clock=SystemClock {}):
+        stamp("saved")
+
+tests:
+    use std.testing.assert_equal
+
+    it("a test binds a fixed clock for the same body"):
+        $.with(Clock=FixedClock { at: 42 }):
+            assert_equal(stamp("saved"), "saved@42", reason="the test provider answers")
+        assert_equal(production(), "saved@1700000000", reason="the production provider answers")
