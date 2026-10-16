@@ -899,8 +899,8 @@ more thought on generics and ownership before the design settles:
 ## Appendix: Limits And Holes
 
 The holes found so far are closed by the owner's rules: B7 by "no `own`
-fields, and an owned instance of a generic holder is owned", B8 by `T < own Any`, and the second review's U4 to U8 by no
-partial moves, drop counting as a use of held borrows, `own` for
+fields, and an owned instance of a generic holder is owned", B8 by
+`T < own Any`, and the second review's U4 to U8 by no partial moves, drop counting as a use of held borrows, `own` for
 holders of `^mut`, plain-only providers, and immovable borrowed
 globals. A plain alias or a plain closure capture that changes a
 borrowed variable's object is not a hole: plain values keep
