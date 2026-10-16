@@ -1,0 +1,11 @@
+# test: an associated function is not a dot-call member
+# Spec 03 Member Namespaces: names.member.associated.
+data Counter:
+    value: i32
+
+impl Counter:
+    fn zero() -> Counter:
+        Counter { value: +0 }
+
+fn reset(counter: Counter) -> Counter:
+    counter.zero()  # diagnostic: unknown-method

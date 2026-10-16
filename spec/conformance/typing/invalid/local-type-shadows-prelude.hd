@@ -1,0 +1,6 @@
+# test: a local type declaration may not shadow a prelude name
+# Spec 03 Local Type Declarations: names.local-type.prelude.
+fn make() -> i32:
+    data Option:  # diagnostic: prelude-name-shadow
+        value: i32
+    +1

@@ -1,0 +1,8 @@
+# test: with no visible candidate, a private inherent method of the type is reported as private
+# Spec 03 Methods Not Found: names.method-lookup.private. The tree's src/meter.hd declares
+# Meter with a private inherent method calibrate.
+# fixture-package-tree: private-method/src/reader.hd
+use pkg.meter.{Meter}
+
+pub fn read(meter: Meter) -> i32:
+    meter.calibrate()  # diagnostic: private-member

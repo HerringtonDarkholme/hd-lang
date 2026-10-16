@@ -1,0 +1,7 @@
+# test: a decorator is not permitted in a local scope
+# Spec 03 Local Declaration Limits: names.local.no-metadata.
+fn run() -> i32:
+    @derive(Eq)  # diagnostic: decorator-not-top-level
+    data Point:
+        x: i32
+    +1

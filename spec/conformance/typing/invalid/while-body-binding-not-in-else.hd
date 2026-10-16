@@ -1,0 +1,10 @@
+# test: a while body and its else suite are separate scopes
+# Spec 03 Loops: names.loop.while.
+fn run() -> i32:
+    let i = +0
+    while i < 1:
+        seen := i
+        i = i + 1
+    else:
+        seen  # diagnostic: unknown-name
+    i

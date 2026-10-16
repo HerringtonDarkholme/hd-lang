@@ -1,0 +1,5 @@
+# test: pub is not permitted on a local declaration
+# Spec 03 Local Declaration Limits: names.local.no-pub.
+fn run() -> i32:
+    pub fn helper(x: i32) -> i32: x  # diagnostic: syntax-error
+    helper(+1)

@@ -1,0 +1,14 @@
+# test: a local named function introduces a local value name, so it can be passed as a value
+# Spec 03 Local Functions: names.local-fn.name.
+fn apply(f: fn(i32) -> i32, value: i32) -> i32:
+    f(value)
+
+fn run() -> i32:
+    fn triple(n: i32) -> i32: n * 3
+    apply(triple, +2)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the local function passes by name"):
+        assert_equal(run(), +6, reason="2 tripled")

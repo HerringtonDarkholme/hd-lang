@@ -1,0 +1,16 @@
+# test: a field and a method of one name do not hide each other
+# Spec 03 Member Namespaces: names.member.no-hiding.
+data Gauge:
+    level: i32
+
+impl Gauge:
+    fn level(self) -> i32:
+        self.level * 10
+
+tests:
+    use std.testing.assert_equal
+
+    it("field access and method call reach different members"):
+        gauge := Gauge { level: +2 }
+        assert_equal(gauge.level, +2, reason="the field")
+        assert_equal(gauge.level(), +20, reason="the method")

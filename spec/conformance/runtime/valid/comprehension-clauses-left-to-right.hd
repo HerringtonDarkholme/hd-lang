@@ -1,0 +1,8 @@
+# test: comprehension clauses run left to right, so a later for clause repeats per item of an earlier one
+# Spec 03 Comprehensions: names.comp.order.
+tests:
+    use std.testing.assert_equal
+
+    it("the outer clause comes first"):
+        pairs := [for x in [+1, +2] for y in [x, x * 10] => y]
+        assert_equal(pairs, [+1, +10, +2, +20], reason="left to right")

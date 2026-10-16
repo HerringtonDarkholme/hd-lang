@@ -1,0 +1,9 @@
+# test: a local impl's methods capture no enclosing runtime value
+# Spec 03 Local Implementations: names.local-impl.no-capture.
+fn run() -> i32:
+    base := +1
+    data Box:
+        value: i32
+    impl Box:
+        fn get(self) -> i32: self.value + base  # diagnostic: unknown-name
+    Box { value: +1 }.get()

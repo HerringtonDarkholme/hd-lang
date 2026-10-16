@@ -1,0 +1,6 @@
+# test: a local function follows the duplicate-name rule of other local values
+# Spec 03 Local Functions: names.local-fn.rules.
+fn run() -> i32:
+    helper := +1
+    fn helper(x: i32) -> i32: x  # diagnostic: duplicate-binding
+    helper(+2)

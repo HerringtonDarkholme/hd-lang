@@ -1,0 +1,8 @@
+# test: lookup finds the same member in every module, so another module reaches the private field, not a visible stand-in
+# Spec 03 Members Lookup Considers: names.members.uniform. The tree's src/meter.hd declares
+# Meter with a private field code and a public method code.
+# fixture-package-tree: uniform-members/src/reader.hd
+use pkg.meter.{Meter}
+
+pub fn read(meter: Meter) -> string:
+    meter.code  # diagnostic: private-member

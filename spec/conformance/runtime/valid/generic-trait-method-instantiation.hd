@@ -1,0 +1,23 @@
+# test: when the candidates are instantiations of one generic trait, the argument chooses one
+# Spec 03 Method Candidates: names.method-lookup.generic-trait.
+trait Scale[T]:
+    fn scale(self, by: T) -> string
+
+data Money:
+    cents: i32
+
+impl Scale[i32] for Money:
+    fn scale(self, by: i32) -> string:
+        "int"
+
+impl Scale[string] for Money:
+    fn scale(self, by: string) -> string:
+        "text"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the argument type picks the instantiation"):
+        money := Money { cents: +1 }
+        assert_equal(money.scale(+2), "int", reason="Scale[i32]")
+        assert_equal(money.scale("x"), "text", reason="Scale[string]")

@@ -1,0 +1,7 @@
+# test: a local type and a local value cannot share a name in one scope
+# Spec 03 Local Type Declarations: names.local-type.duplicate.
+fn make() -> i32:
+    Item := +1
+    data Item:  # diagnostic: duplicate-binding
+        value: i32
+    Item

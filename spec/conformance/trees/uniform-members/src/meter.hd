@@ -1,0 +1,6 @@
+pub data Meter:
+    code: string
+
+impl Meter:
+    pub fn code(self) -> string:
+        self.code

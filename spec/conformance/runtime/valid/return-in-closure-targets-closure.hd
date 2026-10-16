@@ -1,0 +1,15 @@
+# test: return in a closure leaves the closure, not the enclosing function
+# Spec 03 Receivers And Captures: names.return.closure.
+fn run() -> string:
+    pick := fn(n: i32) -> string:
+        if n > 0:
+            return "positive"
+        "other"
+    first := pick(+1)
+    "$first then ${pick(-1)}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the function goes on after the closure returns"):
+        assert_equal(run(), "positive then other", reason="both calls finished")

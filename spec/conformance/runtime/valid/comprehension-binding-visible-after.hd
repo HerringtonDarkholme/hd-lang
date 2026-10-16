@@ -1,0 +1,8 @@
+# test: a := in a comprehension binds in its scope and is visible after the point it is evaluated
+# Spec 03 Comprehensions: names.comp.bind.
+tests:
+    use std.testing.assert_equal
+
+    it("the bound size is the result"):
+        sizes := [for word in ["a", "", "abc"] if (size := word.len()) > 0 => size]
+        assert_equal(sizes, [1, 3], reason="sizes of the non-empty words")

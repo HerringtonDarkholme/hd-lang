@@ -1,0 +1,6 @@
+pub data Meter:
+    pub value: i32
+
+impl Meter:
+    fn calibrate(self) -> i32:
+        self.value

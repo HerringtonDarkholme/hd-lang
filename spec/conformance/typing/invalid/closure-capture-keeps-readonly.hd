@@ -1,0 +1,5 @@
+# test: a closure's capture permits mutation only as the captured binding's type does
+# Spec 03 Receivers And Captures: names.capture.mutation-access.
+fn add_one(items: List[i32]) -> void:
+    add := fn() -> void: items.push(+1)  # diagnostic: mutable-receiver-required
+    add()

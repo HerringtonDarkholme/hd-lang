@@ -1,0 +1,7 @@
+# test: a local type captures no runtime value, so a field default cannot read a local binding
+# Spec 03 Local Type Declarations: names.local-type.static.
+fn make() -> i32:
+    n := +1
+    data Box:
+        value: i32 = n  # diagnostic: unknown-name
+    Box {}.value

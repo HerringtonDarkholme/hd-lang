@@ -1,0 +1,12 @@
+# test: a local function's name is visible in the rest of its suite and in its own body
+# Spec 03 Local Functions: names.local-fn.visible.
+fn sum_to(n: i32) -> i32:
+    fn total(k: i32) -> i32:
+        if k == 0: +0 else: k + total(k - 1)
+    total(n)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the local function calls itself"):
+        assert_equal(sum_to(+4), +10, reason="4 + 3 + 2 + 1")

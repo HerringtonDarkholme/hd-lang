@@ -1,0 +1,13 @@
+# test: a declaration's generic parameters are visible throughout it, body included
+# Spec 03 Function And Closure Scopes: names.generic.params.visible.
+data Slot[T]:
+    item: T
+
+impl[T] Slot[T]:
+    fn take(self) -> T:
+        let kept: T = self.item
+        kept
+
+fn keep[T](value: T) -> List[T]:
+    let items: List[T] = [value]
+    items
