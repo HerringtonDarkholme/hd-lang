@@ -146,14 +146,11 @@ fn decorator_before_trait_derivation_block_warns() {
         "use std.structure.Structure
 
 {STYLE}
-trait Show:
-    fn show(self) -> string
-
 data Loud:
     id: i64
 
 @style(prefix=\"x\")
-impl Show for Loud by Structure:
+impl Hash for Loud by Structure:
     pass
 "
     );

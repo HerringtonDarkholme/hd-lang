@@ -44,12 +44,13 @@ fn errors(out: &Output) -> Vec<Code> {
         .collect()
 }
 
-const PRELUDE: &str = "use std.structure.Structure\n\ntrait Show:\n    fn show(self) -> string\n\ntrait Count:\n    fn count() -> i32\n\ndata Session:\n    id: i64\n    cache: i64 = 0\n\n";
+const PRELUDE: &str =
+    "use std.structure.Structure\n\ndata Session:\n    id: i64\n    cache: i64 = 0\n\n";
 
 #[test]
 fn blocks_with_different_lines_warn_on_the_later_block() {
     let out = analyze(&format!(
-        "{PRELUDE}impl Show for Session by Structure:\n    cache = pass\n\nimpl Count for Session by Structure:\n    id = []\n"
+        "{PRELUDE}impl Debug for Session by Structure:\n    cache = pass\n\nimpl Hash for Session by Structure:\n    id = []\n"
     ));
     assert!(errors(&out).is_empty(), "{}", out.render());
     assert_eq!(warnings(&out), vec![Code::DerivationLineDrift]);
@@ -58,7 +59,7 @@ fn blocks_with_different_lines_warn_on_the_later_block() {
 #[test]
 fn blocks_with_the_same_lines_do_not_warn() {
     let out = analyze(&format!(
-        "{PRELUDE}impl Show for Session by Structure:\n    cache = pass\n\nimpl Count for Session by Structure:\n    cache = pass\n"
+        "{PRELUDE}impl Debug for Session by Structure:\n    cache = pass\n\nimpl Hash for Session by Structure:\n    cache = pass\n"
     ));
     assert!(errors(&out).is_empty(), "{}", out.render());
     assert!(warnings(&out).is_empty(), "{}", out.render());
@@ -67,7 +68,7 @@ fn blocks_with_the_same_lines_do_not_warn() {
 #[test]
 fn a_lone_block_does_not_warn() {
     let out = analyze(&format!(
-        "{PRELUDE}impl Show for Session by Structure:\n    cache = pass\n"
+        "{PRELUDE}impl Debug for Session by Structure:\n    cache = pass\n"
     ));
     assert!(errors(&out).is_empty(), "{}", out.render());
     assert!(warnings(&out).is_empty(), "{}", out.render());

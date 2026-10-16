@@ -5539,9 +5539,31 @@ impl Run<'_> {
             if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
                 continue;
             }
-            let Some(template) =
-                hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_)
-            else {
+            let template = hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_);
+            // A derivation block needs a template, and a comparison trait is
+            // derived only with `@derive` (`annot.block.template`). An
+            // unimported `Structure` is already `unknown-trait`.
+            let comparison =
+                [names.known.eq, names.known.partial_ord, names.known.ord].contains(trait_);
+            if *kind == hd_resolve::ImplKind::Derivation && (template.is_none() || comparison) {
+                if hd_resolve::lower::names_std_structure(&names, cx.scope)
+                    && let Some(h) = heads.iter().find(|h| h.def == it.def)
+                {
+                    let name = names.display_name(*trait_);
+                    let why = if comparison {
+                        "is derived only with `@derive`"
+                    } else {
+                        "has no template"
+                    };
+                    diags.error(
+                        Code::UnderivableTrait,
+                        cx.src.span(h.node),
+                        &format!("`{name}` {why}, so a derivation block cannot derive it"),
+                    );
+                }
+                continue;
+            }
+            let Some(template) = template else {
                 // `@derive` of a trait with no template derives nothing
                 // (`annot.derive.other`, `annot.derive.error-trait`).
                 // A newtype derives through its base type instead, with

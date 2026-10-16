@@ -418,11 +418,13 @@ fn a_later_input_implements_for_an_earlier_type() {
 }
 
 /// A session is one module for derivation blocks too
-/// (`annot.block.module`): a later input derives `Eq` and `Hash` for an
-/// earlier input's type, and the input after compares and hashes values.
+/// (`annot.block.module`): a later input derives `Hash` for an earlier
+/// input's type, and the input after compares and hashes values. `Eq` is
+/// derived with `@derive`, since a comparison trait has no derivation block.
 #[test]
 fn a_later_input_derives_for_an_earlier_type() {
     let t = session(&[
+        "@derive(Eq)",
         "data Point:",
         "    pub x: i32",
         "    pub y: i32",
@@ -430,7 +432,6 @@ fn a_later_input_derives_for_an_earlier_type() {
         "use std.structure.Structure",
         "use std.collections.Set",
         "",
-        "impl Eq for Point by Structure",
         "impl Hash for Point by Structure",
         "",
         "a := Point { x: +1, y: +2 }",

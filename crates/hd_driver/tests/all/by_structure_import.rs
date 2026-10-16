@@ -48,6 +48,6 @@ fn by_structure_without_import_is_unknown_trait() {
 #[test]
 fn by_structure_with_import_stays_clean() {
     let main =
-        format!("use std.structure.Structure\n\n{PRELUDE}\nimpl Show for Point by Structure\n");
+        format!("use std.structure.Structure\n\n{PRELUDE}\nimpl Hash for Point by Structure\n");
     assert_eq!(errors(&main), Vec::<Code>::new());
 }

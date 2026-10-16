@@ -968,12 +968,12 @@ fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
     repl.src.insert("src/lib.hd", lib);
     repl.input(
         1,
-        "data Point:\n    pub x: i32\n    pub y: i32\n\n@derive(Eq)\ndata Pair:\n    pub a: i32\n",
+        "@derive(Eq)\ndata Point:\n    pub x: i32\n    pub y: i32\n\n@derive(Eq)\ndata Pair:\n    pub a: i32\n",
     );
     repl.input(2, template);
     repl.input(
         3,
-        "use std.structure.Structure\n\nimpl Eq for Point by Structure\nimpl Hash for Point by Structure\nimpl Named for Point by Structure\nimpl Named for Tag by Structure\nimpl Hash for Pair by Structure\n",
+        "use std.structure.Structure\n\nimpl Hash for Point by Structure\nimpl Named for Point by Structure\nimpl Named for Tag by Structure\nimpl Hash for Pair by Structure\n",
     );
     let p = "println(\"${Point { x: +1, y: +2 } == Point { x: +1, y: +2 }} ${Point::title()} ${Tag::title()} ${Pair { a: +1 } == Pair { a: +1 }}\")\n";
     let out = repl.input(4, p);
@@ -997,8 +997,8 @@ fn an_input_does_not_derive_for_another_module_s_type() {
     repl.input(1, first);
     for (n, text, code) in [
         // The trait and the target both belong to other modules.
-        (2, "impl Eq for Boxed by Structure\n", "nonlocal-impl"),
-        (3, "impl Eq for Coin by Structure\n", "orphan-impl"),
+        (2, "impl Debug for Boxed by Structure\n", "nonlocal-impl"),
+        (3, "impl Debug for Coin by Structure\n", "orphan-impl"),
         // The input's own trait derives for another module's type.
         (
             4,
@@ -1025,7 +1025,7 @@ fn an_input_does_not_derive_for_another_module_s_type() {
     // The input's own type may derive.
     repl.input(
         7,
-        "impl Eq for Local by Structure\nimpl Enc for Local by Structure\n",
+        "impl Debug for Local by Structure\nimpl Enc for Local by Structure\n",
     );
 }
 
@@ -1185,7 +1185,7 @@ fn a_fact_type_repeated_across_two_blocks_is_a_duplicate() {
     let decl = "data Row:\n    total: i32\n";
     let traitless =
         "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [\"cents\"]\n";
-    let derived = "impl Eq for Row by Structure:\n    total += [\"checked\"]\n";
+    let derived = "impl Debug for Row by Structure:\n    total += [\"checked\"]\n";
     let mut r = repl(&store);
     r.input(1, decl);
     r.input(2, traitless);
@@ -1204,7 +1204,7 @@ fn a_fact_type_repeated_across_two_blocks_is_a_duplicate() {
     let mut r = repl(&store);
     r.input(1, decl);
     r.input(2, traitless);
-    r.input(3, "impl Eq for Row by Structure:\n    total += [+5]\n");
+    r.input(3, "impl Debug for Row by Structure:\n    total += [+5]\n");
 }
 
 /// The `Severity::Warning` codes of a build.
@@ -1225,7 +1225,7 @@ fn blocks_across_inputs_with_different_lines_drift() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let decl = "data Row:\n    total: i32 = 0\n    id: i32 = 0\n";
-    let eq = "use std.structure.Structure\n\nimpl Eq for Row by Structure:\n    total = pass\n";
+    let eq = "use std.structure.Structure\n\nimpl Debug for Row by Structure:\n    total = pass\n";
     let hash = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    id = pass\n";
     let same = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    total = pass\n";
     // Different lines warn on the later block, which still joins.

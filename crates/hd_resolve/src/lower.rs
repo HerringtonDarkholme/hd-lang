@@ -3072,28 +3072,21 @@ impl Lower<'_, '_, '_> {
         // `annot.block.structure-use`: `by Structure` must name
         // `std.structure.Structure`, imported with `use` like any other
         // name.
-        if by.as_deref() == Some("Structure") && self.r.frozen.is_none() {
-            let names_std = matches!(
-                self.scope.lookup(self.sym("Structure")),
-                Some(Binding {
-                    kind: BindingKind::Item,
-                    value,
-                }) if DefId::from_raw(value) == self.names.known.structure
+        if by.as_deref() == Some("Structure")
+            && self.r.frozen.is_none()
+            && !names_std_structure(&self.names, self.scope)
+        {
+            let at = toks
+                .iter()
+                .position(|t| {
+                    self.src.tkind(*t) == Some(TokenKind::Ident) && self.src.text(*t) == "Structure"
+                })
+                .map_or_else(|| self.src.span(n), |i| self.src.token_span(toks[i]));
+            self.diags.error(
+                Code::UnknownTrait,
+                at,
+                "`Structure` is unknown without `use std.structure.Structure`",
             );
-            if !names_std {
-                let at = toks
-                    .iter()
-                    .position(|t| {
-                        self.src.tkind(*t) == Some(TokenKind::Ident)
-                            && self.src.text(*t) == "Structure"
-                    })
-                    .map_or_else(|| self.src.span(n), |i| self.src.token_span(toks[i]));
-                self.diags.error(
-                    Code::UnknownTrait,
-                    at,
-                    "`Structure` is unknown without `use std.structure.Structure`",
-                );
-            }
         }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         // An inherent implementation cannot target a tuple or a transparent
@@ -4703,6 +4696,19 @@ fn related_derives(
             .any(|(ty, traits)| *ty == def && traits.contains(trait_))
     });
     true
+}
+
+/// Whether `Structure` in `scope` names `std.structure.Structure`
+/// (`annot.block.structure-use`).
+#[must_use]
+pub fn names_std_structure(names: &Names<'_>, scope: &ModuleScope) -> bool {
+    matches!(
+        scope.lookup(names.syms.intern("Structure")),
+        Some(Binding {
+            kind: BindingKind::Item,
+            value,
+        }) if DefId::from_raw(value) == names.known.structure
+    )
 }
 
 /// The derivation template of `trait_` (`annot.template.form`), among a
