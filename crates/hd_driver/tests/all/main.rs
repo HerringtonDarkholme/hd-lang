@@ -114,6 +114,7 @@ mod newtype_derive_run;
 mod operator_fn_left_exact;
 mod operator_left_primitive_run;
 mod optional_join_run;
+mod payloadless_variants;
 mod pipe_bare_steps;
 mod pipe_placeholder;
 mod poisoned_expectation;

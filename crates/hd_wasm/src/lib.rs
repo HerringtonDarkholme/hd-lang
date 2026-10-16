@@ -456,6 +456,13 @@ pub enum GSym {
     /// It is local to its module: a session module defines its own and
     /// never exports it.
     Closure(Hash128, VT),
+    /// A payloadless variant of a subtype-boxed enum
+    /// (`docs/compiler/lowering-catalog.md`, "Enums Over The Bound"): an
+    /// immutable constant global per enum type and tag, the base struct
+    /// `VT` holding the tag. Enum values have no identity
+    /// (`expr.is.value-operand`), so every construction reads the one
+    /// value. Like a constant closure, it is local to its module.
+    Variant(Hash128, u32, VT),
 }
 
 impl GSym {
@@ -467,7 +474,8 @@ impl GSym {
             | GSym::Canon(_, v)
             | GSym::Witness(_, _, v)
             | GSym::WitnessField(_, _, v)
-            | GSym::Closure(_, v) => v,
+            | GSym::Closure(_, v)
+            | GSym::Variant(_, _, v) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -505,6 +513,12 @@ impl GSym {
                 w.hash(*k);
                 v.encode(w);
             }
+            GSym::Variant(h, tag, v) => {
+                w.u8(6);
+                w.hash(*h);
+                w.u32(*tag);
+                v.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
@@ -515,6 +529,7 @@ impl GSym {
             3 => GSym::Witness(r.hash(), r.hash(), VT::decode(r)?),
             4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r)?),
             5 => GSym::Closure(r.hash(), VT::decode(r)?),
+            6 => GSym::Variant(r.hash(), r.u32(), VT::decode(r)?),
             _ => return None,
         })
     }
@@ -1487,6 +1502,7 @@ pub fn global_key(g: &GSym) -> String {
         GSym::Witness(f, a, _) => format!("wit.{:032x}.{:032x}", f.0, a.0),
         GSym::WitnessField(f, e, _) => format!("witf.{:032x}.{:032x}", f.0, e.0),
         GSym::Closure(k, _) => format!("clo.{:032x}", k.0),
+        GSym::Variant(h, tag, _) => format!("var.{:032x}.{tag}", h.0),
     }
 }
 
@@ -1512,6 +1528,7 @@ fn constant_global(g: &GSym) -> bool {
             | GSym::WitnessField(..)
             | GSym::Canon(_, VT::Ref(..))
             | GSym::Closure(..)
+            | GSym::Variant(..)
     )
 }
 
@@ -1520,7 +1537,7 @@ fn constant_global(g: &GSym) -> bool {
 /// function values have no identity, so sharing it would buy a few bytes
 /// per later module at the cost of one more kind of session key.
 fn module_local(g: &GSym) -> bool {
-    matches!(g, GSym::Closure(..))
+    matches!(g, GSym::Closure(..) | GSym::Variant(..))
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal
@@ -1817,6 +1834,25 @@ pub fn link(
                     shared: false,
                 },
                 &ConstExpr::extended([Instruction::RefFunc(f), Instruction::StructNew(env)]),
+            );
+            global_idx.insert(
+                g.clone(),
+                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+            );
+            continue;
+        }
+        if let GSym::Variant(_, tag, VT::Ref(t, _)) = g {
+            let idx = types.of(t);
+            globals.global(
+                GlobalType {
+                    val_type: types.val(g.vt()),
+                    mutable: false,
+                    shared: false,
+                },
+                &ConstExpr::extended([
+                    Instruction::I32Const(tag.cast_signed()),
+                    Instruction::StructNew(idx),
+                ]),
             );
             global_idx.insert(
                 g.clone(),

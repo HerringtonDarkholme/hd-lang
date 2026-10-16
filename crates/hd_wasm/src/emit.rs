@@ -1140,24 +1140,27 @@ impl Em<'_> {
         let args = self.rec(vals);
         match self.lay.shape(ty)? {
             Shape::Enum(e) => {
-                self.a.i32(variant.cast_signed());
                 let fields = e.fields.get(variant as usize).cloned().unwrap_or_default();
                 if let (Some(base), Some(sub)) = (&e.boxed, e.subtypes.get(variant as usize)) {
                     // A subtype box: the tag, then the payload's exact
-                    // values; a payloadless variant is the base alone.
-                    match sub {
-                        Some(sub) => {
-                            for ((_, vs), r) in fields.iter().zip(&args) {
-                                for (k, x) in vs.iter().enumerate() {
-                                    self.comp(*r, k, x)?;
-                                }
+                    // values; a payloadless variant is the base alone, one
+                    // constant global per enum type and tag.
+                    if let Some(sub) = sub {
+                        self.a.i32(variant.cast_signed());
+                        for ((_, vs), r) in fields.iter().zip(&args) {
+                            for (k, x) in vs.iter().enumerate() {
+                                self.comp(*r, k, x)?;
                             }
-                            self.a.struct_new(sub);
                         }
-                        None => self.a.struct_new(base),
+                        self.a.struct_new(sub);
+                    } else {
+                        let h = self.type_hash("payloadless-variant", ty);
+                        self.a
+                            .global_get(GSym::Variant(h, variant, VT::r(base.clone())));
                     }
                     return self.store(i);
                 }
+                self.a.i32(variant.cast_signed());
                 for (s, st) in e.slots.iter().enumerate() {
                     let src = fields.iter().zip(&args).find_map(|((slots, vs), r)| {
                         slots
@@ -4130,8 +4133,16 @@ impl<'a> Em<'a> {
     /// (`expr.is.canonical-data`): one constant global per type, read here
     /// without allocating (`expr.is.canonical.same`).
     fn canonical_data(&mut self, i: u32, ty: Ty, st: WTy) -> StageResult<()> {
+        let h = self.type_hash("canonical-data", ty);
+        self.a.global_get(GSym::Canon(h, VT::r(st)));
+        self.store(i)
+    }
+
+    /// The canonical encoding of `ty`, newtypes stripped, hashed under
+    /// `domain`: a global per type names it.
+    fn type_hash(&self, domain: &str, ty: Ty) -> Hash128 {
         let ty = self.lay.strip(ty);
-        let mut h = StableHasher::new("canonical-data");
+        let mut h = StableHasher::new(domain);
         let path_hash = |d: DefId| self.env().path_hash(d);
         h.hash(canon(
             self.pool(),
@@ -4139,8 +4150,7 @@ impl<'a> Em<'a> {
             &mut CanonMemo::default(),
             ty,
         ));
-        self.a.global_get(GSym::Canon(h.finish(), VT::r(st)));
-        self.store(i)
+        h.finish()
     }
 
     fn global_hash(&self, a: u32) -> Hash128 {

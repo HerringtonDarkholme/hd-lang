@@ -375,9 +375,8 @@ and `eqref` with a cast after the tag test otherwise.
   Reading one from a list is a load, never an allocation: the box is the
   value in every position.
 - **Payloadless variants** of a subtype box are constant singleton
-  globals. Implementation differs: a payloadless variant allocates a new
-  base struct per construction (`Emit` enum construction); worse, an
-  allocation where a `global.get` would do.
+  globals, one per enum type and tag (`GSym::Variant`), local to each
+  module as constant closures are: constructing one is a `global.get`.
 - **Size:** about 130 bytes per `List` method; under A1 the method is
   shared with every other reference list.
 - **Self-recursive** payloads (directly or through other enums) are
