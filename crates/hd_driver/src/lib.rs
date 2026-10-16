@@ -2957,6 +2957,11 @@ impl Run<'_> {
             .modules
             .iter()
             .any(|m| self.repl_number(m.idx()).is_some());
+        let hidden = if input {
+            hd_base::HashSet::default()
+        } else {
+            hd_resolve::private_impl_items(&self.pool, &all)
+        };
         let items = if input {
             all
         } else {
@@ -2970,6 +2975,26 @@ impl Run<'_> {
                 return;
             }
         };
+        // What a dependent reads leaves out the impls of private types
+        // (`crates/hd_resolve/DESIGN.md` §4.10, "Two hashes, two readers").
+        let api_blob = if hidden.is_empty() {
+            None
+        } else {
+            let visible: Vec<Item> = items
+                .iter()
+                .filter(|i| !hidden.contains(&i.def))
+                .cloned()
+                .collect();
+            match hd_resolve::encode_items(&names, &visible, &out.exports) {
+                Ok(b) => Some(hd_base::hash128(&b)),
+                Err(e) => {
+                    self.stage::<()>(Stage::FolderIface, Err(e));
+                    let _ = self.iface[fi].set(None);
+                    return;
+                }
+            }
+        };
+        let hsec = api_blob.map_or_else(Vec::new, |h| h.0.to_le_bytes().to_vec());
         let module_of = |file: FileId| folder.modules.iter().position(|x| x.raw() == file.raw());
         let idiags: IfaceDiags = (0..diags.len())
             .map(|i| {
@@ -3022,12 +3047,12 @@ impl Run<'_> {
         self.put(
             EntryKind::Iface,
             key,
-            &[&blob, &dsec, &asec, &psec, &lsec, &usec],
+            &[&blob, &dsec, &asec, &psec, &lsec, &usec, &hsec],
         );
         self.keep_input(
             folder.modules[0].idx(),
             |e| &mut e.iface,
-            || vec![blob.clone(), dsec, asec, psec, lsec, usec.clone()],
+            || vec![blob.clone(), dsec, asec, psec, lsec, usec.clone(), hsec],
         );
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
@@ -3044,6 +3069,7 @@ impl Run<'_> {
             items,
             out.exports,
             Arc::from(blob),
+            api_blob,
             &mentions,
             out.module_uses,
         );
@@ -3088,11 +3114,18 @@ impl Run<'_> {
             Some(m) => m.to_vec(),
             None => self.mentions(folder.id, &items, &exports)?,
         };
+        // The hash of the blob without the impls of private types, when
+        // it has any: sixteen bytes, or none.
+        let api_blob = sections
+            .get(6)
+            .and_then(|b| <[u8; 16]>::try_from(b.as_slice()).ok())
+            .map(|b| Hash128(u128::from_le_bytes(b)));
         let mut iface = hd_resolve::folder_iface(
             &folder.path,
             items,
             exports,
             Arc::from(blob.as_slice()),
+            api_blob,
             &mentions,
             module_uses,
         );
@@ -3553,11 +3586,18 @@ impl Run<'_> {
             .into_iter()
             .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
             .collect();
+        // The folder's own impls of private types are in its findings.
+        let own_hash = {
+            let mut k = hd_base::StableHasher::new("hdr-own");
+            k.hash(own.deep_hash);
+            k.hash(own.heads_hash);
+            k.finish()
+        };
         let key = hdr_key(
             self.toolchain,
             self.package_key_of(folder.package),
             &folder.path,
-            own.deep_hash,
+            own_hash,
             &reach,
         );
         if let Some(sections) = self.lookup(EntryKind::Graph, key)
@@ -3825,6 +3865,7 @@ impl Run<'_> {
             for (f, i) in built.iter().zip(&all) {
                 k.str(&self.table.folders[f.idx()].path);
                 k.hash(i.deep_hash);
+                k.hash(i.heads_hash);
             }
             k.finish()
         };

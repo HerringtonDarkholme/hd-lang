@@ -294,10 +294,17 @@ its dependency closure, the same closure that filters the candidate
 directory (§4.12.1). So the deep hashes already cover every
 argument-owned impl a check can see.
 
-Implementation differs: there is no `heads_hash`. The interface keeps
-every impl (`interface_items`, `src/iface.rs:1190`) and `api_hash` is the
-hash of the whole blob (`src/iface.rs:1331`). This is worse: adding an
-impl for a private type rechecks every dependent.
+Implementation differs:
+- **The blob.** It still carries every impl (`interface_items`).
+- **The two hashes.** `heads_hash` is the hash of the whole blob.
+  `api_hash` is the hash of the blob re-encoded without
+  `private_impl_items`: the impls whose trait, or whose target's head
+  type, is a private declaration of the folder, with their members. The
+  driver stores that hash in the interface entry.
+- **The readers.** Coherence and the folder's own header check key on
+  `heads_hash` too.
+- **Conservative.** A private type in an impl's arguments, as in
+  `impl Show for List[Private]`, still counts toward `api_hash`.
 
 **Complexity.** Linear in the folder's header tokens plus the use worklist.
 A folder task cannot be split, so one very large folder bounds the wall

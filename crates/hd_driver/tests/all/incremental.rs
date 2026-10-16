@@ -1182,3 +1182,52 @@ pub fn main() -> void $ Console:
         );
     }
 }
+
+/// An impl whose target is a private type is no part of what dependents
+/// read (`crates/hd_resolve/DESIGN.md` §4.10, "Two hashes, two
+/// readers"): adding one rebuilds its folder's interface and rechecks its
+/// module, but the deep hash stays, so no importer is rechecked. Coherence
+/// still sees it, and the program equals a clean build's.
+#[test]
+fn an_impl_for_a_private_type_rechecks_no_dependent() {
+    let geo = |with_impl: bool| {
+        let (imp, read) = if with_impl {
+            (
+                "impl Shape for Hidden:\n    fn area(self) -> i32:\n        self.n * 2\n\n",
+                "h.area()",
+            )
+        } else {
+            ("", "h.n")
+        };
+        format!(
+            "{GEO}\ndata Hidden:\n    n: i32\n\n{imp}pub fn hidden_area() -> i32:\n    h := Hidden {{ n: 2 }}\n    {read}\n"
+        )
+    };
+    let main = "\
+use pkg.geo.shapes.{hidden_area}
+
+pub fn main() -> void $ Console:
+    println(hidden_area())
+";
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let cold = ok(&store, &program(main, &geo(false)), executor);
+        let src = program(main, &geo(true));
+        let warm = ok(&store, &src, executor);
+        assert!(warm.counters.ifaces_built.contains(&"demo.geo".to_owned()));
+        assert_eq!(
+            warm.counters.deep_hashes["demo.geo"],
+            cold.counters.deep_hashes["demo.geo"]
+        );
+        assert!(
+            !warm
+                .counters
+                .modules_checked
+                .contains(&"demo.app.main".to_owned()),
+            "{:?}",
+            warm.counters.modules_checked
+        );
+        let fresh = ok(&MemoryStore::default(), &src, executor);
+        assert_eq!(warm.wasm, fresh.wasm);
+    }
+}

@@ -656,7 +656,12 @@ pub struct FolderIface {
     pub exports: Vec<Export>,
     pub export_index: HashMap<(String, Symbol), usize>,
     pub blob: Arc<[u8]>,
+    /// The hash of what a dependent's check can read: the blob without
+    /// the impls of private types (`private_impl_items`).
     pub api_hash: Hash128,
+    /// The hash of the whole blob, every impl head included: what
+    /// coherence and the folder's own header check read.
+    pub heads_hash: Hash128,
     pub deep_hash: Hash128,
     /// Where each item and written type sits: `(item, slot)` to (module
     /// index in the folder, anchor). Outside every hash; diagnostics only.
@@ -1195,6 +1200,50 @@ pub fn interface_items(items: &[Item]) -> Vec<Item> {
         .collect()
 }
 
+/// The impls among `all` (a folder's items) whose target or trait is a
+/// private declaration of the folder, and their members: only
+/// coherence and the folder's own checks read them, so they stay out of
+/// `api_hash` (`crates/hd_resolve/DESIGN.md` §4.10, "Two hashes, two
+/// readers"). A target is private when its head is a private type; a
+/// type in an argument does not count, which keeps more in the hash.
+#[must_use]
+pub fn private_impl_items(pool: &InternPool, all: &[Item]) -> hd_base::HashSet<DefId> {
+    let private: hd_base::HashSet<DefId> = all
+        .iter()
+        .filter(|i| {
+            !i.public
+                && !matches!(
+                    i.data,
+                    ItemData::Impl { .. } | ItemData::Method { .. } | ItemData::AssocType { .. }
+                )
+        })
+        .map(|i| i.def)
+        .collect();
+    let mut out = hd_base::HashSet::default();
+    for i in all {
+        if let ItemData::Impl {
+            trait_, self_ty, ..
+        } = &i.data
+        {
+            let head = match pool.get(*self_ty) {
+                TyData::Adt { def, .. } => Some(def),
+                _ => None,
+            };
+            if private.contains(trait_) || head.is_some_and(|d| private.contains(&d)) {
+                out.insert(i.def);
+            }
+        }
+    }
+    for i in all {
+        if let ItemData::Method { owner, .. } | ItemData::AssocType { owner, .. } = &i.data
+            && out.contains(owner)
+        {
+            out.insert(i.def);
+        }
+    }
+    out
+}
+
 /// Every item a set of interface items names, in first-mention order:
 /// the folders of these are the interface's `mentions` (§4.11.3).
 #[must_use]
@@ -1315,6 +1364,7 @@ pub fn folder_iface(
     items: Vec<Item>,
     exports: Vec<Export>,
     blob: Arc<[u8]>,
+    api_blob: Option<Hash128>,
     mentions: &[(String, Hash128)],
     module_uses: Vec<(String, String, String)>,
 ) -> FolderIface {
@@ -1328,13 +1378,21 @@ pub fn folder_iface(
         .enumerate()
         .map(|(i, e)| ((e.module.clone(), e.name), i))
         .collect();
-    let api_hash = if module_uses.is_empty() {
-        hd_base::hash128(&blob)
-    } else {
-        let mut bytes = blob.to_vec();
-        bytes.extend_from_slice(&encode_module_uses(&module_uses));
-        hd_base::hash128(&bytes)
+    // `heads_hash` covers the whole blob; `api_hash` covers it without
+    // the impls of private types (`api_blob`, the hash of that encoding,
+    // when there are any).
+    let with_uses = |h: Hash128| {
+        if module_uses.is_empty() {
+            h
+        } else {
+            let mut k = StableHasher::new("iface-uses");
+            k.hash(h);
+            k.bytes(&encode_module_uses(&module_uses));
+            k.finish()
+        }
     };
+    let heads_hash = with_uses(hd_base::hash128(&blob));
+    let api_hash = api_blob.map_or(heads_hash, with_uses);
     let deep_hash = deep_hash(api_hash, mentions);
     FolderIface {
         folder: folder.to_owned(),
@@ -1344,6 +1402,7 @@ pub fn folder_iface(
         export_index,
         blob,
         api_hash,
+        heads_hash,
         deep_hash,
         spans: HashMap::default(),
         private_names: hd_base::HashSet::default(),
