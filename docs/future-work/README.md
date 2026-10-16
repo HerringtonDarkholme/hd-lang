@@ -24,6 +24,9 @@ action at a distance.
 - [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md): twelve cases
   and the same eleven evaluation dimensions, including cancellation,
   linear collections, and exclusive callable/provider access.
+- [Ownership Adversarial Review 2](OWNERSHIP_STRESS_TEST_2.md): reevaluates
+  the destructor-based revision against the same dimensions, including
+  partial moves, drop-aware lifetimes, and move-only borrowed holders.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the

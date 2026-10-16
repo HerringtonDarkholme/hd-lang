@@ -176,8 +176,9 @@ The ways it can fail are the author's own choices, listed in the
 
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
 passing convention on the parameter. hd puts both on the position, as
-`mut`. The price is the uniqueness rule for fresh values and two open
-holes, B7 and B8, that a type-level category would close.
+`mut`. The price is the uniqueness rule for fresh values, plus two rules
+that a type-level category would make unnecessary: an owned value makes
+its holder owned, and only `T < own Any` takes an owned type.
 
 ## 3. A Guided Tour
 
@@ -317,7 +318,9 @@ fn dangle(c: own Conn) -> ^{c} Conn:                  # hypothetical syntax
 ```
 
 `dangle` names an owned parameter, which dies with the call. A result
-without `^` carries no lifetime. A store into another parameter writes
+without `^` carries no lifetime of its own, though its type may carry
+lifetime arguments, as `Parser[^]` does in 3.4. A store into another
+parameter writes
 the destination on the stored value, as `c: ^{dst.T} Conn`.
 
 ### 3.4 A Struct That Holds A Borrow
@@ -513,7 +516,7 @@ fn same[T](v: T) -> T: v                             # T is never owned here
 fn first[T](items: ^List[T]) -> Option[^T]:          # hypothetical syntax
     items.at(0)
 
-fn take_first[T < own Any](xs: own List[T]) -> Option[own T]:   # hypothetical syntax
+fn take_first[T < own Any](xs: own List[T]) -> Option[T]:       # hypothetical syntax
     xs.into_iter().next()                            # the rest of xs is dropped
 
 fn bad[T](v: own T) -> void: pass                    # hypothetical syntax: error: own-on-type-parameter
@@ -674,8 +677,8 @@ This section states each rule from the tour once, grouped by topic.
 
 1. Using an owned place by value moves it, and a later use is
    `use-after-move`. Assigning it again initializes it.
-2. Assigning a place that still holds an owned value is
-   `own-overwritten`.
+2. Assigning a place that still holds an owned value drops the old
+   value first (4.5).
 3. Moving a place needs an owned step at every field on its path;
    otherwise it is `move-out-of-plain`.
 4. Through an owned path, one field may move out alone. The holder is
@@ -750,7 +753,8 @@ This section states each rule from the tour once, grouped by topic.
    directly; std's `drop(x)` moves `x` in and ends it.
 6. A panic runs no `drop`. It poisons the instance, and the host releases
    what the instance held.
-7. A plain value never runs `drop`, even when its type implements it.
+7. A type that implements `DropOwn` never appears in a plain position
+   (4.1), so every value of it is dropped exactly once.
 8. An owned temporary that is not bound is dropped at the end of its
    statement.
 
@@ -779,7 +783,9 @@ This section states each rule from the tour once, grouped by topic.
 11. `$.with(K = p)` borrows `p` for its block, and `$.use(K)` returns a
     borrow bounded by `$K`.
 12. A top-level binding may be borrowed as `static`, never as `^mut`.
-    Moving an owned one is `move-out-of-top-level`.
+    A later top-level statement may move an owned one, checked in
+    statement order; a function body never may
+    (`move-out-of-top-level`).
 13. Owned positions and types that carry a lifetime are not
     boundary-safe.
 
