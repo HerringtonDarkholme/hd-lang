@@ -2716,10 +2716,7 @@ impl Em<'_> {
                 self.a.set(s);
                 // The indirect ban (`req.drive.block-on.indirect`): reached
                 // while a forbidden context runs, it panics.
-                self.a.global_get(crate::rt::forbid_global());
-                self.a.if_();
-                self.panic("suspension-forbidden-context: block_on in a forbidden context");
-                self.a.end();
+                self.a.call(Sym::Helper(Helper::ForbidCheck));
                 let ready = self.a.local(VT::I32);
                 let tmp: Vec<u32> = result.iter().map(|v| self.a.local(v.dflt())).collect();
                 // The polled subtree is its own root: its host leaves sit

@@ -1738,6 +1738,34 @@ pub fn link(
         wakes = true;
         todo.push(Helper::EntryWake);
     }
+    // `block_on`'s indirect ban checks the forbidden-context counter only
+    // when some code of the program raises it, or a later session module
+    // may (`crates/hd_wasm/DESIGN.md` §14.9).
+    if helpers.contains_key(&Helper::ForbidCheck) {
+        let raises = |c: &Code| {
+            c.relocs
+                .iter()
+                .any(|(_, r)| matches!(r, Reloc::Global(g) if *g == rt::forbid_global()))
+        };
+        let forbids = ext.is_some()
+            || all.iter().any(|(_, c, _)| raises(c))
+            || helpers
+                .iter()
+                .any(|(h, c)| *h != Helper::ForbidCheck && raises(c));
+        if forbids {
+            let c = rt::forbid_check(true);
+            scan(&c, &mut todo);
+            helpers.insert(Helper::ForbidCheck, c);
+            while let Some(h) = todo.pop() {
+                if helpers.contains_key(&h) {
+                    continue;
+                }
+                let c = rt::helper_code(&h, facts)?;
+                scan(&c, &mut todo);
+                helpers.insert(h, c);
+            }
+        }
+    }
     let exports: Vec<&(String, Helper)> = exports
         .into_iter()
         .filter(|e| e.1 != Helper::EntryWake || wakes)

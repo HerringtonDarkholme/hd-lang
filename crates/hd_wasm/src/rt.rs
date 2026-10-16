@@ -203,6 +203,24 @@ pub fn forbid_global() -> GSym {
     GSym::Rt("forbid".into(), VT::I32)
 }
 
+/// The code of [`Helper::ForbidCheck`]: with `full`, a panic while the
+/// forbidden-context counter is not zero; else nothing, for a program in
+/// which nothing raises the counter (`crates/hd_wasm/DESIGN.md` §14.9).
+#[must_use]
+pub fn forbid_check(full: bool) -> Code {
+    let mut a = Asm::new(vec![]);
+    if full {
+        a.global_get(forbid_global());
+        a.if_();
+        a.call(Sym::Helper(Helper::Panic(
+            "suspension-forbidden-context: block_on in a forbidden context".into(),
+        )));
+        a.s().unreachable();
+        a.end();
+    }
+    a.finish(vec![])
+}
+
 /// Adds `by` to the forbidden-context counter.
 pub fn forbid_by(a: &mut Asm, by: i32) {
     a.global_get(forbid_global());
@@ -418,6 +436,11 @@ pub enum Helper {
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
     WakeTake,
+    /// `block_on`'s indirect ban (`req.drive.block-on.indirect`): panics
+    /// while a forbidden context runs. Link makes it empty when no code
+    /// of the program raises the forbidden-context counter
+    /// ([`forbid_check`]).
+    ForbidCheck,
     /// `(h)`: host handle `h` went Pending under the current waker node
     /// and slot (§14.4).
     WakeRegister,
@@ -740,6 +763,7 @@ impl Helper {
             }
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
+            Helper::ForbidCheck => w.u8(41),
             Helper::WakeRegister => w.u8(39),
             Helper::WakeUp => w.u8(40),
             Helper::RaceCold {
@@ -951,6 +975,7 @@ impl Helper {
             },
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
+            41 => Helper::ForbidCheck,
             39 => Helper::WakeRegister,
             40 => Helper::WakeUp,
             t @ 15..=17 => {
@@ -1604,6 +1629,8 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         }
         Helper::WakeMark => wake_mark(),
         Helper::WakeTake => wake_take(),
+        // Empty until link finds a forbidden context (`forbid_check`).
+        Helper::ForbidCheck => forbid_check(false),
         Helper::WakeRegister => wake_register(),
         Helper::WakeUp => wake_up(),
         Helper::RaceCold {
@@ -2679,6 +2706,7 @@ impl Helper {
             Helper::RuntimeType { .. } => "runtime_type".into(),
             Helper::WakeMark => "wake_mark".into(),
             Helper::WakeTake => "wake_take".into(),
+            Helper::ForbidCheck => "forbid_check".into(),
             Helper::WakeRegister => "wake_register".into(),
             Helper::WakeUp => "wake_up".into(),
             Helper::RaceCold { .. } => "race_cold".into(),

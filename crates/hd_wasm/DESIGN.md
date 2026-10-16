@@ -978,6 +978,11 @@ loop:
   `fact-evaluation-failed`. `block_on` and `println`
   read it and panic `suspension-forbidden-context` when it is not zero.
   The checker rejects the direct calls (crates/hd_tir/DESIGN.md §4.13.5).
+  `block_on`'s read is the runtime helper `forbid_check`. Link makes it
+  empty, with no counter and no panic message, when no code of the
+  program references the counter, so a program with no forbidden
+  context pays for neither. A session module always gets the full
+  check, since a later input may add a forbidden context.
 
 Implementation differs: `block_on` is a seeded `std.task` item that the
 emitter lowers by name (`Em`, `"block_on"`), not std hd; not judged.
