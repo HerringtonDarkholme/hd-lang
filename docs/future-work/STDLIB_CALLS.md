@@ -257,10 +257,10 @@ leftovers of the stdlib audit (task #239).
 
 ## Scripted Net (#256)
 
-`Net` has no deterministic provider, so code that opens a socket cannot
+`Net` had no deterministic provider, so code that opens a socket could not
 be unit-tested ([Net Providers](../../spec/std/net.md#net-providers)).
-This call designs one on the model of `ScriptedHttp`. The spec is frozen,
-so the entry ends with the rules to add once the owner orders the edit.
+This call designs one on the model of `ScriptedHttp`. The owner ordered
+the spec edit on 2026-10-16, and it is applied (end of the entry).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
@@ -279,7 +279,7 @@ so the entry ends with the rules to add once the owner orders the edit.
 | #256 | Net has no timeout parameter, and `ScriptedNet` takes no `Clock`. A timeout test scripts the error with `ScriptedStream::failing(reads, .Other("timed out"))`. A program that races a read against `sleep` with `ManualClock` gets the read first, since a scripted read completes at once. | A read that never completes would be the hang this design rules out. `ManualClock` and `ScriptedNet` bind side by side with `$.with(Net=net, Clock=clock)` and share no state. | own |
 
 The three examples below parse clean with `scripts/hd-conformance.sh
-parse`; their `tests:` blocks need the implementation to run.
+parse`, and their `tests:` blocks pass against `lib/std/net.hd`.
 
 A line-protocol client:
 
@@ -422,8 +422,16 @@ tests:
         assert_equal(socket.sent(), [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="the ping")
 ```
 
-**Spec edit needed** (for the owner to order; `spec/` stays untouched
-until then). In `spec/std/net.md`, replace the rule `r[std-net.provider.none]`
+**Spec edit applied** (2026-10-16) as
+[Scripted Net](../../spec/std/net.md#scripted-net), rules
+[`std-net.scripted.decl`](../../spec/std/net.md#r-std-net.scripted.decl)
+to [`std-net.scripted.no-host`](../../spec/std/net.md#r-std-net.scripted.no-host);
+[`std-net.provider.scripted`](../../spec/std/net.md#r-std-net.provider.scripted)
+replaces the retired `std-net.provider.none`, and
+[Unit Test Providers](../../spec/std/testing.md#unit-test-providers) has
+the `Net` row. `lib/std/net.hd` implements the four providers, and the
+fixtures `net-scripted-stream.hd` and `net-scripted-servers.hd` pass. The
+edit as recorded: in `spec/std/net.md`, replace the rule `r[std-net.provider.none]`
 and the sentence "`std.net` declares no deterministic provider" in the
 chapter intro and in Net Providers, and add a Scripted Net section with
 these rules:
@@ -441,17 +449,17 @@ these rules:
 11. `r[std-net.scripted.closed]`: `Disposed` after `close`.
 12. `r[std-net.scripted.no-host]`: a scripted provider opens no socket and consults no grant.
 
-Also in `spec/std/testing.md`, Unit Test Providers: add the row `Net` | `ScriptedNet` | Scripted Net in net.md, and delete the sentence "Each host capability trait but `Net` has" (it becomes "Each host capability trait has") and the paragraph that says `Net` has no std provider. In `spec/cli/command-line.md` and the website, no change. Then file an implementation issue for `lib/std/net.hd` (about 150 lines of hd) and a conformance fixture per rule.
+Also in `spec/std/testing.md`, Unit Test Providers: add the row `Net` | `ScriptedNet` | Scripted Net in net.md, and delete the sentence "Each host capability trait but `Net` has" (it becomes "Each host capability trait has") and the paragraph that says `Net` has no std provider. In `spec/cli/command-line.md` and the website, no change.
 
 ## Net Timeouts, Options, And Local Address (#259, #261, #263)
 
 Three further `std.net` calls, each consistent with the Scripted Net
 call (#256): a scripted provider must be able to script every new
-behaviour. The spec is frozen, so each entry ends with the rules to add
-once the owner orders the edit, and the host work for the later
-implementation issue. The examples parse clean with
-`scripts/hd-conformance.sh parse`; their `tests:` blocks need the
-implementation to run.
+behaviour. The owner ordered the three spec edits on 2026-10-16, and they
+are applied (each entry's last paragraphs). The host work waits for the
+implementation issues, so each entry's fixture is a `KNOWN_FAILURES.tsv`
+row. The examples parse clean with `scripts/hd-conformance.sh parse`;
+their `tests:` blocks need the implementation to run.
 
 ### Read And Connect Timeouts (#259)
 
@@ -509,7 +517,14 @@ tests:
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="connect timeout")
 ```
 
-**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+**Spec edit applied** (2026-10-16) as
+[Timeouts](../../spec/std/net.md#timeouts) (`std-net.timeout.*`),
+[`std-net.error.timeout`](../../spec/std/net.md#r-std-net.error.timeout),
+[`std-net.error.timeout.text`](../../spec/std/net.md#r-std-net.error.timeout.text),
+[`std-net.connect-timeout`](../../spec/std/net.md#r-std-net.connect-timeout),
+[`std-net.scripted.timeout`](../../spec/std/net.md#r-std-net.scripted.timeout),
+and [`std-net.scripted.connect-timeout`](../../spec/std/net.md#r-std-net.scripted.connect-timeout);
+fixture `net-timeouts.hd`. The edit as recorded: in `spec/std/net.md`, add
 `Timeout` to the `NetError` enum and a row `r[std-net.error.timeout]`
 (`Timeout` means a bounded wait ended before the peer answered); add
 `connect_timeout!` to the `Net` declaration and a rule
@@ -580,7 +595,11 @@ tests:
         assert_equal(stream.keepalive(), .Some(30s), reason="keep-alive")
 ```
 
-**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+**Spec edit applied** (2026-10-16) as
+[Socket Options](../../spec/std/net.md#socket-options) (`std-net.option.*`),
+[`std-net.listen.reuse`](../../spec/std/net.md#r-std-net.listen.reuse),
+and [`std-net.scripted.options`](../../spec/std/net.md#r-std-net.scripted.options);
+fixture `net-socket-options.hd`. The edit as recorded: in `spec/std/net.md`, add
 `set_nodelay` and `set_keepalive` to the `TcpStream` declaration, and the
 rules `r[std-net.option.nodelay]`, `r[std-net.option.keepalive]` (idle
 time before the first probe; `.None` off), `r[std-net.option.default]`
@@ -667,7 +686,11 @@ tests:
         assert_equal(socket.sent(), [Datagram { bytes: "reply to 40001".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="announce")
 ```
 
-**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+**Spec edit applied** (2026-10-16) as
+[Local Address](../../spec/std/net.md#local-address) (`std-net.local-address.*`),
+[`std-net.scripted.local-address`](../../spec/std/net.md#r-std-net.scripted.local-address),
+and [`std-net.scripted.local-address.unset`](../../spec/std/net.md#r-std-net.scripted.local-address.unset);
+fixture `net-local-address.hd`. The edit as recorded: in `spec/std/net.md`, add
 `local_address` to the `TcpListener` and `UdpSocket` declarations, and the
 rules `r[std-net.local-address]` (result, IP text, picked port for port
 0), `r[std-net.local-address.closed]` (`Disposed` after `close`), and

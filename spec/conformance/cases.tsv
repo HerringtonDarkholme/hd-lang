@@ -2874,6 +2874,11 @@ runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
 runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
+runtime/valid/net-scripted-stream.hd	runtime	accept	std/net.md#scripted-net
+runtime/valid/net-scripted-servers.hd	runtime	accept	std/net.md#r-std-net.scripted.accept
+runtime/valid/net-timeouts.hd	runtime	accept	std/net.md#timeouts
+runtime/valid/net-socket-options.hd	runtime	accept	std/net.md#socket-options
+runtime/valid/net-local-address.hd	runtime	accept	std/net.md#local-address
 runtime/valid/process-not-granted.hd	runtime	accept	lang/10-modules.md#r-module.process.not-granted
 runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.text
 typing/invalid/impl-head-projection.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.head-projection

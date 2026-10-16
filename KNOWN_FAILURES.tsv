@@ -1,1 +1,5 @@
 path	issue	engine	reason
+runtime/valid/net-local-address.hd	#341		local_address on TcpListener, UdpSocket, and the scripted handles needs the host-ABI methods in both hosts
+runtime/valid/net-own-provider.hd	#339		the Net trait in lib/std has no connect_timeout! yet, so the NoNetwork impl that writes it is extra-trait-member
+runtime/valid/net-socket-options.hd	#340		set_nodelay and set_keepalive on TcpStream and ScriptedStream need the host-ABI methods in both hosts
+runtime/valid/net-timeouts.hd	#339		NetError.Timeout, connect_timeout!, and set_timeout need the host-ABI methods in both hosts

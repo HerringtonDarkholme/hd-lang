@@ -1,0 +1,65 @@
+# test: local_address reports a listener's or UDP socket's bound address, and a scripted handle returns only the address the test set
+# Spec std/net Local Address: std-net.local-address, std-net.local-address.closed, std-net.scripted.local-address, std-net.scripted.local-address.unset.
+# Also covers std-net.scripted.udp, std-net.scripted.setup, and
+# std-net.scripted.closed.
+# expect: test
+use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedUdp, TcpListener, UdpSocket}
+
+fn start_server!() -> Result[u16, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut listener = net.listen!("127.0.0.1", 0)?
+    match listener.local_address():
+        .Ok((_, port)) => .Ok(port)
+        .Err(_) => .Err(.Other("no local address"))
+
+fn announce!(host: string, port: u16) -> Result[u16, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut socket = net.bind_udp!("0.0.0.0", 0)?
+    own_port := match socket.local_address():
+        .Ok((_, picked)) => picked
+        .Err(_) => return .Err(.Other("no local address"))
+    msg := "reply to ${own_port}".to_utf8()
+    match socket.send_to!(host, port, msg):
+        .Ok(_) => .Ok(own_port)
+        .Err(_) => .Err(.Other("send failed"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("reports the port the system picked"):
+        let mut listener = ScriptedListener::new([])
+        listener.set_local_address("127.0.0.1", 49152)
+        let mut net = ScriptedNet::new()
+        net.add_listener("127.0.0.1:0", listener)
+        $.with(Net=net):
+            assert_equal(start_server!(), .Ok(49152), reason="the picked port")
+
+    it("fails when the listener has no scripted address"):
+        let mut listener = ScriptedListener::new([])
+        let mut net = ScriptedNet::new()
+        net.add_listener("127.0.0.1:0", listener)
+        $.with(Net=net):
+            assert_equal(start_server!(), .Err(.Other("no local address")), reason="unscripted")
+        match listener.local_address():
+            .Err(.Operation(.Other(message))) => assert_equal(message, "ScriptedListener has no local address", reason="the message")
+            _ => panic("unscripted")
+
+    it("tells the peer which port to answer on"):
+        let mut socket = ScriptedUdp::new([])
+        socket.set_local_address("0.0.0.0", 40001)
+        let mut net = ScriptedNet::new()
+        net.add_udp("0.0.0.0:0", socket)
+        $.with(Net=net):
+            assert_equal(announce!("10.0.0.7", 9000), .Ok(40001), reason="own port")
+        assert_equal(socket.sent(), [Datagram { bytes: "reply to 40001".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="announce")
+
+    it("an unscripted UDP address names the socket, and close disposes it"):
+        let mut socket = ScriptedUdp::new([])
+        match socket.local_address():
+            .Err(.Operation(.Other(message))) => assert_equal(message, "ScriptedUdp has no local address", reason="the message")
+            _ => panic("unscripted")
+        socket.set_local_address("0.0.0.0", 40001)
+        _ := socket.close()
+        match socket.local_address():
+            .Err(.Disposed) => pass
+            _ => panic("Disposed after close")

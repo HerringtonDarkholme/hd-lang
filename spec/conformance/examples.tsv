@@ -814,7 +814,12 @@ std/http.md	5	accept	runtime/valid/http-scripted-unknown-url.hd
 std/net.md	1	type-fragment	-
 std/net.md	2	type-fragment	-
 std/net.md	3	type-fragment	-
-std/net.md	4	accept	runtime/valid/net-own-provider.hd
+std/net.md	4	accept	runtime/valid/net-timeouts.hd
+std/net.md	5	accept	runtime/valid/net-socket-options.hd
+std/net.md	6	accept	runtime/valid/net-local-address.hd
+std/net.md	7	accept	runtime/valid/net-own-provider.hd
+std/net.md	8	accept	runtime/valid/net-scripted-stream.hd
+std/net.md	9	accept	runtime/valid/net-scripted-servers.hd
 std/sys.md	1	type-fragment	-
 std/sys.md	2	accept	runtime/valid/map-sys.hd
 std/random.md	1	type-fragment	-

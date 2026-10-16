@@ -1,0 +1,50 @@
+# test: set_nodelay and set_keepalive set a stream's options, and ScriptedStream records them
+# Spec std/net Socket Options: std-net.option.nodelay, std-net.option.keepalive, std-net.option.closed, std-net.scripted.options.
+# Also covers std-net.handles.decl, std-net.scripted.closed, and
+# std-net.scripted.write.
+# expect: test
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpStream}
+use std.time.s
+
+fn open_chat!(host: string, port: u16) -> Result[void, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut stream = net.connect!(host, port)?
+    match stream.set_nodelay(true):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("nodelay failed"))
+    match stream.set_keepalive(.Some(30s)):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("keepalive failed"))
+    match stream.write!("hello\n".to_utf8()):
+        .Ok(_) => .Ok(())
+        .Err(_) => .Err(.Other("write failed"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("turns on nodelay and a 30 second keep-alive"):
+        let mut stream = ScriptedStream::new([])
+        let mut net = ScriptedNet::new()
+        net.add_connection("chat.local:7000", stream)
+        $.with(Net=net):
+            assert_equal(open_chat!("chat.local", 7000), .Ok(()), reason="opened")
+        assert_equal(stream.nodelay(), true, reason="nodelay")
+        assert_equal(stream.keepalive(), .Some(30s), reason="keep-alive")
+        assert_equal(stream.written(), "hello\n".to_utf8(), reason="the greeting")
+
+    it("a new scripted stream reports both options off"):
+        let mut stream = ScriptedStream::new([])
+        assert_equal(stream.nodelay(), false, reason="nodelay off")
+        assert_equal(stream.keepalive(), .None, reason="keep-alive off")
+
+    it("an option after close is Disposed"):
+        let mut stream = ScriptedStream::new([])
+        _ := stream.close()
+        match stream.set_nodelay(true):
+            .Ok(_) => panic("closed")
+            .Err(.Disposed) => pass
+            .Err(_) => panic("Disposed")
+        match stream.set_keepalive(.None):
+            .Ok(_) => panic("closed")
+            .Err(.Disposed) => pass
+            .Err(_) => panic("Disposed")

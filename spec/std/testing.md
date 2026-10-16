@@ -536,8 +536,8 @@ it("exports the orders into its own directory"):
 
 A unit test gets `TestRunner` alone
 ([`module.testing.unit-row.anywhere`](../lang/10-modules.md#r-module.testing.unit-row.anywhere)).
-Each host capability trait but `Net` has a deterministic std provider that
-the test binds with `$.with` instead:
+Each host capability trait has a deterministic std provider that the
+test binds with `$.with` instead:
 
 | Host trait | Provider | Defined in |
 | --- | --- | --- |
@@ -549,10 +549,8 @@ the test binds with `$.with` instead:
 | `FsRead`, `FsWrite` | `MemoryFs` | [Memory File System](fs.md#memory-file-system) |
 | `Process` | `ScriptedProcess` | [Scripted Process](process.md#scripted-process) |
 | `Http` | `ScriptedHttp` | [Scripted Http](http.md#scripted-http) |
+| `Net` | `ScriptedNet` | [Scripted Net](net.md#scripted-net) |
 | `Sys` | `MapSys` | [Map Sys](sys.md#map-sys) |
-
-`Net` has no std provider, so a unit test declares its own, as
-[Net Providers](net.md#net-providers) shows.
 
 ```text
 use std.time.{Clock, ManualClock, Timestamp, now}
