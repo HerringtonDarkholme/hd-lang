@@ -30,6 +30,9 @@ action at a distance.
 - [Ownership Adversarial Review 3](OWNERSHIP_STRESS_TEST_3.md): checks the
   `OwnOnly` revision, confirms earlier safety repairs, and tests generic
   mode substitution, conditional impl coherence, and guard lowering.
+- [Ownership Adversarial Review 4](OWNERSHIP_STRESS_TEST_4.md): evaluates
+  structural ownership and generic normalization, with probes for receiver
+  reservation, classifier base cases, and generic body checking.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
