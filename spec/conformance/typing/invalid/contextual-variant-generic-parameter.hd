@@ -1,0 +1,10 @@
+# test: a generic parameter fixes no enum, so .Variant has no expected enum type
+# Spec 05 Names: expr.name.contextual.no-type.
+enum Status:
+    Queued
+
+fn keep[T](value: T) -> T:
+    value
+
+fn invalid() -> void:
+    _ := keep(.Queued)  # diagnostic: missing-contextual-enum-type

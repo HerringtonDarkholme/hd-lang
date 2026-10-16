@@ -1,0 +1,20 @@
+# test: a prefixed string passes its values to the template; it neither displays nor appends them
+# expect: test
+# Spec 05 String Interpolation: expr.interp.prefixed.
+use std.ops.{Template, str_prefix}
+
+data Secret:
+    value: i32
+
+@str_prefix
+fn keep(t: Template[Secret]) -> string:
+    t.raw_parts[0] + "|" + t.raw_parts[1] + "|${t.values[0].value}"
+
+fn show(secret: Secret) -> string:
+    keep"a=$secret!"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the value goes to the template, not into the text"):
+        assert_equal(show(Secret { value: 7 }), "a=|!|7", reason="pieces around the value, and the value itself")

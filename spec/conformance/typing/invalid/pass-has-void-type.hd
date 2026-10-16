@@ -1,0 +1,5 @@
+# test: pass has type void, so it cannot initialize a binding of another type
+# Spec 05 Literals: expr.literal.pass.
+fn invalid() -> i32:
+    let count: i32 = pass  # diagnostic: type-mismatch
+    count

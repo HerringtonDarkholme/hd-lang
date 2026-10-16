@@ -1,0 +1,9 @@
+# test: a contextual variant with payload fields still needs a call, as Enum.Variant does
+# Spec 05 Names: expr.name.contextual.rules.
+enum Status:
+    Queued
+    Refunded(cents: i32, reason: string)
+
+fn invalid() -> Status:
+    let status: Status = .Refunded  # diagnostic: unsaturated-enum-constructor
+    status

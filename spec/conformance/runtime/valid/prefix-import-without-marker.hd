@@ -1,0 +1,14 @@
+# test: a use of the prefix function alone makes its literal valid, with no import of the marker or Template
+# expect: test
+# Spec 05 Literal Suffixes: expr.literal-fn.no-marker-import.
+# fixture-package-tree: qualified-prefix/src/report.hd
+use pkg.marks.tag
+
+fn label(n: i32) -> string:
+    tag"total: $n items"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the imported prefix gets the first piece"):
+        assert_equal(label(3), "total: ", reason="tag returns the text before the value")

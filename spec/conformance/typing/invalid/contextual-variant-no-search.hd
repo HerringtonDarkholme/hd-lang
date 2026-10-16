@@ -1,0 +1,12 @@
+# test: .Variant is not found by searching visible enums, even when one enum alone declares it
+# Spec 05 Names: expr.name.contextual.no-search.
+enum Status:
+    Queued
+    Paused
+
+enum Phase:
+    Queued
+
+fn invalid() -> void:
+    state := .Paused  # diagnostic: missing-contextual-enum-type
+    pass

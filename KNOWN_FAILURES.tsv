@@ -1,3 +1,4 @@
 path	issue	engine	reason
+typing/invalid/contextual-variant-payload-needs-call.hd	#286		contextual .Refunded without a call reports argument-count, not unsaturated-enum-constructor as Status.Refunded does
 runtime/valid/resource-disposed-result.hd	#9		unsupported: stops at Link at the host boundary
 typing/invalid/value-not-assignable-to-never.hd	#288		the checker accepts a string value where `never` is expected (`fn f() -> never: "done"`, also `let x: never = "a"`)

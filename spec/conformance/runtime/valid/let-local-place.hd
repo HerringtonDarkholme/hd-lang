@@ -1,0 +1,14 @@
+# test: a let local is a place that assignment and compound assignment store to
+# expect: test
+# Spec 05 Places: expr.place.local.
+fn doubled(n: i32) -> i32:
+    let total = +0
+    total = total + n
+    total += n
+    total
+
+tests:
+    use std.testing.assert_equal
+
+    it("both stores reach the local"):
+        assert_equal(doubled(4), 8, reason="0 + 4, then += 4")

@@ -1,0 +1,34 @@
+# test: a suffixed literal and a prefixed string are calls, made each time they are evaluated
+# expect: test
+# Spec 05 Literals: expr.literal.call.
+use std.ops.{Template, num_suffix, str_prefix}
+
+let calls = +0
+
+@num_suffix
+fn tick(n: i32) -> i32:
+    calls = calls + 1
+    n
+
+@str_prefix
+fn mark(t: Template[i32]) -> string:
+    calls = calls + 1
+    t.raw_parts[0]
+
+fn sum() -> i32:
+    3tick + 4tick
+
+fn label() -> string:
+    mark"x"
+
+tests:
+    use std.testing.assert_equal
+
+    it("each suffixed literal calls its function"):
+        assert_equal(sum(), 7, reason="tick returns its literal")
+        assert_equal(sum(), 7, reason="the same literals again")
+        assert_equal(calls, 4, reason="two literals, evaluated twice")
+
+    it("each prefixed string calls its function"):
+        assert_equal(label() + label(), "xx", reason="mark returns the text")
+        assert_equal(calls, 2, reason="one call per evaluation")

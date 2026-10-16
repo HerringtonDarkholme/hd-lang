@@ -1,0 +1,23 @@
+# test: a read of module state is not moved across a call that changes that state
+# expect: test
+# Spec 05 Evaluation Order: expr.order.reorder.
+let count = +0
+
+fn bump() -> i32:
+    count = count + 1
+    +10
+
+fn read_after() -> i32:
+    bump() + count
+
+fn read_before() -> i32:
+    count + bump()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a read after the call sees the change"):
+        assert_equal(read_after(), 11, reason="bump runs first, then count is 1")
+
+    it("a read before the call does not see the change"):
+        assert_equal(read_before(), 10, reason="count is read as 0, then bump runs")

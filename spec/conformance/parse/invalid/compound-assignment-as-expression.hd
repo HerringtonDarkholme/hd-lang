@@ -1,0 +1,6 @@
+# test: compound assignment is a statement, so it cannot appear as an expression
+# Spec 05 Compound Assignment: expr.assign.compound.form.
+fn invalid() -> i32:
+    let total = +1
+    copy := (total += 1)  # diagnostic: syntax-error
+    copy

@@ -1,0 +1,4 @@
+# test: an expression's static type is checked even in a function that never runs
+# Spec 05 Expressions: expr.static-type.
+fn never_called() -> i32:
+    "seven"  # diagnostic: type-mismatch

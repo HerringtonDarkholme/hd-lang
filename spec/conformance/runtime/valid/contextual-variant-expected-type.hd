@@ -1,0 +1,28 @@
+# test: .Variant selects a variant of the enum its expected type fixes
+# expect: test
+# Spec 05 Names: expr.name.contextual.
+enum Status:
+    Queued
+    Done
+
+enum Phase:
+    Queued
+    Running
+
+fn status_name(status: Status) -> string:
+    match status:
+        Status.Queued => "status queued"
+        Status.Done => "status done"
+
+fn phase_name(phase: Phase) -> string:
+    match phase:
+        Phase.Queued => "phase queued"
+        Phase.Running => "phase running"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the expected type picks the enum"):
+        let status: Status = .Queued
+        assert_equal(status_name(status), "status queued", reason="annotated binding")
+        assert_equal(phase_name(.Queued), "phase queued", reason="parameter type")

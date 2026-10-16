@@ -1,0 +1,6 @@
+# test: there is no ||= compound assignment
+# Spec 05 Compound Assignment: expr.assign.compound.no-others.
+fn invalid(failed: bool) -> bool:
+    let any = false
+    any ||= failed  # diagnostic: syntax-error
+    any

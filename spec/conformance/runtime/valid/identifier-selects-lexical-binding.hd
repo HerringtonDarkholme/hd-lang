@@ -1,0 +1,29 @@
+# test: an identifier evaluates the declaration or local binding that lexical resolution selects
+# expect: test
+# Spec 05 Names: expr.name.identifier.
+LEVEL := +1
+
+fn double(x: i32) -> i32: x * 2
+
+fn outer() -> i32:
+    LEVEL
+
+fn inner(flag: bool) -> i32:
+    if flag:
+        LEVEL := +2
+        return LEVEL
+    LEVEL
+
+tests:
+    use std.testing.assert_equal
+
+    it("a top-level binding"):
+        assert_equal(outer(), 1, reason="the module binding")
+
+    it("an inner local shadows the module binding"):
+        assert_equal(inner(true), 2, reason="the inner local")
+        assert_equal(inner(false), 1, reason="the module binding outside the inner scope")
+
+    it("a function declaration as a value"):
+        f := double
+        assert_equal(f(3), 6, reason="the identifier selects the function")

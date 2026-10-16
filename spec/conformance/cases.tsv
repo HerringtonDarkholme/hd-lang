@@ -678,6 +678,8 @@ runtime/valid/cancellation-skips-unreached-defer.hd	runtime	accept	lang/06-contr
 runtime/valid/generic-partial-eq-bound-primitives.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime	accept	lang/05-expressions.md#calls
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime	accept	lang/05-expressions.md#evaluation-order
+typing/invalid/expression-type-checked-without-running.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.static-type
+runtime/valid/reorder-keeps-state-reads-in-order.hd	runtime	accept	lang/05-expressions.md#r-expr.order.reorder
 runtime/valid/logical-operators.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/bang-call-arguments-before-body.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 runtime/valid/operands-across-suspension-order.hd	runtime	accept	lang/05-expressions.md#evaluation-order
@@ -735,6 +737,12 @@ runtime/valid/evaluation-order-elements-and-indexing.hd	runtime	accept	lang/05-e
 runtime/valid/propagation-in-closure-targets-closure.hd	runtime	accept	lang/05-expressions.md#propagation
 runtime/valid/result-propagation-evaluates-once.hd	runtime	accept	lang/05-expressions.md#propagation
 runtime/valid/abrupt-assignment-stores-nothing.hd	runtime	accept	lang/05-expressions.md#expression-categories
+runtime/valid/let-local-place.hd	runtime	accept	lang/05-expressions.md#r-expr.place.local
+typing/invalid/arithmetic-not-a-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.value-forms
+typing/invalid/tuple-element-through-mutable-root.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.tuple-element
+typing/invalid/enum-shared-field-compound-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.enum-shared-field
+runtime/valid/local-assignment-evaluates-only-value.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.order.local
+runtime/valid/abrupt-index-stores-nothing.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.abrupt
 runtime/valid/binding-expression-tuple-value.hd	runtime	accept	lang/06-control-flow.md#r-flow.let.tuple-arity
 runtime/valid/method-receiver-before-arguments.hd	runtime	accept	lang/07-functions.md#methods-and-receivers
 runtime/valid/associated-function-qualified-call.hd	runtime	accept	lang/07-functions.md#methods-and-receivers
@@ -1221,6 +1229,8 @@ typing/invalid/literal-suffix-negative-range.hd	type	reject:integer-literal-rang
 typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	lang/05-expressions.md#r-expr.literal-fn.row
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.testing.it-function
 runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.fn-call
+runtime/valid/literal-is-call-each-time.hd	runtime	accept	lang/05-expressions.md#r-expr.literal.call
+typing/invalid/pass-has-void-type.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.literal.pass
 typing/valid/decorator-targets.hd	type	accept	lang/14-annotations.md#r-annot.decorator.targets
 typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.fact.block-on.direct
 typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.metadata.eval-as-fact
@@ -1400,6 +1410,10 @@ typing/invalid/compound-assign-data-no-operator.hd	type	reject:type-mismatch	lan
 typing/invalid/compound-assign-not-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.assign.compound.place-form
 parse/valid/compound-assignment-tokens.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.compound-assign
 parse/invalid/power-compound-assignment.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.op.no-power-assign
+parse/invalid/compound-assignment-as-expression.hd	parse	reject:syntax-error	lang/05-expressions.md#r-expr.assign.compound.form
+parse/invalid/logical-compound-assignment.hd	parse	reject:syntax-error	lang/05-expressions.md#r-expr.assign.compound.no-others
+parse/invalid/or-compound-assignment.hd	parse	reject:syntax-error	lang/05-expressions.md#r-expr.assign.compound.no-others
+typing/invalid/std-ops-assign-trait.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.assign.compound.no-assign-traits
 typing/valid/index-traits.hd	type	accept	lang/05-expressions.md#index-traits
 runtime/valid/index-traits-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.read-other
 typing/invalid/index-set-missing.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.index.trait.place
@@ -1760,6 +1774,8 @@ runtime/valid/tuple-vararg-spread-tail.hd	runtime	accept	lang/07-functions.md#r-
 runtime/valid/tuple-rest-derived.hd	runtime	accept	std/cmp.md#r-std-cmp.tuple.rest
 runtime/valid/debug-tuple-rest.hd	runtime	accept	lang/09-traits.md#r-trait.debug.tuples.rest
 runtime/valid/display-tuple-rest.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.std.tuple.rest-inline
+typing/invalid/interpolation-optional-without-display.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.interp.no-display
+runtime/valid/prefixed-string-values-not-displayed.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.prefixed
 parse/valid/spread-pattern-syntax.hd	parse	accept	lang/02-grammar.md#r-grammar.pattern.tuple-spread
 parse/invalid/spread-pattern-not-last.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.tuple-spread
 runtime/valid/spread-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.spread.bind
@@ -2200,6 +2216,7 @@ typing/invalid/qualified-string-prefix.hd	parse	reject:qualified-string-prefix	l
 typing/invalid/qualified-string-prefix-call.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 parse/invalid/qualified-string-prefix-value.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.bare-in-scope
+runtime/valid/prefix-import-without-marker.hd	runtime	accept	lang/05-expressions.md#r-expr.literal-fn.no-marker-import
 typing/valid/literal-first-use-while-len.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.operand
 typing/valid/literal-first-use-float-argument.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.argument
 typing/valid/literal-first-use-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
@@ -2271,6 +2288,11 @@ runtime/valid/literal-receiver-params-differ-annotated.hd	runtime	accept	lang/04
 typing/invalid/absolute-path-in-expression.hd	type	reject:unknown-name	lang/10-modules.md#r-module.root.use-only
 typing/invalid/module-path-private-member.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
 typing/invalid/module-path-missing-member.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing
+runtime/valid/identifier-selects-lexical-binding.hd	runtime	accept	lang/05-expressions.md#r-expr.name.identifier
+runtime/valid/contextual-variant-expected-type.hd	runtime	accept	lang/05-expressions.md#r-expr.name.contextual
+typing/invalid/contextual-variant-payload-needs-call.hd	type	reject:unsaturated-enum-constructor	lang/05-expressions.md#r-expr.name.contextual.rules
+typing/invalid/contextual-variant-no-search.hd	type	reject:missing-contextual-enum-type	lang/05-expressions.md#r-expr.name.contextual.no-search
+typing/invalid/contextual-variant-generic-parameter.hd	type	reject:missing-contextual-enum-type	lang/05-expressions.md#r-expr.name.contextual.no-type
 runtime/valid/doc-test-passes.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.block
 runtime/panic/doc-test-failing-assert.hd	runtime	panic:assertion-failed	lang/10-modules.md#r-module.test.doc.program
 runtime/valid/doc-test-compile-fail.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.compile-fail

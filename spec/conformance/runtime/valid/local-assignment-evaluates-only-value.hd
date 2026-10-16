@@ -1,0 +1,20 @@
+# test: assigning a local evaluates only the right-hand side, once
+# expect: test
+# Spec 05 Assignment: expr.assign.order.local.
+let log = ""
+
+fn note(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+fn assign() -> i32:
+    let target = +0
+    target = note("v", 5)
+    target
+
+tests:
+    use std.testing.assert_equal
+
+    it("only the value is evaluated"):
+        assert_equal(assign(), 5, reason="one store of the value")
+        assert_equal(log, "v", reason="no other subexpression ran")

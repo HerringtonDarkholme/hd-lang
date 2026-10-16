@@ -1,0 +1,4 @@
+# test: an optional value does not implement Display, so it cannot be interpolated
+# Spec 05 String Interpolation: expr.interp.no-display.
+fn render(count: i32?) -> string:
+    "count=$count"  # diagnostic: unsatisfied-trait-bound
