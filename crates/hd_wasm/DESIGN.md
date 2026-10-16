@@ -205,9 +205,12 @@ only the runtime form depends on the value. This is where the owner's
 all. A string is boxed in `$Box_str`, an immutable `{bytes, span}`
 struct, as a tuple is boxed in one immutable struct.
 
-Implementation differs: `Em::erase` boxes every scalar with `struct.new`
-of `box_of(vts)`, with no `i31ref` fast path; every scalar passed as
-`Any` or a trait value allocates (see #175).
+Implementation differs: only an `i32` slot has the `i31ref` form. `Em::erase`
+calls `Helper::EraseI32`, which makes an `i31ref` when the value fits in
+31 signed bits and a `box_of([i32])` otherwise. `rt::unerase` calls
+`Helper::UneraseI32`, which tests for `i31` (`ref.test`, not
+`br_on_cast`) and reads the box on a miss. Each is a helper call, not
+inline code. An `i64` and a float are still always boxed.
 
 **Identity.** These layouts rely on the language giving value types no
 identity. `.Some`, `.Ok`, `.Err`

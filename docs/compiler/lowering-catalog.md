@@ -152,9 +152,9 @@ break the caller-local rule; and `wasm-opt` in release.
   at most 16 bits are `i31ref`. Wider integers are `i31ref` when the value
   fits in 31 signed bits, else `$Box_i32` or `$Box_i64`, one allocation of
   16 to 24 bytes. Floats are always `$Box_f32` or `$Box_f64`.
-  Implementation differs: every erased scalar is an immutable box
-  (`Emit::erase`, `layout::box_of`), with no `i31ref` path; worse, since
-  each erasure of a small integer allocates. Not built yet; see #175.
+  Implementation differs: only an `i32` slot has the `i31ref` path
+  (`Helper::EraseI32`, `Helper::UneraseI32`). An `i64` and a float are
+  always boxed (`layout::box_of`).
 - **Type-only:** yes. The static layout is `eqref` for every width; only
   the runtime form (an `i31ref` or a box) depends on the value.
 

@@ -441,6 +441,11 @@ pub enum Helper {
         name: String,
         shown: String,
     },
+    /// `(i32) -> eqref`: an erased `i32` (§15.2): an `i31ref` when it fits
+    /// in 31 signed bits, else its box.
+    EraseI32,
+    /// `(eqref) -> i32`: what [`Helper::EraseI32`] made, back.
+    UneraseI32,
     /// `(n)`: marks the `n` handles in the exchange buffer as completed.
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
@@ -778,6 +783,8 @@ impl Helper {
             }
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
+            Helper::EraseI32 => w.u8(43),
+            Helper::UneraseI32 => w.u8(44),
             Helper::ForbidCheck => w.u8(41),
             Helper::WakeRegister => w.u8(39),
             Helper::WakeUp => w.u8(40),
@@ -995,6 +1002,8 @@ impl Helper {
             },
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
+            43 => Helper::EraseI32,
+            44 => Helper::UneraseI32,
             41 => Helper::ForbidCheck,
             39 => Helper::WakeRegister,
             40 => Helper::WakeUp,
@@ -1667,6 +1676,8 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         // Light until link finds an `all!` (`wake_nodes`).
         Helper::WakeMark => wake_mark(false),
         Helper::WakeTake => wake_take(),
+        Helper::EraseI32 => erase_i32(),
+        Helper::UneraseI32 => unerase_i32(),
         // Empty until link finds a forbidden context (`forbid_check`).
         Helper::ForbidCheck => forbid_check(false),
         Helper::WakeRegister => wake_register(false),
@@ -2002,11 +2013,61 @@ pub fn push_type_id(a: &mut Asm, st: &WTy, key: &str, shown: &str) {
     a.struct_new(st);
 }
 
+/// The code of [`Helper::EraseI32`]: `ref.i31` when shifting the value
+/// out and back by one bit keeps it, else a box.
+fn erase_i32() -> Code {
+    let mut a = Asm::new(vec![VT::I32]);
+    a.get(0);
+    a.i32(1);
+    a.s().i32_shl();
+    a.i32(1);
+    a.s().i32_shr_s();
+    a.get(0);
+    a.s().i32_eq();
+    a.if_ty(BlockType::Result(wasm_encoder::ValType::Ref(
+        wasm_encoder::RefType::EQREF,
+    )));
+    a.get(0);
+    a.s().ref_i31();
+    a.else_();
+    a.get(0);
+    a.struct_new(&crate::layout::box_of(&[VT::I32]));
+    a.end();
+    a.finish(vec![VT::Eq])
+}
+
+/// The code of [`Helper::UneraseI32`]: an `i31ref` read signed, else the
+/// box's field.
+fn unerase_i32() -> Code {
+    let i31 = wasm_encoder::HeapType::Abstract {
+        shared: false,
+        ty: wasm_encoder::AbstractHeapType::I31,
+    };
+    let b = crate::layout::box_of(&[VT::I32]);
+    let mut a = Asm::new(vec![VT::Eq]);
+    a.get(0);
+    a.s().ref_test_non_null(i31);
+    a.if_ty(BlockType::Result(wasm_encoder::ValType::I32));
+    a.get(0);
+    a.s().ref_cast_non_null(i31).i31_get_s();
+    a.else_();
+    a.get(0);
+    a.ref_cast(&b, false);
+    a.struct_get(&b, 0);
+    a.end();
+    a.finish(vec![VT::I32])
+}
+
 /// Unerases parameter `p` (an `eqref`) to `vts`: one reference is cast,
-/// anything else is read out of its box.
+/// an `i32` read back from its `i31ref` or box, anything else read out of
+/// its box.
 pub fn unerase(a: &mut Asm, p: u32, vts: &[VT]) {
     match vts {
         [VT::Eq] => a.get(p),
+        [VT::I32] => {
+            a.get(p);
+            a.call(Sym::Helper(Helper::UneraseI32));
+        }
         [v @ VT::Ref(..)] => {
             a.get(p);
             a.conv(&VT::Eq, v);
@@ -2773,6 +2834,8 @@ impl Helper {
             Helper::TypeIdOf { name, .. } => format!("type_id({})", plain(name)),
             Helper::WakeMark => "wake_mark".into(),
             Helper::WakeTake => "wake_take".into(),
+            Helper::EraseI32 => "erase_i32".into(),
+            Helper::UneraseI32 => "unerase_i32".into(),
             Helper::ForbidCheck => "forbid_check".into(),
             Helper::WakeRegister => "wake_register".into(),
             Helper::WakeUp => "wake_up".into(),

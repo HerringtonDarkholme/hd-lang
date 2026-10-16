@@ -1036,8 +1036,8 @@ into such a layout would break the identity of data values.
   does not depend on the program's other impls. This is simpler than the
   per-family struct and keeps the same independence.
 - A non-reference value crosses in a `box_of` struct of its values, as a
-  trait value's payload does; there is no `i31ref` form, so every scalar
-  crossing allocates (see #175).
+  trait value's payload does, except an `i32` that fits in 31 signed
+  bits, which crosses as an `i31ref` (crates/hd_wasm/DESIGN.md §15.2).
 - A tag switch over an open value outlines its tag read; `Match` does
   not read its scrutinee and stays.
 - A method's own row parameter (`fn run[$R]`) is open too: the erased

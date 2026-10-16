@@ -3354,10 +3354,15 @@ impl Em<'_> {
         }
     }
 
-    /// Pushes a value as `eqref` (§13.5.1, "As an open value").
+    /// Pushes a value as `eqref` (§13.5.1, "As an open value"): an `i32`
+    /// as an `i31ref` when it fits (`Helper::EraseI32`).
     fn erase(&mut self, v: u32, vts: &[VT]) -> StageResult<()> {
         if let [x @ (VT::Eq | VT::Ref(..))] = vts {
             self.comp(v, 0, x)
+        } else if vts == [VT::I32] {
+            self.load_as(v, vts)?;
+            self.a.call(Sym::Helper(Helper::EraseI32));
+            Ok(())
         } else {
             self.load_as(v, vts)?;
             self.a.struct_new(&box_of(vts));
