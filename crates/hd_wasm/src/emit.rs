@@ -339,22 +339,7 @@ impl Em<'_> {
                         self.a.i64(i64::try_from(s.len()).unwrap_or(0) << 32);
                     }
                 }
-                Shape::Scalar(VT::I64) => self.a.i64(bits.cast_signed()),
-                Shape::Scalar(VT::F64) => {
-                    self.a.s().f64_const(f64::from_bits(bits).into());
-                }
-                // A float literal's constant holds its `f64` bits whatever
-                // type the literal ends up with (`hd_check`'s literal).
-                Shape::Scalar(VT::F32) => {
-                    self.a.s().f64_const(f64::from_bits(bits).into());
-                    self.a.s().f32_demote_f64();
-                }
-                Shape::Scalar(_) | Shape::Enum(EnumShape { boxed: None, .. }) => {
-                    let low = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
-                    self.a.i32(low.cast_signed());
-                }
-                Shape::Void => {}
-                _ => return unsupported("a constant of this type"),
+                shape => self.scalar_const(&shape, bits)?,
             }
             return Ok(());
         }
@@ -366,6 +351,29 @@ impl Em<'_> {
         };
         self.a.get(*l);
         self.a.conv(have, want);
+        Ok(())
+    }
+
+    /// Pushes a constant's bits as a value of a scalar shape.
+    fn scalar_const(&mut self, shape: &Shape, bits: u64) -> StageResult<()> {
+        match shape {
+            Shape::Scalar(VT::I64) => self.a.i64(bits.cast_signed()),
+            Shape::Scalar(VT::F64) => {
+                self.a.s().f64_const(f64::from_bits(bits).into());
+            }
+            // A float literal's constant holds its `f64` bits whatever
+            // type the literal ends up with (`hd_check`'s literal).
+            Shape::Scalar(VT::F32) => {
+                self.a.s().f64_const(f64::from_bits(bits).into());
+                self.a.s().f32_demote_f64();
+            }
+            Shape::Scalar(_) | Shape::Enum(EnumShape { boxed: None, .. }) => {
+                let low = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
+                self.a.i32(low.cast_signed());
+            }
+            Shape::Void => {}
+            _ => return unsupported("a constant of this type"),
+        }
         Ok(())
     }
 
@@ -2481,6 +2489,12 @@ impl Em<'_> {
     /// direct `call` of its default body's instance with the earlier
     /// argument values, bracketed when the body makes a call (§12.3).
     fn default_call(&mut self, i: u32, args_at: u32, ty: Ty) -> StageResult<()> {
+        // A constant default is inlined (`crates/hd_mono/DESIGN.md` §13.13).
+        if let Some(Target::ConstDefault(bits)) = self.calls.get(&i).cloned() {
+            let shape = self.lay.shape(self.sub(ty))?;
+            self.scalar_const(&shape, bits)?;
+            return self.store(i);
+        }
         let Some(Target::Default { call, bracket }) = self.calls.get(&i).cloned() else {
             return unsupported("a default call that collection did not resolve");
         };

@@ -216,6 +216,10 @@ pub enum Target {
         call: CallTarget,
         bracket: bool,
     },
+    /// An omitted argument whose default body is one scalar constant, such
+    /// as `retries: i32 = 3`: the constant's bits, inlined at the call
+    /// with no default body instance (§13.13).
+    ConstDefault(u64),
     /// A coercion to a trait value: its vtable's targets.
     VTable(VTable),
     /// A trait method call at a trait-value receiver: it dispatches
@@ -2351,6 +2355,12 @@ impl Cx<'_> {
                         return err("a malformed default call record");
                     };
                     let def = DefId::from_raw(d);
+                    if let Some(bits) = env.body(def).and_then(scalar_constant) {
+                        reps.u8(2);
+                        reps.u64(bits);
+                        calls.insert(ix, Target::ConstDefault(bits));
+                        continue;
+                    }
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let t = self.target(def, pool.list(&targs), id)?;
@@ -2614,6 +2624,24 @@ fn direct_calls(
 /// operation that hashes and compares its key through impls (§13.12). A
 /// body that does not can never reach `block_on`, so its `DefaultCall`
 /// needs no forbidden-context bracket (`crates/hd_mono/DESIGN.md` §12.3).
+/// The bits of a default body that is one scalar constant: a root block
+/// with no instruction whose value is a constant other than a string
+/// (`crates/hd_mono/DESIGN.md` §13.13).
+fn scalar_constant(body: &Body) -> Option<u64> {
+    let root = *body.sub_root.first()? as usize;
+    if body.tags.get(root) != Some(&Tag::Block) || !body.record(body.data[root][0]).is_empty() {
+        return None;
+    }
+    let tail = hd_tir::ir::Ref(body.data[root][1]);
+    if tail.as_inst().is_some() || tail.0 == hd_tir::ir::NONE {
+        return None;
+    }
+    let &(ty, bits) = body
+        .consts
+        .get((tail.0 & !hd_tir::ir::Ref::CONST_BIT) as usize)?;
+    (ty != Ty::STRING).then_some(bits)
+}
+
 fn makes_call(body: &Body) -> bool {
     (0..body.len()).any(|i| match body.tags[i] {
         Tag::Call

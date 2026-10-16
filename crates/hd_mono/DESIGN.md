@@ -1555,6 +1555,12 @@ The thunk shares one default-body instance across all call sites at
 the same type arguments. Inlining of small defaults belongs to the
 inlining passes (§12.6), with no special case; none is built.
 
+Implementation differs: one case is inlined at collection. A default
+body that is one scalar constant, such as `times: i32 = 3`, becomes
+`Target::ConstDefault`. Its root block holds no instruction, and its
+value is a constant that is not a string. Emission pushes the constant
+at the call, so that default body has no instance (`scalar_constant`).
+
 Footprint per function with D defaulted parameters, per distinct type
 tuple that reaches it: one instance per default body (the default
 expression's code, often a few instructions), plus one call sequence
