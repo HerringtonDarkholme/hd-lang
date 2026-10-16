@@ -172,9 +172,45 @@ pub struct TokenBuf {
     pub com_start: Vec<u32>,
     pub com_end: Vec<u32>,
     pub com_kind: Vec<CommentKind>,
+    /// Tokens, in order, where a column-0 item start ended the scope of
+    /// brackets left unclosed before it (`grammar.recovery.unclosed`).
+    pub resync: Vec<u32>,
 }
 
 impl TokenBuf {
+    /// The token at `index` ends unclosed brackets' scope: layout and
+    /// parsing resume there at depth zero.
+    #[must_use]
+    pub fn is_resync(&self, index: usize) -> bool {
+        !self.resync.is_empty() && self.resync.binary_search(&to_u32(index)).is_ok()
+    }
+
+    /// The token at `index` begins a column-0 line with a word that only a
+    /// top-level item can start: `fn name`, `data`, `enum`, `trait`,
+    /// `impl`, `type`, `pub` or `tests`. No bracketed construct holds such
+    /// a line, because a suite nested in brackets is indented deeper than
+    /// the statement holding it.
+    fn starts_item_at_column_zero(&self, index: usize) -> bool {
+        let token = TokenIdx::from_raw(to_u32(index));
+        if !self.is_line_first(token) || self.line_indent[self.line_of(self.start[index])] != 0 {
+            return false;
+        }
+        match self.kind[index] {
+            TokenKind::KwFn => matches!(
+                self.kind.get(index + 1),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            ),
+            TokenKind::KwData
+            | TokenKind::KwEnum
+            | TokenKind::KwTrait
+            | TokenKind::KwImpl
+            | TokenKind::KwType
+            | TokenKind::KwPub
+            | TokenKind::KwTests => true,
+            _ => false,
+        }
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.kind.len()
@@ -449,11 +485,23 @@ impl<'s> Lexer<'s> {
         }
     }
 
-    /// `lex.delim.match`: each closer matches the most recent opener.
+    /// `lex.delim.match`: each closer matches the most recent opener. A
+    /// column-0 item start ends the scope of the openers still open before
+    /// it (`grammar.recovery.unclosed`), so each reports `unclosed-delimiter`
+    /// there and the next item is matched on its own.
     fn match_delimiters(&mut self) {
         let mut stack = Vec::<(TokenKind, usize)>::new();
         for index in 0..self.tokens.len() {
             let kind = self.tokens.kind[index];
+            if !stack.is_empty() && self.tokens.starts_item_at_column_zero(index) {
+                for (_, opener) in stack.drain(..) {
+                    let (lo, hi) = (self.tokens.start[opener], self.tokens.end[opener]);
+                    let text = &self.source[lo as usize..hi as usize];
+                    let message = format!("unclosed '{text}' delimiter");
+                    self.error(Code::UnclosedDelimiter, lo as usize, hi as usize, message);
+                }
+                self.tokens.resync.push(to_u32(index));
+            }
             if kind.is_open_delimiter() {
                 stack.push((kind, index));
             } else if kind.is_close_delimiter() {

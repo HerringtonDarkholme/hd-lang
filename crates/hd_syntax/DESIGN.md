@@ -173,11 +173,16 @@ pass. `precede` wraps a finished node through `forward_parent`;
   delimiter and `,` are the recovery set. Junk is wrapped in an `ERROR`
   node. The parser reports only the first error in a statement, and none
   where the lexer already reported.
-  Implementation differs: inside an unclosed bracket a column-0 line
-  produces no layout (`src/layout.rs:305`), and the parser suppresses
-  every diagnostic past the first unclosed opener
-  (`src/parser/mod.rs:205`, `:427`). This is worse: one missing `)` hides
-  every later syntax error in the file.
+  Inside brackets, the column-0 tokens that start an item are `fn name`,
+  `data`, `enum`, `trait`, `impl`, `type`, `pub` and `tests`; no
+  bracketed construct holds one, since a nested suite is indented deeper
+  than its statement. The lexer's delimiter matching reports the openers
+  still open there as `unclosed-delimiter` and records the token in
+  `TokenBuf::resync`; the layout cursor drops the bracket depth to zero
+  at it, and the parser suppresses errors only from each unclosed opener
+  through the token that ended its scope (`grammar.recovery.unclosed`).
+  Other column-0 lines (closers, operands, `@`, `use`) still continue
+  the brackets.
 - **Progress and depth.** Each repetition consumes at least one token,
   into an `ERROR` node if the grammar made no progress. Brackets, blocks,
   closures and interpolations share one depth counter. At 160 the parser

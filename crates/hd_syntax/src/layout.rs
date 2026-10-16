@@ -157,6 +157,10 @@ impl<'t> LayoutCursor<'t> {
     /// Called right after the parser consumes a suite-introducing `:` (or a
     /// match arm's `=>`). A token on the same line starts a same-line suite.
     pub fn open_suite(&mut self, closure: bool) -> SuiteKind {
+        if self.tokens.is_resync(self.pos) {
+            // The next item ends the brackets holding this header.
+            return SuiteKind::Missing;
+        }
         if self.pos < self.tokens.len() && !self.line_first(self.pos) {
             self.inline.push(self.depth);
             return SuiteKind::SameLine;
@@ -303,6 +307,11 @@ impl<'t> LayoutCursor<'t> {
     }
 
     fn line_start(&mut self, kind: TokenKind) {
+        if self.depth > 0 && self.tokens.is_resync(self.pos) {
+            // grammar.recovery.unclosed: a column-0 item start ends the
+            // unclosed brackets' scope, and the suites nested in them.
+            self.depth = 0;
+        }
         let column = self.column(self.pos);
         let mut newline = false;
         loop {

@@ -150,3 +150,69 @@ fn a_reserved_binding_name_is_scoped_to_its_item() {
         ["2: syntax-error", "6: syntax-error"]
     );
 }
+
+/// `grammar.recovery.unclosed`: an unclosed bracket's scope ends at the
+/// next column-0 item start, and later items report their own errors.
+/// (source, `line: code` list)
+const UNCLOSED_SCOPE: &[(&str, &[&str])] = &[
+    (
+        "fn first() -> i32:\n    total := add(1, 2\n    total\n\nfn second() -> i32:\n    x := (1 2)\n    x\n",
+        &["2: unclosed-delimiter", "6: syntax-error"],
+    ),
+    (
+        "fn first() -> i32:\n    values := [\n        +1\n    +2 +\n\ndata Point:\n    x i32\n",
+        &["2: unclosed-delimiter", "7: syntax-error"],
+    ),
+    (
+        "fn first() -> i32:\n    run(fn(x): [x,\n        +1 +\n\npub fn second() -> i32:\n    y := [1 2]\n    y\n",
+        &[
+            "2: unclosed-delimiter",
+            "2: unclosed-delimiter",
+            "6: syntax-error",
+        ],
+    ),
+    (
+        "fn first() -> i32:\n    run(fn(x):\nfn second() -> i32:\n    +1 +\n",
+        &["2: unclosed-delimiter", "5: syntax-error"],
+    ),
+    (
+        "fn first() -> i32:\n    total := add(1,\n\ntests:\n    it(\"adds\"):\n        x := (1 2)\n",
+        &["2: unclosed-delimiter", "6: syntax-error"],
+    ),
+    (
+        "fn first() -> i32:\n    total := add(1, 2\n    total\n\nfn second() -> i32:\n    +2\n",
+        &["2: unclosed-delimiter"],
+    ),
+];
+
+#[test]
+fn an_unclosed_bracket_ends_at_the_next_item() {
+    let failures: Vec<String> = UNCLOSED_SCOPE
+        .iter()
+        .filter_map(|&(source, wanted)| {
+            let got = diagnostics_by_line(source);
+            (got != wanted).then(|| format!("{source:?}: wanted {wanted:?}, got {got:?}"))
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A column-0 line inside balanced brackets that no item can start still
+/// continues them.
+#[test]
+fn column_zero_continuation_inside_brackets_still_parses() {
+    for source in [
+        "values := [\n+1,\n+2,\n]\nnext := +3\n",
+        "fn total() -> i32:\n    add(\n1,\nfn(x): x,\n)\n",
+        "fn total() -> i32:\n    run(\nfn(x: i32) -> i32:\n        x\n,\n)\n",
+        "fn f(\nvalue: i32,\n) -> i32:\n    value\n",
+    ] {
+        let parsed = parse(source.as_bytes());
+        assert!(
+            parsed.is_ok(),
+            "{source:?}: {:?}",
+            parsed.diagnostic_codes()
+        );
+        assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
+    }
+}

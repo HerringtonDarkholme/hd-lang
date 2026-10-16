@@ -166,8 +166,9 @@ pub(crate) struct Parser<'t> {
     errors: Vec<(Code, u32, u32, String)>,
     /// Spans the lexer already reported: no second diagnostic there.
     lexed: Vec<(u32, u32)>,
-    /// The first opener the lexer found unclosed.
-    unclosed_from: u32,
+    /// The scope of each delimiter the lexer found unclosed: from the
+    /// opener through the token that ended it, or to the end of the file.
+    unclosed: Vec<(u32, u32)>,
     /// The current statement already reported its error.
     stmt_errored: bool,
     /// The last construct consumed ended in a suite.
@@ -202,12 +203,7 @@ impl<'t> Parser<'t> {
             layouts: Vec::new(),
             errors: Vec::new(),
             lexed: spans,
-            unclosed_from: lexed
-                .iter()
-                .filter(|diagnostic| diagnostic.code == Code::UnclosedDelimiter)
-                .map(|diagnostic| diagnostic.primary.lo)
-                .min()
-                .unwrap_or(u32::MAX),
+            unclosed: unclosed_scopes(toks, lexed),
             stmt_errored: false,
             suite_closed: false,
             suite_inline: false,
@@ -423,8 +419,14 @@ impl<'t> Parser<'t> {
     }
 
     fn lexed_covers(&self, offset: u32) -> bool {
-        // Past an unclosed delimiter every later line is inside it.
-        if offset > self.unclosed_from {
+        // grammar.recovery.unclosed: the lines after an unclosed opener are
+        // inside it until the item start that ended it. That token is
+        // included, for the closers the parser then finds missing.
+        if self
+            .unclosed
+            .iter()
+            .any(|&(lo, end)| lo < offset && offset <= end)
+        {
             return true;
         }
         let index = self.lexed.partition_point(|&(lo, _)| lo <= offset);
@@ -432,6 +434,14 @@ impl<'t> Parser<'t> {
             .iter()
             .any(|&(_, hi)| offset < hi.max(1))
             || self.lexed[..index].iter().any(|&(lo, _)| lo == offset)
+    }
+
+    /// A lexer error's span or an unclosed delimiter's scope reaches the
+    /// end of the file, so an error found there is its fallout.
+    fn lexed_reaches_end(&self) -> bool {
+        let end = u32_of(self.src.len());
+        self.unclosed.iter().any(|&(_, scope)| scope == u32::MAX)
+            || self.lexed.iter().any(|&(_, hi)| hi >= end)
     }
 
     /// Reports `code` at the current token, once per statement, and never
@@ -468,7 +478,7 @@ impl<'t> Parser<'t> {
         {
             return;
         }
-        if at >= self.toks.len() && !self.lexed.is_empty() {
+        if at >= self.toks.len() && self.lexed_reaches_end() {
             return;
         }
         let (lo, hi) = self.token_span(at);
@@ -784,6 +794,25 @@ fn tabbed_indentation(src: &str, at: u32) -> Option<(u32, u32)> {
             .take_while(|byte| blank(byte))
             .count();
     Some((u32_of(at), u32_of(first + 1)))
+}
+
+/// The scope of each `unclosed-delimiter` the lexer reported: from its
+/// opener to the next column-0 item start, else to the end of the file.
+fn unclosed_scopes(toks: &TokenBuf, lexed: &[Diagnostic]) -> Vec<(u32, u32)> {
+    lexed
+        .iter()
+        .filter(|diagnostic| diagnostic.code == Code::UnclosedDelimiter)
+        .map(|diagnostic| {
+            let lo = diagnostic.primary.lo;
+            let end = toks
+                .resync
+                .iter()
+                .map(|&token| toks.start[token as usize])
+                .find(|&start| start > lo)
+                .unwrap_or(u32::MAX);
+            (lo, end)
+        })
+        .collect()
 }
 
 fn diag(code: Code, lo: u32, hi: u32, message: impl Into<String>) -> Diagnostic {
