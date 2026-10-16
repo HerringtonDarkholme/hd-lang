@@ -481,6 +481,7 @@ that calls a panic stub, rather than mapping the engine trap; not judged.
 | `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | no: the dev pipeline only |
 | `hd.names` | per function: an index into a path table and a list of indices into a type-argument table; the symbolizer prints the same names as `name` | yes; about 30 KB instead of 150 KB at 10k lines |
 | `hd.lines` | per function: sorted code offsets with an anchor each (§15.9) | yes |
+| `hd.positions` | only in a module `hd build` writes: per anchor, its file, line and printed function name (§15.9) | yes |
 
 Planned, not built: `hd.folds` (folded aliases per representative,
 §13.7) and writing `hd.runtime` (crates/hd_run_wasmtime/DESIGN.md §16.4; `hd_wasm::meta` defines its
@@ -609,7 +610,10 @@ reports: `FILE:LINE FUNCTION` lines, panic site first.
   program: the module's `check` entry gives the TIR syntax node, and a
   parse of the file the run read gives the line. One `PositionPool` keeps
   each module once for all programs of an `hd test` run. `hd build`
-  writes the rows anchored, unresolved.
+  keeps the rows anchored and adds `hd.positions`: each anchor resolved
+  to its file, line and printed function name when the module is
+  written, so `hd FILE.wasm` prints a panic's frames without the
+  compiler's cache.
 - **Reading.** Only on a trap. Node reports V8 frames with
   `Error.stackTraceLimit = Infinity`; wasmtime reports `WasmBacktrace`
   frames, with its frame limit set to `max_wasm_stack / 16`, which no

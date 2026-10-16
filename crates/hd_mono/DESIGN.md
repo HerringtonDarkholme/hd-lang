@@ -1228,9 +1228,10 @@ printed:
   column in the written sections: one pass over about 5,000 rows at 10k
   lines, plus one map of each reachable module's `check` entry, a few ms
   per build. The cached `link` and `cwasm` entries stay anchored.
-  Implementation differs: `hd build` writes the rows anchored,
-  unresolved (crates/hd_wasm/DESIGN.md §15.9), so a written file cannot
-  print source lines without the compiler's cache.
+  Implementation differs: the written rows stay anchored, and an
+  added `hd.positions` section holds each anchor's file, line and
+  printed function name, with no column (crates/hd_wasm/DESIGN.md
+  §15.9).
 
 So a comment edit above a panic changes the line it reports and nothing
 that is compiled or cached.

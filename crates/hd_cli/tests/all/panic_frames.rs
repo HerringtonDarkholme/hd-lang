@@ -375,7 +375,8 @@ fn custom_sections(wasm: &[u8]) -> Vec<String> {
 
 /// A debug build keeps the standard `name` section beside `hd.lines`; a
 /// release build drops it for the compact `hd.names`, so its panics still
-/// name their functions (`crates/hd_wasm/DESIGN.md` §15.5).
+/// name their functions (`crates/hd_wasm/DESIGN.md` §15.5). Both carry
+/// `hd.positions`, the anchors `hd build` resolved.
 #[test]
 fn release_builds_name_functions_in_hd_names() {
     let root = package(
@@ -386,11 +387,17 @@ fn release_builds_name_functions_in_hd_names() {
     let out = hd(&root, &["build"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let debug = std::fs::read(root.join("build/debug/shop.wasm")).expect("debug wasm");
-    assert_eq!(custom_sections(&debug), ["hd.lines", "name"]);
+    assert_eq!(
+        custom_sections(&debug),
+        ["hd.lines", "name", "hd.positions"]
+    );
     let out = hd(&root, &["build", "--release"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
-    assert_eq!(custom_sections(&release), ["hd.lines", "hd.names"]);
+    assert_eq!(
+        custom_sections(&release),
+        ["hd.lines", "hd.names", "hd.positions"]
+    );
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
 }
 
@@ -472,4 +479,43 @@ fn runtime_helper_names_are_short_and_readable() {
     sorted.sort();
     sorted.dedup();
     assert_eq!(sorted.len(), rt.len(), "a helper name repeats: {rt:?}");
+}
+
+const BUILT: &str = "\
+fn pick(items: List[i32], at: usize) -> i32:
+    items[at]
+
+pub fn main() -> void $ Console:
+    println(\"start\")
+    println(pick([1, 2], 5))
+";
+
+/// A module `hd build` wrote stands alone (`crates/hd_mono/DESIGN.md`
+/// \"Positions\"): run with an empty cache, its panic prints the same
+/// frames `hd run` prints.
+#[test]
+fn a_built_module_prints_its_frames_without_the_cache() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-frames-built");
+    std::fs::create_dir_all(root.join("src")).expect("src");
+    std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");
+    std::fs::write(root.join("src/main.hd"), BUILT).expect("main");
+    let built = hd(&root, &["build"]);
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    let empty = root.join("empty-cache");
+    std::fs::create_dir_all(&empty).expect("empty cache");
+    let ran = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", &empty)
+        .env_remove("HD_ENGINE")
+        .current_dir(&*root)
+        .arg("build/debug/shop.wasm")
+        .output()
+        .expect("run the module");
+    assert_eq!(text(&ran.stdout), "start\n");
+    assert_eq!(
+        text(&ran.stderr),
+        "panic: index-out-of-bounds: list index out of bounds\n    \
+         src/main.hd:2 shop.main.pick\n    \
+         src/main.hd:6 shop.main.main\n"
+    );
+    assert_eq!(ran.status.code(), Some(3));
 }

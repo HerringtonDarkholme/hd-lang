@@ -511,6 +511,23 @@ pub(crate) fn build_goal_in(
     Ok(out)
 }
 
+/// [`compile`] for `hd build`: the module with its frames' positions
+/// resolved and written in, so it prints a panic's frames without the
+/// compiler's cache (`crates/hd_mono/DESIGN.md` "Positions").
+fn compile_standalone(
+    program: &disk::Program,
+    (profile, pipeline): (BuildProfile, Pipeline),
+    rep: &mut Reporter,
+) -> Result<Vec<u8>, ExitCode> {
+    let built = compile_traced(program, (profile, pipeline), rep)?;
+    let mut wasm = built.wasm;
+    if let Some((frames, sources)) = &built.frames {
+        let section = frames.positions_section(&wasm, sources);
+        wasm.extend(section);
+    }
+    Ok(wasm)
+}
+
 /// Compiles a program to Wasm bytes in `profile` through `pipeline`,
 /// reporting diagnostics.
 fn compile(
@@ -597,6 +614,13 @@ fn execute(
             // test's report does (`flow.panic.report`).
             if let Some((frames, sources)) = &built.frames {
                 for line in frames.lines(wasm, &trap, sources) {
+                    eprintln!("    {line}");
+                }
+            } else if !trap.is_empty()
+                && let Ok(table) = hd_run::frames::LineTable::parse(wasm)
+            {
+                // A module `hd build` wrote carries its positions.
+                for line in test_cmd::collapse(&table.resolved_lines(&trap)) {
                     eprintln!("    {line}");
                 }
             }
@@ -1200,7 +1224,7 @@ fn build_package(
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let wasm = compile(&program, (profile_of(release), pipeline), rep)?;
+        let wasm = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
         write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
     Ok(())
@@ -1232,7 +1256,7 @@ fn build_file(
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let wasm = compile(&program, (profile_of(release), pipeline), rep)?;
+    let wasm = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())

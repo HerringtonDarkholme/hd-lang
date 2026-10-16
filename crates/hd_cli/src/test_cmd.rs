@@ -381,6 +381,30 @@ impl Frames {
     }
 }
 
+impl Frames {
+    /// The `hd.positions` section of a module `hd build` writes: each
+    /// anchor of its line table resolved to the file, line and function
+    /// name a frame prints, so the written module stands alone
+    /// (`crates/hd_mono/DESIGN.md` "Positions"). An anchor the run did not
+    /// check is left out.
+    pub(crate) fn positions_section(&self, wasm: &[u8], src: &disk::DiskSources) -> Vec<u8> {
+        let Ok(table) = hd_run::frames::LineTable::parse(wasm) else {
+            return Vec::new();
+        };
+        let entries: Vec<_> = table
+            .anchors()
+            .into_iter()
+            .filter_map(|a| {
+                let (file, line) = self.positions.line(&a.item, a.inst)?;
+                let file = src.display(file);
+                let name = self.positions.name(&a.item);
+                Some((a, file, line, name))
+            })
+            .collect();
+        hd_run::frames::positions_section(&entries)
+    }
+}
+
 /// `flow.panic.report.fallback` and `.fix`: the panic site's integer type
 /// is a literal's `usize` default; `local` is the binding it reads.
 fn fallback_note(local: Option<&str>) -> String {
@@ -401,7 +425,7 @@ const FRAME_CYCLE: usize = 8;
 /// `... last K frames repeated N more times`. So a recursion that never
 /// ends reports a few lines. At each frame the cycle that covers the most
 /// frames wins, the shorter on a tie.
-fn collapse(frames: &[String]) -> Vec<String> {
+pub(crate) fn collapse(frames: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < frames.len() {
