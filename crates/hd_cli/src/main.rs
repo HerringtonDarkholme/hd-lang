@@ -86,6 +86,7 @@ fn main() -> ExitCode {
         Ok(parsed) => parsed,
         Err(error) => return fail(&error),
     };
+    let arguments = format_after_command(arguments);
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
         // `cli.repl.open.terminal`: `hd` with no arguments on a terminal
         // opens the REPL. `cli.stdin.program`: without a terminal, it runs
@@ -227,6 +228,40 @@ fn compiler_memory_flag(args: &[OsString]) -> Result<(Vec<OsString>, Option<u64>
         }
     }
     Ok((words, memory))
+}
+
+/// `--format` is a global flag (`hd help`): written before a command's
+/// name, as in `hd --format json check FILE`, it moves after the name,
+/// where the command reads it. Before a FILE it stays, since `hd FILE`
+/// reads it there.
+fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
+    let Some(Ok((_, used))) = report::format_flag(&args, 0) else {
+        return args;
+    };
+    let command = args.get(used).and_then(|c| c.to_str());
+    if command.is_some_and(|c| {
+        matches!(
+            c,
+            "build"
+                | "run"
+                | "test"
+                | "check"
+                | "doc"
+                | "new"
+                | "add"
+                | "update"
+                | "remove"
+                | "fetch"
+                | "clean"
+                | "fmt"
+                | "fix"
+                | "cache"
+        )
+    }) {
+        let flag: Vec<OsString> = args.drain(..used).collect();
+        args.splice(1..1, flag);
+    }
+    args
 }
 
 /// `cli.memory.cap`: `--max-memory` wins; otherwise `HD_MAX_MEMORY` fills in.
@@ -1193,7 +1228,7 @@ fn build_file(
 
 #[cfg(test)]
 mod limit_tests {
-    use super::{compiler_memory_flag, compiles};
+    use super::{compiler_memory_flag, compiles, format_after_command};
     use std::ffi::OsString;
 
     fn args(words: &[&str]) -> Vec<OsString> {
@@ -1227,6 +1262,20 @@ mod limit_tests {
         .unwrap();
         assert_eq!(words, args(&["check", "main.hd"]));
         assert_eq!(memory, Some(2 * 1024 * 1024));
+    }
+
+    #[test]
+    fn a_leading_format_flag_moves_after_the_command() {
+        assert_eq!(
+            format_after_command(args(&["--format", "json", "check", "main.hd"])),
+            args(&["check", "--format", "json", "main.hd"])
+        );
+        assert_eq!(
+            format_after_command(args(&["--format=json", "test"])),
+            args(&["test", "--format=json"])
+        );
+        let file = args(&["--format", "json", "main.hd"]);
+        assert_eq!(format_after_command(file.clone()), file);
     }
 
     #[test]

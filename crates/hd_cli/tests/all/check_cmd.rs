@@ -878,3 +878,30 @@ fn a_no_root_file_in_a_package_uses_only_std() {
         },
     );
 }
+
+/// `--format` is a global flag: before the command's name it works as it
+/// does after it.
+#[test]
+fn a_format_flag_before_the_command_selects_json() {
+    let dir = package("hd-check-format-first", BROKEN);
+    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.cache())
+        .current_dir(&*dir)
+        .args(["--format", "json", "check", "main.hd"])
+        .output()
+        .expect("run hd");
+    let out = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(101), "{out}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert!(
+        lines[0].starts_with("{\"kind\":\"diagnostic\",\"code\":\"unknown-name\""),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines[1].starts_with("{\"kind\":\"summary\""),
+        "{}",
+        lines[1]
+    );
+}
