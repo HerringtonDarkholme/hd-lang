@@ -2483,12 +2483,12 @@ impl Lower<'_, '_, '_> {
     /// `fn.decl.result-required-pub`: a public function, a public inherent
     /// method, and a trait method or the method of a trait implementation
     /// declare their result type.
-    fn result_required(&mut self, f: NodeRef<'_>, public: bool) {
-        if public && self.r.frozen.is_none() && Src::type_child(f).is_none() {
+    fn result_required(&mut self, f: NodeRef<'_>, required: bool) {
+        if required && self.r.frozen.is_none() && Src::type_child(f).is_none() {
             self.diags.error(
                 Code::MissingResultType,
                 self.src.span(f),
-                "a public declaration states its result type: write `-> T`",
+                "this declaration must state its result type: write `-> T`",
             );
         }
     }
@@ -2901,11 +2901,15 @@ impl Lower<'_, '_, '_> {
             .collect()
     }
 
+    /// `result_required`: each method declares its result type, as a
+    /// trait's methods and a trait implementation's do
+    /// (`fn.decl.result-required-pub`).
     fn members(
         &mut self,
         block: Option<NodeRef<'_>>,
         owner: DefId,
         public: bool,
+        result_required: bool,
         gn: &Gen,
         out: &mut Vec<Item>,
     ) -> (Vec<(Symbol, DefId)>, Vec<AssocDecl>) {
@@ -2920,7 +2924,7 @@ impl Lower<'_, '_, '_> {
                     let text = self.src.text(t).to_owned();
                     let name = self.sym(&text);
                     let def = self.names.member(owner, PathKind::Member, &text);
-                    self.result_required(f, public || self.src.is_pub(f));
+                    self.result_required(f, result_required || self.src.is_pub(f));
                     let sig = self.sig(f, def, gn);
                     let mut it = Item::new(
                         def,
@@ -3240,7 +3244,14 @@ impl Lower<'_, '_, '_> {
         if trait_ != DefId::NONE {
             self.duplicate_members(block);
         }
-        let (methods, assoc_decls) = self.members(block, h.def, trait_ != DefId::NONE, &gn, out);
+        let (methods, assoc_decls) = self.members(
+            block,
+            h.def,
+            trait_ != DefId::NONE,
+            trait_ != DefId::NONE,
+            &gn,
+            out,
+        );
         if trait_ == DefId::NONE
             && self.r.frozen.is_none()
             && let Some(b) = block
@@ -3843,7 +3854,7 @@ impl Lower<'_, '_, '_> {
                 }
                 let supers = self.supers(n, &gn, self_ty);
                 self.duplicate_members(block);
-                let (methods, assoc_decls) = self.members(block, h.def, h.public, &gn, out);
+                let (methods, assoc_decls) = self.members(block, h.def, h.public, true, &gn, out);
                 let mut assoc = Vec::new();
                 for (name, def, ty) in assoc_decls {
                     out.push(Item::new(

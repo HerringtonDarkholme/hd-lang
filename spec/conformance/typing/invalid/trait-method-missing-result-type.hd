@@ -1,0 +1,5 @@
+# test: functions / declarations / trait method needs a result type
+# Spec 07 Functions: fn.decl.result-required-pub.
+
+trait Sized:
+    fn size(self)  # diagnostic: missing-result-type

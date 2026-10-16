@@ -1346,6 +1346,8 @@ typing/invalid/row-alias-bare-target.hd	type	reject:generic-kind-mismatch	lang/1
 typing/invalid/row-alias-bare-alias.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.dollar.missing
 runtime/valid/row-forced-overlap-nearest.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 typing/invalid/public-method-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#r-fn.decl.result-required-pub
+typing/invalid/trait-method-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#r-fn.decl.result-required-pub
+typing/invalid/trait-default-method-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#r-fn.decl.result-required-pub
 typing/valid/private-method-infers-result-and-row.hd	type	accept	lang/07-functions.md#r-fn.decl.result-omitted-private
 typing/invalid/public-method-without-requirement-clause.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub
 runtime/valid/float-cast-saturates.hd	runtime	accept	lang/04-type-system.md#r-types.cast.saturate
