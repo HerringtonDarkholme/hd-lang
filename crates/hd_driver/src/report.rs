@@ -94,6 +94,8 @@ pub struct Counters {
     /// How many TIR bodies were decoded: only the ones collection and
     /// emission reach (#49).
     pub bodies_decoded: usize,
+    /// Impl head pairs the coherence check unified (§4.12.3).
+    pub overlap_pairs: usize,
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,

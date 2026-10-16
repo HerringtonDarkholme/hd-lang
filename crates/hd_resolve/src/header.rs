@@ -9,6 +9,17 @@ use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 use crate::iface::{ImplKind, Item, ItemData, Names};
 
+/// A head-index key of the overlap check: an outer constructor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum HeadKey {
+    Def(DefId),
+    Trait(DefId),
+    /// A constructor by number, and a tuple's arity.
+    Ctor(u8, u32),
+    /// A ground leaf type, such as a primitive.
+    Ground(Ty),
+}
+
 /// The trait impls of a program graph, by trait.
 pub struct Universe<'a> {
     pub names: Names<'a>,
@@ -46,8 +57,22 @@ impl<'a> Universe<'a> {
     /// in content order.
     #[must_use]
     pub fn overlaps(&self, order: &dyn Fn(DefId) -> String) -> Vec<(DefId, DefId, String)> {
+        self.overlaps_counted(order).0
+    }
+
+    /// [`Self::overlaps`], and how many head pairs it unified. A head is
+    /// compared only with the earlier heads whose target and first trait
+    /// argument can match its own by their outer constructors
+    /// (`head_key`), so many impls of one trait for distinct types cost
+    /// time near-linear in their count; the result is the pairwise one.
+    #[must_use]
+    pub fn overlaps_counted(
+        &self,
+        order: &dyn Fn(DefId) -> String,
+    ) -> (Vec<(DefId, DefId, String)>, usize) {
         let pool = self.pool();
         let mut out = Vec::new();
+        let mut tried = 0_usize;
         let mut traits: Vec<&DefId> = self.impls.keys().collect();
         traits.sort_by_key(|d| self.names.path_hash(**d));
         for tr in traits {
@@ -98,11 +123,55 @@ impl<'a> Universe<'a> {
                     None => heads.push((imp.def, *self_ty, *trait_args)),
                 }
             }
+            // Earlier heads by the key of their target, and of their first
+            // trait argument; a key of `None` matches every key.
+            let keys: Vec<(Option<HeadKey>, Option<HeadKey>)> = heads
+                .iter()
+                .map(|h| {
+                    let arg = pool.list_items(h.2).first().copied();
+                    (self.head_key(h.1), arg.and_then(|t| self.head_key(t)))
+                })
+                .collect();
+            let mut by_self: HashMap<HeadKey, Vec<usize>> = HashMap::default();
+            let mut by_arg: HashMap<HeadKey, Vec<usize>> = HashMap::default();
+            let (mut self_wild, mut arg_wild) = (Vec::new(), Vec::new());
+            let fits =
+                |x: Option<HeadKey>, y: Option<HeadKey>| x.is_none() || y.is_none() || x == y;
             for (j, b) in heads.iter().enumerate() {
-                for a in &heads[..j] {
+                let (ks, ka) = keys[j];
+                let mut cands: Vec<usize> = match (ks, ka) {
+                    (Some(k), _) => by_self
+                        .get(&k)
+                        .into_iter()
+                        .flatten()
+                        .chain(&self_wild)
+                        .copied()
+                        .filter(|&i| fits(keys[i].1, ka))
+                        .collect(),
+                    (None, Some(k)) => by_arg
+                        .get(&k)
+                        .into_iter()
+                        .flatten()
+                        .chain(&arg_wild)
+                        .copied()
+                        .collect(),
+                    (None, None) => (0..j).collect(),
+                };
+                cands.sort_unstable();
+                cands.dedup();
+                match ks {
+                    Some(k) => by_self.entry(k).or_default().push(j),
+                    None => self_wild.push(j),
+                }
+                match ka {
+                    Some(k) => by_arg.entry(k).or_default().push(j),
+                    None => arg_wild.push(j),
+                }
+                for a in cands.into_iter().map(|i| &heads[i]) {
                     if a.0 == b.0 || reported.contains(&b.0) {
                         continue;
                     }
+                    tried += 1;
                     let mut sub = HashMap::default();
                     if self.unify(a.1, b.1, a.0, b.0, &mut sub)
                         && self.unify_list(a.2, b.2, a.0, b.0, &mut sub)
@@ -115,7 +184,30 @@ impl<'a> Universe<'a> {
                 }
             }
         }
-        out
+        (out, tried)
+    }
+
+    /// The outer constructor of `t` as a head-index key. `None` for a
+    /// parameter, or any other type that may unify with many: such a head
+    /// is compared with every earlier one.
+    fn head_key(&self, t: Ty) -> Option<HeadKey> {
+        let pool = self.pool();
+        // `unify` matches outer constructors, so a key is the constructor
+        // alone; a primitive is its own constructor.
+        match pool.get(t) {
+            TyData::Adt { def, .. } => Some(HeadKey::Def(def)),
+            TyData::TraitValue { def, .. } => Some(HeadKey::Trait(def)),
+            TyData::Option(_) => Some(HeadKey::Ctor(0, 0)),
+            TyData::Mut(_) => Some(HeadKey::Ctor(1, 0)),
+            TyData::Fn { .. } => Some(HeadKey::Ctor(2, 0)),
+            TyData::Tuple { elems, rest: None } => Some(HeadKey::Ctor(
+                3,
+                u32::try_from(pool.list_items(elems).len()).unwrap_or(u32::MAX),
+            )),
+            TyData::Param(_) | TyData::Tuple { .. } => None,
+            _ if !pool.has_param(t) => Some(HeadKey::Ground(t)),
+            _ => None,
+        }
     }
 
     /// A numeric-family head: `impl[N < B] Tr for N` where every impl of

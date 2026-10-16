@@ -3955,7 +3955,8 @@ impl Run<'_> {
                 names.path(d)
             )
         };
-        let overlaps = u.overlaps(&order);
+        let (overlaps, tried) = u.overlaps_counted(&order);
+        lock(&self.counters).overlap_pairs += tried;
         lock(&self.report).ok(Stage::Coherence);
         let found: Vec<(DefId, String)> = overlaps
             .into_iter()

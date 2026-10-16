@@ -519,10 +519,16 @@ reported as `trait-resolution-depth`.
   apart ([crates/hd_check/DESIGN.md (trait solver) §5.2](../hd_check/DESIGN.md#52-the-overlap-check)).
   Heads that differ at a constructor cost time linear in their total
   size, not one check per pair.
-  Implementation differs: `Universe::overlaps`
-  (`src/header.rs:48`) sorts each trait's heads in content order and
-  unifies each head with every earlier one. This is worse: the work is
-  quadratic in a trait's impl count.
+  Implementation differs: `Universe::overlaps` keeps no tries.
+  - **Keys.** It sorts each trait's heads in content order and keys each
+    head by the outer constructor of its target and of its first trait
+    argument (`head_key`). A parameter, or a tuple with a rest, is a
+    wildcard.
+  - **Candidates.** It unifies a head only with the earlier heads whose
+    keys can match its own, in the same order, so it reports the
+    pairwise result.
+  - **Cost.** Many impls for distinct types cost near-linear time.
+    Generic targets still compare with every earlier head.
 - An overlap is reported once, at the later impl in content order (std
   first, then generated `@error` impls, written impls, `@derive`,
   derivation blocks; then module path and position), naming the earlier
