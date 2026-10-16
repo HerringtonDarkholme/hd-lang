@@ -11,6 +11,8 @@ mod deps;
 mod doc_links;
 mod doc_name;
 mod doc_tests;
+#[cfg(unix)]
+mod fifo;
 mod fix_cmd;
 mod host_traits;
 mod node_host_exit;

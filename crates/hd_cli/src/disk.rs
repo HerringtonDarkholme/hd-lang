@@ -98,8 +98,49 @@ impl SourceSet for DiskSources {
         if let Some((_, text)) = self.synthetic.iter().find(|(p, _)| p == path) {
             return Some(text.clone());
         }
-        std::fs::read(self.disk_path(path)).ok().map(Arc::from)
+        read_regular(&self.disk_path(path)).map(Arc::from)
     }
+}
+
+/// What a directory entry is for a walk: a directory, a regular file, or
+/// neither. A symbolic link is judged by its target, through `stat`, which
+/// never opens it. FIFOs, sockets and devices are neither, so a walk never
+/// opens one: opening a FIFO with no writer blocks forever.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Kind {
+    Dir,
+    File,
+    Other,
+}
+
+pub(crate) fn kind_of(entry: &std::fs::DirEntry) -> Kind {
+    let Ok(t) = entry.file_type() else {
+        return Kind::Other;
+    };
+    let t = if t.is_symlink() {
+        match std::fs::metadata(entry.path()) {
+            Ok(m) => m.file_type(),
+            Err(_) => return Kind::Other,
+        }
+    } else {
+        t
+    };
+    if t.is_dir() {
+        Kind::Dir
+    } else if t.is_file() {
+        Kind::File
+    } else {
+        Kind::Other
+    }
+}
+
+/// The bytes of `path` if it is a regular file (after links), else `None`
+/// without opening it.
+pub(crate) fn read_regular(path: &Path) -> Option<Vec<u8>> {
+    if !std::fs::metadata(path).is_ok_and(|m| m.is_file()) {
+        return None;
+    }
+    std::fs::read(path).ok()
 }
 
 /// A path relative to the package directory at `root`, as discovery lists
@@ -130,9 +171,10 @@ pub fn source_dir(root: &Path) -> String {
 
 fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
-    paths.sort();
-    for p in paths {
+    let mut paths: Vec<(PathBuf, Kind)> =
+        entries.flatten().map(|e| (e.path(), kind_of(&e))).collect();
+    paths.sort_by(|a, b| a.0.cmp(&b.0));
+    for (p, kind) in paths {
         let name = p
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -140,9 +182,9 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), Strin
         if name.starts_with('.') || name == "build" {
             continue;
         }
-        if p.is_dir() {
+        if kind == Kind::Dir {
             walk(root, &p, out)?;
-        } else if p.extension().is_some_and(|x| x == "hd") {
+        } else if kind == Kind::File && p.extension().is_some_and(|x| x == "hd") {
             let rel = p
                 .strip_prefix(root)
                 .map_err(|e| e.to_string())?

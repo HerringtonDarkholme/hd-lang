@@ -172,12 +172,12 @@ fn on_path(name: &str) -> Option<PathBuf> {
 /// Hashes a file's path and bytes, or that it is missing.
 fn file(h: &mut StableHasher, path: &Path) {
     h.str(&path.to_string_lossy());
-    match std::fs::read(path) {
-        Ok(b) => {
+    match disk::read_regular(path) {
+        Some(b) => {
             h.u8(1);
             h.bytes(&b);
         }
-        Err(_) => h.u8(0),
+        None => h.u8(0),
     }
 }
 
@@ -240,21 +240,23 @@ fn walk(h: &mut StableHasher, root: &Path, dir: &Path, skip: &dyn Fn(&str) -> bo
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        let Ok(kind) = e.file_type() else {
-            continue;
-        };
-        if kind.is_dir() {
-            walk(h, root, &path, skip);
-        } else if kind.is_symlink() && path.is_dir() {
-            h.str(&rel);
-            h.str(
-                &std::fs::read_link(&path)
-                    .unwrap_or_default()
-                    .to_string_lossy(),
-            );
-        } else if !skip(&rel) {
-            h.str(&rel);
-            h.bytes(&std::fs::read(&path).unwrap_or_default());
+        let linked = e.file_type().is_ok_and(|t| t.is_symlink());
+        match disk::kind_of(&e) {
+            disk::Kind::Dir if !linked => walk(h, root, &path, skip),
+            disk::Kind::Dir => {
+                h.str(&rel);
+                h.str(
+                    &std::fs::read_link(&path)
+                        .unwrap_or_default()
+                        .to_string_lossy(),
+                );
+            }
+            disk::Kind::File if !skip(&rel) => {
+                h.str(&rel);
+                h.bytes(&disk::read_regular(&path).unwrap_or_default());
+            }
+            // A FIFO, socket or device is never opened.
+            disk::Kind::File | disk::Kind::Other => {}
         }
     }
 }
