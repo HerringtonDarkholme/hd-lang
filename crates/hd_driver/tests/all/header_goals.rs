@@ -252,3 +252,23 @@ fn a_comment_edit_keeps_the_cached_findings_and_moves_their_positions() {
     assert_eq!(misses, 0, "the interface key ignores comments");
     assert!(hits >= 2, "{hits}");
 }
+
+/// A parse error blocks the folder's interface on a warm run as on a
+/// clean one, so no cached header finding is replayed past it (#310).
+#[test]
+fn a_parse_error_hides_the_cached_header_findings() {
+    let store = MemoryStore::default();
+    let files = [("lib/defs.hd", LIB), ("without/main.hd", WITHOUT)];
+    let (cold, _, _) = analyze_in(&store, &files, "without/main.hd");
+    assert_eq!(cold.len(), 1, "{cold:#?}");
+    for broken in [
+        WITHOUT.replace("    1\n", "    1 +\n"),
+        format!("// note\n{WITHOUT}"),
+    ] {
+        let files = [("lib/defs.hd", LIB), ("without/main.hd", broken.as_str())];
+        let (warm, _, _) = analyze_in(&store, &files, "without/main.hd");
+        let (fresh, _, _) = analyze_in(&MemoryStore::default(), &files, "without/main.hd");
+        assert_eq!(warm, fresh, "{broken:?}");
+        assert!(warm.iter().all(|d| d.contains("syntax-error")), "{warm:#?}");
+    }
+}

@@ -2892,6 +2892,17 @@ impl Run<'_> {
             &apis,
             &reach_hashes,
         );
+        // A module that does not parse blocks the interface, cached or
+        // not, so a warm run reports what a clean one does: no header
+        // finding past a parse error (#310). An unchanged module's clean
+        // parse is a `parse` entry, so this parses only edited modules.
+        for m in &folder.modules {
+            if !self.parses(m.idx()) {
+                self.blocked(Stage::FolderIface);
+                let _ = self.iface[fi].set(None);
+                return;
+            }
+        }
         let names = self.names();
         if let Some(sections) = self.lookup(EntryKind::Iface, key)
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
@@ -2900,13 +2911,6 @@ impl Run<'_> {
             self.keep_input(m, |e| &mut e.iface, || sections);
             self.keep_input(m, |e| &mut e.mentions, || mentions);
             return;
-        }
-        for m in &folder.modules {
-            if !self.parse_of(m.idx()).is_ok() {
-                self.blocked(Stage::FolderIface);
-                let _ = self.iface[fi].set(None);
-                return;
-            }
         }
         let mods: Vec<hd_resolve::ModIn<'_>> = folder
             .modules
