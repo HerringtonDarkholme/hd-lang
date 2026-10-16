@@ -1,0 +1,13 @@
+# test: concatenation joins the bytes of its operands
+# Spec 04 Type System: types.string.concat-bytes.
+
+tests:
+    use std.testing.assert_equal
+
+    it("the result holds both operands' bytes in order"):
+        joined := "é" + "x"
+        assert_equal(joined.len(), 3, reason="2 bytes then 1 byte")
+        assert_equal(joined[0], 0xC3, reason="the left operand's first byte")
+        assert_equal(joined[1], 0xA9, reason="the left operand's last byte")
+        assert_equal(joined[2], 0x78, reason="the right operand's byte")
+        assert_equal(joined, "éx", reason="the result is valid UTF-8")

@@ -1,0 +1,7 @@
+# test: a byte offset inside a scalar's encoding is a checked runtime panic
+# Spec 04 Type System: types.string.split-scalar.
+
+tests:
+    it("slices inside é"):
+        text := "é"
+        _ := text.slice(0, 1)  # panic: index-out-of-bounds

@@ -1,2 +1,3 @@
 path	issue	engine	reason
 runtime/valid/resource-disposed-result.hd	#9		unsupported: stops at Link at the host boundary
+typing/invalid/value-not-assignable-to-never.hd	#288		the checker accepts a string value where `never` is expected (`fn f() -> never: "done"`, also `let x: never = "a"`)

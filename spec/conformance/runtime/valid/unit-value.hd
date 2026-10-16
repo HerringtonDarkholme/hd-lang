@@ -1,0 +1,11 @@
+# test: the empty tuple value is ()
+# Spec 04 Type System: types.unit.
+
+fn nothing() -> ():
+    ()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the empty tuple value equals itself"):
+        assert_equal(nothing(), (), reason="() is the empty tuple value")

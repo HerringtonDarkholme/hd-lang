@@ -1,0 +1,12 @@
+# test: a function with result type void returns ()
+# Spec 04 Type System: types.void.role.
+
+fn log(message: string) -> void:
+    pass
+
+fn record() -> ():
+    log("saved")
+
+fn record_value() -> void:
+    let result: () = log("saved")
+    result

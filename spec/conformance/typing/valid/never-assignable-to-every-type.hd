@@ -1,0 +1,14 @@
+# test: never is assignable to every type
+# Spec 04 Type System: types.never.assignable.
+
+fn stop() -> never:
+    panic("stop")
+
+fn number() -> i32:
+    stop()
+
+fn text() -> string:
+    stop()
+
+fn items() -> List[bool]:
+    stop()

@@ -1,0 +1,9 @@
+# test: () is both a tuple value and a tuple type
+# Spec 04 Type System: types.unit.role.
+
+fn empty() -> ():
+    let value: () = ()
+    value
+
+fn pair() -> ((), i32):
+    ((), 1)

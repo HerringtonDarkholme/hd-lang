@@ -1,0 +1,13 @@
+# test: a mut self method of a primitive is called on a plain binding
+# Spec 04 Type System: types.prim.no-mut.self-call.
+
+trait Counter:
+    fn reset(mut self) -> void
+
+impl Counter for i32:
+    fn reset(mut self) -> void:
+        pass
+
+fn clear() -> void:
+    let count: i32 = 5
+    count.reset()

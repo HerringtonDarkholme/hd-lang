@@ -1,0 +1,6 @@
+# test: a string crosses the host boundary as its UTF-8 bytes, U+0000 included
+# Spec 04 Type System: types.string.host-bytes.
+# expect-stdout: hé\u{0}€
+
+pub fn main() -> void $ Console:
+    println("hé\u{0}€")

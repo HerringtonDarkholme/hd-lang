@@ -1,0 +1,5 @@
+# test: there is no core alias named int
+# Spec 04 Type System: types.prim.no-aliases.
+
+fn size() -> int:  # diagnostic: unknown-type
+    1

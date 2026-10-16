@@ -1,0 +1,11 @@
+# test: source text is not normalized: a decomposed literal keeps its combining mark
+# Spec 04 Type System: types.string.no-normalization.
+
+tests:
+    use std.testing.assert_equal
+
+    it("a decomposed é keeps three bytes"):
+        decomposed := "é"
+        assert_equal(decomposed.len(), 3, reason="e then U+0301 is 1 + 2 bytes")
+        assert_equal(decomposed[0], 0x65, reason="the base letter e stays")
+        assert_equal(decomposed[1], 0xCC, reason="U+0301 starts with 0xCC")

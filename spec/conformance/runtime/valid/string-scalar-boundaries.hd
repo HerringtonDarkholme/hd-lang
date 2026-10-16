@@ -1,0 +1,12 @@
+# test: every offset from 0 to the length that is not inside a scalar's encoding is a scalar boundary
+# Spec 04 Type System: types.string.boundary.
+
+tests:
+    use std.testing.assert_equal
+
+    it("slices at scalar boundaries"):
+        text := "hé!"
+        assert_equal(text.slice(0, 0), "", reason="0 is a boundary")
+        assert_equal(text.slice(0, 1), "h", reason="1 ends h")
+        assert_equal(text.slice(1, 3), "é", reason="3 ends the two bytes of é")
+        assert_equal(text.slice(3, 4), "!", reason="the length is a boundary")

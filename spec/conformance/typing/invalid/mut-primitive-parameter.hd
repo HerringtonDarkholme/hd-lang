@@ -1,0 +1,5 @@
+# test: a primitive type does not accept the mut modifier
+# Spec 04 Type System: types.prim.no-mut.
+
+fn bump(count: mut i32) -> i32:  # diagnostic: mut-on-primitive
+    count + 1

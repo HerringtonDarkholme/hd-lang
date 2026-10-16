@@ -1,0 +1,11 @@
+# test: never is the uninhabited bottom type: a function that never returns has result type never
+# Spec 04 Type System: types.never.
+
+fn stop(reason: string) -> never:
+    panic(reason)
+
+fn pick(flag: bool) -> i32:
+    if flag:
+        1
+    else:
+        stop("no value")

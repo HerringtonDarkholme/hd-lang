@@ -1,0 +1,8 @@
+# test: an expression that completes abruptly has type never on that path, so it joins any arm type
+# Spec 04 Type System: types.never.abrupt.
+
+fn first_or(items: List[i32], fallback: i32) -> i32:
+    let value: i32 = match items.len():
+        0 => return fallback
+        _ => items[0]
+    value

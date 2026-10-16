@@ -1,0 +1,14 @@
+# test: a string literal's value is the UTF-8 encoding of its scalar values
+# Spec 04 Type System: types.string.literal-utf8.
+
+tests:
+    use std.testing.assert_equal
+
+    it("a literal holds its scalars' UTF-8 bytes"):
+        text := "aé€"
+        assert_equal(text.len(), 6, reason="1 + 2 + 3 bytes")
+        assert_equal(text[0], 0x61, reason="a is one byte")
+        assert_equal(text[1], 0xC3, reason="é starts with 0xC3")
+        assert_equal(text[2], 0xA9, reason="é ends with 0xA9")
+        assert_equal(text[3], 0xE2, reason="€ starts with 0xE2")
+        assert_equal(text[5], 0xAC, reason="€ ends with 0xAC")

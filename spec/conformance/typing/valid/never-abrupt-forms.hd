@@ -1,0 +1,18 @@
+# test: return, break, continue, propagation and a panic call each complete abruptly
+# Spec 04 Type System: types.never.abrupt-forms.
+
+fn parse(flag: bool) -> Result[i32, string]:
+    if flag:
+        .Ok(1)
+    else:
+        .Err("bad")
+
+fn forms(flag: bool) -> Result[i32, string]:
+    let a: i32 = if flag: 1 else: return .Ok(0)
+    let total = +0
+    for i in [1, 2, 3]:
+        let b: i32 = if i == 2: continue else: i
+        let c: i32 = if b > 2: break else: b
+        total += c
+    let d: i32 = if flag: parse(flag)? else: panic("unreachable")
+    .Ok(a + total + d)

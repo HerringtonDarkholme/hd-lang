@@ -1,0 +1,11 @@
+# test: canonically equivalent but differently encoded strings are distinct
+# Spec 04 Type System: types.string.encodings.
+
+tests:
+    use std.testing.assert
+
+    it("precomposed and decomposed é differ"):
+        precomposed := "\u{E9}"
+        decomposed := "e\u{301}"
+        assert(precomposed != decomposed, reason="no normalization before comparing")
+        assert(precomposed.len() == 2 && decomposed.len() == 3, reason="different encodings")
