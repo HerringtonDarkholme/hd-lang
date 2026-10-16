@@ -401,6 +401,27 @@ fn release_builds_name_functions_in_hd_names() {
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
 }
 
+/// A derived instance's body is the template's, so its instructions map
+/// to no line of the deriving module: building a program that derives
+/// writes `hd.positions` without reading another source's syntax (#311).
+#[test]
+fn a_program_that_derives_builds_its_positions() {
+    let root = package(
+        "hd-frames-derive",
+        "use std.hash.hash_of\n\n@derive(Eq, Hash, Debug)\ndata Point:\n    x: i32\n    y: i32\n    name: string\n\npub fn main() -> void $ Console:\n    a := Point { x: 1, y: 2, name: \"a\" }\n    println(debug(a))\n    println(a == a)\n    println(hash_of(a) == hash_of(a))\n",
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    for (args, file) in [
+        (&["build"][..], "build/debug/shop.wasm"),
+        (&["build", "--release"][..], "build/release/shop.wasm"),
+    ] {
+        let out = hd(&root, args);
+        assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
+        let wasm = std::fs::read(root.join(file)).expect("wasm");
+        assert!(hd_run::frames::LineTable::parse(&wasm).is_ok(), "{args:?}");
+    }
+}
+
 /// The function names of a module's `name` section.
 fn function_names(wasm: &[u8]) -> Vec<String> {
     fn leb(b: &[u8], at: &mut usize) -> usize {

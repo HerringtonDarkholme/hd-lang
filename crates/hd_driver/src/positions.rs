@@ -130,7 +130,7 @@ impl Positions {
         let (_, source) = self.module_of(item)?;
         let module = source.module()?;
         let node = *module.bodies.get(item)?.syn.get(inst as usize)?;
-        if node == NodeIdx::NONE {
+        if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
             return None;
         }
         let src = Src {
@@ -228,10 +228,18 @@ impl ModuleSource {
                     (*inst, name)
                 })
                 .collect();
+            // A derived instance's body is the template's, checked at the
+            // target: its syntax nodes are the template source's, not this
+            // module's, so it maps to no line here (#311).
+            let syn = if b.kind == hd_tir::ir::BodyKind::DeriveInstance {
+                Vec::new()
+            } else {
+                b.syn
+            };
             bodies.insert(
                 path,
                 Body {
-                    syn: b.syn,
+                    syn,
                     name,
                     fallback,
                 },
