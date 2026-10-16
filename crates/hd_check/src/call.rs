@@ -1090,6 +1090,23 @@ impl Ck<'_, '_> {
         Ty::POISON
     }
 
+    /// Each named argument that names a parameter of `rest`, with that
+    /// parameter's type.
+    fn named_params<'t>(
+        &self,
+        rest: &[(Symbol, Ty)],
+        named: &[(String, NodeRef<'t>)],
+    ) -> Vec<(NodeRef<'t>, Ty)> {
+        named
+            .iter()
+            .filter_map(|(pname, e)| {
+                rest.iter()
+                    .find(|p| self.cx.names.text(p.0) == pname.as_str())
+                    .map(|p| (*e, p.1))
+            })
+            .collect()
+    }
+
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -1166,7 +1183,21 @@ impl Ck<'_, '_> {
                 && w.is_some_and(|w| {
                     !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
                 });
-            let (r, t) = self.arg_value(*e, w)?;
+            // A closure whose parameter types a later argument solves is
+            // checked against them (§2.4 step 4).
+            let expect = match w {
+                Some(want) if e.kind() == SyntaxKind::ClosureExpr && self.open_inputs(want) => {
+                    let later: Vec<(NodeRef<'_>, Ty)> = args.positional[i + 1..]
+                        .iter()
+                        .zip(rest.get(i + 1..nfixed).unwrap_or(&[]))
+                        .map(|(a, p)| (*a, p.1))
+                        .chain(self.named_params(rest, &args.named))
+                        .collect();
+                    self.solved_by_later(want, &later).or(w)
+                }
+                _ => w,
+            };
+            let (r, t) = self.arg_value(*e, expect)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.infer.resolve(pool, t) == Ty::NEVER
@@ -1242,7 +1273,7 @@ impl Ck<'_, '_> {
         // A bad named argument already put the call in error, so a slot
         // it was meant to fill is not also an arity error.
         let mut named_bad = false;
-        for (pname, e) in &args.named {
+        for (k, (pname, e)) in args.named.iter().enumerate() {
             let Some(i) = rest
                 .iter()
                 .position(|p| self.cx.names.text(p.0) == pname.as_str())
@@ -1261,7 +1292,13 @@ impl Ck<'_, '_> {
             let mut w = self.normalize_deep(rest[i].1)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
-            let (r, t) = self.arg_value(*e, Some(w))?;
+            let expect = if e.kind() == SyntaxKind::ClosureExpr && self.open_inputs(w) {
+                let later = self.named_params(rest, &args.named[k + 1..]);
+                self.solved_by_later(w, &later).unwrap_or(w)
+            } else {
+                w
+            };
+            let (r, t) = self.arg_value(*e, Some(expect))?;
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
             }

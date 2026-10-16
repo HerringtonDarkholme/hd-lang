@@ -483,9 +483,14 @@ For a call `f(args)` whose callee resolves to a generic declaration:
    type is still an unbound variable at the head, so
    `map(xs, fn(x): x + 1)` works in either argument order. TIR keeps
    source evaluation order.
-   Implementation differs: `check_args` checks arguments strictly in
-   source order and postpones none, so a closure argument written before
-   the argument that solves its parameter type gets no expected type.
+   Implementation differs: `check_args` postpones only a closure, and
+   only its expected type. When a closure argument's parameter type is a
+   variable or a function type with a variable input, a trial
+   (`solved_by_later`) checks the later arguments, the named ones
+   included and closures left out, and is rolled back. The closure is
+   then checked against the inputs the trial solved, and every argument
+   is checked and emitted in source order, so diagnostics keep their
+   order too. A contextual variant or a collection is not postponed.
 5. **Join several arguments.** Arguments that solve one bare parameter
    may differ only in outer permission
    ([`types.generic.infer.join`](../../spec/lang/04-type-system.md#r-types.generic.infer.join)).

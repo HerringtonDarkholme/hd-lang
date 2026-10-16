@@ -1,0 +1,26 @@
+# test: a closure argument written before the argument that solves its parameter type is checked against that type
+# Spec 07 Closure Annotations: fn.closure.annotations-omitted; Spec 04 Generic Arguments: types.generic.infer.
+data Item:
+    name: string
+    cents: i32
+
+fn map_all[A, B](f: fn(A) -> B, items: List[A]) -> List[B]:
+    [for item in items => f(item)]
+
+fn fold[A, S](step: fn(S, A) -> S, items: List[A], start: S) -> S:
+    let acc = start
+    for item in items:
+        acc = step(acc, item)
+    acc
+
+fn priced() -> i32:
+    items := [Item { name: "tea", cents: +250 }, Item { name: "cake", cents: +400 }]
+    names := map_all(fn(item): item.name, items)
+    total := fold(fn(sum, item): sum + item.cents, items=items, start=+0)
+    total + i32(names.len())
+
+tests:
+    use std.testing.assert_equal
+
+    it("the closures read fields of the later arguments' items"):
+        assert_equal(priced(), 652, reason="650 cents and two names")

@@ -369,6 +369,84 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
+    /// Whether a closure argument checked against `want` would meet a
+    /// parameter type still unknown: `want` is a variable, or a function
+    /// type with an input that is one (§2.4 step 4).
+    pub(crate) fn open_inputs(&self, want: Ty) -> bool {
+        let pool = self.pool();
+        let open = |t: Ty| matches!(pool.get(self.infer.shallow(pool, t)), TyData::Infer(_));
+        match pool.get(self.strip_mut(self.infer.shallow(pool, want))) {
+            TyData::Infer(_) => true,
+            TyData::Fn { params, .. } => pool.list_items(params).iter().any(|&p| open(p)),
+            _ => false,
+        }
+    }
+
+    /// The type `want` takes once the arguments after a postponed closure
+    /// are checked (§2.4 step 4): a trial checks each of `later` against
+    /// its parameter type and rolls back, so the arguments are still
+    /// checked and emitted in source order. For a function type, each
+    /// input the trial solved with no variable left replaces its own, and
+    /// the result stays, since the closure may solve it; for a variable,
+    /// what the trial solved with no variable left. `None` when the trial
+    /// reports an error, stops, or solves nothing. A later closure is not
+    /// checked: it may need this one's types.
+    pub(crate) fn solved_by_later(&mut self, want: Ty, later: &[(NodeRef<'_>, Ty)]) -> Option<Ty> {
+        if later.is_empty() {
+            return None;
+        }
+        let pool = self.pool();
+        let before = pool.get(self.strip_mut(self.infer.shallow(pool, want)));
+        let c = self.checkpoint();
+        let mut checked = Ok(());
+        for &(e, p) in later {
+            if e.kind() == SyntaxKind::ClosureExpr {
+                continue;
+            }
+            checked = self.normalize_deep(p).and_then(|w| {
+                let (r, t) = self.arg_value(e, Some(w))?;
+                self.coerce(r, t, w, e, "argument", ExpectPosition::General);
+                Ok(())
+            });
+            if checked.is_err() {
+                break;
+            }
+        }
+        let solved = |t: Ty| !pool.has_infer(t) && !pool.has_poison(t);
+        let got = match before {
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+            } => {
+                let old = pool.list_items(params).to_vec();
+                let items: Vec<Ty> = old
+                    .iter()
+                    .map(|&p| {
+                        Some(self.infer.resolve(pool, p))
+                            .filter(|&t| solved(t))
+                            .unwrap_or(p)
+                    })
+                    .collect();
+                (items != old).then(|| {
+                    pool.intern_ty(&TyData::Fn {
+                        params: pool.list(&items),
+                        result,
+                        row,
+                        suspends,
+                        inputs,
+                    })
+                })
+            }
+            _ => Some(self.infer.resolve(pool, want)).filter(|&t| solved(t)),
+        };
+        let got = got.filter(|_| checked.is_ok() && self.diags.errors_since(c.diags) == 0);
+        self.rollback(c);
+        got
+    }
+
     /// An argument's value: the one inferred before the trials, or a
     /// check against `want` now.
     pub(crate) fn arg_value(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
