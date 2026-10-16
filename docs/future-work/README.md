@@ -18,6 +18,9 @@ action at a distance.
   questions. It holds only open questions.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
   study of serializable closures and remote calls (#166).
+- [Ownership And Borrows: Design Study](OWNERSHIP_DESIGN.md): the owner's
+  Rust-model redirect for #163: `own` types, `^` borrows, lifetimes named
+  by variables. Nothing in it is accepted.
 - [NonEscapable Types And Lifetimes: Design](NONESCAPE_LIFETIME_DESIGN.md):
   the numbered-rule design (#163). The cases of its three adversarial
   reviews are its regression suite, and its appendices keep the
