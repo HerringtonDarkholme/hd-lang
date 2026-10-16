@@ -100,6 +100,7 @@ mod map_duplicates_run;
 mod map_key_bounds;
 mod map_run;
 mod match_cascade;
+mod match_decision_tree_run;
 mod member_line_lists_run;
 mod method_bound_unmet;
 mod method_choice;

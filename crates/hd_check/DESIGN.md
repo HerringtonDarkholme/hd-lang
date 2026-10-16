@@ -1081,11 +1081,19 @@ over the pattern matrix (`pat.rs`, `useful`), as rustc and OCaml do.
    `nonexhaustive-match`, naming the top-level constructors no arm
    covers.
 
-**Decisions.** The design compiles the matrix into a decision tree with
-the same specialization code, so a shared arm appears once. Implementation
-differs: `decide` tests the rows in order, and on each failing path it
-emits the next row's tests again, so nested patterns can repeat tests
-and grow the TIR and the Wasm beyond the tree's size.
+**Decisions.** `decide` compiles the matrix into a decision tree, so a
+shared arm appears once and no pattern is tested twice on a path. The
+first row's first column with a test decides. A variant column is a
+chain of `SwitchTag`s, one per variant the rows name, each over the
+rows that variant specializes to; its default holds the rows with no test there,
+or is `Unreachable` when every variant is named. A literal or range
+column is an `If` on the first row's test, and each side keeps only the
+rows that test leaves possible. Tuple and data columns expand into one
+column per member that a row reads. A row with no test left is a leaf:
+it sets its bindings, then its guard chooses its arm or the rows below
+it, in source order (`flow.match.guard.*`). A row with no test in a
+switched column repeats under each outcome, as in any decision tree; a
+nested-enum match stays linear in TIR size.
 
 Planned, not built: a one-column fast path (a hash set over distinct
 literals or variants) for large flat matches; a `match-too-complex` limit

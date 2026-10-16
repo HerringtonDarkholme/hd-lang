@@ -2620,7 +2620,7 @@ impl Ck<'_, '_> {
         // Decision: `.Some(p)` to arm 0, `.None` to arm 1.
         let rows = vec![crate::pat::Row::some(pat, binds), crate::pat::Row::rest()];
         let db = self.b.open_block();
-        self.decide(&rows, 0, next, opt)?;
+        self.decide(&rows, next, opt)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, e.index());
         let rec = self.b.refs_record(&[dec, arm0, arm1]);
         self.b.emit(Tag::Match, next.0, rec, Ty::VOID, e.index());
@@ -2805,7 +2805,7 @@ impl Ck<'_, '_> {
             arm: 0,
         }];
         let db = self.b.open_block();
-        self.decide(&rows, 0, item, item_ty)?;
+        self.decide(&rows, item, item_ty)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, at);
         let rec = self.b.refs_record(&[dec, arm]);
         self.b.emit(Tag::Match, item.0, rec, Ty::VOID, at);

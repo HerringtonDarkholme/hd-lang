@@ -1,11 +1,10 @@
 //! Patterns, `let`, `match` and exhaustiveness (`crates/hd_check/DESIGN.md` (type checking) §7;
 //! `crates/hd_tir/DESIGN.md` "Matching"). The checker declares each arm's
 //! bindings, emits the arm blocks, then a decision block of `SwitchTag`,
-//! `If`, `Payload`, `Unwrap`, `Guard` and `ToArm` that tries the rows in
-//! order. A failed test continues with the next row; the next row's tests
-//! are emitted again on each failing path, which keeps every block owned
-//! by exactly one instruction. Exhaustiveness is Maranget's usefulness
-//! test over the arm patterns.
+//! `If`, `Payload`, `Unwrap`, `Guard` and `ToArm`: a decision tree over
+//! the pattern matrix, where each test runs once on a path and each
+//! outcome keeps the rows, in order, that may still match. Exhaustiveness
+//! is Maranget's usefulness test over the arm patterns.
 
 use hd_base::HashMap;
 
@@ -48,6 +47,76 @@ impl<'t> Row<'t> {
             arm: 1,
         }
     }
+}
+
+/// A cell of a decision matrix: no test left, a pattern, or `.Some`
+/// around a row's pattern (a [`Row::some`] row).
+#[derive(Clone, Copy)]
+enum Cell<'t> {
+    Wild,
+    Pat(NodeRef<'t>),
+    Some(Option<NodeRef<'t>>),
+}
+
+/// A row of a decision matrix: a cell per column, the `LocalSet`s its
+/// bindings need at its leaf, and its index in the [`Row`]s.
+#[derive(Clone)]
+struct DRow<'t> {
+    cells: Vec<Cell<'t>>,
+    sets: Vec<(LocalId, Ref, NodeIdx)>,
+    row: usize,
+}
+
+impl<'t> DRow<'t> {
+    /// The row with column `j` replaced by `cells`.
+    fn with_column(mut self, j: usize, cells: impl IntoIterator<Item = Cell<'t>>) -> Self {
+        self.cells.splice(j..=j, cells);
+        self
+    }
+}
+
+/// What a literal test passing or failing tells of another literal or
+/// range pattern on the same value: passing implies it matches
+/// (`implied`) or that it does not (`excluded`); failing implies it does
+/// not (`covered`).
+#[derive(Default)]
+struct Rel {
+    implied: bool,
+    excluded: bool,
+    covered: bool,
+}
+
+/// A row with no test left and no guard: it matches every value, so the
+/// rows after it are never tried.
+fn done(rows: &[Row<'_>], r: &DRow<'_>) -> bool {
+    rows[r.row].guard.is_none() && r.cells.iter().all(|c| matches!(c, Cell::Wild))
+}
+
+/// Records the `LocalSet` of the local that the pattern node `at` binds.
+fn bind(row: &Row<'_>, sets: &mut Vec<(LocalId, Ref, NodeIdx)>, at: NodeIdx, v: Ref) {
+    if let Some(&(_, l)) = row.binds.iter().find(|(n, _)| *n == at) {
+        sets.push((l, v, at));
+    }
+}
+
+/// Whether a sub-pattern tests or binds its value: all but `_` and `()`.
+fn reads(p: NodeRef<'_>) -> bool {
+    match p.kind() {
+        SyntaxKind::WildcardPattern => false,
+        SyntaxKind::TuplePattern => p.children().next().is_some(),
+        _ => true,
+    }
+}
+
+/// The columns `occs` with column `j` replaced by `new`.
+fn splice(
+    occs: &[(Ref, Ty)],
+    j: usize,
+    new: impl IntoIterator<Item = (Ref, Ty)>,
+) -> Vec<(Ref, Ty)> {
+    let mut o = occs.to_vec();
+    o.splice(j..=j, new);
+    o
 }
 
 /// A pattern for the exhaustiveness test.
@@ -894,7 +963,7 @@ impl Ck<'_, '_> {
             });
         }
         let db = self.b.open_block();
-        self.decide(&rows, 0, r, t)?;
+        self.decide(&rows, r, t)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, at.index());
         let mut rec = vec![dec];
         rec.extend(arms);
@@ -977,7 +1046,7 @@ impl Ck<'_, '_> {
                 this.check_reachable(&rows, &rejected_arms, st);
             }
             let db = this.b.open_block();
-            this.decide(&rows, 0, sr, st)?;
+            this.decide(&rows, sr, st)?;
             let dec = this.b.close_block(db, None, Ty::NEVER, n.index());
             let mut rec = vec![dec];
             rec.extend(arms);
@@ -993,158 +1062,114 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ decisions
 
-    /// Emits, into the open block, the tests of rows `i..` against the
-    /// scrutinee; every path ends in `ToArm` or `Unreachable`.
-    pub(crate) fn decide(&mut self, rows: &[Row<'_>], i: usize, v: Ref, t: Ty) -> StageResult<()> {
-        self.charge()?;
-        let Some(row) = rows.get(i) else {
-            self.b.emit(
-                Tag::Unreachable,
-                NONE,
-                NONE,
-                Ty::NEVER,
-                hd_base::NodeIdx::NONE,
-            );
-            return Ok(());
-        };
-        if row.wrap_some {
-            let pool = self.pool();
-            let inner = match pool.get(self.infer.resolve(pool, t)) {
-                TyData::Option(x) => x,
-                _ => Ty::POISON,
-            };
-            let ok = self.b.open_block();
-            let u = self.b.emit(Tag::Unwrap, v.0, NONE, inner, NodeIdx::NONE);
-            let work = row.pat.map(|p| vec![(p, u, inner)]).unwrap_or_default();
-            self.row_tests(rows, i, work, v, t)?;
-            let okb = self.b.close_block(ok, None, Ty::NEVER, NodeIdx::NONE);
-            let fb = self.b.open_block();
-            self.decide(rows, i + 1, v, t)?;
-            let fail = self.b.close_block(fb, None, Ty::NEVER, NodeIdx::NONE);
-            let rec = self.b.refs_record(&[Ref(1), okb, fail]);
-            self.b
-                .emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, NodeIdx::NONE);
-            return Ok(());
-        }
-        let work = row.pat.map(|p| vec![(p, v, t)]).unwrap_or_default();
-        self.row_tests(rows, i, work, v, t)
+    /// Emits, into the open block, the decision tree of `rows` against the
+    /// scrutinee `v`; every path ends in `ToArm` or `Unreachable`.
+    pub(crate) fn decide(&mut self, rows: &[Row<'_>], v: Ref, t: Ty) -> StageResult<()> {
+        let m = rows
+            .iter()
+            .enumerate()
+            .map(|(i, r)| DRow {
+                cells: vec![match (r.pat, r.wrap_some) {
+                    (p, true) => Cell::Some(p),
+                    (Some(p), false) => Cell::Pat(p),
+                    (None, false) => Cell::Wild,
+                }],
+                sets: Vec::new(),
+                row: i,
+            })
+            .collect();
+        let mut lits = HashMap::default();
+        self.tree(rows, &[(v, t)], m, &mut lits)
     }
 
-    /// The remaining tests of row `i` (a stack of pattern, value, type),
-    /// then its leaf.
-    fn row_tests(
+    /// The decision tree of matrix `m`, whose columns test the values
+    /// `occs` (Maranget's scheme, `crates/hd_check/DESIGN.md` §7.2): the
+    /// first row's first column with a test decides, and each outcome
+    /// continues with the rows it leaves, so no test repeats on a path.
+    /// A row with no test left is a leaf: its bindings, its guard, its arm.
+    fn tree<'t>(
         &mut self,
-        rows: &[Row<'_>],
-        i: usize,
-        mut work: Vec<(NodeRef<'_>, Ref, Ty)>,
-        root: Ref,
-        root_t: Ty,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        mut m: Vec<DRow<'t>>,
+        lits: &mut HashMap<NodeIdx, P>,
     ) -> StageResult<()> {
-        let pool = self.pool();
-        let row = &rows[i];
-        while let Some((p, v, t)) = work.pop() {
-            match p.kind() {
-                SyntaxKind::WildcardPattern => {}
-                SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern => {
-                    if let Some(&(_, l)) = row.binds.iter().find(|(n, _)| *n == p.index()) {
-                        self.b.set(l, v, p.index());
-                    }
-                }
-                SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
-                    let cond = self.literal_test(p, v, t)?;
-                    let then = self.b.open_block();
-                    self.row_tests(rows, i, std::mem::take(&mut work), root, root_t)?;
-                    let tb = self.b.close_block(then, None, Ty::NEVER, p.index());
-                    let fb = self.b.open_block();
-                    self.decide(rows, i + 1, root, root_t)?;
-                    let eb = self.b.close_block(fb, None, Ty::NEVER, p.index());
-                    let rec = self.b.refs_record(&[tb, eb]);
-                    self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, p.index());
-                    return Ok(());
-                }
-                SyntaxKind::TuplePattern if p.children().next().is_none() => {}
+        self.charge()?;
+        for r in &mut m {
+            self.settle(&rows[r.row], occs, r);
+        }
+        // Rows after one that matches everything are never tried.
+        if let Some(k) = m.iter().position(|r| done(rows, r)) {
+            m.truncate(k + 1);
+        }
+        let Some(first) = m.first() else {
+            self.b
+                .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+            return Ok(());
+        };
+        let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
+            return self.leaf(rows, occs, m, lits);
+        };
+        match first.cells[j] {
+            Cell::Pat(p) => match p.kind() {
                 SyntaxKind::TuplePattern => {
-                    let members = self.tuple_members(t);
-                    let subs: Vec<NodeRef<'_>> = p.children().collect();
-                    for (k, s) in subs.iter().enumerate().rev() {
-                        let et = members.get(k).copied().unwrap_or(Ty::POISON);
-                        let g = self.b.emit(
-                            Tag::TupleGet,
-                            v.0,
-                            u32::try_from(k).unwrap_or(0),
-                            et,
-                            s.index(),
-                        );
-                        work.push((*s, g, et));
-                    }
+                    let (occs, m) = self.expand_tuple(occs, m, j);
+                    self.tree(rows, &occs, m, lits)
                 }
                 SyntaxKind::DataPattern => {
-                    for f in p
-                        .children()
-                        .filter(|c| c.kind() == SyntaxKind::DataPatternField)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                    {
-                        let fname = self.data_field_name(f);
-                        let Some((idx, ft)) = self.field_of(t, &fname) else {
-                            continue;
-                        };
-                        let g = self.b.emit(Tag::Field, v.0, idx, ft, f.index());
-                        match f.children().next() {
-                            Some(sub) => work.push((sub, g, ft)),
-                            None => {
-                                if let Some(&(_, l)) =
-                                    row.binds.iter().find(|(n, _)| *n == f.index())
-                                {
-                                    self.b.set(l, g, f.index());
-                                }
-                            }
-                        }
-                    }
+                    let (occs, m) = self.expand_data(rows, occs, m, j);
+                    self.tree(rows, &occs, m, lits)
                 }
-                SyntaxKind::VariantPattern => {
-                    let name = self.variant_pattern_name(p);
-                    let Some((idx, fields)) = self.variant_fields(t, &name) else {
-                        // Reported when the pattern was declared.
-                        continue;
-                    };
-                    let (subs, _) = self.variant_subpatterns(p, t, &name)?;
-                    let ok = self.b.open_block();
-                    let is_option = matches!(
-                        pool.get(match pool.get(self.infer.resolve(pool, t)) {
-                            TyData::Mut(x) => x,
-                            _ => self.infer.resolve(pool, t),
-                        }),
-                        TyData::Option(_)
-                    );
-                    let mut more = std::mem::take(&mut work);
-                    for (k, s) in subs.iter().enumerate().rev() {
-                        let Some(s) = s else { continue };
-                        let ft = fields.get(k).copied().unwrap_or(Ty::POISON);
-                        let g = if is_option {
-                            self.b.emit(Tag::Unwrap, v.0, NONE, ft, s.index())
-                        } else {
-                            let rec = self
-                                .b
-                                .refs_record(&[Ref(idx), Ref(u32::try_from(k).unwrap_or(0))]);
-                            self.b.emit(Tag::Payload, v.0, rec, ft, s.index())
-                        };
-                        more.push((*s, g, ft));
-                    }
-                    self.row_tests(rows, i, more, root, root_t)?;
-                    let okb = self.b.close_block(ok, None, Ty::NEVER, p.index());
-                    let fb = self.b.open_block();
-                    self.decide(rows, i + 1, root, root_t)?;
-                    let fail = self.b.close_block(fb, None, Ty::NEVER, p.index());
-                    let rec = self.b.refs_record(&[Ref(idx), okb, fail]);
-                    self.b.emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, p.index());
-                    return Ok(());
+                SyntaxKind::VariantPattern => self.switch(rows, occs, &m, j, lits),
+                SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
+                    self.test(rows, occs, m, j, p, lits)
                 }
-                other => return unsupported(format!("the pattern {other:?} in a decision")),
+                other => unsupported(format!("the pattern {other:?} in a decision")),
+            },
+            Cell::Some(_) | Cell::Wild => self.switch(rows, occs, &m, j, lits),
+        }
+    }
+
+    /// Turns the cells of `r` that test nothing into `Wild`, recording the
+    /// `LocalSet` of each name they bind.
+    fn settle(&self, row: &Row<'_>, occs: &[(Ref, Ty)], r: &mut DRow<'_>) {
+        for (j, c) in r.cells.iter_mut().enumerate() {
+            let Cell::Pat(p) = *c else { continue };
+            let (v, t) = occs[j];
+            let wild = match p.kind() {
+                SyntaxKind::WildcardPattern => true,
+                SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern => {
+                    bind(row, &mut r.sets, p.index(), v);
+                    true
+                }
+                SyntaxKind::TuplePattern => p.children().next().is_none(),
+                // An unknown variant was reported when the pattern was
+                // declared.
+                SyntaxKind::VariantPattern => self
+                    .variant_fields(t, &self.variant_pattern_name(p))
+                    .is_none(),
+                _ => false,
+            };
+            if wild {
+                *c = Cell::Wild;
             }
         }
-        // The leaf: the guard, then the arm.
+    }
+
+    /// The first row has no test left: set its bindings, then its guard
+    /// chooses between its arm and the rows below.
+    fn leaf<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        mut m: Vec<DRow<'t>>,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> StageResult<()> {
+        let first = m.remove(0);
+        for &(l, v, at) in &first.sets {
+            self.b.set(l, v, at);
+        }
+        let row = &rows[first.row];
         match row.guard {
             Some(g) => {
                 let to = self.b.open_block();
@@ -1152,7 +1177,7 @@ impl Ck<'_, '_> {
                     .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
                 let tob = self.b.close_block(to, None, Ty::NEVER, NodeIdx::NONE);
                 let fb = self.b.open_block();
-                self.decide(rows, i + 1, root, root_t)?;
+                self.tree(rows, occs, m, lits)?;
                 let fail = self.b.close_block(fb, None, Ty::NEVER, NodeIdx::NONE);
                 let rec = self.b.refs_record(&[tob, fail]);
                 self.b.emit(Tag::Guard, g.0, rec, Ty::NEVER, NodeIdx::NONE);
@@ -1163,6 +1188,341 @@ impl Ck<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// Replaces tuple column `j` by a column per member that some row
+    /// tests or binds, read once with `TupleGet`.
+    fn expand_tuple<'t>(
+        &mut self,
+        occs: &[(Ref, Ty)],
+        m: Vec<DRow<'t>>,
+        j: usize,
+    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
+        let (v, t) = occs[j];
+        let members = self.tuple_members(t);
+        let subs: Vec<Vec<NodeRef<'t>>> = m
+            .iter()
+            .map(|r| match r.cells[j] {
+                Cell::Pat(p) if p.kind() == SyntaxKind::TuplePattern => p.children().collect(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let width = subs.iter().map(Vec::len).max().unwrap_or(0);
+        let mut cols = Vec::new();
+        for k in 0..width {
+            let Some(s) = subs.iter().filter_map(|s| s.get(k)).find(|s| reads(**s)) else {
+                continue;
+            };
+            let et = members.get(k).copied().unwrap_or(Ty::POISON);
+            let g = self.b.emit(
+                Tag::TupleGet,
+                v.0,
+                u32::try_from(k).unwrap_or(0),
+                et,
+                s.index(),
+            );
+            cols.push((k, (g, et)));
+        }
+        let occs = splice(occs, j, cols.iter().map(|c| c.1));
+        let m = m
+            .into_iter()
+            .zip(subs)
+            .map(|(r, s)| {
+                r.with_column(
+                    j,
+                    cols.iter()
+                        .map(|(k, _)| s.get(*k).map_or(Cell::Wild, |p| Cell::Pat(*p))),
+                )
+            })
+            .collect();
+        (occs, m)
+    }
+
+    /// Replaces data column `j` by a column per field that some row tests
+    /// or binds, read once with `Field`; a shorthand field binds it.
+    fn expand_data<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        m: Vec<DRow<'t>>,
+        j: usize,
+    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
+        // Each row's fields: index, type, the field node, its sub-pattern.
+        type Fields<'t> = Vec<(u32, Ty, NodeRef<'t>, Option<NodeRef<'t>>)>;
+        let (v, t) = occs[j];
+        let fields: Vec<Fields<'t>> = m
+            .iter()
+            .map(|r| match r.cells[j] {
+                Cell::Pat(p) if p.kind() == SyntaxKind::DataPattern => p
+                    .children()
+                    .filter(|c| c.kind() == SyntaxKind::DataPatternField)
+                    .filter_map(|f| {
+                        let (idx, ft) = self.field_of(t, &self.data_field_name(f))?;
+                        Some((idx, ft, f, f.children().next()))
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let mut cols: Vec<(u32, (Ref, Ty))> = Vec::new();
+        for &(idx, ft, f, sub) in fields.iter().flatten() {
+            if cols.iter().any(|c| c.0 == idx) || sub.is_some_and(|s| !reads(s)) {
+                continue;
+            }
+            let g = self.b.emit(Tag::Field, v.0, idx, ft, f.index());
+            cols.push((idx, (g, ft)));
+        }
+        let occs = splice(occs, j, cols.iter().map(|c| c.1));
+        let m = m
+            .into_iter()
+            .zip(fields)
+            .map(|(mut r, fs)| {
+                let mut cells = Vec::with_capacity(cols.len());
+                for &(idx, (g, _)) in &cols {
+                    cells.push(match fs.iter().find(|f| f.0 == idx) {
+                        Some(&(_, _, _, Some(sub))) => Cell::Pat(sub),
+                        Some(&(_, _, f, None)) => {
+                            bind(&rows[r.row], &mut r.sets, f.index(), g);
+                            Cell::Wild
+                        }
+                        None => Cell::Wild,
+                    });
+                }
+                r.with_column(j, cells)
+            })
+            .collect();
+        (occs, m)
+    }
+
+    /// A tag switch on column `j`: a `SwitchTag` per variant the rows
+    /// name, in the order they first name it, each over the rows that
+    /// variant leaves, with the variant's fields as new columns. The
+    /// last default holds the rows with no test there, or is
+    /// `Unreachable` when the rows name every variant.
+    fn switch<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        m: &[DRow<'t>],
+        j: usize,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> StageResult<()> {
+        let t = occs[j].1;
+        let mut named: Vec<(u32, Vec<Ty>, NodeIdx)> = Vec::new();
+        for r in m {
+            let (name, at) = match r.cells[j] {
+                Cell::Some(_) => ("Some".to_owned(), NodeIdx::NONE),
+                Cell::Pat(p) if p.kind() == SyntaxKind::VariantPattern => {
+                    (self.variant_pattern_name(p), p.index())
+                }
+                _ => continue,
+            };
+            let Some((idx, fs)) = self.variant_fields(t, &name) else {
+                continue;
+            };
+            if !named.iter().any(|n| n.0 == idx) {
+                named.push((idx, fs, at));
+            }
+        }
+        let all = self.ctors(t).is_some_and(|c| c.len() == named.len());
+        self.switch_from(rows, occs, m, j, &named, all, lits)
+    }
+
+    /// The `SwitchTag` chain of [`Self::switch`] from `named[0]` on.
+    fn switch_from<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        m: &[DRow<'t>],
+        j: usize,
+        named: &[(u32, Vec<Ty>, NodeIdx)],
+        all: bool,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> StageResult<()> {
+        let Some((idx, fs, at)) = named.first() else {
+            if all {
+                self.b
+                    .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+                return Ok(());
+            }
+            let rest = m
+                .iter()
+                .filter(|r| matches!(r.cells[j], Cell::Wild))
+                .map(|r| r.clone().with_column(j, []))
+                .collect();
+            return self.tree(rows, &splice(occs, j, []), rest, lits);
+        };
+        let (idx, at) = (*idx, *at);
+        let (v, t) = occs[j];
+        let ok = self.b.open_block();
+        let mut spec: Vec<(DRow<'t>, Vec<Option<NodeRef<'t>>>)> = Vec::new();
+        for r in m {
+            let subs = match r.cells[j] {
+                Cell::Wild => Vec::new(),
+                Cell::Some(p) if idx == 1 => vec![p],
+                Cell::Pat(p) if p.kind() == SyntaxKind::VariantPattern => {
+                    let name = self.variant_pattern_name(p);
+                    if self.variant_fields(t, &name).map(|f| f.0) != Some(idx) {
+                        continue;
+                    }
+                    self.variant_subpatterns(p, t, &name)?.0
+                }
+                _ => continue,
+            };
+            spec.push((r.clone(), subs));
+        }
+        let is_option = matches!(self.pool().get(self.strip(t)), TyData::Option(_));
+        let mut cols = Vec::new();
+        for (f, &ft) in fs.iter().enumerate() {
+            let Some(s) = spec
+                .iter()
+                .filter_map(|(_, s)| s.get(f).copied().flatten())
+                .find(|s| reads(*s))
+            else {
+                continue;
+            };
+            let g = if is_option {
+                self.b.emit(Tag::Unwrap, v.0, NONE, ft, s.index())
+            } else {
+                let rec = self
+                    .b
+                    .refs_record(&[Ref(idx), Ref(u32::try_from(f).unwrap_or(0))]);
+                self.b.emit(Tag::Payload, v.0, rec, ft, s.index())
+            };
+            cols.push((f, (g, ft)));
+        }
+        let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
+        let m_in = spec
+            .into_iter()
+            .map(|(r, s)| {
+                r.with_column(
+                    j,
+                    cols.iter()
+                        .map(|(f, _)| s.get(*f).copied().flatten().map_or(Cell::Wild, Cell::Pat)),
+                )
+            })
+            .collect();
+        self.tree(rows, &occs_in, m_in, lits)?;
+        let okb = self.b.close_block(ok, None, Ty::NEVER, at);
+        let fb = self.b.open_block();
+        self.switch_from(rows, occs, m, j, &named[1..], all, lits)?;
+        let fail = self.b.close_block(fb, None, Ty::NEVER, at);
+        let rec = self.b.refs_record(&[Ref(idx), okb, fail]);
+        self.b.emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, at);
+        Ok(())
+    }
+
+    /// A literal or range test of the first row's pattern `p0` in column
+    /// `j`: the `then` side keeps the rows that may still match, with no
+    /// test left where `p0` passing implies theirs; the `else` side drops
+    /// the rows whose test `p0` failing decides.
+    fn test<'t>(
+        &mut self,
+        rows: &[Row<'t>],
+        occs: &[(Ref, Ty)],
+        m: Vec<DRow<'t>>,
+        j: usize,
+        p0: NodeRef<'t>,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> StageResult<()> {
+        let (v, t) = occs[j];
+        let cond = self.literal_test(p0, v, t)?;
+        let mut yes = Vec::new();
+        let mut no = Vec::new();
+        let mut yes_done = false;
+        for r in m {
+            let rel = match r.cells[j] {
+                Cell::Pat(p)
+                    if matches!(
+                        p.kind(),
+                        SyntaxKind::LiteralPattern | SyntaxKind::RangePattern
+                    ) =>
+                {
+                    self.lit_rel(p, p0, t, lits)
+                }
+                _ => Rel::default(),
+            };
+            let to_yes = !yes_done && (rel.implied || !rel.excluded);
+            if !rel.covered {
+                if to_yes {
+                    no.push(r.clone());
+                } else {
+                    no.push(r);
+                    continue;
+                }
+            }
+            if to_yes {
+                let mut r = r;
+                if rel.implied {
+                    r.cells[j] = Cell::Wild;
+                }
+                yes_done = done(rows, &r);
+                yes.push(r);
+            }
+        }
+        let then = self.b.open_block();
+        self.tree(rows, occs, yes, lits)?;
+        let tb = self.b.close_block(then, None, Ty::NEVER, p0.index());
+        let fb = self.b.open_block();
+        self.tree(rows, occs, no, lits)?;
+        let eb = self.b.close_block(fb, None, Ty::NEVER, p0.index());
+        let rec = self.b.refs_record(&[tb, eb]);
+        self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, p0.index());
+        Ok(())
+    }
+
+    /// What `p0` passing or failing tells of pattern `p` over the same
+    /// value of type `t`; unknown unless both have known values.
+    fn lit_rel(
+        &self,
+        p: NodeRef<'_>,
+        p0: NodeRef<'_>,
+        t: Ty,
+        lits: &mut HashMap<NodeIdx, P>,
+    ) -> Rel {
+        let same = Rel {
+            implied: true,
+            excluded: false,
+            covered: true,
+        };
+        if p.index() == p0.index() {
+            return same;
+        }
+        let mut value = |n: NodeRef<'_>| {
+            lits.entry(n.index())
+                .or_insert_with(|| self.to_p(Some(n), t))
+                .clone()
+        };
+        let (a, b) = (value(p), value(p0));
+        let apart = Rel {
+            implied: false,
+            excluded: true,
+            covered: false,
+        };
+        match (a, b) {
+            (P::Int(lo, hi), P::Int(lo0, hi0)) => Rel {
+                implied: lo <= lo0 && hi0 <= hi,
+                excluded: hi < lo0 || hi0 < lo,
+                covered: lo0 <= lo && hi <= hi0,
+            },
+            (P::Str(x), P::Str(y)) => {
+                if x == y {
+                    same
+                } else {
+                    apart
+                }
+            }
+            (P::Ctor(x, _), P::Ctor(y, _)) => {
+                if x == y {
+                    same
+                } else {
+                    apart
+                }
+            }
+            // `0.0` and `-0.0` differ in bits and compare equal.
+            (P::Flt(x), P::Flt(y)) if x == y => same,
+            _ => Rel::default(),
+        }
     }
 
     /// `v == literal`, or a range test, as a `bool` value.
