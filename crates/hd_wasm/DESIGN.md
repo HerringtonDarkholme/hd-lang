@@ -401,8 +401,10 @@ once per tree and named by its hash (`Em::vtable_value`), so a coercion
 reads it and allocates nothing; a subtable the tree repeats is built
 again in the initializer, once, at instantiation. A `TypeId` is not a
 constant: `Helper::TypeIdOf` builds it on its type's first request into
-a mutable global and returns the global after, so only that first call
-allocates. Short literals have no `array.new_fixed` globals.
+a mutable global (`GSym::TypeId`) and returns the global after, so only
+that first call allocates. The global is local to its module, as a
+constant closure is: each session module that links the helper has its
+own, so no two modules of a session define one name (#314). Short literals have no `array.new_fixed` globals.
 
 **Stable numbering.** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's

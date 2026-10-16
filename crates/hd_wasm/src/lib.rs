@@ -473,6 +473,12 @@ pub enum GSym {
     /// so every coercion may share it; like a constant closure it is local
     /// to its module.
     Vtable(Hash128, VT, Box<ConstInit>),
+    /// The `TypeId` of the type whose identity key hashes to the hash,
+    /// once `Helper::TypeIdOf` built it: a mutable global, null until then
+    /// (`crates/hd_wasm/DESIGN.md` §15.4). Like a constant closure it is
+    /// local to its module: a session module's helper builds its own, so
+    /// no two modules define one name.
+    TypeId(Hash128, VT),
 }
 
 /// A constant expression with relocations: a global's initializer, whose
@@ -557,7 +563,8 @@ impl GSym {
             | GSym::WitnessField(_, _, v)
             | GSym::Closure(_, v)
             | GSym::Variant(_, _, v)
-            | GSym::Vtable(_, v, _) => v,
+            | GSym::Vtable(_, v, _)
+            | GSym::TypeId(_, v) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -607,6 +614,11 @@ impl GSym {
                 v.encode(w);
                 init.encode(w);
             }
+            GSym::TypeId(h, v) => {
+                w.u8(8);
+                w.hash(*h);
+                v.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
@@ -619,6 +631,7 @@ impl GSym {
             5 => GSym::Closure(r.hash(), VT::decode(r)?),
             6 => GSym::Variant(r.hash(), r.u32(), VT::decode(r)?),
             7 => GSym::Vtable(r.hash(), VT::decode(r)?, Box::new(ConstInit::decode(r)?)),
+            8 => GSym::TypeId(r.hash(), VT::decode(r)?),
             _ => return None,
         })
     }
@@ -1627,6 +1640,7 @@ pub fn global_key(g: &GSym) -> String {
         GSym::WitnessField(f, e, _) => format!("witf.{:032x}.{:032x}", f.0, e.0),
         GSym::Closure(k, _) => format!("clo.{:032x}", k.0),
         GSym::Variant(h, tag, _) => format!("var.{:032x}.{tag}", h.0),
+        GSym::TypeId(h, _) => format!("tid.{:032x}", h.0),
         GSym::Vtable(h, _, _) => format!("vtab.{:032x}", h.0),
     }
 }
@@ -1663,7 +1677,10 @@ fn constant_global(g: &GSym) -> bool {
 /// function values have no identity, so sharing it would buy a few bytes
 /// per later module at the cost of one more kind of session key.
 fn module_local(g: &GSym) -> bool {
-    matches!(g, GSym::Closure(..) | GSym::Variant(..) | GSym::Vtable(..))
+    matches!(
+        g,
+        GSym::Closure(..) | GSym::Variant(..) | GSym::Vtable(..) | GSym::TypeId(..)
+    )
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal

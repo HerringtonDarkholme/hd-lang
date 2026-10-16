@@ -2000,7 +2000,7 @@ pub(crate) fn write_lit_to(a: &mut Asm, text: &str, write: Sym) {
 pub fn type_id_global(st: &WTy, key: &str) -> GSym {
     let mut h = hd_base::StableHasher::new("type-id");
     h.str(key);
-    GSym::Binding(h.finish(), 0, VT::rn(st.clone()))
+    GSym::TypeId(h.finish(), VT::rn(st.clone()))
 }
 
 /// Pushes a `TypeId`, the std data type `st` over its key string `key`
