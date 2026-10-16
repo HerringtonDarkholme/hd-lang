@@ -2235,6 +2235,15 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::POISON));
             }
         };
+        // `expr.name.contextual.rules`: with no call, `.Variant` is what
+        // `Enum.Variant` is, so a payload variant is a function value or,
+        // with two or more fields, `unsaturated-enum-constructor`
+        // (`data.enum.fn-value`).
+        if call.is_none()
+            && let Some(r) = self.variant_fn_value(enum_ty, &name, want, v)
+        {
+            return Ok(r);
+        }
         self.variant_by_name(enum_ty, &name, args, at)
     }
 
