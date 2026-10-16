@@ -320,7 +320,7 @@ impl Em<'_> {
                         return unsupported("a string constant outside the table");
                     };
                     if k == 0 {
-                        self.a.call(Sym::Helper(Helper::Lit(s.as_bytes().to_vec())));
+                        self.a.lit(s.as_bytes());
                     } else {
                         self.a.i64(i64::try_from(s.len()).unwrap_or(0) << 32);
                     }
@@ -2386,7 +2386,7 @@ impl Em<'_> {
     }
 
     fn lit_into(&mut self, i: u32, s: &str) -> StageResult<()> {
-        self.a.call(Sym::Helper(Helper::Lit(s.as_bytes().to_vec())));
+        self.a.lit(s.as_bytes());
         self.a.i64(i64::try_from(s.len()).unwrap_or(0) << 32);
         self.store(i)
     }
@@ -2728,8 +2728,7 @@ impl Em<'_> {
         self.a.struct_get(&st, 0);
         self.a.get(id);
         self.a.struct_get(&st, 1);
-        self.a
-            .call(Sym::Helper(Helper::Lit(want.as_bytes().to_vec())));
+        self.a.lit(want.as_bytes());
         self.a.i64(i64::try_from(want.len()).unwrap_or(0) << 32);
         self.a.call(Sym::Helper(Helper::StrEq));
         self.a.if_();
@@ -5237,7 +5236,7 @@ impl OnceCell<'_> {
         let outer = a.local(VT::rn(WTy::Bytes));
         a.global_get(crate::rt::fact_global());
         a.set(outer);
-        a.call(Sym::Helper(Helper::Lit(label.as_bytes().to_vec())));
+        a.lit(label.as_bytes());
         a.global_set(crate::rt::fact_global());
         // A facts body is a forbidden context (`req.drive.block-on.fact-contexts`).
         crate::rt::forbid_by(a, 1);

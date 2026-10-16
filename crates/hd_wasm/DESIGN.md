@@ -416,12 +416,15 @@ copies the bytes from segment 0 into the exchange buffer with
 the offset stays inside that function. Eager filling of the tables in
 `hd.init` is a later measurement.
 
-Implementation differs: each literal gets its own getter function and
-cache global (`Helper::Lit`, `rt::lit_code`), called by function index.
-At 10k lines that is about 2,000 tiny functions, each paying Cranelift's
-fixed per-function cost, which the per-module table avoids. The host fast
-path is not built either: a literal passed to a host call is built as an
-array first.
+Implementation differs: there is one table per linked module, not one
+per source module. A use writes `i32.const` with a `Reloc::Lit`
+immediate, then calls the one getter (`Helper::Lit`, `rt::lit_code`).
+Link numbers the module's distinct literals in content order and patches
+each immediate, so no cached code entry holds a literal number, and the
+function count does not grow with the literals. The getter reads each
+literal's offset and length from an index after the literal bytes in
+segment 0, built on the first miss. The host fast path is not built: a
+literal passed to a host call is built as an array first.
 
 - **Init order.** The `hd.init` export calls each reachable group's init
   function once, in `InitOrder`'s order, after every group it

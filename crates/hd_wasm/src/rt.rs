@@ -233,8 +233,10 @@ pub enum KeyOps {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
-    /// A pooled string literal's getter (`crates/hd_wasm/DESIGN.md` §15.4).
-    Lit(Vec<u8>),
+    /// The getter of the module's pooled string literals, by number
+    /// (`crates/hd_wasm/DESIGN.md` §15.4): a call site pushes the number
+    /// as a [`Reloc::Lit`](crate::Reloc::Lit) immediate.
+    Lit,
     /// `Display.to_string` of an integer: a view over a fresh buffer.
     IntToStr { wide: bool, signed: bool },
     /// String `==` over the viewed bytes.
@@ -502,10 +504,7 @@ impl KeyOps {
 impl Helper {
     pub(crate) fn encode(&self, w: &mut Writer) {
         match self {
-            Helper::Lit(b) => {
-                w.u8(0);
-                w.blob(b);
-            }
+            Helper::Lit => w.u8(0),
             Helper::IntToStr { wide, signed } => {
                 w.u8(1);
                 w.u8(u8::from(*wide));
@@ -792,7 +791,7 @@ impl Helper {
 
     pub(crate) fn decode(r: &mut Reader<'_>) -> Option<Helper> {
         Some(match r.u8() {
-            0 => Helper::Lit(r.blob().to_vec()),
+            0 => Helper::Lit,
             1 => Helper::IntToStr {
                 wide: r.u8() == 1,
                 signed: r.u8() == 1,
@@ -1039,18 +1038,58 @@ fn str_eq_same_view(a: &mut Asm) {
     a.end();
 }
 
-/// A literal getter, once link knows its segment offset and cell global.
+/// The literal pool: one cell per pooled literal, filled on first use.
 #[must_use]
-pub fn lit_code(off: u32, len: u32, global: u32) -> Code {
-    let mut a = Asm::new(vec![]);
-    a.s().global_get(global).ref_is_null();
+pub fn lit_pool() -> WTy {
+    WTy::Array(VT::rn(WTy::Bytes))
+}
+
+/// The literal index: each pooled literal's segment offset and length.
+#[must_use]
+pub fn lit_index() -> WTy {
+    WTy::Array(VT::I32)
+}
+
+/// The literal getter `(k) -> (ref $bytes)`, once link knows the pool and
+/// index globals, and where in segment 0 the index of `count` literals
+/// starts (`docs/compiler/lowering-catalog.md` "Literals"): literal `k`'s
+/// array is built from the segment on its first use and kept in the pool.
+#[must_use]
+pub fn lit_code(pool: u32, index: u32, base: u32, count: u32) -> Code {
+    let mut a = Asm::new(vec![VT::I32]);
+    let cell = a.local(VT::rn(WTy::Bytes));
+    a.s().global_get(pool);
+    a.get(0);
+    a.array_get(&lit_pool());
+    a.s().local_tee(cell).ref_is_null();
     a.if_();
-    a.i32(off.cast_signed());
-    a.i32(len.cast_signed());
-    a.array_new_data(&WTy::Bytes, 0);
-    a.s().global_set(global);
+    // The index is read from the segment once, on the first miss.
+    a.s().global_get(index).ref_is_null();
+    a.if_();
+    a.i32(base.cast_signed());
+    a.i32(count.saturating_mul(2).cast_signed());
+    a.array_new_data(&lit_index(), 0);
+    a.s().global_set(index);
     a.end();
-    a.s().global_get(global).ref_as_non_null();
+    a.s().global_get(pool);
+    a.get(0);
+    for field in [0, 1] {
+        a.s().global_get(index).ref_as_non_null();
+        a.get(0);
+        a.i32(2);
+        a.s().i32_mul();
+        if field == 1 {
+            a.i32(1);
+            a.s().i32_add();
+        }
+        a.array_get(&lit_index());
+    }
+    a.array_new_data(&WTy::Bytes, 0);
+    a.s().local_tee(cell);
+    a.array_set(&lit_pool());
+    a.end();
+    a.raw_get(cell);
+    a.s().ref_as_non_null();
     a.finish(vec![VT::r(WTy::Bytes)])
 }
 
@@ -1058,7 +1097,7 @@ pub fn lit_code(off: u32, len: u32, global: u32) -> Code {
 /// so its panic reports name the facts being evaluated.
 pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
     Ok(match h {
-        Helper::Lit(_) => lit_code(0, 0, 0),
+        Helper::Lit => lit_code(0, 0, 0, 0),
         Helper::IntToStr { wide, signed } => {
             let mut a = Asm::new(vec![if *wide { VT::I64 } else { VT::I32 }]);
             let (x, neg, buf, i) = (
@@ -1809,7 +1848,7 @@ pub(crate) fn write_lit(a: &mut Asm, text: &str) {
 
 /// Writes the literal `text` through the runtime import `write`.
 pub(crate) fn write_lit_to(a: &mut Asm, text: &str, write: Sym) {
-    a.call(Sym::Helper(Helper::Lit(text.as_bytes().to_vec())));
+    a.lit(text.as_bytes());
     a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     a.call(Sym::Helper(Helper::StrToBuf));
     a.call(write);
@@ -1819,7 +1858,7 @@ pub(crate) fn write_lit_to(a: &mut Asm, text: &str, write: Sym) {
 /// (the identity) and its printable name `shown` (trait.typeid.name).
 pub fn push_type_id(a: &mut Asm, st: &WTy, key: &str, shown: &str) {
     for text in [key, shown] {
-        a.call(Sym::Helper(Helper::Lit(text.as_bytes().to_vec())));
+        a.lit(text.as_bytes());
         a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     }
     a.struct_new(st);
@@ -2361,7 +2400,7 @@ impl Helper {
                 .collect()
         };
         match self {
-            Helper::Lit(_) => "lit".into(),
+            Helper::Lit => "lit".into(),
             Helper::IntToStr { wide, signed } => format!(
                 "int_to_str({}{})",
                 if *signed { "i" } else { "u" },

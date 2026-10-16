@@ -158,6 +158,13 @@ impl Asm {
         self.out.push(0x10);
         self.slot(Reloc::Func(s));
     }
+    /// A string literal: its number in the module's literal pool, which
+    /// link assigns, then a call of the pool's getter.
+    pub fn lit(&mut self, bytes: &[u8]) {
+        self.out.push(0x41);
+        self.slot(Reloc::Lit(bytes.to_vec()));
+        self.call(Sym::Helper(crate::Helper::Lit));
+    }
     pub fn ref_func(&mut self, s: Sym) {
         self.out.push(0xd2);
         self.slot(Reloc::Func(s));

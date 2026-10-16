@@ -561,6 +561,9 @@ pub enum Reloc {
     Func(Sym),
     Type(WTy),
     Global(GSym),
+    /// The `i32.const` immediate of a string literal's number in the
+    /// module's literal pool, assigned at link in content order.
+    Lit(Vec<u8>),
 }
 
 /// A code entry (`crates/hd_mono/DESIGN.md` §13.8): locals and instructions as bytes, index
@@ -1068,6 +1071,10 @@ impl Code {
                     w.u8(2);
                     g.encode(w);
                 }
+                Reloc::Lit(b) => {
+                    w.u8(3);
+                    w.blob(b);
+                }
             }
         }
         w.len_of(&self.lines);
@@ -1100,6 +1107,7 @@ impl Code {
                 0 => Reloc::Func(Sym::decode(r)?),
                 1 => Reloc::Type(WTy::decode(r)?),
                 2 => Reloc::Global(GSym::decode(r)?),
+                3 => Reloc::Lit(r.blob().to_vec()),
                 _ => return None,
             };
             if (at as usize) + 5 > body.len() {
@@ -1581,6 +1589,8 @@ pub fn link(
     let mut gsyms: BTreeSet<GSym> = BTreeSet::new();
     // The instances and parts the code calls or takes a reference to.
     let mut calls: BTreeSet<Sym> = BTreeSet::new();
+    // The string literals the code pushes, pooled in content order.
+    let mut lit_set: BTreeSet<Vec<u8>> = BTreeSet::new();
     // A session module also exports `hd.cancel`, which cancels its entry's
     // root suspension when the host interrupts a wait (`cli.repl.cancel`).
     // A program never exports it.
@@ -1619,6 +1629,9 @@ pub fn link(
                 }
                 Reloc::Func(s @ (Sym::Inst(_) | Sym::Part(..))) => {
                     calls.insert(s.clone());
+                }
+                Reloc::Lit(b) => {
+                    lit_set.insert(b.clone());
                 }
                 Reloc::Type(_) => {}
             }
@@ -1692,18 +1705,24 @@ pub fn link(
             ext_funcs.push((s.clone(), sig));
         }
     }
-    // Literals: one passive segment, deduplicated by content.
-    let mut lits: BTreeMap<Vec<u8>, (u32, u32)> = BTreeMap::new();
+    // Literals: one passive segment, deduplicated by content, then each
+    // literal's offset and length as two little-endian `i32`s, which the
+    // pool's getter reads as its index (`rt::lit_code`).
+    let mut lits: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
     let mut data = Vec::new();
-    for h in helpers.keys() {
-        if let Helper::Lit(bytes) = h {
-            let off = u32::try_from(data.len()).expect("data");
-            data.extend_from_slice(bytes);
-            lits.insert(
-                bytes.clone(),
-                (off, u32::try_from(bytes.len()).expect("lit")),
-            );
-        }
+    let mut spans = Vec::new();
+    for (k, bytes) in lit_set.iter().enumerate() {
+        spans.push((
+            u32::try_from(data.len()).expect("data"),
+            u32::try_from(bytes.len()).expect("lit"),
+        ));
+        data.extend_from_slice(bytes);
+        lits.insert(bytes.clone(), u32::try_from(k).expect("lits"));
+    }
+    let lit_base = u32::try_from(data.len()).expect("data");
+    for (off, len) in &spans {
+        data.extend_from_slice(&off.to_le_bytes());
+        data.extend_from_slice(&len.to_le_bytes());
     }
     let mut types = Types::default();
     let mut imps = ImportSection::new();
@@ -1771,26 +1790,38 @@ pub fn link(
         nfuncs += 1;
         bodies.push(c);
     }
-    // Globals: one lazily filled cell per literal (`crates/hd_wasm/DESIGN.md` §15.4),
+    // Globals: the literal pool and its index (`crates/hd_wasm/DESIGN.md` §15.4),
     // then module storage and runtime globals, by symbol order.
     let mut globals = GlobalSection::new();
-    let mut lit_global: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
-    for (i, bytes) in lits.keys().enumerate() {
-        let t = types.of(&WTy::Bytes);
+    let nlit_globals = if lits.is_empty() { 0 } else { 2 };
+    let lit_pool_global = u32::try_from(nglobal_imports).expect("globals");
+    if !lits.is_empty() {
+        let pool = types.of(&rt::lit_pool());
+        let index = types.of(&rt::lit_index());
+        globals.global(
+            GlobalType {
+                val_type: ValType::Ref(RefType {
+                    nullable: false,
+                    heap_type: HeapType::Concrete(pool),
+                }),
+                mutable: false,
+                shared: false,
+            },
+            &ConstExpr::extended([
+                Instruction::I32Const(i32::try_from(lits.len()).expect("lits")),
+                Instruction::ArrayNewDefault(pool),
+            ]),
+        );
         globals.global(
             GlobalType {
                 val_type: ValType::Ref(RefType {
                     nullable: true,
-                    heap_type: HeapType::Concrete(t),
+                    heap_type: HeapType::Concrete(index),
                 }),
                 mutable: true,
                 shared: false,
             },
-            &ConstExpr::ref_null(HeapType::Concrete(t)),
-        );
-        lit_global.insert(
-            bytes.clone(),
-            u32::try_from(nglobal_imports + i).expect("globals"),
+            &ConstExpr::ref_null(HeapType::Concrete(index)),
         );
     }
     // A witness thunk's signature: its code here, or what an earlier
@@ -1819,7 +1850,7 @@ pub fn link(
             );
             global_idx.insert(
                 g.clone(),
-                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+                u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
             );
             continue;
         }
@@ -1838,7 +1869,7 @@ pub fn link(
             );
             global_idx.insert(
                 g.clone(),
-                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+                u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
             );
             continue;
         }
@@ -1857,7 +1888,7 @@ pub fn link(
             );
             global_idx.insert(
                 g.clone(),
-                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+                u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
             );
             continue;
         }
@@ -1873,7 +1904,7 @@ pub fn link(
             );
             global_idx.insert(
                 g.clone(),
-                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+                u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
             );
             continue;
         }
@@ -1901,7 +1932,7 @@ pub fn link(
         );
         global_idx.insert(
             g.clone(),
-            u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+            u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
         );
     }
     let mut funcs = FunctionSection::new();
@@ -1912,9 +1943,13 @@ pub fn link(
         let t = types.of(&WTy::Func(c.params.clone(), c.results.clone()));
         funcs.function(t);
         let lit;
-        let c = if let Some(Helper::Lit(bytes)) = helper_list.get(n) {
-            let (off, len) = lits[bytes];
-            lit = rt::lit_code(off, len, lit_global[bytes]);
+        let c = if let Some(Helper::Lit) = helper_list.get(n) {
+            lit = rt::lit_code(
+                lit_pool_global,
+                lit_pool_global + 1,
+                lit_base,
+                u32::try_from(lits.len()).expect("lits"),
+            );
             &lit
         } else {
             *c
@@ -1932,6 +1967,7 @@ pub fn link(
                     f
                 }
                 Reloc::Type(t) => types.of(t),
+                Reloc::Lit(b) => lits[b],
                 Reloc::Global(g) => {
                     let Some(&i) = global_idx.get(g) else {
                         return unsupported(format!("a global relocation with no global: {g:?}"));
@@ -2021,7 +2057,7 @@ pub fn link(
     }
     for (k, h) in helper_list.iter().enumerate() {
         let base = helper_base(h);
-        let name = if seen[&base] > 1 || matches!(h, Helper::Lit(_) | Helper::Panic(_)) {
+        let name = if seen[&base] > 1 || matches!(h, Helper::Lit | Helper::Panic(_)) {
             format!("rt:{base}#{k}")
         } else {
             format!("rt:{base}")

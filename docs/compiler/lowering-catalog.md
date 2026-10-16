@@ -711,6 +711,10 @@ and no body holds a program-wide number.
 - **Host fast path:** `println` of a literal copies its bytes from the
   segment into the exchange buffer with `memory.init`, so no array is
   built and hello world needs no pool.
+- **Implementation differs:** one table per linked module, numbered at
+  link through a `Reloc::Lit` immediate, so no cached body holds a
+  number either; and no host fast path
+  ([crates/hd_wasm/DESIGN.md §15.4](../../crates/hd_wasm/DESIGN.md)).
 - **List and map literals** build fresh values each evaluation, since
   lists and maps are mutable.
 - **Engines:** `array.new_data` is not a constant instruction, which is

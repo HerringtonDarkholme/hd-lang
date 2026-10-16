@@ -1461,7 +1461,7 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
                 a.get(*l);
             }
             let checked = b"a host boundary decode already checked";
-            a.call(Sym::Helper(Helper::Lit(checked.to_vec())));
+            a.lit(checked);
             a.i64(i64::try_from(checked.len()).unwrap_or(0) << 32);
             a.call(Sym::Inst(codec.expect));
         }
