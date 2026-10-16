@@ -1,0 +1,8 @@
+# test: a named payload pattern must name a payload field of the variant
+# Spec 06 Payload Patterns: flow.match.payload.unknown.
+enum Choice:
+    Pair(left: i32, right: i32)
+
+fn first(choice: Choice) -> i32:
+    match choice:
+        Choice.Pair(missing=value, right=_other) => value  # diagnostic: unknown-data-field

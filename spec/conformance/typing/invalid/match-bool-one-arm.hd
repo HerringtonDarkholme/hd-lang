@@ -1,0 +1,5 @@
+# test: bool is covered only by both true and false, or by a catch-all
+# Spec 06 Exhaustiveness: flow.match.cover.bool.
+fn label(flag: bool) -> string:
+    match flag:  # diagnostic: nonexhaustive-match
+        true => "on"

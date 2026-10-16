@@ -1,0 +1,10 @@
+# test: a bare variant pattern for a variant with a payload is a pattern-arity error
+# Spec 06 Payload Patterns: flow.match.payload.arity.
+enum Flag:
+    On(value: i32)
+    Off
+
+fn choose(flag: Flag) -> i32:
+    match flag:
+        Flag.On => +1  # diagnostic: pattern-arity
+        Flag.Off => +0

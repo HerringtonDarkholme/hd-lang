@@ -1,0 +1,16 @@
+# test: positional payload patterns come first, and field=pattern names a payload field
+# Spec 06 Payload Patterns: flow.match.payload.order.
+enum Shape:
+    Scale(left: i32, factor: i32)
+
+fn scaled(shape: Shape) -> i32:
+    match shape:
+        .Scale(left, factor=2) => left * 2
+        .Scale(left, factor=f) => left * f
+
+tests:
+    use std.testing.assert_equal
+
+    it("the named factor pattern selects the arm"):
+        assert_equal(scaled(Shape.Scale(+5, +2)), +10, reason="factor=2 matches")
+        assert_equal(scaled(Shape.Scale(+5, +3)), +15, reason="factor=f binds 3")

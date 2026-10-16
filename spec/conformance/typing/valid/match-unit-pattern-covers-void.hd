@@ -1,0 +1,8 @@
+# test: the unit pattern () alone covers void
+# Spec 06 Exhaustiveness: flow.match.cover.unit.
+fn noop() -> void:
+    pass
+
+fn label() -> string:
+    match noop():
+        () => "done"

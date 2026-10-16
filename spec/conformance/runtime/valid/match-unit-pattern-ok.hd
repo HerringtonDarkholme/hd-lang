@@ -1,0 +1,18 @@
+# test: the unit pattern () matches the unit value of a void success
+# Spec 06 Unit Pattern: flow.match.unit.
+fn save(ready: bool) -> Result[void, string]:
+    if ready:
+        return .Ok(())
+    .Err("not ready")
+
+fn report(ready: bool) -> string:
+    match save(ready):
+        .Ok(()) => "saved"
+        .Err(message) => message
+
+tests:
+    use std.testing.assert_equal
+
+    it("() matches the success"):
+        assert_equal(report(true), "saved", reason="the unit pattern matches ()")
+        assert_equal(report(false), "not ready", reason="the error arm")

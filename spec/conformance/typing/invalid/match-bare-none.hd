@@ -1,0 +1,6 @@
+# test: a bare None pattern is an error
+# Spec 06 Catch-All And Variant Patterns: flow.match.optional.bare-variant.
+fn value_or_zero(value: i32?) -> i32:
+    match value:
+        .Some(number) => number
+        None => +0  # diagnostic: bare-variant-pattern

@@ -1,0 +1,10 @@
+# test: an unqualified identifier with a payload list is an error
+# Spec 06 Catch-All And Variant Patterns: flow.match.bare-payload.
+enum Flag:
+    On(value: i32)
+    Off
+
+fn level(flag: Flag) -> i32:
+    match flag:
+        On(value) => value  # diagnostic: bare-variant-pattern
+        .Off => +0

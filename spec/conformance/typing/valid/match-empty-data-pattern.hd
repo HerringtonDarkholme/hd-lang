@@ -1,0 +1,8 @@
+# test: an empty data pattern is irrefutable for its data type
+# Spec 06 Nested And Data Patterns: flow.match.data.empty.
+data User:
+    name: string
+
+fn known(user: User) -> bool:
+    match user:
+        User {} => true

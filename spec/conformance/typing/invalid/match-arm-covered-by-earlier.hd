@@ -1,0 +1,7 @@
+# test: an arm that an earlier unguarded arm already covers is unreachable
+# Spec 06 Exhaustiveness: flow.match.duplicate.covered.
+fn label(value: i32?) -> string:
+    match value:
+        .Some(_) => "some"
+        .Some(1) => "one"  # diagnostic: unreachable-match-arm
+        .None => "none"

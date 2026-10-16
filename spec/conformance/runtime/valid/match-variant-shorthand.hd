@@ -1,0 +1,19 @@
+# test: .Variant works where the subject or the enclosing payload fixes the enum, and the shorthand arms are exhaustive
+# Spec 06 Payload Patterns: flow.match.variant.shorthand, flow.match.variant.shorthand-exhaustive.
+enum Flag:
+    On(value: i32)
+    Off
+
+fn level(flag: Flag?) -> i32:
+    match flag:
+        .Some(.On(value)) => value
+        .Some(.Off) => +0
+        .None => -1
+
+tests:
+    use std.testing.assert_equal
+
+    it("nested shorthand patterns select by variant"):
+        assert_equal(level(.Some(Flag.On(+4))), +4, reason="the payload fixes Flag")
+        assert_equal(level(.Some(Flag.Off)), +0, reason="Off")
+        assert_equal(level(.None), -1, reason="None")

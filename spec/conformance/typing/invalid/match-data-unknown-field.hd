@@ -1,0 +1,9 @@
+# test: a data pattern field that the type does not declare is an error
+# Spec 06 Nested And Data Patterns: flow.match.data.fields.unknown.
+data User:
+    name: string
+    age: i32
+
+fn read(user: User) -> i32:
+    match user:
+        User { missing } => +1  # diagnostic: unknown-data-field

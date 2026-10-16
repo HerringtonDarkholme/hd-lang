@@ -1,0 +1,10 @@
+# test: an unguarded catch-all must be the final arm, and the error is on the unreachable arm
+# Spec 06 Exhaustiveness: flow.match.catch-all.final, flow.match.unreachable.arm.
+enum Flag:
+    On(value: i32)
+    Off
+
+fn choose(flag: Flag) -> i32:
+    match flag:
+        _ => +1
+        .Off => +0  # diagnostic: unreachable-match-arm

@@ -1,0 +1,6 @@
+# test: there is no optional-specific pattern, so value? is not a pattern
+# Spec 06 Catch-All And Variant Patterns: flow.match.optional.no-pattern.
+fn value_or_zero(value: i32?) -> i32:
+    match value:
+        number? => number  # diagnostic: syntax-error
+        _ => +0

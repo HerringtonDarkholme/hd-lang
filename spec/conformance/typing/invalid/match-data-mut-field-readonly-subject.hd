@@ -1,0 +1,8 @@
+# test: a direct mut U field of a readonly subject binds as U, so it cannot be mutated
+# Spec 06 Nested And Data Patterns: flow.match.data.readonly-mut.
+data Box:
+    items: mut List[i32]
+
+fn add(box: Box) -> void:
+    match box:
+        Box { items } => items.push(+1)  # diagnostic: mutable-receiver-required

@@ -1,0 +1,17 @@
+# test: _ and a bare binding are catch-all patterns, and the binding holds the subject
+# Spec 06 Catch-All And Variant Patterns: flow.match.catch-all.
+fn describe(n: i32) -> string:
+    match n:
+        0 => "zero"
+        other => "got $other"
+
+fn ignore(n: i32) -> string:
+    match n:
+        _ => "any"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the bare binding catches every other value"):
+        assert_equal(describe(+7), "got 7", reason="other binds 7")
+        assert_equal(ignore(+7), "any", reason="_ catches 7")

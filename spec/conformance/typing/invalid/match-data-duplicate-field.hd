@@ -1,0 +1,9 @@
+# test: a data pattern that lists one field twice is an error
+# Spec 06 Nested And Data Patterns: flow.match.data.fields.duplicate.
+data User:
+    name: string
+    age: i32
+
+fn alias(user: User) -> string:
+    match user:
+        User { name: _first, name: other } => other  # diagnostic: duplicate-data-pattern-field

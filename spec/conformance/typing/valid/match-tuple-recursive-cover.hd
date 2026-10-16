@@ -1,0 +1,7 @@
+# test: tuple patterns cover what their element patterns cover recursively
+# Spec 06 Exhaustiveness: flow.match.cover.tuple.
+fn label(pair: (bool, bool)) -> string:
+    match pair:
+        (true, _) => "first"
+        (false, true) => "second"
+        (false, false) => "neither"

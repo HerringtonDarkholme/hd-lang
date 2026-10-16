@@ -1,0 +1,16 @@
+# test: a payload declared with a generic parameter binds its substituted type, including mut U
+# Spec 06 Payload Bindings: flow.match.bind.generic.
+enum Holder[T]:
+    Has(value: T)
+
+fn add(holder: Holder[mut List[i32]]) -> void:
+    match holder:
+        .Has(list) => list.push(+3)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the payload binds as mut List[i32]"):
+        let items: mut List[i32] = [+1]
+        add(Holder.Has(items))
+        assert_equal(items, [+1, +3], reason="the push went through the binding")

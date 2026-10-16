@@ -1,0 +1,13 @@
+# test: a literal pattern matches only an equal value
+# Spec 06 Payload Patterns: flow.match.literal.
+fn label(n: i32) -> string:
+    match n:
+        3 => "three"
+        _ => "other"
+
+tests:
+    use std.testing.assert_equal
+
+    it("only 3 matches the literal 3"):
+        assert_equal(label(+3), "three", reason="equal value")
+        assert_equal(label(+4), "other", reason="unequal value")

@@ -1,0 +1,9 @@
+# test: a match must be exhaustive, so a missing enum variant is an error
+# Spec 06 Exhaustiveness: flow.match.exhaustive.
+enum Status:
+    Ready
+    Waiting
+
+fn label(status: Status) -> string:
+    match status:  # diagnostic: nonexhaustive-match
+        .Ready => "ready"

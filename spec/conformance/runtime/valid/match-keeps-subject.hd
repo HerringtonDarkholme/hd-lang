@@ -1,0 +1,16 @@
+# test: matching does not transfer ownership, so the subject and its payload stay usable after the match
+# Spec 06 Payload Bindings: flow.match.no-ownership.
+enum Bag:
+    Items(values: List[i32])
+
+fn count(bag: Bag) -> usize:
+    match bag:
+        .Items(values) => values.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the subject is still whole after two matches"):
+        bag := Bag.Items([+1, +2])
+        assert_equal(count(bag), 2, reason="first match")
+        assert_equal(count(bag), 2, reason="second match on the same value")

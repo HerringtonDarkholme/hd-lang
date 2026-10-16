@@ -1,0 +1,10 @@
+# test: a bare identifier that names a variant of the subject enum is an error, not a catch-all binding
+# Spec 06 Catch-All And Variant Patterns: flow.match.bare-variant.
+enum Status:
+    Ready
+    Waiting
+
+fn label(status: Status) -> string:
+    match status:
+        Ready => "ready"  # diagnostic: bare-variant-pattern
+        .Waiting => "waiting"

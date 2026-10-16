@@ -1,0 +1,7 @@
+# test: a duplicate unguarded literal arm is unreachable
+# Spec 06 Exhaustiveness: flow.match.unreachable.
+fn label(n: i32) -> string:
+    match n:
+        1 => "one"
+        1 => "uno"  # diagnostic: unreachable-match-arm
+        _ => "many"
