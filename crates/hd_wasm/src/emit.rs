@@ -4499,34 +4499,75 @@ impl<'a> Em<'a> {
     }
 
     /// A block list that contains a suspension point (`crates/hd_wasm/DESIGN.md`
-    /// §14.2): on resume, the code before the point is skipped, and each
-    /// construct on the way enters the branch that holds the point.
+    /// §14.2): one `br_table` on `pc` enters it. The list is cut into
+    /// segments, each starting at an item that holds a state, after a
+    /// fresh-only prefix. Each segment follows the `end` of its own block,
+    /// so fresh code falls through every segment, and a resume branches
+    /// out of the block before the segment that holds its state.
     fn resume_list(&mut self, items: &[u32]) -> StageResult<()> {
-        let last = items.iter().rposition(|i| self.range(*i).is_some());
-        let mut j = 0;
-        while j < items.len() {
-            let i = items[j];
-            if self.range(i).is_some() {
-                self.entered(i, |em| em.inst(i))?;
-                j += 1;
-                continue;
+        let points: Vec<usize> = (0..items.len())
+            .filter(|&j| self.range(items[j]).is_some())
+            .collect();
+        let Some(&first) = points.first() else {
+            for &i in items {
+                self.inst(i)?;
             }
-            let start = j;
-            while j < items.len() && self.range(items[j]).is_none() {
-                j += 1;
-            }
-            let group = items[start..j].to_vec();
-            if last.is_some_and(|l| start < l) {
+            return Ok(());
+        };
+        // One item holds every state: a resume always enters it, so only
+        // the prefix needs a guard.
+        if points.len() == 1 {
+            if first > 0 {
                 self.fresh_only(|em| {
-                    for g in group {
-                        em.inst(g)?;
+                    for &i in &items[..first] {
+                        em.inst(i)?;
                     }
                     Ok(())
                 })?;
-            } else {
-                for g in group {
-                    self.inst(g)?;
-                }
+            }
+            for &i in &items[first..] {
+                self.inst(i)?;
+            }
+            return Ok(());
+        }
+        let ranges: Vec<(u32, u32)> = points
+            .iter()
+            .filter_map(|&j| self.range(items[j]))
+            .collect();
+        let (lo, hi) = (ranges[0].0, ranges[ranges.len() - 1].1);
+        // Block `k` ends before segment `k`; segment 0 is the prefix.
+        for _ in 0..=points.len() {
+            self.a.block();
+            self.open(Ctl::Plain);
+        }
+        // `pc - lo`: states start at 1, so a fresh `pc` of 0 wraps past
+        // the table and takes the default, the prefix.
+        let targets: Vec<u32> = (lo..=hi)
+            .map(|pc| {
+                ranges
+                    .iter()
+                    .position(|&(a, b)| a <= pc && pc <= b)
+                    .map_or(0, |k| u32_of(k + 1))
+            })
+            .collect();
+        let pc = self.pc();
+        self.a.get(pc);
+        self.a.i32(lo.cast_signed());
+        self.a.s().i32_sub();
+        self.a.s().br_table(targets, 0);
+        let close = |em: &mut Self| {
+            em.ctrl.pop();
+            em.a.end();
+        };
+        close(self);
+        for &i in &items[..first] {
+            self.inst(i)?;
+        }
+        for (k, &p) in points.iter().enumerate() {
+            close(self);
+            let next = points.get(k + 1).copied().unwrap_or(items.len());
+            for &i in &items[p..next] {
+                self.inst(i)?;
             }
         }
         Ok(())

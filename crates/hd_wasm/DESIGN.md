@@ -751,11 +751,17 @@ each control transfer inside a suspending loop, a few cycles.
 
 Implementation differs: `emit_suspending` runs two emission passes, the
 first learning every Wasm local the body declares, and saves all of them
-at every suspension point (`Em::save`); it resumes through nested,
-`pc`-guarded block lists. There is no liveness, no clearing of dead
-references, and no `br_table` dispatch loop, so frames are larger, every
-wait stores every local, and a reused frame keeps dead values reachable
-(see #175).
+at every suspension point (`Em::save`). There is no liveness and no
+clearing of dead references, so frames are larger, every wait stores
+every local, and a reused frame keeps dead values reachable (#236).
+Blocks are not flattened either. A block list whose items hold two or
+more states is entered through one `br_table` on `pc - lo`
+(`Em::resume_list`): each such item starts a segment after the `end` of
+its own block, so fresh code falls through every segment and a resume
+branches straight to its own. A list with one such item guards only the
+code before it. Constructs inside an item (`if`, `match`, a loop) still
+choose their resumed branch with `pc`-range tests. Against the guard per
+item before, the 31 suspending `main!` fixtures shrank by 0.4%.
 
 ### 14.3 Lazy Frame Materialization
 

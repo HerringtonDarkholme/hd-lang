@@ -146,6 +146,7 @@ mod rejected_pattern_binds;
 mod related_traits;
 mod release_profile_run;
 mod repl_input;
+mod resume_dispatch;
 mod row_aliases;
 mod row_invariant_nested;
 mod row_one_body;
