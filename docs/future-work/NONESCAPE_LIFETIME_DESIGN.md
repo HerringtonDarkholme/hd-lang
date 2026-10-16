@@ -1,6 +1,6 @@
 # NonEscapable Types And Lifetimes: Design
 
-Status: settled for external review round 3.
+Status: settled for external review round 4.
 
 ## Table Of Contents
 
@@ -32,18 +32,26 @@ orchestrator settled the direction on 2026-10-14 (round 2). Round 3, the
 same day, folded in eight further owner decisions (D1 to D8, below) and
 the owner's answers to sixteen open questions (Q1 to Q16, listed in
 [14.1](#141-decided)). Round 4, also the same day, folds in the owner's
-decisions on the adversarial review
-[NONESCAPE_LIFETIME_STRESS_TEST.md](NONESCAPE_LIFETIME_STRESS_TEST.md)
-(NE-S1 to NE-S11, below), and parks closing. Round 5, also the same day,
+decisions on the first adversarial review (NE-S1 to NE-S11, below), and
+parks closing. Round 5, also the same day,
 answers the two open questions that closing left (OQ1 and OQ3, below),
 accepts the four agent details of round 4, and records one clarification
 about closure fields ([5.4](#54-closure-fields)). Round 6, on 2026-10-15,
 folds in the owner's decisions on the second adversarial review
-[NONESCAPE_LIFETIME_STRESS_TEST_2.md](NONESCAPE_LIFETIME_STRESS_TEST_2.md)
 (NE-S6b, NE-S1b, NE-S4b, NE-S5b, NE-S5c, NE-S1c, NE-S11b, and NE-S7b,
 below). The largest is NE-S1b: a generic value keeps one reach per
 type-parameter component, which partly reverses D6's "one reach per
-value".
+value". Round 7, on 2026-10-16, folds in the owner's decisions on the
+third adversarial review (NE-S5d, NE-S1d, NE-S4c, the rest of NE-S5c,
+NE-S12, NE-S4d, NE-S1e, and B8 to B12, below). The largest is NE-S1d:
+type parameters carry their reach, as in Rust and Mojo, and a component
+is marked inside its type argument. It reverses the rest of D6.
+
+The three reviews and the research survey behind the design were deleted
+after round 7 (owner, 2026-10-15); git history keeps them. Every case
+they define is a regression case in [13](#13-stress-test-suite), with the
+shape of the code it was taken from, and the comparison tables the design
+needs are in the appendices.
 
 **Closing is parked (owner, 2026-10-14).** The owner's reason: "closing
 method cannot be modelled well without ownership; don't patch the
@@ -62,35 +70,55 @@ The spellings `NonEscapable`, `^`, and `^{...}` are the owner's (Q16). The
 placeholders. No compiler checks these examples. A line marked `# error:`
 gives the diagnostic the proposed checker would report.
 
+**Decisions of 2026-10-16, round 7.** All are binding. Each is marked
+"(owner, 2026-10-16, NE-Sxx)" or "(owner, 2026-10-16, Bn)" where it
+lands. The third review's cases R34 to R45 are regression cases in
+[13.12](#1312-review-3-regression-cases).
+
+| # | Decision | Review cases | Lands in |
+| --- | --- | --- | --- |
+| NE-S5d | A1. Weakening reuses the direct cold-call computation of `run`: one formula. `run` holds every argument, a marked parameter of any type included, the called function value's environment, and the providers. | R34 | `ne.suspend.weaken` |
+| NE-S1d | A2, revised on 2026-10-16. Type parameters carry their reach, as in Rust and Mojo: instantiating `T` supplies a type and its reaches, so `fn same[T](v: T) -> T` returns exactly what came in, with no `^` on `T`. Unmarked means global at every position, inside type arguments too. A NonEscapable component is marked where it is written: `xs: ^List[^Conn]` is a local list of local handles, and `^List[Conn]` a local list of global handles, so a list of local handles is rejected there. `^` marks only the position it is written on, with no rule that covers components ("don't add new rules"). The ban on lifetimes inside type arguments is removed ("dumb rule, remove"). This replaces the owner's shape-preserving answer of 2026-10-15. | R35, R36, R37 | `ne.syntax.one-reach`, [5.5](#55-generic-components), [8.1](#81-generic-substitution), [4.3](#43-elision), L5 |
+| NE-S4c | A3. A bound method's result that names the receiver reaches the whole captured environment, as a store through it does. | R39 | `ne.fntype.bound-ref` |
+| NE-S5c, the rest | A4. `Fn[...]` and `SuspendFn[...]` denote only all-global contracts. A richer function type is written with `fn(...)`. | R41 | `ne.fntype.constructor` |
+| NE-S12 | A5, revised on 2026-10-16. `Iterator[T].next(^mut self) -> T?` is precise: `T` carries the item reach, as in Rust's `from_fn`. | R42 | `ne.generic.abstract`, [12.5](#125-annotation-burden-in-std-estimate) |
+| NE-S4d | A6. Keep the conservative rule that a store into an environment reaches all of it. Document the workarounds. | R40 | `ne.fntype.env-store`, L10 |
+| NE-S1e | A7. Values that enter the same component need compatible invariant reaches. "Aggregation never widens" holds for separate components only. | R38 | `ne.data.component-share`, `ne.data.no-join`, `ne.var.generic` |
+| B8 | A tuple element's path is its member-name chain, `^{t._0}`. | - | `ne.data.component-path` |
+| B9 | Type arguments come first, then slot arguments, everywhere: `Suspend[T, ^{run}, ^{out}]`, `Pair[A, B, ^{a}, ^{b}]`. | - | `ne.syntax.slot-args` |
+| B10 | Moot: a per-component result bound comes from `T`. | - | - |
+| B11 | Keep the erasure join check: erasing to `dyn K` is an error when the join widens a mutable slot or component. | R22 | `ne.erase.join` |
+| B12 | A store through a bound method's receiver targets the whole receiver, `^{dst}`, as A3 and A6 do. | R24 | `ne.fntype.env-store` |
+
 **Decisions of 2026-10-15, round 6.** All are binding. Each is marked
-"(owner, 2026-10-15, NE-Sxx)" where it lands, with a link to the review.
-The review's cases R21 to R33 are regression cases in
+"(owner, 2026-10-15, NE-Sxx)" where it lands. The second review's cases
+R21 to R33 are regression cases in
 [13.11](#1311-review-2-regression-cases).
 
 | # | Decision | Review cases | Lands in |
 | --- | --- | --- | --- |
-| [NE-S6b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s6b-ordinary-providers-need-provenance) | Option (b). A provider of an ordinary key, one whose trait is not NonEscapable, must be static: `$.with(K = p)` is an error when `p`'s reach is not `static`. Ordinary keys stay untracked in signatures, which is sound because their providers hold nothing scoped. A library that supplies scoped values through a key declares the key NonEscapable, and NE-S6 tracks it. | R21 | [10](#10-providers) |
-| [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too) | Option (b), with the follow-up (i). Wrappers and tuples keep independent component reaches instead of joining them. Each type-parameter component of a generic value has its own reach, named by a path through the type parameter: `^{x.T}`, `p.A` and `p.B` for `Pair[A, B]`, a tuple element by position. Reading `dst[0]` gives `dst.T`'s reach, and `push` is `fn push(^mut self, v: ^{self.T} T)`. A parameter's own `^` marks the container's locality, separate from its components. A list's elements share one reach, because a list has one `T`. Nothing joins, so a mutable component is never widened. This partly reverses D6 (one reach per value) and the wrapper half of Q15 (known limit L5). | R22, R23 | [5.5](#55-generic-components), [5.2](#52-declared-slots), [5.3](#53-variance-of-slots), [8.1](#81-generic-substitution) |
-| [NE-S4b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s4b-a-closures-environment-is-a-retention-destination) | Option (a). A closure's environment is a named store destination. A closure or bound method that stores an input into what it captured says so in its function type, `x: ^{f} T`, with D8's `^{f}`. One rule covers bound references (`dst::push` has type `fn(v: ^{put} Conn) -> void`) and written closures (a closure that stores `x` into a captured variable does not match `fn(x: ^Conn)`). | R24, R28 | [8.2](#82-function-types) |
-| [NE-S5b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5b-include-the-called-closure-in-cold-frames) | Yes. A cold call's `run` also includes the reach of the called function value, its environment, beside the arguments and the providers. | R25 | [9](#9-closures-suspensions-and-cancellation) |
-| [NE-S5c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5c-preserve-both-slots-through-callable-lowering) | Option (a). Weakening a suspending function to its cold constructor writes the frame result with the existing slot-argument form, `run` then `out`: `Suspend[Conn, ^{keep, scratch}, ^{keep}]`. No new syntax: a stated translation. | R26 | [9](#9-closures-suspensions-and-cancellation) |
-| [NE-S1c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1c-compute-variance-of-dependencies-not-unrelated-results) | Option (a), refine. Variance follows only the results and stores that mention the reach being widened. A fresh `^{}` result, or a store into another target, does not make the environment invariant. | R29 | [5.3](#53-variance-of-slots) |
-| [NE-S11b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s11b-account-for-the-accepted-generic-cost) | Accepted, docs only. The guide shows the L9 diagnostic, a generic `map` result tied to `xs` and `f` even when `U` is a scalar, and a workaround: a plain loop or a fresh-result helper. | R30 | [13.9](#139-known-limits) |
-| [NE-S7b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s7b-use-the-full-retention-summary-for-closures) | Accepted, docs only. The optimizer may treat a callback as not retained only when no result or store names it. A bare `^` may still flow out through `^{f}`. | R33 | [12.6](#126-what-the-optimizer-gets) |
+| NE-S6b | Option (b). A provider of an ordinary key, one whose trait is not NonEscapable, must be static: `$.with(K = p)` is an error when `p`'s reach is not `static`. Ordinary keys stay untracked in signatures, which is sound because their providers hold nothing scoped. A library that supplies scoped values through a key declares the key NonEscapable, and NE-S6 tracks it. | R21 | [10](#10-providers) |
+| NE-S1b | Option (b), with the follow-up (i). Wrappers and tuples keep independent component reaches instead of joining them. Each type-parameter component of a generic value has its own reach, named by a path through the type parameter: `^{x.T}`, `p.A` and `p.B` for `Pair[A, B]`, a tuple element by position. Reading `dst[0]` gives `dst.T`'s reach, and `push` is `fn push(^mut self, v: ^{self.T} T)`. A parameter's own `^` marks the container's locality, separate from its components. A list's elements share one reach, because a list has one `T`. Nothing joins, so a mutable component is never widened. This partly reverses D6 (one reach per value) and the wrapper half of Q15 (known limit L5). Round 7 replaces `^{self.T}` by `v: T` and lets a component be marked in its type argument (NE-S1d). | R22, R23 | [5.5](#55-generic-components), [5.2](#52-declared-slots), [5.3](#53-variance-of-slots), [8.1](#81-generic-substitution) |
+| NE-S4b | Option (a). A closure's environment is a named store destination. A closure or bound method that stores an input into what it captured says so in its function type, `x: ^{f} T`, with D8's `^{f}`. One rule covers bound references (`dst::push` has type `fn(v: ^{put} Conn) -> void`) and written closures (a closure that stores `x` into a captured variable does not match `fn(x: ^Conn)`). | R24, R28 | [8.2](#82-function-types) |
+| NE-S5b | Yes. A cold call's `run` also includes the reach of the called function value, its environment, beside the arguments and the providers. | R25 | [9](#9-closures-suspensions-and-cancellation) |
+| NE-S5c | Option (a). Weakening a suspending function to its cold constructor writes the frame result with the existing slot-argument form, `run` then `out`: `Suspend[Conn, ^{keep, scratch}, ^{keep}]`. No new syntax: a stated translation. | R26 | [9](#9-closures-suspensions-and-cancellation) |
+| NE-S1c | Option (a), refine. Variance follows only the results and stores that mention the reach being widened. A fresh `^{}` result, or a store into another target, does not make the environment invariant. | R29 | [5.3](#53-variance-of-slots) |
+| NE-S11b | Accepted, docs only. The guide shows the L9 diagnostic, a generic `map` result tied to `xs` and `f` even when `U` is a scalar, and a workaround: a plain loop or a fresh-result helper. | R30 | [13.9](#139-known-limits) |
+| NE-S7b | Accepted, docs only. The optimizer may treat a callback as not retained only when no result or store names it. A bare `^` may still flow out through `^{f}`. | R33 | [12.6](#126-what-the-optimizer-gets) |
 
 **Decisions of 2026-10-14, round 4.** All are binding. Each is marked
-"(owner, 2026-10-14, NE-Sn)" where it lands, with a link to the review.
+"(owner, 2026-10-14, NE-Sn)" where it lands.
 
 | # | Decision | Review cases | Lands in |
 | --- | --- | --- | --- |
-| [NE-S1](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s1-recovered-write-authority) | A reach is covariant only when no mutable storage is reachable through the value's exposed surface: fields, element types, method results, and callable results. Otherwise it is invariant. This is Rust's interior-mutability rule, computed by the polarity check. | C01, C02, C03 | [5.3](#53-variance-of-slots) |
-| [NE-S2](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s2-ordinary-provenance) | One flow. An ordinary `^` parameter is a root in the same reach machinery, and a `^{b}` result carries `b`'s root to the caller. Only an argument that is already global substitutes `static`. | C04, C14 | [4.1](#41-parameter-marks), [4.4](#44-call-sites), [8.2](#82-function-types) |
-| [NE-S5](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s5-frame-retention-and-output) | Two slots on the compiler-known `Suspend`: `run`, what the frame keeps alive, and `out`, what its output may reach. Elision option (a): std writes `^{s.out}` on frame-driving functions, and no elision rule is special to `Suspend`. | C08 | [9](#9-closures-suspensions-and-cancellation) |
-| [NE-S6](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s6-provider-elision) | Function-type elision counts NonEscapable keys and row parameters exactly as function elision does. An ambiguous callback result is written. | C09 | [8.2](#82-function-types) |
-| [NE-S7](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s7-optimizer-proof-boundaries) | Doc only. `LocalParams` is a checked bound on what the callee keeps. Each optimization lists its own further preconditions. | C13, C14 | [12.6](#126-what-the-optimizer-gets) |
-| [NE-S10](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s10-category-calculation) | "NonEscapable" is the instantiated type's category, computed from its stored fields (a fixed point for recursion), never from the spelling of its type arguments. `Tag[Conn]` and `Field[S, F]` are ordinary. Generic data declares no category for now. | C18 | [4.1](#41-parameter-marks), [5.1](#51-the-category) |
-| [NE-S11](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s11-precision-boundaries) | C11, C12, C15, and C19 are known limits. "Exact" means exact substitution of published signatures. A closure's reach is exactly the union of what it captures, so a closure that captures nothing tracked has the empty reach and is no root (C20). | C11, C12, C15, C19, C20 | [1](#1-owner-requirements), [9](#9-closures-suspensions-and-cancellation), [13.9](#139-known-limits) |
-| [NE-S3](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s3-cleanup-execution-states) | Decided (option 1, cleanup as ordered control flow), then parked with closing. | C06, C07 | [P.5](#p5-parked-owner-decisions) |
+| NE-S1 | A reach is covariant only when no mutable storage is reachable through the value's exposed surface: fields, element types, method results, and callable results. Otherwise it is invariant. This is Rust's interior-mutability rule, computed by the polarity check. | C01, C02, C03 | [5.3](#53-variance-of-slots) |
+| NE-S2 | One flow. An ordinary `^` parameter is a root in the same reach machinery, and a `^{b}` result carries `b`'s root to the caller. Only an argument that is already global substitutes `static`. | C04, C14 | [4.1](#41-parameter-marks), [4.4](#44-call-sites), [8.2](#82-function-types) |
+| NE-S5 | Two slots on the compiler-known `Suspend`: `run`, what the frame keeps alive, and `out`, what its output may reach. Elision option (a): std writes `^{s.out}` on frame-driving functions, and no elision rule is special to `Suspend`. | C08 | [9](#9-closures-suspensions-and-cancellation) |
+| NE-S6 | Function-type elision counts NonEscapable keys and row parameters exactly as function elision does. An ambiguous callback result is written. | C09 | [8.2](#82-function-types) |
+| NE-S7 | Doc only. `LocalParams` is a checked bound on what the callee keeps. Each optimization lists its own further preconditions. | C13, C14 | [12.6](#126-what-the-optimizer-gets) |
+| NE-S10 | "NonEscapable" is the instantiated type's category, computed from its stored fields (a fixed point for recursion), never from the spelling of its type arguments. `Tag[Conn]` and `Field[S, F]` are ordinary. Generic data declares no category for now. | C18 | [4.1](#41-parameter-marks), [5.1](#51-the-category) |
+| NE-S11 | C11, C12, C15, and C19 are known limits. "Exact" means exact substitution of published signatures. A closure's reach is exactly the union of what it captures, so a closure that captures nothing tracked has the empty reach and is no root (C20). | C11, C12, C15, C19, C20 | [1](#1-owner-requirements), [9](#9-closures-suspensions-and-cancellation), [13.9](#139-known-limits) |
+| NE-S3 | Decided (option 1, cleanup as ordered control flow), then parked with closing. | C06, C07 | [P.5](#p5-parked-owner-decisions) |
 | NE-S4, NE-S8, NE-S9 | Parked with closing, not patched. NE-S9's wording is settled with NE-S3. | C05, C07, C10, C17 | [P.5](#p5-parked-owner-decisions) |
 
 **Decisions of 2026-10-14, round 5.** All are binding. Each is marked
@@ -109,11 +137,11 @@ The review's cases R21 to R33 are regression cases in
 | # | Decision | Lands in |
 | --- | --- | --- |
 | D1 | Every NonEscapable parameter is written with `^`. An unmarked parameter is always global. An unmarked NonEscapable parameter is an error with a fix-it. Results keep elision. | [4.1](#41-parameter-marks), [4.3](#43-elision) |
-| D2 | NonEscapable values flow only into local positions. `x: T` and `x: dyn K` accept one only when written `^T` or `^dyn K`. This reverses the round-2 "type parameters accept lifetimes by default". | [4.1](#41-parameter-marks), [8.1](#81-generic-substitution) |
+| D2 | NonEscapable values flow only into local positions. `x: T` and `x: dyn K` accept one only when written `^T` or `^dyn K`. This reverses the round-2 "type parameters accept lifetimes by default". Round 7 reverses the half about `x: T`: a type parameter carries the reach of its instantiation, so `x: T` takes a local argument (NE-S1d). `x: dyn K` is unchanged. | [4.1](#41-parameter-marks), [8.1](#81-generic-substitution) |
 | D3 | Not strict locality. Dependent results and stores stay. "Local" means "lives no longer than its sources". | [2](#2-core-model), [4.4](#44-call-sites) |
 | D4 | Any parameter of any type may be marked `^`. The callee body is checked. The signature gives the optimizer a `LocalParams` fact. | [4.1](#41-parameter-marks), [7.2](#72-signature-conformance), [12.6](#126-what-the-optimizer-gets) |
 | D5 | Function-typed parameters follow the same rule, as in Kotlin. No implicit default for callbacks. `^{static}` on a parameter is gone. A lint suggests `^`. | [4.1](#41-parameter-marks) |
-| D6 | Kotlin-style generics. No lifetime inside a type argument. Every value has one reach. Declared slots stay, opt-in. Container methods write `^{self}` on what they store. **Partly reversed** in round 6 (owner, 2026-10-15, NE-S1b): a generic value keeps one reach per type-parameter component, and container methods write `^{self.T}`. No lifetime is written inside a type argument still. | [5](#5-data-types-and-slots), [5.5](#55-generic-components), [8.1](#81-generic-substitution) |
+| D6 | Kotlin-style generics. No lifetime inside a type argument. Every value has one reach. Declared slots stay, opt-in. Container methods write `^{self}` on what they store. **Partly reversed** in round 6 (owner, 2026-10-15, NE-S1b): a generic value keeps one reach per type-parameter component, and container methods write `^{self.T}`. **Reversed** in round 7 (owner, 2026-10-16, NE-S1d): a lifetime is written inside a type argument where a component is local, a type parameter carries its reach, and container methods take `v: T`. | [5](#5-data-types-and-slots), [5.5](#55-generic-components), [8.1](#81-generic-substitution) |
 | D7 | Result elision stays. | [4.3](#43-elision) |
 | D8 | Function types name their parameters and use the elision rules of functions. The union default and limit L3 are gone. | [8.2](#82-function-types) |
 
@@ -142,7 +170,9 @@ questions adopt every agent rule of the previous revision except the ones
 in the table below. Round 4 adds the NE-S decisions, and applying them
 forced four agent details. Round 5 adds OQ1 and OQ3 and accepts those
 four details. Round 6 adds the second review's decisions, and applying
-them forced the agent details in the last table below. Every rule that
+them forced the agent details in the next table. Round 7 adds the third
+review's decisions, which settle five of those details, and applying them
+forced the agent details in the last table below. Every rule that
 still ends in **(agent)** or **(agent-detail)** was written by the agent
 and needs the owner's review.
 
@@ -168,22 +198,37 @@ The owner accepted these agent choices on 2026-10-14 (round 5). Their
 | A method that stores into `self` (`^{self}`) counts as mutable storage of a `dyn` | `ne.var.dyn` | NE-S1 |
 | `run` and `out` under the wrapper rule (reversed in round 6: a wrapper keeps both slots, NE-S1b) | `ne.suspend.stored` | NE-S5, Q15 |
 | `^{}` mints a caller root only for a NonEscapable result | `ne.call.fresh`, `ne.root.site` | NE-S11 (C20) |
-| A function type's own result bound may stand inside a type argument | `ne.syntax.one-reach` | NE-S6 |
+| A function type's own result bound may stand inside a type argument (any mark may since round 7, NE-S1d) | `ne.syntax.one-reach` | NE-S6 |
 
 Round 6 forced these agent details (2026-10-15). Each rule carries the
-flag "agent-detail, round 6" until the owner reviews it.
+flag "agent-detail, round 6" until the owner reviews it. Round 7 settles
+the others: the one-bound rule and known limit L5 are removed (NE-S1d),
+and the owner decided the tuple path (B8), the order of slot arguments
+(B9), the erasure join (B11), and the whole-environment store (NE-S4d,
+B12).
 
 | Agent detail | Rules | Forced by |
 | --- | --- | --- |
-| One written bound covers every component, so a written type has no per-component bound (the new known limit L5) | `ne.data.component-bound`, `ne.syntax.one-reach` | NE-S1b, [R23](#r23-a-tuple-hides-the-same-widening) |
-| A tuple element's path is its member name, `t._0`, after `expr.tuple.select-underscore`; paths compose, as `p.T.a` | `ne.data.component-path` | NE-S1b |
+| Paths compose, as `p.T.a` | `ne.data.component-path` | NE-S1b |
 | A component of scalar type has no root | `ne.data.component-locality` | NE-S1b |
 | A whole name as a store destination, `c: ^{dst} Conn`, lets `c` into any part of `dst` | `ne.data.component-store` | NE-S1b |
-| Erasing to an invariant `dyn K` is checked as a widening of each slot and component | `ne.erase.join` | NE-S1b, NE-S1 |
 | Where an environment has a name: a parameter, or a local binding's inferred type; a closure literal takes `^{f}` from its expected type | `ne.fntype.env-name` | NE-S4b |
-| A store through `^{f}` reaches every object and binding the environment captured, the whole receiver for a bound reference | `ne.fntype.env-store` | NE-S4b |
-| `Suspend` writes its type argument before its slot arguments, as the owner spelled it, while declared data writes slots first | `ne.syntax.slot-args`, `ne.suspend.weaken` | NE-S5c |
 | The diagnostic `ordinary-provider-not-static` | `ne.provider.ordinary` | NE-S6b |
+
+Round 7 forced these agent details (2026-10-16). Each rule carries the
+flag "agent-detail, round 7" until the owner reviews it.
+
+| Agent detail | Rules | Forced by |
+| --- | --- | --- |
+| In a generic body, each type parameter has a root: the reach of its instantiation, which every value of that type reaches | `ne.root.kinds`, `ne.generic.abstract` | NE-S1d |
+| A position whose type is a type parameter is never elided; elision fills each other unmarked position of a result | `ne.sig.generic-result`, [4.3](#43-elision) | NE-S1d, D7 |
+| A value of type `T` stored at a `T` position fits without a store mark, as in `push(^mut self, v: T)` | `ne.elide.store` | NE-S1d, NE-S12 |
+| `x: ^T` marks a parameter of type `T` not kept, as `^` does on any type | `ne.param.generic` | NE-S1d, D4 |
+| An unmarked NonEscapable component is checked by reach, not by category: `^List[Conn]` takes a list of fresh handles | `ne.call.global` | NE-S1d, OQ1 |
+| A local binding's written type infers its reaches, and a field of data without slots shares the holder's one reach, its components included | `ne.local.flow`, `ne.data.one-reach` | NE-S1d |
+| A slot argument left unwritten on a result elides like any position; no prefix covers a frame's two slots | `ne.suspend.weaken` | NE-S1d, B9 |
+| An all-global contract has no `^` input, no parameter names, no `^{f}`, and no written result reach | `ne.fntype.constructor` | NE-S5c |
+| The whole-environment store is listed as known limit L10 | L10 | NE-S4d |
 
 The owner's standing decisions are unchanged: keep `defer`; no Drop,
 `using`, or RAII; garbage collection with no moves; `T` and `mut T`
@@ -200,6 +245,10 @@ parameters (NE-S1b); a reach check on `$.with` for ordinary keys
 (NE-S6b); `fn.ref.bound.type` must turn a receiver store into an
 environment store, `^{f}` (NE-S4b); and `req.suspend.type.equivalent`
 must state the slot-argument translation of a frame result (NE-S5c).
+Round 7 adds: lifetime marks inside type arguments, and type parameters
+that carry their reach (NE-S1d); `fn.type.ctor.sugar` must hold only for
+all-global function types (NE-S5c); and `req.suspend.type.equivalent`
+must compute `run` as a direct cold call does (NE-S5d).
 All of it is for a later, owner-ordered spec edit.
 
 ## 1. Owner Requirements
@@ -220,28 +269,32 @@ These are binding (owner, 2026-10-14):
 Round 3 adds (owner, 2026-10-14):
 
 7. Local positions are marked, and nothing else is: a parameter written
-   `^` is local, and an unmarked parameter is global (D1, D2, D5).
+   `^` is local, and an unmarked parameter is global (D1, D2, D5). Round 7
+   extends this to every position, inside type arguments too, and a type
+   parameter carries the reach of its instantiation (owner, 2026-10-16,
+   NE-S1d).
 8. Any parameter of any type may be marked `^`, so locality is a general
    fact the optimizer can read (D4).
 9. A value has one reach, and generic types carry no lifetime in their
    type arguments (D6). Round 6 partly reverses the first half (owner,
-   2026-10-15,
-   [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too)):
-   a non-generic value still has one reach, or its declared slots, and a
-   generic value has one reach per type-parameter component, named by a
-   path such as `xs.T`. No lifetime is written inside a type argument.
+   2026-10-15, NE-S1b): a non-generic value still has one reach, or its
+   declared slots, and a generic value has one reach per type-parameter
+   component, named by a path such as `xs.T`. Round 7 reverses the second
+   half (owner, 2026-10-16, NE-S1d): a component's reach is written in its
+   type argument, as `^List[^Conn]`, and a type parameter carries its own.
 
 Round 4 clarifies requirement 3 (owner, 2026-10-14,
-[NE-S11](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s11-precision-boundaries)):
+NE-S11):
 
 10. "Tracked exactly" means exact substitution of published signatures:
     a call's result and stores take the callee's declared reaches, with
     the arguments' reaches substituted. The abstractions that a signature
     or the representation makes are known limits, not guesses: one reach
-    per component (a list's elements share one), one written bound per
-    type, one root per creation site, and no strong updates
+    per component (a list's elements share one), one root per creation
+    site, one reach per callable environment, and no strong updates
     ([13.9](#139-known-limits)). Joined slots in a wrapper are gone
-    (owner, 2026-10-15, NE-S1b).
+    (owner, 2026-10-15, NE-S1b), and so is the one written bound per type
+    (owner, 2026-10-16, NE-S1d).
 
 > **Requirement 4 and the global default.** Requirement 4 forbids a
 > default that guesses. The unmarked-is-global rule is not a guess: it is
@@ -298,17 +351,17 @@ fn serve!(l: ^Listener, c: ^Conn) -> void:
 
 ### Roots
 
-1. r[ne.root.kinds] A **root** is one of: `static`; a **parameter root** for each `^`-marked parameter, of any type (one per declared slot when its type declares slots, and one per type-parameter component of a generic type, as `xs.T`, by `ne.data.component-locality`); a **key root** for each NonEscapable requirement key and row parameter of the declaration, named `$K` in a reach; a **local root** for each root site in the body, which reaches `static` from creation (`ne.root.free`). There is no root for a type parameter. (owner, 2026-10-14, NE-S2: "of any type"; 2026-10-15, NE-S1b: component roots)
-2. r[ne.root.site] A **root site** is a call whose result has the reach `^{}` and a NonEscapable type ([5.1](#51-the-category)), or a construction of a root type, a declared holder included. Each evaluation creates a new handle, and all evaluations of one site share its local root. The local root reaches `static`, so no bound tells two roots apart, and known limit L7 ([C15](NONESCAPE_LIFETIME_STRESS_TEST.md#c15-distinct-evaluations-at-one-root-site)) is inert. A `^{}` call of any other type is no root site ([C20](NONESCAPE_LIFETIME_STRESS_TEST.md#c20-a-scalar-only-closure-factory-gets-a-local-root)). (agent for the construction of a declared holder; owner, 2026-10-14, NE-S11 and round-4 detail accepted: the NonEscapable condition; OQ1: the root reaches `static`)
+1. r[ne.root.kinds] A **root** is one of: `static`; a **parameter root** for each `^`-marked parameter, of any type (one per declared slot when its type declares slots, and one per component marked `^` in its type arguments, as `xs.T` for `xs: ^List[^Conn]`, by `ne.data.component-locality`); a **key root** for each NonEscapable requirement key and row parameter of the declaration, named `$K` in a reach; a **local root** for each root site in the body, which reaches `static` from creation (`ne.root.free`); and, in a generic body, a **type-parameter root** for each type parameter `T`, the reach of T's instantiation (`ne.generic.abstract`). (owner, 2026-10-14, NE-S2: "of any type"; 2026-10-15, NE-S1b: component roots; 2026-10-16, NE-S1d: only marked components; the type-parameter root is agent-detail, round 7)
+2. r[ne.root.site] A **root site** is a call whose result has the reach `^{}` and a NonEscapable type ([5.1](#51-the-category)), or a construction of a root type, a declared holder included. Each evaluation creates a new handle, and all evaluations of one site share its local root. The local root reaches `static`, so no bound tells two roots apart, and known limit L7 ([C15](#c15-one-root-per-creation-site)) is inert. A `^{}` call of any other type is no root site ([C20](#c20-a-scalar-only-closure-factory)). (agent for the construction of a declared holder; owner, 2026-10-14, NE-S11 and round-4 detail accepted: the NonEscapable condition; OQ1: the root reaches `static`)
 3. r[ne.root.param-live] A parameter root or key root is live for the whole body.
 4. r[ne.root.static-outlives] `static` outlives every block. A reach that contains only `static` fits any bound. (agent)
-5. r[ne.root.reach] The **reach** of a value is the set of roots it reaches. A value's reach includes the reach of every value stored in it or captured by it. A non-generic value without declared slots has one reach. A value of a generic type has its own reach and one reach per type-parameter component (`ne.data.component`). Data with declared slots, and the compiler-known `Suspend`, have one per slot (`ne.data.slots`, `ne.suspend.slots`). "The reach" of a value with several means all of them together (`ne.data.whole`). (owner, 2026-10-14, D6, NE-S5; 2026-10-15, [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too): per component, partly reversing D6)
+5. r[ne.root.reach] The **reach** of a value is the set of roots it reaches. A value's reach includes the reach of every value stored in it or captured by it. A non-generic value without declared slots has one reach. A value of a generic type has its own reach and one reach per type-parameter component (`ne.data.component`), set by the mark on its type argument. Data with declared slots, and the compiler-known `Suspend`, have one per slot (`ne.data.slots`, `ne.suspend.slots`). "The reach" of a value with several means all of them together (`ne.data.whole`). (owner, 2026-10-14, D6, NE-S5; 2026-10-15, NE-S1b: per component, partly reversing D6)
 6. r[ne.root.free] A local root reaches `static` from its creation, as a REPL handle does (`ne.top.static`), so it fits every bound, `^{static}` included. The language does not fix a fresh handle's lifetime: nothing ends it, a helper may open a handle and return it, and library API authors manage the lifetime, for example with scoped callback APIs such as `with_conn!(addr, fn(c: ^Conn): ...)`. The reach rules bite only on a `^` parameter's root and on a key root. The category rules still apply to a local root's value as to any NonEscapable value: it goes only into `^` parameter positions (D1, D2, `ne.call.global`). (owner, 2026-10-14, OQ1)
-7. r[ne.root.global] A value in a global position reaches only `static`. An unmarked parameter's value reaches `static` in the body. An argument for it must be an ordinary value that fits `static`: a NonEscapable argument is an error by category, and any other argument that reaches a parameter or key root is an error by reach ([4.4](#44-call-sites)). A value with no handle and no `^` parameter root has the empty reach, which fits. (owner, 2026-10-14, D1, D2, OQ1)
+7. r[ne.root.global] A value in a global position reaches only `static`. An unmarked parameter's value reaches `static` in the body, and so does an unmarked component of a parameter's type. A position whose type is a type parameter is not unmarked: it carries the reach of T's instantiation (`ne.generic.carry`). An argument for it must be an ordinary value that fits `static`: a NonEscapable argument is an error by category, and any other argument that reaches a parameter or key root is an error by reach ([4.4](#44-call-sites)). A value with no handle and no `^` parameter root has the empty reach, which fits. (owner, 2026-10-14, D1, D2, OQ1; 2026-10-16, NE-S1d: components and type parameters)
 
 ### Locals And The Heap
 
-1. r[ne.local.flow] A local binding has a reach at each program point. Assignment replaces it, and paths that join take the union.
+1. r[ne.local.flow] A local binding has a reach at each program point. Assignment replaces it, and paths that join take the union. A local binding's written type does not fix its reaches: an unmarked position there is inferred, components included. (the last sentence is agent-detail, round 7, forced by NE-S1d)
 2. r[ne.local.captured] A binding captured by a closure or a suspension frame has one reach for its whole scope: the union of every value assigned to it, including the values that calls store into the closure's environment (`ne.fntype.env-store`). It is a flexible local only outside the closure; inside the closure body it is part of the environment, which is fixed (`ne.fntype.closure-store`). (agent; owner, 2026-10-15, NE-S4b: the closure boundary)
 3. r[ne.heap.object] Each object has one reach for its whole life, or one per declared slot and per type-parameter component. Every alias shares it. (owner, 2026-10-15, NE-S1b: per component)
 4. r[ne.heap.site] An object created in the body gets a reach variable at its creation site. The object of a `^`-marked parameter has that parameter's root, or its declared slots' roots. The object of an unmarked parameter has `static`.
@@ -329,7 +382,9 @@ fn serve!(l: ^Listener, c: ^Conn) -> void:
 | --- | --- |
 | `c: ^T` | A parameter that is local and kept nowhere the signature does not name. A bare `^` names no source. Only on a parameter. |
 | `c: ^{a} T` | A parameter that is local, and whose reach may flow into `a`'s object: a store. `a` names a parameter, `self`, a slot path such as `s.u`, a component path such as `dst.T`, or a function value's environment. |
-| `^{xs.T}`, `^{p.A}`, `^{t._0}` | A component of a generic value: the elements of `xs: ^List[T]`, component `A` of a `Pair[A, B]`, a tuple's first element ([5.5](#55-generic-components)). |
+| `xs: ^List[^Conn]`, `xs: ^List[Conn]` | A mark inside a type argument bounds that component and nothing else: a local list of local handles, and a local list of global handles ([5.5](#55-generic-components)). |
+| `v: T`, `-> T` | A type parameter carries the reach of its instantiation, so it takes no mark: `fn same[T](v: T) -> T` returns exactly what came in ([8.1](#81-generic-substitution)). |
+| `^{xs.T}`, `^{p.A}`, `^{t._0}` | A component of a generic value: the elements of `xs: ^List[^Conn]`, component `A` of a `Pair[A, B]`, a tuple's first element ([5.5](#55-generic-components)). |
 | `f: ^fn(x: ^{f} T)` | An input that a call may store into the function value's environment ([8.2](#82-function-types)). |
 | `Suspend[T, ^{r}, ^{o}]` | A frame type with its `run` and `out` slots written, as the cold constructor of a suspending function returns ([9](#9-closures-suspensions-and-cancellation)). |
 | `-> ^{a} T` | A result that reaches at most what `a` reaches. `a` names a parameter, `self`, a slot path, a declared slot, a requirement key such as `$Pool`, or `static`. |
@@ -340,7 +395,7 @@ fn serve!(l: ^Listener, c: ^Conn) -> void:
 | `^self`, `^mut self` | A receiver that is local and not kept: shorthand for `self: ^Self` and `self: ^mut Self`. |
 | `f: ^fn(x: ^T) -> ^{x, f} U` | A function type naming its parameters. `{f}` is the closure's environment ([8.2](#82-function-types)). |
 | `data S[^c, ^u]` | Declares two lifetime slots. Opt-in, for data holding independent handles. A field writes `^{c} Conn`. |
-| `Session[^{a}, ^{b}]` | Applies a slot-bearing type to reaches. |
+| `Session[^{a}, ^{b}]`, `Pair[A, B, ^{a}, ^{b}]` | Applies a slot-bearing type to reaches, after its type arguments. |
 | `^{s.run}`, `^{s.out}` | The two slots of a frame `s: ^Suspend[T]`: what it keeps alive, and what its output reaches ([9](#9-closures-suspensions-and-cancellation)). |
 | `trait K < NonEscapable`, `impl NonEscapable for S` | Marks a root type. |
 
@@ -358,19 +413,20 @@ atom        = "static" | [ "$" ] name { "." name }   (a segment is a slot, a typ
 param_type  = lifetime type          (bare or with sources: c: ^Conn, c: ^{self} Conn)
 result_type = lifetime type          (never bare: -> ^{c} Conn, -> ^{} Conn)
 type        = [ "mut" ] [ "dyn" ] name_or_application   (the lifetime stands before all of it)
+type_arg    = [ lifetime ] type     (a mark inside a type argument bounds that component: List[^Conn])
 fn_param    = [ name ":" ] param_type   (a function type may name its parameters)
 receiver    = [ "^" ] [ "mut" ] "self"  (shorthand for self: ^Self, self: ^mut Self)
 slot_param  = "^" name               (in a data or enum generic list)
-slot_arg    = "^" "{" atom { "," atom } "}"   (in a type application; Suspend's run and out follow its type argument)
+slot_arg    = "^" "{" atom { "," atom } "}"   (in a type application, after the type arguments)
 ```
 
 1. r[ne.syntax.prefix] A lifetime is a prefix of the type it bounds, as in Rust's `&'a T`. It comes before `mut` and `dyn`, as in `c: ^mut Conn` and `-> ^{a} mut dyn Socket`. (owner, 2026-10-14, Q16)
 2. r[ne.syntax.braces] Named sources are written in braces and separated by commas: `^{a, b}`. A bare `^` names no source, so on a parameter it means "not kept". `^{}` is the empty set, fresh. `^{static}` is `static`. A provider key is `^{$Pool}`, a slot path is `^{s.c}`, and a component path is `^{xs.T}`. (owner, 2026-10-14, Q16; 2026-10-15, NE-S1b: component paths)
-3. r[ne.syntax.position] A bare `^` is written only on a parameter. `^{}` and `^{static}` are written only on a result. `^{a}` on a parameter is a store into `a`, and on a result it is a dependence on `a`. A bare `^` on a result, or `^{}` on a parameter, is an error: write the form the position takes. Error: `misplaced-lifetime`. (agent)
-4. r[ne.syntax.one-reach] `^{S} T` bounds every reach of the value at once: its own reach, every type-parameter component (`ne.data.component`), and every declared slot. A lifetime is never written inside a type argument: `List[^{c} Conn]` is an error. A component is named by a path instead, as `^{xs.T}`, so a written type has one bound for all its components (known limit L5). Error: `lifetime-in-type-argument`. A slot argument of slot-bearing data, as in `Session[^{a}, ^{b}]`, is not a type argument. A function type's own result bound is part of that function type, so it may stand inside a type argument, as in `List[fn!() -> ^{tasks, $R} T $ R]` ([8.2](#82-function-types)). (owner, 2026-10-14, D6; the function-type sentence is a round-4 detail that the owner accepted, forced by NE-S6; 2026-10-15, NE-S1b: components; the one-bound sentence is agent-detail, round 6)
+3. r[ne.syntax.position] A bare `^` is written only on a parameter. `^{}` and `^{static}` are written only on a result. `^{a}` on a parameter is a store into `a`, and on a result it is a dependence on `a`. A mark inside a type argument follows the parameter or result it is part of: `xs: ^List[^Conn]` marks a local component, and `-> List[^{xs} Conn]` bounds one. A bare `^` on a result, or `^{}` on a parameter, is an error: write the form the position takes. Error: `misplaced-lifetime`. (agent; the type-argument sentence is agent-detail, round 7)
+4. r[ne.syntax.one-reach] A lifetime mark bounds one position: the one it is written on. On a parameter or a result, the prefix bounds the value's own reach. Inside a type argument, a mark bounds that component, so `xs: ^List[^Conn]` is a local list of local handles and `xs: ^List[Conn]` a local list of global handles. An unmarked position is global; a result's unmarked positions are elided ([4.3](#43-elision)). No mark covers another position: a component is marked in its own type argument, and a type parameter carries the reach of its instantiation (`ne.generic.carry`). A slot argument, as in `Session[^{a}, ^{b}]`, bounds its slot. A function type's own result bound is part of that function type, as in `List[fn!() -> ^{tasks, $R} T $ R]` ([8.2](#82-function-types)). (owner, 2026-10-14, Q16; the function-type sentence is a round-4 detail that the owner accepted, forced by NE-S6; 2026-10-16, NE-S1d: replaces the round-3 ban on lifetimes in type arguments, "dumb rule, remove", and the round-6 one-bound sentence)
 5. r[ne.syntax.fn-own] On a function type, `^{S}` bounds the function value's own reach only, which is its environment, never its inputs or result. (agent)
 6. r[ne.syntax.names] A signature names parameters, slot paths, component paths, function environments, keys, and `static`, never lifetime variables. A function type may name its own parameters (D8, `ne.fntype.names`). Only `data` and `enum` declarations declare slots; `Suspend`'s two slots are compiler-known (`ne.suspend.slots`).
-7. r[ne.syntax.slot-args] Slot arguments come before type arguments, as in `Registry[^{p}]` or `Pair[^{a}, ^{b}, T]`. A declaration lists the slots by name, as `data Pair[^a, ^b, T]`. The compiler-known `Suspend` writes its type argument first and then `run` and `out`, as the owner spelled it: `Suspend[Conn, ^{keep, scratch}, ^{keep}]` (`ne.suspend.weaken`). The two orders differ; one order for both is a spelling detail left to the owner. (agent; owner, 2026-10-15, NE-S5c: the `Suspend` spelling; the note on the two orders is agent-detail, round 6)
+7. r[ne.syntax.slot-args] Type arguments come first, then slot arguments, as in `Registry[^{p}]`, `Pair[A, B, ^{a}, ^{b}]`, and the compiler-known `Suspend[Conn, ^{keep, scratch}, ^{keep}]` (`run`, then `out`, `ne.suspend.weaken`). A declaration lists them in the same order, as `data Pair[A, B, ^a, ^b]`. (agent; owner, 2026-10-15, NE-S5c: the `Suspend` spelling; 2026-10-16, B9: one order everywhere)
 8. r[ne.syntax.receiver] A receiver is a parameter like any other, written `self: ^Self` or `self: ^mut Self`. The shorthand `^self` and `^mut self` stands beside the existing `mut self` (`fn.method.mut-self`), which is shorthand for `self: mut Self`. The shorthand marks the receiver not kept. A receiver that stores into another parameter uses the explicit form. (owner, 2026-10-14, Q10)
 
 > **Why.** A suffix is ambiguous on function types: `fn!() -> void ^static`
@@ -394,19 +450,19 @@ impl Pool:
 trait Acceptor < NonEscapable:
     fn accept!(^self) -> ^{} Conn
 fn register(job: fn!() -> void) -> void          # unmarked: global, may be stored
-fn each(xs: ^List[Conn], f: ^fn(c: ^Conn) -> void) -> void   # f is not kept
+fn each(xs: ^List[^Conn], f: ^fn(c: ^Conn) -> void) -> void   # f is not kept
 ```
 
 ### 4.1 Parameter Marks
 
-1. r[ne.param.mark] A parameter is local when its type is written with `^`: bare `^`, or `^{S}` with sources. A parameter without `^` is **global**. This holds for every type, function types included. (owner, 2026-10-14, D1, D4, D5)
+1. r[ne.param.mark] A parameter is local when its type is written with `^`: bare `^`, or `^{S}` with sources. A parameter without `^` is **global**. This holds for every type, function types included, except a type parameter, which carries the reach of its instantiation (`ne.param.generic`). (owner, 2026-10-14, D1, D4, D5; 2026-10-16, NE-S1d)
 2. r[ne.param.global] A global parameter may be stored anywhere by the callee, so an argument for it must be an ordinary value that fits `static` ([4.4](#44-call-sites)). In the body its value reaches `static` (`ne.root.global`). (owner, 2026-10-14, D1, OQ1)
-3. r[ne.param.nonescapable] A parameter whose type is NonEscapable must be marked. Whether a type is NonEscapable is its instantiated category, computed from stored fields (`ne.data.category`), never the spelling of its type arguments: `List[Conn]` is NonEscapable because a list stores its elements, and `Tag[Conn]` is ordinary when `Tag` stores no `T` ([C18](NONESCAPE_LIFETIME_STRESS_TEST.md#c18-phantom-metadata-is-not-a-holder)). An unmarked NonEscapable parameter is an error with a fix-it that adds `^`. Error: `unmarked-local-param`. (owner, 2026-10-14, D1, NE-S10)
-4. r[ne.param.generic] A parameter whose type is a type parameter, or contains one, or is `dyn K` for a trait `K` that is not a root trait, is global when unmarked. It accepts a NonEscapable argument only when written `^T` or `^dyn K`, whatever the argument's reach: a fresh handle reaches `static` and is still rejected, by category. Any other argument must fit `static`. Otherwise the call is an error. This reverses the round-2 default that type parameters accept lifetimes, and restores the parked TQ-25's opt-in (Swift's `T: ~Escapable`). Error: `lifetime-mismatch`. (owner, 2026-10-14, D2, OQ1)
+3. r[ne.param.nonescapable] A parameter whose type is NonEscapable must be marked. Whether a type is NonEscapable is its instantiated category, computed from stored fields (`ne.data.category`), never the spelling of its type arguments: `List[Conn]` is NonEscapable because a list stores its elements, and `Tag[Conn]` is ordinary when `Tag` stores no `T` ([C18](#c18-phantom-metadata)). An unmarked NonEscapable parameter is an error with a fix-it that adds `^`. Error: `unmarked-local-param`. (owner, 2026-10-14, D1, NE-S10)
+4. r[ne.param.generic] A parameter whose type is a type parameter `T` carries the reach of T's instantiation, not `static`. So `x: T` accepts a local argument, and `T` records its reach (`ne.generic.carry`). `x: ^T` marks the parameter not kept, as `^` does on any type (`ne.param.bare`). The other unmarked positions of a generic type are global as everywhere: `xs: List[T]` is a global list of `T`, and a local list is written `xs: ^List[T]`. A parameter `x: dyn K`, for a trait `K` that is not a root trait, is global when unmarked. It accepts a NonEscapable argument only when written `^dyn K`, whatever the argument's reach: a fresh handle reaches `static` and is still rejected, by category. Any other argument must fit `static`. Error: `lifetime-mismatch`. (owner, 2026-10-14, D2, OQ1; 2026-10-16, NE-S1d: `x: T` carries its reach, which reverses D2's opt-in for type parameters; the `^T` sentence is agent-detail, round 7)
 5. r[ne.param.bare] A bare `^` parameter is **never kept**: its parameter root must not reach a global position, another parameter's object, or a result, unless the signature names it. The reach machinery tracks the flow, so a flow into a local object is fine until that object's reach flows out. Error: `lifetime-mismatch`. (owner, 2026-10-14, D1, D3, D4)
-6. r[ne.param.sources] `^{S}` names where the parameter's reach may flow beyond the call: a store into the object of `S`, as `c: ^{self} Conn` does, into one component of it, as `v: ^{self.T} T` does, or into a function value's environment, as `c: ^{put} Conn` does. A result that names the parameter, or elides to it, is the other permitted flow. (owner, 2026-10-14, D3, D6; 2026-10-15, NE-S1b and NE-S4b: components and environments)
-7. r[ne.param.any-type] Any parameter of any type may be marked `^`. The callee body is checked as for a handle: the parameter has a root in the body, and `ne.param.bare` applies. There is one flow: an ordinary `^` parameter is a root in the same reach machinery as a handle. At a call, the argument carries its own reach: empty for a fresh ordinary object, `static` for a global value, and a `^` parameter's root when the caller forwards its own `^` parameter. (owner, 2026-10-14, D4, [NE-S2](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s2-ordinary-provenance))
-8. r[ne.param.ordinary-result] A result of a type that carries nothing may still name a `^` parameter, as `-> ^{xs} List[i32]` does, and the callee may return part of the parameter. The result carries the argument's reach to the caller, so a helper cannot launder a `^` parameter into a global position ([C04](NONESCAPE_LIFETIME_STRESS_TEST.md#c04-ordinary-locality-through-an-identity-helper)). An ordinary result that names no `^` parameter reaches none: the body must not return a value that reaches a `^` parameter's root. (owner, 2026-10-14, Q15, NE-S2)
+6. r[ne.param.sources] `^{S}` names where the parameter's reach may flow beyond the call: a store into the object of `S`, as `c: ^{self} Conn` does, into one component of it, as `c: ^{dst.T} Conn` does, or into a function value's environment, as `c: ^{put} Conn` does. A result that names the parameter, or elides to it, is the other permitted flow. (owner, 2026-10-14, D3, D6; 2026-10-15, NE-S1b and NE-S4b: components and environments)
+7. r[ne.param.any-type] Any parameter of any type may be marked `^`. The callee body is checked as for a handle: the parameter has a root in the body, and `ne.param.bare` applies. There is one flow: an ordinary `^` parameter is a root in the same reach machinery as a handle. At a call, the argument carries its own reach: empty for a fresh ordinary object, `static` for a global value, and a `^` parameter's root when the caller forwards its own `^` parameter. (owner, 2026-10-14, D4, NE-S2)
+8. r[ne.param.ordinary-result] A result of a type that carries nothing may still name a `^` parameter, as `-> ^{xs} List[i32]` does, and the callee may return part of the parameter. The result carries the argument's reach to the caller, so a helper cannot launder a `^` parameter into a global position ([C04](#c04-an-identity-helper)). An ordinary result that names no `^` parameter reaches none: the body must not return a value that reaches a `^` parameter's root. (owner, 2026-10-14, Q15, NE-S2)
 9. r[ne.param.fn] A function-typed parameter follows the same rule, as in Kotlin. Unmarked, the callee may store it, so a closure that captures a `^` parameter's handle or a provider is an error at the call, with a fix-it on the declaration. A closure over a fresh handle fits, because the handle reaches `static` and a function type is not the category (OQ1). This holds for a library parameter as well. `^fn(T) -> U` is not kept. There is no implicit default for a callback, as Swift has. `^{static}` on a parameter is unnecessary and is not written. (owner, 2026-10-14, D5, Q14)
 10. r[ne.param.lint] A **lint** proposes `^` on an unmarked parameter whose body never keeps it. The lint is a suggestion: it never changes a signature, so a signature still never depends on its body. Warning: `could-be-local`. (owner, 2026-10-14, D5)
 11. r[ne.param.interface] Adding `^` to a parameter widens what callers may pass and is compatible. Removing it narrows that and is a breaking change. (agent)
@@ -415,8 +471,8 @@ fn each(xs: ^List[Conn], f: ^fn(c: ^Conn) -> void) -> void   # f is not kept
 fn ping(c: Conn) -> void:                  # error: unmarked-local-param
     c.send!([0])                           # fix-it: c: ^Conn
 
-fn store_all[T](xs: ^List[T], x: T) -> void:   # x is global: an argument must fit static
-    pass
+fn store_all[T](xs: ^mut List[T], x: T) -> void:   # x carries T's reach, as xs's elements do
+    xs.push(x)                                        # fine: a T into a T position
 ```
 
 > **Why.** Kotlin marks the parameter and has no default for lambdas. A
@@ -429,13 +485,22 @@ fn store_all[T](xs: ^List[T], x: T) -> void:   # x is global: an argument must f
 ### 4.2 Lifetime-Carrying Inputs
 
 1. r[ne.sig.carrying] A type is **lifetime-carrying** when it is a root type, a holder ([5.1](#51-the-category)), a function type, `Suspend[T]`, a `dyn` type, or mentions a type parameter. It may reach roots, or may for some instantiation. Lifetime-carrying decides elision and tracked inputs; under one flow, a `^` parameter of any type still has a root (`ne.param.any-type`).
-2. r[ne.sig.input] A **tracked input** is a `^`-marked parameter of lifetime-carrying type, a NonEscapable key in the row, or a row parameter. An unmarked parameter is never one: it reaches only `static`, which fits every bound. A `^` parameter of a type that carries nothing is not one either, so no result elides to it; a result that may return it writes `^{b}` (`ne.param.ordinary-result`). (owner, 2026-10-14, Q7, NE-S2)
-3. r[ne.sig.generic-result] A result type that mentions a type parameter is lifetime-carrying, so it elides like any other result. `get` would elide to `self`, and std writes the narrower `^{self.T}` ([5.5](#55-generic-components)). `map` writes its reach, because the closure's results reach the closure ([8.2](#82-function-types)).
+2. r[ne.sig.input] A **tracked input** is a `^`-marked parameter of lifetime-carrying type, a NonEscapable key in the row, or a row parameter. An unmarked parameter is never one: it reaches only `static`, which fits every bound. A parameter of type `T` is not one either: its reach is T's, which flows by type (`ne.sig.generic-result`). A `^` parameter of a type that carries nothing is not one either, so no result elides to it; a result that may return it writes `^{b}` (`ne.param.ordinary-result`). (owner, 2026-10-14, Q7, NE-S2)
+3. r[ne.sig.generic-result] A position whose type is a type parameter carries T's reach and is never elided. So `get(^self, index: usize) -> T?` returns an element at T's reach, the element reach of the list it was called on, and `map` returns `List[U]`, whose elements carry the callback's result reach in `U` ([8.2](#82-function-types)). The other positions of a result that mentions a type parameter elide as usual: the `Option` around `T` carries nothing of its own. A mark written on a position of type `T` bounds it like any position, as `^{s.out} T` and `^{} T` do. (owner, 2026-10-16, NE-S1d, NE-S12; agent-detail, round 7)
 
 ### 4.3 Elision
 
+Elision fills each unmarked, lifetime-carrying position of a result, the
+result's own position and each type argument written without a mark, as
+Rust fills each elided lifetime of a result. So `fn first_open(pool:
+^List[^Conn]) -> Conn?` elides to `Option[^{pool} Conn]`. A position
+whose type is a type parameter is never elided: it carries T's reach
+(`ne.sig.generic-result`). (agent-detail, round 7, forced by NE-S1d and
+D7)
+
 | Position | Without `^` |
 | --- | --- |
+| A position whose type is a type parameter | Never elided: T's reach. |
 | A result, lifetime-carrying, no tracked input | `^{}`: fresh. |
 | A result, lifetime-carrying, exactly one tracked input | That input. |
 | A method result, lifetime-carrying tracked `self` | `self`. |
@@ -447,7 +512,7 @@ fn store_all[T](xs: ^List[T], x: T) -> void:   # x is global: an argument must f
 2. r[ne.elide.one] With exactly one tracked input, it is that input. (owner, 2026-10-14, D7)
 3. r[ne.elide.self] In a method whose `self` is a tracked input, it is `self`. (owner, 2026-10-14, D7)
 4. r[ne.elide.ambiguous] Otherwise the declaration must write `^`. Error: `ambiguous-lifetime`.
-5. r[ne.elide.store] A body that stores one parameter's value into another parameter's object is an error unless the stored parameter is marked `^{p}` for that object, as `c: ^{self} Conn` is. A global parameter's value reaches `static`, so storing it needs no mark. Error: `lifetime-mismatch`.
+5. r[ne.elide.store] A body that stores one parameter's value into another parameter's object is an error unless the stored parameter is marked `^{p}` for that object, as `c: ^{self} Conn` is. A global parameter's value reaches `static`, so storing it needs no mark. A value of type `T` stored at a `T` position needs none either: both have T's reach, as `push(^mut self, v: T)` stores `v` into the elements. Error: `lifetime-mismatch`. (the `T` sentence is agent-detail, round 7, forced by NE-S1d)
 6. r[ne.elide.store-meaning] `c: ^{p} T` on a parameter means the caller's `p` takes on `c`'s roots, as Swift's `@lifetime(p: copy c)` does.
 7. r[ne.elide.lint] A result elided by `ne.elide.one` or `ne.elide.self` whose body never makes it reach that input gets a warning that suggests `^{}`. Warning: `overtied-result`. (agent)
 
@@ -461,10 +526,10 @@ fn store_all[T](xs: ^List[T], x: T) -> void:   # x is global: an argument must f
 ### 4.4 Call Sites
 
 1. r[ne.call.result] At a call, a result bounded by `^{a, b}` reaches the reach of the arguments for `a` and `b`, whatever the result's type. This is exact substitution of the published signature (requirement 10). (owner, 2026-10-14, NE-S2, NE-S11)
-2. r[ne.call.fresh] A result bounded by `^{}` whose type is NonEscapable reaches a new local root of the caller, created at the call, and that root reaches `static` (`ne.root.free`). A `^{}` result of any other type, such as a function value, a frame, or an ordinary generic instance, reaches nothing: its reach is empty and fits `static` ([C20](NONESCAPE_LIFETIME_STRESS_TEST.md#c20-a-scalar-only-closure-factory-gets-a-local-root)). Both fit `static`, so no verdict turns on the type condition. It keeps root sites to handles. (owner, 2026-10-14, NE-S11, OQ1; the type condition is a round-4 detail that the owner accepted)
+2. r[ne.call.fresh] A result bounded by `^{}` whose type is NonEscapable reaches a new local root of the caller, created at the call, and that root reaches `static` (`ne.root.free`). A `^{}` result of any other type, such as a function value, a frame, or an ordinary generic instance, reaches nothing: its reach is empty and fits `static` ([C20](#c20-a-scalar-only-closure-factory)). Both fit `static`, so no verdict turns on the type condition. It keeps root sites to handles. (owner, 2026-10-14, NE-S11, OQ1; the type condition is a round-4 detail that the owner accepted)
 3. r[ne.call.static] A result bounded by `^{static}` reaches `static`.
 4. r[ne.call.store] An argument for `c: ^{p} T` adds its reach to the object of the argument for `p`, by `ne.heap.store` or `ne.heap.fixed`. For `c: ^{p.T} T` it adds to that object's `T` component only, and for `c: ^{f} T` in a function type, to the called value's environment (`ne.fntype.env-store`). (owner, 2026-10-15, NE-S1b, NE-S4b)
-5. r[ne.call.global] An argument for a global parameter must be an ordinary value whose reach fits `static`. A NonEscapable argument is an error at the call by its category (D2), whatever its reach: a fresh handle reaches `static` and is still rejected. Any other argument whose reach has a parameter or key root is an error by reach, as a closure over a `^` parameter's handle is. It is never an escape. Error: `lifetime-mismatch`. (owner, 2026-10-14, D2, OQ1)
+5. r[ne.call.global] An argument for a global parameter must be an ordinary value whose reach fits `static`. A NonEscapable argument is an error at the call by its category (D2), whatever its reach: a fresh handle reaches `static` and is still rejected. Any other argument whose reach has a parameter or key root is an error by reach, as a closure over a `^` parameter's handle is. It is never an escape. An unmarked NonEscapable component, as in `xs: ^List[Conn]`, is checked by reach, not by category: a list of fresh handles fits it, and a list that holds a `^` parameter's handle does not. Error: `lifetime-mismatch`. (owner, 2026-10-14, D2, OQ1; the component sentence is agent-detail, round 7)
 6. r[ne.call.local] An argument for a `^` parameter adds no constraint beyond its sources and the results that name it. Those carry the argument's reach, whatever its type. Only an argument that is already global substitutes `static`. (owner, 2026-10-14, D4, NE-S2)
 
 ## 5. Data Types And Slots
@@ -474,11 +539,11 @@ fn store_all[T](xs: ^List[T], x: T) -> void:   # x is global: an argument must f
 1. r[ne.data.root-type] A **root type** is a trait that has `NonEscapable` as a direct or transitive supertrait, or a data or enum type with `impl NonEscapable for S`. A `dyn K` of a root trait `K` is a root type. Every value of a root type starts as its own root.
 2. r[ne.data.root-impl] A data type that implements a root trait must declare `impl NonEscapable` too, by the ordinary supertrait rule (`trait.super.missing`).
 3. r[ne.data.holder] A **holder** is a data or enum type with a field or payload that is lifetime-carrying ([4.2](#42-lifetime-carrying-inputs)). A concrete holder whose field is NonEscapable declares it (`ne.data.declare`) and is then a root type. A generic holder follows its stored fields (`ne.data.generic`). A holder with only function-typed or `Suspend` fields is not NonEscapable.
-4. r[ne.data.category] A type is **NonEscapable** when it is a root type; a tuple with a NonEscapable element; or an instantiation of a generic data or enum type with a stored field or payload whose type, after substituting the type arguments, is NonEscapable. Function-typed and `Suspend` fields do not count (Q2, OQ3). A type argument that no field stores does not count, so `Tag[Conn]` with `data Tag[T]: number: usize` is ordinary, and so is the annotation handle `Field[S, F]`. Recursive types take the least fixed point: every instantiation starts ordinary, and becomes NonEscapable while one of its stored fields is. The spelling of the type arguments never decides. (owner, 2026-10-14, [NE-S10](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s10-category-calculation))
+4. r[ne.data.category] A type is **NonEscapable** when it is a root type; a tuple with a NonEscapable element; or an instantiation of a generic data or enum type with a stored field or payload whose type, after substituting the type arguments, is NonEscapable. Function-typed and `Suspend` fields do not count (Q2, OQ3). A type argument that no field stores does not count, so `Tag[Conn]` with `data Tag[T]: number: usize` is ordinary, and so is the annotation handle `Field[S, F]`. Recursive types take the least fixed point: every instantiation starts ordinary, and becomes NonEscapable while one of its stored fields is. The spelling of the type arguments never decides. (owner, 2026-10-14, NE-S10)
 5. r[ne.data.declare] A concrete data or enum type, one with no type parameters, with a NonEscapable field or payload must declare `impl NonEscapable for S`. The checker verifies the declaration against the fields. A field of function type does not count: a closure carries a reach but is not the category. A `Suspend[T]` field does not count either, as a function type does not: a frame carries a reach, `run`, but is not the category. Soundness comes from that reach. A `Worker` that holds a frame over a `^` parameter's handle is rejected where it flows to a global position, through the frame's `run` slot (`ne.suspend.stored`, `ne.heap.store`). A type that declares slots writes the impl without slot arguments. Error: `missing-nonescapable-impl`, with a fix-it that adds `impl NonEscapable for S`. (owner, 2026-10-14, Q2, NE-S10, OQ3; the slot detail is agent-detail)
-6. r[ne.data.one-reach] A data or enum type without declared slots has one reach. Every lifetime-carrying field shares it, and it needs no slot declaration. This is Kotlin's `this`. In a generic type it is the **own reach**: a value stored at a type parameter's type goes to that parameter's component instead (`ne.data.component`). A non-generic type has only its own reach, so a `List[Conn]` field of non-generic data shares the holder's one reach. (owner, 2026-10-14, D6; 2026-10-15, NE-S1b)
-7. r[ne.data.tuple] A tuple keeps one reach per element, named by its member, `t._0`, `t._1`. Construction and projection keep each element's reach; nothing joins them. It replaces round 3's "one reach, the union of its elements'" ([R23](#r23-a-tuple-hides-the-same-widening)). (owner, 2026-10-14, D6; 2026-10-15, [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too))
-8. r[ne.data.generic] Generic data follows its stored fields (`ne.data.category`) and declares nothing for now. `Box[i32]` carries nothing, and `Box[Conn]` is NonEscapable: its `value` field is in the component `b.T`, which grows when a `Conn` is stored in it (NE-S1b). No lifetime appears in the type argument (`ne.syntax.one-reach`). Generic data with a concrete NonEscapable field, as `data Foo[T]: c: Conn, x: T`, declares nothing either: every instantiation is NonEscapable by its field `c`. (owner, 2026-10-14, D6, Q2, NE-S10)
+6. r[ne.data.one-reach] A data or enum type without declared slots has one reach. Every lifetime-carrying field shares it, and it needs no slot declaration. This is Kotlin's `this`. In a generic type it is the **own reach**: a value stored at a type parameter's type goes to that parameter's component instead (`ne.data.component`). A non-generic type has only its own reach, so a `List[Conn]` field of non-generic data shares the holder's one reach, its unmarked component included: a field of data without slots names no slot, so its components take the holder's reach rather than `static`. (owner, 2026-10-14, D6; 2026-10-15, NE-S1b; the component clause is agent-detail, round 7)
+7. r[ne.data.tuple] A tuple keeps one reach per element, named by its member, `t._0`, `t._1`. Construction and projection keep each element's reach; nothing joins them. It replaces round 3's "one reach, the union of its elements'" ([R23](#r23-a-tuple-hides-the-same-widening)). (owner, 2026-10-14, D6; 2026-10-15, NE-S1b)
+8. r[ne.data.generic] Generic data follows its stored fields (`ne.data.category`) and declares nothing for now. `Box[i32]` carries nothing, and `Box[Conn]` is NonEscapable: its `value` field is in the component `b.T`, which grows when a `Conn` is stored in it (NE-S1b). On a parameter, `b: ^Box[^Conn]` marks that component local (`ne.syntax.one-reach`). Generic data with a concrete NonEscapable field, as `data Foo[T]: c: Conn, x: T`, declares nothing either: every instantiation is NonEscapable by its field `c`. (owner, 2026-10-14, D6, Q2, NE-S10)
 
 ```hd
 data Excerpt:
@@ -523,20 +588,20 @@ impl NonEscapable for Session
 2. r[ne.data.field-slot] In a type with declared slots, every lifetime-carrying field names the slots it reaches, as `client: ^{c} Conn` does. A field that leaves them unnamed is an error. Error: `undeclared-slot`. (agent)
 3. r[ne.data.path] Outside the declaration, a value's slot is named by a path: `^{s.c}` is slot `c` of parameter `s`, and `^{self.c}` is slot `c` of the receiver. Slot paths and component paths compose (`ne.data.component-path`).
 4. r[ne.data.whole] A name without a path, `^{s}`, names the union of all of `s`'s reaches: its own reach, its slots, and its components. (owner, 2026-10-15, NE-S1b: components)
-5. r[ne.data.recursive] A recursive occurrence of slot-bearing data is a field, so it names its slots like any field. In a wrapper, as in `next: ^{a, b} Duo?`, the field's one written bound covers every component, so it names the union of the slots it uses (known limit L5). A slot not declared there is an error. Error: `undeclared-slot`. (agent)
-6. r[ne.data.wrapper] A generic type applied to slot-bearing data, `Option[Session]` or `List[Session]`, keeps the slots inside its component: for `p: ^Session?`, `^{p.T.c}` is slot `c` of the session inside. A value taken out of it has each slot at its own reach, and nothing joins. A list's sessions share one component, so `xs.T.c` is the union of their `c` slots. This replaces round 3's join, which widened an invariant slot ([R22](#r22-optional-wrapping-and-an-invariant-slot)), and resolves [C11](NONESCAPE_LIFETIME_STRESS_TEST.md#c11-optional-wrapping-destroys-independent-slots). (owner, 2026-10-14, Q15, NE-S11; reversed 2026-10-15, [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too))
+5. r[ne.data.recursive] A recursive occurrence of slot-bearing data is a field, so it names its slots like any field, with slot arguments where it stands inside a type argument, as in `next: Option[Duo[^{a}, ^{b}]]`. Each slot keeps its own source. A slot not declared there is an error. Error: `undeclared-slot`. (agent; 2026-10-16, NE-S1d: slot arguments inside the type argument replace round 6's one bound)
+6. r[ne.data.wrapper] A generic type applied to slot-bearing data, `Option[Session]` or `List[Session]`, keeps the slots inside its component: for `p: ^Option[^Session]`, `^{p.T.c}` is slot `c` of the session inside, a parameter root because the type argument is marked. A value taken out of it has each slot at its own reach, and nothing joins. A list's sessions share one component, so `xs.T.c` is the union of their `c` slots. This replaces round 3's join, which widened an invariant slot ([R22](#r22-optional-wrapping-and-an-invariant-slot)), and resolves [C11](#c11-an-optional-pair). (owner, 2026-10-14, Q15, NE-S11; reversed 2026-10-15, NE-S1b; 2026-10-16, NE-S1d: the marked type argument)
 7. r[ne.data.literal] A data literal infers its slot arguments from its field values at the use site.
 
 ### 5.3 Variance Of Slots
 
 1. r[ne.var.subtype] `^{S} T` is assignable to `^{S'} T` when `S` is a subset of `S'`, ignoring `static`.
-2. r[ne.var.surface] A reach (a value's own reach, a component, or a declared slot) is covariant only when no mutable storage that this reach bounds is reachable through the value's exposed surface: its fields, its element types, its method results, and its callable results, transitively. Otherwise it is invariant, under every view. Mutable storage is a `mut` field or element, a result typed `mut`, or a method or call that stores into the value. Only positions that **mention** the reach being widened count: a field or component that the reach bounds, a result whose bound names it (written or elided), and a store into it. A fresh `^{}` result, a result bounded by other reaches, and a store into another target do not count ([R29](#r29-a-fresh-mutable-result)). The check reuses `types.polarity`: mutable storage is an invariant position, as in `types.polarity.mut`. This is Rust's rule for interior mutability: `Cell<&'a T>` is invariant in `'a`. (owner, 2026-10-14, [NE-S1](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s1-recovered-write-authority); 2026-10-15, [NE-S1c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1c-compute-variance-of-dependencies-not-unrelated-results): only mentioning positions)
+2. r[ne.var.surface] A reach (a value's own reach, a component, or a declared slot) is covariant only when no mutable storage that this reach bounds is reachable through the value's exposed surface: its fields, its element types, its method results, and its callable results, transitively. Otherwise it is invariant, under every view. Mutable storage is a `mut` field or element, a result typed `mut`, or a method or call that stores into the value. Only positions that **mention** the reach being widened count: a field or component that the reach bounds, a result whose bound names it (written or elided), and a store into it. A fresh `^{}` result, a result bounded by other reaches, and a store into another target do not count ([R29](#r29-a-fresh-mutable-result)). The check reuses `types.polarity`: mutable storage is an invariant position, as in `types.polarity.mut`. This is Rust's rule for interior mutability: `Cell<&'a T>` is invariant in `'a`. (owner, 2026-10-14, NE-S1; 2026-10-15, NE-S1c: only mentioning positions)
 3. r[ne.var.polarity] A declared slot's variance is computed by the `types.polarity` rules over the type's surface, as `+T` is checked, together with `ne.var.surface`. It is not written. (owner, 2026-10-14, Q5, NE-S1)
 4. r[ne.var.mut-data] Under a `mut` view, the reach of a data, enum, list, or map value, every component, and every declared slot, is invariant, because a field or element can be reassigned (`types.variance.mut-invariant`). (owner, 2026-10-15, NE-S1b: every component)
-5. r[ne.var.dyn] The reach of `dyn K` is covariant only when no method of `K` exposes mutable storage that the reach bounds: no method result whose bound names `self`, written or elided, is typed `mut` or reaches mutable storage, and no parameter is marked `^{self}`. Otherwise it is invariant, under every view. So a getter `fn items(^mut self) -> ^{self} mut List[Conn]` makes the reach invariant ([C01](NONESCAPE_LIFETIME_STRESS_TEST.md#c01-a-trait-getter-replaces-the-downcast)), and a factory `fn fresh(^self) -> ^{} mut List[Conn]` does not. (owner, 2026-10-14, NE-S1; counting a `^{self}` store is a round-4 detail that the owner accepted; 2026-10-15, NE-S1c)
-6. r[ne.var.fn] A function value's own reach, its environment, is covariant only when no result that mentions the environment exposes mutable storage, nor do the results of the function values it returns, and no input stores into the environment (`x: ^{f} T`, `ne.fntype.env-store`). `fn() -> mut List[Conn]` elides its result to the environment, so it is invariant ([C02](NONESCAPE_LIFETIME_STRESS_TEST.md#c02-a-closure-returns-mutable-captured-state)). `fn() -> ^{} mut List[Conn]` names no environment, so it is covariant ([R29](#r29-a-fresh-mutable-result)). A setter `fn(v: ^{f} Conn) -> void` returns nothing, and is invariant because its input stores into the environment ([R24](#r24-a-bound-appender)). A function value has no access permission (`fn.type.no-permission`), but a call may still return write authority (`fn.capture.result-not-weakened`). (owner, 2026-10-14, NE-S1; 2026-10-15, NE-S1c: only mentioning results; NE-S4b: environment stores)
+5. r[ne.var.dyn] The reach of `dyn K` is covariant only when no method of `K` exposes mutable storage that the reach bounds: no method result whose bound names `self`, written or elided, is typed `mut` or reaches mutable storage, and no parameter is marked `^{self}`. Otherwise it is invariant, under every view. So a getter `fn items(^mut self) -> ^{self} mut List[Conn]` makes the reach invariant ([C01](#c01-a-trait-getter)), and a factory `fn fresh(^self) -> ^{} mut List[^{} Conn]` does not. (owner, 2026-10-14, NE-S1; counting a `^{self}` store is a round-4 detail that the owner accepted; 2026-10-15, NE-S1c)
+6. r[ne.var.fn] A function value's own reach, its environment, is covariant only when no result that mentions the environment exposes mutable storage, nor do the results of the function values it returns, and no input stores into the environment (`x: ^{f} T`, `ne.fntype.env-store`). `fn() -> mut List[Conn]` elides its result to the environment, so it is invariant ([C02](#c02-a-closure-returning-mutable-state)). `fn() -> ^{} mut List[^{} Conn]` names no environment, so it is covariant ([R29](#r29-a-fresh-mutable-result)). A setter `fn(v: ^{f} Conn) -> void` returns nothing, and is invariant because its input stores into the environment ([R24](#r24-a-bound-appender)). A function value has no access permission (`fn.type.no-permission`), but a call may still return write authority (`fn.capture.result-not-weakened`). (owner, 2026-10-14, NE-S1; 2026-10-15, NE-S1c: only mentioning results; NE-S4b: environment stores)
 7. r[ne.var.suspend] A frame's `run` slot is covariant: a frame exposes nothing but its output. Its `out` slot is covariant only when `T` exposes no mutable storage. (owner, 2026-10-14, NE-S1, NE-S5)
-8. r[ne.var.generic] Variance is per component. Each component of a generic value is covariant through a readonly view only when the component's type exposes no mutable storage that the component bounds, and is invariant under a `mut` view. `List[Conn]`'s `T` is covariant through a readonly view. `List[mut List[Conn]]`'s `T` is invariant under every view, because `types.readonly.nested` keeps the inner list mutable ([C03](NONESCAPE_LIFETIME_STRESS_TEST.md#c03-a-readonly-container-contains-mutable-children)). Components never join (`ne.data.no-join`), so widening one never widens another, and a mutable component is never widened by aggregation ([R22](#r22-optional-wrapping-and-an-invariant-slot), [R23](#r23-a-tuple-hides-the-same-widening)). (owner, 2026-10-14, D6, NE-S1; 2026-10-15, NE-S1b: per component)
+8. r[ne.var.generic] Variance is per component. Each component of a generic value is covariant through a readonly view only when the component's type exposes no mutable storage that the component bounds, and is invariant under a `mut` view. `List[Conn]`'s `T` is covariant through a readonly view. `List[mut List[Conn]]`'s `T` is invariant under every view, because `types.readonly.nested` keeps the inner list mutable ([C03](#c03-a-readonly-list-of-mutable-lists)). Separate components never join (`ne.data.no-join`), so widening one never widens another ([R22](#r22-optional-wrapping-and-an-invariant-slot), [R23](#r23-a-tuple-hides-the-same-widening)). Values that enter the same component must agree on its invariant reaches (`ne.data.component-share`, [R38](#r38-different-list-elements-still-need-a-join-check)). (owner, 2026-10-14, D6, NE-S1; 2026-10-15, NE-S1b: per component; 2026-10-16, NE-S1e: the same component)
 
 > **Why.** Widening a reach is safe only when nothing can be written
 > through the widened value. A readonly view of the outer value is not
@@ -551,8 +616,9 @@ impl NonEscapable for Session
 > enter a short-lived readonly `List[Conn]`. Round 6 makes the test
 > follow dependence: a mutable result that names nothing of the widened
 > reach cannot hand back storage at that reach, so it does not count
-> (NE-S1c). And because components no longer join, no aggregation step
-> is a hidden widening (NE-S1b).
+> (NE-S1c). And because separate components no longer join, no
+> aggregation step is a hidden widening (NE-S1b), except values that
+> share one component, which must agree (NE-S1e).
 
 ### 5.4 Closure Fields
 
@@ -610,16 +676,14 @@ button holds `c`.
 
 ### 5.5 Generic Components
 
-This subsection is the owner's decision NE-S1b with its follow-up (i)
-(owner, 2026-10-15,
-[NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too)).
-It **partly reverses D6** ("every value has one reach") and the wrapper
-half of Q15 (round 3's known limit L5): a generic value keeps a separate
-reach for each type-parameter component, named by a path through the
-type parameter. It moves toward per-type-argument lifetimes, as Rust has,
-but names them by path, never by variable, so no lifetime is written
-inside a type argument. Non-generic data is unchanged: one reach, or its
-declared slots.
+This subsection is NE-S1b with its follow-up (i) (owner, 2026-10-15), as
+round 7 revises it (owner, 2026-10-16, NE-S1d and NE-S1e). A generic value
+keeps a separate reach for each type-parameter component, named by a path
+through the type parameter. Round 7 lets each component carry its own
+mark, written inside its type argument, and makes a type parameter carry
+the reach of its instantiation, as Rust and Mojo do. Unmarked means global
+at every position, and a mark covers only the position it is written on.
+Non-generic data is unchanged: one reach, or its declared slots.
 
 ```hd
 data Pair[A, B]:                  # the owner's generic pair; C11's Pair declares slots instead
@@ -627,44 +691,56 @@ data Pair[A, B]:                  # the owner's generic pair; C11's Pair declare
     second: B
 
 impl[T] List[T]:
-    fn push(^mut self, v: ^{self.T} T) -> void     # v joins the elements
-    fn get(^self, index: usize) -> ^{self.T} T?    # an element, not the list
+    fn push(^mut self, v: T) -> void               # v has T's reach: the elements' reach
+    fn get(^self, index: usize) -> T?              # an element at T's reach, never the list's own root
 
-fn first_of(p: ^Pair[Conn, Conn]) -> ^{p.A} Conn:
+fn same[T](v: T) -> T:            # returns exactly what came in, reach included
+    v
+
+fn first_of(p: ^Pair[^Conn, ^Conn]) -> ^{p.A} Conn:
     p.first                       # fine: component A only
 
-fn keep_in(dst: ^mut List[Conn], c: ^{dst.T} Conn) -> void:
+fn keep_in(dst: ^mut List[^Conn], c: ^{dst.T} Conn) -> void:
     dst.push(c)                   # fine: c is named for dst's elements
 
-fn peek(dst: ^List[Conn]) -> ^{dst.T} Conn:
+fn peek(dst: ^List[^Conn]) -> ^{dst.T} Conn:
     dst[0]                        # fine: an element reaches dst.T, never the list's own root
 
-fn unnamed(dst: ^mut List[Conn], c: ^Conn) -> void:
+fn unnamed(dst: ^mut List[^Conn], c: ^Conn) -> void:
     dst.push(c)                   # error: lifetime-mismatch: c is not named for dst.T
+
+fn global_elements(dst: ^mut List[Conn], c: ^Conn) -> void:
+    dst.push(c)                   # error: lifetime-mismatch: dst's elements are global, and c reaches a parameter root
 ```
 
-1. r[ne.data.component] A value of a generic type `G[A, B]` has its own reach (`ne.data.one-reach`) and one **component** reach per type parameter of `G`'s declaration. A value stored at a type parameter's type, anywhere in the fields or payloads, goes to that parameter's component; everything else goes to the own reach. Components nest: a `List[List[Conn]]` has `xs`, `xs.T`, and `xs.T.T`. A tuple has one component per element (`ne.data.tuple`). (owner, 2026-10-15, NE-S1b)
-2. r[ne.data.component-path] A component is named by a path through the type parameter's name in the declaration: `^{xs.T}` for `xs: ^List[Conn]`, `^{m.K}` and `^{m.V}` for a `Map[K, V]`, `^{p.A}` and `^{p.B}` for a `Pair[A, B]`, `^{o.T}` for a `T?` (`Option[T]`, `data.prelude.option`), and `^{r.T}` and `^{r.E}` for a `Result[T, E]`. A tuple element's path is its member, `^{t._0}` (`expr.tuple.select-underscore`). Paths compose with slot paths: `^{p.T.a}` is slot `a` of the `Pair` inside `p: ^Pair?`. A segment names a declared slot or a type parameter of that declaration, which share one generic list, so the names are distinct. (owner, 2026-10-15, NE-S1b; the tuple spelling and composed paths are agent-detail, round 6)
-3. r[ne.data.component-locality] A parameter's own `^` marks the container's locality: the parameter root `xs` is the container's own reach, and each component has its own parameter root, as `xs.T`. A component of scalar type has no root, because a scalar reaches nothing. (owner, 2026-10-15, NE-S1b; the scalar sentence is agent-detail, round 6)
+1. r[ne.data.component] A value of a generic type `G[A, B]` has its own reach (`ne.data.one-reach`) and one **component** reach per type parameter of `G`'s declaration. A value stored at a type parameter's type, anywhere in the fields or payloads, goes to that parameter's component; everything else goes to the own reach. Components nest: a `List[List[Conn]]` has `xs`, `xs.T`, and `xs.T.T`. A tuple has one component per element (`ne.data.tuple`). A component's reach is set by the mark on its type argument (`ne.syntax.one-reach`): `static` when unmarked, a parameter root when marked on a parameter, the written or elided bound on a result, and T's reach where the argument is a type parameter. (owner, 2026-10-15, NE-S1b; 2026-10-16, NE-S1d: the mark on the type argument)
+2. r[ne.data.component-path] A component is named by a path through the type parameter's name in the declaration: `^{xs.T}` for `xs: ^List[^Conn]`, `^{m.K}` and `^{m.V}` for a `Map[K, V]`, `^{p.A}` and `^{p.B}` for a `Pair[A, B]`, `^{o.T}` for a `T?` (`Option[T]`, `data.prelude.option`), and `^{r.T}` and `^{r.E}` for a `Result[T, E]`. A tuple element's path is its member-name chain, `^{t._0}` (`expr.tuple.select-underscore`). Paths compose with slot paths: `^{p.T.a}` is slot `a` of the `Pair` inside `p: ^Option[^Pair]`. A segment names a declared slot or a type parameter of that declaration, which share one generic list, so the names are distinct. (owner, 2026-10-15, NE-S1b; 2026-10-16, B8: the tuple path; composed paths are agent-detail, round 6)
+3. r[ne.data.component-locality] A parameter's own `^` marks the container's locality: the parameter root `xs` is the container's own reach. A component is local only where its type argument is marked: `xs: ^List[^Conn]` has the parameter roots `xs` and `xs.T`, and `xs: ^List[Conn]` has the root `xs`, while `xs.T` reaches `static`, so a list that holds a `^` parameter's handle does not fit it. A component of scalar type has no root, because a scalar reaches nothing. (owner, 2026-10-15, NE-S1b; 2026-10-16, NE-S1d: only marked components; the scalar sentence is agent-detail, round 6)
 4. r[ne.data.component-read] Reading an element, as `dst[0]`, `for c in dst`, or a pattern that takes out a payload, gives the component's reach, `dst.T`, never the container's own reach. Storing an element, as `dst[0] = c` or `push`, adds to that component (`ne.heap.store`). (owner, 2026-10-15, NE-S1b)
-5. r[ne.data.component-share] All values of one component share its reach. A `List[Conn]` has one `T`, so its elements share one reach, and so do a `Map`'s values (known limit L2). (owner, 2026-10-15, NE-S1b)
-6. r[ne.data.no-join] Nothing joins components. Wrapping, construction, projection, extraction, and pattern matching keep each component's reach, so aggregation never widens a mutable component ([R22](#r22-optional-wrapping-and-an-invariant-slot), [R23](#r23-a-tuple-hides-the-same-widening)). Erasure to `dyn K` still makes one reach, under `ne.erase.join`. (owner, 2026-10-15, NE-S1b)
-7. r[ne.data.component-bound] A written bound `^{S}` on a value of generic type bounds its own reach and every component at once (`ne.syntax.one-reach`). A written type has no per-component bound. So a result or field whose components come from different sources shares one bound, and an invariant component cannot take a wider one (known limit L5, [R23](#r23-a-tuple-hides-the-same-widening)). A slot-bearing data type returns them apart. (agent-detail, round 6)
-8. r[ne.data.component-store] As a store destination, `c: ^{dst.T} Conn` lets `c` flow into `dst`'s elements only, and `c: ^{dst} Conn` into any part of `dst`. (owner, 2026-10-15, NE-S1b for the path; the whole-name store is agent-detail, round 6)
+5. r[ne.data.component-share] All values of one component share its reach. A `List[Conn]` has one `T`, so its elements share one reach, and so do a `Map`'s values (known limit L2). Values that enter the same component need compatible invariant reaches: where the component's type exposes mutable storage (`ne.var.surface`), each value's invariant reaches must equal the component's, so two lists with different element reaches cannot be elements of one list ([R38](#r38-different-list-elements-still-need-a-join-check)). (owner, 2026-10-15, NE-S1b; 2026-10-16, NE-S1e: compatible invariant reaches)
+6. r[ne.data.no-join] Nothing joins separate components. Wrapping, construction, projection, extraction, and pattern matching keep each component's reach, so aggregation never widens one component by another ([R22](#r22-optional-wrapping-and-an-invariant-slot), [R23](#r23-a-tuple-hides-the-same-widening)). Values that enter the same component are the one aggregation that can widen, and `ne.data.component-share` checks it. Erasure to `dyn K` makes one reach, under `ne.erase.join`. (owner, 2026-10-15, NE-S1b; 2026-10-16, NE-S1e: "never widens" holds for separate components)
+7. r[ne.data.component-store] As a store destination, `c: ^{dst.T} Conn` lets `c` flow into `dst`'s elements only, and `c: ^{dst} Conn` into any part of `dst`. (owner, 2026-10-15, NE-S1b for the path; the whole-name store is agent-detail, round 6)
 
-Elision is unchanged: a result elided to `self` or to an input names the
-whole value, every component included. That is sound, and over-ties an
-element to the container's own root, so std writes `^{self.T}` on
-element reads ([12.5](#125-annotation-burden-in-std-estimate)).
+A container method writes no mark on an element it returns or stores:
+`T` carries the element reach, so `get` and `push` are precise, and a
+result never ties an element to the container's own root
+([12.5](#125-annotation-burden-in-std-estimate)). Round 6's `^{self.T}`
+and its rule that one written bound covers every component are gone
+(owner, 2026-10-16, NE-S1d).
 
 > **Why.** A join is a widening. Round 3 joined a wrapper's slots and a
 > tuple's elements into one reach, so a mutable component took on the
-> reach of its neighbours, and a store through it reached the caller's
-> object unnamed (R22, R23). Rust keeps a lifetime per type argument, as
-> in `Option<Pair<'a, 'b>>`. Swift lists component lifetimes as a future
-> direction. hd keeps one reach per component and names it by path, as
-> it names slots. A list has one `T`, so its elements share one reach, as
-> a Rust `Vec<&'a S>` shares one `'a`.
+> reach of its neighbours (R22, R23). Round 6 kept the components apart
+> but bounded a written type with one prefix, which flattened them again
+> at every signature: identity, a declared slot around a list, and a list
+> lookup (R35 to R37). Rust keeps a lifetime per type argument, as in
+> `Option<Pair<'a, 'b>>`, and a type parameter stands for a type with its
+> lifetimes, so `identity<T>` returns what it got. hd now does the same:
+> a component's mark is written where the component is written, and
+> generic code writes none. A list has one `T`, so its elements share one
+> reach, as a Rust `Vec<&'a S>` shares one `'a`, and values that enter it
+> must agree on their invariant reaches, as Rust's `Vec<Cell<T>>` needs
+> one `T` (R38).
 
 ## 6. Closing (Parked)
 
@@ -715,19 +791,24 @@ active checks below read solved reaches, not liveness.
 
 ### 8.1 Generic Substitution
 
-1. r[ne.generic.default] A type parameter accepts no NonEscapable argument by default. `x: T` is a global parameter (`ne.param.generic`), and `x: ^T` accepts one. This reverses the round-2 default and restores the parked TQ-25's opt-in. (owner, 2026-10-14, D2)
-2. r[ne.generic.carry] A generic type applied to a lifetime-carrying type argument keeps one reach per component, which grows with each store at that component. A `List[Conn]`'s `T` has the reach of the handles stored in it. No lifetime is written inside the argument. (owner, 2026-10-14, D6; 2026-10-15, NE-S1b: per component)
-3. r[ne.generic.abstract] In a generic body, a value of type `T` reaches `static` when its parameter is unmarked, and the parameter's root when it is `x: ^T`. A value of type `T` taken out of a container reaches the container's component for `T`, as `xs.T` (`ne.data.component-read`). Nothing else is known about it. A parameter `x: ^T` has one root; when the argument is itself generic, `^{x}` names all of its reaches. (owner, 2026-10-15, NE-S1b: the component)
-4. r[ne.generic.store] A generic function stores a `^T` argument into a container with the store mark on the component: `fn push(^mut self, v: ^{self.T} T)`. A generic function that stores an argument in module state takes it unmarked, `x: T`. There is no `^{static} T` parameter (`ne.param.fn`). (owner, 2026-10-14, D5, D6; 2026-10-15, NE-S1b: `^{self.T}`)
+1. r[ne.generic.default] A parameter of type `T` accepts a local argument: `T` carries the reach of its instantiation, so the mark is written where `T` is instantiated, not where it is used (`ne.param.generic`). This reverses D2's opt-in for type parameters, as Rust and Mojo accept borrows in generic code. `x: dyn K` stays global when unmarked. (owner, 2026-10-14, D2; 2026-10-16, NE-S1d)
+2. r[ne.generic.carry] A type parameter carries its reach: instantiating `T` supplies a type and its reaches, so every position of type `T` has the reach of T's instantiation, and `fn same[T](v: T) -> T` returns exactly what came in. A generic type applied to a lifetime-carrying type argument keeps one reach per component, which grows with each store at that component. (owner, 2026-10-14, D6; 2026-10-15, NE-S1b: per component; 2026-10-16, NE-S1d: `T` carries its reach)
+3. r[ne.generic.abstract] In a generic body, every value of type `T` reaches T's type-parameter root (`ne.root.kinds`): a parameter `x: T`, an element taken out of a `List[T]`, and a callback's `T` result alike. T's root fits a position of type `T` and no other bound, `static` included. A parameter `x: ^T` reaches its own parameter root instead, and is not kept. At a call, T's root becomes the reaches of the instantiation. So `Iterator[T].next(^mut self) -> T?` is precise: an item that a stored callback produces, as Rust's `from_fn` produces it, has T's reach, as an element read does ([R42](#r42-a-lazy-iterator-produces-through-its-closure-field)). (owner, 2026-10-15, NE-S1b; 2026-10-16, NE-S1d, NE-S12; the root is agent-detail, round 7)
+4. r[ne.generic.store] A generic function stores a value of type `T` at a `T` position with no mark, as `fn push(^mut self, v: T)` does (`ne.elide.store`). T's root never fits `static`, so a generic body cannot store a `T` in module state; a function that does takes a concrete or `dyn` type, unmarked. There is no `^{static} T` parameter (`ne.param.fn`). (owner, 2026-10-14, D5, D6; 2026-10-16, NE-S1d: `v: T`)
 5. r[ne.generic.infer] Slot arguments of generic data are inferred at use sites like type arguments. A declaration's slots are never inferred from its body.
-6. r[ne.generic.no-lifetime-arg] An explicit type argument carries no `^`. `List[^{c} Conn]` and `keep::[^{c} Conn](x)` are errors (`ne.syntax.one-reach`). (owner, 2026-10-14, D6)
 
 ```hd
 impl[T] List[T]:
-    fn push(^mut self, v: ^{self.T} T) -> void     # stores v into the elements
+    fn push(^mut self, v: T) -> void               # stores v into the elements
     fn contains(^self, v: ^T) -> bool              # keeps nothing
-    fn get(^self, index: usize) -> ^{self.T} T?    # an element; elided, ^{self} would tie it to the list too
+    fn get(^self, index: usize) -> T?              # an element at T's reach
+
+trait Iterator[T]:
+    fn next(^mut self) -> T?                       # an item at T's reach, however it is produced
 ```
+
+Round 3's `ne.generic.no-lifetime-arg`, which forbade `List[^{c} Conn]`
+and `keep::[^{c} Conn](x)`, is removed (owner, 2026-10-16, NE-S1d).
 
 ### 8.2 Function Types
 
@@ -735,37 +816,39 @@ A function type is elided by the rules a function uses (owner, 2026-10-14,
 D8). It replaces the round-2 union default and the known limit L3.
 
 1. r[ne.fntype.own] A function type has one own reach: the reach of its captures, called its **environment**.
-2. r[ne.fntype.names] A function type may name its parameters: `fn(x: ^T) -> ^{x} U`. A name is needed only for a `^` in the result to refer to. `fn.type.no-names` must change for this. (owner, 2026-10-14, D8, Q12)
-3. r[ne.fntype.inputs] An input of a function type follows `ne.param.mark`: `fn(x: ^T)` is local, and an unmarked input is global. A callback that is called with a handle writes `^` on that input. (owner, 2026-10-14, Q12)
+2. r[ne.fntype.names] A function type may name its parameters: `fn(x: ^Conn) -> ^{x} Conn`. A name is needed only for a `^` in the result to refer to. `fn.type.no-names` must change for this. (owner, 2026-10-14, D8, Q12)
+3. r[ne.fntype.inputs] An input of a function type follows `ne.param.mark`: `fn(x: ^Conn)` is local, an unmarked input is global, and an input of type `T` carries T's reach. A callback that is called with a handle of a concrete type writes `^` on that input. (owner, 2026-10-14, Q12; 2026-10-16, NE-S1d: `T`)
 4. r[ne.fntype.env] In a function type that is a parameter `f: ^fn(...)`, or sits inside one's type, `{f}` names the environment, the closure's captures. The environment is a tracked input of the function type. (owner, 2026-10-14, Q12)
-5. r[ne.fntype.elide] A result of a function type that is lifetime-carrying is elided by the tracked inputs of that type, counted exactly as `ne.sig.input` counts them for a function: its `^` inputs, its environment, and the NonEscapable keys and row parameters of its row. No tracked input gives `^{}`. Exactly one gives that input, so a function type with no parameters and no such row depends on its environment. Anything else must be written, and an unwritten one is an error at the declaration, as in `^fn() -> ^{$Pool} Conn $ Pool`. Error: `ambiguous-lifetime`. A function item used as a value has an empty environment, so only its parameters and row count. (owner, 2026-10-14, D8, [NE-S6](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s6-provider-elision))
+5. r[ne.fntype.elide] A result of a function type that is lifetime-carrying is elided by the tracked inputs of that type, counted exactly as `ne.sig.input` counts them for a function: its `^` inputs, its environment, and the NonEscapable keys and row parameters of its row. No tracked input gives `^{}`. Exactly one gives that input, so a function type with no parameters and no such row depends on its environment. Anything else must be written, and an unwritten one is an error at the declaration, as in `^fn() -> ^{$Pool} Conn $ Pool`. Error: `ambiguous-lifetime`. A function item used as a value has an empty environment, so only its parameters and row count. (owner, 2026-10-14, D8, NE-S6)
 6. r[ne.fntype.outside] A function type that is not a parameter, such as a result, a field, or a local, has no name for its environment, so an ambiguous result there cannot be written. This is a known limit (L6). A data wrapper with a method gives it a parameter to name. (owner, 2026-10-14, Q12)
 7. r[ne.fntype.call] A call of a function value instantiates its bound: each named input becomes its argument's reach, and the environment name becomes the reach of the function value being called.
 8. r[ne.fntype.row] A NonEscapable key in a function type's row is resolved at each call, so the result may reach that call's provider.
 9. r[ne.fntype.subtype] Inputs are contravariant, and the result and the environment covariant, subject to `ne.var.fn`. A result bound `^{x}` is assignable where `^{x, f}` is expected. An input without `^{f}` is assignable where one with `^{f}` is expected, since keeping nothing fits a permitted store; the converse is an error.
-10. r[ne.fntype.one-flow] A written reach applies whatever the instantiated result type. `map` over a pool of handles, yielding a `List[usize]`, still reaches the pool and the closure's environment: exact substitution of the published signature (known limit L9). Only an argument that is already global substitutes `static`. This replaces round 3's `ne.fntype.carry-only`, which dropped the reach of an ordinary result. (owner, 2026-10-14, NE-S2)
-11. r[ne.fntype.env-store] An input of a function type written `x: ^{f} T`, where `f` names that function value's environment, says that a call may store `x` into the environment. A call then adds the argument's reach to every object and binding the environment captured, by `ne.heap.store`, or by `ne.heap.fixed` for a captured parameter's object. An input without `^{f}` keeps nothing in the environment. (owner, 2026-10-15, [NE-S4b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s4b-a-closures-environment-is-a-retention-destination); "every captured object", the whole receiver for a bound reference, is agent-detail, round 6)
-12. r[ne.fntype.bound-ref] A bound method reference `v::m` captures its receiver as its environment (`fn.ref.bound.capture`). An input that `m` stores into its receiver, written `^{self}` or `^{self.T}`, is written `^{f}` in the reference's type, with `f` naming the reference's environment: `dst::push` has type `fn(v: ^{put} Conn) -> void` when `put` holds it. `fn.ref.bound.type`, which today only drops the receiver, must change for this. An unbound reference, as `List::push`, keeps the receiver as its first parameter, so its marks stay as written. (owner, 2026-10-15, NE-S4b)
+10. r[ne.fntype.one-flow] A written reach applies whatever the instantiated result type: a result written `^{pool} List[usize]` reaches `pool` though it holds numbers, by exact substitution of the published signature (known limit L9). A position of type `T` carries only what its instantiation reaches, so a generic signature names no source for it, and `map` over a pool of handles, yielding a `List[usize]`, reaches nothing (NE-S1d). Only an argument that is already global substitutes `static`. This replaces round 3's `ne.fntype.carry-only`, which dropped the reach of an ordinary result. (owner, 2026-10-14, NE-S2; 2026-10-16, NE-S1d)
+11. r[ne.fntype.env-store] An input of a function type written `x: ^{f} Conn`, where `f` names that function value's environment, says that a call may store `x` into the environment. A call then adds the argument's reach to every object and binding the environment captured, by `ne.heap.store`, or by `ne.heap.fixed` for a captured parameter's object: the whole receiver for a bound reference, `^{dst}`. An input without `^{f}` keeps nothing in the environment. The rule is conservative: a capture that the closure only reads becomes a destination too, so the caller needs permission to store into it (known limit L10, [R40](#r40-reading-metadata-turns-it-into-a-store-destination)). The workarounds: a data method that takes each destination as its own parameter, or reading the unrelated capture outside the closure when the read's timing allows. (owner, 2026-10-15, NE-S4b; 2026-10-16, NE-S4d: keep the whole environment and document the workarounds; B12: the whole receiver)
+12. r[ne.fntype.bound-ref] A bound method reference `v::m` captures its receiver as its environment (`fn.ref.bound.capture`). An input that `m` stores into its receiver is written `^{f}` in the reference's type, with `f` naming the reference's environment: one marked `^{self}` or with a path through `self`, and one of a receiver type parameter's type under a `^mut self` receiver, as `push`'s `v: T`. So `dst::push` has type `fn(v: ^{put} Conn) -> void` when `put` holds it. A result of `m` whose bound names the receiver, written or elided, names the reference's environment, `^{f}`: the whole receiver. A position of type `T` keeps T's reach, so `xs::get` returns elements at `xs.T` ([R39](#r39-binding-a-getter-removes-the-name-of-its-component)). `fn.ref.bound.type`, which today only drops the receiver, must change for this. An unbound reference, as `List::push`, keeps the receiver as its first parameter, so its marks stay as written. (owner, 2026-10-15, NE-S4b; 2026-10-16, NE-S4c: results; the `v: T` clause is agent-detail, round 7)
 13. r[ne.fntype.closure-store] A written closure that stores an input into a captured binding or a captured object stores it into its environment, and its type says so with `^{f}` on that input. So it does not match `fn(x: ^Conn)`: a bare input is never kept (`ne.param.bare`). Inside the closure body the environment is fixed, as a parameter's object is (`ne.heap.fixed`): a captured binding is a flexible local only outside the closure (`ne.local.captured`). Error: `lifetime-mismatch`. (owner, 2026-10-15, NE-S4b)
 14. r[ne.fntype.env-name] An environment has a name in two places: a function-typed parameter (`ne.fntype.env`), and a local binding's inferred type, as `put := dst::push`. A closure literal cannot name its own environment, so a literal that stores an input into a capture takes that input's mark from the expected function type. A written type outside a parameter cannot name an environment (L6), so a storing callable cannot be written there. (agent-detail, round 6)
+15. r[ne.fntype.constructor] The constructor forms `Fn[(A,), O, $ R]` and `SuspendFn[(A,), O, $ R]` denote only all-global function types: no input marked `^`, no parameter names, no `^{f}`, and no written result reach. `fn.type.ctor.sugar` holds for those only. A richer function type is written with `fn(...)` or `fn!(...)` and has no constructor spelling. So a function value of type `Fn[(List[u8],), void, $()]` does not convert to `fn(b: ^List[u8]) -> void`: its input is global and does not accept a local argument ([R41](#r41-function-constructor-identity-still-needs-retention-binders)). Error: `lifetime-mismatch`. (owner, 2026-10-16, NE-S5c; what counts as all-global is agent-detail, round 7)
 
 ```hd
-fn map[T, U](xs: ^List[T], f: ^fn(x: ^T) -> ^{x, f} U) -> ^{xs, f} List[U]
-fn each(xs: ^List[Conn], f: ^fn(c: ^Conn) -> void) -> void     # void: nothing to name
-fn retry![T, E, $R](times: usize, attempt: ^fn!() -> ^{attempt, $R} Result[T, E] $ R) -> ^{attempt, $R} Result[T, E] $ R
-fn all_list![T, $R](tasks: ^List[fn!() -> ^{tasks, $R} T $ R]) -> ^{tasks, $R} List[T] $ R
+fn map[T, U](xs: ^List[T], f: ^fn(x: T) -> U) -> ^{} List[U]   # U carries what the callback returns
+fn each(xs: ^List[^Conn], f: ^fn(c: ^Conn) -> void) -> void     # void: nothing to name
+fn retry![T, E, $R](times: usize, attempt: ^fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+fn all_list![T, $R](tasks: ^List[^fn!() -> T $ R]) -> ^{} List[T] $ R
 ```
 
-> **Why.** The owner's example writes `x: T` unmarked. Under D2 that input
-> would be global, so `^{x}` would name nothing and the callback could not
-> take a handle. The inputs are written `x: ^T` here, and the owner
-> accepted that (Q12). `map` writes both results because an element of the
-> new list may be a value of `f`'s environment or of `xs`. `retry!` and
-> `all_list!` now write their results too. Their callbacks and their own
-> rows both carry the row parameter `$R`, which may hold a provider, so
-> each has two tracked inputs. Round 3 elided them to the environment
-> only, which counted `$R` for a function and not for a function type
-> (C09). The same counting now applies to both.
+> **Why.** The owner's example writes `x: T` unmarked, and round 7 makes
+> that the spelling again: `T` carries the element reach, and `U` carries
+> what the callback returns, whether that reaches `x`, `f`'s environment,
+> a provider of `$R`, or nothing (NE-S1d). So `map`, `retry!`, and
+> `all_list!` name no source for their elements, and each writes `^{}`
+> only on the new list, whose own position has two candidate sources.
+> Round 6 wrote `^{x, f}` and `^{xs, f}`, so a list of numbers mapped from
+> handles still reached them (L9). A callback result of a concrete type
+> is still elided by the tracked inputs of its function type, its
+> environment and the NonEscapable keys and row parameters of its row,
+> exactly as a function's is (C09).
 
 Environment stores (owner, 2026-10-15, NE-S4b):
 
@@ -773,13 +856,13 @@ Environment stores (owner, 2026-10-15, NE-S4b):
 fn apply_store(put: ^fn(c: ^{put} Conn) -> void, c: ^{put} Conn) -> void:
     put(c)                        # fine: c may flow into put's environment
 
-fn declared_store(dst: ^mut List[Conn], c: ^{dst} Conn) -> void:
+fn declared_store(dst: ^mut List[^Conn], c: ^{dst} Conn) -> void:
     apply_store(dst::push, c)     # fine: dst::push stores into its environment, dst
 
 fn invoke_once(f: ^fn(x: ^Conn) -> void, c: ^Conn) -> void:
     f(c)
 
-fn captured_cell(c: ^Conn) -> ^{c} Conn?:
+fn captured_cell(c: ^Conn) -> Option[^{c} Conn]:
     let saved: Conn? = .None
     invoke_once(fn(x): saved = .Some(x), c)   # error: lifetime-mismatch: the closure stores x into its environment, and x is bare ^
     saved
@@ -795,9 +878,9 @@ fn captured_cell(c: ^Conn) -> ^{c} Conn?:
 ### 8.3 Erasure And Downcasting
 
 1. r[ne.erase.slot] Every `dyn K`, including `dyn Any` and `dyn Inspectable`, has one reach.
-2. r[ne.erase.join] Erasing a value to `dyn K` joins all its slots and components into that one reach. The join is a widening of each of them, so when the reach of `dyn K` is invariant (`ne.var.dyn`), every slot and component must already have the joined reach, or the erasure is an error. Error: `lifetime-mismatch`. (owner, 2026-10-14, D6; the invariance sentence is agent-detail, round 6, derived from NE-S1 for the erasure form of [R22](#r22-optional-wrapping-and-an-invariant-slot))
+2. r[ne.erase.join] Erasing a value to `dyn K` joins all its slots and components into that one reach. The join is a widening of each of them, so when the reach of `dyn K` is invariant (`ne.var.dyn`), every slot and component must already have the joined reach, or the erasure is an error. Error: `lifetime-mismatch`. (owner, 2026-10-14, D6; 2026-10-16, B11: the invariance sentence, derived from NE-S1 for the erasure form of [R22](#r22-optional-wrapping-and-an-invariant-slot))
 3. r[ne.erase.allowed] Erasing a lifetime-carrying value is allowed into a local position: a binding, or a parameter written `^dyn K`. A parameter `x: dyn K` is global, so it takes only an ordinary value that fits `static`, and a NonEscapable value is rejected by category (`ne.param.generic`). This replaces the parked TQ-24 "erasure is rejected", so a `dyn Error` may hold a handle in a local. (owner, 2026-10-14, D2)
-4. r[ne.erase.downcast] A downcast needs a static reach. `downcast`, `downcast_mut`, and `downcast_val` require the `dyn` value's reach to be `static`, and the result reaches only `static`. A `dyn` value that may reach a local, parameter, or key root cannot be downcast, even when it holds an ordinary value (known limit L8, [C19](NONESCAPE_LIFETIME_STRESS_TEST.md#c19-a-local-classifier-cannot-downcast-ordinary-values)). Error: `downcast-non-static`. (owner, 2026-10-14, Q6, NE-S11)
+4. r[ne.erase.downcast] A downcast needs a static reach. `downcast`, `downcast_mut`, and `downcast_val` require the `dyn` value's reach to be `static`, and the result reaches only `static`. A `dyn` value that may reach a local, parameter, or key root cannot be downcast, even when it holds an ordinary value (known limit L8, [C19](#c19-a-local-classifier)). Error: `downcast-non-static`. (owner, 2026-10-14, Q6, NE-S11)
 5. r[ne.erase.identity] Slots are not part of runtime identity. `TypeId::of::[Session[^{a}, ^{b}]]()` equals `TypeId::of::[Session[^{c}, ^{d}]]()`.
 
 > **Why.** Rule 4 follows Rust's `Any: 'static`, with one difference.
@@ -813,18 +896,18 @@ fn captured_cell(c: ^Conn) -> ^{c} Conn?:
 
 ## 9. Closures, Suspensions, And Cancellation
 
-1. r[ne.closure.reach] A closure's own reach is exactly the union of the reaches of what it captures. Each captured binding has one reach (`ne.local.captured`). A closure that captures nothing tracked has the empty reach, which fits `static`: it is no root ([C20](NONESCAPE_LIFETIME_STRESS_TEST.md#c20-a-scalar-only-closure-factory-gets-a-local-root)). (owner, 2026-10-14, NE-S11)
-2. r[ne.suspend.slots] The compiler-known `Suspend[T]` has two slots. `run` is what the frame keeps alive: its arguments, its captures (the environment of the called function value), and its NonEscapable providers. `out` is what its output may reach. A path names them, as `^{s.run}` and `^{s.out}`, and `^{s}` names both (`ne.data.whole`). (owner, 2026-10-14, [NE-S5](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s5-frame-retention-and-output))
-3. r[ne.suspend.cold] A plain call `f(a, b)` of a `fn!` builds a cold frame. Its `run` is the union of the argument reaches, the reach of the called function value `f` (its environment, which is empty for a function item), and the construction-time providers (`req.lowering.frame`, `req.bind.captured`). Its `out` is the callee's declared result reach with the argument reaches substituted, as `ne.call.result` does for a direct call. So a helper that calls a `^fn!()` parameter cold and returns the frame names that parameter ([R25](#r25-a-cold-call-of-a-closure)). (owner, 2026-10-14, NE-S5; 2026-10-15, [NE-S5b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5b-include-the-called-closure-in-cold-frames): the called function value)
+1. r[ne.closure.reach] A closure's own reach is exactly the union of the reaches of what it captures. Each captured binding has one reach (`ne.local.captured`). A closure that captures nothing tracked has the empty reach, which fits `static`: it is no root ([C20](#c20-a-scalar-only-closure-factory)). (owner, 2026-10-14, NE-S11)
+2. r[ne.suspend.slots] The compiler-known `Suspend[T]` has two slots. `run` is what the frame keeps alive: its arguments, its captures (the environment of the called function value), and its NonEscapable providers. `out` is what its output may reach. A path names them, as `^{s.run}` and `^{s.out}`, and `^{s}` names both (`ne.data.whole`). `Suspend`'s type argument names the output's type, and `out` its reach, so that argument takes no mark of its own. (owner, 2026-10-14, NE-S5; the type-argument sentence is agent-detail, round 7)
+3. r[ne.suspend.cold] A plain call `f(a, b)` of a `fn!` builds a cold frame. Its `run` is the union of the argument reaches (every argument, an ordinary one passed to a `^` parameter included, NE-S2), the reach of the called function value `f` (its environment, which is empty for a function item), and the construction-time providers (`req.lowering.frame`, `req.bind.captured`). Its `out` is the callee's declared result reach with the argument reaches substituted, as `ne.call.result` does for a direct call. So a helper that calls a `^fn!()` parameter cold and returns the frame names that parameter ([R25](#r25-a-cold-call-of-a-closure)). (owner, 2026-10-14, NE-S5; 2026-10-15, NE-S5b: the called function value)
 4. r[ne.suspend.exact] Both slots are exact. `run` is exact because the frame stores every argument. `out` is exact because it substitutes the published signature (requirement 10). (owner, 2026-10-14, NE-S5, NE-S11)
 5. r[ne.suspend.drive] Driving a frame yields a value whose reach is the frame's `out`, never its `run`. A bang call, a poll that completes, and a combinator all drive. (owner, 2026-10-14, NE-S5)
 6. r[ne.suspend.bang] A bang call `f!(a, b)` keeps neither its frame nor its arguments after it returns. Its result reaches `out`, which is the reach a direct call gives.
 7. r[ne.suspend.stored] A stored frame is an ordinary value. The frame value's own reach, for storage and capture, is `run`: a holder of a frame takes on `run` (`ne.heap.store`). A generic wrapper of frames, as `List[Suspend[T]]` or `Suspend[T]?`, keeps both slots inside its component, as `fs.T.run` and `fs.T.out`; a list's frames share them (`ne.data.wrapper`, `ne.data.component-share`). (owner, 2026-10-14, NE-S5; the round-4 detail that a wrapper joins both slots is reversed, 2026-10-15, NE-S1b)
 8. r[ne.suspend.elide] No elision rule is special to `Suspend`. A std function that drives a frame passed as a parameter writes `^{s.out}` on its result, as `fn finish![T](s: ^mut Suspend[T]) -> ^{s.out} T` does. Left elided, such a result would be `^{s}`, both slots. (owner, 2026-10-14, NE-S5, option (a))
 9. r[ne.all.typing] `all!` and `race!` take their children's frames for the call only, so their child parameters are written `^`. They are compiler intrinsics (`req.combinator.all-typing`, `req.combinator.race-signature`). The result tuple of `all!` keeps each child's `out` in its own element (`ne.data.tuple`), and the value of `race!`, which may come from any child, reaches the union of their `out` slots. Neither reaches a child's `run`. (owner, 2026-10-14, NE-S5; 2026-10-15, NE-S1b: per element)
-10. r[ne.all.list] `all_list!` takes a list of closures, as `tasks: ^List[fn!() -> ^{tasks, $R} T $ R]`. The closures share the list's one component, `tasks.T`.
+10. r[ne.all.list] `all_list!` takes a list of local closures, as `tasks: ^List[^fn!() -> T $ R]`. The closures share the list's one component, `tasks.T`, and their results carry `T`. (2026-10-16, NE-S1d: the marked component and `T`)
 11. r[ne.all.global] A combinator parameter left unmarked is global, so a frame that captures a `^` parameter's handle is an error at the call. A frame over a fresh handle fits, since the handle reaches `static` (OQ1). (owner, 2026-10-14, D5, OQ1)
-12. r[ne.suspend.weaken] Weakening a suspending function to its cold constructor (`req.suspend.type.equivalent`) writes the frame result with slot arguments, `run` then `out`. `fn!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn` weakens to `fn(keep: ^Conn, scratch: ^Conn) -> Suspend[Conn, ^{keep, scratch}, ^{keep}]`. `run` names every tracked input of the suspending type: its `^` inputs, its environment, and its NonEscapable keys and row parameters. `out` is its result bound. There is no new syntax: it is a stated translation, and the same holds for the constructor forms that `req.suspend.type.equivalent` makes equivalent. A single prefix bound, `^{S} Suspend[T]`, bounds both slots by `S`, which is sound and loses the output's precision ([R26](#r26-a-weakened-suspending-function)). (owner, 2026-10-15, [NE-S5c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5c-preserve-both-slots-through-callable-lowering))
+12. r[ne.suspend.weaken] Weakening a suspending function to its cold constructor (`req.suspend.type.equivalent`) writes the frame result with slot arguments after the type argument, `run` then `out`. `run` is computed as a direct cold call computes it (`ne.suspend.cold`), with each parameter's name in place of its argument: every marked parameter, of any type, the environment, and the NonEscapable keys and row parameters. An unmarked parameter reaches `static` and adds nothing. `out` is the result bound. So `fn!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn` weakens to `fn(keep: ^Conn, scratch: ^Conn) -> Suspend[Conn, ^{keep, scratch}, ^{keep}]`, and `fn!(bytes: ^BufferHeader) -> void` weakens to `fn(bytes: ^BufferHeader) -> Suspend[void, ^{bytes}, ^{}]`, though `BufferHeader` carries nothing and so is no tracked input ([R34](#r34-weakening-drops-an-ordinary-buffer)). There is no new syntax: it is a stated translation. `SuspendFn[...]` spells only all-global types (`ne.fntype.constructor`). A prefix on a frame, `^{S} Suspend[T]`, bounds only its own reach, `run`; an unwritten `out` on a result elides like any position ([R26](#r26-a-weakened-suspending-function)). (owner, 2026-10-15, NE-S5c; 2026-10-16, NE-S5d: one formula for `run`; B9: the order; the prefix sentence is agent-detail, round 7)
 
 ```hd
 fn select!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn
@@ -857,7 +940,7 @@ fn via_lowered!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn:
 5. r[ne.provider.frame] A frame built inside that scope captures the provider, so its `run` includes `p`'s reach. Its `out` includes `p`'s reach only where the callee's result names `$K`. (owner, 2026-10-14, NE-S5)
 6. r[ne.provider.closure] A closure captures no provider (`fn.capture.no-providers`). Its row carries the key, and each call resolves it there.
 7. r[ne.provider.flow] `req.use.value.flow` and `req.use.value.outlives-scope` stay true, bounded by the provider's reach.
-8. r[ne.provider.ordinary] A provider of an ordinary key, one whose trait is not NonEscapable, must be static: `$.with(K = p)` is an error when `p`'s reach is not `static`, whatever `p` is: a callback holder, a frame, or an erased value. A fresh provider fits (`ne.root.free`). Ordinary keys stay untracked in signatures: no key root and no tracked input, which is sound because their providers hold nothing scoped. A library that supplies scoped values through a key declares the key's trait NonEscapable, and NE-S6 tracks it. Error: `ordinary-provider-not-static`. (owner, 2026-10-15, [NE-S6b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s6b-ordinary-providers-need-provenance); the diagnostic name is agent-detail, round 6)
+8. r[ne.provider.ordinary] A provider of an ordinary key, one whose trait is not NonEscapable, must be static: `$.with(K = p)` is an error when `p`'s reach is not `static`, whatever `p` is: a callback holder, a frame, or an erased value. A fresh provider fits (`ne.root.free`). Ordinary keys stay untracked in signatures: no key root and no tracked input, which is sound because their providers hold nothing scoped. A library that supplies scoped values through a key declares the key's trait NonEscapable, and NE-S6 tracks it. Error: `ordinary-provider-not-static`. (owner, 2026-10-15, NE-S6b; the diagnostic name is agent-detail, round 6)
 
 ```hd
 trait Reader:                     # an ordinary key
@@ -894,7 +977,7 @@ fn current_scoped() -> dyn ScopedReader $ ScopedReader: # elided: ^{$ScopedReade
 ### 12.1 What A Signature Exports
 
 - For each parameter: whether it is `^`-marked, and its sources (the objects it may be stored into). This is the `LocalParams` fact ([12.6](#126-what-the-optimizer-gets)).
-- For each result and each `c: ^{p}` store: a reach, as a set of atoms over parameters, slot paths, component paths, keys, row parameters, and `static`, or `{}`. A function type inside a signature exports its own result reaches, over its named inputs, its environment, and its row, and which inputs store into its environment (`^{f}`). A frame-driving result exports a reach over `s.out` slot paths, and a weakened suspending function its `run` and `out` slot arguments.
+- For each result and each `c: ^{p}` store: a reach, as a set of atoms over parameters, slot paths, component paths, keys, row parameters, and `static`, or `{}`; and one for each type argument written with a mark (NE-S1d). A position of type `T` exports nothing: it carries T's reach. A function type inside a signature exports its own result reaches, over its named inputs, its environment, and its row, and which inputs store into its environment (`^{f}`). A frame-driving result exports a reach over `s.out` slot paths, and a weakened suspending function its `run` and `out` slot arguments.
 - For each data and enum type: its declared slot list, the slot each field uses, each slot's computed variance, and whether it declares `NonEscapable`. For generic data, the stored fields that decide the category of an instantiation.
 - For each trait: whether it is a root trait, and each method's signature as above.
 
@@ -903,7 +986,7 @@ body.
 
 ### 12.2 Per Body
 
-1. **Variables.** One reach variable per lifetime-carrying binding version (SSA), object site, and call result, one per declared slot of slot-bearing data, one per type-parameter component of a generic value (NE-S1b), and two per frame (`run`, `out`). A non-generic type has one reach. A generic type has one more per component, a number fixed by the size of the type, as `List[Conn]` has two and `Map[string, List[Conn]]` four.
+1. **Variables.** One reach variable per lifetime-carrying binding version (SSA), object site, and call result, one per declared slot of slot-bearing data, one per type-parameter component of a generic value (NE-S1b), one per type parameter of a generic body (NE-S1d), and two per frame (`run`, `out`). A non-generic type has one reach. A generic type has one more per component, a number fixed by the size of the type, as `List[Conn]` has two and `Map[string, List[Conn]]` four.
 2. **Constraints.** Each store and call adds subset constraints
    (`reach(x) ⊆ reach(o)`), and each invariant position adds an equality.
    A callee signature is instantiated by substituting argument reaches
@@ -937,7 +1020,7 @@ Cleanup blocks and liveness, items 4 and 5 of round 3, are parked
 Cost: about `O((N + E) · ⌈R/64⌉)` per body, for `N` program points, `E`
 constraints, and `R` roots. This is a common-case estimate, not a derived
 worst-case bound: a monotone worklist may revisit an edge as a reach
-grows (review, "Checker Cost Needs A Real Bound"). There is no global
+grows (review 1, "Checker Cost Needs A Real Bound"). There is no global
 fixed point over bodies: signatures are summaries. Marking every
 parameter of an ordinary type adds one root per marked parameter in that
 body.
@@ -980,9 +1063,10 @@ row-kinded parameters, and the type pool needs slot arguments on data
 types. Under D6 only data that holds independent handles pays for this,
 and `Suspend`, whose two slots are compiler-known. Component paths
 (NE-S1b) need no new parameter kind: they are paths through type
-parameters that already exist, and the type pool still carries no
-lifetime in a type argument. A body pays one reach variable per
-component it uses.
+parameters that already exist. Round 7 puts a reach on each type
+argument and lets a type parameter carry one, as Rust's generics carry
+lifetimes, so the type pool needs a reach beside each type argument
+(NE-S1d). A body pays one reach variable per component it uses.
 
 ### 12.5 Annotation Burden In std (Estimate)
 
@@ -1003,11 +1087,11 @@ the same mark with braces.
 | **Follows from marking** | Written function-type results (D8): `Option` 2, `Iterator` 3, `Result` 3, `List` 4, `std.testing` 6 more; row-polymorphic callbacks such as `retry!` and `all_list!` add more (NE-S6), not counted | 12 | 0 |
 | **Follows from marking** | `^{s.out}` on frame-driving functions (NE-S5), not counted | - | - |
 | Accept handles | `^{}` on `accept!` (the three `Net` methods no longer need it) | 1 | 0 |
-| Accept handles | Store marks `^{self.T}` (D6, NE-S1b): `List` `push`, `insert`, `extend`; `Deque` `push_back`, `push_front`; `Set.insert`; `Heap.push` | 7 | 0 |
-| Follows from marking | `^{self.T}` or `^{self.E}` on element and payload reads (NE-S1b): `List` 9 (`pop`, `remove_at`, `get`, `first`, `last`, `find`, `sum`, `min`, `max`), `Deque` 5, `Heap` 2, `Map.get_or` 1, `Iterator` 3, `Option` 2, `Result` 4 | 26 | 2 |
-| Accept handles | Bare `^` on generic receivers and parameters (D2, D6): 109 receivers, 92 parameters | 201 | 237 |
+| Accept handles | Store marks on element stores: `List` `push`, `insert`, `extend`; `Deque` `push_back`, `push_front`; `Set.insert`; `Heap.push`. None since round 7: they take `v: T` (NE-S1d) | 0 | 0 |
+| Follows from marking | Marks on element and payload reads: `List` 9, `Deque` 5, `Heap` 2, `Map.get_or` 1, `Iterator` 3, `Option` 2, `Result` 4. None since round 7: they return `T` (NE-S1d, NE-S12) | 0 | 0 |
+| Accept handles | Bare `^` on generic receivers and parameters (D2, D6): 109 receivers, 92 parameters. Since round 7 a parameter typed `T` needs none (NE-S1d); the scan was not repeated | 201 | 237 |
 | Accept handles | Bare `^` on `dyn` and function-typed parameters (D2, D5): 5 and 35 | 40 | 40 |
-| Accept handles | `^` on the inputs of callback types, `fn(x: ^T)` (D2, D8): 25, and 6 in `std.testing` | 25 | about 10 |
+| Accept handles | `^` on the inputs of callback types, `fn(x: ^T)` (D2, D8): 25, and 6 in `std.testing`. Since round 7 an input typed `T` needs none (NE-S1d) | 25 | about 10 |
 | Declare the category | `impl NonEscapable for S` on a concrete data or enum type with a handle field (Q2) | 0 today | 0 today |
 | **Locality marks** | `^` on parameters of an ordinary heap type (strings, lists of scalars, plain data): 243 receivers, 157 parameters | 400 | 863 |
 | Never needed | Scalars, passed by value | 83 | 239 |
@@ -1026,16 +1110,15 @@ Reading the table:
   iterator, option, result, and task signatures: 0" is gone, because D6
   removed lifetimes from type arguments and D8 removed the union default.
   NE-S6 adds written results wherever a callback's row carries `$R`.
-- **Element reads (round 6).** 26 public and 2 private methods return an
-  element or a payload. Elided, their result is `^{self}`: sound, but it
-  ties the element to the container's own root, so a caller that names
-  only `xs.T` gets a false alarm. They write `^{self.T}` (or `^{self.E}`
-  for `Result.err`) instead (owner, 2026-10-15, NE-S1b). The 7 store
-  marks keep their count and become `^{self.T}`. Some of the 26 overlap
-  the written results above, where a fallback argument also flows to the
-  result, as in `unwrap_or`. The scan counted methods whose result is a
-  bare type parameter or its option; adapters that build new containers
-  are in the rows above.
+- **Element reads and stores (round 7).** Round 6 wrote `^{self.T}` on
+  26 public and 2 private element reads and on the 7 element stores.
+  Round 7 drops all of them: an element read returns `T` and a store
+  takes `v: T`, and `T` carries the element reach (owner, 2026-10-16,
+  NE-S1d). `Iterator.next` returns `T?` and is precise for a generated
+  item too (NE-S12). The rows for written results and callbacks above
+  were counted under round 6; round 7 removes the element reaches from
+  `map`-like signatures and leaves `^{}` on a new container. They were
+  not rescanned.
 - **Accept handles.** About 274 public marks. This is the price of the
   opt-in of D2, and it is mechanical: the lint proposes each one and a
   fix-it applies it. The migration is phased (owner, 2026-10-14, Q13):
@@ -1048,7 +1131,7 @@ Reading the table:
   std today. Each concrete handle-holding data type added later needs one
   line. Generic data declares nothing (NE-S10).
 - **Locality marks.** About 400 public marks. Round 3 called them
-  optimizer-only, which was too strong (review, "Ordinary Forwarding Is
+  optimizer-only, which was too strong (review 1, "Ordinary Forwarding Is
   Not Optimizer-Only"). A marked parameter has a root in its body, so
   forwarding it to an unmarked parameter is an error (`ne.body.global-arg`),
   and a mark spreads to the helpers it is passed to, `string.len`
@@ -1059,8 +1142,9 @@ Reading the table:
   shows a gain (Q13).
 
 Collection and iterator methods need markers but no new concepts.
-Elements carry their handles in the container's component reach,
-`xs.T`, and callbacks are function values with an environment.
+Elements carry their handles in the container's component reach, which
+generic code sees as `T`, and callbacks are function values with an
+environment.
 
 ### 12.6 What The Optimizer Gets
 
@@ -1075,14 +1159,14 @@ body by body, and `closure_spec` and `devirt_known` read them. The
 more. It says nothing about the caller's other aliases, its liveness, or
 its effects. Each optimization below lists the further facts it needs
 (owner, 2026-10-14,
-[NE-S7](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s7-optimizer-proof-boundaries)).
+NE-S7).
 
 1. r[ne.opt.fact] The signature exports `LocalParams`: for each parameter, whether it is `^`-marked, and its sources (the result, or the objects of other parameters). A marked parameter with no sources is **never kept** by the callee. One with sources is kept only there. The checker verified it (`ne.body.local`), so the optimizer reads it without analysing the callee's body. It is a bound on the callee, not a proof about the caller. (owner, 2026-10-14, D4, NE-S7)
-2. r[ne.opt.escape] The `escape` pass may treat a call that passes a value to a never-kept `^` parameter as not escaping through that call. With sources, the value escapes exactly when the named result or object does, whatever its type: a result of an ordinary type, as `identity_bytes` has, is an escape edge, and an empty resource reach never means that an object is dead ([C14](NONESCAPE_LIFETIME_STRESS_TEST.md#c14-an-ordinary-dependent-result-escapes)). An unmarked parameter is assumed to escape. Further precondition: the pass's own value flow in the caller. (owner, 2026-10-14, D4, NE-S2, NE-S7)
-3. r[ne.opt.closure] `closure_spec` and `devirt_known` take their licence not to keep a closure from the signature. They may treat a callback as not retained only when no result or store of the callee names it, written or elided: a never-kept `^fn` parameter (`ne.opt.fact`). A bare `^` alone is not enough, because the callback may still flow out through a result that names it, as `fn forward(f: ^fn() -> usize) -> fn() -> usize` elides to `^{f}` ([R33](#r33-a-bare-callback-returned)). Further precondition: a per-call-site instance from specialization, which may then call the closure directly and drop the closure value afterwards. A specialized instance alone does not prove that an environment returned from the call is dead. (owner, 2026-10-14, D4, NE-S7; 2026-10-15, [NE-S7b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s7b-use-the-full-retention-summary-for-closures))
+2. r[ne.opt.escape] The `escape` pass may treat a call that passes a value to a never-kept `^` parameter as not escaping through that call. With sources, the value escapes exactly when the named result or object does, whatever its type: a result of an ordinary type, as `identity_bytes` has, is an escape edge, and an empty resource reach never means that an object is dead ([C14](#c14-an-ordinary-result-escapes)). An unmarked parameter is assumed to escape. Further precondition: the pass's own value flow in the caller. (owner, 2026-10-14, D4, NE-S2, NE-S7)
+3. r[ne.opt.closure] `closure_spec` and `devirt_known` take their licence not to keep a closure from the signature. They may treat a callback as not retained only when no result or store of the callee names it, written or elided: a never-kept `^fn` parameter (`ne.opt.fact`). A bare `^` alone is not enough, because the callback may still flow out through a result that names it, as `fn forward(f: ^fn() -> usize) -> fn() -> usize` elides to `^{f}` ([R33](#r33-a-bare-callback-returned)). Further precondition: a per-call-site instance from specialization, which may then call the closure directly and drop the closure value afterwards. A specialized instance alone does not prove that an environment returned from the call is dead. (owner, 2026-10-14, D4, NE-S7; 2026-10-15, NE-S7b)
 4. r[ne.opt.reuse] An object created in a loop body, and passed only to never-kept `^` parameters, may have its allocation reused across iterations. Further precondition, from the caller's liveness: no binding live into the next iteration reaches the object, and no sourced parameter carries it into a value that outlives the iteration, as `saved.push(identity_bytes(b))` does (C14). (owner, 2026-10-14, D4, NE-S7)
 5. r[ne.opt.scalar] Scalar replacement of an object passed to a `^` parameter needs inlining or specialization of the callee, so that its body is visible. The mark alone does not license it. (owner, 2026-10-14, NE-S7)
-6. r[ne.opt.fusion] An iterator adapter writes `^{self, transform}` on its result. That bounds what the next stage keeps; it does not show that the next stage is the only alias of the previous one. Fusing a chain `it.map(f).filter(g)` into one loop, as #65 wants, needs a further single-consumer alias proof in the caller: no other alias of an intermediate stage is used. A program that advances the source after building the adapter keeps both ([C13](NONESCAPE_LIFETIME_STRESS_TEST.md#c13-a-dependent-iterator-result-is-not-a-unique-pipeline)). (owner, 2026-10-14, D4, NE-S7)
+6. r[ne.opt.fusion] An iterator adapter writes `^{self, transform}` on its result. That bounds what the next stage keeps; it does not show that the next stage is the only alias of the previous one. Fusing a chain `it.map(f).filter(g)` into one loop, as #65 wants, needs a further single-consumer alias proof in the caller: no other alias of an intermediate stage is used. A program that advances the source after building the adapter keeps both ([C13](#c13-a-shared-iterator)). (owner, 2026-10-14, D4, NE-S7)
 7. r[ne.opt.honest] None of this removes an environment or a cell by itself. Wasm cannot point at locals, so a callee that mutates a captured binding through a `^` closure still needs the closure environment or a cell, unless specialization or inlining makes the binding visible in the callee's body. The mark licenses dropping the environment after specialization, and does not replace specialization. (owner, 2026-10-14, D4)
 8. r[ne.opt.parked] Non-local `return` or `break` from a local callback, as Kotlin's inline lambdas allow, is a separate future feature. A `^` parameter does not enable it. It is parked, and is not part of this design. (owner, 2026-10-14, D4)
 
@@ -1131,12 +1215,12 @@ fn connect!(host: string) -> Conn      # no tracked input: ^{}
 fn listen!(host: string) -> Listener
 ```
 
-The container methods the examples use, under D6 and NE-S1b:
+The container methods the examples use, under D6, NE-S1b, and NE-S1d:
 
 ```hd
 impl[T] List[T]:
-    fn push(^mut self, v: ^{self.T} T) -> void
-    fn get(^self, index: usize) -> ^{self.T} T?
+    fn push(^mut self, v: T) -> void
+    fn get(^self, index: usize) -> T?
     fn contains(^self, v: ^T) -> bool
     fn clear(^mut self) -> void
 ```
@@ -1212,7 +1296,7 @@ or reason; every other row stands as it is.
 | R11 | same; the closures share `tasks.T` |
 | R13 | same; the map's values share one component, `by_name.V` (L2) |
 | R14 | same; `get` writes `^{self.T}`, so `c` reaches `pool.T`, inside `first_open`'s elided `^{pool}` |
-| S2 | same; `push` writes `^{self.T}`; `Pool` is non-generic, so the list's elements join its one reach |
+| S2 | same; `push` writes `^{self.T}`; `Pool` is non-generic, so the list's elements join its one reach (round 7: `push` takes `v: T`) |
 | S6 | same; `tries.T` takes on `attempt` and never flows out |
 | D2 | same; `Worker` is non-generic, so the frame inside its `Option` field joins its one reach |
 | D5 | same; `Registry` is non-generic, so `by_name.V` joins its one reach |
@@ -1220,6 +1304,25 @@ or reason; every other row stands as it is.
 | D7 | same; the `Option` keeps the inner `Duo`'s slots apart (`ne.data.wrapper`), but `next`'s one written bound `^{a, b}` covers both (L5) |
 | N4 | same; `map`'s callback receives elements at `xs.T`, inside `^{xs, f}` |
 | X6 | same; `Stash` is non-generic and keeps one invariant reach |
+
+**Round 7 re-check** (owner, 2026-10-16: NE-S1d with marks inside type
+arguments and type parameters that carry their reach; NE-S5d, NE-S4c,
+NE-S5c, NE-S12, NE-S4d, NE-S1e, B8 to B12). A parameter that held local
+handles in a list is now written `^List[^Conn]`, since `^List[Conn]` is
+a list of global handles. A result that must not reach an input now
+writes `^{}` on the component, since an unmarked component of a result
+is elided. These rows change; every other row stands.
+
+| # | Round 7 |
+| --- | --- |
+| R4, R14 | same; `pool: ^List[^Conn]`, and `get` returns `T`, the element reach `pool.T` |
+| R6 | same; `feed[T](slot: ^mut Box[T], v: T)` stores a `T` with no mark, and `main!` writes `Box[^{} Conn]`, since an unmarked component would elide to `tmp` |
+| R11 | same; `all_list!` takes `^List[^fn!() -> T $ R]` |
+| R13 | same; the result is written `Option[^{long} Conn]` |
+| D1 | same; `talk_fresh!` writes `Result[void, ^{} LinkError]`, since an unmarked component would elide to `c` |
+| D7 | **changed**: `next: Option[Duo[^{a}, ^{b}]]` keeps both slots apart; L5 is gone |
+| N2 | **changed**: `keep_one(c)` is accepted, since `T` carries `c`'s reach; a generic body still cannot store `x` in module state |
+| N4 | **changed**: `map` returns `^{} List[U]`, so `sizes_unwritten!` is accepted, and `bad` is written with concrete types; `sizes!` keeps its written `^{pool}` (L9) |
 
 Round 5 (OQ1) changed three verdicts in substance, R10, D4, and D8, and
 the example in section 2. Each loses its error for a fresh handle and
@@ -1303,7 +1406,7 @@ impl Router:
     fn pick(^self) -> Conn:               # elided: ^{self}
         self.pool[0]
 
-fn route(pool: ^List[Conn]) -> Conn:      # elided: ^{pool}
+fn route(pool: ^List[^Conn]) -> Conn:     # elided: ^{pool}
     Router { pool: pool }.pick()          # reaches pool's roots: fine
 ```
 
@@ -1341,13 +1444,13 @@ Rustonomicon: invariance under `&mut`.
 data Box[T]:
     value: T                          # generic: follows its stored field, no impl
 
-fn feed[T](slot: ^mut Box[T], v: ^{slot.T} T) -> void:   # v is stored into slot's component
+fn feed[T](slot: ^mut Box[T], v: T) -> void:   # v has T's reach, the box's component
     slot.value = v
 
-fn main!(tmp: ^Conn) -> ^{} Box[Conn]:
+fn main!(tmp: ^Conn) -> Box[^{} Conn]:
     keep := Box { value: connect!("a") }
     feed(keep, tmp)                   # keep.T now includes tmp (invariant under mut)
-    keep                              # error: lifetime-mismatch: keep reaches tmp, and ^{} names no input
+    keep                              # error: lifetime-mismatch: keep.T reaches tmp, and ^{} names no input
 ```
 
 `keep`'s reach grows by the store, because a `mut` reach is invariant
@@ -1357,13 +1460,14 @@ that feeds a loop-carried target reaches every iteration's roots (known
 limit L4). The cleanup form, with the `if` block whose `defer` closes
 `tmp`, is parked.
 
-Round 2 wrote `fn feed[T](slot: mut Box[T], v: T)`. Under D2 both
-parameters are global, so `feed(keep, tmp)` is rejected at the call: `keep`
-is a `Box[Conn]` and `tmp` is a `Conn`, both NonEscapable, and a
-NonEscapable argument goes only into a `^` parameter (`ne.call.global`, by
-category, whatever the reach). The `^{slot.T}` form
-keeps the original lesson. Round 6 names the box's component
-(NE-S1b); `^{slot}`, the whole box, would also be sound.
+Round 2 wrote `fn feed[T](slot: mut Box[T], v: T)`. `slot` is global
+there, so `feed(keep, tmp)` is rejected at the call: `keep` is a
+`Box[Conn]`, NonEscapable, and a NonEscapable argument goes only into a
+`^` parameter (`ne.call.global`, by category, whatever the reach). Round
+7 (NE-S1d): `v: T` carries the box's component reach, as Rust's `T`
+would, so `feed` writes no mark on it, and `slot` keeps its `^`. `main!` writes `^{}` on the component: left
+unmarked, it would elide to `tmp`, and the program would be accepted
+with a signature that says so.
 
 #### R7. `thread::spawn` Versus Structured Children
 
@@ -1492,7 +1596,7 @@ the category (`impl NonEscapable for Session`, [5.2](#52-declared-slots)).
 #### R13. A `HashMap` Of Handles
 
 ```hd
-fn mixed(long: ^Conn, tmp: ^Conn) -> ^{long} Conn?:
+fn mixed(long: ^Conn, tmp: ^Conn) -> Option[^{long} Conn]:
     let by_name: mut Map[string, Conn] = {}
     by_name["long"] = long
     by_name["tmp"] = tmp
@@ -1511,15 +1615,15 @@ with `tmp` closed in an inner block, is parked.
 #### R14. `Option<&T>` With `?`
 
 ```hd
-fn first_open(pool: ^List[Conn]) -> Conn?:     # elided: ^{pool}
+fn first_open(pool: ^List[^Conn]) -> Conn?:    # elided: Option[^{pool} Conn]
     c := pool.get(0)?
     if c.sent() == 0: return .None
     .Some(c)
 ```
 
-`get` returns `^{self.T}`, so `c` reaches `pool.T`, which the elided
-`^{pool}` covers (NE-S1b). The signature of `first_open` writes one `^`,
-on the parameter.
+`get` returns `T`, here the element reach `pool.T`, which the elided
+`^{pool}` covers (NE-S1d). The signature of `first_open` writes two marks,
+on the list and on its elements.
 
 #### R15. A Self-Referential Struct
 
@@ -1577,10 +1681,10 @@ impl Pool:
         self.conns.push(c)
 ```
 
-`List[Conn]` carries no lifetime in its type. `push` writes
-`v: ^{self.T} T`, so `self.conns.push(c)` adds `c`'s reach to the list's
-elements. `Pool` is non-generic, so they are part of its one reach, as
-`c: ^{self} Conn` allows. Swift does not yet allow an
+`push` takes `v: T`, and the list's `T` component is part of `Pool`'s
+one reach, since `Pool` is non-generic and has no slots
+(`ne.data.one-reach`). So `self.conns.push(c)` adds `c`'s reach to
+`Pool`'s reach, as `c: ^{self} Conn` allows. Swift does not yet allow an
 `Array` of `~Escapable` elements. `Pool`'s reach is invariant, because
 its `conns` field is mutable storage (NE-S1).
 
@@ -1755,7 +1859,7 @@ fn talk!(c: ^Conn) -> Result[void, LinkError]:     # elided: ^{c}
     check!(c)?                # fine: the result names c
     .Ok(())
 
-fn talk_fresh!(c: ^Conn) -> ^{} Result[void, LinkError]:
+fn talk_fresh!(c: ^Conn) -> Result[void, ^{} LinkError]:
     check!(c)?                # error: lifetime-mismatch: ? returns an error that reaches c
     .Ok(())
 ```
@@ -1902,17 +2006,18 @@ impl NonEscapable for Chain
 data Duo[^a, ^b]:
     x: ^{a} Conn
     y: ^{b} Conn
-    next: ^{a, b} Duo?                # a wrapper: the union of both slots
+    next: Option[Duo[^{a}, ^{b}]]     # each slot keeps its own source
 
 impl NonEscapable for Duo
 ```
 
 `Chain` works with no slot declaration. `Duo` is the declared-slot case
-(`ne.data.recursive`). Since round 6 the `Option` keeps the inner `Duo`'s
-slots apart (`ne.data.wrapper`), but the field's one written bound
-`^{a, b}` covers both, so a `Duo` taken out of `next` has both slots at
-the union (known limit L5). Round 2 showed `Ring[^a]` with one slot, which is now a
-plain holder.
+(`ne.data.recursive`). The `Option` keeps the inner `Duo`'s slots apart
+(`ne.data.wrapper`), and since round 7 the slot arguments inside the type
+argument name them one by one, so a `Duo` taken out of `next` keeps `a`
+and `b` apart (NE-S1d). Round 6 wrote `next: ^{a, b} Duo?`, whose one
+bound covered both (the old L5). Round 2 showed `Ring[^a]` with one slot,
+which is now a plain holder.
 
 #### D8. A Callback Registry
 
@@ -1967,16 +2072,19 @@ fn inspect_one(x: dyn Inspectable) -> void: pass
 fn inspect_local(x: ^dyn Inspectable) -> void: pass
 
 fn demo!(c: ^Conn) -> void:
-    keep_one(c)                   # error: lifetime-mismatch: x is global, c is NonEscapable (a fresh handle too)
+    keep_one(c)                   # fine: T carries c's reach (round 7)
     look_at(c)                    # fine
     inspect_one(c)                # error: lifetime-mismatch
     inspect_local(c)              # fine: erased into a local position
     keep_one(3)                   # fine: an ordinary value reaches nothing
 ```
 
-D2. This is the opt-in of the parked TQ-25, spelled on the parameter. A
-generic function that wants to accept a handle writes `^T`, and one that
-stores its argument in module state stays unmarked.
+D2, as round 7 revises it (owner, 2026-10-16, NE-S1d). A type parameter
+carries the reach of its instantiation, so `keep_one(c)` is accepted, as
+Rust's `fn keep_one<T>(x: T)` accepts a borrow. Its body cannot store
+`x` in module state, because T's root never fits `static`
+(`ne.generic.store`). `look_at` marks `x` not kept. `dyn` keeps D2's
+opt-in: `inspect_one` takes only an ordinary value that fits `static`.
 
 #### N3. General Locality
 
@@ -2008,40 +2116,35 @@ whose reach is empty, so `demo` gets no constraint. `ne.opt.fact` makes
 #### N4. Function Types
 
 ```hd
-fn map[T, U](xs: ^List[T], f: ^fn(x: ^T) -> ^{x, f} U) -> ^{xs, f} List[U]
-# as the std method: fn map[U](^self, transform: ^fn(x: ^T) -> ^{x, transform} U) -> ^{self, transform} List[U]
-fn each(xs: ^List[Conn], f: ^fn(c: ^Conn) -> void) -> void
-fn retry![T, E, $R](times: usize, attempt: ^fn!() -> ^{attempt, $R} Result[T, E] $ R) -> ^{attempt, $R} Result[T, E] $ R
-fn all_list![T, $R](tasks: ^List[fn!() -> ^{tasks, $R} T $ R]) -> ^{tasks, $R} List[T] $ R
+fn map[T, U](xs: ^List[T], f: ^fn(x: T) -> U) -> ^{} List[U]
+# as the std method: fn map[U](^self, transform: ^fn(x: T) -> U) -> ^{} List[U]
+fn each(xs: ^List[^Conn], f: ^fn(c: ^Conn) -> void) -> void
+fn retry![T, E, $R](times: usize, attempt: ^fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+fn all_list![T, $R](tasks: ^List[^fn!() -> T $ R]) -> ^{} List[T] $ R
 
-fn bad[T, U](f: ^fn(x: ^T) -> U) -> U    # error: ambiguous-lifetime: the function type has x and its environment
+fn bad(f: ^fn(x: ^Conn) -> Conn) -> ^{f} Conn   # error: ambiguous-lifetime: the function type has x and its environment
 
-fn sizes!(pool: ^List[Conn]) -> ^{pool} List[usize]:
-    pool.map(fn(c): c.sent())            # the result reaches pool, by map's signature
+fn sizes!(pool: ^List[^Conn]) -> ^{pool} List[usize]:
+    pool.map(fn(c): c.sent())            # fine: the written ^{pool} is wider than needed (L9)
 
-fn sizes_unwritten!(pool: ^List[Conn]) -> List[usize]:
-    pool.map(fn(c): c.sent())            # error: lifetime-mismatch: the result reaches pool
+fn sizes_unwritten!(pool: ^List[^Conn]) -> List[usize]:
+    pool.map(fn(c): c.sent())            # fine: map's result is fresh, and U = usize reaches nothing
 ```
 
-D8. `map` writes both sources on the function type and on its own result,
-because a mapped element may reach `xs` or the closure's captures. `each`
-returns `void`, so there is no result to name. `retry!` and `all_list!`
-are **changed** in round 4: each callback type has its environment and
-the row parameter `$R` as tracked inputs, and so has each outer
-signature, so both results are written (NE-S6). `bad` leaves the function
-type's result unnamed with two tracked inputs. Round 2 gave such a type
-the union by default, which was the one guess left (known limit L3, now
-resolved). The same signature as a result or a field could not name the
-environment at all (`ne.fntype.outside`, L6).
-
-`sizes!` is **changed** in round 4. The call instantiates `^{xs, f}` with
-`pool` and the closure. The closure captures nothing, so its reach is
-empty (`ne.closure.reach`), but `pool`'s root enters the result, though
-`List[usize]` holds no handle. Round 3 dropped it (`ne.fntype.carry-only`);
-one flow keeps it (`ne.fntype.one-flow`). The over-tie is the price of
-exact substitution (known limit L9). `sizes!` writes `^{pool}`, and a
-caller that passes a fresh ordinary list gets a result with an empty
-reach.
+D8, as round 7 revises it. A mapped element is a `U`, which carries
+whatever the callback returns, so `map` names no source for it and writes
+`^{}` only on the new list (NE-S1d). Rounds 4 to 6 wrote `^{x, f}` and
+`^{xs, f}`, so `sizes_unwritten!` was rejected: `pool`'s root entered a
+list of numbers (L9). `each` returns `void`, so there is no result to
+name. `retry!` and `all_list!` return `T`, which carries the callback's
+result reach, a provider of `$R` included; round 4 wrote both results for
+C09's reason (NE-S6), which still holds for a concrete callback result.
+`bad` leaves the function type's result unnamed with two tracked inputs.
+Round 2 gave such a type the union by default, which was the one guess
+left (known limit L3, now resolved). The same signature as a result or a
+field could not name the environment at all (`ne.fntype.outside`, L6).
+`sizes!` still writes `^{pool}`, and gets what it wrote: a written reach
+applies whatever the result holds (`ne.fntype.one-flow`, L9).
 
 #### N6. A Concrete Holder Declares The Category
 
@@ -2108,20 +2211,19 @@ element; NE-S1 closes those
 | L2 | The values of one component share one reach: a list's elements share `xs.T`, a map's values `m.V` | R13 | same |
 | L3 | A function type's result is the union of its inputs and captures | `ne.fntype.result` | **resolved**: D8 elides it like a function (owner, 2026-10-14) |
 | L4 | A loop-carried mutable target reaches every iteration's roots | R6 loop form | same |
-| L5 | **Changed** in round 6. Was: a wrapper of declared-slot data joins its slots (D7, C11), now gone (NE-S1b). Now: a written type has one bound for all its components, so a result or field whose components come from different sources shares that bound, and an invariant component cannot take it | [R23](#r23-a-tuple-hides-the-same-widening) `bundle`, D7 `next` | none: Rust writes a lifetime per type argument |
+| L5 | A wrapper of declared-slot data joins its slots (round 3), then a written type has one bound for all its components (round 6) | D7, C11, [R23](#r23-a-tuple-hides-the-same-widening), [R35](#r35-generic-identity-flattens-independent-reaches) to [R37](#r37-a-safe-list-lookup-becomes-a-flattening-boundary) | **resolved**: each component carries its own mark, and a type parameter its reach, as in Rust (owner, 2026-10-16, NE-S1d) |
 | L6 | A function type outside a parameter cannot name its environment, neither for an ambiguous result nor for an environment store (`^{f}`) | N4, `ne.fntype.outside`, `ne.fntype.env-name` | none: Rust names no closure environment |
 | L7 | All evaluations of one root site share one local root. **Inert** since OQ1: every local root reaches `static`, so nothing tells two roots apart | [C15](#c15-one-root-per-creation-site) | none: Rust's moves give each value its own owner |
 | L8 | A local `^dyn` value cannot be downcast, even when it holds an ordinary value | [C19](#c19-a-local-classifier) | narrower: Rust tests the erased type's contents |
-| L9 | A generic result carries every named source, even when the instantiated result holds no handle | N4 `sizes!`, [R30](#r30-generic-scalar-results) | none: an owned Rust result drops the lifetime |
+| L9 | A result carries every source its signature writes, even when the value holds no handle. Since round 7 a generic signature writes none for a type parameter's position, so `map` no longer pays it | N4 `sizes!` | narrower: an owned Rust result drops the lifetime |
+| L10 | A store into a callable's environment reaches every capture, one the closure only reads included | [R40](#r40-reading-metadata-turns-it-into-a-store-destination), [R24](#r24-a-bound-appender) | none: Rust names no closure environment |
 
 L1 and L2 are false alarms in the strict sense, though the alarm is true
 at the signature level: the object does hold, or did hold, a value that
 reaches the root. The owner decided to keep L1 and add no strong updates
 for now (Q9). L3 is resolved, and no union default is left. Round 3's
-L5 was accepted (Q15) and is reversed in round 6: wrappers keep their
-components (owner, 2026-10-15, NE-S1b). What remains under L5 is the
-written-bound limit, an agent detail of round 6 (`ne.data.component-bound`):
-it rejects soundly, and a slot-bearing data type is the workaround. L6 is
+L5 was accepted (Q15) and reversed in round 6 (NE-S1b); the written-bound
+limit that round 6 put in its place is resolved in round 7 (NE-S1d). L6 is
 the known limit of Q12, accepted by the owner; round 6 adds environment
 stores to it. L7
 and L8 are stated by the owner (NE-S11); L8 is the cost of Q6. L7 is
@@ -2129,60 +2231,39 @@ inert (owner, 2026-10-14, OQ1): a local root reaches `static`, and the
 language does not end a fresh handle's lifetime, so no bound tells two
 roots of one site apart. It would matter again only if a later decision
 ended a local root's lifetime, which closing parked.
-L9 follows from exact substitution (requirement 10). The guide shows it
-(owner, 2026-10-15, NE-S11b), with the note below.
+L9 follows from exact substitution (requirement 10), and round 7 narrows
+it to written reaches; the guide shows it with the note below. L10 is the
+conservative environment store that the owner kept (owner, 2026-10-16,
+NE-S4d), with two workarounds: a data method that takes each destination
+as its own parameter, or reading the unrelated capture outside the
+closure when the read's timing allows.
 
 #### Guide Note For L9
 
-The owner accepted this note for the guide
-(owner, 2026-10-15,
-[NE-S11b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s11b-account-for-the-accepted-generic-cost)).
-It is docs only: no language change and no std item. Writing it into the
-guide is a later job.
+The owner accepted a note for the guide (owner, 2026-10-15, NE-S11b),
+docs only. Its example, `pool.map(fn(c): c.sent())` under `-> ^{}
+List[usize]`, is accepted since round 7: `map` returns `^{} List[U]`,
+and `U = usize` reaches nothing (NE-S1d). What remains of L9 is a reach
+that a signature writes itself, so the note narrows to this:
 
-> **A mapped list remembers what it was mapped from.** `map` is generic,
-> so its signature cannot know that your callback returns a plain number.
-> It promises that the new list reaches the old list and the callback,
-> whatever the element type:
->
-> ```hd
-> fn sizes(pool: ^List[Conn]) -> ^{} List[usize]:
->     pool.map(fn(c): c.sent())     # error: lifetime-mismatch: by map's signature, the result reaches pool
-> ```
->
-> The result holds only numbers, but the checker reads `map`'s signature,
-> not its body. If the function may return a list that depends on
-> `pool`, write `-> ^{pool} List[usize]`. To return a fresh list, build it
-> with a loop, which never ties a number to its source:
->
-> ```hd
-> fn sizes(pool: ^List[Conn]) -> ^{} List[usize]:
->     let out: mut List[usize] = []
->     for c in pool:
->         out.push(c.sent())        # a usize reaches nothing
->     out
-> ```
->
-> Or write a helper whose callback promises a fresh result, and reuse it:
->
-> ```hd
-> fn map_fresh[T, U](xs: ^List[T], f: ^fn(x: ^T) -> ^{} U) -> ^{} List[U]:
->     let out: mut List[U] = []
->     for x in xs:
->         out.push(f(x))            # each result is fresh
->     out
->
-> fn sizes(pool: ^List[Conn]) -> ^{} List[usize]:
->     map_fresh(pool, fn(c): c.sent())   # fine
-> ```
+> **A written reach is a promise about the type, not the value.** A
+> result written `-> ^{pool} List[usize]` reaches `pool`, though it holds
+> only numbers, because callers read the signature, not the body. Write
+> `^{}` when the result is fresh, and leave a type parameter's position
+> unmarked: it carries exactly what it is instantiated with.
+
+Writing it into the guide is a later job.
 
 ### 13.10 Review Regression Cases
 
-The review [NONESCAPE_LIFETIME_STRESS_TEST.md](NONESCAPE_LIFETIME_STRESS_TEST.md)
-tested round 3 with twenty cases. These are its cases under the round-4
-rules, in this doc's notation, with the review's verdict and the new one.
-The last column is the round-6 re-check (owner, 2026-10-15); only C11
-changes.
+The first adversarial review (2026-10-14) tested round 3 with twenty
+cases. These are its cases under the round-4 rules, in this doc's
+notation, with the review's verdict and the new one. Each case names the
+shape of the library code it was taken from. The last column is the
+round-6 re-check (owner, 2026-10-15); only C11 changes. The round-7
+re-check (owner, 2026-10-16, NE-S1d) changes no verdict: C03, C11, and
+C12 are respelled with marked components, and C12 writes `^{}` on the
+component, since an unmarked result component is elided.
 C05, C06, C07, C10, and C17 are cleanup and closing cases, parked
 ([P.6](#p6-parked-stress-cases)). Where a case's code used a `defer`
 only to set the stage, the escape form below keeps the flow and drops the
@@ -2217,7 +2298,7 @@ fn insert_hidden(w: ^mut dyn Window, c: ^Conn) -> void:
     wide.items().push(c)
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c01-a-trait-getter-replaces-the-downcast).
+Source shape, a Rust cell accessor behind a trait: `trait Window<'a> { fn items(&mut self) -> &mut Vec<&'a Socket>; }`.
 `items` returns mutable storage, so the reach of `dyn Window` is invariant
 (`ne.var.dyn`). Without the widening, `w.items().push(c)` is rejected
 too: the list reaches `w`, and `c` is not named for `w`'s object
@@ -2231,7 +2312,7 @@ fn put_through_getter(get: ^fn() -> mut List[Conn], c: ^Conn) -> void:
     wide().push(c)
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c02-a-closure-returns-mutable-captured-state).
+Source shape, a Rust closure that returns captured state: `let get = move || shared_cell.clone(); get().borrow_mut().push(short_lived);`.
 The callback's result elides to its environment, and it is typed `mut`,
 so the function value's reach is invariant (`ne.var.fn`). The result
 mentions the environment, so the round-6 refinement keeps it (NE-S1c);
@@ -2240,15 +2321,16 @@ compare [R29](#r29-a-fresh-mutable-result).
 #### C03. A Readonly List Of Mutable Lists
 
 ```hd
-fn put_through_row(rows: ^List[mut List[Conn]], c: ^Conn) -> void:
-    let wide: ^{rows, c} List[mut List[Conn]] = rows  # error: lifetime-mismatch: the element type is mutable storage
+fn put_through_row(rows: ^List[^mut List[^Conn]], c: ^Conn) -> void:
+    let wide: List[mut List[^{rows.T.T, c} Conn]] = rows  # error: lifetime-mismatch: the element type is mutable storage
     wide[0].push(c)
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c03-a-readonly-container-contains-mutable-children).
+Source shape, a Rust vector of cells: `let rows: Vec<Cell<Option<&Socket>>> = make_rows(); rows[0].set(Some(short_lived));`.
 The outer view is readonly, but `types.readonly.nested` keeps the inner
-lists mutable, so the component `rows.T` is invariant (`ne.var.generic`),
-and the widening of `rows` widens it.
+lists mutable, so the component `rows.T` and its elements `rows.T.T` are
+invariant (`ne.var.generic`), and the widening of `rows.T.T` is rejected.
+Round 7 writes the widening on the component it targets (NE-S1d).
 `rows[0].push(c)` without the widening is rejected by `ne.heap.fixed`.
 Since the helper is rejected, the review's caller, which keeps no
 dependency on `c`, is safe.
@@ -2268,7 +2350,7 @@ fn fresh_ok() -> void:
     CACHE.push(identity_bytes([1]))   # fine: a fresh ordinary object reaches nothing
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c04-ordinary-locality-through-an-identity-helper).
+Source shape, a Rust identity helper: `fn identity<T>(x: T) -> T { x }`, then `cache.push(identity(buffer))`.
 One flow (NE-S2): the `^{b}` result carries the argument's reach, which
 in `hidden_retention` is `b`'s parameter root. Round 3's "the caller
 tracks nothing" would have let the helper launder the store that N3
@@ -2288,7 +2370,7 @@ fn via_frame!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn:
     out                                        # fine: all! yields the outs, never the runs
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c08-a-frame-retains-more-than-its-output-depends-on).
+Source shape, a Rust future: `async fn select<'a>(keep: &'a Socket, scratch: &Socket) -> &'a Socket`.
 With one reach per frame, `out` would reach `scratch`, a false alarm.
 The two slots keep them apart (`ne.suspend.cold`, `ne.all.typing`). A
 helper that drives a frame it is passed writes `^{s.out}`
@@ -2310,7 +2392,7 @@ fn invoke(f: ^fn() -> ^{$Pool} Conn $ Pool) -> ^{$Pool} Conn $ Pool:
 fn invoke_bad(f: ^fn() -> Conn $ Pool) -> ^{$Pool} Conn $ Pool   # error: ambiguous-lifetime: f's environment and $Pool
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c09-a-callback-obtains-its-result-from-a-provider).
+Source shape, a Kotlin local callback: `fun invoke(local callback: () -> Resource): Resource = callback()`.
 The callback type counts its environment and its key `$Pool`, as a
 function would (`ne.fntype.elide`). Two tracked inputs make the result
 ambiguous, so it is written. `from_pool` has an empty environment, and
@@ -2328,13 +2410,13 @@ impl NonEscapable for Pair
 fn first_of(p: ^Pair) -> ^{p.a} Conn:
     p.first                            # fine: one slot
 
-fn first_optional(p: ^Pair?) -> ^{p.T.a} Conn:   # slot a of the Pair inside the Option
+fn first_optional(p: ^Option[^Pair]) -> ^{p.T.a} Conn:   # slot a of the Pair inside the Option
     match p:
         .Some(pair) => pair.first      # fine: the Option keeps the slots apart
         .None => panic("missing pair")
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c11-optional-wrapping-destroys-independent-slots).
+Source shape, a Rust optional pair: `fn first<'a, 'b>(p: Option<Pair<'a, 'b>>) -> &'a Socket { p.unwrap().first }`.
 Round 4: friction, known limit L5 (Q15), with `-> ^{p} Conn`, because the
 `Option` joined both slots. Round 6: works. The `Option` keeps the
 `Pair`'s slots inside its component, and `p.T.a` names one
@@ -2343,14 +2425,14 @@ Round 4: friction, known limit L5 (Q15), with `-> ^{p} Conn`, because the
 #### C12. A Cleared List
 
 ```hd
-fn reuse_list(c: ^Conn) -> ^{} List[Conn]:
+fn reuse_list(c: ^Conn) -> List[^{} Conn]:
     let items: mut List[Conn] = []
     items.push(c)
     items.clear()
     items                     # error: lifetime-mismatch: items still reaches c
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c12-an-empty-container-remains-contaminated).
+Source shape, Rust `Vec::clear`: `items.push(short_lived); items.clear(); use_empty_container(items);`.
 Friction, known limit L1: no strong updates (Q9). A fresh list for each
 use works. The review's form closes the handle in a `defer`; this escape
 form keeps the same flow.
@@ -2365,7 +2447,7 @@ fn shared_pipeline(xs: List[usize]) -> List[usize]:
     mapped.collect()
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c13-a-dependent-iterator-result-is-not-a-unique-pipeline).
+Source shape, Rust iterator adapters: `let mapped = shared_source.map(transform); shared_source.next(); mapped.collect::<Vec<_>>();`.
 The checker accepts it. The adapter's `^{self, transform}` bounds what
 `mapped` keeps, but `source` is still used, so the single-consumer proof
 that `ne.opt.fusion` needs fails, and the chain is not fused (NE-S7).
@@ -2381,7 +2463,7 @@ fn retain_examples() -> List[List[u8]]:
     saved
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c14-an-ordinary-dependent-result-escapes).
+Source shape, Go pooled buffers: `saved = append(saved, identity(buffer))`.
 Works: `b` is a fresh ordinary object, so its reach is empty and the
 checker accepts. The optimizer keeps the `^{b}` result as an escape edge
 (`ne.opt.escape`), so `b`'s allocation is not reused across iterations
@@ -2399,7 +2481,7 @@ fn distinct_instances() -> Conn?:
     keep
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c15-distinct-evaluations-at-one-root-site).
+Source shape, Rust allocations in a loop: `for index in 0..2 { let socket = open(); if index == 0 { keep = Some(socket); } else { close(socket); } }`.
 Both handles share the local root of the `connect!` site (known limit
 L7). Under the escape rules this changes no verdict: both flow to the
 same result. The review's form closes the second handle in a `defer`,
@@ -2421,7 +2503,7 @@ fn scoped_race!(a: ^Conn, b: ^Conn) -> usize:
     race!(read(a), read(b))   # fine: the frames are taken for the call only, and the outs carry nothing
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c16-a-child-is-cancelled-before-parent-cleanup).
+Source shape, a scoped race in a task library: `let answer = race(read(first), read(second)).await;`.
 Works (`ne.all.typing`). The review's form opens both handles locally and
 closes them in `defer` suites; its proof that losers finish before parent
 cleanup rests on `ne.suspend.cancel-order`, which is parked.
@@ -2439,7 +2521,7 @@ fn tag_list(xs: List[Conn]) -> usize:   # error: unmarked-local-param: List stor
     xs.len()
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c18-phantom-metadata-is-not-a-holder).
+Source shape, a Rust field descriptor: `struct Field<S, F> { metadata: usize, marker: PhantomData<fn(S) -> F> }`.
 The category is computed from stored fields (`ne.data.category`), so the
 two definitions of round 3 no longer disagree. `Field[S, F]` is ordinary
 in the same way; how operations through it carry a reach is open
@@ -2461,7 +2543,7 @@ fn is_integer_global(value: dyn Inspectable) -> bool:   # fine: a global paramet
         .None => false
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c19-a-local-classifier-cannot-downcast-ordinary-values).
+Source shape, Rust type inspection: `fn is_integer(value: &dyn Any) -> bool { value.is::<i32>() }`.
 Friction, known limit L8, the cost of Q6. Comparing `TypeId`s answers the
 boolean question without a downcast, but recovers no typed payload.
 
@@ -2480,7 +2562,7 @@ fn install_counter() -> void:
     install(counter(3))                  # fine: a ^{} function result mints no root
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST.md#c20-a-scalar-only-closure-factory-gets-a-local-root).
+Source shape, a Go callback factory: `func counter(n int) func() int { return func() int { return n } }`, then `callbacks = append(callbacks, counter(3))`.
 A closure's reach is exactly what it captures (`ne.closure.reach`), and
 a `^{}` result that is not NonEscapable mints no root at the caller
 (`ne.call.fresh`). Round 3 minted one, so `install` rejected it. Round 5
@@ -2490,29 +2572,29 @@ as the owner accepted it, and keeps root sites to handles.
 
 ### 13.11 Review 2 Regression Cases
 
-The second review
-[NONESCAPE_LIFETIME_STRESS_TEST_2.md](NONESCAPE_LIFETIME_STRESS_TEST_2.md)
-tested rounds 4 and 5 with thirteen cases, R21 to R33. These are its cases
-under the round-6 rules (owner, 2026-10-15), in this doc's notation, with
-the review's verdict and the new one. Its R-numbers do not collide with
-this suite's R1 to R15. Where the review used the parser stub `open()`,
-these use `connect!`.
+The second adversarial review (2026-10-15) tested rounds 4 and 5 with
+thirteen cases, R21 to R33. These are its cases under the round-6 rules
+(owner, 2026-10-15), in this doc's notation, with the review's verdict
+and the new one, and the round-7 re-check (owner, 2026-10-16). Each case
+names the shape of the library code it was taken from. Its R-numbers do
+not collide with this suite's R1 to R15. Where the review used the parser
+stub `open()`, these use `connect!`.
 
-| Case | Review verdict | Round 6 | Rule |
-| --- | --- | --- | --- |
-| R21 | Breaks: rule conflict | Rejected at the provider binding; a fresh provider works | `ne.provider.ordinary`, `ne.provider.use` (NE-S6b) |
-| R22 | Breaks: conditional wrapper attack | Rejected at the store, for the right reason; works with `c: ^{dst.T}` | `ne.data.wrapper`, `ne.data.no-join`, `ne.heap.fixed` (NE-S1b) |
-| R23 | Breaks: boundary ambiguity | `bundle` rejected at its return (L5); the local tuple rejected at the store; a slot-bearing holder works | `ne.data.tuple`, `ne.data.component-bound`, `ne.var.generic` (NE-S1b) |
-| R24 | Breaks: missing translation | `declared_store` works; `undeclared_store` rejected at the call | `ne.fntype.bound-ref`, `ne.fntype.env-store`, `ne.var.fn` (NE-S4b) |
-| R25 | Breaks: conflicting formulas | Rejected at `cold_action`'s return; the elided form works | `ne.suspend.cold` (NE-S5b) |
-| R26 | Breaks: missing translation | Works with the slot-argument form; a one-prefix bound is a sound precision loss | `ne.suspend.weaken` (NE-S5c) |
-| R27 | Works | Works | `ne.fntype.call`, `ne.param.bare` |
-| R28 | Breaks: missing closure-boundary rule | Rejected at the closure; works when the callback type writes `^{f}` | `ne.fntype.closure-store`, `ne.fntype.env-store` (NE-S4b) |
-| R29 | Friction | **Works** | `ne.var.fn`, `ne.var.surface` (NE-S1c) |
-| R30 | Friction, accepted L9 | Friction, L9; the guide shows a loop and a fresh-result helper | `ne.fntype.one-flow` (NE-S11b) |
-| R31 | Works | Works | `ne.param.ordinary-result` (NE-S2) |
-| R32 | Works, intentional | Works, intentional | `ne.root.free`, `ne.call.global` (OQ1) |
-| R33 | Breaks: optimizer wording | Works for the checker; the optimizer keeps the closure | `ne.opt.closure` (NE-S7b) |
+| Case | Review verdict | Round 6 | Rule | Round 7 |
+| --- | --- | --- | --- | --- |
+| R21 | Breaks: rule conflict | Rejected at the provider binding; a fresh provider works | `ne.provider.ordinary`, `ne.provider.use` (NE-S6b) | same |
+| R22 | Breaks: conditional wrapper attack | Rejected at the store, for the right reason; works with `c: ^{dst.T}` | `ne.data.wrapper`, `ne.data.no-join`, `ne.heap.fixed` (NE-S1b) | same; the pair declares a slot for the list's elements |
+| R23 | Breaks: boundary ambiguity | `bundle` rejected at its return (L5); the local tuple rejected at the store; a slot-bearing holder works | `ne.data.tuple`, `ne.var.generic` (NE-S1b) | **works**: `bundle` writes a bound per element (NE-S1d); the local tuple is still rejected at the store |
+| R24 | Breaks: missing translation | `declared_store` works; `undeclared_store` rejected at the call | `ne.fntype.bound-ref`, `ne.fntype.env-store`, `ne.var.fn` (NE-S4b) | same; `push`'s `v: T` is the store (B12) |
+| R25 | Breaks: conflicting formulas | Rejected at `cold_action`'s return; the elided form works | `ne.suspend.cold` (NE-S5b) | same |
+| R26 | Breaks: missing translation | Works with the slot-argument form; a one-prefix bound is a sound precision loss | `ne.suspend.weaken` (NE-S5c) | same for the slot-argument form; the one-prefix form is `ambiguous-lifetime`, since a prefix bounds only `run` |
+| R27 | Works | Works | `ne.fntype.call`, `ne.param.bare` | same |
+| R28 | Breaks: missing closure-boundary rule | Rejected at the closure; works when the callback type writes `^{f}` | `ne.fntype.closure-store`, `ne.fntype.env-store` (NE-S4b) | same |
+| R29 | Friction | **Works** | `ne.var.fn`, `ne.var.surface` (NE-S1c) | same |
+| R30 | Friction, accepted L9 | Friction, L9; the guide shows a loop and a fresh-result helper | `ne.fntype.one-flow` (NE-S11b) | **works**: `map` returns `^{} List[U]` (NE-S1d) |
+| R31 | Works | Works | `ne.param.ordinary-result` (NE-S2) | same |
+| R32 | Works, intentional | Works, intentional | `ne.root.free`, `ne.call.global` (OQ1) | same |
+| R33 | Breaks: optimizer wording | Works for the checker; the optimizer keeps the closure | `ne.opt.closure` (NE-S7b) | same |
 
 #### R21. An Ordinary Provider With A Borrowed Root
 
@@ -2545,7 +2627,7 @@ fn fresh_provider!() -> void:
     READERS.push(r)                   # fine
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r21-an-ordinary-provider-can-carry-a-borrowed-root).
+Source shape, a Go service from a context: `func currentReader(ctx Context) Reader { return ctx.Reader() }`, where the `Reader`'s function closes over a resource.
 The conflict is gone: `$.use(Reader)` reaches only `static`, which fits
 `current_reader`'s elided `^{}`, because no provider of an ordinary key
 may hold anything scoped (`ne.provider.ordinary`). A library that wants
@@ -2558,63 +2640,60 @@ an ordinary provider.
 #### R22. Optional Wrapping And An Invariant Slot
 
 ```hd
-data WritablePair[^a, ^b]:
-    first: ^{a} mut List[Conn]
+data WritablePair[^a, ^e, ^b]:
+    first: ^{a} mut List[^{e} Conn]   # e: the list's elements
     second: ^{b} Conn
 
 impl NonEscapable for WritablePair
 
-fn through_option(dst: ^mut List[Conn], c: ^Conn) -> void:
-    let wrapped: WritablePair? = .Some(WritablePair { first: dst, second: c })   # wrapped.T.a: dst; wrapped.T.b: c
+fn through_option(dst: ^mut List[^Conn], c: ^Conn) -> void:
+    let wrapped: WritablePair? = .Some(WritablePair { first: dst, second: c })   # wrapped.T.e: dst.T; wrapped.T.b: c
     match wrapped:
         .Some(pair) => pair.first.push(pair.second)   # error: lifetime-mismatch: c is not named for dst.T
         .None => pass
 
-fn through_option_named(dst: ^mut List[Conn], c: ^{dst.T} Conn) -> void:
+fn through_option_named(dst: ^mut List[^Conn], c: ^{dst.T} Conn) -> void:
     let wrapped: WritablePair? = .Some(WritablePair { first: dst, second: c })
     match wrapped:
         .Some(pair) => pair.first.push(pair.second)   # fine: c is named for dst's elements
         .None => pass
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r22-optional-wrapping-joins-an-invariant-slot).
+Source shape, a Rust optional pair: `struct Pair<'a, 'b> { first: &'a RefCell<Vec<&'a Socket>>, second: &'b Socket }` inside an `Option<Pair<'a, 'b>>`.
 The `Option` keeps the slots apart (`ne.data.wrapper`, `ne.data.no-join`),
-so `pair.first` keeps slot `a`'s reach, `dst`, which is a parameter's
-fixed object (`ne.heap.fixed`). The push needs `c` to be named for
-`dst.T`. Round 4's join gave slot `a` the union `{dst, c}`, and the push
-fitted it. Erasing the pair to a `dyn K` whose reach is invariant is the
-same widening, and `ne.erase.join` rejects it.
+so `pair.first` keeps slot `a`'s reach, `dst`, and its elements slot
+`e`'s, `dst.T`, a parameter's fixed component (`ne.heap.fixed`). The push
+needs `c` to be named for `dst.T`. Round 4's join gave the slots the
+union `{dst, c}`, and the push fitted it. Erasing the pair to a `dyn K`
+whose reach is invariant is the same widening, and `ne.erase.join`
+rejects it (owner, 2026-10-16, B11). Round 7 (NE-S1d): the list's
+elements are a component of the field's type, so the pair declares the
+slot `e` for them. Written `first: ^{a} mut List[Conn]`, the elements
+would be global, and the push would be rejected because `c` does not
+fit `static`.
 
 #### R23. A Tuple Hides The Same Widening
 
 ```hd
-fn bundle(dst: ^mut List[Conn], c: ^Conn) -> ^{dst, c} (mut List[Conn], Conn):
-    (dst, c)                  # error: lifetime-mismatch: the bound would widen the invariant component dst.T to dst and c
+fn bundle(dst: ^mut List[^Conn], c: ^Conn) -> (^{dst} mut List[^{dst.T} Conn], ^{c} Conn):
+    (dst, c)                  # fine: each element, and the list's elements, has its own bound
 
-fn through_tuple(dst: ^mut List[Conn], c: ^Conn) -> void:
-    pair := (dst, c)          # pair._0: dst; pair._1: c
+fn through_tuple(dst: ^mut List[^Conn], c: ^Conn) -> void:
+    pair := (dst, c)          # pair._0: dst and dst.T; pair._1: c
     pair._0.push(pair._1)     # error: lifetime-mismatch: c is not named for dst.T
-
-data Bundle[^l, ^k]:
-    list: ^{l} mut List[Conn]
-    conn: ^{k} Conn
-
-impl NonEscapable for Bundle
-
-fn bundle_apart(dst: ^mut List[Conn], c: ^Conn) -> Bundle[^{dst}, ^{c}]:
-    Bundle { list: dst, conn: c }   # fine: each slot keeps its own source
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r23-a-tuple-can-hide-the-same-widening).
+Source shape, Rust: `fn bundle<'a, 'b>(a: &'a RefCell<Vec<&'a Socket>>, b: &'b Socket) -> (&'a RefCell<Vec<&'a Socket>>, &'b Socket) { (a, b) }`.
 A tuple keeps a reach per element (`ne.data.tuple`), so the local
-`pair._0` keeps `dst`'s reach and the push is rejected for the right
-reason. `bundle` is the review's "sound reading": a written type has one
-bound for all its components (`ne.data.component-bound`), so the
-invariant `_0` would take `{dst, c}`, and the return is rejected
-(`ne.var.generic`). No other bound fits both elements. That is the new
-known limit L5, a sound rejection. A slot-bearing holder returns the two
-apart, and a caller that pushes `b.conn` into `b.list` is rejected,
-because `b.list` reaches `dst` only.
+`pair._0` keeps `dst`'s reaches and the push is rejected for the right
+reason. Round 6 rejected `bundle` at its return: one prefix bounded every
+component, so the invariant `dst.T` would have taken `{dst, c}` (the
+round-6 L5). Round 7 writes a mark on each element and on the list's
+elements, so `bundle` returns them apart and works (owner, 2026-10-16,
+NE-S1d). A caller that pushes the second element into the first is
+rejected, because the first's elements reach `dst.T` only. The
+slot-bearing holder that round 6 offered instead is
+[R36](#r36-the-declared-slot-workaround-still-flattens-its-field).
 
 #### R24. A Bound Appender
 
@@ -2622,23 +2701,23 @@ because `b.list` reaches `dst` only.
 fn apply_store(put: ^fn(c: ^{put} Conn) -> void, c: ^{put} Conn) -> void:
     put(c)                    # fine: c may flow into put's environment
 
-fn declared_store(dst: ^mut List[Conn], c: ^{dst} Conn) -> void:
+fn declared_store(dst: ^mut List[^Conn], c: ^{dst} Conn) -> void:
     apply_store(dst::push, c) # fine: dst::push has type fn(v: ^{put} Conn) -> void, and its environment is dst
 
-fn undeclared_store(dst: ^mut List[Conn], c: ^Conn) -> void:
+fn undeclared_store(dst: ^mut List[^Conn], c: ^Conn) -> void:
     put := dst::push          # the environment is dst
     put(c)                    # error: lifetime-mismatch: the call stores c into put's environment, dst's object
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r24-a-bound-appender-needs-an-environment-store-effect).
-`push`'s `v: ^{self.T} T` becomes `v: ^{put} Conn` in the bound
-reference's type (`ne.fntype.bound-ref`). A call adds the argument to
+Source shape, a Go method value: `put := destination.Push; put(connection)`.
+`push`'s `v: T`, under a `^mut self` receiver, becomes `v: ^{put} Conn`
+in the bound reference's type (`ne.fntype.bound-ref`). A call adds the argument to
 what the environment captured, the receiver `dst`, a parameter's fixed
 object (`ne.fntype.env-store`, `ne.heap.fixed`). The store mark makes
 `put`'s environment invariant (`ne.var.fn`), so widening the environment
 to admit a new root is rejected too. The store reaches the whole
 receiver, so `declared_store` names `^{dst}`; `^{dst.T}` would not
-suffice (agent-detail, `ne.fntype.env-store`).
+suffice (owner, 2026-10-16, B12, `ne.fntype.env-store`).
 
 #### R25. A Cold Call Of A Closure
 
@@ -2654,7 +2733,7 @@ fn store_action(action: ^fn!() -> void) -> void:
     _ := pending
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r25-a-cold-call-must-capture-the-called-closure).
+Source shape, a Rust async closure: `let action = async || socket.ping().await; let future = action();`.
 The cold frame's `run` includes the called function value's environment
 (`ne.suspend.cold`), so the frame reaches `action`, and `^{}` names no
 input. The output being `void` changes nothing.
@@ -2672,16 +2751,20 @@ fn via_lowered!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn:
     finish!(pending)          # fine: out reaches keep
 
 fn via_coarse!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn:
-    let make: fn(a: ^Conn, b: ^Conn) -> ^{a, b} mut Suspend[Conn] = select   # one prefix: both slots a, b
-    finish!(make(keep, scratch))   # error: lifetime-mismatch: out reaches scratch too
+    let make: fn(a: ^Conn, b: ^Conn) -> ^{a, b} mut Suspend[Conn] = select   # error: ambiguous-lifetime: the prefix bounds run; out has two sources
+    finish!(make(keep, scratch))
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r26-lowered-constructors-need-both-frame-slots).
+Source shape, a Rust future factory: `async fn select<'a, 'b>(keep: &'a Socket, scratch: &'b Socket) -> &'a Socket`.
 `select!` weakens to `fn(keep: ^Conn, scratch: ^Conn) -> Suspend[Conn,
 ^{keep, scratch}, ^{keep}]` (`ne.suspend.weaken`): `run` names every
-tracked input, and `out` the result bound. The coarse form is a sound
-precision loss. Copying `^{a}` as the one prefix would be rejected at the
-conversion, since `select`'s frame keeps `b` alive.
+marked input, as a direct cold call would, and `out` the result bound. Round 6 read the coarse form's one
+prefix as a bound on both slots, a sound precision loss. Since round 7 a
+prefix bounds only its own position, the frame's `run`, so the unwritten
+`out` is elided and has two sources (NE-S1d); written as
+`Suspend[Conn, ^{a, b}, ^{a, b}]`, it is the old precision loss. Copying
+`^{a}` as the prefix would be rejected at the conversion, since `select`'s
+frame keeps `b` alive.
 
 #### R27. A Scoped Callback
 
@@ -2697,7 +2780,7 @@ fn bad_scope() -> Conn:
     with_conn(fn(c): c)               # error: lifetime-mismatch: the callback's result reaches c, and its type says ^{}
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r27-a-scoped-callback-can-forbid-its-arguments-escape).
+Source shape, a Rust scoped API: `with_socket(|socket| socket.sent())`.
 Works, as the review found. Inside the callback, `c` has a parameter
 root, whatever handle `with_conn` passes. This is the scoped callback API
 of OQ1.
@@ -2708,7 +2791,7 @@ of OQ1.
 fn invoke_once(f: ^fn(x: ^Conn) -> void, c: ^Conn) -> void:
     f(c)
 
-fn captured_cell(c: ^Conn) -> ^{c} Conn?:
+fn captured_cell(c: ^Conn) -> Option[^{c} Conn]:
     let saved: Conn? = .None
     invoke_once(fn(x): saved = .Some(x), c)    # error: lifetime-mismatch: the closure stores x into its environment, and x is bare ^
     saved
@@ -2716,13 +2799,13 @@ fn captured_cell(c: ^Conn) -> ^{c} Conn?:
 fn invoke_store(f: ^fn(x: ^{f} Conn) -> void, c: ^{f} Conn) -> void:
     f(c)
 
-fn captured_cell_named(c: ^Conn) -> ^{c} Conn?:
+fn captured_cell_named(c: ^Conn) -> Option[^{c} Conn]:
     let saved: Conn? = .None
     invoke_store(fn(x): saved = .Some(x), c)   # fine: c flows into the closure's environment, saved
     saved                                      # fine: saved reaches c
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r28-captured-storage-is-not-a-callback-local-scratch-object).
+Source shape, a Go closure over shared storage: `var saved *Socket; put := func(x *Socket) { saved = x }; put(connection)`.
 Inside the closure, `saved` is part of its environment, which is fixed
 (`ne.fntype.closure-store`), so storing the bare input `x` there breaks
 `invoke_once`'s promise that `f` keeps nothing. With `x: ^{f} Conn`, the
@@ -2734,29 +2817,32 @@ the expected type (`ne.fntype.env-name`).
 #### R29. A Fresh Mutable Result
 
 ```hd
-fn use_maker(make: ^fn() -> ^{} mut List[Conn], extra: ^Conn) -> void:
-    let wider: ^{make, extra} fn() -> ^{} mut List[Conn] = make   # fine: the result names nothing of the environment
+fn use_maker(make: ^fn() -> ^{} mut List[^{} Conn], extra: ^Conn) -> void:
+    let wider: ^{make, extra} fn() -> ^{} mut List[^{} Conn] = make   # fine: the result names nothing of the environment
     _ := wider()
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r29-mutable-outputs-can-be-independent-of-the-environment).
+Source shape, a Rust closure that returns new storage: `let make = || { observe(&resource); Vec::<Socket>::new() };`.
 **Works** in round 6. The result is fresh, so it cannot hand back storage
 at the environment's reach, and variance ignores it (`ne.var.surface`,
 `ne.var.fn`). Round 4 made the environment invariant for any mutable
 result. [C02](#c02-a-closure-returning-mutable-state), whose result elides
-to the environment, stays rejected.
+to the environment, stays rejected. Round 7 writes `^{}` on the list's
+elements too: an unmarked component of the callback's result would elide
+to the environment, and the result would mention it (NE-S1d).
 
 #### R30. Generic Scalar Results
 
 ```hd
-fn sizes(xs: ^List[Conn]) -> ^{} List[usize]:
-    xs.map(fn(c): c.sent())   # error: lifetime-mismatch: by map's signature, the result reaches xs
+fn sizes(xs: ^List[^Conn]) -> ^{} List[usize]:
+    xs.map(fn(c): c.sent())   # fine since round 7: map's result is fresh, and U = usize reaches nothing
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r30-generic-scalar-results-remain-tied).
-Friction, known limit L9, accepted. The guide shows the diagnostic with
-a plain loop and a fresh-result helper (NE-S11b,
-[Guide Note For L9](#guide-note-for-l9)).
+Source shape, Rust: `let sizes: Vec<usize> = sockets.iter().map(|s| s.sent()).collect();`.
+Round 6: friction, known limit L9, accepted, with a guide note (NE-S11b).
+Round 7: works. `map` returns `^{} List[U]`, and `U` carries what the
+callback returns, here a `usize` (NE-S1d). L9 narrows to reaches that a
+signature writes ([Guide Note For L9](#guide-note-for-l9)).
 
 #### R31. An Ordinary Identity Helper
 
@@ -2773,7 +2859,7 @@ fn fresh_is_allowed() -> void:
     BUFFERS.push(identity([1, 2]))    # fine: a fresh ordinary list reaches nothing
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r31-ordinary-identity-now-preserves-provenance).
+Source shape, a Go helper: `func identity(b []byte) []byte { return b }`.
 Works: [C04](#c04-an-identity-helper) under round 6. `BUFFERS.push` adds
 to `BUFFERS.T`, which reaches `static`.
 
@@ -2793,7 +2879,7 @@ fn borrowed_registration(c: ^Conn) -> void:
     register(fn() -> usize: c.sent())  # error: lifetime-mismatch: a global parameter, c reaches a parameter root
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r32-fresh-handle-escape-is-an-accepted-boundary).
+Source shape, a Go callback registry: `socket := open(); register(func() int { return socket.Sent() })`.
 Works, intentional: OQ1, as in [D8](#d8-a-callback-registry). The design
 checks retention contracts for borrowed parameters and NonEscapable
 keys; it does not stop a fresh handle from escaping.
@@ -2808,21 +2894,321 @@ fn escaped_callback(c: ^Conn) -> ^{c} fn() -> usize:
     forward(fn() -> usize: c.sent())               # fine: the result carries the closure, which reaches c
 ```
 
-[Review case](NONESCAPE_LIFETIME_STRESS_TEST_2.md#r33-a-bare-local-callback-may-escape-in-the-result).
+Source shape, Rust closure forwarding: `fn forward<F: Fn() -> usize>(f: F) -> F { f }`.
 The checker accepts it. `f` is bare `^`, but `forward`'s elided result
 names it, so `f` is not never-kept. `ne.opt.closure` now requires a
 never-kept callback, so the optimizer keeps the closure and its
 environment here.
 
+### 13.12 Review 3 Regression Cases
+
+The third adversarial review (2026-10-15) tested round 6 with twelve
+cases, R34 to R45. These are its cases under the round-7 rules (owner,
+2026-10-16), in this doc's notation, with the review's verdict and the
+new one. Each case names the shape of the library code it was taken
+from. "Rejected" means rejected for the right reason. Where the review
+used the parser stub `open()`, these use `connect!`.
+
+| Case | Source shape | Review verdict | Round 7 | Rule |
+| --- | --- | --- | --- | --- |
+| R34 | Rust future factory over a borrowed buffer | Breaks: rule conflict | Rejected: both forms, since the weakened frame's `run` reaches `bytes` | `ne.suspend.weaken`, `ne.suspend.cold` (NE-S5d) |
+| R35 | Rust `identity` | Friction | Works | `ne.generic.carry` (NE-S1d) |
+| R36 | Rust struct of a mutable vector and a handle | Breaks: workaround fails | Works: one slot per distinction | `ne.syntax.one-reach`, `ne.data.field-slot` (NE-S1d) |
+| R37 | Rust vector lookup of a two-lifetime record | Breaks: rules conflict | Works | `ne.sig.generic-result`, `ne.data.wrapper` (NE-S1d) |
+| R38 | Rust vector of cells | Friction | Works as written; with local elements, rejected | `ne.data.component-share` (NE-S1e) |
+| R39 | Go bound getter | Breaks: missing translation | Works; a result that names the receiver reaches the whole environment | `ne.fntype.bound-ref` (NE-S4c) |
+| R40 | Go callback that reads one capture and stores into another | Friction | Known limit L10, with two workarounds | `ne.fntype.env-store` (NE-S4d) |
+| R41 | Rust callable bounds, hd `Fn` | Breaks: unfinished identity | Rejected at the conversion | `ne.fntype.constructor` (NE-S5c) |
+| R42 | Rust `iter::from_fn` | Breaks: std contract fails | Works | `ne.generic.abstract` (NE-S12) |
+| R43 | Rust future outputs, hd `all!` | Works | Works | `ne.all.typing`, `ne.data.tuple` |
+| R44 | Go `context` service | Works | Works | `ne.provider.ordinary`, `ne.provider.with` |
+| R45 | Rust scoped callback | Works | Works, with its rejection | `ne.fntype.call`, `ne.param.bare` |
+
+#### R34. Weakening Drops An Ordinary Buffer
+
+Source shape, a Rust future factory:
+`async fn inspect(bytes: &[u8])` and
+`fn make(bytes: &[u8]) -> impl Future<Output = ()> + '_ { inspect(bytes) }`.
+
+```hd
+data BufferHeader:
+    length: usize
+
+fn inspect!(bytes: ^BufferHeader) -> void:
+    _ := bytes.length
+
+fn direct(bytes: ^BufferHeader) -> ^{} mut Suspend[void]:
+    inspect(bytes)            # error: lifetime-mismatch: the frame's run reaches bytes
+
+fn lowered(bytes: ^BufferHeader) -> ^{} mut Suspend[void]:
+    let make: fn(b: ^BufferHeader) -> ^{} mut Suspend[void] = inspect   # error: lifetime-mismatch: the weakened inspect! has run ^{b}
+    make(bytes)
+```
+
+`BufferHeader` carries nothing, so `bytes` is no tracked input, and round
+6's weakening, which listed tracked inputs, gave the frame an empty
+`run`. Round 7 computes `run` as a direct cold call does (owner,
+2026-10-16, NE-S5d): `inspect!` weakens to `fn(bytes: ^BufferHeader) ->
+Suspend[void, ^{bytes}, ^{}]`, so both forms are rejected. The fix is
+`-> ^{bytes} mut Suspend[void]`.
+
+#### R35. Generic Identity Flattens Independent Reaches
+
+Source shape, Rust: `fn identity<T>(value: T) -> T { value }`.
+
+```hd
+fn same[T](v: T) -> T:
+    v
+
+fn use_same(xs: ^mut List[^Conn], c: ^{xs.T} Conn) -> void:
+    let back: mut List[Conn] = same(xs)   # T is xs's type with its reaches: back reaches xs, its elements xs.T
+    back.push(c)                          # fine: c is named for xs.T
+```
+
+Round 6 wrote `fn same[T](v: ^T) -> ^{v} T`, whose one prefix bounded
+the list and its elements together, so the invariant `xs.T` had to widen
+to `{xs, xs.T}`. Round 7: `T` carries its reach, so `same` returns
+exactly what came in, as Rust's `identity` does (owner, 2026-10-16,
+NE-S1d).
+
+#### R36. The Declared-Slot Workaround Still Flattens Its Field
+
+Source shape, Rust:
+`struct Bundle<'s, 'a, 'b> { list: &'s mut Vec<&'a Conn>, conn: &'b Conn }`.
+
+```hd
+data Bundle[^l, ^k]:
+    list: ^{l} mut List[Conn]       # the list's elements are global
+    conn: ^{k} Conn
+
+impl NonEscapable for Bundle
+
+fn bundle_apart(dst: ^mut List[Conn], c: ^Conn) -> Bundle[^{dst}, ^{c}]:
+    Bundle { list: dst, conn: c }   # fine: dst's elements are global too
+
+data LocalBundle[^l, ^e, ^k]:
+    list: ^{l} mut List[^{e} Conn]  # e: the list's elements
+    conn: ^{k} Conn
+
+impl NonEscapable for LocalBundle
+
+fn bundle_local(dst: ^mut List[^Conn], c: ^Conn) -> LocalBundle[^{dst}, ^{dst.T}, ^{c}]:
+    LocalBundle { list: dst, conn: c }   # fine: three slots, three sources
+```
+
+Round 6's field prefix `^{l}` covered the list and its elements, so
+`dst.T` had to widen to `{dst, dst.T}`. Round 7: `^{l}` bounds the list
+only, and a mark inside the type argument bounds the elements, so the
+holder declares a slot for each distinction the review named: the list,
+its elements, and the handle (owner, 2026-10-16, NE-S1d). The review's
+form, with global elements, works as written.
+
+#### R37. A Safe List Lookup Becomes A Flattening Boundary
+
+Source shape, Rust:
+`struct Pair<'a, 'b> { cell: &'a RefCell<Vec<Conn>>, conn: &'b Conn }`,
+looked up in a vector that keeps both lifetimes in `Pair`'s type.
+
+```hd
+fn read_element(xs: ^List[^WritablePair]) -> usize:   # WritablePair from R22
+    match xs.get(0):
+        .Some(p) => p.first.len()   # fine: get returns T, a pair with its slots apart
+        .None => 0
+
+fn direct_element(xs: ^List[^WritablePair]) -> usize:
+    for p in xs:
+        _ := p.first.len()
+    0
+```
+
+Round 6's `get` returned `^{self.T} T?`, one bound over every nested
+slot. Round 7's `get` returns `T`, which carries the pair's slots
+unchanged, so a lookup and an iteration give the same reaches (owner,
+2026-10-16, NE-S1d).
+
+#### R38. Different List Elements Still Need A Join Check
+
+Source shape, Rust: two `Cell`s with independent lifetimes cannot share
+one `Vec<Cell<T>>` without agreeing on `T`.
+
+```hd
+fn collect_cells(a: ^mut List[Conn], b: ^mut List[Conn]) -> usize:
+    let rows: List[mut List[Conn]] = [a, b]   # fine: both lists hold global handles
+    rows.len()
+
+fn collect_local_cells(a: ^mut List[^Conn], b: ^mut List[^Conn]) -> usize:
+    let rows: List[mut List[Conn]] = [a, b]   # error: lifetime-mismatch: a.T and b.T differ, and the inner lists are mutable storage
+    rows.len()
+```
+
+Values that enter the same component need compatible invariant reaches
+(owner, 2026-10-16, NE-S1e, `ne.data.component-share`). The review's
+form works as written under round 7, since an unmarked component is
+global. With local elements, `a.T` and `b.T` are two parameter roots,
+and the inner lists' elements are invariant.
+
+#### R39. Binding A Getter Removes The Name Of Its Component
+
+Source shape, Go: `get := repository.Get`, which saves the receiver.
+
+```hd
+fn first_direct(xs: ^List[^Conn]) -> Option[^{xs.T} Conn]:
+    xs.get(0)                 # fine: get returns T, here ^{xs.T} Conn
+
+fn first_bound(xs: ^List[^Conn]) -> Option[^{xs.T} Conn]:
+    get := xs::get            # fn(index: usize) -> T?, with T = ^{xs.T} Conn
+    get(0)                    # fine: T keeps its reach through the binding
+
+fn pick_bound(r: ^Router) -> ^{r} Conn:   # Router from R4
+    pick := r::pick           # pick's result names its receiver
+    pick()                    # fine: it reaches pick's environment, all of r
+```
+
+`get` returns `T`, so binding the receiver loses nothing (NE-S1d). A
+result whose bound names the receiver, as `pick`'s elided `^{self}`,
+reaches the reference's whole environment, as a store through it does
+(owner, 2026-10-16, NE-S4c).
+
+#### R40. Reading Metadata Turns It Into A Store Destination
+
+Source shape, Go:
+`put := func(c Conn) { _ = metadata.Len(); destination.Push(c) }`.
+
+```hd
+fn apply_store(put: ^fn(c: ^{put} Conn) -> void, c: ^{put} Conn) -> void:
+    put(c)
+
+fn store_with_metadata(dst: ^mut List[^Conn], metadata: ^List[usize], c: ^{dst} Conn) -> void:
+    apply_store(
+        (fn(x):
+            _ := metadata.len()
+            dst.push(x)
+        ),
+        c,                    # error: lifetime-mismatch: the store reaches metadata too, and c is not named for it
+    )
+
+fn store_after_read(dst: ^mut List[^Conn], metadata: ^List[usize], c: ^{dst} Conn) -> void:
+    _ := metadata.len()       # read outside the closure, where the timing allows
+    apply_store(dst::push, c) # fine: the environment is dst only
+```
+
+The owner kept the conservative rule: a store into an environment
+reaches every capture (owner, 2026-10-16, NE-S4d). It is known limit
+L10. The workarounds are a read outside the closure, as above, when its
+timing allows, or a data method that takes each destination as its own
+parameter.
+
+#### R41. Function Constructor Identity Still Needs Retention Binders
+
+Source shape, Rust: a callable that takes only `&'static [u8]` does not
+satisfy `for<'a> Fn(&'a [u8])`.
+
+```hd
+use std.function.Fn
+
+let BUFFERS: mut List[List[u8]] = []
+
+fn retain(bytes: List[u8]) -> void:
+    BUFFERS.push(bytes)
+
+fn through_constructor(bytes: ^List[u8]) -> void:
+    let global: Fn[(List[u8],), void, $()] = retain
+    let local: fn(b: ^List[u8]) -> void = global   # error: lifetime-mismatch: a global input does not take a local argument
+    local(bytes)
+```
+
+`Fn[...]` spells only an all-global function type, and a richer one is
+written with `fn(...)` (owner, 2026-10-16, NE-S5c,
+`ne.fntype.constructor`). Inputs are contravariant, so the global input
+does not accept the local `b`.
+
+#### R42. A Lazy Iterator Produces Through Its Closure Field
+
+Source shape, Rust: `std::iter::from_fn(move || Some(conn))`.
+
+```hd
+data Generated[T]:
+    step: fn() -> T?
+
+impl[T] Generated[T]:
+    fn next(^mut self) -> T?:
+        (self.step)()         # fine: the item has T's reach, as Iterator.next promises
+
+fn from_fn[T](step: ^fn() -> T?) -> Generated[T]:   # elided: the generator's own reach is ^{step}
+    Generated { step: step }
+```
+
+Round 6's `next` returned `^{self.T} T?`, which the closure's output,
+bounded by the holder's own reach, could not meet. Round 7: the
+callback returns `T?`, and `T` carries the item reach, so `next` is
+precise however the item is produced (owner, 2026-10-16, NE-S12,
+`ne.generic.abstract`).
+
+#### R43. Direct Frame Outputs Survive A Local Tuple
+
+Source shape, Rust: a future may retain scratch data without returning
+a borrow of it, and combining outputs need not combine what the futures
+retained.
+
+```hd
+use std.task.all
+
+fn count!(scratch: ^Conn) -> usize:
+    scratch.sent()
+
+fn together!(keep: ^Conn, scratch: ^Conn) -> ^{keep} Conn:   # select! from C08
+    values := all!(select(keep, scratch), count(scratch))   # values._0: keep; values._1: nothing
+    values._0                                                # fine: no frame's run enters an output
+```
+
+`all!` keeps each child's `out` in its own element (`ne.all.typing`,
+`ne.data.tuple`).
+
+#### R44. Ordinary And Tracked Provider Keys Now Differ Deliberately
+
+Source shape, Go: `context.WithValue` carrying a callback that closes
+over request data.
+
+```hd
+fn ordinary(p: ^dyn Reader) -> void:   # Reader and ScopedReader from section 10
+    $.with(Reader=p):         # error: ordinary-provider-not-static: p reaches a parameter root
+        pass
+
+fn tracked(p: ^dyn ScopedReader) -> ^{p} dyn ScopedReader:
+    $.with(ScopedReader=p):   # fine: the key root $ScopedReader is instantiated with p
+        current_scoped()
+```
+
+An ordinary key takes only a static provider (`ne.provider.ordinary`),
+and a NonEscapable key carries the provider's reach to the result
+(`ne.provider.with`).
+
+#### R45. Scoped Callback Checking Still Rejects A Borrowed Result
+
+Source shape, Rust: a scoped API whose higher-ranked callback cannot
+return a borrow of its temporary argument.
+
+```hd
+fn observe() -> usize:
+    with_conn(fn(c): c.sent())        # fine: with_conn from R27
+
+fn borrow_out() -> Conn:
+    with_conn(fn(c): c)               # error: lifetime-mismatch: the callback's result reaches c, and its type says ^{}
+```
+
+Inside the callback, `c` has a parameter root, whatever handle
+`with_conn` passes, so the result `c` fits no bound outside the callback.
+Round 7 changes nothing here: `T` is instantiated at the call of
+`with_conn`, outside the callback, so it cannot name `c` either.
+
 ### Diagnostics
 
 | Code | When |
 | --- | --- |
-| `lifetime-mismatch` | A value's reach does not fit the bound it flows into: a result, a store, a global parameter (also a NonEscapable argument, by category), a top-level binding, a widening of an invariant reach (an erasure included), a store into a function value's environment that its type does not name, or a `^` parameter kept where it is not named. |
+| `lifetime-mismatch` | A value's reach does not fit the bound it flows into: a result, a store, a global parameter (also a NonEscapable argument, by category), a top-level binding, a widening of an invariant reach (an erasure included), values of one component that disagree on an invariant reach, a store into a function value's environment that its type does not name, a function value converted to a type whose inputs it does not accept, or a `^` parameter kept where it is not named. |
 | `ordinary-provider-not-static` | `$.with(K = p)` for a key whose trait is not NonEscapable, where `p`'s reach is not `static`. The fix is a static provider, or a NonEscapable key. |
 | `unmarked-local-param` | A parameter whose type is NonEscapable has no `^`. The fix-it adds it. |
 | `missing-nonescapable-impl` | A concrete data or enum type has a NonEscapable field and no `impl NonEscapable`. The fix-it adds it. |
-| `lifetime-in-type-argument` | A `^` appears inside a type argument, outside a function type's own signature. |
 | `misplaced-lifetime` | A bare `^` on a result, or `^{}` or `^{static}` on a parameter. |
 | `ambiguous-lifetime` | Elision has no single answer, in a function or a function type, so `^{...}` must be written. |
 | `undeclared-slot` | A field or recursive occurrence names no declared slot. |
@@ -2831,6 +3217,8 @@ environment here.
 | `could-be-local` (warning) | An unmarked parameter that the body never keeps. The lint proposes `^`. |
 
 The cleanup and closing diagnostics are parked ([P.7](#p7-parked-diagnostics)).
+Round 7 removes `lifetime-in-type-argument`, with the rule it served
+(owner, 2026-10-16, NE-S1d).
 
 ## 14. Owner Questions
 
@@ -2850,7 +3238,7 @@ not repeated. The decisions about closing moved to
 | New (D3) | Dependent results and stores stay. "Local" means "lives no longer than its sources". | section 2 |
 | New (D4) | Any parameter of any type may be marked `^`, checked in the callee, and read by the optimizer as `LocalParams`. Non-local `return` is parked. | `ne.param.any-type`, [12.6](#126-what-the-optimizer-gets) |
 | New (D5) | Function-typed parameters follow the same rule. No implicit default. `^{static}` is removed from parameters. A lint proposes `^`. | `ne.param.fn`, `ne.param.lint` |
-| New (D6) | No lifetime inside a type argument. One reach per value. Declared slots stay, opt-in. Containers write `^{self}` on what they store. **Partly reversed** in round 6: one reach per type-parameter component, and containers write `^{self.T}` (owner, 2026-10-15, NE-S1b). | `ne.syntax.one-reach`, `ne.data.*`, `ne.generic.*` |
+| New (D6) | No lifetime inside a type argument. One reach per value. Declared slots stay, opt-in. Containers write `^{self}` on what they store. **Partly reversed** in round 6: one reach per type-parameter component, and containers write `^{self.T}` (owner, 2026-10-15, NE-S1b). **Reversed** in round 7: a component is marked in its type argument, a type parameter carries its reach, and containers take `v: T` (owner, 2026-10-16, NE-S1d). | `ne.syntax.one-reach`, `ne.data.*`, `ne.generic.*` |
 | Q2, where the category is declared | A concrete data or enum type with a NonEscapable field must declare `impl NonEscapable`, checked against its fields. Generic data follows its stored fields (NE-S10). A function-typed field does not count. The orchestrator's option (a), only root types declare it, is not taken (owner, 2026-10-14). | `ne.data.declare`, `ne.data.generic` |
 | Q5, slot variance | Computed from the declaration surface (owner, 2026-10-14), with NE-S1. | `ne.var.polarity`, `ne.var.surface` |
 | Q6, downcasts | Forbid all non-static downcasts, as Rust's `Any: 'static`. The narrower invariant-only rule is dropped (owner, 2026-10-14). | `ne.erase.downcast`, [X6](#x6-widening-through-a-downcast), L8 |
@@ -2875,20 +3263,29 @@ not repeated. The decisions about closing moved to
 | OQ3, `Suspend` and the category (round 5) | Option 1: a `Suspend` field does not count toward the category, like a function type. Soundness comes from the frame's `run` reach. The agent-detail flag is removed (owner, 2026-10-14). | `ne.data.declare`, `ne.data.category` |
 | Round-4 agent details (round 5) | Accepted: `^{}` mints a root only for a NonEscapable result; a function type's result bound may stand inside a type argument; a `^{self}` store counts as mutable storage for variance; wrappers join `run` and `out` (owner, 2026-10-14). The last is reversed in round 6 (NE-S1b). | `ne.root.site`, `ne.call.fresh`, `ne.syntax.one-reach`, `ne.var.dyn`, `ne.suspend.stored` |
 | Closure fields (round 5) | A clarification of existing rules, not a new decision: a function-typed field never makes its type NonEscapable; the closure's reach flows into the holder and is checked at global positions; a declared slot is the opt-in. | [5.4](#54-closure-fields) |
-| [NE-S6b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s6b-ordinary-providers-need-provenance), ordinary providers (round 6) | Option (b): a provider of an ordinary key must be static, and `$.with(K = p)` is an error otherwise. Ordinary keys stay untracked in signatures. A library that supplies scoped values declares the key NonEscapable, tracked by NE-S6. Option (a), tracking every key, is not taken (owner, 2026-10-15). | `ne.provider.ordinary`, `ne.provider.use`, R21 |
-| [NE-S1b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1b-joining-is-a-variance-conversion-too), joining components (round 6) | Option (b), with the follow-up (i): wrappers and tuples keep independent component reaches, named by paths through the type parameter (`^{x.T}`, `p.A`, `p.B`, tuple elements by position). A parameter's own `^` marks the container's locality. A list's elements share one reach. Nothing joins, so a mutable component is never widened. Partly reverses D6 and the wrapper half of Q15. Option (a), one reach and rejecting widening joins, and the follow-up's option (ii) are not taken (owner, 2026-10-15). | [5.5](#55-generic-components), `ne.data.wrapper`, `ne.data.tuple`, `ne.syntax.one-reach`, `ne.var.generic`, `ne.generic.*`, L5, R22, R23, C11 |
-| [NE-S4b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s4b-a-closures-environment-is-a-retention-destination), environment stores (round 6) | Option (a): a closure's environment is a named store destination, `x: ^{f} T`, one rule for bound references (`dst::push` has type `fn(v: ^{put} Conn) -> void`) and written closures (owner, 2026-10-15). | `ne.fntype.env-store`, `ne.fntype.bound-ref`, `ne.fntype.closure-store`, `ne.var.fn`, R24, R28 |
-| [NE-S5b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5b-include-the-called-closure-in-cold-frames), the called closure (round 6) | Yes: a cold call's `run` includes the called function value's environment, beside its arguments and providers (owner, 2026-10-15). | `ne.suspend.cold`, R25 |
-| [NE-S5c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s5c-preserve-both-slots-through-callable-lowering), callable weakening (round 6) | Option (a): weakening writes `Suspend[T, ^{run…}, ^{out…}]` with the existing slot-argument form, run then out; a stated translation, no new syntax (owner, 2026-10-15). | `ne.suspend.weaken`, R26 |
-| [NE-S1c](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s1c-compute-variance-of-dependencies-not-unrelated-results), variance of dependencies (round 6) | Option (a), refine: variance follows only the results and stores that mention the widened reach (owner, 2026-10-15). | `ne.var.surface`, `ne.var.fn`, `ne.var.dyn`, R29 |
-| [NE-S11b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s11b-account-for-the-accepted-generic-cost), the L9 guide note (round 6) | Accepted, docs only: the guide shows the L9 diagnostic and a workaround (owner, 2026-10-15). | [Guide Note For L9](#guide-note-for-l9), R30 |
-| [NE-S7b](NONESCAPE_LIFETIME_STRESS_TEST_2.md#ne-s7b-use-the-full-retention-summary-for-closures), closure optimization (round 6) | Accepted, docs only: a callback counts as not retained only when no result or store names it (owner, 2026-10-15). | `ne.opt.closure`, R33 |
+| NE-S6b, ordinary providers (round 6) | Option (b): a provider of an ordinary key must be static, and `$.with(K = p)` is an error otherwise. Ordinary keys stay untracked in signatures. A library that supplies scoped values declares the key NonEscapable, tracked by NE-S6. Option (a), tracking every key, is not taken (owner, 2026-10-15). | `ne.provider.ordinary`, `ne.provider.use`, R21 |
+| NE-S1b, joining components (round 6) | Option (b), with the follow-up (i): wrappers and tuples keep independent component reaches, named by paths through the type parameter (`^{x.T}`, `p.A`, `p.B`, tuple elements by position). A parameter's own `^` marks the container's locality. A list's elements share one reach. Nothing joins, so a mutable component is never widened. Partly reverses D6 and the wrapper half of Q15. Option (a), one reach and rejecting widening joins, and the follow-up's option (ii) are not taken (owner, 2026-10-15). Round 7 replaces the paths in generic signatures by `T` and allows marks in type arguments (NE-S1d). | [5.5](#55-generic-components), `ne.data.wrapper`, `ne.data.tuple`, `ne.syntax.one-reach`, `ne.var.generic`, `ne.generic.*`, L5, R22, R23, C11 |
+| NE-S4b, environment stores (round 6) | Option (a): a closure's environment is a named store destination, `x: ^{f} T`, one rule for bound references (`dst::push` has type `fn(v: ^{put} Conn) -> void`) and written closures (owner, 2026-10-15). | `ne.fntype.env-store`, `ne.fntype.bound-ref`, `ne.fntype.closure-store`, `ne.var.fn`, R24, R28 |
+| NE-S5b, the called closure (round 6) | Yes: a cold call's `run` includes the called function value's environment, beside its arguments and providers (owner, 2026-10-15). | `ne.suspend.cold`, R25 |
+| NE-S5c, callable weakening (round 6) | Option (a): weakening writes `Suspend[T, ^{run…}, ^{out…}]` with the existing slot-argument form, run then out; a stated translation, no new syntax (owner, 2026-10-15). | `ne.suspend.weaken`, R26 |
+| NE-S1c, variance of dependencies (round 6) | Option (a), refine: variance follows only the results and stores that mention the widened reach (owner, 2026-10-15). | `ne.var.surface`, `ne.var.fn`, `ne.var.dyn`, R29 |
+| NE-S11b, the L9 guide note (round 6) | Accepted, docs only: the guide shows the L9 diagnostic and a workaround (owner, 2026-10-15). Round 7 accepts the note's example, so the note narrows to written reaches (open point 10). | [Guide Note For L9](#guide-note-for-l9), R30 |
+| NE-S7b, closure optimization (round 6) | Accepted, docs only: a callback counts as not retained only when no result or store names it (owner, 2026-10-15). | `ne.opt.closure`, R33 |
+| NE-S5d, weakening (round 7) | Weakening reuses the direct cold-call computation of `run`, one formula: every marked parameter, the environment, and the providers (owner, 2026-10-16). | `ne.suspend.weaken`, R34 |
+| NE-S1d, reach trees at signatures (round 7) | Type parameters carry their reach, as in Rust and Mojo; unmarked means global at every position, inside type arguments too; a component is marked where it is written, `^List[^Conn]`; `^` marks one position. The ban on lifetimes in type arguments is removed, with no component-covering rule. The shape-preserving answer of 2026-10-15 is replaced (owner, 2026-10-16). | `ne.syntax.one-reach`, [5.5](#55-generic-components), [8.1](#81-generic-substitution), L5, R35 to R37 |
+| NE-S4c, bound results (round 7) | A bound method's result that names the receiver reaches the whole environment, as its stores do (owner, 2026-10-16). | `ne.fntype.bound-ref`, R39 |
+| NE-S5c, constructors (round 7) | `Fn[...]` and `SuspendFn[...]` denote only all-global contracts; richer types use `fn(...)` (owner, 2026-10-16). | `ne.fntype.constructor`, R41 |
+| NE-S12, generated items (round 7) | `Iterator[T].next(^mut self) -> T?` is precise, since `T` carries the item reach, as Rust's `from_fn` (owner, 2026-10-16). | `ne.generic.abstract`, R42 |
+| NE-S4d, environment stores (round 7) | Keep the whole-environment store and document the workarounds (owner, 2026-10-16). | `ne.fntype.env-store`, L10, R40 |
+| NE-S1e, one component (round 7) | Values entering one component need compatible invariant reaches; "never widens" holds for separate components (owner, 2026-10-16). | `ne.data.component-share`, `ne.data.no-join`, `ne.var.generic`, R38 |
+| B8 to B12 (round 7) | B8: tuple paths are member-name chains, `^{t._0}`. B9: type arguments first, then slot arguments, everywhere. B10: moot. B11: keep the erasure join check. B12: a store through a bound receiver targets the whole receiver (owner, 2026-10-16). | `ne.data.component-path`, `ne.syntax.slot-args`, `ne.erase.join`, `ne.fntype.env-store` |
 
 ### 14.2 Open
 
-What is left is the later-pass item. Round 6 adds no open question; its
-agent details are listed under [Status](#status) for the owner's review.
-
+What is left is the later-pass item, and the points that round 7's
+decisions leave open. Each round-7 point names the reading this draft
+uses; none is decided. The agent details are listed under
+[Status](#status) for the owner's review.
 
 1. **Annotation handles over NonEscapable types (owner, later).** An
    annotation handle such as `Field[Session, Conn]` is metadata with no
@@ -2900,6 +3297,52 @@ agent details are listed under [Status](#status) for the owner's review.
    slot path of `ne.handle.get`. The owner said this may need a change,
    for a later pass. `build` and generated templates need the same
    substitution (`ne.handle.build`).
+2. **A generic `T` and module state (NE-S1d).** A type parameter now
+   carries its reach, so `x: T` takes a local argument, which reverses
+   D2's opt-in for type parameters (`ne.param.generic`, N2). A generic
+   body can then never store a `T` in module state, since T's root never
+   fits `static`; Rust writes `T: 'static` for that. Is the loss
+   accepted, or does a generic function need a way to ask for a global
+   `T`?
+3. **Where "unmarked is global" applies (NE-S1d).** This draft applies it
+   to parameters, the type arguments in signatures, and top-level types.
+   It keeps two existing readings: a field of data without slots shares
+   the holder's one reach, its components included (`ne.data.one-reach`),
+   and a local binding's written type infers its reaches
+   (`ne.local.flow`). Read literally, `data Router: pool: List[Conn]`
+   could hold only global handles. Which reading is meant?
+4. **An unmarked component of a result (NE-S1d, D7).** This draft elides
+   it, as Rust fills each elided lifetime of a result, so `-> Conn?` with
+   the one tracked input `pool` is `Option[^{pool} Conn]`, and a result
+   that must not reach an input writes `^{}` on the component, as R6, D1,
+   and C12 now do. The other reading makes it global. Which?
+5. **`^{S}` inside a parameter's type argument (NE-S1d).** Is
+   `dst: ^mut List[^{c} Conn]` a store, as `^{c}` on a parameter is, or a
+   bound, as on a result? This draft writes only a bare `^` there, and a
+   component path for a store, as `c: ^{dst.T} Conn`.
+6. **`Suspend`'s `out` beside a `T` that carries its reach (NE-S1d,
+   B9).** `Suspend[^{keep} Conn, ^{keep, scratch}]` would say what
+   `Suspend[Conn, ^{keep, scratch}, ^{keep}]` says. This draft keeps
+   `out`, as B9 spells it, and makes `Suspend`'s type argument mark-free
+   (`ne.suspend.slots`). Keep both, or let `T` carry the output's reach?
+7. **A prefix on a frame (NE-S1d).** Since a mark bounds one position,
+   `^{a, b} Suspend[Conn]` now bounds only `run`, and an unwritten `out`
+   elides, so R26's coarse form is `ambiguous-lifetime`. Round 6 let one
+   prefix bound both slots. Which?
+8. **Marks inside `Fn[...]` (NE-S5c, NE-S1d).** Marks may now stand in
+   type arguments. Is `Fn[(^List[u8],), void, $()]` an error, since `Fn`
+   is all-global, or a tuple element's reach?
+9. **The bound `push` (NE-S1d, B12).** `push(^mut self, v: T)` writes no
+   store mark. This draft counts an input of a receiver type parameter's
+   type under `^mut self` as a store into the receiver, so `dst::push`
+   takes `v: ^{put} Conn` (`ne.fntype.bound-ref`, R24). The alternative
+   keeps `v: T` with the element reach, `fn(v: ^{dst.T} Conn) -> void`,
+   which is precise. Which?
+10. **The L9 guide note (NE-S11b).** Its example is accepted since round
+    7, so this draft narrows the note to reaches that a signature writes
+    ([Guide Note For L9](#guide-note-for-l9)). Is the narrowed note what
+    the owner accepted?
+
 ## Parked: Closing And Cleanup
 
 **Parked by the owner, 2026-10-14:** "closing method cannot be modelled
@@ -3052,7 +3495,7 @@ Round 3's checker steps (12.2, items 4 and 5):
    before the closing suite.
 
 The review notes that liveness on cyclic control flow needs a fixed
-point, not one pass, and that cleanup suites add ordered edges (review,
+point, not one pass, and that cleanup suites add ordered edges (review 1,
 "Checker Cost Needs A Real Bound").
 
 Round 3's table rows (7.4): each root with a cleanup block is owned
@@ -3078,7 +3521,7 @@ The round-3 decisions about closing, as decided (owner, 2026-10-14):
 The review's findings about closing, as the owner left them on
 2026-10-14:
 
-- **[NE-S3](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s3-cleanup-execution-states),
+- **NE-S3,
   cleanup execution states.** Decided, option 1, then parked: model
   cleanup as real control flow. Suites run in LIFO order with evolving
   variable values; a closing call ends the handle it actually closes at
@@ -3086,14 +3529,14 @@ The review's findings about closing, as the owner left them on
   error. This catches C06 and C07. It replaces `ne.cleanup.at-exit` and
   extends `ne.cleanup.defer-order`, but the replacement is not written
   into P.3, by the owner's instruction not to patch.
-- **[NE-S9](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s9-guarantee-wording),
+- **NE-S9,
   guarantee wording.** Settled with NE-S3, then parked: no alias outlives
   its cleanup block, and nothing uses a handle after the deferred close
   that ends it runs.
-- **[NE-S4](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s4-closing-function-values),
+- **NE-S4,
   closing function values.** Not decided. Parked. Bound and unbound
   method references to a closing method (C05).
-- **[NE-S8](NONESCAPE_LIFETIME_STRESS_TEST.md#ne-s8-closing-a-dependency-is-not-closing-a-resource),
+- **NE-S8,
   closing a dependency.** Not decided. Parked. The whole-reach rule of
   `ne.close.owned` rejects a lease that keeps a borrowed pool (C10).
 
@@ -3421,7 +3864,7 @@ These are the review's cases, in this doc's notation, recorded and not
 patched.
 
 C05, a bound closing method as a cleanup callback
-([review](NONESCAPE_LIFETIME_STRESS_TEST.md#c05-a-bound-closing-method-is-a-cleanup-callback)):
+(source shape, a Go method value: `cleanup := conn.Close; defer cleanup(); return conn`):
 
 ```hd
 fn cleanup_for(c: ^Conn) -> fn() -> void:
@@ -3439,7 +3882,7 @@ appears at the registration site, and `ne.close.closure` checks only
 written closure bodies. Review verdict: breaks. Parked (NE-S4).
 
 C06, one suite changes another suite's target
-([review](NONESCAPE_LIFETIME_STRESS_TEST.md#c06-one-cleanup-suite-changes-another-suites-target)):
+(source shape, Go deferred closures: `defer func() { current.Close() }(); defer func() { current = second }(); return second`):
 
 ```hd
 fn changed_target() -> Conn:
@@ -3456,7 +3899,7 @@ Review verdict: breaks. NE-S3 option 1 decides ordered cleanup flow;
 parked.
 
 C07, a read after a close in the same suite
-([review](NONESCAPE_LIFETIME_STRESS_TEST.md#c07-a-read-follows-a-close-within-the-same-suite)):
+(source shape, Go: `defer func() { conn.Close(); observe(conn) }()`):
 
 ```hd
 fn observe_after_cleanup() -> void:
@@ -3470,7 +3913,7 @@ fn observe_after_cleanup() -> void:
 verdict: breaks. NE-S3 option 1 and the NE-S9 wording reject it; parked.
 
 C10, a lease that needs its pool but does not close it
-([review](NONESCAPE_LIFETIME_STRESS_TEST.md#c10-a-lease-needs-its-pool-but-does-not-close-it)):
+(source shape, a Go `database/sql` lease: `conn, _ := pool.Conn(ctx); defer conn.Close()`):
 
 ```hd
 data Lease:
@@ -3495,7 +3938,7 @@ fn use_lease(pool: ^dyn Pool) -> void:
 Review verdict: friction, by the owner-decided Q3. Parked (NE-S8).
 
 C17, early and delegated close
-([review](NONESCAPE_LIFETIME_STRESS_TEST.md#c17-early-and-delegated-close-preserve-disposed-aliases)):
+(source shape, Go: `other := conn; conn.Close(); use(other)`):
 
 ```hd
 fn finish(closing c: Conn) -> void:
@@ -3577,17 +4020,15 @@ fn batch!(hosts: List[string]) -> void:
 Moving `let open` into the loop body makes the push safe. Telling the two
 apart is a comparison of blocks, which is a lifetime relation.
 
-**`push` writes one mark.** The owner's argument offered two
-choices: reject every push of a handle, or accept the leak. A third
-exists. The container's elements have one reach, its `T` component
-since round 6, and `push` says that the argument joins it:
-`fn push(^mut self, v: ^{self.T} T)`. This is Kotlin's
-`add(element: E_{this})`, and Swift's setter default
-`self: copy self, copy newValue`. Round 2 left it unwritten and let the
-element type carry the lifetime, as Rust's `Vec<&'a S>::push` does. D6
-removed lifetimes from type arguments, so the mark is written once, in std,
-and callers write nothing. Round 6 names the component by a path
-(NE-S1b), still with no lifetime inside a type argument.
+**`push` writes no mark.** The owner's argument offered two choices:
+reject every push of a handle, or accept the leak. A third exists. The
+container's elements have one reach, its `T` component, and `push` takes
+a value of that type: `fn push(^mut self, v: T)`. `T` carries the
+element reach, as Rust's `Vec<&'a S>::push` does. Round 2 started there.
+D6 removed lifetimes from type arguments, so std wrote `^{self}` and then,
+in round 6, `^{self.T}`, Kotlin's `add(element: E_{this})`. Round 7 goes
+back to Rust's form (NE-S1d): `T` carries its reach, and a concrete list
+of local handles is written `^List[^Conn]`.
 
 **Three families of notation.** Shipping designs differ in where a
 written lifetime may appear:
@@ -3601,17 +4042,32 @@ written lifetime may appear:
 This design is a hybrid. Signatures name parameters, as family 2 does,
 and reaches are sets written in braces, as in family 3. Data declares
 slots, as family 1 does, which owner requirement 5 needs: family 2 cannot
-extract the longer-lived of two fields (T1). Since round 6 a generic
-value keeps a reach per type-parameter component, as family 1 keeps a
-lifetime per type argument, but names it by path (`xs.T`), as family 2
-names parameters.
+extract the longer-lived of two fields (T1). Since round 7 a type
+argument carries its own mark and a type parameter carries its reach, as
+in family 1, while a signature still names parameters and paths
+(`xs.T`), never variables, as in family 2.
+
+**Design shapes.** Round 1's research survey compared four shapes for
+the whole feature (2026-09). The owner chose shape B on 2026-09-24, and
+the design grew from it.
+
+| Shape | What it is | Cost | In this design |
+| --- | --- | --- | --- |
+| A. Pure scoped non-escape | Handles live only in a lexical region, may alias freely there, and nothing that holds one escapes; no lifetimes in signatures | Smallest surface; cannot hand a handle to a caller or to stored work | The scoped callback APIs of OQ1, as `with_conn!` |
+| B. Kotlin-style locality plus a suspension exception | Shape A, with results that depend on caller-visible inputs, and a frame that may carry a NonEscapable value across a suspension | No user-defined ownership; frames need a precise account | **Chosen.** Locality marks, dependent results, and a frame's `run` and `out` slots |
+| C. General noncopyable ownership and borrowing | Types opt out of copying; parameters borrow, borrow mutably, or consume | Close to Swift's whole ownership surface | Not taken: no moves (standing decision) |
+| D. Full ownership plus concurrency traits | Rust's moves, borrows, lifetimes, and `Send`/`Sync` | Largest; strongest guarantees | Not taken |
+
+Pony's reference capabilities and the affine designs (Austral, Move,
+Linear Haskell) constrain aliasing and transfer, not escape, so the
+comparison below leaves them out.
 
 **The parked answers.**
 
 | Parked answer | Replaced by |
 | --- | --- |
 | TQ-24: declared and checked; a generic type follows its arguments; erasure rejected | concrete holders declare the category and generic data follows its stored fields (5.1); erasure into a local position keeps the reach, and a downcast needs a static reach (8.3) |
-| TQ-25: a generic parameter opts in | round 2 reversed it; restored by D2 as `x: ^T` (`ne.generic.default`, owner, 2026-10-14) |
+| TQ-25: a generic parameter opts in | round 2 reversed it; restored by D2 as `x: ^T` (`ne.generic.default`, owner, 2026-10-14); reversed again in round 7, since a type parameter carries its reach (owner, 2026-10-16, NE-S1d) |
 | TQ-26: no NonEscapable returns; later, depend on every parameter | written reaches with elision (4) |
 
 ## Appendix B. Five-Language Comparison
@@ -3621,12 +4077,12 @@ Condensed from round 1. The last column is this design.
 | Question | Rust | Swift 6.2+ (experimental `Lifetimes`) | Kotlin local lifetimes (note) | Scala capture checking | Mojo origins | hd |
 | --- | --- | --- | --- | --- | --- | --- |
 | Return a dependent value? | `fn f<'a>(x: &'a T) -> &'a U`, elided with one input | `@_lifetime(copy x)` or `borrow x`; a plain return is an error | `-> Iterator<B>_{this&transform}` | the result names captures: `Writer^{output}` | `-> ref [self] T` | `-> ^{x} T`; one input or `self` elided; `^{}` fresh |
-| Store in a struct? | `struct S<'a>`; each field keeps its lifetime | only in a `~Escapable` struct, one lifetime | `local class`, one inferred lifetime | `class C[X^]` or captured at construction | `struct S[origin: Origin]` | holders have one reach; `data S[^c, ^u]` for several; a generic value has one per type-parameter component, `xs.T` |
+| Store in a struct? | `struct S<'a>`; each field keeps its lifetime | only in a `~Escapable` struct, one lifetime | `local class`, one inferred lifetime | `class C[X^]` or captured at construction | `struct S[origin: Origin]` | holders have one reach; `data S[^c, ^u]` for several; a generic value has one per component, marked in its type argument, `List[^Conn]` |
 | Either, both, or one input | both: shared `'a`; one: separate | list the sources | `_{x&y}` or `_{x}` | `^{x, y}` or `^{x}` | `ref [a, b]` or `ref [a]` | `^{a, b}` or `^{a}` |
 | Closures | borrow by default; `move` owns; `impl Fn() + 'a` | non-escaping closures may capture `~Escapable` | `(A) ->_{x} B` | `() ->{f} Unit` | capture lists; no escaping closures | a closure reaches exactly its captures; a callback parameter is global unless `^fn`, and may then be stored |
 | Async | one future carries `'a`; `spawn` needs `'static` | `Task` closures are escaping, so cannot capture | "lexical suspend" sketched | futures capture: `Future[T]^{C}` | no async | bang-driven children need nothing; a frame has `run` and `out` slots |
-| Default | borrows opt in; generics accept them | `~Escapable` opts in; generics escapable | `local` opts in | type parameters accept capturing types | `ref` is a separate convention | root types opt in; a parameter is global unless written `^`; generics opt in with `^T` |
-| Syntax | `'a`, `<'a>`, `+ 'a` | `~Escapable`, `@_lifetime(...)` | `local x`, `T_{x}` | `T^{x}`, `->{x}` | `ref [o] T`, `origin_of(x)` | `^`, `^{a}`, `^{a, b}`, `^{}`, `^{static}` on results, `[^c]`, paths `^{x.T}`; `closing` parked |
+| Default | borrows opt in; generics accept them | `~Escapable` opts in; generics escapable | `local` opts in | type parameters accept capturing types | `ref` is a separate convention | root types opt in; a position is global unless written `^`; a type parameter carries its instantiation's reach |
+| Syntax | `'a`, `<'a>`, `+ 'a` | `~Escapable`, `@_lifetime(...)` | `local x`, `T_{x}` | `T^{x}`, `->{x}` | `ref [o] T`, `origin_of(x)` | `^`, `^{a}`, `^{a, b}`, `^{}`, `^{static}` on results, `List[^Conn]`, `[^c]`, paths `^{x.T}`; `closing` parked |
 
 Maturity: Rust and Mojo 1.0 ship their models. Swift ships `~Escapable`,
 but its lifetime annotations are experimental. Scala's capture checking
@@ -3677,9 +4133,11 @@ component lifetimes and lifetime types as future directions.
   `spec/lang/14-annotations.md` (Handles), `spec/std/net.md`,
   `spec/std/task.md`, `crates/hd_types/src/pool.rs`,
   `crates/hd_check/src/rows.rs`, and `crates/hd_opt/src/passes.rs`.
-- Review: [NONESCAPE_LIFETIME_STRESS_TEST.md](NONESCAPE_LIFETIME_STRESS_TEST.md),
-  the adversarial review of round 3 (cases C01 to C20, problems NE-S1 to
-  NE-S11).
-- Review 2: [NONESCAPE_LIFETIME_STRESS_TEST_2.md](NONESCAPE_LIFETIME_STRESS_TEST_2.md),
-  the adversarial review of rounds 4 and 5 (cases R21 to R33, problems
-  NE-S6b, NE-S1b, NE-S4b, NE-S5b, NE-S5c, NE-S1c, NE-S11b, and NE-S7b).
+- Reviews: three adversarial reviews, of round 3 (2026-10-14: cases
+  C01 to C20, problems NE-S1 to NE-S11), of rounds 4 and 5 (2026-10-15:
+  cases R21 to R33, problems NE-S6b to NE-S7b), and of round 6
+  (2026-10-15: cases R34 to R45, problems NE-S5d, NE-S1d, NE-S4c, NE-S5c,
+  NE-S12, NE-S4d, and NE-S1e). Their cases are in section 13. The
+  reviews, and round 1's survey "Ownership, Escape, And Compile-Time
+  Concurrency Research", were deleted after round 7 (owner, 2026-10-15);
+  git history keeps them.

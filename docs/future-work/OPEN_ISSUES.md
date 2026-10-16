@@ -240,8 +240,8 @@ aliasing and rely on checked `ResourceError.Disposed` results.
 
 **Direction.** Option 1 is chosen, with `defer` as the cleanup mechanism.
 A suspension frame may hold a `NonEscapable` value across a suspension point;
-the frame is then itself non-escapable (Shape B in
-[Ownership and Escape Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md#shape-b-kotlin-style-locality-plus-a-suspension-exception)).
+the frame is then itself non-escapable (shape B in
+[the NonEscapable design](NONESCAPE_LIFETIME_DESIGN.md#appendix-a-why-a-category-and-lifetimes)).
 Still open: the propagation rules, dependent-return provenance, whether
 provider values can be `NonEscapable`, and asynchronous or fallible cleanup.
 Retain checked disposal errors.

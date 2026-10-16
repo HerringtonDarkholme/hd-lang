@@ -19,12 +19,9 @@ action at a distance.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
   study of serializable closures and remote calls (#166).
 - [NonEscapable Types And Lifetimes: Design](NONESCAPE_LIFETIME_DESIGN.md):
-  the numbered-rule design (#163), with its three adversarial reviews
-  ([1](NONESCAPE_LIFETIME_STRESS_TEST.md),
-  [2](NONESCAPE_LIFETIME_STRESS_TEST_2.md),
-  [3](NONESCAPE_LIFETIME_STRESS_TEST_3.md)).
-- [Ownership And Escape Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md): the
-  survey of foundations behind the NonEscapable design.
+  the numbered-rule design (#163). The cases of its three adversarial
+  reviews are its regression suite, and its appendices keep the
+  comparison with other languages.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
