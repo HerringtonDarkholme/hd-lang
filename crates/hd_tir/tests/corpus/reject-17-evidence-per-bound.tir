@@ -1,0 +1,8 @@
+# expect: reject 17
+body 1 Fn
+labels
+caps
+modes
+extra 3 60 0 1
+const 4 0
+%0 = CallDyn 2147483648 0 : 4 @-

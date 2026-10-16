@@ -942,20 +942,54 @@ The verifier checks each of these:
 16. (Unused.)
 17. A `CallDyn` has one evidence operand per method-level bound.
 
-Implementation differs: `verify` (`src/ir.rs:1115`) checks only
-invariants 1, 2, 3, 4, 5, 6, 7, 10, 12, 14 and 15
-(`CHECKED_INVARIANTS`), and of 1 only def-before-use, of 2 only block
-lists, of 3 only that no type is body-local, of 4 only a `LocalSet`
-value against its local and a `Break` value against its target, and
-not in a module with errors (`finish_tolerating`), of 5 only that labels
-exist and are written, of 6 only the `defer` suite half
-(`defer_suite_violations`, which the checker also uses to poison what
-it rejected), of 7 only the rows that exist (no body writes one yet),
-of 12 only that the row exists, and of 15 only the operands, for a
-`DefaultCall` passed to a `Call` or `Await`. Invariants 8, 9, 11, 13
-and 17 need the item table. It runs on every `finish`, not only in debug
-builds. This is worse: type, provider and suspension errors in TIR
-reach codegen unchecked.
+Implementation differs: `verify` checks invariants 1 to 15 and 17
+(`CHECKED_INVARIANTS`), several in part. The checker's facts come in
+through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
+and the checker's own `finish` passes them for each body it checks. A
+body built elsewhere, such as a generated structure method, gets
+`verify` alone.
+- **Partial checks.**
+  - 1: only def-before-use.
+  - 2: only block lists.
+  - 3: that no type is body-local, and no `Hole` or `Poison` in a module
+    without errors. The second half runs in the driver's
+    `ModuleFinish` (`poison_sites`), not in `finish`: an import's error
+    is reported at the folder, outside the body that reads its poisoned
+    name. It fires when neither the module nor the run so far reported
+    an error.
+  - 4: only a `LocalSet` value against its local and a `Break` value
+    against its target, and not in a module with errors
+    (`finish_tolerating`).
+  - 5: only that labels exist and are written.
+  - 6: only the `defer` suite half (`defer_suite_violations`, which the
+    checker also uses to poison what it rejected).
+  - 7: only the rows that exist; no body writes one yet.
+  - 12: only that the row exists.
+  - 15: only the operands, for a `DefaultCall` passed to a `Call` or
+    `Await`.
+- **8.** Every call writes `Providers::None` today, and codegen reads
+  providers from the callee's signature. So the check rejects a
+  `Pending` form after `finish`, and pairs whose count is not the
+  callee's closed row's key count. The `NONE`-provider half is not
+  checked.
+- **9.** Std's provider bodies are generated in Wasm (`hd_wasm`), never
+  TIR, so a `CallHost` in any TIR body is rejected. An `Intrinsic` must
+  name a known `IntrinsicOp`.
+- **11.** A `SwitchTag` with no default must have a case for every
+  variant of its scrutinee's enum or optional. A `SwitchInt`,
+  `SwitchChar` or `SwitchStr` must have a default. Its cases are
+  `(constant Ref, Block)` pairs, and a range is not encoded; no checker
+  code emits these three switches.
+- **13.** A `Builtin` choice's value is the `BuiltinImpl` plus one
+  (`choice_of`), 0 when the solver answered with none, or `u32::MAX` or
+  `u32::MAX - 1` while the checker still holds it. A named impl must
+  answer the callee's trait.
+- **17.** A `CallDyn` record is `[method, type arguments, evidence count,
+  evidence..., arguments, providers]`. The evidence count must be the
+  method's number of method-level bounds. No checker code emits
+  `CallDyn`.
+- **Cost.** It runs on every `finish`, not only in debug builds. The
+  context checks read one item per call, switch or dynamic call.
 
 ##### Lifetime And The `tir` Entry
 

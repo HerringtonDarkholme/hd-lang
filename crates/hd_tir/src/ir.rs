@@ -832,17 +832,42 @@ impl TirBuilder {
     /// in a module with errors may break invariant 4 after a reported
     /// mismatch, and D2 does not lower it.
     pub fn finish_tolerating(
+        self,
+        root: Ref,
+        capture_modes: &[CaptureMode],
+        tolerated: &[u8],
+    ) -> Result<Body, Vec<VerifyError>> {
+        self.finish_checked(root, capture_modes, tolerated, None)
+    }
+
+    /// [`Self::finish_tolerating`] with the checker's facts, so the
+    /// verifier also checks the invariants that need them ([`verify_in`]).
+    pub fn finish_in(
+        self,
+        root: Ref,
+        capture_modes: &[CaptureMode],
+        tolerated: &[u8],
+        cx: &dyn VerifyCx,
+    ) -> Result<Body, Vec<VerifyError>> {
+        self.finish_checked(root, capture_modes, tolerated, Some(cx))
+    }
+
+    fn finish_checked(
         mut self,
         root: Ref,
         capture_modes: &[CaptureMode],
         tolerated: &[u8],
+        cx: Option<&dyn VerifyCx>,
     ) -> Result<Body, Vec<VerifyError>> {
         self.body.sub_root[0] = root.0;
         self.body.cap_mode = capture_modes.to_vec();
         self.body
             .cap_mode
             .resize(self.body.cap_local.len(), CaptureMode::Shared);
-        let mut errs = verify(&self.body);
+        let mut errs = match cx {
+            Some(cx) => verify_in(&self.body, cx),
+            None => verify(&self.body),
+        };
         errs.retain(|e| !tolerated.contains(&e.invariant));
         if errs.is_empty() {
             Ok(self.body)
@@ -1043,9 +1068,125 @@ pub struct VerifyError {
 }
 
 /// Invariants this verifier checks, some in part (`crates/hd_tir/DESIGN.md`
-/// §4.13.11, "Implementation differs"). The others (8, 9, 11, 13, 17)
-/// need the item table and are not implemented yet.
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 10, 12, 14, 15];
+/// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
+/// the checker's facts ([`VerifyCx`], [`verify_in`]), and 3's `Hole` and
+/// `Poison` half the module's errors ([`poison_sites`]).
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
+
+/// What the verifier reads from the checker for the invariants a body
+/// alone cannot show (`crates/hd_tir/DESIGN.md` §4.13.11): read-only facts
+/// about the module, its items and the types the body names.
+pub trait VerifyCx {
+    /// How many variants `ty` has, an enum or an optional; `None` for any
+    /// other type (invariant 11).
+    fn variant_count(&self, ty: Ty) -> Option<u32>;
+    /// The sealed trait whose rows the compiler-supplied implementation
+    /// `index` (a `BuiltinImpl` as `u32`) answers (invariant 13).
+    fn builtin_trait(&self, index: u32) -> Option<DefId>;
+    /// How many method-level bounds trait method `method` has
+    /// (invariant 17).
+    fn method_bounds(&self, method: DefId) -> Option<u32>;
+    /// How many row keys a call of `callee` supplies providers for, when
+    /// the callee's row is closed (invariant 8).
+    fn row_keys(&self, callee: &Callee) -> Option<u32>;
+}
+
+/// [`verify`], then the invariants that need the checker's facts `cx`:
+/// - 8: a call's provider pairs, one per key of the callee's closed row,
+///   and no `Pending` providers after `finish`;
+/// - 9: no `CallHost` (std's provider bodies are generated in Wasm, not
+///   TIR) and only known intrinsics;
+/// - 11: a `SwitchTag` with no default has a case for every variant, and
+///   `SwitchInt`, `SwitchChar` and `SwitchStr` have a default;
+/// - 13: a `Builtin` choice that names a `BuiltinImpl` (its value is the
+///   impl plus one) names one of the callee's trait;
+/// - 17: a `CallDyn` has one evidence operand per method-level bound.
+pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
+    let mut errs = verify(b);
+    let ty_of = |v: u32| {
+        if v & Ref::CONST_BIT != 0 {
+            b.consts.get((v & !Ref::CONST_BIT) as usize).map(|c| c.0)
+        } else {
+            b.ty.get(v as usize).copied()
+        }
+    };
+    for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
+        let inst = u32::try_from(i).expect("i");
+        let mut err = |invariant: u8, what: String| {
+            errs.push(VerifyError {
+                invariant,
+                inst,
+                what,
+            });
+        };
+        match tag {
+            Tag::CallHost => err(9, "a host call in a TIR body".into()),
+            Tag::Intrinsic if IntrinsicOp::from_u32(a).is_none() => {
+                err(9, format!("unknown intrinsic {a}"));
+            }
+            Tag::SwitchTag => {
+                let r = b.record(w);
+                let (cases, default) = r.split_at(r.len().saturating_sub(1));
+                if default.first().is_some_and(|d| *d == NONE) {
+                    let mut seen: Vec<u32> = cases.iter().step_by(2).copied().collect();
+                    seen.sort_unstable();
+                    seen.dedup();
+                    let have = u32::try_from(seen.len()).expect("cases");
+                    if let Some(n) = ty_of(a).and_then(|t| cx.variant_count(t))
+                        && have < n
+                    {
+                        err(11, format!("{have} of {n} variants and no default"));
+                    }
+                }
+            }
+            Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
+                if b.record(w).last().is_none_or(|d| *d == NONE) {
+                    err(11, format!("{} without a default", tag.name()));
+                }
+            }
+            Tag::Call | Tag::Await => {
+                let callee = Callee::from_words(b.record(a));
+                if let Some(Callee::TraitMethod {
+                    trait_,
+                    choice: (ChoiceKind::Builtin, v),
+                    ..
+                }) = callee
+                    && (1..=u32::from(u8::MAX)).contains(&v)
+                    && cx.builtin_trait(v - 1) != Some(trait_)
+                {
+                    err(
+                        13,
+                        format!("a builtin choice {} not of the callee's trait", v - 1),
+                    );
+                }
+                let r = b.record(w);
+                match r[r.len().saturating_sub(3)..] {
+                    [3, ..] => err(8, "providers still pending".into()),
+                    [1, _, len] => {
+                        if let Some(n) = callee.as_ref().and_then(|c| cx.row_keys(c))
+                            && n != len
+                        {
+                            err(8, format!("{len} provider pairs for {n} row keys"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Tag::CallDyn => {
+                // `[method, type arguments, evidence count, evidence...,
+                // arguments, providers]`.
+                if let [method, _, count, ..] = *b.record(w)
+                    && let Some(n) = cx.method_bounds(DefId::from_raw(method))
+                    && n != count
+                {
+                    err(17, format!("{count} evidence operands for {n} bounds"));
+                }
+            }
+            _ => {}
+        }
+    }
+    errs
+}
 
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
@@ -1265,6 +1406,22 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
     suspension_scopes(b, &tree, &mut errs);
     constant_rows(b, &mut errs);
     errs
+}
+
+/// The `Hole` and `Poison` instructions of `b`, a reserved slot never
+/// filled aside (invariant 14's). Invariant 3 allows them only in a module
+/// with errors, which only the driver knows in full: an import's error is
+/// reported outside the body that reads its poisoned name.
+#[must_use]
+pub fn poison_sites(b: &Body) -> Vec<u32> {
+    (0..b.len())
+        .filter(|&i| match b.tags[i] {
+            Tag::Hole => b.data[i] != [NONE, NONE],
+            Tag::Poison => true,
+            _ => false,
+        })
+        .map(|i| u32::try_from(i).expect("i"))
+        .collect()
 }
 
 /// Block ownership from the block lists, and the sub-body roots.
@@ -1684,8 +1841,8 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BodyKind, Callee, CaptureMode, Coercion, Providers, SuspRow, Tag, TirBuilder, TirSink,
-        parse, print, verify,
+        BodyKind, Callee, CaptureMode, ChoiceKind, Coercion, NONE, Providers, SuspRow, Tag,
+        TirBuilder, TirSink, VerifyCx, parse, print, verify, verify_in,
     };
     use hd_base::{DefId, NodeIdx, Range32, Symbol};
     use hd_types::{Ty, TyList};
@@ -1801,6 +1958,168 @@ mod tests {
         let mut bad = good;
         bad.susp[0].inst = root.0;
         assert_eq!(invariants(&bad), [7]);
+    }
+
+    /// The checker's facts for the context checks: enum type 77 has three
+    /// variants, builtin impl 3 answers trait 50, method 60 has two
+    /// bounds, and item 70's row has one key.
+    struct Facts;
+
+    impl VerifyCx for Facts {
+        fn variant_count(&self, ty: Ty) -> Option<u32> {
+            (ty == Ty(77)).then_some(3)
+        }
+        fn builtin_trait(&self, index: u32) -> Option<DefId> {
+            (index == 3).then_some(DefId::from_raw(50))
+        }
+        fn method_bounds(&self, method: DefId) -> Option<u32> {
+            (method == DefId::from_raw(60)).then_some(2)
+        }
+        fn row_keys(&self, callee: &Callee) -> Option<u32> {
+            matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(70)).then_some(1)
+        }
+    }
+
+    /// `sample()` with one more instruction, `tag` over `a` and the record
+    /// of `w`, and what [`verify_in`] finds beyond [`verify`].
+    fn context_findings(tag: Tag, a: u32, w: Option<&[u32]>) -> Vec<u8> {
+        let mut b = sample();
+        let at = |b: &mut super::Body, words: &[u32]| {
+            let r = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(u32::try_from(words.len()).expect("len"));
+            b.extra.extend_from_slice(words);
+            r
+        };
+        let a = if tag == Tag::Call {
+            at(&mut b, &[a])
+        } else {
+            a
+        };
+        let w = w.map_or(NONE, |w| at(&mut b, w));
+        b.tags.push(tag);
+        b.data.push([a, w]);
+        b.ty.push(Ty::VOID);
+        b.syn.push(NodeIdx::from_raw(1));
+        let base = invariants(&b);
+        let mut out: Vec<u8> = verify_in(&b, &Facts).iter().map(|e| e.invariant).collect();
+        for x in base {
+            if let Some(k) = out.iter().position(|y| *y == x) {
+                out.remove(k);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn verifier_checks_the_invariants_that_need_the_checker() {
+        let k = |t: u32| t | super::Ref::CONST_BIT;
+        // 3's other half: poison sites, for the driver to weigh.
+        let mut b = sample();
+        assert!(super::poison_sites(&b).is_empty());
+        b.tags.push(Tag::Poison);
+        b.data.push([NONE, NONE]);
+        b.ty.push(Ty::POISON);
+        b.syn.push(NodeIdx::from_raw(1));
+        assert_eq!(
+            super::poison_sites(&b),
+            [u32::try_from(b.len() - 1).expect("i")]
+        );
+        // 9: no host call in TIR, and only known intrinsics.
+        assert_eq!(context_findings(Tag::CallHost, 0, Some(&[])), [9]);
+        assert_eq!(context_findings(Tag::Intrinsic, 9999, Some(&[])), [9]);
+        assert!(context_findings(Tag::Intrinsic, 0, Some(&[])).is_empty());
+        // 11: a tag switch without a default covers every variant; the
+        // sample's constant 0 stands in for a value of enum type 77.
+        let tag_switch = |cases: &[u32], default: u32| {
+            let mut b = sample();
+            b.consts[0].0 = Ty(77);
+            let mut w: Vec<u32> = cases.iter().flat_map(|c| [*c, NONE]).collect();
+            w.push(default);
+            let r = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(u32::try_from(w.len()).expect("len"));
+            b.extra.extend_from_slice(&w);
+            b.tags.push(Tag::SwitchTag);
+            b.data.push([k(0), r]);
+            b.ty.push(Ty::NEVER);
+            b.syn.push(NodeIdx::from_raw(1));
+            verify_in(&b, &Facts)
+                .iter()
+                .filter(|e| e.invariant == 11)
+                .count()
+        };
+        assert_eq!(tag_switch(&[0, 1], NONE), 1);
+        assert_eq!(tag_switch(&[0, 1, 2], NONE), 0);
+        assert_eq!(tag_switch(&[0], 5), 0);
+        assert_eq!(
+            context_findings(Tag::SwitchInt, k(0), Some(&[k(0), 5, NONE])),
+            [11]
+        );
+        // 13: a builtin choice names an impl of the callee's trait.
+        let builtin = |trait_: u32, v: u32| {
+            let c = Callee::TraitMethod {
+                trait_: DefId::from_raw(trait_),
+                method: DefId::from_raw(61),
+                self_ty: Ty::I32,
+                targs: TyList::EMPTY,
+                choice: (ChoiceKind::Builtin, v),
+            };
+            let mut b = sample();
+            let words = c.words();
+            let ra = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(u32::try_from(words.len()).expect("len"));
+            b.extra.extend_from_slice(&words);
+            let rw = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.extend_from_slice(&[3, 0, 0, 0]);
+            b.tags.push(Tag::Call);
+            b.data.push([ra, rw]);
+            b.ty.push(Ty::VOID);
+            b.syn.push(NodeIdx::from_raw(1));
+            verify_in(&b, &Facts)
+                .iter()
+                .filter(|e| e.invariant == 13)
+                .count()
+        };
+        assert_eq!(builtin(50, 4), 0);
+        assert_eq!(builtin(51, 4), 1);
+        assert_eq!(builtin(51, 0), 0, "no impl named");
+        // 17: one evidence operand per method-level bound.
+        assert_eq!(
+            context_findings(Tag::CallDyn, k(0), Some(&[60, 0, 1])),
+            [17]
+        );
+        assert!(context_findings(Tag::CallDyn, k(0), Some(&[60, 0, 2])).is_empty());
+    }
+
+    #[test]
+    fn verifier_checks_provider_pairs_against_the_row() {
+        // 8: a call of item 70 with two provider pairs for its one key,
+        // and one still pending.
+        let call = |prov: [u32; 3]| {
+            let c = Callee::Item {
+                def: DefId::from_raw(70),
+                targs: TyList::EMPTY,
+            };
+            let mut b = sample();
+            let words = c.words();
+            let ra = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(u32::try_from(words.len()).expect("len"));
+            b.extra.extend_from_slice(&words);
+            let rw = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(3);
+            b.extra.extend_from_slice(&prov);
+            b.tags.push(Tag::Call);
+            b.data.push([ra, rw]);
+            b.ty.push(Ty::VOID);
+            b.syn.push(NodeIdx::from_raw(1));
+            verify_in(&b, &Facts)
+                .iter()
+                .filter(|e| e.invariant == 8)
+                .count()
+        };
+        assert_eq!(call([1, 0, 2]), 1);
+        assert_eq!(call([1, 0, 1]), 0);
+        assert_eq!(call([3, 0, 0]), 1);
+        assert_eq!(call([0, 0, 0]), 0);
     }
 
     #[test]

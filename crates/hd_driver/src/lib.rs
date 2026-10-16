@@ -6248,6 +6248,29 @@ impl Run<'_> {
                 }
             }
         }
+        // Invariant 3 (`crates/hd_tir/DESIGN.md` §4.13.11): `Hole` and
+        // `Poison` only where something reported an error. An import's
+        // error is the folder's, reported before its modules finish, so
+        // the run's errors so far stand in for the module's.
+        if !diags.has_errors()
+            && !lock(&self.diags).has_errors()
+            && let Some(b) = bodies
+                .iter()
+                .find(|b| !hd_tir::ir::poison_sites(b).is_empty())
+        {
+            self.stage::<()>(
+                Stage::ModuleFinish,
+                Err(NotImplemented::new(
+                    Stage::ModuleFinish,
+                    format!(
+                        "TIR verifier: invariant 3: poison in `{}`, in a module without errors",
+                        names.path(b.item)
+                    ),
+                )),
+            );
+            let _ = self.check[m].set(None);
+            return;
+        }
         let mut tw = Writer::default();
         let mut content = hd_base::StableHasher::new("tir-content");
         let keep: &[Body] = if diags.has_errors() { &[] } else { bodies };

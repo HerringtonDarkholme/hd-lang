@@ -1,0 +1,7 @@
+# expect: reject 8
+body 1 Fn
+labels
+caps
+modes
+extra 3 0 70 16 3 1 0 2
+%0 = Call 0 4 : 4 @-

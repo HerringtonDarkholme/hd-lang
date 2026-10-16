@@ -3690,12 +3690,78 @@ impl Ck<'_, '_> {
         }
         // A reported mismatch may leave a value of another type behind
         // (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
-        let tolerated: &[u8] = if self.diags.has_errors() { &[4] } else { &[] };
+        let errors = self.diags.has_errors();
+        let tolerated: &[u8] = if errors { &[4] } else { &[] };
+        let known = VerifyFacts { cx: self.cx };
         let body = self
             .b
-            .finish_tolerating(root, &modes, tolerated)
+            .finish_in(root, &modes, tolerated, &known)
             .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
         Ok((body, ret, facts))
+    }
+}
+
+/// What the TIR verifier reads from the checker (`hd_tir::ir::VerifyCx`):
+/// the items and sealed traits a body names.
+struct VerifyFacts<'x, 'a> {
+    cx: &'x BodyCx<'a>,
+}
+
+impl VerifyFacts<'_, '_> {
+    fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
+        match &self.cx.lookup.item(def)?.data {
+            ItemData::Fn(sig) | ItemData::Method { sig, .. } => Some(sig),
+            _ => None,
+        }
+    }
+}
+
+impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
+    fn variant_count(&self, ty: Ty) -> Option<u32> {
+        match self.cx.names.pool.get(ty) {
+            TyData::Mut(t) => self.variant_count(t),
+            TyData::Option(_) => Some(2),
+            TyData::Adt { def, .. } => match &self.cx.lookup.item(def)?.data {
+                ItemData::Enum { variants, .. } => u32::try_from(variants.len()).ok(),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    fn builtin_trait(&self, index: u32) -> Option<DefId> {
+        use hd_types::solver::BuiltinImpl as B;
+        let s = self.cx.names.known.sealed();
+        [
+            (B::Any, s.any),
+            (B::AnyVal, s.any_val),
+            (B::AnyRef, s.any_ref),
+            (B::Inspectable, s.inspectable),
+            (B::Tuple, s.tuple),
+            (B::Structure, s.structure),
+        ]
+        .into_iter()
+        .find(|(b, _)| *b as u32 == index)
+        .map(|(_, t)| t)
+    }
+    fn method_bounds(&self, method: DefId) -> Option<u32> {
+        let n: usize = self
+            .sig(method)?
+            .generics
+            .iter()
+            .map(|g| g.bounds.len())
+            .sum();
+        u32::try_from(n).ok()
+    }
+    fn row_keys(&self, callee: &hd_tir::ir::Callee) -> Option<u32> {
+        let def = match callee {
+            hd_tir::ir::Callee::Item { def, .. } => *def,
+            hd_tir::ir::Callee::TraitMethod { method, .. } => *method,
+        };
+        let row = self.cx.names.pool.row_data(self.sig(def)?.row);
+        if !row.params.is_empty() {
+            return None;
+        }
+        u32::try_from(row.keys.len()).ok()
     }
 }
 

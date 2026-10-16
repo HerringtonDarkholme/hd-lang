@@ -1,0 +1,8 @@
+# expect: reject 11
+body 1 Fn
+labels
+caps
+modes
+extra 5 0 4294967295 1 4294967295 4294967295
+const 77 0
+%0 = SwitchTag 2147483648 0 : 4 @-

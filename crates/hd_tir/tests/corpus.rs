@@ -3,7 +3,29 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hd_tir::ir::{CHECKED_INVARIANTS, Tag, parse, print, verify};
+use hd_base::DefId;
+use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, VerifyCx, parse, print, verify, verify_in};
+use hd_types::Ty;
+
+/// The checker's facts the rejection cases assume: type 77 is an enum of
+/// three variants, builtin impl 3 answers trait 50, method 60 has two
+/// bounds, and item 70's row has one key.
+struct CorpusFacts;
+
+impl VerifyCx for CorpusFacts {
+    fn variant_count(&self, ty: Ty) -> Option<u32> {
+        (ty == Ty(77)).then_some(3)
+    }
+    fn builtin_trait(&self, index: u32) -> Option<DefId> {
+        (index == 3).then_some(DefId::from_raw(50))
+    }
+    fn method_bounds(&self, method: DefId) -> Option<u32> {
+        (method == DefId::from_raw(60)).then_some(2)
+    }
+    fn row_keys(&self, callee: &Callee) -> Option<u32> {
+        matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(70)).then_some(1)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Expect {
@@ -64,6 +86,8 @@ fn text_corpus_round_trips_and_verifies() {
                 valid_tags.extend(body.tags.iter().copied());
             }
             Expect::Reject(invariant) => {
+                // A rejection case may need the checker's facts.
+                let errors = verify_in(&body, &CorpusFacts);
                 let actual: BTreeSet<u8> = errors.iter().map(|error| error.invariant).collect();
                 assert_eq!(actual, BTreeSet::from([invariant]), "{}", path.display());
                 rejected_tags.extend(body.tags.iter().copied());
