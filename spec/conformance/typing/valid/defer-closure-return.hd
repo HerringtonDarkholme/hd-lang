@@ -1,0 +1,10 @@
+# test: a return inside a closure defined in a defer suite leaves only the closure
+
+fn run() -> i32:
+    defer:
+        pick := fn(flag: bool) -> i32:
+            if flag:
+                return 1
+            2
+        _ := pick(true)
+    0

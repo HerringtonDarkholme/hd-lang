@@ -3013,3 +3013,4 @@ typing/invalid/duplicate-associated-binding-repeated-trait.hd	type	reject:duplic
 typing/invalid/row-slot-bare-explicit-key.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
 typing/invalid/row-slot-bare-explicit-alias.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
 runtime/valid/closure-argument-before-solving-argument.hd	runtime	accept	lang/07-functions.md#r-fn.closure.annotations-omitted
+typing/valid/defer-closure-return.hd	type	accept	lang/06-control-flow.md#r-flow.defer.control

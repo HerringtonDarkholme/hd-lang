@@ -2649,7 +2649,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
             SyntaxKind::ReturnStmt => {
-                if self.defer_base.is_some() {
+                if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
                     self.err(Code::DeferControlFlow, s, "a `defer` suite cannot `return`");
                 }
                 let ret = *self.rets.last().expect("ret");
