@@ -1017,3 +1017,51 @@ fn a_goal_reads_only_the_check_entries_it_would_write() {
         }
     }
 }
+
+/// A `tests:` block solves over its test role's impl universe, which
+/// `test_closure(m)` widens with the folders the block uses (#208).
+/// `impl From[Cents] for Dollars` is owned through its trait argument by
+/// `cents`, a folder only `ledger`'s block uses, so the library role's
+/// universe lacks it and the block's `Dollars::from` needs the test one.
+#[test]
+fn a_tests_block_solves_over_the_impls_of_folders_it_uses() {
+    const DOLLARS: &str = "pub data Dollars:\n    pub amount: i32\n";
+    const CENTS: &str = "\
+use std.convert.{From}
+use pkg.money.dollars.{Dollars}
+
+pub data Cents:
+    pub n: i32
+
+impl From[Cents] for Dollars:
+    fn from(c: Cents) -> Dollars:
+        Dollars { amount: c.n / 100 }
+";
+    const LEDGER: &str = "\
+use pkg.money.dollars.{Dollars}
+
+pub fn zero() -> Dollars:
+    Dollars { amount: 0 }
+
+tests:
+    use pkg.cents.cents.{Cents}
+    use std.convert.{From}
+    use std.testing.assert_equal
+
+    it(\"converts cents\"):
+        d := Dollars::from(Cents { n: 300 })
+        assert_equal(d.amount + zero().amount, 3, reason=\"three dollars\")
+";
+    let mut src = MemorySources::default();
+    src.insert("src/ledger.hd", LEDGER);
+    src.insert("src/money/dollars.hd", DOLLARS);
+    src.insert("src/cents/cents.hd", CENTS);
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let lib = analyze_run(&store, &src, executor);
+        assert!(lib.diags.is_empty(), "{}", lib.render());
+        let test = test_run(&store, &src, executor);
+        assert!(test.diags.is_empty(), "{}", test.render());
+        assert_eq!(test.tests.len(), 1, "{executor:?}");
+    }
+}

@@ -1822,6 +1822,8 @@ folders the asking context sees. Two folders may both ask
   equal lists share one id.
 - The contexts are a module's bodies, a folder's header checks (the
   folder's closure universe, with no own table), and a program build.
+  A module's bodies in the test role use `test_closure(m)`, which adds
+  the folders its `tests:` block uses (crates/hd_sched/DESIGN.md §6.1).
 - **The id is part of the key of every goal that may read the
   directory** (`MemoKey::universe_for`): `Instantiations` and `Methods`
   always, and an `Implements` or `Project` goal with an open argument.

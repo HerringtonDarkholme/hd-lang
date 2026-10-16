@@ -67,15 +67,23 @@ owns what each task does.
   - The id is a run ID. It keys the solver memo and never reaches a
     cache key or output; the keys hash the closure lists instead.
   - Every folder in a context's closure is already a dependency of its
-    task, through the `FolderIface` chain, so universes add no edge.
+    task, so universes add no edge: through the `FolderIface` chain, or
+    in the test role through `ModulePrep(m)`'s edges to the interfaces
+    of `test_closure(m)`.
 - **Test-role checks.** A test run uses the ordinary `ModulePrep`,
   `Body` and `ModuleFinish` tasks with role `test` for the root
-  package's modules. `ModulePrep(m)` builds `closure(m)` for the
-  ordinary role and `test_closure(m)` for the test role, with test-only
-  uses added (crates/hd_cache/DESIGN.md §5.3). The role's `check` entry
-  holds the `tests:` block's items; there is no `TestOverlay` task.
-  A `tests:` block's uses make no folder edge, so the test role's
-  `ModulePrep(m)` waits for the interfaces of `test_closure(m)`.
+  package's modules. A module's closure is `Run::module_closure(m)`,
+  computed from the `FolderGraph` when a task asks: `closure(m)` in the
+  ordinary role, and in the test role `test_closure(m)`, its folder's
+  closure joined with the closure of each module its `tests:` block
+  uses, dev dependencies and `std.testing` included
+  (crates/hd_cache/DESIGN.md §5.3). The check key, the body check and
+  its impl universe all read it, so a `tests:` block solves over the
+  argument-owned impls of folders only test code reaches. The role's
+  `check` entry holds the `tests:` block's items; there is no
+  `TestOverlay` task. A `tests:` block's uses make no folder edge, so
+  the test role's `ModulePrep(m)` waits for the interfaces of
+  `test_closure(m)`.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
   is the first step of each `FolderIface`, `HeaderCheck` and
