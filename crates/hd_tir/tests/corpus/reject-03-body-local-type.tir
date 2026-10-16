@@ -1,0 +1,7 @@
+# expect: reject 3
+body 1 Fn
+labels
+caps
+modes
+extra
+%0 = Poison - - : 2147483648 @-

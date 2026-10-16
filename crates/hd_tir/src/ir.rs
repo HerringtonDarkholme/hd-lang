@@ -1031,9 +1031,10 @@ pub struct VerifyError {
     pub what: String,
 }
 
-/// Invariants this verifier checks; the others (7 to 9, 11 to 13, 17)
+/// Invariants this verifier checks, some in part (`crates/hd_tir/DESIGN.md`
+/// §4.13.11, "Implementation differs"). The others (8, 9, 11, 13, 17)
 /// need the item table and are not implemented yet.
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 4, 5, 6, 10, 14, 15];
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 10, 12, 14, 15];
 
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
@@ -1100,9 +1101,9 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
         .iter()
         .copied()
         .filter(|&i| match b.tags[i as usize] {
-            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Return => true,
+            Tag::Return => true,
             Tag::Break | Tag::Continue => !within(b.data[i as usize][0]),
-            _ => false,
+            tag => is_suspension(tag),
         })
         .collect();
     out.sort_unstable();
@@ -1205,8 +1206,7 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
             });
         }
         if matches!(tag, Tag::Call | Tag::Await) {
-            let r = b.record(b.data[i][1]);
-            let args = &r[..r.len().saturating_sub(3)];
+            let args = call_args(b, i);
             for (k, &v) in args.iter().enumerate() {
                 let d = v as usize;
                 if v & Ref::CONST_BIT != 0 || b.tags.get(d) != Some(&Tag::DefaultCall) {
@@ -1249,7 +1249,187 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
             });
         }
     }
+    let tree = Tree::new(b, owner);
+    types_are_global(b, &mut errs);
+    suspension_scopes(b, &tree, &mut errs);
+    constant_rows(b, &mut errs);
     errs
+}
+
+/// Block ownership from the block lists, and the sub-body roots.
+struct Tree {
+    owner: Vec<u32>,
+    root: Vec<bool>,
+}
+
+impl Tree {
+    fn new(b: &Body, owner: Vec<u32>) -> Self {
+        let mut root = vec![false; b.len()];
+        for &r in &b.sub_root {
+            if let Some(x) = root.get_mut(r as usize) {
+                *x = true;
+            }
+        }
+        Self { owner, root }
+    }
+
+    /// The blocks that enclose instruction `i` in its own sub-body,
+    /// innermost first. A sub-body's root block ends the walk, so a
+    /// closure's instructions are never inside the blocks around it.
+    fn enclosing(&self, i: u32) -> Vec<u32> {
+        let mut out = Vec::new();
+        let mut cur = i as usize;
+        while cur < self.root.len() && !self.root[cur] && out.len() < self.owner.len() {
+            let o = self.owner[cur];
+            if o == NONE {
+                break;
+            }
+            out.push(o);
+            cur = o as usize;
+        }
+        out
+    }
+}
+
+/// A call's arguments: its value record without the three provider words.
+fn call_args(b: &Body, i: usize) -> &[u32] {
+    let r = b.record(b.data[i][1]);
+    &r[..r.len().saturating_sub(3)]
+}
+
+fn is_suspension(tag: Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+    )
+}
+
+/// Invariant 3: after `finish` no type is in the body-local pool: no
+/// instruction, local or constant type, and no type or type list in a
+/// record the wire form remaps.
+fn types_are_global(b: &Body, errs: &mut Vec<VerifyError>) {
+    // A type list is a pool index too: bit 31 marks a local one.
+    let local = |w: u32| w != NONE && Ty(w).is_local();
+    let mut err = |inst: u32, what: String| {
+        errs.push(VerifyError {
+            invariant: 3,
+            inst,
+            what,
+        });
+    };
+    for (i, t) in b.ty.iter().enumerate() {
+        if local(t.0) {
+            err(
+                u32::try_from(i).expect("i"),
+                "result type is body-local".into(),
+            );
+        }
+    }
+    for (l, t) in b.local_ty.iter().enumerate() {
+        if local(t.0) {
+            err(NONE, format!("local {l} has a body-local type"));
+        }
+    }
+    for (c, (t, _)) in b.consts.iter().enumerate() {
+        if local(t.0) {
+            err(NONE, format!("constant {c} has a body-local type"));
+        }
+    }
+    for i in 0..b.len() {
+        // A tag the wire form does not map is refused there.
+        let Ok(words) = crate::wire::id_words(b, i) else {
+            continue;
+        };
+        for w in words {
+            if let crate::wire::IdWord::Ty(at) | crate::wire::IdWord::List(at) = w
+                && b.extra.get(at).is_some_and(|&x| local(x))
+            {
+                err(
+                    u32::try_from(i).expect("i"),
+                    format!("record word {at} is a body-local type"),
+                );
+            }
+        }
+    }
+}
+
+/// Invariant 7: a suspension row names a suspension point, and its scope
+/// list (words of `extra`) is the `Scope`s around that point, innermost
+/// first. A suspension point with no row is not checked: no body writes
+/// rows yet.
+fn suspension_scopes(b: &Body, tree: &Tree, errs: &mut Vec<VerifyError>) {
+    let n = b.len();
+    let mut scope_of = vec![NONE; n];
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag == Tag::Scope
+            && let Some(x) = scope_of.get_mut(b.data[i][0] as usize)
+        {
+            *x = u32::try_from(i).expect("i");
+        }
+    }
+    for row in &b.susp {
+        let mut err = |what: &str| {
+            errs.push(VerifyError {
+                invariant: 7,
+                inst: row.inst,
+                what: what.into(),
+            });
+        };
+        if (row.inst as usize) >= n || !is_suspension(b.tags[row.inst as usize]) {
+            err("suspension row names no suspension point");
+            continue;
+        }
+        let want: Vec<u32> = tree
+            .enclosing(row.inst)
+            .into_iter()
+            .map(|blk| scope_of[blk as usize])
+            .filter(|&s| s != NONE)
+            .collect();
+        let (start, len) = (row.scopes.start as usize, row.scopes.len as usize);
+        match b.extra.get(start..start + len) {
+            None => err("suspension row's scope list is out of range"),
+            Some(got) if got != want.as_slice() => {
+                err("suspension row does not list exactly the enclosing scopes");
+            }
+            Some(_) => {}
+        }
+    }
+}
+
+/// Invariant 12, its first half: a constant `Ref` names a row of `consts`.
+/// The row's type against its position is invariant 4's.
+fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
+    for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
+        let mut vals: Vec<u32> = Vec::new();
+        for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
+            match op {
+                Op::Value => vals.push(word),
+                Op::Values if matches!(tag, Tag::Call | Tag::Await) => {
+                    vals.extend_from_slice(call_args(b, i));
+                }
+                Op::Values if (word as usize) < b.extra.len() => {
+                    vals.extend_from_slice(b.record(word));
+                }
+                _ => {}
+            }
+        }
+        vals.extend(b.value_operands(i).unwrap_or_default());
+        // A record can be both a `Values` operand and a value operand.
+        vals.sort_unstable();
+        vals.dedup();
+        for v in vals {
+            if v != NONE
+                && v & Ref::CONST_BIT != 0
+                && (v & !Ref::CONST_BIT) as usize >= b.consts.len()
+            {
+                errs.push(VerifyError {
+                    invariant: 12,
+                    inst: u32::try_from(i).expect("i"),
+                    what: format!("constant {} has no row", v & !Ref::CONST_BIT),
+                });
+            }
+        }
+    }
 }
 
 /// Prints a body as text. Every column is printed, so `parse` rebuilds it.
@@ -1493,10 +1673,10 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BodyKind, Callee, CaptureMode, Coercion, Providers, Ref, Tag, TirBuilder, TirSink, parse,
-        print, verify,
+        BodyKind, Callee, CaptureMode, Coercion, Providers, SuspRow, Tag, TirBuilder, TirSink,
+        parse, print, verify,
     };
-    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_base::{DefId, NodeIdx, Range32, Symbol};
     use hd_types::{Ty, TyList};
 
     fn sample() -> super::Body {
@@ -1504,7 +1684,7 @@ mod tests {
         let n = NodeIdx::from_raw(1);
         let blk = b.open_block();
         let x = b.local(Ty::I32, Symbol::from_raw(0), super::local_flags::PARAM, n);
-        let one = b.konst(3);
+        let one = b.const_value(Ty::I32, 3);
         let g = b.get(x, Ty::I32, n);
         let sum = b.prim(0, &[g, one], Ty::I32, n);
         let callee = Callee::Item {
@@ -1554,10 +1734,76 @@ mod tests {
         assert!(verify(&b).iter().any(|e| e.invariant == 2));
     }
 
+    fn invariants(b: &super::Body) -> Vec<u8> {
+        verify(b).iter().map(|e| e.invariant).collect()
+    }
+
+    #[test]
+    fn verifier_rejects_body_local_types() {
+        let local = 1 << 31;
+        let mut b = sample();
+        b.ty[0] = Ty(local);
+        assert_eq!(invariants(&b), [3]);
+        let mut b = sample();
+        b.local_ty[0] = Ty(local);
+        assert_eq!(invariants(&b), [3]);
+        let mut b = sample();
+        b.consts[0].0 = Ty(local);
+        assert_eq!(invariants(&b), [3]);
+        // The type arguments of a callee record.
+        let mut b = sample();
+        let call = b.tags.iter().position(|t| *t == Tag::Call).expect("call");
+        let at = b.data[call][0] as usize;
+        b.extra[at + 3] = local;
+        assert_eq!(invariants(&b), [3]);
+    }
+
+    #[test]
+    fn verifier_checks_suspension_scopes() {
+        let mut b = TirBuilder::new(DefId::from_raw(2), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let sm = b.open_scope();
+        let inner = b.open_block();
+        let callee = Callee::Item {
+            def: DefId::from_raw(9),
+            targs: TyList::EMPTY,
+        };
+        let aw = b.call(&callee, &[], Providers::None, Ty::VOID, n);
+        b.body_mut().tags[aw.0 as usize] = Tag::Await;
+        let suite = b.open_block();
+        let suite = b.close_block(suite, None, Ty::VOID, n);
+        b.defer(suite, n);
+        let body = b.close_block(inner, None, Ty::VOID, n);
+        let scope = b.close_scope(sm, body, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let list = b.words_record(&[scope.0]);
+        b.body_mut().susp.push(SuspRow {
+            inst: aw.0,
+            scopes: Range32::new(list + 1, 1),
+            hook_site: super::NONE,
+        });
+        let good = b.finish(root, &[]).expect("the row lists its scope");
+        let mut bad = good.clone();
+        bad.susp[0].scopes = Range32::new(0, 0);
+        assert_eq!(invariants(&bad), [7]);
+        let mut bad = good;
+        bad.susp[0].inst = root.0;
+        assert_eq!(invariants(&bad), [7]);
+    }
+
+    #[test]
+    fn verifier_rejects_a_constant_without_a_row() {
+        let mut b = sample();
+        b.consts.clear();
+        assert_eq!(invariants(&b), [12]);
+    }
+
     #[test]
     fn verifier_rejects_leaving_a_defer_suite() {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let n = NodeIdx::from_raw(1);
+        let zero = b.const_value(Ty::I32, 0);
         let blk = b.open_block();
         let outer = b.open_loop();
         let ob = b.open_block();
@@ -1572,10 +1818,10 @@ mod tests {
         let out = b.emit(Tag::Break, outer.0.raw(), super::NONE, Ty::NEVER, n);
         let cl = b.open_sub(&[]);
         let cb = b.open_block();
-        b.emit(Tag::Return, Ref::konst(0).0, super::NONE, Ty::NEVER, n);
+        b.emit(Tag::Return, zero.0, super::NONE, Ty::NEVER, n);
         let croot = b.close_block(cb, None, Ty::NEVER, n);
         b.close_sub(cl, croot, Ty::I32, n);
-        let ret = b.emit(Tag::Return, Ref::konst(0).0, super::NONE, Ty::NEVER, n);
+        let ret = b.emit(Tag::Return, zero.0, super::NONE, Ty::NEVER, n);
         let suite = b.close_block(su, None, Ty::VOID, n);
         b.defer(suite, n);
         let sbody = b.close_block(sb, None, Ty::VOID, n);
@@ -1608,7 +1854,8 @@ mod tests {
         let _ = b.const_str("trial");
         b.rollback(cp);
         assert_eq!(b.checkpoint(), cp, "constants and strings too");
-        let root = b.close_block(blk, Some(Ref::konst(1)), Ty::I32, NodeIdx::NONE);
+        let one = b.const_value(Ty::I32, 1);
+        let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
         assert_eq!(Tag::ALL.len(), 59);

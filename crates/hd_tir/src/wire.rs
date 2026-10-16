@@ -31,14 +31,14 @@ const KINDS: [BodyKind; 7] = [
 
 /// Where a word of `extra` holds an ID.
 #[derive(Clone, Copy)]
-enum IdWord {
+pub(crate) enum IdWord {
     Def(usize),
     Ty(usize),
     List(usize),
 }
 
 /// The ID words of one instruction's records, as `extra` positions.
-fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
+pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
     let [a, _] = b.data[i];
     Ok(match b.tags[i] {
         Tag::Call => return id_words_call(b, a as usize + 1),

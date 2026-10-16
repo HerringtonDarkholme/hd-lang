@@ -929,15 +929,18 @@ The verifier checks each of these:
 16. (Unused.)
 17. A `CallDyn` has one evidence operand per method-level bound.
 
-Implementation differs: `verify` (`src/ir.rs:1011`) checks only
-invariants 1, 2, 4, 5, 6, 10, 14 and 15 (`CHECKED_INVARIANTS`), and of
-1 only def-before-use, of 2 only block lists, of 4 only a `LocalSet`
+Implementation differs: `verify` (`src/ir.rs:1115`) checks only
+invariants 1, 2, 3, 4, 5, 6, 7, 10, 12, 14 and 15
+(`CHECKED_INVARIANTS`), and of 1 only def-before-use, of 2 only block
+lists, of 3 only that no type is body-local, of 4 only a `LocalSet`
 value against its local and a `Break` value against its target, and
 not in a module with errors (`finish_tolerating`), of 5 only that labels
 exist and are written, of 6 only the `defer` suite half
 (`defer_suite_violations`, which the checker also uses to poison what
-it rejected), and of 15 only the operands, for a `DefaultCall` passed
-to a `Call` or `Await`. It runs on every `finish`, not only in debug
+it rejected), of 7 only the rows that exist (no body writes one yet),
+of 12 only that the row exists, and of 15 only the operands, for a
+`DefaultCall` passed to a `Call` or `Await`. Invariants 8, 9, 11, 13
+and 17 need the item table. It runs on every `finish`, not only in debug
 builds. This is worse: type, provider and suspension errors in TIR
 reach codegen unchecked.
 
