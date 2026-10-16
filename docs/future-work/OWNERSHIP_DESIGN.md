@@ -879,9 +879,12 @@ This section states each rule from the tour once, grouped by topic.
 2. `[T < own Any]` or `[T < own Trait]` takes owned and plain types. Its
    body moves, borrows, or drops `T` values and never copies them. The
    body is checked once, where it is written, for every mode the bound
-   allows: every value whose type mentions `T`, as `Boxed[T]` or
-   `List[T]`, is move-only there. So `fn dup[T < own Any](x: Boxed[T])`
-   returning `(x, x)` is an error at the definition, never at a caller.
+   allows: a value is move-only there when its type can be owned under
+   some allowed `T`, as `T`, `Boxed[T]` or `List[T]` can. A shared
+   borrow `^T` and a plain function type `fn() -> T` never own a `T`,
+   so they stay copyable. So `fn dup[T < own Any](x: Boxed[T])`
+   returning `(x, x)` is an error at the definition, never at a caller,
+   while `(r, r)` with `r: ^T` is fine.
 3. A call infers `T = own U` when the argument is owned and the
    parameter's bound allows it. `^T` with `T = own U` is `^U`.
 4. In generic code, a position's mode is decided after substitution: a
