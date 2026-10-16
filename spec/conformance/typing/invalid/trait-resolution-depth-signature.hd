@@ -1,0 +1,17 @@
+# test: a bound proof deeper than 64 nested bounds is an error in a signature
+# Spec 09 Traits: trait.bound.depth.limit.
+
+trait Marker
+
+data Box[T]:
+    value: T
+
+impl Marker for i32
+
+impl[T < Marker] Marker for Box[T]
+
+data Need[T < Marker]:
+    value: T
+
+fn deep(value: Need[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[i32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]) -> void:  # diagnostic: trait-resolution-depth
+    pass

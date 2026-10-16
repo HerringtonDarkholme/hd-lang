@@ -8,8 +8,10 @@
 //! item's goals share one fuel budget and one item memo.
 //!
 //! Compiler-supplied traits are not the solver's yet (§3.9), so a goal on
-//! one of them reports nothing here, and neither does a goal the solver
-//! cannot settle (`Overflow`, fuel): only `Fails` is an error.
+//! one of them reports nothing here. A goal whose proof needs more than 64
+//! nested bounds (`Overflow`) is `trait-resolution-depth`, as in a body
+//! (`trait.bound.depth.limit`); one that runs out of fuel reports nothing.
+//! Otherwise only `Fails` is an error.
 
 use hd_base::{DefId, Fuel, StageResult, Symbol};
 use hd_diag::Code;
@@ -255,7 +257,7 @@ pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<
         args: TyList::EMPTY,
         bindings: vec![],
     });
-    if hc.fails(sig.ret, termination)? {
+    if hc.fails(sig.ret, termination, 0)? {
         out.push(EntryFinding {
             at: EntryAt::Result,
             code: Code::UnsatisfiedTraitBound,
@@ -431,7 +433,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 continue;
             };
             for b in &g.bounds {
-                if self.fails(d, *b)? {
+                if self.fails(d, *b, 0)? {
                     let message = format!(
                         "the default {} does not implement {}",
                         self.show(d),
@@ -647,7 +649,7 @@ impl<'a> ItemCheck<'_, 'a> {
             return Ok(());
         }
         for s in self.supers(*trait_, *trait_args, *self_ty) {
-            if self.fails(*self_ty, s)? {
+            if self.fails(*self_ty, s, 0)? {
                 let message = format!(
                     "{} implements {} but not {}",
                     self.show(*self_ty),
@@ -717,7 +719,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let base = pool.subst(*inner, &|p: ParamRef| {
             (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
         });
-        if !self.fails(base, tv)? {
+        if !self.fails(base, tv, 1)? {
             return Ok(());
         }
         let TyData::TraitValue { def: trait_, .. } = pool.get(tv) else {
@@ -759,8 +761,10 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// Whether `t` provably does not implement the trait value `bound`
-    /// under the item's environment: the solver answers `Fails`.
-    fn fails(&mut self, t: Ty, bound: Ty) -> StageResult<bool> {
+    /// under the item's environment: the solver answers `Fails`. A proof
+    /// deeper than 64 bounds reports `trait-resolution-depth` at `slot`
+    /// (`trait.bound.depth.limit`) and is not a failure.
+    fn fails(&mut self, t: Ty, bound: Ty, slot: u32) -> StageResult<bool> {
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(bound) else {
             return Ok(false);
@@ -798,6 +802,14 @@ impl<'a> ItemCheck<'_, 'a> {
             global: self.cx.global,
         };
         let answer = self.cx.solver.solve(&mut scx, &goal, &mut self.fuel)?;
+        if matches!(answer, Answer::Overflow) {
+            let message = format!(
+                "the proof that {} implements {} needs more than 64 nested bounds",
+                self.show(t),
+                self.cx.names.display_name(def)
+            );
+            self.report(slot, Code::TraitResolutionDepth, message);
+        }
         Ok(matches!(answer, Answer::Fails(_)))
     }
 
@@ -883,7 +895,7 @@ impl<'a> ItemCheck<'_, 'a> {
                                 (p.owner == def)
                                     .then(|| args_v.get(usize::from(p.index)).copied())?
                             });
-                            if self.fails(a, b)? {
+                            if self.fails(a, b, slot)? {
                                 // A use filled from a default reports at
                                 // its declaration, once
                                 // (`checked-once`): the declaration check
@@ -980,7 +992,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let ft = pool.subst(f.ty, &|p: ParamRef| {
             (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
         });
-        if self.fails(ft, tv)? {
+        if self.fails(ft, tv, 0)? {
             let message = format!(
                 "the field `{}` does not implement {}",
                 self.cx.names.text(by),
@@ -1087,7 +1099,7 @@ impl ItemCheck<'_, '_> {
                                 args: TyList::EMPTY,
                                 bindings: vec![],
                             });
-                            return Ok(self.fails(t, bound)?.then_some(t));
+                            return Ok(self.fails(t, bound, 0)?.then_some(t));
                         }
                         fields.iter().map(|f| sub(f.ty)).collect()
                     }
