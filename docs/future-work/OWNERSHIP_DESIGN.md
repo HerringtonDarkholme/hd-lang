@@ -42,12 +42,13 @@ it, and dropping it runs its destructor. No type is marked as a
 resource, and there is no `close` protocol. A fresh value may start
 owned, as `let own user = User {...}`, if its plain fields are fresh
 too; borrowed fields and immutable values such as numbers and strings
-are exempt. No data or enum type declares an `own` field: an owner
-lives only in a local, a parameter, a result, or a std container such
-as `List[own Conn]`, so no object can hand out an untracked read of an
-owned value. A plain
-type parameter never takes an owned type; a generic that accepts one
-says `T < own Any`.
+are exempt. No data or enum field is written `own T`, so no object can
+hand out an untracked read of an owned value. A generic holder may
+carry one through a type parameter, as `data Box[T < own Any]: v: T`;
+then `Box[own Conn]` is itself owned, and the ownership shows where the
+type is used. std's containers, as `List[own Conn]`, follow the same
+rule. A plain type parameter never takes an owned type; a generic that
+accepts one says `T < own Any`.
 
 A borrow reaches only `^` positions, so std's read-only methods take
 `^self`. A composite part read through a borrow is a borrow; the plain
@@ -184,7 +185,7 @@ The ways it can fail are the author's own choices, listed in the
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
 passing convention on the parameter. hd puts both on the position, as
 `mut`. The price is the uniqueness rule for fresh values, plus two rules
-that a type-level category would make unnecessary: no data type has an
+that a type-level category would make unnecessary: no field is written
 `own` field, and only `T < own Any` takes an owned type.
 
 ## 3. A Guided Tour
@@ -381,7 +382,7 @@ borrowed field already states its lifetime and how it may be used.
 
 ### 3.5 A Pool That Owns Connections
 
-No data type has an `own` field, so a pool of connections is an owned
+No field is written `own`, so a pool of connections is an owned
 list, held by the function that runs the pool and lent to the code that
 uses it:
 
@@ -400,11 +401,12 @@ fn warm!(hosts: List[string]) -> void:
 ```
 
 `List[own Conn]` is the ordinary list with `T = own Conn`; `push` and
-`pop` move through `^mut self`. A data type cannot hold the list,
-because a plain object could then hand out reads of the connections
-that no check follows. A type that only borrows the list, as
-`data Server[^p]: idle: ^{p} mut List[own Conn]`, is fine; since it
-holds a `^mut`, each `Server` value is held `own`.
+`pop` move through `^mut self`. A data type cannot declare the list as
+an `own` field, because a plain object could then hand out reads of the
+connections that no check follows. A generic holder can carry it, as
+`Box[own List[own Conn]]`, which is then owned. A type that only
+borrows the list, as `data Server[^p]: idle: ^{p} mut List[own Conn]`,
+is fine; since it holds a `^mut`, each `Server` value is held `own`.
 
 When `warm!` returns, `idle` is dropped, then each connection, which
 closes. No shutdown method is needed. `clear`, `truncate`, and an early
@@ -700,10 +702,11 @@ This section states each rule from the tour once, grouped by topic.
     `drop(^mut self)` runs when an owned value of the type is dropped.
     Such a type is held only as `own T` or `^T`; a plain position of it
     is `drop-type-plain`.
-11. A data or enum field is never `own T`, and never of a type parameter
-    bounded `own Any`; that is `own-field`. Only std's built-in
-    containers (`List`, `Map`, `Option`, `Result`, tuples) hold owned
-    values.
+11. A data or enum field is never written `own T`; that is
+    `own-field`. A field may have the type of a parameter bounded
+    `own Any`, and an instance whose argument is owned, as
+    `Box[own Conn]`, is itself owned: it is held `own` or `^`, never
+    plain. std's containers follow the same rule.
 12. Every value of a type with a `^mut` field is held `own`; a plain one
     is `own-required`. So such a value is never copied or captured as
     shared storage.
@@ -715,8 +718,9 @@ This section states each rule from the tour once, grouped by topic.
 2. Assigning a place that still holds an owned value drops the old
    value first (4.5).
 3. A move takes a whole owned binding, or an element out of an owned
-   container through its methods (`pop`, `take`, `into_iter`). No field
-   holds an owner, so there is no partial move.
+   container through its methods (`pop`, `take`, `into_iter`). There is
+   no partial move: a field of an owned generic instance comes out only
+   by taking the whole value apart.
 4. A pattern that binds every field of an owned value consumes it. A
    private field moves out only in its type's module. A type that
    implements `DropOwn` cannot be taken apart this way, since its
@@ -895,7 +899,7 @@ more thought on generics and ownership before the design settles:
 ## Appendix: Limits And Holes
 
 The holes found so far are closed by the owner's rules: B7 by "no `own`
-fields", B8 by `T < own Any`, and the second review's U4 to U8 by no
+fields, and an owned instance of a generic holder is owned", B8 by `T < own Any`, and the second review's U4 to U8 by no
 partial moves, drop counting as a use of held borrows, `own` for
 holders of `^mut`, plain-only providers, and immovable borrowed
 globals. A plain alias or a plain closure capture that changes a
