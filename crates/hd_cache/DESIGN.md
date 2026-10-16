@@ -73,10 +73,10 @@ iface_key(F)  = H("iface", toolchain_key, package key, folder path,
                   [(folder path, deep_hash) for each other folder in closure(F)])
 check_key(m)  = H("check", toolchain_key, package key, module path, role, token_hash(m),
                   [(folder path, deep_hash) for each folder in closure(m)],
-                  tuple-template sources, REPL library and earlier inputs)
+                  template text hashes, REPL library and earlier inputs)
 parse_key(f)  = H("parse", toolchain_key, source_hash(f))
 hdr_key(F)    = H("hdr", toolchain_key, package key, folder path, own deep_hash,
-                  [(folder path, deep_hash) for each folder in closure(F)], tuple-template sources)
+                  [(folder path, deep_hash) for each folder in closure(F)], tuple-template text hashes)
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, [(module path, init summary hash)])
 depfiles_key  = H("depfiles", toolchain_key, "std")
@@ -158,9 +158,18 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   lists.
 - **Header checks (stage B)** read interfaces only, no bodies, so
   `hdr_key` names interface hashes. A tuple template's member steps come
-  from its body, so the source hash of each user tuple-template module is
-  added. A check that read other private items would have to widen the
+  from its body, so the template text hash of each user tuple-template
+  module is added: its API text, its template method bodies, and every
+  body whose signature a caller infers. A check that read other private items would have to widen the
   key.
+- **Template text hashes.** No interface carries a template body yet
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)),
+  so a `check` key takes the template text hash of each user template
+  module whose template the module may instantiate: every tuple
+  template, and a derivation template when the module's text names
+  `derive` or `Structure` and a name of its trait. A body edit outside
+  the template, in a function whose signature is written, rechecks no
+  other module.
 - **Locations are not semantic.** `iface_key` ignores source positions,
   so a whitespace edit above a declaration keeps it. An `iface` entry
   therefore stores no absolute position: a span in it is a **token

@@ -18,6 +18,9 @@ use hd_syntax::{HeaderKind, skim};
 pub(crate) struct FileSkim {
     pub(crate) source_hash: Hash128,
     pub(crate) api_text_hash: Hash128,
+    /// What checking one of the file's templates reads of it
+    /// (`HeaderSkeleton::template_text_hash`).
+    pub(crate) template_text_hash: Hash128,
     pub(crate) token_hash: Hash128,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
     pub(crate) code_lines: Vec<u32>,
@@ -71,6 +74,7 @@ impl FileSkim {
         FileSkim {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
+            template_text_hash: sk.template_text_hash,
             token_hash: sk.token_hash,
             has_tests_block: tests().next().is_some(),
             public_main: main_header(true),
@@ -89,6 +93,7 @@ impl FileSkim {
     fn write(&self, w: &mut Writer) {
         w.hash(self.source_hash);
         w.hash(self.api_text_hash);
+        w.hash(self.template_text_hash);
         w.hash(self.token_hash);
         w.len_of(&self.code_lines);
         for &l in &self.code_lines {
@@ -119,6 +124,7 @@ impl FileSkim {
     fn read(r: &mut Reader<'_>) -> FileSkim {
         let source_hash = r.hash();
         let api_text_hash = r.hash();
+        let template_text_hash = r.hash();
         let token_hash = r.hash();
         let code_lines = (0..r.count()).map(|_| r.u32()).collect();
         let use_lines = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
@@ -130,6 +136,7 @@ impl FileSkim {
         FileSkim {
             source_hash,
             api_text_hash,
+            template_text_hash,
             token_hash,
             code_lines,
             use_lines,

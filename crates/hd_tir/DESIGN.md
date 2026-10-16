@@ -306,11 +306,15 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   driver lowers each foreign template module from source once per run
   (`template_mods`) and checks it under a fresh body context built from
   its scope, the opt-in module's items, and both folders' closures. An
-  opt-in module's check key hashes the source of every non-std template
-  module in its closure (`template_sources`,
-  `crates/hd_driver/src/lib.rs:3561`); a module whose text names neither
-  `derive` nor `Structure` skips the scan. This is worse: any edit to a
-  template's module, body or comment-free, rechecks every opt-in.
+  opt-in module's check key takes the template text hash of each
+  non-std template module in its closure whose trait the module's text
+  names (`template_hashes`, `crates/hd_driver/src/lib.rs:4169`); a
+  module whose text names neither `derive` nor `Structure` takes none.
+  The hash covers the module's API text, the template's method bodies,
+  and every body whose signature a caller infers
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)).
+  This is worse: a header edit in a template's module rechecks every
+  module that derives one of its templates.
 - **The instantiated-template check at each opt-in.** Every `@derive(X)`
   and every derivation block re-checks `X`'s template methods once more,
   in the target's `Body` task after ordinary checking passes, in the

@@ -28,6 +28,9 @@ pub struct BodyRange {
 pub struct HeaderSkeleton {
     pub source_hash: Hash128,
     pub api_text_hash: Hash128,
+    /// The hash of what a template's check reads of its module
+    /// ([`template_text_hash`]).
+    pub template_text_hash: Hash128,
     /// The hash of the code lines' contents (`code_lines`): the source
     /// without plain comments, blank lines and trailing whitespace, so a
     /// comment edit keeps it.
@@ -52,6 +55,7 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
     let bodies = body_ranges(text, &lexed.tokens, &logical);
     let uses = use_ranges(&lexed.tokens);
     let api_text_hash = api_hash(text, &lexed.tokens, &bodies, &logical);
+    let template_text_hash = template_text_hash(text, &lexed.tokens, &bodies, &logical);
     let lines = code_lines(&lexed.tokens);
     let mut content = Vec::with_capacity(source.len());
     for &(start, end) in &lines {
@@ -62,6 +66,7 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
     HeaderSkeleton {
         source_hash: hash128(source),
         api_text_hash,
+        template_text_hash,
         token_hash: hash128(&content),
         code_lines: lines.into_iter().map(|(start, _)| start).collect(),
         bodies,
@@ -303,17 +308,12 @@ fn api_hash(
     bodies: &[BodyRange],
     logical: &[(usize, usize, usize)],
 ) -> Hash128 {
-    let mut bytes = Vec::new();
-    let mut indents = vec![0_u16];
     // A function body that declares a local type, trait or impl stays in
     // the API text: those lift to module items, and a local impl is in
     // the folder interface (`crates/hd_tir/DESIGN.md` "Local items lift to
     // hidden module items").
     let decls = decl_line_starts(tokens);
-    let declares = |start: u32, end: u32| {
-        let i = decls.partition_point(|s| *s < start);
-        decls.get(i).is_some_and(|s| *s < end)
-    };
+    let declares = |start: u32, end: u32| declares_item(&decls, start, end);
     let mut hidden: Vec<(u32, u32)> = bodies
         .iter()
         .filter(|body| match body.kind {
@@ -328,6 +328,108 @@ fn api_hash(
             .into_iter()
             .filter(|&(start, end)| !declares(start, end)),
     );
+    text_hash(source, tokens, logical, hidden)
+}
+
+/// The hash of what checking a template of this module can read, at an
+/// opt-in in another module or for a tuple template's member steps: every
+/// token, as the api text hash marks them, except `tests:` blocks and the
+/// function bodies no caller's view depends on. A body stays when its
+/// function omits its result type, or is private and omits its row,
+/// since a caller then sees types inferred from the body
+/// (`module.package.template-private.result`,
+/// `module.package.template-private.row`). Every method body of an
+/// implementation written with `by`, a template's among them, stays too,
+/// and so do top-level statements. So a body edit of a function with a
+/// written result, public or with a written row, outside such an
+/// implementation keeps the hash (`crates/hd_resolve/DESIGN.md` §4.10
+/// "Hidden items and their closure").
+fn template_text_hash(
+    source: &str,
+    tokens: &TokenBuf,
+    bodies: &[BodyRange],
+    logical: &[(usize, usize, usize)],
+) -> Hash128 {
+    let decls = decl_line_starts(tokens);
+    let by_impls: Vec<(u32, u32)> = bodies
+        .iter()
+        .filter(|b| b.kind == HeaderKind::Impl && header_has_by(source, tokens, b))
+        .map(|b| (b.header_start, b.body_end))
+        .collect();
+    let in_by_impl = |body: &BodyRange| {
+        by_impls
+            .iter()
+            .any(|&(lo, hi)| lo <= body.header_start && body.body_end <= hi)
+    };
+    let hidden = bodies
+        .iter()
+        .filter(|body| match body.kind {
+            HeaderKind::Function => {
+                !declares_item(&decls, body.body_start, body.body_end)
+                    && !in_by_impl(body)
+                    && signature_written(tokens, body)
+            }
+            HeaderKind::Tests => true,
+            _ => false,
+        })
+        .map(|body| (body.body_start, body.body_end))
+        .collect();
+    text_hash(source, tokens, logical, hidden)
+}
+
+/// Whether the header of `body` holds the word `by`.
+fn header_has_by(source: &str, tokens: &TokenBuf, body: &BodyRange) -> bool {
+    let first = tokens.start.partition_point(|s| *s < body.header_start);
+    let last = tokens.start.partition_point(|s| *s < body.body_start);
+    (first..last).any(|i| {
+        tokens.kind[i] == TokenKind::Ident
+            && tokens.text(
+                hd_base::TokenIdx::from_raw(u32::try_from(i).unwrap_or(u32::MAX - 1)),
+                source,
+            ) == "by"
+    })
+}
+
+/// Whether the byte range from `start` to `end` holds a line that
+/// declares a local type, trait or impl.
+fn declares_item(decls: &[u32], start: u32, end: u32) -> bool {
+    let i = decls.partition_point(|s| *s < start);
+    decls.get(i).is_some_and(|s| *s < end)
+}
+
+/// Whether the function header of `body` writes everything a caller sees:
+/// a result type (`->` outside brackets), and a row (`$` outside
+/// brackets) unless it is `pub`, whose omitted row is the empty row.
+fn signature_written(tokens: &TokenBuf, body: &BodyRange) -> bool {
+    let first = tokens.start.partition_point(|s| *s < body.header_start);
+    let last = tokens.start.partition_point(|s| *s < body.body_start);
+    let (mut depth, mut result, mut row) = (0_i32, false, false);
+    for kind in &tokens.kind[first..last] {
+        if kind.opens() {
+            depth += 1;
+        } else if kind.closes() {
+            depth -= 1;
+        } else if depth == 0 && *kind == TokenKind::Arrow {
+            result = true;
+        } else if depth == 0 && *kind == TokenKind::Dollar {
+            row = true;
+        }
+    }
+    let public = tokens.kind.get(first) == Some(&TokenKind::KwPub);
+    result && (row || public)
+}
+
+/// The hash of the source's tokens, with a marker per logical line and
+/// per indentation change, without the tokens in each `hidden` byte
+/// range.
+fn text_hash(
+    source: &str,
+    tokens: &TokenBuf,
+    logical: &[(usize, usize, usize)],
+    mut hidden: Vec<(u32, u32)>,
+) -> Hash128 {
+    let mut bytes = Vec::new();
+    let mut indents = vec![0_u16];
     hidden.sort_unstable();
     let mut hidden = hidden.into_iter().peekable();
     let mut lines = logical.iter().peekable();
@@ -480,5 +582,24 @@ mod tests {
             skim(first.as_bytes()).api_text_hash,
             skim(second.as_bytes()).api_text_hash
         );
+    }
+
+    #[test]
+    fn template_hash_keeps_bodies_whose_signature_is_inferred() {
+        let base = "pub fn f() -> i32:\n    1\nfn g() -> i32:\n    2\nfn h(x: fn() -> i32) -> i32 $ Console:\n    3\nfn k():\n    4\nimpl[T] Show for T by Structure:\n    fn show(self) -> string:\n        \"5\"\n    fn say(self) -> void $ Console:\n        6\n";
+        let hash = |s: &str| skim(s.as_bytes()).template_text_hash;
+        let api = |s: &str| skim(s.as_bytes()).api_text_hash;
+        for (from, to, kept) in [
+            ("    1\n", "    10\n", true),
+            ("    3\n", "    30\n", true),
+            ("    2\n", "    20\n", false),
+            ("    4\n", "    40\n", false),
+            ("\"5\"", "\"50\"", false),
+            ("        6\n", "        60\n", false),
+        ] {
+            let edited = base.replace(from, to);
+            assert_eq!(api(base), api(&edited), "{from:?}");
+            assert_eq!(hash(base) == hash(&edited), kept, "{from:?}");
+        }
     }
 }

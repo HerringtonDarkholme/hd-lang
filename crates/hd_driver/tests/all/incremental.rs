@@ -661,6 +661,144 @@ fn a_tuple_template_edit_reaches_the_header_findings_it_decides() {
     assert_eq!(strict.render(), cold.render());
 }
 
+/// A user derivation template, a private helper it names, and a public
+/// function no template names (`crates/hd_resolve/DESIGN.md` §4.10).
+const NAMED: &str = "\
+use std.structure.{Structure, Field, Variant, Describer}
+
+pub trait Named:
+    fn title() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok(())
+
+fn titled(name: string, count: i32) -> string:
+    \"${name}/${count}\"
+
+pub fn shout(s: string) -> string:
+    s + \"!\"
+
+impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        titled(Structure::name(), d.count)
+";
+
+/// Derives `Named`: the template's one user.
+const POINT: &str = "\
+use pkg.tmpl.named.{Named}
+
+@derive(Named)
+pub data Point:
+    pub x: i32
+    pub y: i32
+
+pub fn label() -> string:
+    Point::title()
+";
+
+/// Derives std's `Eq` and calls `shout`: it uses the template's module,
+/// but not its template.
+const PAIR: &str = "\
+use pkg.tmpl.named.{shout}
+
+@derive(Eq)
+pub data Pair:
+    pub a: i32
+    pub b: i32
+
+pub fn loud(s: string) -> string:
+    shout(s)
+";
+
+const NAMED_MAIN: &str = "\
+use pkg.users.point.{label}
+use pkg.others.pair.{Pair, loud}
+
+pub fn main() -> void $ Console:
+    println(label())
+    println(Pair { a: 1, b: 2 } == Pair { a: 1, b: 2 })
+    println(loud(\"hi\"))
+";
+
+fn named_program(named: &str) -> MemorySources {
+    let mut s = MemorySources::default();
+    s.insert("app/main.hd", NAMED_MAIN);
+    s.insert("users/point.hd", POINT);
+    s.insert("others/pair.hd", PAIR);
+    s.insert("tmpl/named.hd", named);
+    s
+}
+
+#[test]
+fn a_body_edit_in_a_template_module_rechecks_only_the_template_users() {
+    let store = MemoryStore::default();
+    let executor = Executor::Serial(SerialOrder::Priority);
+    let own = |c: &hd_driver::Counters| -> Vec<String> {
+        let mut v: Vec<String> = c
+            .modules_checked
+            .iter()
+            .filter(|m| m.starts_with("demo."))
+            .cloned()
+            .collect();
+        v.sort();
+        v
+    };
+    let cold = ok(&store, &named_program(NAMED), executor);
+    assert_eq!(own(&cold.counters).len(), 4);
+
+    // A body no template reads: its module alone rechecks, though both
+    // of the others derive something and use the template's module.
+    let shout = NAMED.replace("    s + \"!\"\n", "    s + \"!!\"\n");
+    let r = ok(&store, &named_program(&shout), executor);
+    assert_eq!(own(&r.counters), vec!["demo.tmpl.named".to_owned()]);
+    assert!(
+        r.counters.ifaces_built.is_empty(),
+        "{:?}",
+        r.counters.ifaces_built
+    );
+    let clean = ok(&MemoryStore::default(), &named_program(&shout), executor);
+    assert_eq!(r.wasm, clean.wasm, "incremental != clean");
+
+    // The template's body: its module and its one user recheck, not the
+    // module that derives std's `Eq`.
+    let title = shout.replace("d.count)\n", "d.count + 1)\n");
+    let r = ok(&store, &named_program(&title), executor);
+    assert_eq!(
+        own(&r.counters),
+        vec!["demo.tmpl.named".to_owned(), "demo.users.point".to_owned()]
+    );
+    assert!(
+        r.counters.ifaces_built.is_empty(),
+        "{:?}",
+        r.counters.ifaces_built
+    );
+    let clean = ok(&MemoryStore::default(), &named_program(&title), executor);
+    assert_eq!(r.wasm, clean.wasm, "incremental != clean");
+
+    // A helper the template names, whose row it reads from the body: the
+    // template's user rechecks too.
+    let helper = title.replace("    \"${name}/${count}\"\n", "    \"${name}:${count}\"\n");
+    let r = ok(&store, &named_program(&helper), executor);
+    assert_eq!(
+        own(&r.counters),
+        vec!["demo.tmpl.named".to_owned(), "demo.users.point".to_owned()]
+    );
+    let clean = ok(&MemoryStore::default(), &named_program(&helper), executor);
+    assert_eq!(r.wasm, clean.wasm, "incremental != clean");
+}
+
 /// The build of `src`, package `fan`, at `level` on `store`.
 fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel) -> Output {
     let host = Host {

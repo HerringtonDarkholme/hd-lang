@@ -2126,7 +2126,7 @@ rule and an evidence form.
 | Family | Descriptor (stable) | Head lives in | Invalidated by | Overlap | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `@derive(X)`, derivation block | target path, trait path, `Derived` | the target folder's interface | the target folder's interface; the template body via the trait folder's deep hash | ordinary heads; beside a written impl, `overlapping-impl` | `Impl` |
-| tuple template of any trait | trait path, `TupleTemplate` | the trait folder's interface, head key `TupleAny` | the trait folder's interface; for the member steps, the template module's source | a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
+| tuple template of any trait | trait path, `TupleTemplate` | the trait folder's interface, head key `TupleAny` | the trait folder's interface; for the member steps, the template module's template text hash | a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
 | numeric family | impl path, `NumericFamily` | std's interface, head key `Param` | std's interface | expanded per member type | `Impl` |
 | `@error`, `@from`, `@source` | target path, trait path, member index | the target folder's interface | the target folder's interface | ordinary heads | `Impl` |
 | delegation `by E` | impl path, `Delegated` | written head | the folder's interface | ordinary head | `Impl` |
@@ -2135,11 +2135,13 @@ rule and an evidence form.
 | function types `Fn`, `SuspendFn` | not synthetic | ordinary heads | ordinary | ordinary | `Impl` |
 
 A user library's tuple template is no different from std's. The member
-steps come from the template's body, so the source of every
+steps come from the template's body, so the template text hash of every
 tuple-template module in `closure(F)` joins the key of each module's
-`check` entry and of `HeaderCheck(F)` (`template_sources`). An edit to a
-template module redoes the header check of each folder that reaches it,
-and the cached result of an unrelated edit stays.
+`check` entry and of `HeaderCheck(F)` (`template_hashes`). That hash
+covers the module's API text, the template's method bodies, and the
+bodies whose signatures callers infer. An edit to a template body redoes the
+header check of each folder that reaches it, and the cached result of an
+unrelated edit, in another module or in another body, stays.
 
 ## 4. Associated Types And Normalization
 

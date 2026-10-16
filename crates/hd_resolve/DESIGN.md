@@ -270,12 +270,25 @@ the module file's zero offset.
   interface byte. User code cannot name a hidden item.
 
 Implementation differs: interfaces carry no templates and no hidden
-items. A module's check key and `HeaderCheck` key take the source hash
-of every user template module in the closure
-(`template_sources`, `crates/hd_driver/src/lib.rs:3561`), and the
-template body is read from source. `missing-result-type` covers public
-items only (`src/lower.rs:2486`), not hidden helpers. This is worse: any
-body edit in a template's module rechecks every module that opts in.
+items, and the template body is read from source. Keys stand in for
+the blob: a module's check key and `HeaderCheck` key take the template
+text hash of each user template module in the closure
+(`template_hashes`, `crates/hd_driver/src/lib.rs:4169`). That hash
+(`template_text_hash`, `crates/hd_syntax/src/skim.rs:347`) covers the
+module's API text and top-level statements, every method body of an
+implementation written with `by` (the template's own), and every body
+whose function a caller sees inferred parts of: an omitted result, or a
+private function's omitted row. A check key takes a derivation
+template's hash only when the module's text names `derive` or
+`Structure` and a name of the template's trait; it takes every tuple
+template's. The hidden-helper result rule is
+checked in the template module's body task (`Results::template_names`,
+`crates/hd_check/src/results.rs:140`), not in stage A. The row rule is
+not: a hidden helper's omitted row is inferred from its body, so the
+hash keeps such bodies. This is worse: a header edit anywhere in a
+template's module, or a body edit of a private helper that omits its
+row, rechecks every module that derives one of the module's templates.
+A body edit elsewhere in the module rechecks no other module.
 
 **Two hashes, two readers.** `api_hash` and `deep_hash` cover what a
 dependent's check can read: public items, and impl heads whose target

@@ -848,6 +848,10 @@ enum Roots {
 /// registrations.
 type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
+/// A user template of a folder's interface: its declaring module's path
+/// and its trait, `None` for a tuple template.
+type FolderTemplate = (String, Option<DefId>);
+
 /// One tuple template's member steps, computed once (`crates/hd_check/DESIGN.md` (trait solver)
 /// §3.9); `None` for a template whose body does not check.
 type PlanCell = Arc<OnceLock<Option<Arc<[MemberStep]>>>>;
@@ -1084,10 +1088,10 @@ struct Run<'a> {
     /// Per module that declares a derivation template: its items and scope,
     /// lowered once per run for the opt-ins that instantiate it.
     template_mods: Vec<OnceLock<Option<ModOut>>>,
-    /// Per folder: the modules outside std that declare a derivation
-    /// template, from its interface, found on first use; `true` for a
-    /// module that declares a tuple template.
-    folder_templates: Vec<OnceLock<Vec<(String, bool)>>>,
+    /// Per folder: the templates outside std that its interface holds, as
+    /// (declaring module path, trait), found on first use; the trait is
+    /// `None` for a tuple template.
+    folder_templates: Vec<OnceLock<Vec<FolderTemplate>>>,
     /// Per tuple template: its member steps (`crates/hd_check/DESIGN.md` (trait solver) §3.9),
     /// computed once per run from its body on first use.
     tuple_plans: Mutex<HashMap<DefId, PlanCell>>,
@@ -4115,21 +4119,38 @@ impl Run<'_> {
         ))
     }
 
-    /// The source hashes of the template modules a module's opt-ins may
-    /// instantiate. An opt-in checks its template's body, which no
-    /// interface carries yet (spec 14 `annot.limit.interfaces`), so a
-    /// template edit must reach the key of every module that opts in. A
-    /// module whose text names neither `derive` nor `Structure` opts in
-    /// nowhere, but any module may use a tuple template, whose member
-    /// steps come from its body (`crates/hd_check/DESIGN.md` (trait solver) §3.9). std's sources are
-    /// in the toolchain key already.
+    /// The template text hashes of the template modules a module's
+    /// opt-ins may instantiate. An opt-in checks its template's body, which
+    /// no interface carries yet (spec 14 `annot.limit.interfaces`), so an
+    /// edit to that body, or to a header or inferred signature it reads,
+    /// must reach the key of every module that opts in to it. A module opts
+    /// in to a derivation template only when its text names `derive` or
+    /// `Structure` and a name its trait goes by. Any module may use a
+    /// tuple template, whose member steps come from its body
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9). std's sources
+    /// are in the toolchain key already.
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
         let text = &self.texts[m];
         let opts_in = text.contains("derive") || text.contains("Structure");
-        self.template_hashes(&self.module_closure(m), opts_in)
+        let closure = self.module_closure(m);
+        self.template_hashes(&closure, &|trait_| {
+            opts_in && self.names_trait(&closure, text, trait_)
+        })
     }
 
-    /// The source hashes of the user tuple-template modules in
+    /// Whether `text` holds a name the trait `trait_` goes by in
+    /// `closure`: its declared name, or the name of a `pub use` of it.
+    fn names_trait(&self, closure: &[FolderId], text: &str, trait_: DefId) -> bool {
+        let names = self.names();
+        text.contains(names.display_name(trait_))
+            || closure.iter().filter_map(|c| self.iface_of(*c)).any(|i| {
+                i.exports
+                    .iter()
+                    .any(|e| e.def == trait_ && text.contains(names.text(e.name)))
+            })
+    }
+
+    /// The template text hashes of the user tuple-template modules in
     /// `closure(folder)`: what `HeaderCheck(folder)` reads through a
     /// template's member steps, which come from its body and from nothing
     /// an interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9). The walkers' bounds
@@ -4137,58 +4158,53 @@ impl Run<'_> {
     /// modules' text is all that is missing. std's templates are in the
     /// toolchain key.
     fn tuple_template_sources(&self, folder: FolderId) -> Option<Vec<(String, Hash128)>> {
-        self.template_hashes(&self.closure(folder), false)
+        self.template_hashes(&self.closure(folder), &|_| false)
     }
 
-    /// The source hashes of the user template modules in `closure`: every
-    /// derivation template with `opts_in`, the tuple templates always.
+    /// The template text hashes (`HeaderSkeleton::template_text_hash`) of
+    /// the user template modules in `closure`: every module with a tuple
+    /// template, and every module with a derivation template whose trait
+    /// `wanted` takes. A body edit outside the template and outside every
+    /// function whose signature it infers keeps the hash.
     fn template_hashes(
         &self,
         closure: &[FolderId],
-        opts_in: bool,
+        wanted: &dyn Fn(DefId) -> bool,
     ) -> Option<Vec<(String, Hash128)>> {
         let mut out = std::collections::BTreeMap::new();
         for &c in closure {
             let iface = self.iface_of(c)?;
-            let paths = self.folder_templates[c.idx()].get_or_init(|| {
+            let templates = self.folder_templates[c.idx()].get_or_init(|| {
                 let names = self.names();
-                let mut ps: Vec<(String, bool)> = iface
+                let mut ts: Vec<FolderTemplate> = iface
                     .items
                     .iter()
-                    .filter(|it| {
-                        matches!(
-                            it.data,
-                            ItemData::Impl {
-                                kind: hd_resolve::ImplKind::Template
-                                    | hd_resolve::ImplKind::TupleTemplate,
-                                ..
-                            }
-                        )
-                    })
-                    .map(|it| {
-                        let tuple = matches!(
-                            it.data,
-                            ItemData::Impl {
-                                kind: hd_resolve::ImplKind::TupleTemplate,
-                                ..
-                            }
-                        );
-                        (names.module_of(it.def), tuple)
+                    .filter_map(|it| match it.data {
+                        ItemData::Impl {
+                            kind: hd_resolve::ImplKind::Template,
+                            trait_,
+                            ..
+                        } => Some((names.module_of(it.def), Some(trait_))),
+                        ItemData::Impl {
+                            kind: hd_resolve::ImplKind::TupleTemplate,
+                            ..
+                        } => Some((names.module_of(it.def), None)),
+                        _ => None,
                     })
                     .filter(|(p, _)| !p.starts_with("std."))
                     .collect();
-                ps.sort();
-                ps.dedup();
-                ps
+                ts.sort_by(|a, b| (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw))));
+                ts.dedup();
+                ts
             });
-            for (p, tuple) in paths {
-                if !opts_in && !tuple {
+            for (p, trait_) in templates {
+                if trait_.is_some_and(|t| !wanted(t)) {
                     continue;
                 }
                 if let Some(tm) = self.table.module(p) {
                     out.insert(
                         format!("template {p}"),
-                        self.skim_of(tm.idx()).file.token_hash,
+                        self.skim_of(tm.idx()).file.template_text_hash,
                     );
                 }
             }

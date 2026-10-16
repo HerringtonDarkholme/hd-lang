@@ -57,7 +57,9 @@ edit rechecks one module and a signature edit its importers; a comment
 edit reuses the check and moves its positions; a doc edit keeps every
 interface hash; a comment above an item leaves interface keys unchanged;
 header findings survive a cached interface; a tuple template edit
-reaches the header findings it decides.
+reaches the header findings it decides; a body edit in a template's
+module rechecks only the modules that derive its template, and none when
+no template reads the body.
 
 Planned, not built: the edit-script fuzzer (`hd_testkit::edit_script_fuzz`
 is a stub). It applies random edits to a generated or fixture package.
@@ -77,6 +79,7 @@ The edit vocabulary:
 | add an argument-owned impl, `impl Pick[Product] for Receiver`, in a folder that module A reaches only through another folder's body uses | A, whose `Instantiations` answer gains the impl; not module B, whose closure lacks the folder |
 | swap two overlapping impls of one trait, so that the other one ranks later | that trait's coherence reruns, and its report names the new later impl, as a clean run does |
 | add or remove `@derive`, edit a template body in another package | the modules that derive the trait |
+| edit a body in a template's module that no template reads | that module only |
 | inside a kept template body, move a statement out of an `if` to after it | the trait's folder gets a new api text hash; every module that derives the trait rechecks and matches a clean run |
 | change a template body's indentation width throughout | that module only; layout tokens are relative, so the api text hash is unchanged |
 | edit a top-level statement read in a multi-module init group | that module and the folder's init order |
