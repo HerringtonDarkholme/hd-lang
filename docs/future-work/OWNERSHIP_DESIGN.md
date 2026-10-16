@@ -722,7 +722,12 @@ This section states each rule from the tour once, grouped by topic.
     `impl[T < OwnOnly] OwnOnly for Box[T]`; that instance is
     then `OwnOnly`. An `own U` argument counts as `OwnOnly`.
     Otherwise `Box[own Conn]` is `own-in-plain-type`.
-13. `DropOwn` extends `OwnOnly`, so only a `OwnOnly` type has a
+13. `OwnOnly` has no members, so its impls may overlap; the overlap check
+    skips it, as Rust's marker traits allow. A type owned when either of
+    two arguments is writes one impl per argument:
+    `impl[A < OwnOnly, B] OwnOnly for Outcome[A, B]` and
+    `impl[A, B < OwnOnly] OwnOnly for Outcome[A, B]`.
+14. `DropOwn` extends `OwnOnly`, so only an `OwnOnly` type has a
     destructor. Its `drop(^mut self)` runs when an owned value of the
     type is dropped.
 
@@ -825,30 +830,34 @@ This section states each rule from the tour once, grouped by topic.
    body moves, borrows, or drops `T` values and never copies them.
 3. A call infers `T = own U` when the argument is owned and the
    parameter's bound allows it. `^T` with `T = own U` is `^U`.
-4. A generic must not write `own T` itself.
-5. A std container keeps a plain header and has the conditional impl of
+4. In generic code, a position's mode is decided after substitution: a
+   type written with `T`, as `Option[T]` or a field `List[T]`, is owned
+   wherever its instance is `OwnOnly`, and plain otherwise. Concrete
+   code writes `own` explicitly.
+5. A generic must not write `own T` itself.
+6. A std container keeps a plain header and has the conditional impl of
    4.1, so `List[own Conn]` is `OwnOnly`. Its methods that work on
    owned elements live in an `impl[T < own Any]`; those that copy an
    element live in an `impl` for plain `T` only.
-6. `own U` converts to `own dyn K`. A value holding a borrow converts
+7. `own U` converts to `own dyn K`. A value holding a borrow converts
    only to `^{a} dyn K`, and a downcast needs `static`.
-7. A closure that captures an owned value moves it in. A closure that
+8. A closure that captures an owned value moves it in. A closure that
    captures an owned value or a `^mut` borrow is `own fn(...)`, and a
    call consumes it. Dropping it uncalled drops its captures.
-8. A closure that captures a shared borrow is bounded by it and may be
+9. A closure that captures a shared borrow is bounded by it and may be
    called any number of times while it lives.
-9. A capture of a plain binding stays shared storage, unchecked, as
-   plain `T` is.
-10. A cold frame is bounded by every borrow it captures. A frame that
+10. A capture of a plain binding stays shared storage, unchecked, as
+    plain `T` is.
+11. A cold frame is bounded by every borrow it captures. A frame that
     holds an owned argument is owned, and dropping it drops the argument.
-11. A provider is a plain value. `$.with(K = p)` with an owned or
+12. A provider is a plain value. `$.with(K = p)` with an owned or
     borrowed `p` is `provider-not-plain`.
-12. A top-level binding may be borrowed as `static`, never as `^mut`.
+13. A top-level binding may be borrowed as `static`, never as `^mut`.
     A later top-level statement may move an owned one, checked in
     statement order; a function body never may
     (`move-out-of-top-level`). A top-level owned binding that any
     function borrows never moves.
-13. Owned positions and types that carry a lifetime are not
+14. Owned positions and types that carry a lifetime are not
     boundary-safe.
 
 ## 5. What Changes From NonEscapable
