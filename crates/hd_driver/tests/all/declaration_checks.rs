@@ -455,6 +455,86 @@ fn a_closure_parameter_does_not_reuse_a_type_parameter() {
     );
 }
 
+/// `names.fn.params.scope`: value parameters have distinct names.
+#[test]
+fn two_function_parameters_do_not_share_a_name() {
+    rule(
+        "fn two(a: i32, a: i32) -> i32:
+    a
+",
+        Code::DuplicateBinding,
+        "fn two(a: i32, b: i32) -> i32:
+    a + b
+",
+    );
+}
+
+#[test]
+fn two_method_parameters_do_not_share_a_name() {
+    rule(
+        "data Box:
+    value: i32
+
+impl Box:
+    pub fn add(self, n: i32, n: i32) -> i32:
+        n
+",
+        Code::DuplicateBinding,
+        "data Box:
+    value: i32
+
+impl Box:
+    pub fn add(self, n: i32, m: i32) -> i32:
+        n + m
+",
+    );
+}
+
+#[test]
+fn two_trait_method_parameters_do_not_share_a_name() {
+    rule(
+        "trait Tr:
+    fn m(self, n: i32, n: i32) -> i32
+",
+        Code::DuplicateBinding,
+        "trait Tr:
+    fn m(self, n: i32, m: i32) -> i32
+",
+    );
+}
+
+#[test]
+fn two_local_function_parameters_do_not_share_a_name() {
+    rule(
+        "fn work() -> i32:
+    fn inner(a: i32, a: i32) -> i32:
+        a
+    inner(1, 2)
+",
+        Code::DuplicateBinding,
+        "fn work() -> i32:
+    fn inner(a: i32, b: i32) -> i32:
+        a + b
+    inner(1, 2)
+",
+    );
+}
+
+#[test]
+fn two_closure_parameters_do_not_share_a_name() {
+    rule(
+        "fn work() -> i32:
+    f := fn(a: i32, a: i32) -> i32: a
+    f(1, 2)
+",
+        Code::DuplicateBinding,
+        "fn work() -> i32:
+    f := fn(a: i32, b: i32) -> i32: a + b
+    f(1, 2)
+",
+    );
+}
+
 // ---- Embedding shape (group 13) ----
 
 #[test]

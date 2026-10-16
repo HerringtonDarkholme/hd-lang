@@ -3121,6 +3121,7 @@ typing/invalid/type-parameter-local-to-declaration.hd	type	reject:unknown-type	l
 typing/invalid/type-parameter-duplicate-in-list.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.type-param.unique
 typing/invalid/type-parameter-reused-by-local.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 typing/invalid/type-parameter-reused-by-value-parameter.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
+typing/invalid/duplicate-value-parameter.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.fn.params.scope
 parse/invalid/self-as-data-name.hd	parse	reject:syntax-error	lang/03-names-and-scopes.md#r-names.self-type.reserved
 runtime/valid/self-in-trait-is-implementing-type.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.self-type.trait
 typing/invalid/self-outside-trait-or-impl.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.self-type.outside

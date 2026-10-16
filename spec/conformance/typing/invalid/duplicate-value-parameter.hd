@@ -1,0 +1,4 @@
+# test: two value parameters of one function may not share a name
+# Spec 03 Function And Closure Scopes: names.fn.params.scope.
+fn two(a: i32, a: i32) -> i32:  # diagnostic: duplicate-binding
+    a

@@ -3256,6 +3256,13 @@ impl Ck<'_, '_> {
                 };
                 let sym = self.cx.names.syms.intern(&name);
                 self.check_local_name(sym, p);
+                // `names.fn.params.scope`: value parameters have distinct
+                // names. A default's closure re-binds the earlier ones.
+                if parts.upto.is_none() && self.scopes.last().is_some_and(|s| s.contains_key(&sym))
+                {
+                    let msg = format!("`{name}` names an earlier parameter");
+                    self.err(Code::DuplicateBinding, p, &msg);
+                }
                 self.check_prelude_shadow(sym, p);
                 let l = self
                     .b

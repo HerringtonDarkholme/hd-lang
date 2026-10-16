@@ -2702,6 +2702,13 @@ impl Lower<'_, '_, '_> {
                         self.diags
                             .error(Code::DuplicateBinding, self.src.span(p), &msg);
                     }
+                    // `names.fn.params.scope`: value parameters have
+                    // distinct names.
+                    if params.iter().any(|(s, _)| *s == sym) {
+                        let msg = format!("`{name}` names an earlier parameter");
+                        self.diags
+                            .error(Code::DuplicateBinding, self.src.span(p), &msg);
+                    }
                 }
                 let ty = self.ty(Src::type_child(p), &gn);
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
