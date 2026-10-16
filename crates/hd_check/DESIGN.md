@@ -709,15 +709,15 @@ argument `mutable-upgrade`
 
 | Class | Rollback | State |
 | --- | --- | --- |
-| **append-only column** | truncated to its length | the builder's columns (`TirCheckpoint`: instructions, locals, sub-bodies, the local pool); diagnostics; pending goals; literal nodes, overflow literals, negations; user locals; pre-inferred arguments; open, reference and call parameters; `:=` bindings; join restarts and widenings; row waits |
+| **append-only column** | truncated to its length | the builder's columns (`TirCheckpoint`: instructions, locals, sub-bodies, the local pool); diagnostics; pending goals; literal nodes, overflow literals, negations; user locals; pre-inferred arguments; open, reference and call parameters; `:=` bindings; row waits |
 | **trailed** | the inference trail is unwound and the trial's variables dropped (`InferTable::rollback_trial`) | parent, rank, kind, binding |
 | **undo log** | `Joins::rollback`; the body undo log (`BodyUndo`), newest first | join sites and their values; the flags of locals older than the trial; init facts; the possibly-uninitialized set; the keys, row parameters and edges added to row frames |
 | **balanced stack** | equal depth asserted | scopes, loops, open closures, suspension flags, result types, row frames |
 | **kept on purpose** | never rolled back | fuel; the solver's body memo and its `met` set (rule TS-5); an M1 body checked during a trial, which is final (TC-4) |
 
 Users of trials: the expected-result attempt (section 2.4), the
-instantiation choice (section 2.5), join-site restarts (section 4.3) and
-generic key collision checks (section 5.2). Trials nest, within fuel.
+instantiation choice (section 2.5) and generic key collision checks
+(section 5.2). Trials nest, within fuel.
 
 No checker state is copied at a checkpoint, so a checkpoint costs the
 same in any body. The body undo log is written only while a checkpoint
@@ -832,6 +832,7 @@ Collection never re-derives one.
 | `ToTraitValue`, `ToAny` | `S` → `Tr`, `mut S` → `mut Tr`, `S` → `Any` | box with its dispatch table; the impl choice is in the record |
 | `Supertrait` | child trait value → parent trait value | load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none, or a thin adapter |
+| `Identity` | `T` → `T` | none: a least-common-type slot whose value needed no conversion (section 4.3) |
 
 Variance markers are declared, not inferred (`hd_resolve/src/variance.rs`).
 
@@ -862,14 +863,19 @@ its values are checked in order:
 5. **Errors.** A value that does not join reports `no-common-type`, or
    `no-least-common-type` when a common type exists that these rules
    cannot reach, at that value, once per site.
-6. **Coerce.** Each value then gets the coercion to the joined type. The
-   design reserves a slot for each branch tail, and the join fills it
-   once the type is known, so each value is checked once.
+6. **Coerce.** Each value then gets the coercion to the joined type. A
+   slot is reserved after each value, and the site fills it once the type
+   is final (`Ck::fill_join`): `WrapSome` for a value one optional layer
+   short, else `Weaken`, `RowSubsume` or `Variance` for a value whose type
+   still differs, else `Identity`. An optional value after plain ones
+   widens the site in place, so each value is checked once, and a
+   contextual variant before the widening value stays without a type
+   (`types.lct.contextual`). A list spread passes its list unchanged, so
+   its elements take only a conversion with no run-time meaning.
 
-Implementation differs: an optional value after plain ones rolls the
-whole site back and checks every value again against the optional type
-(`Ck::join_site`), so nested sites that each widen can recheck their
-inner sites once per level, which grows with nesting depth.
+The site's variable takes a first value whose type is still a variable,
+such as a literal's, as an alias (`Unifier::alias`), not a union, so
+widening the site does not retype that value.
 
 ### 4.4 Propagation
 
@@ -1487,7 +1493,7 @@ All per-body state lives in `Ck` (`body.rs`), created per body by
 | `env: ParamEnv`, `memo: BodyMemo`, `fuel` | the elaborated environment, the solver's body memo, the budget |
 | `scopes`, `loops`, `subs`, `suspends`, `rets`, `rows` | the context stacks; each balanced across a trial |
 | `pending` | stalled goals (section 2.7) |
-| `joins`, `restarts`, `widen` | LCT sites (section 4.3) |
+| `joins` | LCT sites and their reserved slots (section 4.3) |
 | `lit_nodes`, `overflow_lits`, `neg_nodes`, `fell_back` | literal bookkeeping (section 3.6) |
 | `uninit`, `bound`, `cond_flow`, `facts` | definite initialization and init facts (section 8.4) |
 | `open_params`, `ref_params`, `call_params`, `assoc_self` | variables closed at the end of the statement or the body (section 2.4) |

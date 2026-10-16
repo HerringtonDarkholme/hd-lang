@@ -15,10 +15,10 @@
 
 use hd_base::HashMap;
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::Code;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Coercion, NONE, Ref, TirSink};
+use hd_tir::ir::{Coercion, NONE, Ref, Slot, Tag, TirSink};
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
@@ -36,10 +36,28 @@ pub(crate) struct Joins {
 
 #[derive(Default)]
 struct Site {
-    /// The types of the values joined so far, unresolved.
-    values: Vec<Ty>,
+    /// The values joined so far, in order.
+    values: Vec<Joined>,
     /// A value did not join and was reported: the site reports once.
     failed: bool,
+}
+
+/// A value joined at a site: its type, unresolved, and where its
+/// conversion to the site's final type goes (§4.3 step 6).
+#[derive(Clone, Copy)]
+struct Joined {
+    ty: Ty,
+    to: Conv,
+}
+
+/// Where a joined value's conversion goes.
+#[derive(Clone, Copy)]
+enum Conv {
+    /// A slot reserved after the value, filled when the site closes.
+    Slot(Slot, Ref, NodeIdx),
+    /// A list spread's elements: the list passes as it is, so only a
+    /// conversion with no run-time meaning is supported.
+    Spread,
 }
 
 enum Undo {
@@ -59,9 +77,9 @@ impl Joins {
         self.log.push(Undo::Open(var));
     }
 
-    fn push(&mut self, var: Ty, t: Ty) {
+    fn push(&mut self, var: Ty, ty: Ty, to: Conv) {
         if let Some(site) = self.sites.get_mut(&var) {
-            site.values.push(t);
+            site.values.push(Joined { ty, to });
             self.log.push(Undo::Value(var));
         }
     }
@@ -79,7 +97,7 @@ impl Joins {
         self.sites.get(&var).is_some_and(|s| s.failed)
     }
 
-    fn values(&self, var: Ty) -> &[Ty] {
+    fn values(&self, var: Ty) -> &[Joined] {
         self.sites.get(&var).map_or(&[], |s| &s.values)
     }
 
@@ -151,40 +169,61 @@ impl Ck<'_, '_> {
     }
 
     /// Checks a least-common-type site's values with `run`, which gets the
-    /// site's type. An optional value after a plain one makes the site's
-    /// type optional (`types.lct.optional`); the values already checked
-    /// took the plain type, so the site starts over as a site whose type is
-    /// the optional type, and every value joins it.
+    /// site's type, once each (§4.3). An optional value after plain ones
+    /// widens the site's type to the optional one (`types.lct.optional`);
+    /// when the site closes, each value's reserved slot gets its
+    /// conversion to the final type, so the values checked before the
+    /// widening are wrapped there.
     pub(crate) fn join_site<T>(
         &mut self,
         want: Option<Ty>,
-        mut run: impl FnMut(&mut Self, Ty) -> StageResult<T>,
+        run: impl FnOnce(&mut Self, Ty) -> StageResult<T>,
     ) -> StageResult<T> {
         let result = self.join_target(want);
-        if !self.joins.is_site(result) {
+        // A site the caller's own site passed on is filled by that site.
+        if !self.joins.is_site(result) || want == Some(result) {
             return run(self, result);
         }
-        let cp = self.checkpoint();
-        self.restarts.push(result);
-        let out = run(self, result);
-        let at = self.widen.iter().position(|(v, _)| *v == result);
-        self.restarts.pop();
-        let Some(at) = at else {
-            self.commit(cp);
-            return out;
-        };
-        let wide = self.widen[at].1;
-        self.rollback(cp);
-        // The second pass is a site again, already solved to the optional
-        // type, so a later value that does not join reports `no-common-type`
-        // as on the first pass, not a mismatch against an expected type.
+        let out = run(self, result)?;
+        self.fill_join(result)?;
+        Ok(out)
+    }
+
+    /// Fills the slots of `var`'s site with each value's conversion to the
+    /// site's final type: `WrapSome` for a value one optional layer short,
+    /// else the static conversion the value takes, or `Identity`.
+    fn fill_join(&mut self, var: Ty) -> StageResult<()> {
         let pool = self.pool();
-        let again = self.infer.fresh(pool, VarKind::General);
-        self.joins.open(again);
-        if self.infer.unify(pool, again, wide).is_err() {
-            return run(self, wide);
+        let site = self.infer.resolve(pool, var);
+        let values = self.joins.values(var).to_vec();
+        for v in values {
+            let g = self.infer.resolve(pool, v.ty);
+            let kind = if self.option_layers(self.strip_mut(g)) < self.option_layers(site) {
+                Coercion::WrapSome
+            } else if g == site || pool.has_poison(g) || pool.has_poison(site) {
+                Coercion::Identity
+            } else {
+                match (pool.get(g), pool.get(site)) {
+                    (TyData::Mut(i), _) if i == site => Coercion::Weaken,
+                    (TyData::Fn { .. }, TyData::Fn { .. }) => Coercion::RowSubsume,
+                    _ => Coercion::Variance,
+                }
+            };
+            match v.to {
+                Conv::Slot(slot, r, syn) => {
+                    let rec = self.b.words_record(&[kind as u32, NONE]);
+                    self.b.fill(slot, Tag::Coerce, r.0, rec, var, syn);
+                }
+                Conv::Spread if kind == Coercion::WrapSome => {
+                    return Err(hd_base::NotImplemented::new(
+                        hd_base::Stage::Body,
+                        "a list spread that converts its elements",
+                    ));
+                }
+                Conv::Spread => {}
+            }
         }
-        run(self, again)
+        Ok(())
     }
 
     /// The expected type a value at a site passes on to a literal it holds:
@@ -210,16 +249,39 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         what: &str,
     ) -> Ref {
+        if self.join_type(got, var, n, what) {
+            // The value's conversion, known when the site closes.
+            let slot = self.b.reserve();
+            let s = slot.as_ref();
+            self.b.body_mut().ty[s.0 as usize] = got;
+            self.joins.push(var, got, Conv::Slot(slot, r, n.index()));
+            return s;
+        }
+        r
+    }
+
+    /// A list spread's elements of type `got` at the site of `var`: the
+    /// list passes as it is (`expr.list.spread.expected`).
+    pub(crate) fn join_spread(&mut self, got: Ty, var: Ty, n: NodeRef<'_>, what: &str) {
+        if self.join_type(got, var, n, what) {
+            self.joins.push(var, got, Conv::Spread);
+        }
+    }
+
+    /// Joins a value's type into the site of `var`, or reports why it
+    /// does not join. True when the value joined and takes a conversion
+    /// when the site closes.
+    fn join_type(&mut self, got: Ty, var: Ty, n: NodeRef<'_>, what: &str) -> bool {
         let pool = self.pool();
         let g = self.infer.resolve(pool, got);
         // `types.lct.never.dropped`: a `never` value does not take part.
         if g == Ty::NEVER || pool.has_poison(g) {
-            return r;
+            return false;
         }
         // A site reports once: after a value that does not join, the
         // others are not compared.
         if self.joins.failed(var) {
-            return r;
+            return false;
         }
         // The first value solves the site; an open literal class has solved
         // it as "an integer literal", which an optional value still widens.
@@ -227,18 +289,24 @@ impl Ck<'_, '_> {
         if matches!(pool.get(cur), TyData::Infer(_))
             && self.infer.kind_of(pool, cur) == Some(VarKind::General)
         {
+            // A value whose type is still a variable, such as a literal's,
+            // is aliased rather than joined, so a later widening of the
+            // site leaves the value's own type alone.
+            if matches!(pool.get(self.infer.shallow(pool, got)), TyData::Infer(_)) {
+                self.infer.alias(pool, var, got);
+                return true;
+            }
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, var, got).is_ok() {
-                self.joins.push(var, got);
-                return r;
+                return true;
             }
             self.infer.rollback(snap);
             self.no_common_type(var, got, false, n, what);
-            return r;
+            return false;
         }
         let cur = self.infer.resolve(pool, var);
         if pool.has_poison(cur) {
-            return r;
+            return false;
         }
         let open = |t: Ty| matches!(pool.get(t), TyData::Infer(_));
         let gs = self.strip_mut(g);
@@ -251,37 +319,36 @@ impl Ck<'_, '_> {
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, inner, got).is_ok() && self.lct_converts(got, inner, true, 0)
             {
-                self.joins.push(var, got);
-                return self.b.coerce(Coercion::WrapSome, NONE, r, var, n.index());
+                return true;
             }
             self.infer.rollback(snap);
             self.no_common_type(var, got, false, n, what);
-            return r;
+            return false;
         }
-        // An optional value joins a plain site of its inner type: the site
-        // starts over with the optional type (`join_site`).
+        // An optional value joins a plain site of its inner type: the
+        // site's type widens to the optional one, and the values joined
+        // before it are wrapped when the site closes (`join_site`).
         if let TyData::Option(inner) = pool.get(gs)
             && self.option_layers(cur) < self.option_layers(gs)
-            && self.restarts.contains(&var)
         {
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, inner, cur).is_ok() {
                 let full = self.infer.resolve(pool, gs);
                 let earlier = self.joined_types(var);
                 if !pool.has_infer(full) && earlier.iter().all(|v| self.lct_reaches(*v, full)) {
-                    self.widen.push((var, full));
-                    return r;
+                    self.infer.rebind(pool, var, full);
+                    return true;
                 }
             }
             self.infer.rollback(snap);
             self.no_common_type(var, got, false, n, what);
-            return r;
+            return false;
         }
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, var, got).is_err() {
             self.infer.rollback(snap);
             self.no_common_type(var, got, false, n, what);
-            return r;
+            return false;
         }
         let (cur, g) = (self.infer.resolve(pool, var), self.infer.resolve(pool, got));
         // `types.lct.no-combine`: each value reaches the least type by one
@@ -295,16 +362,15 @@ impl Ck<'_, '_> {
                     .iter()
                     .all(|v| self.lct_reaches(*v, *t))
         });
-        match met {
-            Some(t) => {
-                if t != cur {
-                    self.infer.rebind(pool, var, t);
-                }
-                self.joins.push(var, got);
+        if let Some(t) = met {
+            if t != cur {
+                self.infer.rebind(pool, var, t);
             }
-            None => self.no_common_type(var, got, true, n, what),
+            true
+        } else {
+            self.no_common_type(var, got, true, n, what);
+            false
         }
-        r
     }
 
     /// The types of the values joined so far at `var`'s site, resolved.
@@ -313,7 +379,7 @@ impl Ck<'_, '_> {
         self.joins
             .values(var)
             .iter()
-            .map(|t| self.infer.resolve(pool, *t))
+            .map(|v| self.infer.resolve(pool, v.ty))
             .collect()
     }
 

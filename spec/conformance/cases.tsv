@@ -3017,3 +3017,6 @@ typing/invalid/row-slot-bare-explicit-key.hd	type	reject:generic-kind-mismatch	l
 typing/invalid/row-slot-bare-explicit-alias.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
 runtime/valid/closure-argument-before-solving-argument.hd	runtime	accept	lang/07-functions.md#r-fn.closure.annotations-omitted
 typing/valid/defer-closure-return.hd	type	accept	lang/06-control-flow.md#r-flow.defer.control
+typing/invalid/lct-none-before-widening-list.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#r-types.lct.contextual
+typing/invalid/lct-none-first-list.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#r-types.lct.contextual
+typing/invalid/lct-none-branch-before-widening.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#r-types.lct.contextual

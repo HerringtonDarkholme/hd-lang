@@ -1,0 +1,5 @@
+# test: a `.None` first at a list site takes no type from the values after it
+
+fn pick(x: i32?) -> List[i32?]:
+    items := [.None, +1, x]  # diagnostic: missing-contextual-enum-type
+    items

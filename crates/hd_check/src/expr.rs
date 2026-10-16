@@ -1893,27 +1893,33 @@ impl Ck<'_, '_> {
                     // `expr.list.spread.expected`, `expr.list.spread.inferred`.
                     // Each element converts; a conversion with no run-time
                     // meaning leaves the list as it is.
-                    let cp = this.b.checkpoint();
-                    let c = this.coerce(
-                        r,
-                        item,
-                        elem,
-                        operand,
-                        "list spread",
-                        ExpectPosition::General,
-                    );
-                    if c != r {
-                        let body = this.b.body_mut();
-                        let kind = c
-                            .as_inst()
-                            .filter(|i| body.tags[i.0 as usize] == Tag::Coerce)
-                            .and_then(|i| body.record(body.data[i.0 as usize][1]).first().copied());
-                        let static_kinds =
-                            [Coercion::Weaken, Coercion::Variance, Coercion::RowSubsume];
-                        if !kind.is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k)) {
-                            return unsupported("a list spread that converts its elements");
+                    if this.joins.is_site(elem) {
+                        this.join_spread(item, elem, operand, "list spread");
+                    } else {
+                        let cp = this.b.checkpoint();
+                        let c = this.coerce(
+                            r,
+                            item,
+                            elem,
+                            operand,
+                            "list spread",
+                            ExpectPosition::General,
+                        );
+                        if c != r {
+                            let body = this.b.body_mut();
+                            let kind = c
+                                .as_inst()
+                                .filter(|i| body.tags[i.0 as usize] == Tag::Coerce)
+                                .and_then(|i| {
+                                    body.record(body.data[i.0 as usize][1]).first().copied()
+                                });
+                            let static_kinds =
+                                [Coercion::Weaken, Coercion::Variance, Coercion::RowSubsume];
+                            if !kind.is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k)) {
+                                return unsupported("a list spread that converts its elements");
+                            }
+                            this.b.rollback(cp);
                         }
-                        this.b.rollback(cp);
                     }
                     spreads.push(u32::try_from(k).unwrap_or(0));
                     refs.push(r);
@@ -2304,8 +2310,8 @@ impl Ck<'_, '_> {
             want
         };
         self.join_site(want, |this, result| {
-            // A restart rechecks the branches from the same paths: each
-            // run starts from the condition's `when_true` and `when_false`.
+            // Each branch starts from the condition's `when_true` or
+            // `when_false`.
             let tb = this.b.open_block();
             this.set_uninit(when_true.clone());
             let (tt, tty) = this.block_value(then_node, Some(result))?;
@@ -2319,8 +2325,8 @@ impl Ck<'_, '_> {
                     if t == Ty::VOID || r.0 == NONE {
                         (None, t)
                     } else {
-                        // A nested site that restarted wider has a type of
-                        // its own, which then joins this site's.
+                        // A nested site has a type of its own, which then
+                        // joins this site's.
                         (
                             Some(this.coerce(
                                 r,
@@ -3180,8 +3186,8 @@ impl Ck<'_, '_> {
             _ => (vec![], None),
         };
         // `types.lct.sites`: a closure whose result type is inferred joins
-        // its final value and `return` operands, and starts over when an
-        // optional one widens the result (`join_site`).
+        // its final value and `return` operands, and widens in place when
+        // an optional one follows plain ones (`join_site`).
         if parts.ret.is_some() {
             return self.closure_body(n, parts, (&wparams, poisoned), None);
         }

@@ -87,6 +87,7 @@ mod int_widths_run;
 mod intrinsic_methods;
 mod item_names;
 mod item_too_complex;
+mod join_once;
 mod key_assoc_function_run;
 mod known_closure_calls;
 mod least_common_type_run;

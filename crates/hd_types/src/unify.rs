@@ -138,6 +138,23 @@ impl InferTable {
         self.binding[r as usize] = Some(t);
     }
 
+    /// Binds the unbound variable `var` to `t`, which may be another
+    /// variable, without joining their classes: a later `rebind` of `var`
+    /// leaves `t`'s class as it is. A least-common-type site's variable
+    /// takes its first value's type this way, so widening the site does
+    /// not retype that value (`crates/hd_check/DESIGN.md` §4.3).
+    pub fn alias(&mut self, pool: Types<'_>, var: Ty, t: Ty) {
+        let TyData::Infer(v) = pool.get(var) else {
+            return;
+        };
+        let r = self.root(v.raw());
+        if self.binding[r as usize].is_some() || self.shallow(pool, t) == self.shallow(pool, var) {
+            return;
+        }
+        self.trail.push(Undo::Rebind(r, None));
+        self.binding[r as usize] = Some(t);
+    }
+
     /// Replaces bound variables at the top of `t`.
     #[must_use]
     pub fn shallow(&self, pool: Types<'_>, t: Ty) -> Ty {

@@ -592,6 +592,7 @@ holds.
 | `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
+| `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.

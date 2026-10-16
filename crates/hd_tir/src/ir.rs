@@ -295,6 +295,9 @@ pub enum Coercion {
     ToAny,
     Supertrait,
     SuspendFnToCtor,
+    /// A least-common-type site's reserved slot whose value already has
+    /// the site's type (`crates/hd_check/DESIGN.md` §4.3 step 6).
+    Identity,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.
@@ -650,6 +653,14 @@ pub struct ScopeMark(u32);
 pub struct LoopMark(pub LabelId);
 #[derive(Clone, Copy, Debug)]
 pub struct Slot(u32);
+
+impl Slot {
+    /// The reserved instruction, which the value it is filled with takes.
+    #[must_use]
+    pub fn as_ref(self) -> Ref {
+        Ref(self.0)
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct SubMark(SubId, u32);
 

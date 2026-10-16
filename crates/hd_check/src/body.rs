@@ -383,12 +383,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// The least-common-type sites being joined (`types.lct.sites`), by
     /// join variable, with the values each has joined.
     pub joins: crate::join::Joins,
-    /// The join variables of the sites now checking their branches that
-    /// can restart with a wider type (`join_site`).
-    pub restarts: Vec<Ty>,
-    /// A join variable met an optional value of its solved inner type: the
-    /// site must start over with the optional as its type (`types.lct.optional`).
-    pub widen: Vec<(Ty, Ty)>,
     /// The byte of the statement being checked: the local declarations
     /// whose extent holds it are in scope (`names.local-type.name`).
     pub at: u32,
@@ -546,8 +540,6 @@ pub(crate) fn new_ck<'a, 'c>(
         structure_calls: Vec::new(),
         plan_sink: None,
         joins: crate::join::Joins::default(),
-        restarts: Vec::new(),
-        widen: Vec::new(),
         at: 0,
         hidden: Vec::new(),
         module: cx.names.module_node(item),
@@ -937,8 +929,8 @@ fn fn_body_steps(
     ck.result_omitted = Src::type_child(node).is_none();
     ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);
     // `types.lct.sites`: an omitted result type joins the final value and
-    // the `return` operands, and starts over when an optional one widens
-    // it (`join_site`).
+    // the `return` operands, and widens in place when an optional one
+    // follows plain ones (`join_site`).
     let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
     let (tail, ret) = ck.join_site(want, |ck, ret| {
         ck.rets[0] = ret;

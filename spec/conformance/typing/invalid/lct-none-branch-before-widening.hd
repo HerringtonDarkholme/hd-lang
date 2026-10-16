@@ -1,0 +1,5 @@
+# test: a `.None` branch before an optional branch takes no type from it
+
+fn pick(c: bool, d: bool, x: i32?) -> i32?:
+    v := if c: +1 else if d: .None else: x  # diagnostic: missing-contextual-enum-type
+    v

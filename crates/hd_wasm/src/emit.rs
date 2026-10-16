@@ -3198,6 +3198,7 @@ impl Em<'_> {
             || kind == Coercion::Variance as u32
             || kind == Coercion::RowSubsume as u32
             || kind == Coercion::SuspendFnToCtor as u32
+            || kind == Coercion::Identity as u32
         {
             self.load_as(v, &want)?;
             return self.store(i);
