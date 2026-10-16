@@ -28,7 +28,7 @@ says.
 | `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the TIR content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
-| `graph` | stage-B header findings per folder (`hdr_key`); the package's overlap findings (one coherence key); one folder's init order (`init_key`) | `HeaderCheck`, `Coherence`, `InitOrder` | output, D2 |
+| `graph` | stage-B header findings per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish | output, `PackageResult`, D2 |
 | `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
@@ -48,10 +48,15 @@ sections it needs.
   entry per package run, keyed by the sorted keys of their parts. A part
   whose result is empty stores nothing; its key in the list is enough.
   Header findings are the exception: one `graph` entry per folder, keyed
-  by `hdr_key`. Implementation differs: coherence is its own entry and
-  init order is one entry per folder, which is worse: more files to open
-  and publish, and #177 measured a per-folder init entry costing more
-  than recomputing it.
+  by `hdr_key`. As built: the parts are coherence's (the coarse key over
+  every built interface) and each built folder's init order
+  (`init_key`). `PackageResult` computes their keys and looks up the
+  one entry. A hit runs neither task. On a miss it adds both tasks, and
+  the last part to finish writes the entry, unless a part is blocked or
+  reports an initialization cycle. So a change to one part reruns every
+  part: an interface change reruns each folder's init order too, which
+  #177 measured as cheaper than opening a per-folder entry. `Coherence`
+  runs after `PackageResult`, so the key can hold both kinds of part.
 
 Planned, not built: a `reads` section for early cutoff (§5.3.1), fact
 records for a program database (#181), a `pkgres` entry for a warm fast

@@ -26,10 +26,11 @@ owns what each task does.
 - **Creation is dynamic.** The driver creates one `Skim` per file (and
   one `Parse` per file for `hd check`), then `FolderGraph` after the
   skims. A running task may add tasks and edges: `FolderGraph` adds a
-  `FolderIface` and a `HeaderCheck` per built folder, one `Coherence`,
-  one `ModulePrep` per built module and a held `PackageResult`;
-  `ModulePrep` adds `Body` and `ModuleFinish` on a cache miss;
-  `PackageResult` adds one `InitOrder` per folder and then `Collect`. `Collect` performs the `codepack` lookups and adds a held
+  `FolderIface` and a `HeaderCheck` per built folder, one `ModulePrep`
+  per built module and a held `PackageResult`; `ModulePrep` adds `Body`
+  and `ModuleFinish` on a cache miss; `PackageResult` looks up the
+  package's `graph` entry and, on a miss, adds one `Coherence` and one
+  `InitOrder` per folder, then `Collect` after them. `Collect` performs the `codepack` lookups and adds a held
   `Link`; for each folder group with at least one miss it creates one
   `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
   The folder group is the folder of the instance's item, the `codepack`

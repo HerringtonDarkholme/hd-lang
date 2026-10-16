@@ -126,9 +126,13 @@ fn incremental(executor: Executor) {
         cold.counters.ran("InitOrder")
     );
     assert_eq!(cold.counters.computed("Coherence"), 1);
+    // Both kinds of part are one `graph` entry: a warm run opens it and
+    // runs neither task. Each other `graph` hit is a folder's header check.
+    assert_eq!(warm.counters.ran("InitOrder"), 0);
+    assert_eq!(warm.counters.ran("Coherence"), 0);
     assert_eq!(
-        warm.counters.ran("InitOrder"),
-        cold.counters.ran("InitOrder")
+        warm.counters.hit("graph"),
+        warm.counters.ran("HeaderCheck") + 1
     );
     assert!(
         warm.counters.parts_computed.is_empty(),
@@ -193,10 +197,10 @@ fn incremental(executor: Executor) {
         c.modules_checked,
         vec!["demo.app.main".to_owned(), "demo.geo.shapes".to_owned()]
     );
-    // An interface changed, so Coherence reruns; no module's init facts
-    // did, so every InitOrder part is read.
+    // An interface changed, so Coherence reruns, and with it every
+    // InitOrder part: they share one entry.
     assert_eq!(c.computed("Coherence"), 1);
-    assert_eq!(c.computed("InitOrder"), 0);
+    assert_eq!(c.computed("InitOrder"), cold.counters.computed("InitOrder"));
 
     // 3b. The same edit with main untouched rechecks main, which reports
     // the argument count.

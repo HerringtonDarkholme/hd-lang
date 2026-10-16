@@ -1169,6 +1169,8 @@ struct Run<'a> {
     /// Per folder: `InitOrder`'s runs, one list per module cycle of the
     /// folder whose statements sit in several modules.
     init_runs: Vec<OnceLock<Vec<Vec<InitRun>>>>,
+    /// The package's `graph` entry this run fills on a miss.
+    graph_parts: OnceLock<GraphParts>,
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     wasm: OnceLock<Vec<u8>>,
@@ -1659,6 +1661,7 @@ fn build_packages_inner(
         regs: (0..n).map(|_| OnceLock::new()).collect(),
         dbg_refs: (0..n).map(|_| OnceLock::new()).collect(),
         init_runs: (0..nf).map(|_| OnceLock::new()).collect(),
+        graph_parts: OnceLock::new(),
         program: OnceLock::new(),
         collect: OnceLock::new(),
         wasm: OnceLock::new(),
@@ -2749,9 +2752,6 @@ impl Run<'_> {
             let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &closure);
             sp.edge(hc, pr);
         }
-        let all: Vec<TaskId> = iface_task.iter().flatten().copied().collect();
-        let coh = sp.add(TaskKind::Coherence, &all);
-        sp.edge(coh, pr);
         // A program's collection crosses packages (`crates/hd_mono/DESIGN.md` §13.2): the
         // std modules its folders reach are checked to TIR too.
         let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
@@ -3771,33 +3771,25 @@ impl Run<'_> {
         }
     }
 
-    /// `InitOrder(F)` (§4.13.10; spec 10 "Order Inside A Cycle"): the
-    /// statement order of each module cycle of the folder whose statements
-    /// sit in several modules, from the modules' init summaries, or
-    /// `top-level-read-before-initialization` where the statements wait on
-    /// each other (`module.init.cycle.stuck`). The order is a `graph` part
-    /// keyed by `init_key` over the summaries, so a warm run with no change
-    /// to what it reads reads it (`crates/hd_cache/DESIGN.md`, "Part keys").
-    fn init_order(&self, fi: usize) {
+    /// The init summaries `InitOrder(F)` reads: one list per module cycle
+    /// of folder `fi` whose statements sit in several modules, and their
+    /// part key, `init_key` over the summaries. `None` until every module
+    /// of a cycle is checked.
+    fn init_inputs(&self, fi: usize) -> Option<InitInputs<'_>> {
         let folder = &self.table.folders[fi];
-        let names = self.names();
         let mut cycles: Vec<Vec<(usize, &[u8])>> = Vec::new();
         for cycle in self.folder_cycles(fi) {
             let mut sums = Vec::new();
             for m in cycle {
                 let Some(Some(c)) = self.check[m].get() else {
-                    self.blocked(Stage::InitOrder);
-                    return;
+                    return None;
                 };
                 // A module with errors stops the build before collection.
                 if c.has_errors {
                     sums.clear();
                     break;
                 }
-                let Some(sections) = split_sections(&c.entry) else {
-                    self.blocked(Stage::InitOrder);
-                    return;
-                };
+                let sections = split_sections(&c.entry)?;
                 sums.push((m, sections.get(5).copied().unwrap_or(&[])));
             }
             if !sums.is_empty() {
@@ -3814,13 +3806,28 @@ impl Run<'_> {
             })
             .collect();
         let key = init_key(self.toolchain, &folder.path, &summaries);
-        if let Some(sections) = self.lookup(EntryKind::Graph, key)
-            && let Some(runs) = sections.first().and_then(|b| decode_runs(b))
-        {
-            let _ = self.init_runs[fi].set(runs);
-            lock(&self.report).ok(Stage::InitOrder);
-            return;
-        }
+        Some((cycles, key))
+    }
+
+    /// `InitOrder(F)` (§4.13.10; spec 10 "Order Inside A Cycle"): the
+    /// statement order of each module cycle of the folder whose statements
+    /// sit in several modules, from the modules' init summaries, or
+    /// `top-level-read-before-initialization` where the statements wait on
+    /// each other (`module.init.cycle.stuck`). The order is a part of the
+    /// package's `graph` entry (`crates/hd_cache/DESIGN.md`, "Graph parts").
+    fn init_order(&self, fi: usize) {
+        let part = self.init_order_part(fi);
+        self.part_done(1 + self.graph_slot(fi), part);
+    }
+
+    /// [`Self::init_order`]'s runs as the part's bytes; `None` when it is
+    /// blocked or reports a cycle, which every run reports again.
+    fn init_order_part(&self, fi: usize) -> Option<Vec<u8>> {
+        let names = self.names();
+        let Some((cycles, _)) = self.init_inputs(fi) else {
+            self.blocked(Stage::InitOrder);
+            return None;
+        };
         self.computed(Stage::InitOrder);
         let mut out = Vec::new();
         let mut stuck = false;
@@ -3835,7 +3842,7 @@ impl Run<'_> {
                             "a module's init summary did not decode",
                         )),
                     );
-                    return;
+                    return None;
                 };
                 sums.push(sum);
             }
@@ -3884,12 +3891,15 @@ impl Run<'_> {
                 }
             }
         }
-        // An initialization cycle is reported again by every run.
-        if !stuck {
-            self.put(EntryKind::Graph, key, &[&encode_runs(&out)]);
-        }
+        let bytes = if out.is_empty() {
+            Vec::new()
+        } else {
+            encode_runs(&out)
+        };
         let _ = self.init_runs[fi].set(out);
         lock(&self.report).ok(Stage::InitOrder);
+        // An initialization cycle is reported again by every run.
+        (!stuck).then_some(bytes)
     }
 
     /// The modules each module uses directly, by index, itself left out.
@@ -3955,46 +3965,45 @@ impl Run<'_> {
             .or_default() += 1;
     }
 
-    /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
-    /// every interface of the program graph, std's included.
-    fn coherence(&self) {
-        // Every folder the run builds: a REPL input's program is its
-        // closure ([`Run::builds`]).
+    /// The interfaces `Coherence` reads, every folder the run builds (a
+    /// REPL input's program is its closure, [`Run::builds`]), and their
+    /// part key; `None` while one is not built. The result is a function
+    /// of every interface (`crates/hd_cache/DESIGN.md`, "Part keys"; this
+    /// key is coarser than the per-trait `coh_key`).
+    fn coherence_inputs(&self) -> Option<(Vec<Arc<FolderIface>>, Hash128)> {
         let built: Vec<FolderId> = (0..self.table.folders.len())
             .map(|f| FolderId::from_raw(u32_of(f)))
             .filter(|f| self.builds(*f))
             .collect();
         let mut all = Vec::new();
         for &f in &built {
-            let Some(i) = self.iface_of(f) else {
-                self.blocked(Stage::Coherence);
-                return;
-            };
-            all.push(i);
+            all.push(self.iface_of(f)?);
         }
-        // The result is a function of every interface: a warm run with no
-        // interface change reads it (`crates/hd_cache/DESIGN.md`, "Part keys"; this key is
-        // coarser than the per-trait `coh_key`).
-        let key = {
-            let mut k = hd_base::StableHasher::new("coh");
-            k.hash(self.toolchain);
-            for (f, i) in built.iter().zip(&all) {
-                k.str(&self.table.folders[f.idx()].path);
-                k.hash(i.deep_hash);
-                k.hash(i.heads_hash);
-            }
-            k.finish()
+        let mut k = hd_base::StableHasher::new("coh");
+        k.hash(self.toolchain);
+        for (f, i) in built.iter().zip(&all) {
+            k.str(&self.table.folders[f.idx()].path);
+            k.hash(i.deep_hash);
+            k.hash(i.heads_hash);
+        }
+        Some((all, k.finish()))
+    }
+
+    /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
+    /// every interface of the program graph, std's included. Its findings
+    /// are a part of the package's `graph` entry.
+    fn coherence(&self) {
+        let part = self.coherence_part();
+        self.part_done(0, part);
+    }
+
+    /// [`Self::coherence`]'s findings as the part's bytes; `None` when it
+    /// is blocked.
+    fn coherence_part(&self) -> Option<Vec<u8>> {
+        let Some((all, _)) = self.coherence_inputs() else {
+            self.blocked(Stage::Coherence);
+            return None;
         };
-        if let Some(sections) = self.lookup(EntryKind::Graph, key)
-            && let Some(found) = sections.first().and_then(|b| decode_overlaps(b, &all))
-        {
-            lock(&self.report).ok(Stage::Coherence);
-            let mut d = lock(&self.diags);
-            for (item, msg) in found {
-                d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
-            }
-            return;
-        }
         self.computed(Stage::Coherence);
         let names = self.names();
         let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.impls()));
@@ -4081,11 +4090,114 @@ impl Run<'_> {
                 (b, msg)
             })
             .collect();
-        self.put(EntryKind::Graph, key, &[&encode_overlaps(&found, &all)]);
+        let bytes = if found.is_empty() {
+            Vec::new()
+        } else {
+            encode_overlaps(&found, &all)
+        };
         let mut d = lock(&self.diags);
         for (item, msg) in found {
             d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
         }
+        Some(bytes)
+    }
+
+    /// The slot of folder `fi`'s init order among the graph parts after
+    /// coherence's.
+    fn graph_slot(&self, fi: usize) -> usize {
+        self.graph_parts
+            .get()
+            .and_then(|g| g.folders.iter().position(|f| *f == fi))
+            .unwrap_or(usize::MAX - 1)
+    }
+
+    /// Records graph part `slot`'s bytes; the last part to finish writes
+    /// the package's `graph` entry, unless a part has none.
+    fn part_done(&self, slot: usize, part: Option<Vec<u8>>) {
+        let Some(g) = self.graph_parts.get() else {
+            return;
+        };
+        if let Some(s) = g.slots.get(slot) {
+            let _ = s.set(part);
+        }
+        if g.left.fetch_sub(1, std::sync::atomic::Ordering::AcqRel) != 1 {
+            return;
+        }
+        let Some(parts) = g
+            .slots
+            .iter()
+            .map(|s| s.get().cloned().flatten())
+            .collect::<Option<Vec<Vec<u8>>>>()
+        else {
+            return;
+        };
+        let sections = encode_graph(&parts);
+        let sections: Vec<&[u8]> = sections.iter().map(Vec::as_slice).collect();
+        self.put(EntryKind::Graph, g.key, &sections);
+    }
+
+    /// The package's `graph` entry (`crates/hd_cache/DESIGN.md`, "Graph
+    /// parts"), keyed by its parts' keys: coherence's, then each built
+    /// folder's init order's. On a hit, applies every part and returns
+    /// `true`; on a miss, starts the entry the part tasks fill.
+    fn graph_hit(&self, folders: &[usize]) -> bool {
+        let Some((all, coh)) = self.coherence_inputs() else {
+            return false;
+        };
+        let mut keys = vec![coh];
+        for &f in folders {
+            let Some((_, k)) = self.init_inputs(f) else {
+                return false;
+            };
+            keys.push(k);
+        }
+        let mut k = hd_base::StableHasher::new("graph");
+        k.hash(self.toolchain);
+        k.u32(u32_of(keys.len()));
+        for x in &keys {
+            k.hash(*x);
+        }
+        let key = k.finish();
+        let hit = self.lookup(EntryKind::Graph, key).and_then(|s| {
+            let parts = decode_graph(&s, keys.len())?;
+            let found = if parts[0].is_empty() {
+                Vec::new()
+            } else {
+                decode_overlaps(&parts[0], &all)?
+            };
+            let runs = parts[1..]
+                .iter()
+                .map(|b| {
+                    if b.is_empty() {
+                        Some(Vec::new())
+                    } else {
+                        decode_runs(b)
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some((found, runs))
+        });
+        let Some((found, runs)) = hit else {
+            let _ = self.graph_parts.set(GraphParts {
+                key,
+                folders: folders.to_vec(),
+                slots: (0..keys.len()).map(|_| OnceLock::new()).collect(),
+                left: std::sync::atomic::AtomicUsize::new(keys.len()),
+            });
+            return false;
+        };
+        lock(&self.report).ok(Stage::Coherence);
+        {
+            let mut d = lock(&self.diags);
+            for (item, msg) in found {
+                d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+            }
+        }
+        for (&f, r) in folders.iter().zip(runs) {
+            let _ = self.init_runs[f].set(r);
+            lock(&self.report).ok(Stage::InitOrder);
+        }
+        true
     }
 
     /// The overlap check (`trait.overlap.definition`,
@@ -6426,10 +6538,23 @@ impl Run<'_> {
         // `InitOrder(F)` reads the init summaries of the folder's modules,
         // so it runs once they are checked.
         let kept = self.kept.get();
-        let orders: Vec<TaskId> = (0..self.table.folders.len())
+        let folders: Vec<usize> = (0..self.table.folders.len())
             .filter(|f| !kept.is_some_and(|k| k[*f]) && self.builds(FolderId::from_raw(u32_of(*f))))
-            .map(|f| sp.add(TaskKind::InitOrder(u32_of(f)), &[]))
             .collect();
+        // Coherence and every folder's init order are parts of one `graph`
+        // entry: a hit runs neither. Coherence runs here, after every
+        // interface and check, so the entry's key holds both kinds of part.
+        let orders: Vec<TaskId> = if self.graph_hit(&folders) {
+            Vec::new()
+        } else {
+            let mut t = vec![sp.add(TaskKind::Coherence, &[])];
+            t.extend(
+                folders
+                    .iter()
+                    .map(|f| sp.add(TaskKind::InitOrder(u32_of(*f)), &[])),
+            );
+            t
+        };
         self.dbg_in_release();
         match &self.goal {
             Goal::Program { .. }
@@ -7972,6 +8097,56 @@ fn decode_regs(r: &mut Reader<'_>, lines: &Lines<'_>) -> Vec<hd_check::tests::Te
         });
     }
     out
+}
+
+/// The init summaries of one folder's module cycles, by module, and their
+/// part key ([`Run::init_inputs`]).
+type InitInputs<'a> = (Vec<Vec<(usize, &'a [u8])>>, Hash128);
+
+/// The package's `graph` entry while this run fills it: its key, the
+/// folders whose init orders are its parts after coherence's, each part's
+/// bytes (`None` for one that is blocked or reports a cycle), and how many
+/// parts are still running.
+struct GraphParts {
+    key: Hash128,
+    folders: Vec<usize>,
+    slots: Vec<OnceLock<Option<Vec<u8>>>>,
+    left: std::sync::atomic::AtomicUsize,
+}
+
+/// The sections of a package's `graph` entry: an index holding, per
+/// part, its section or 0, then each non-empty part. An empty part stores
+/// nothing; its key in the entry's key is enough.
+fn encode_graph(parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut index = Writer::default();
+    index.u32(u32_of(parts.len()));
+    let mut out = vec![Vec::new()];
+    for p in parts {
+        if p.is_empty() {
+            index.u32(0);
+        } else {
+            index.u32(u32_of(out.len()));
+            out.push(p.clone());
+        }
+    }
+    out[0] = index.bytes;
+    out
+}
+
+/// Reads what [`encode_graph`] wrote as `n` parts; an empty part is no
+/// bytes.
+fn decode_graph(sections: &[Vec<u8>], n: usize) -> Option<Vec<Vec<u8>>> {
+    let mut r = Reader::new(sections.first()?);
+    if r.u32() as usize != n {
+        return None;
+    }
+    let parts = (0..n)
+        .map(|_| match r.u32() as usize {
+            0 => Some(Vec::new()),
+            i => sections.get(i).cloned(),
+        })
+        .collect::<Option<Vec<_>>>()?;
+    r.ok().then_some(parts)
 }
 
 /// `InitOrder`'s runs for one folder: one list per module cycle.
