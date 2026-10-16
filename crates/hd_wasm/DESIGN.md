@@ -383,12 +383,14 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | fact values and metadata | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (crates/hd_mono/DESIGN.md §12.3) | a `call` of the getter |
 | shared enum data | mutable, nullable or zero | the declaring module's group init function ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)) | `global.get` |
 
-Implementation differs: of the constant kinds, only capture-free
-closures, witnesses and fieldless data values are globals (`GSym`).
-Each coercion to a trait value builds its vtable with `struct.new`
-(`Em::vtable_value`, direct supertraits included), so every coercion
-allocates; payloadless variants and `TypeId` values allocate too. Short
-literals have no `array.new_fixed` globals.
+Implementation differs: of the constant kinds, capture-free closures,
+witnesses, fieldless data values, payloadless variant singletons
+(`GSym::Variant`) and vtables (`GSym::Vtable`) are globals. A vtable
+global's initializer is its whole tree, supertraits included, written
+once per tree and named by its hash (`Em::vtable_value`), so a coercion
+reads it and allocates nothing; a subtable the tree repeats is built
+again in the initializer, once, at instantiation. `TypeId` values still
+allocate. Short literals have no `array.new_fixed` globals.
 
 **Stable numbering.** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's

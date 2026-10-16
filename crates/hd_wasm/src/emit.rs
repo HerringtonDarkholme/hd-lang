@@ -4480,11 +4480,54 @@ impl<'a> Em<'a> {
     /// method slots, then its direct supertraits' vtables. A supertrait
     /// reached twice, as `Display` is through two paths of a diamond, is
     /// built once.
+    /// A trait value's vtable tree is constant, `ref.func` of its adapters
+    /// under `struct.new`, so it is one immutable global, read here with
+    /// no allocation (`GSym::Vtable`). The tree is written into its own
+    /// constant expression; a tree that repeats a subtable repeats its
+    /// `struct.new`, which runs once, when the module is instantiated.
     fn vtable_value(&mut self, table: &VTable, key: Ty, fv: &[VT]) -> StageResult<()> {
         let mut uses: HashMap<Ty, u32> = HashMap::default();
         self.count_tables(table, key, &mut uses)?;
-        let mut built = HashMap::default();
-        self.push_table(table, key, fv, &uses, &mut built)
+        // Collection records a repeated subtable's slots at its first
+        // occurrence only, so each later occurrence is that one again.
+        let table = self.first_tables(table, key, &mut HashMap::default());
+        let outer = std::mem::replace(&mut self.a, Asm::new(vec![]));
+        let pushed = self.push_table(
+            &table,
+            key,
+            fv,
+            &HashMap::default(),
+            &mut HashMap::default(),
+        );
+        let tree = std::mem::replace(&mut self.a, outer);
+        pushed?;
+        let init = tree.into_const();
+        let vt = self.lay.vtable(key)?;
+        self.a
+            .global_get(GSym::Vtable(init.hash(), VT::r(vt), Box::new(init)));
+        Ok(())
+    }
+
+    /// A vtable tree in which each repeated key is its first occurrence,
+    /// in the order [`Self::push_table`] visits them.
+    fn first_tables(&self, table: &VTable, key: Ty, firsts: &mut HashMap<Ty, VTable>) -> VTable {
+        if let Some(first) = firsts.get(&key) {
+            return first.clone();
+        }
+        let supers = self.lay.dyn_supers(key);
+        let parents = table
+            .parents
+            .iter()
+            .zip(supers)
+            .map(|(p, s)| self.first_tables(p, s, firsts))
+            .collect();
+        let whole = VTable {
+            trait_: table.trait_,
+            slots: table.slots.clone(),
+            parents,
+        };
+        firsts.insert(key, whole.clone());
+        whole
     }
 
     /// How many times each vtable key occurs in a vtable tree.

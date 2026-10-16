@@ -464,6 +464,85 @@ pub enum GSym {
     /// (`expr.is.value-operand`), so every construction reads the one
     /// value. Like a constant closure, it is local to its module.
     Variant(Hash128, u32, VT),
+    /// A trait value's vtable tree (`crates/hd_wasm/DESIGN.md`, trait
+    /// values): `ref.func` of its adapters under `struct.new`, all constant,
+    /// so one immutable global per tree, named by the hash of its
+    /// initializer and holding the vtable `VT`. A coercion reads it and
+    /// allocates nothing. Vtables have no identity and are never written,
+    /// so every coercion may share it; like a constant closure it is local
+    /// to its module.
+    Vtable(Hash128, VT, Box<ConstInit>),
+}
+
+/// A constant expression with relocations: a global's initializer, whose
+/// function and type indices link fills in.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ConstInit {
+    pub body: Vec<u8>,
+    pub relocs: Vec<(u32, Reloc)>,
+}
+
+fn encode_reloc(r: &Reloc, w: &mut Writer) {
+    match r {
+        Reloc::Func(s) => {
+            w.u8(0);
+            s.encode(w);
+        }
+        Reloc::Type(t) => {
+            w.u8(1);
+            t.encode(w);
+        }
+        Reloc::Global(g) => {
+            w.u8(2);
+            g.encode(w);
+        }
+        Reloc::Lit(b) => {
+            w.u8(3);
+            w.blob(b);
+        }
+    }
+}
+
+fn decode_reloc(r: &mut Reader<'_>) -> Option<Reloc> {
+    Some(match r.u8() {
+        0 => Reloc::Func(Sym::decode(r)?),
+        1 => Reloc::Type(WTy::decode(r)?),
+        2 => Reloc::Global(GSym::decode(r)?),
+        3 => Reloc::Lit(r.blob().to_vec()),
+        _ => return None,
+    })
+}
+
+impl ConstInit {
+    fn encode(&self, w: &mut Writer) {
+        w.blob(&self.body);
+        w.len_of(&self.relocs);
+        for (at, r) in &self.relocs {
+            w.u32(*at);
+            encode_reloc(r, w);
+        }
+    }
+
+    fn decode(r: &mut Reader<'_>) -> Option<ConstInit> {
+        let body = r.blob().to_vec();
+        let n = r.count();
+        let mut relocs = Vec::new();
+        for _ in 0..n {
+            let at = r.u32();
+            relocs.push((at, decode_reloc(r)?));
+        }
+        Some(ConstInit { body, relocs })
+    }
+
+    /// The hash that names a vtable global: of the initializer's bytes and
+    /// relocations, so one tree is one global.
+    #[must_use]
+    pub fn hash(&self) -> Hash128 {
+        let bytes = encode_grouped(|w| self.encode(w));
+        let mut h = StableHasher::new("vtable-global");
+        h.bytes(&bytes);
+        h.finish()
+    }
 }
 
 impl GSym {
@@ -476,7 +555,8 @@ impl GSym {
             | GSym::Witness(_, _, v)
             | GSym::WitnessField(_, _, v)
             | GSym::Closure(_, v)
-            | GSym::Variant(_, _, v) => v,
+            | GSym::Variant(_, _, v)
+            | GSym::Vtable(_, v, _) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -520,6 +600,12 @@ impl GSym {
                 w.u32(*tag);
                 v.encode(w);
             }
+            GSym::Vtable(h, v, init) => {
+                w.u8(7);
+                w.hash(*h);
+                v.encode(w);
+                init.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
@@ -531,6 +617,7 @@ impl GSym {
             4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r)?),
             5 => GSym::Closure(r.hash(), VT::decode(r)?),
             6 => GSym::Variant(r.hash(), r.u32(), VT::decode(r)?),
+            7 => GSym::Vtable(r.hash(), VT::decode(r)?, Box::new(ConstInit::decode(r)?)),
             _ => return None,
         })
     }
@@ -556,7 +643,7 @@ pub enum Sym {
 }
 
 /// A relocation target (`crates/hd_mono/DESIGN.md` §13.8 `Reloc`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Reloc {
     Func(Sym),
     Type(WTy),
@@ -1058,24 +1145,7 @@ impl Code {
         w.len_of(&self.relocs);
         for (at, r) in &self.relocs {
             w.u32(*at);
-            match r {
-                Reloc::Func(s) => {
-                    w.u8(0);
-                    s.encode(w);
-                }
-                Reloc::Type(t) => {
-                    w.u8(1);
-                    t.encode(w);
-                }
-                Reloc::Global(g) => {
-                    w.u8(2);
-                    g.encode(w);
-                }
-                Reloc::Lit(b) => {
-                    w.u8(3);
-                    w.blob(b);
-                }
-            }
+            encode_reloc(r, w);
         }
         w.len_of(&self.lines);
         for &(off, at) in &self.lines {
@@ -1103,13 +1173,7 @@ impl Code {
         let mut relocs = Vec::new();
         for _ in 0..n {
             let at = r.u32();
-            let reloc = match r.u8() {
-                0 => Reloc::Func(Sym::decode(r)?),
-                1 => Reloc::Type(WTy::decode(r)?),
-                2 => Reloc::Global(GSym::decode(r)?),
-                3 => Reloc::Lit(r.blob().to_vec()),
-                _ => return None,
-            };
+            let reloc = decode_reloc(r)?;
             if (at as usize) + 5 > body.len() {
                 return None;
             }
@@ -1512,6 +1576,7 @@ pub fn global_key(g: &GSym) -> String {
         GSym::WitnessField(f, e, _) => format!("witf.{:032x}.{:032x}", f.0, e.0),
         GSym::Closure(k, _) => format!("clo.{:032x}", k.0),
         GSym::Variant(h, tag, _) => format!("var.{:032x}.{tag}", h.0),
+        GSym::Vtable(h, _, _) => format!("vtab.{:032x}", h.0),
     }
 }
 
@@ -1538,6 +1603,7 @@ fn constant_global(g: &GSym) -> bool {
             | GSym::Canon(_, VT::Ref(..))
             | GSym::Closure(..)
             | GSym::Variant(..)
+            | GSym::Vtable(..)
     )
 }
 
@@ -1546,7 +1612,7 @@ fn constant_global(g: &GSym) -> bool {
 /// function values have no identity, so sharing it would buy a few bytes
 /// per later module at the cost of one more kind of session key.
 fn module_local(g: &GSym) -> bool {
-    matches!(g, GSym::Closure(..) | GSym::Variant(..))
+    matches!(g, GSym::Closure(..) | GSym::Variant(..) | GSym::Vtable(..))
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal
@@ -1625,6 +1691,14 @@ pub fn link(
                     ));
                 }
                 Reloc::Global(g) => {
+                    // A vtable's initializer calls for its adapters.
+                    if let GSym::Vtable(_, _, init) = g {
+                        for (_, r) in &init.relocs {
+                            if let Reloc::Func(Sym::Helper(h)) = r {
+                                todo.push(h.clone());
+                            }
+                        }
+                    }
                     gsyms.insert(g.clone());
                 }
                 Reloc::Func(s @ (Sym::Inst(_) | Sym::Part(..))) => {
@@ -1866,6 +1940,35 @@ pub fn link(
                     shared: false,
                 },
                 &ConstExpr::extended([Instruction::RefFunc(f), Instruction::StructNew(env)]),
+            );
+            global_idx.insert(
+                g.clone(),
+                u32::try_from(nlit_globals + global_idx.len()).expect("globals"),
+            );
+            continue;
+        }
+        if let GSym::Vtable(_, _, init) = g {
+            let mut body = init.body.clone();
+            for (at, r) in &init.relocs {
+                let v = match r {
+                    Reloc::Func(s) => match func_idx.get(s) {
+                        Some(&f) => f,
+                        None => return unsupported(format!("a vtable slot with no code: {s:?}")),
+                    },
+                    Reloc::Type(t) => types.of(t),
+                    _ => return unsupported("a vtable initializer with a global or literal"),
+                };
+                let mut b = Vec::new();
+                padded(&mut b, v);
+                body[*at as usize..*at as usize + 5].copy_from_slice(&b);
+            }
+            globals.global(
+                GlobalType {
+                    val_type: types.val(g.vt()),
+                    mutable: false,
+                    shared: false,
+                },
+                &ConstExpr::raw(body),
             );
             global_idx.insert(
                 g.clone(),

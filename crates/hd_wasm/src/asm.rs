@@ -276,6 +276,15 @@ impl Asm {
         self.s().i32_store8(mem(off));
     }
 
+    /// The instructions written, with their relocations, as a constant
+    /// expression's body: no locals and no closing `end`.
+    #[must_use]
+    pub fn into_const(self) -> crate::ConstInit {
+        crate::ConstInit {
+            body: self.out,
+            relocs: self.relocs,
+        }
+    }
     /// The finished code entry: the locals header, then the body.
     #[must_use]
     pub fn finish(mut self, results: Vec<VT>) -> Code {

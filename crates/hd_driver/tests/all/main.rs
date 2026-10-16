@@ -22,6 +22,7 @@ mod collect_default_run;
 mod combinator_call_forms;
 mod competing_drivers;
 mod constant_closures;
+mod constant_vtables;
 mod context_values;
 mod copy_assign_run;
 mod copy_update_run;
