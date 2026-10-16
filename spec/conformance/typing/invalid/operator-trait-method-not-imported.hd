@@ -1,0 +1,5 @@
+# test: i32 implements std.ops.Add, but without a use of Add its add method is not found
+# Spec 05 Method Calls: expr.member.trait-available; expr.member.trait-hint says the message should
+# suggest a use of std.ops.Add, the only trait with an add method for i32, and the fixture checks only the code.
+fn sum(a: i32, b: i32) -> i32:
+    a.add(b)  # diagnostic: unknown-method

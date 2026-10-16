@@ -1,0 +1,8 @@
+# test: handler.callback(event) looks for a method named callback, so a field holding a function is not called
+# Spec 05 Method Calls: expr.member.stored-fn.error; expr.member.stored-fn.hint says the message
+# should suggest (handler.callback)(event), and the fixture checks only the code.
+data Handler:
+    callback: fn(string) -> i32
+
+fn dispatch(handler: Handler, event: string) -> i32:
+    handler.callback(event)  # diagnostic: unknown-method

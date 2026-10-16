@@ -1,0 +1,23 @@
+# test: the interpolated expressions of a prefixed string run left to right, all before the prefix function is called
+# Spec 05 Prefixed Strings: expr.prefix.order.
+use std.ops.{Template, str_prefix}
+
+data Log:
+    seen: mut List[i32]
+
+fn tick(log: mut Log, step: i32) -> mut Log:
+    log.seen.push(step)
+    log
+
+@str_prefix
+fn count_seen(t: Template[mut Log]) -> usize:
+    t.values[0].seen.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("evaluates every interpolation before the call, in source order"):
+        let mut log = Log { seen: [] }
+        count := count_seen"${tick(log, 1)}, ${tick(log, 2)}, ${tick(log, 3)}"
+        assert_equal(count, 3, reason="all three ran before the prefix function read the log")
+        assert_equal(log.seen, [1, 2, 3], reason="left to right")

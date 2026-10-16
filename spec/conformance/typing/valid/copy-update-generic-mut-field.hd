@@ -1,0 +1,10 @@
+# test: copy-update from a readonly source keeps a generic field's substituted mut U, so it fills a mutable result
+# Spec 05 Copy-Update Expressions: expr.update.generic; contrast readonly-spread-mutable-field.hd, where a direct mut U field is weakened.
+data Child:
+    name: string
+
+data Slot[T]:
+    item: T
+
+fn copy(source: Slot[mut Child]) -> mut Slot[mut Child]:
+    Slot { ...source }

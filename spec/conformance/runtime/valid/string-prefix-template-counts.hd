@@ -1,0 +1,17 @@
+# test: a prefixed string with n interpolations passes n values in source order and n + 1 pieces of text
+# Spec 05 Prefixed Strings: expr.prefix.template.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn keep(t: Template[string]) -> Template[string]: t
+
+tests:
+    use std.testing.assert_equal
+
+    it("three values give four pieces"):
+        a := "x"
+        b := "y"
+        c := "z"
+        found := keep"<$a|$b|$c>"
+        assert_equal(found.values, ["x", "y", "z"], reason="the values in source order")
+        assert_equal(found.raw_parts, ["<", "|", "|", ">"], reason="n + 1 pieces")

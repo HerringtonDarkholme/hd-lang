@@ -1,0 +1,16 @@
+# test: through a readonly data root, a generic field keeps its substituted mut List type, so push works
+# Spec 05 Readonly Roots: expr.member.readonly-generic.
+data Slot[T]:
+    item: T
+
+fn stock(slot: Slot[mut List[i32]]) -> void:
+    slot.item.push(1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("pushes through a readonly slot"):
+        let items: mut List[i32] = []
+        let slot: Slot[mut List[i32]] = Slot { item: items }
+        stock(slot)
+        assert_equal(items, [1], reason="the list in the slot changed")

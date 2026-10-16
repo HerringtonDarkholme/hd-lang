@@ -1,0 +1,15 @@
+# test: method calls, indexing, tuple elements and ? bind more tightly than every infix operator
+# Spec 05 Postfix Expressions: expr.postfix.binding.
+fn product_plus_one(a: i32?, b: i32?) -> i32?:
+    .Some(a? * b? + 1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("postfix operations group before infix ones"):
+        items := [+4, +5, +6]
+        pair := (+10, +3)
+        assert_equal(1 + items.len() * 2, 7, reason="items.len() is one operand of *")
+        assert_equal(items[2] - items[0] * 2, -2, reason="each index is one operand")
+        assert_equal(pair._0 - pair._1, 7, reason="each tuple element is one operand")
+        assert_equal(product_plus_one(.Some(+3), .Some(+4)), .Some(+13), reason="each ? is one operand")

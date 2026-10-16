@@ -1,0 +1,21 @@
+# test: a variant constructor with exactly one payload field is a function value
+# Spec 05 Member Access: expr.member.variant-fn-value.
+enum Reading:
+    Missing
+    Celsius(degrees: i32)
+
+fn apply(make: fn(i32) -> Reading, value: i32) -> Reading:
+    make(value)
+
+fn degrees(reading: Reading) -> i32:
+    match reading:
+        .Missing => +0
+        .Celsius(degrees) => degrees
+
+tests:
+    use std.testing.assert_equal
+
+    it("passes and binds the constructor as a function"):
+        let make: fn(i32) -> Reading = Reading.Celsius
+        assert_equal(degrees(apply(Reading.Celsius, 21)), 21, reason="passed as an argument")
+        assert_equal(degrees(make(5)), 5, reason="bound to a name")

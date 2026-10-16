@@ -1,0 +1,16 @@
+# test: a method call selects the method even when a field of the same name holds a function
+# Spec 05 Method Calls: expr.member.no-field-call.
+data Button:
+    label: fn() -> string
+
+impl Button:
+    fn label(self) -> string: "method"
+
+fn stored() -> string: "field"
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls the method, not the stored function"):
+        button := Button { label: stored }
+        assert_equal(button.label(), "method", reason="a method call never reads the field")

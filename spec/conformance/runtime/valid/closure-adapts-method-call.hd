@@ -1,0 +1,16 @@
+# test: an explicit closure adapts a method call where a function value is needed
+# Spec 05 Method Calls: expr.member.closure-adapt.
+data Scale:
+    factor: i32
+
+impl Scale:
+    fn apply(self, value: i32) -> i32: value * self.factor
+
+fn twice(f: fn(i32) -> i32, value: i32) -> i32: f(f(value))
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls the method through the closure"):
+        scale := Scale { factor: 3 }
+        assert_equal(twice(fn(value: i32) -> i32: scale.apply(value), 2), 18, reason="the closure calls scale.apply")

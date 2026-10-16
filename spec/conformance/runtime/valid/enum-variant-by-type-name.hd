@@ -1,0 +1,17 @@
+# test: Enum.Variant names a variant through the enum's type name, which is not a value
+# Spec 05 Member Access: expr.member.enum-variant.
+enum Light:
+    Off
+    Dim(level: i32)
+
+fn level(light: Light) -> i32:
+    match light:
+        .Off => +0
+        .Dim(level) => level
+
+tests:
+    use std.testing.assert_equal
+
+    it("names a variant with and without a payload"):
+        assert_equal(level(Light.Off), 0, reason="a unit variant")
+        assert_equal(level(Light.Dim(4)), 4, reason="a payload variant")

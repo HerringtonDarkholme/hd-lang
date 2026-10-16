@@ -1,0 +1,15 @@
+# test: every piece of a prefixed string, not only the first, keeps its text exactly as written with every backslash
+# Spec 05 Prefixed Strings: expr.prefix.raw-parts.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn pieces(t: Template[i32]) -> List[string]: t.raw_parts
+
+tests:
+    use std.testing.assert_equal
+
+    it("backslashes stay in the first, middle and last piece"):
+        a := +1
+        b := +2
+        found := pieces"\t$a \"q\" \n${b}\u{41}"
+        assert_equal(found, ["\\t", " \\\"q\\\" \\n", "\\u{41}"], reason="no escape is processed in any piece")

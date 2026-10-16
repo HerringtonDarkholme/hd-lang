@@ -1,0 +1,19 @@
+# test: a method is used as a value through Type::name or value::name
+# Spec 05 Method Calls: expr.member.method-references.
+data Counter:
+    base: i32
+
+impl Counter:
+    fn plus(self, step: i32) -> i32: self.base + step
+
+fn call_bound(f: fn(i32) -> i32, step: i32) -> i32: f(step)
+
+fn call_unbound(f: fn(Counter, i32) -> i32, counter: Counter, step: i32) -> i32: f(counter, step)
+
+tests:
+    use std.testing.assert_equal
+
+    it("passes bound and unbound references"):
+        counter := Counter { base: 10 }
+        assert_equal(call_bound(counter::plus, 5), 15, reason="value::name binds the receiver")
+        assert_equal(call_unbound(Counter::plus, counter, 1), 11, reason="Type::name takes the receiver first")

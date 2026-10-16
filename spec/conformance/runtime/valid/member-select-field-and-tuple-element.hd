@@ -1,0 +1,20 @@
+# test: value.member selects a field by its identifier, and tuple._0 selects a tuple element
+# Spec 05 Member Access: expr.member.select-identifier.
+data Point:
+    x: i32
+    y: i32
+
+data Segment:
+    start: Point
+    end: Point
+
+tests:
+    use std.testing.assert_equal
+
+    it("selects fields and tuple elements"):
+        segment := Segment { start: Point { x: 1, y: 2 }, end: Point { x: 3, y: 4 } }
+        pair := ("left", +9)
+        assert_equal(segment.end.y, 4, reason="a field of a field")
+        assert_equal(segment.start.x, 1, reason="a field by its name")
+        assert_equal(pair._0, "left", reason="the first tuple element")
+        assert_equal(pair._1, 9, reason="the second tuple element")

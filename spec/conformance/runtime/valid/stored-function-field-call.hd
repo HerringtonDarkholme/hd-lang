@@ -1,0 +1,15 @@
+# test: a function stored in a field is called by parenthesizing the field read
+# Spec 05 Method Calls: expr.member.stored-fn.
+data Handler:
+    callback: fn(i32) -> i32
+
+fn double(value: i32) -> i32: value * 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls the stored function"):
+        named := Handler { callback: double }
+        inline := Handler { callback: fn(value: i32) -> i32: value + 1 }
+        assert_equal((named.callback)(21), 42, reason="a named function in the field")
+        assert_equal((inline.callback)(41), 42, reason="a closure in the field")

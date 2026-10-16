@@ -1,0 +1,6 @@
+# test: with a use of std.ops.Add, the add method of i32 is found
+# Spec 05 Method Calls: expr.member.trait-available; the companion of operator-trait-method-not-imported.hd.
+use std.ops.Add
+
+fn sum(a: i32, b: i32) -> i32:
+    a.add(b)

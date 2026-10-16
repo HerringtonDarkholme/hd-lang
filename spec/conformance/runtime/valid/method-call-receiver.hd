@@ -1,0 +1,18 @@
+# test: value.name(arguments) calls the method that member lookup selects, with value as its receiver
+# Spec 05 Method Calls: expr.member.method-call.
+data Account:
+    owner: string
+    cents: i32
+
+impl Account:
+    fn describe(self, prefix: string) -> string:
+        "$prefix${self.owner}: ${self.cents}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls the method on the receiver"):
+        ada := Account { owner: "Ada", cents: 250 }
+        grace := Account { owner: "Grace", cents: 90 }
+        assert_equal(ada.describe("> "), "> Ada: 250", reason="ada is the receiver")
+        assert_equal(grace.describe(""), "Grace: 90", reason="grace is the receiver")

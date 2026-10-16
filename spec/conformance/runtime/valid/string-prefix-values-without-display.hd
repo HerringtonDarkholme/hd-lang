@@ -1,0 +1,21 @@
+# test: a prefixed string calls its prefix function with a Template, so the values need no Display and the result has the function's own type
+# Spec 05 Prefixed Strings: expr.prefix.fn-call; the compiler never joins the pieces and never calls Display.
+use std.ops.{Template, str_prefix}
+
+data Cell:
+    amount: i32
+
+@str_prefix
+fn total(t: Template[Cell]) -> i32:
+    let sum = +0
+    for cell in t.values:
+        sum = sum + cell.amount
+    sum
+
+tests:
+    use std.testing.assert_equal
+
+    it("passes values that have no Display to the prefix function"):
+        first := Cell { amount: 2 }
+        second := Cell { amount: 5 }
+        assert_equal(total"cells $first and $second", 7, reason="the call returns the prefix function's i32")
