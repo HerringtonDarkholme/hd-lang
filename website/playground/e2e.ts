@@ -163,7 +163,13 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     const page = await openPage(code("pub fn main() -> void:\n    while true:\n        pass\n"));
     page.on("worker", (worker) => workers.push(new URL(worker.url()).pathname.split("/").pop()!));
     const before = workers.length;
+    // Stop only once the program runs: the run worker loads when the
+    // compile is done, so a Stop before it would end the compiler's worker.
+    const running = page.waitForEvent("worker", {
+      predicate: (worker) => worker.url().endsWith("/run-worker.js"),
+    });
     await page.click("#run");
+    await running;
     await page.locator("#stop").waitFor();
     await page.waitForTimeout(300);
     await page.click("#stop");
