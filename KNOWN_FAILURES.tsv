@@ -3,4 +3,7 @@ typing/invalid/second-template-for-trait.hd	#294		a second template for one trai
 typing/invalid/second-tuple-template.hd	#294		a second tuple template for one trait checks clean; template-against-template overlap is not reported
 typing/invalid/contextual-variant-payload-needs-call.hd	#286		contextual .Refunded without a call reports argument-count, not unsaturated-enum-constructor as Status.Refunded does
 runtime/valid/resource-disposed-result.hd	#9		unsupported: stops at Link at the host boundary
+typing/invalid/derivation-block-trait-without-template.hd	#295		the checker accepts `impl Plain for Point by Structure` for a trait that has no template; it should report underivable-trait
+typing/invalid/derivation-block-comparison-trait.hd	#295		the checker accepts `impl Eq for Point by Structure`, a derivation block for a comparison trait; it should report underivable-trait
+typing/warnings/derivation-line-drift-beside-derive.hd	#295		a derivation block with a member line beside a @derive of another trait of the same package gets no derivation-line-drift warning
 typing/invalid/value-not-assignable-to-never.hd	#288		the checker accepts a string value where `never` is expected (`fn f() -> never: "done"`, also `let x: never = "a"`)

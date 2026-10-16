@@ -1,0 +1,47 @@
+# test: an omitted member's type need not satisfy the walker's bound
+# Spec 14 Omitted Members: annot.omit.exempt; Cache does not implement Shown.
+use std.structure.{Structure, Field, Variant, Walker}
+trait Shown:
+    fn shown(self) -> string
+
+impl Shown for i64:
+    fn shown(self) -> string:
+        "$self"
+
+trait Show:
+    fn show(self) -> string
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Shown](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.shown() + ";"
+        .Ok(())
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let mut w = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Cache:
+    hits: i32 = 0
+
+data Session:
+    id: i64
+    cache: Cache = Cache {}
+
+impl Show for Session by Structure:
+    cache = pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("walks id alone"):
+        assert_equal(Session { id: 7 }.show(), "7;", reason="cache is never walked")

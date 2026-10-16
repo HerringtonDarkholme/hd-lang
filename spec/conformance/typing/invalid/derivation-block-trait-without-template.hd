@@ -1,0 +1,11 @@
+# test: a derivation block for a trait that has no template is an error
+# Spec 14 Derivation Blocks: annot.block.template.
+use std.structure.Structure
+
+trait Plain:
+    fn plain(self) -> string
+
+data Point:
+    x: i64
+
+impl Plain for Point by Structure  # diagnostic: underivable-trait

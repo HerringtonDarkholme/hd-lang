@@ -1,0 +1,24 @@
+# test: a derivation block with no trait is not an inherent implementation, so its member line declares no method
+# Spec 14 Derivation Blocks With No Trait: annot.no-trait.not-inherent.
+use std.structure.Structure
+
+data Tag:
+    text: string
+
+data Note:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+fn note(text: string) -> Note:
+    Note { text: text }
+
+data Point:
+    x: i64
+
+impl Point by Structure:
+    x += [tag("a")]
+
+fn read(p: Point) -> i64:
+    p.x()  # diagnostic: unknown-method

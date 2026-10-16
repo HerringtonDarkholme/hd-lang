@@ -1,0 +1,46 @@
+# fixture-package-role: root-application
+# test: a derivation block for a type of another package is an error, even beside the trait's template
+# Spec 14 Derivation Blocks: annot.block.module; dep.models declares User.
+use dep.models.{User}
+use std.structure.{Structure, Field, Variant, Walker}
+data Tag:
+    text: string
+
+data Note:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+fn note(text: string) -> Note:
+    Note { text: text }
+
+data Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        tagged := match h.info.facts.find::[Tag]():
+            .Some(found) => found.text
+            .None => "-"
+        noted := match h.info.facts.find::[Note]():
+            .Some(found) => found.text
+            .None => "-"
+        self.out = self.out + h.info.name + "=" + tagged + "/" + noted + ";"
+        .Ok(())
+
+trait Probe:
+    fn probe(self) -> string
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let mut w = Prober { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+impl Probe for User by Structure  # diagnostic: misplaced-derivation

@@ -1,0 +1,37 @@
+# test: a member omitted with = pass is not described
+# Spec 14 Omitted Members: annot.omit.skip; walk is in member-line-omit.hd, and build in omitted-member-default.hd.
+use std.structure.{Structure, Field, Variant, Describer}
+data Counter:
+    total: i32
+
+impl[S] Describer[S] for Counter:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.total = self.total + 1
+        .Ok(())
+
+trait Count:
+    fn count() -> i32
+
+impl[T] Count for T by Structure:
+    fn count() -> i32:
+        let mut d = Counter { total: 0 }
+        _ := T::describe(d)
+        d.total
+
+data Session:
+    id: i64
+    cache: i64 = 0
+
+impl Count for Session by Structure:
+    cache = pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("describes only id"):
+        assert_equal(Session::count(), 1, reason="cache is not described")
