@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use super::case::TestCase;
-use crate::codec::Enc;
+use crate::abi::PropertyCase;
 use crate::property::{Plan, Property};
 use crate::testing_files::{Files, load_regression};
 
@@ -97,7 +97,12 @@ impl State {
         self.lock().files.cleanup();
     }
 
-    pub fn start(&self, cases: u32, shrink: u32, examples: u32) -> Result<Option<Enc>, String> {
+    pub fn start(
+        &self,
+        cases: u32,
+        shrink: u32,
+        examples: u32,
+    ) -> Result<Option<PropertyCase>, String> {
         let mut state = self.lock();
         if state.property.is_none() {
             let replays = load_regression(state.case.regression.as_deref(), state.files.deadline)?;
@@ -115,9 +120,9 @@ impl State {
             .expect("property initialized")
             .next()?;
         state.ended = plan.is_none();
-        let encoded = plan.as_ref().map(Plan::encode);
+        let case = plan.as_ref().map(Plan::case);
         state.body.plan = plan;
-        Ok(encoded)
+        Ok(case)
     }
 
     pub fn record(&self, value: i64) {

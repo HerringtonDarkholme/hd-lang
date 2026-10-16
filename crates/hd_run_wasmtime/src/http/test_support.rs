@@ -7,7 +7,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use hd_run::Grants;
 
-use crate::codec::{Dec, Enc};
+use crate::codec::{Dec, Enc, Wire};
 use crate::limits::Ledger;
 use crate::reactor::{Done, Reactor, Work};
 
@@ -68,15 +68,9 @@ pub(crate) fn request(
     timeout: i64,
 ) -> Enc {
     let mut e = Enc::default();
-    e.leb(7)
-        .str(method)
-        .str(url)
-        .list(headers, |e, (name, value)| {
-            e.str(name).str(value);
-        })
-        .bytes(body)
-        .leb(1)
-        .zz(timeout);
+    e.leb(7).str(method).str(url);
+    headers.enc(&mut e);
+    e.bytes(body).leb(1).zz(timeout);
     e
 }
 

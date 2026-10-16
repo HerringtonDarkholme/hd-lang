@@ -7,9 +7,9 @@ use super::client::NetError;
 pub(crate) fn at(grants: &Grants, host: &str, port: u16) -> Option<NetError> {
     let address = format!("{host}:{port}");
     if !valid_host(host) {
-        Some(NetError::new(1, address))
+        Some(NetError::InvalidAddress { address })
     } else if !grants.covers_host("Net", host, Some(port)) {
-        Some(NetError::new(0, address))
+        Some(NetError::NotGranted { address })
     } else {
         None
     }

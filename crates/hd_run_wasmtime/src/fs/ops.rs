@@ -2,9 +2,10 @@ use std::io;
 use std::path::Path;
 use std::time::Instant;
 
+use crate::abi::{self, Entry, FsError};
 use crate::codec::Enc;
 
-use super::api::{Failure, check_deadline, entry, error};
+use super::api::{Failure, check_deadline, entry, error, ok};
 use super::io::{open, read, write};
 use super::sandbox::{Place, Sandbox, below_a_file};
 use crate::limits::Reservation;
@@ -34,47 +35,42 @@ pub(crate) struct Env<'a> {
 }
 
 /// Runs `method` at `place`, the sandbox's place for the guest's `path`
-/// (`to` for the destination of a `rename`).
+/// (`to` for the destination of a `rename`), and gives its encoded result.
 pub(crate) fn run(
     method: &str,
     path: &str,
     place: &Place,
     to: Option<&Place>,
     payload: Option<&[u8]>,
-    e: &mut Enc,
     env: Env<'_>,
-) -> Result<(), Failure> {
+) -> Result<Enc, Failure> {
     let Env {
         cwd,
         deadline,
         held,
         sandbox,
     } = env;
+    let path_of = || abi::Path(path.to_owned());
     check_deadline(deadline)?;
-    match method {
-        "read_bytes" => {
-            e.leb(0).bytes(&read(place, deadline, held)?);
-        }
+    Ok(match method {
+        "read_bytes" => ok(read(place, deadline, held)?),
         "read_text" => {
             let bytes = read(place, deadline, held)?;
             check_deadline(deadline)?;
-            if let Ok(text) = std::str::from_utf8(&bytes) {
-                e.leb(0).str(text);
-            } else {
-                *e = error(path, 6);
+            match String::from_utf8(bytes) {
+                Ok(text) => ok(text),
+                Err(_) => error(FsError::InvalidUtf8 { path: path_of() }),
             }
         }
         "stat" => match place.symlink_metadata() {
-            Ok(st) => {
-                entry(e.leb(0).leb(1), path, &st);
-            }
+            Ok(st) => ok(Some(entry(path, &st))),
             Err(err)
                 if matches!(
                     err.kind(),
                     io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
                 ) =>
             {
-                e.leb(0).leb(0);
+                ok(None::<Entry>)
             }
             Err(err) => return Err(Failure::new("lstat", err)),
         },
@@ -106,37 +102,31 @@ pub(crate) fn run(
             while let Some(std::cmp::Reverse((shown, name))) = names.pop() {
                 check_deadline(deadline)?;
                 if let Ok(st) = dir.child(&name).symlink_metadata() {
-                    found.push((format!("{under}{shown}"), st));
+                    found.push(entry(&format!("{under}{shown}"), &st));
                 }
             }
-            e.leb(0).leb(u64::try_from(found.len()).unwrap_or(u64::MAX));
-            for (p, st) in found {
-                check_deadline(deadline)?;
-                entry(e, &p, &st);
-            }
+            ok(found)
         }
         "write_bytes" | "write_text" => {
             let mut file = open(place, true, false, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
-            e.leb(0);
+            ok(())
         }
         "append_text" => {
             let mut file = open(place, true, true, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
-            e.leb(0);
+            ok(())
         }
         "create_dir_all" => {
             if place.metadata().is_ok_and(|st| !st.dir) {
-                *e = error(path, 4);
+                error(FsError::NotADirectory { path: path_of() })
+            } else if path.is_empty() {
+                // std accepts the empty path; Node mkdir does not.
+                error(FsError::NotFound { path: path_of() })
             } else {
-                if path.is_empty() {
-                    // std accepts the empty path; Node mkdir does not.
-                    *e = error(path, 0);
-                    return Ok(());
-                }
                 mkdir(place, &at(cwd, path), deadline)
                     .map_err(|err| shown_mkdir_failure(err, cwd, path))?;
-                e.leb(0);
+                ok(())
             }
         }
         "remove" => {
@@ -157,7 +147,7 @@ pub(crate) fn run(
                     .remove_file()
                     .map_err(|err| Failure::new("unlink", err))?;
             }
-            e.leb(0);
+            ok(())
         }
         "rename" => {
             let to = to.ok_or_else(|| Failure::Message("a rename has no destination".into()))?;
@@ -168,11 +158,10 @@ pub(crate) fn run(
             place
                 .rename(to)
                 .map_err(|err| Failure::new("rename", err))?;
-            e.leb(0);
+            ok(())
         }
         _ => unreachable!("registered filesystem method"),
-    }
-    Ok(())
+    })
 }
 
 /// Makes the directory at `place` and its missing parents. `shown` is the
@@ -249,8 +238,7 @@ fn shown_mkdir_failure(failure: Failure, cwd: &Path, original: &str) -> Failure 
 #[cfg(test)]
 mod tests {
     use crate::codec::Enc;
-    use crate::fs::api::error;
-    use crate::fs::test_support::{TempDir, invoke};
+    use crate::fs::test_support::{TempDir, error, invoke};
     use std::fs;
 
     #[test]

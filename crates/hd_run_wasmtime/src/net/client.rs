@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use hd_run::Grants;
 
-use crate::codec::{Dec, Enc};
+pub(crate) use crate::abi::NetError;
+use crate::abi::{Datagram, ResourceError};
+use crate::codec::{Dec, Enc, Handle, Wire, encode};
 use crate::host::Stop;
 use crate::limits::Ledger;
 
@@ -57,21 +59,6 @@ pub(crate) enum Outcome {
     Unknown,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct NetError {
-    pub(crate) variant: u64,
-    pub(crate) text: String,
-}
-
-impl NetError {
-    pub(crate) fn new(variant: u64, text: impl Into<String>) -> Self {
-        Self {
-            variant,
-            text: text.into(),
-        }
-    }
-}
-
 impl Client {
     /// Closes every socket: the instance has ended. A stream's both
     /// directions shut first, so its peer reads the end even while an
@@ -105,8 +92,15 @@ impl Client {
                 .ok_or_else(|| Stop::Contract(format!("argument {i} is not an integer")))
         };
         let resource = method.contains('.');
-        let ready = |outcome| encode(outcome, resource).map(Start::Ready);
-        let refused = |error| encode(Outcome::Error(error), resource).map(Start::Ready);
+        let ready = |outcome| reply(outcome, resource).map(Start::Ready);
+        let refused = |error| reply(Outcome::Error(error), resource).map(Start::Ready);
+        // Every argument decodes before any check, as on Node.
+        let (host, payload) = match method {
+            "connect" | "listen" | "bind_udp" => (String::dec(&mut d)?, Vec::new()),
+            "TcpStream.write" => (String::new(), Vec::<u8>::dec(&mut d)?),
+            "UdpSocket.send_to" => (String::dec(&mut d)?, Vec::<u8>::dec(&mut d)?),
+            _ => (String::new(), Vec::new()),
+        };
         // Closable Handles requires Disposed through every alias before any
         // destination validation or grant check.
         let entry = if resource {
@@ -122,10 +116,10 @@ impl Client {
             ("lookup", _) => {
                 let host = String::from_utf8_lossy(bytes).into_owned();
                 if !valid_host(&host) {
-                    return refused(NetError::new(1, host));
+                    return refused(NetError::InvalidAddress { address: host });
                 }
                 if !covers_lookup(grants, &host) {
-                    return refused(NetError::new(0, host));
+                    return refused(NetError::NotGranted { address: host });
                 }
                 // Node keeps a literal's spelling rather than formatting
                 // the address through an IPv6 canonicalizer.
@@ -135,7 +129,6 @@ impl Client {
                 Job::Lookup(host)
             }
             ("connect" | "listen" | "bind_udp", _) => {
-                let host = d.str()?;
                 let port = port(scalar(0)?)?;
                 if let Some(error) = at(grants, &host, port) {
                     return refused(error);
@@ -181,9 +174,11 @@ impl Client {
             }
             ("TcpStream.write", Some(Entry::Stream(stream))) => {
                 if matches!(stream.state().end, Some(End::Error(_))) {
-                    return refused(NetError::new(4, "cannot write to a failed TCP stream"));
+                    return refused(NetError::Other {
+                        message: "cannot write to a failed TCP stream".into(),
+                    });
                 }
-                let bytes = d.bytes()?.to_vec();
+                let bytes = payload;
                 Job::Write {
                     stream: Arc::clone(stream),
                     handle: scalar(0)?,
@@ -196,8 +191,7 @@ impl Client {
                 handle: scalar(0)?,
             },
             ("UdpSocket.send_to", Some(entry)) => {
-                let host = d.str()?;
-                let bytes = d.bytes()?.to_vec();
+                let bytes = payload;
                 let port = port(scalar(1)?)?;
                 // A live send always checks its own destination grant.
                 if let Some(error) = at(grants, &host, port) {
@@ -233,7 +227,7 @@ impl Client {
                 let handle = scalar(0)?;
                 self.close(handle);
                 return Ok(Start::Closed {
-                    reply: encode(Outcome::Ok(Value::None), true)?,
+                    reply: reply(Outcome::Ok(Value::None), true)?,
                     handle,
                 });
             }
@@ -283,7 +277,7 @@ impl Client {
                 Outcome::Ok(Value::Datagram(bytes, peer))
             }
         };
-        encode(outcome, done.resource)
+        reply(outcome, done.resource)
     }
 
     /// Keeps what a completed `read!` or `receive!` took, when its
@@ -338,7 +332,12 @@ impl Client {
 
 /// The result of an operation the runtime could not run.
 pub(crate) fn not_run(error: &str, resource: bool) -> wasmtime::Result<Enc> {
-    encode(Outcome::Error(NetError::new(4, error)), resource)
+    reply(
+        Outcome::Error(NetError::Other {
+            message: error.into(),
+        }),
+        resource,
+    )
 }
 
 /// A `usize` count from the ABI's unsigned 32-bit value.
@@ -350,48 +349,34 @@ fn port(value: i64) -> wasmtime::Result<u16> {
     u16::try_from(value).map_err(|_| Stop::Contract("a Net port is outside u16".into()).into())
 }
 
-fn encode(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
-    let mut e = Enc::default();
-    match outcome {
+/// An operation's encoded result: `Result[T, NetError]` for a `Net`
+/// method, `Result[T, ResourceError[NetError]]` for a handle's
+/// (`resource`), where `T` is what its value holds.
+fn reply(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
+    fn ok<T: Wire>(value: T) -> Enc {
+        encode(&Ok::<T, NetError>(value))
+    }
+    Ok(match outcome {
         Outcome::Unknown => {
             return Err(
                 Stop::Contract("an operation on a handle the host never made".into()).into(),
             );
         }
-        Outcome::Disposed => {
-            e.leb(1).leb(1);
+        Outcome::Disposed => encode(&Err::<(), _>(ResourceError::<NetError>::Disposed)),
+        Outcome::Error(error) if resource => {
+            encode(&Err::<(), _>(ResourceError::Operation { error }))
         }
-        Outcome::Error(error) => {
-            e.leb(1);
-            if resource {
-                e.leb(0);
-            }
-            e.leb(error.variant).str(&error.text);
-        }
-        Outcome::Ok(value) => {
-            e.leb(0);
-            match value {
-                Value::None => {}
-                Value::Handle(handle) => {
-                    e.leb(handle);
-                }
-                Value::Addresses(addresses) => {
-                    e.list(&addresses, |e, address| {
-                        e.str(address);
-                    });
-                }
-                Value::Bytes(bytes) => {
-                    e.bytes(&bytes);
-                }
-                Value::Datagram(bytes, peer) => {
-                    e.bytes(&bytes)
-                        .str(&peer.ip().to_string())
-                        .leb(u64::from(peer.port()));
-                }
-            }
-        }
-    }
-    Ok(e)
+        Outcome::Error(error) => encode(&Err::<(), _>(error)),
+        Outcome::Ok(Value::None) => ok(()),
+        Outcome::Ok(Value::Handle(handle)) => ok(Handle(handle)),
+        Outcome::Ok(Value::Addresses(addresses)) => ok(addresses),
+        Outcome::Ok(Value::Bytes(bytes)) => ok(bytes),
+        Outcome::Ok(Value::Datagram(bytes, peer)) => ok(Datagram {
+            bytes,
+            host: peer.ip().to_string(),
+            port: peer.port(),
+        }),
+    })
 }
 
 #[cfg(test)]
@@ -440,19 +425,26 @@ mod tests {
             .start("connect", &[9, 0], host_args("127.0.0.1").done(), &grants)
             .unwrap();
         assert_eq!(ready(refused).done(), expected.done());
-        for bytes in [
-            host_args("127.0.0.1"),
-            host_args("bad host"),
-            Enc::default(),
+        for (mut bytes, message) in [
+            (
+                host_args("127.0.0.1"),
+                "an operation on a handle the host never made",
+            ),
+            (
+                host_args("bad host"),
+                "an operation on a handle the host never made",
+            ),
+            // Every argument decodes before the handle is looked up.
+            (Enc::default(), "an argument does not decode"),
         ] {
+            if !bytes.done().is_empty() {
+                bytes.bytes(b"payload");
+            }
             let error = net
                 .start("UdpSocket.send_to", &[123, 9, 0], bytes.done(), &grants)
                 .err()
                 .unwrap();
-            assert_eq!(
-                error.downcast_ref::<Stop>().unwrap().to_string(),
-                "an operation on a handle the host never made"
-            );
+            assert_eq!(error.downcast_ref::<Stop>().unwrap().to_string(), message);
         }
         let error = net
             .start("TcpStream.close", &[123], &[], &Grants::default())

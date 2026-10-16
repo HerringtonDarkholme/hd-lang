@@ -2,8 +2,7 @@ use wasmtime::{Caller, Val, ValType};
 
 use super::Host;
 use super::Stop;
-use crate::codec::Enc;
-use crate::reactor::Line;
+use crate::codec::{Enc, Wire, encode};
 
 /// Collects due handles without writing the guest's exchange buffer.
 /// Reactor completion still advances operation state and holds completed
@@ -126,15 +125,9 @@ impl Ret {
     pub(crate) fn encoded(encoded: Enc) -> Self {
         Self::bytes(encoded.into_bytes())
     }
-    pub(crate) fn text(text: &str) -> Self {
-        let mut encoded = Enc::default();
-        encoded.str(text);
-        Self::encoded(encoded)
-    }
-    pub(crate) fn byte_list(bytes: &[u8]) -> Self {
-        let mut encoded = Enc::default();
-        encoded.bytes(bytes);
-        Self::encoded(encoded)
+    /// A structured result: `value`, encoded.
+    pub(crate) fn value<T: Wire>(value: &T) -> Self {
+        Self::encoded(encode(value))
     }
     pub(crate) fn ready(encoded: Enc) -> wasmtime::Result<Self> {
         let bytes = encoded.into_bytes();
@@ -188,14 +181,4 @@ fn result_len(len: i64) -> wasmtime::Result<i32> {
 /// A handle argument; one that no `i32` holds names no operation.
 pub(crate) fn handle(h: i64) -> i32 {
     i32::try_from(h).unwrap_or(-1)
-}
-
-pub(crate) fn encode_line(line: &Line) -> Enc {
-    let mut e = Enc::default();
-    match line {
-        Err(()) => e.leb(1).leb(0),
-        Ok(None) => e.leb(0).leb(0),
-        Ok(Some(text)) => e.leb(0).leb(1).str(text),
-    };
-    e
 }

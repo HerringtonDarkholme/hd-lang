@@ -263,7 +263,7 @@ fn no_shebang_executable_uses_rust_standard_spawning_behavior() {
         let (out, err, status) = result.unwrap();
         assert_eq!(out, expected.stdout);
         assert_eq!(err, expected.stderr);
-        assert_eq!(status, i64::from(expected.status.code().unwrap_or(128)));
+        assert_eq!(status, expected.status.code().unwrap_or(128));
     } else {
         assert_eq!(result.unwrap_err().kind(), expected.unwrap_err().kind());
     }

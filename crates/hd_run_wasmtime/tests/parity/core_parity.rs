@@ -867,6 +867,37 @@ fn malformed_structured_arguments_report_host_contract() {
     }
     // A well-formed write outside the grant is refused and writes nothing.
     let outside = scratch.at("not-granted");
+    // A malformed payload is the contract panic even outside the grant:
+    // both engines decode every argument before the grant check.
+    let mut bytes = Enc::default().str(path(&outside)).0;
+    bytes.extend([5, b'x']);
+    let mut p = Program::new();
+    let call = p.import(
+        "hd:FsWrite",
+        "write_bytes.start",
+        &[ValType::I32],
+        &[ValType::I32, ValType::I32],
+    );
+    p.load_args(&bytes);
+    p.instructions(&[
+        I::I32Const(i32::try_from(bytes.len()).unwrap()),
+        I::Call(call),
+        I::Drop,
+        I::Drop,
+    ]);
+    let (wasm, _) = p.finish(0);
+    let result = parity(
+        &scratch,
+        &wasm,
+        vec![("FsWrite", Limit::Entries(vec![]))],
+        || {},
+    );
+    assert_eq!(result.status, 3);
+    assert_eq!(
+        result.stderr,
+        b"panic: host-contract: an argument does not decode\n"
+    );
+    assert!(!outside.exists());
     let mut p = Program::new();
     p.call(
         "hd:FsWrite",

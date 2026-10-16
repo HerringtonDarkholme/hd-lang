@@ -27,7 +27,8 @@ use hd_run::Grants;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 
-use crate::codec::{Dec, Enc};
+use crate::abi::{ProcessError, ProcessOutput};
+use crate::codec::{Dec, Enc, Wire, encode};
 use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Done;
 
@@ -56,7 +57,7 @@ pub(crate) struct Request {
 }
 
 /// A child's standard output, standard error and status.
-pub(crate) type Output = (Vec<u8>, Vec<u8>, i64);
+pub(crate) type Output = (Vec<u8>, Vec<u8>, i32);
 
 /// What the task delivers: the program, for the error text, how its run
 /// ended, and the heap its output holds.
@@ -75,21 +76,17 @@ pub(crate) fn start(
     ledger: &Arc<Ledger>,
 ) -> wasmtime::Result<Start> {
     let mut d = Dec::new(bytes);
-    let name = d.str()?;
-    let argv = d.strings()?;
-    let input = d.bytes()?.to_vec();
-    let mut e = Enc::default();
+    let name = String::dec(&mut d)?;
+    let argv = Vec::<String>::dec(&mut d)?;
+    let input = Vec::<u8>::dec(&mut d)?;
     if !grants.covers_name("Process", &name) {
-        e.leb(1).leb(2);
-        return Ok(Start::Refused(e));
+        return Ok(Start::Refused(failed(ProcessError::NotGranted)));
     }
     if name.is_empty() {
-        e.leb(1).leb(0);
-        return Ok(Start::Refused(e));
+        return Ok(Start::Refused(failed(ProcessError::NotFound)));
     }
     if let Some(message) = validate_process(&name, &argv) {
-        e.leb(1).leb(3).str(&message);
-        return Ok(Start::Refused(e));
+        return Ok(Start::Refused(failed(ProcessError::Other { message })));
     }
     let held = ledger.reserve(input.len())?;
     Ok(Start::Run(Request {
@@ -104,11 +101,14 @@ pub(crate) fn start(
 
 /// The encoded result of a start that cannot run its task.
 pub(crate) fn not_run(name: &str, error: &str) -> Enc {
-    let mut e = Enc::default();
-    e.leb(1)
-        .leb(3)
-        .str(&format!("cannot run {name:?}: {error}"));
-    e
+    failed(ProcessError::Other {
+        message: format!("cannot run {name:?}: {error}"),
+    })
+}
+
+/// `run`'s result for a program that did not run.
+pub(crate) fn failed(error: ProcessError) -> Enc {
+    encode(&Err::<ProcessOutput, _>(error))
 }
 
 impl Request {
@@ -141,27 +141,20 @@ fn is_exhausted(error: &io::Error) -> bool {
 /// output's heap is released first.
 pub(crate) fn finish(ran: Ran) -> Enc {
     drop(ran.held);
-    let mut e = Enc::default();
     match ran.result {
-        Ok((out, err, status)) => {
-            e.leb(0)
-                .str(&String::from_utf8_lossy(&out))
-                .str(&String::from_utf8_lossy(&err))
-                .zz(status);
-        }
-        Err(err) => {
-            let variant = match crate::native_io::error_kind(&err) {
-                io::ErrorKind::NotFound => 0,
-                io::ErrorKind::PermissionDenied => 1,
-                _ => 3,
-            };
-            e.leb(1).leb(variant);
-            if variant == 3 {
-                e.str(&format!("cannot run {:?}: {err}", ran.name));
-            }
-        }
+        Ok((out, err, status)) => encode(&Ok::<_, ProcessError>(ProcessOutput {
+            stdout: String::from_utf8_lossy(&out).into_owned(),
+            stderr: String::from_utf8_lossy(&err).into_owned(),
+            status,
+        })),
+        Err(err) => failed(match crate::native_io::error_kind(&err) {
+            io::ErrorKind::NotFound => ProcessError::NotFound,
+            io::ErrorKind::PermissionDenied => ProcessError::PermissionDenied,
+            _ => ProcessError::Other {
+                message: format!("cannot run {:?}: {err}", ran.name),
+            },
+        }),
     }
-    e
 }
 
 #[cfg(test)]
@@ -329,7 +322,7 @@ impl Group {
     /// Waits for the child to exit and reaps it: its status, 128 plus the
     /// signal number for a child a signal ended. Descendants still running
     /// are left running.
-    async fn reap(&mut self) -> io::Result<i64> {
+    async fn reap(&mut self) -> io::Result<i32> {
         let Some(child) = &mut self.child else {
             return Err(io::Error::other("the child was already reaped"));
         };
@@ -342,12 +335,12 @@ impl Group {
 
 /// The status a program sees: the exit code, or on Unix 128 plus the number
 /// of the signal that ended the child (`std-process.child.signal`).
-fn status_value(status: ExitStatus) -> i64 {
+fn status_value(status: ExitStatus) -> i32 {
     #[cfg(unix)]
     if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status) {
-        return 128 + i64::from(signal);
+        return 128 + signal;
     }
-    i64::from(status.code().unwrap_or(128))
+    status.code().unwrap_or(128)
 }
 
 impl Drop for Group {

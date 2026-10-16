@@ -6,7 +6,9 @@ use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
 use ureq::unversioned::transport::{Connector, RustlsConnector};
 
-use crate::codec::{Dec, Enc};
+pub(crate) use crate::abi::HttpError;
+use crate::abi::{self, Method};
+use crate::codec::{self, Dec, Enc, Wire};
 use crate::limits::{HeapExhausted, Ledger, Reservation};
 
 use super::client::granted_url;
@@ -36,29 +38,29 @@ impl Request {
     }
 
     pub(crate) fn decode(bytes: &[u8]) -> wasmtime::Result<Self> {
-        let mut d = Dec::new(bytes);
-        let method = match d.leb()? {
-            0 => "GET".into(),
-            1 => "HEAD".into(),
-            2 => "POST".into(),
-            3 => "PUT".into(),
-            4 => "PATCH".into(),
-            5 => "DELETE".into(),
-            6 => "OPTIONS".into(),
-            _ => d.str()?,
-        };
-        let url = d.str()?;
-        let headers = (0..d.leb()?)
-            .map(|_| Ok((d.str()?, d.str()?)))
-            .collect::<wasmtime::Result<_>>()?;
-        let body = d.bytes()?.to_vec();
-        let timeout = if d.leb()? == 1 { d.zz()? } else { 30_000 };
-        Ok(Self {
+        let abi::Request {
             method,
             url,
             headers,
             body,
             timeout,
+        } = Wire::dec(&mut Dec::new(bytes))?;
+        let method = match method {
+            Method::Get => "GET".into(),
+            Method::Head => "HEAD".into(),
+            Method::Post => "POST".into(),
+            Method::Put => "PUT".into(),
+            Method::Patch => "PATCH".into(),
+            Method::Delete => "DELETE".into(),
+            Method::Options => "OPTIONS".into(),
+            Method::Other { name } => name,
+        };
+        Ok(Self {
+            method,
+            url,
+            headers,
+            body,
+            timeout: timeout.map_or(30_000, |d| d.millis),
         })
     }
 }
@@ -83,13 +85,13 @@ impl Response {
 /// Why a request ended with no response.
 #[derive(Debug)]
 pub(crate) enum Ended {
-    Failed(Failure),
+    Failed(HttpError),
     /// The body would pass the heap budget (`std-host.op.heap.exhausted`).
     HeapExhausted,
 }
 
-impl From<Failure> for Ended {
-    fn from(failure: Failure) -> Ended {
+impl From<HttpError> for Ended {
+    fn from(failure: HttpError) -> Ended {
         Ended::Failed(failure)
     }
 }
@@ -100,47 +102,13 @@ impl From<HeapExhausted> for Ended {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum Failure {
-    NotGranted(String),
-    InvalidUrl(String),
-    Dns(String),
-    Connect(String),
-    Tls(String),
-    Timeout,
-    TooManyRedirects(String),
-    Other(String),
-}
-
-pub(crate) fn encode(response: Result<Response, Failure>) -> Enc {
-    let mut e = Enc::default();
-    match response {
-        Ok(r) => {
-            e.leb(0)
-                .leb(u64::from(r.status))
-                .list(&r.headers, |e, (name, value)| {
-                    e.str(name).str(value);
-                })
-                .bytes(&r.body);
-        }
-        Err(failure) => {
-            let (variant, text) = match failure {
-                Failure::NotGranted(s) => (0, Some(s)),
-                Failure::InvalidUrl(s) => (1, Some(s)),
-                Failure::Dns(s) => (2, Some(s)),
-                Failure::Connect(s) => (3, Some(s)),
-                Failure::Tls(s) => (4, Some(s)),
-                Failure::Timeout => (5, None),
-                Failure::TooManyRedirects(s) => (6, Some(s)),
-                Failure::Other(s) => (7, Some(s)),
-            };
-            e.leb(1).leb(variant);
-            if let Some(text) = text {
-                e.str(&text);
-            }
-        }
-    }
-    e
+/// A send's encoded result.
+pub(crate) fn encode(response: Result<Response, HttpError>) -> Enc {
+    codec::encode(&response.map(|r| abi::Response {
+        status: r.status,
+        headers: r.headers,
+        body: r.body,
+    }))
 }
 
 /// Sends `request`, following its redirects, each rechecked against
@@ -157,7 +125,7 @@ pub(crate) fn send(
     for redirects in 0..=10 {
         let url = granted_url(&request.url, grants)?;
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-            return Err(Failure::Timeout.into());
+            return Err(HttpError::Timeout.into());
         }
         let got = once(&url, &request, deadline, cancel, ledger)?;
         let location = got
@@ -173,15 +141,21 @@ pub(crate) fn send(
         // (`std-http.url.valid`). Node catches a malformed Location as
         // Other, not InvalidUrl.
         if !location.bytes().all(|b| b.is_ascii_graphic()) {
-            return Err(Failure::InvalidUrl(location.into()).into());
+            return Err(HttpError::InvalidUrl {
+                url: location.into(),
+            }
+            .into());
         }
         let next = resolve(&request.url, location);
         if next.parse::<ureq::http::Uri>().is_err() {
-            return Err(Failure::Other("Invalid URL".into()).into());
+            return Err(HttpError::Other {
+                message: "Invalid URL".into(),
+            }
+            .into());
         }
         request.url = next;
         if redirects == 10 {
-            return Err(Failure::TooManyRedirects(request.url).into());
+            return Err(HttpError::TooManyRedirects { url: request.url }.into());
         }
         if got.status == 303 || (matches!(got.status, 301 | 302) && request.method == "POST") {
             request.method = "GET".into();
@@ -203,10 +177,9 @@ fn once(
     } else if is_token(&request.method) {
         request.method.to_ascii_uppercase()
     } else {
-        return Err(Failure::Other(format!(
-            "Method must be a valid HTTP token [\"{}\"]",
-            request.method
-        ))
+        return Err(HttpError::Other {
+            message: format!("Method must be a valid HTTP token [\"{}\"]", request.method),
+        }
         .into());
     };
     let internal = outgoing(url, &method, &request.headers)?;
@@ -247,16 +220,16 @@ fn once(
     }
     // An empty body sends no body, so a GET carries no `content-length`.
     let sent = if request.body.is_empty() {
-        agent.run(
-            internal
-                .body(())
-                .map_err(|e| Failure::Other(e.to_string()))?,
-        )
+        agent.run(internal.body(()).map_err(|e| HttpError::Other {
+            message: e.to_string(),
+        })?)
     } else {
         agent.run(
             internal
                 .body(request.body.as_slice())
-                .map_err(|e| Failure::Other(e.to_string()))?,
+                .map_err(|e| HttpError::Other {
+                    message: e.to_string(),
+                })?,
         )
     };
     let mut response = sent.map_err(|e| failure(&e, url))?;
@@ -304,23 +277,33 @@ fn read_body(
     }
 }
 
-fn failure(error: &ureq::Error, url: &Target) -> Failure {
+fn failure(error: &ureq::Error, url: &Target) -> HttpError {
     let host = url.host.as_str();
     match error {
-        ureq::Error::Timeout(_) => Failure::Timeout,
-        ureq::Error::HostNotFound => Failure::Dns(host.into()),
-        ureq::Error::Tls(_) | ureq::Error::Rustls(_) => Failure::Tls(error.to_string()),
+        ureq::Error::Timeout(_) => HttpError::Timeout,
+        ureq::Error::HostNotFound => HttpError::Dns { host: host.into() },
+        ureq::Error::Tls(_) | ureq::Error::Rustls(_) => HttpError::Tls {
+            message: error.to_string(),
+        },
         ureq::Error::Io(e)
             if e.get_ref()
                 .is_some_and(<dyn std::error::Error + Send + Sync>::is::<rustls::Error>) =>
         {
-            Failure::Tls(e.to_string())
+            HttpError::Tls {
+                message: e.to_string(),
+            }
         }
         ureq::Error::Io(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
-            Failure::Connect(format!("connect ECONNREFUSED {host}:{}", url.port))
+            HttpError::Connect {
+                message: format!("connect ECONNREFUSED {host}:{}", url.port),
+            }
         }
-        ureq::Error::Io(e) => Failure::Connect(e.to_string()),
-        _ => Failure::Connect(error.to_string()),
+        ureq::Error::Io(e) => HttpError::Connect {
+            message: e.to_string(),
+        },
+        _ => HttpError::Connect {
+            message: error.to_string(),
+        },
     }
 }
 
@@ -338,10 +321,12 @@ pub(crate) fn outgoing(
     url: &Target,
     method: &str,
     headers: &Headers,
-) -> Result<ureq::http::request::Builder, Failure> {
+) -> Result<ureq::http::request::Builder, HttpError> {
     let mut builder = ureq::http::Request::builder().method(method).uri(url.uri());
     for (name, value) in headers {
-        let invalid = |what: &str| Failure::Other(format!("{what} [\"{name}\"]"));
+        let invalid = |what: &str| HttpError::Other {
+            message: format!("{what} [\"{name}\"]"),
+        };
         if !is_token(name) {
             return Err(invalid("Header name must be a valid HTTP token"));
         }
@@ -363,7 +348,7 @@ pub(crate) fn outgoing(
     Ok(builder)
 }
 
-fn check_credentials(value: &str) -> Result<(), Failure> {
+fn check_credentials(value: &str) -> Result<(), HttpError> {
     let mut decoded = Vec::new();
     let mut bytes = value.bytes();
     while let Some(b) = bytes.next() {
@@ -372,7 +357,11 @@ fn check_credentials(value: &str) -> Result<(), Failure> {
             let low = bytes.next().and_then(|b| char::from(b).to_digit(16));
             match (high, low) {
                 (Some(high), Some(low)) => u8::try_from(high * 16 + low).unwrap_or(0),
-                _ => return Err(Failure::Other("URI malformed".into())),
+                _ => {
+                    return Err(HttpError::Other {
+                        message: "URI malformed".into(),
+                    });
+                }
             }
         } else {
             b
@@ -380,12 +369,14 @@ fn check_credentials(value: &str) -> Result<(), Failure> {
     }
     String::from_utf8(decoded)
         .map(|_| ())
-        .map_err(|_| Failure::Other("URI malformed".into()))
+        .map_err(|_| HttpError::Other {
+            message: "URI malformed".into(),
+        })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, Request, encode};
+    use super::{HttpError, Request, encode};
     use crate::codec::{Dec, Enc};
     use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
@@ -399,15 +390,40 @@ mod tests {
         assert_eq!(r.timeout, -1);
         assert_eq!(r.body, b"body");
         assert!(Request::decode(&[128]).is_err());
-        assert_eq!(encode(Err(Failure::Timeout)).done(), [1, 5]);
+        assert_eq!(encode(Err(HttpError::Timeout)).done(), [1, 5]);
         for (failure, variant) in [
-            (Failure::NotGranted("host".into()), 0),
-            (Failure::InvalidUrl("url".into()), 1),
-            (Failure::Dns("host".into()), 2),
-            (Failure::Connect("message".into()), 3),
-            (Failure::Tls("message".into()), 4),
-            (Failure::TooManyRedirects("url".into()), 6),
-            (Failure::Other("message".into()), 7),
+            (
+                HttpError::NotGranted {
+                    host: "host".into(),
+                },
+                0,
+            ),
+            (HttpError::InvalidUrl { url: "url".into() }, 1),
+            (
+                HttpError::Dns {
+                    host: "host".into(),
+                },
+                2,
+            ),
+            (
+                HttpError::Connect {
+                    message: "message".into(),
+                },
+                3,
+            ),
+            (
+                HttpError::Tls {
+                    message: "message".into(),
+                },
+                4,
+            ),
+            (HttpError::TooManyRedirects { url: "url".into() }, 6),
+            (
+                HttpError::Other {
+                    message: "message".into(),
+                },
+                7,
+            ),
         ] {
             let encoded = encode(Err(failure));
             let mut d = Dec::new(encoded.done());

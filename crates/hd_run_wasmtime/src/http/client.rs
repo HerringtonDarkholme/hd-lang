@@ -25,7 +25,7 @@ use crate::limits::{Ledger, Reservation};
 use crate::reactor::Done;
 
 use super::connector::Cancel;
-use super::request::{Ended, Failure, Request, Response, encode, send};
+use super::request::{Ended, HttpError, Request, Response, encode, send};
 use super::target::Target;
 
 /// What `.start` decides.
@@ -52,7 +52,7 @@ pub(crate) struct Job {
 
 /// What the task delivers: the response or the failure, or why the
 /// request stopped with neither (its blocking thread panicked).
-pub(crate) type Sent = Result<Result<Response, Failure>, String>;
+pub(crate) type Sent = Result<Result<Response, HttpError>, String>;
 
 /// `send.start`'s checks, in the Node host's order: the URL and its
 /// grant, then the timeout. A request body past the heap budget panics.
@@ -68,7 +68,7 @@ pub(crate) fn start(
     }
     let timeout = request.timeout();
     if timeout.is_zero() {
-        return Ok(Start::Ready(encode(Err(Failure::Timeout))));
+        return Ok(Start::Ready(encode(Err(HttpError::Timeout))));
     }
     let held = ledger.reserve(request.body_len())?;
     Ok(Start::Run(Job {
@@ -82,7 +82,9 @@ pub(crate) fn start(
 
 /// The encoded result of a start that cannot run its task.
 pub(crate) fn not_run(error: &str) -> Enc {
-    encode(Err(Failure::Other(error.into())))
+    encode(Err(HttpError::Other {
+        message: error.into(),
+    }))
 }
 
 impl Job {
@@ -130,10 +132,10 @@ pub(crate) fn finish(sent: Sent) -> wasmtime::Result<Enc> {
     Ok(encode(response.map(Response::released)))
 }
 
-pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Target, Failure> {
-    let url = Target::parse(value).ok_or_else(|| Failure::InvalidUrl(value.into()))?;
+pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Target, HttpError> {
+    let url = Target::parse(value).ok_or_else(|| HttpError::InvalidUrl { url: value.into() })?;
     if !grants.covers_host("Http", &url.host, Some(url.port)) {
-        return Err(Failure::NotGranted(url.host));
+        return Err(HttpError::NotGranted { host: url.host });
     }
     Ok(url)
 }

@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::codec::Enc;
+use crate::abi::PropertyCase;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PlanKind {
@@ -22,23 +22,17 @@ pub(crate) struct Plan {
 }
 
 impl Plan {
-    pub(crate) fn encode(&self) -> Enc {
-        let mut encoded = Enc::default();
-        match self.example {
-            None => {
-                encoded.leb(0);
-            }
-            Some(index) => {
-                encoded.leb(1).leb(u64::from(index));
-            }
+    /// The `PropertyCase` `PropertyRunner.start` returns. A size is at most
+    /// the case count, an `i32`.
+    pub(crate) fn case(&self) -> PropertyCase {
+        PropertyCase {
+            example: self
+                .example
+                .map(|index| usize::try_from(index).unwrap_or(usize::MAX)),
+            seed: self.seed,
+            size: i32::try_from(self.size).unwrap_or(i32::MAX),
+            replay: self.replay.clone(),
         }
-        encoded
-            .zz(self.seed)
-            .zz(self.size)
-            .list(&self.replay, |e, draw| {
-                e.zz(*draw);
-            });
-        encoded
     }
 }
 

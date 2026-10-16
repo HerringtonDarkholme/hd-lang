@@ -3,7 +3,12 @@
 //! LEB128 (zigzag when signed), strings and byte lists as their length
 //! then their bytes, lists as their count then their elements, an
 //! optional as 0, or 1 and the value, an enum as its variant index then
-//! its payload.
+//! its payload, data as its fields in order.
+//!
+//! `Wire` is a value's codec. This file holds the codecs of the language's
+//! own types (`Result`, `T?`, lists, tuples, integers, strings, handles);
+//! `abi.rs`, generated from the ABI model, holds every std type a host
+//! method crosses with its codec.
 
 #[derive(Default)]
 pub struct Enc {
@@ -42,14 +47,7 @@ impl Enc {
         self
     }
 
-    pub fn list<T>(&mut self, xs: &[T], each: impl Fn(&mut Enc, &T)) -> &mut Self {
-        self.leb(xs.len() as u64);
-        for x in xs {
-            each(self, x);
-        }
-        self
-    }
-
+    #[cfg(test)]
     pub fn done(&self) -> &[u8] {
         &self.buf
     }
@@ -105,9 +103,181 @@ impl<'a> Dec<'a> {
         Ok(String::from_utf8_lossy(self.bytes()?).into_owned())
     }
 
-    pub fn strings(&mut self) -> wasmtime::Result<Vec<String>> {
-        let count = self.leb()?;
-        (0..count).map(|_| self.str()).collect()
+    /// A tag below `count`: an option's, a result's or an enum's.
+    pub fn tag(&mut self, count: u64) -> wasmtime::Result<u64> {
+        let tag = self.leb()?;
+        if tag < count {
+            Ok(tag)
+        } else {
+            Err(decode_error())
+        }
+    }
+}
+
+/// How a value crosses the exchange buffer: `enc` writes it, `dec` reads
+/// it back or fails with the `host-contract` panic.
+pub trait Wire: Sized {
+    fn enc(&self, e: &mut Enc);
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self>;
+}
+
+/// `value`, encoded.
+pub fn encode<T: Wire>(value: &T) -> Enc {
+    let mut e = Enc::default();
+    value.enc(&mut e);
+    e
+}
+
+/// A host handle: its handle number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Handle(pub u64);
+
+impl Wire for Handle {
+    fn enc(&self, e: &mut Enc) {
+        e.leb(self.0);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self(d.leb()?))
+    }
+}
+
+/// `void`, as a result's `T`: no bytes.
+impl Wire for () {
+    fn enc(&self, _: &mut Enc) {}
+    fn dec(_: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(())
+    }
+}
+
+impl Wire for String {
+    fn enc(&self, e: &mut Enc) {
+        e.str(self);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        d.str()
+    }
+}
+
+/// An integer narrower than 64 bits: LEB128 when unsigned, zigzag LEB128
+/// when signed. `u8` has no codec of its own: `List[u8]` crosses as its
+/// length and its bytes.
+macro_rules! narrow {
+    ($put:ident, $get:ident, $wide:ty: $($t:ty),*) => {$(
+        impl Wire for $t {
+            fn enc(&self, e: &mut Enc) {
+                e.$put(<$wide>::from(*self));
+            }
+            fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+                Self::try_from(d.$get()?).map_err(|_| decode_error())
+            }
+        }
+    )*};
+}
+narrow!(leb, leb, u64: u16, u32);
+narrow!(zz, zz, i64: i8, i16, i32);
+
+impl Wire for u64 {
+    fn enc(&self, e: &mut Enc) {
+        e.leb(*self);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        d.leb()
+    }
+}
+
+impl Wire for usize {
+    fn enc(&self, e: &mut Enc) {
+        e.leb(*self as u64);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Self::try_from(d.leb()?).map_err(|_| decode_error())
+    }
+}
+
+impl Wire for i64 {
+    fn enc(&self, e: &mut Enc) {
+        e.zz(*self);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        d.zz()
+    }
+}
+
+/// `List[u8]`: its length, then its bytes.
+impl Wire for Vec<u8> {
+    fn enc(&self, e: &mut Enc) {
+        e.bytes(self);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(d.bytes()?.to_vec())
+    }
+}
+
+/// `List[T]`: its count, then its elements.
+impl<T: Wire> Wire for Vec<T> {
+    fn enc(&self, e: &mut Enc) {
+        e.leb(self.len() as u64);
+        for x in self {
+            x.enc(e);
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        let count = d.leb()?;
+        (0..count).map(|_| T::dec(d)).collect()
+    }
+}
+
+/// `T?`: 0, or 1 and the value.
+impl<T: Wire> Wire for Option<T> {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            None => {
+                e.leb(0);
+            }
+            Some(v) => {
+                e.leb(1);
+                v.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(2)? {
+            0 => None,
+            _ => Some(T::dec(d)?),
+        })
+    }
+}
+
+/// `Result[T, E]`: 0 and `.Ok`'s value, or 1 and `.Err`'s.
+impl<T: Wire, E: Wire> Wire for Result<T, E> {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Ok(v) => {
+                e.leb(0);
+                v.enc(e);
+            }
+            Err(error) => {
+                e.leb(1);
+                error.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(2)? {
+            0 => Ok(T::dec(d)?),
+            _ => Err(E::dec(d)?),
+        })
+    }
+}
+
+/// A tuple: its elements in order.
+impl<A: Wire, B: Wire> Wire for (A, B) {
+    fn enc(&self, e: &mut Enc) {
+        self.0.enc(e);
+        self.1.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok((A::dec(d)?, B::dec(d)?))
     }
 }
 
@@ -117,17 +287,21 @@ fn decode_error() -> wasmtime::Error {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dec, Enc};
+    use super::{Dec, Enc, Handle, Wire, encode};
+    use crate::abi::{Entry, EntryKind, FsError, Path, ResourceError};
+
+    fn round_trip<T: Wire + PartialEq + std::fmt::Debug>(value: &T, bytes: &[u8]) {
+        assert_eq!(encode(value).done(), bytes, "{value:?}");
+        let mut d = Dec::new(bytes);
+        assert_eq!(&T::dec(&mut d).expect("decodes"), value);
+    }
 
     #[test]
     fn decodes_lengths_strings_and_signed_extremes() {
-        let mut e = Enc::default();
-        e.list(&["a", "hé", ""], |e, s| {
-            e.str(s);
-        });
+        let strings: Vec<String> = ["a", "hé", ""].map(String::from).to_vec();
         assert_eq!(
-            Dec::new(e.done()).strings().expect("strings"),
-            ["a", "hé", ""]
+            Vec::<String>::dec(&mut Dec::new(encode(&strings).done())).expect("strings"),
+            strings
         );
         for n in [i64::MIN, -1, 0, 1, i64::MAX] {
             let mut e = Enc::default();
@@ -147,15 +321,80 @@ mod tests {
     #[test]
     fn encodes_as_the_node_host_does() {
         let mut e = Enc::default();
-        e.leb(0).leb(300).str("hé").list(&["a", "bc"], |e, s| {
-            e.str(s);
-        });
+        e.leb(0).leb(300).str("hé");
+        vec!["a".to_owned(), "bc".to_owned()].enc(&mut e);
         assert_eq!(
             e.done(),
             [
                 0, 0xac, 0x02, 3, b'h', 0xc3, 0xa9, 2, 1, b'a', 2, b'b', b'c'
             ]
         );
+    }
+
+    /// The language's own types, as host/wire.mjs encodes them.
+    #[test]
+    fn the_language_types_cross_as_the_js_host_encodes_them() {
+        round_trip(&(), &[]);
+        round_trip(&300_u16, &[0xac, 0x02]);
+        round_trip(&-2_i32, &[3]);
+        round_trip(
+            &u64::MAX,
+            &[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 1],
+        );
+        // `List[u8]` is its length and its bytes; any other list its count
+        // and its elements.
+        round_trip(&vec![200_u8, 1], &[2, 200, 1]);
+        round_trip(&vec![200_u16, 1], &[2, 0xc8, 1, 1]);
+        round_trip(&None::<String>, &[0]);
+        round_trip(&Some("x".to_owned()), &[1, 1, b'x']);
+        round_trip(&Ok::<u32, String>(5), &[0, 5]);
+        round_trip(&Err::<u32, String>("e".into()), &[1, 1, b'e']);
+        round_trip(&("a".to_owned(), "b".to_owned()), &[1, b'a', 1, b'b']);
+        round_trip(&Handle(7), &[7]);
+        for bad in [&[2][..], &[0x80, 1][..]] {
+            let err = Option::<u32>::dec(&mut Dec::new(bad)).expect_err("a tag past the end");
+            assert_eq!(err.to_string(), "an argument does not decode");
+        }
+        let err = u16::dec(&mut Dec::new(&[0x80, 0x80, 4])).expect_err("past u16");
+        assert_eq!(err.to_string(), "an argument does not decode");
+    }
+
+    /// The generated std types (`abi.rs`): data as its fields in order, an
+    /// enum as its variant index then its payload, a newtype as its field.
+    #[test]
+    fn the_generated_std_types_cross_as_the_js_host_encodes_them() {
+        round_trip(&Path("p".into()), &[1, b'p']);
+        round_trip(
+            &Entry {
+                path: Path("p".into()),
+                kind: EntryKind::Symlink,
+                size: 300,
+            },
+            &[1, b'p', 2, 0xac, 0x02],
+        );
+        round_trip(
+            &FsError::InvalidUtf8 {
+                path: Path("p".into()),
+            },
+            &[6, 1, b'p'],
+        );
+        round_trip(
+            &FsError::Other {
+                message: "m".into(),
+            },
+            &[7, 1, b'm'],
+        );
+        round_trip(&ResourceError::<FsError>::Disposed, &[1]);
+        round_trip(
+            &ResourceError::Operation {
+                error: FsError::NotFound {
+                    path: Path("p".into()),
+                },
+            },
+            &[0, 0, 1, b'p'],
+        );
+        let err = EntryKind::dec(&mut Dec::new(&[3])).expect_err("no fourth kind");
+        assert_eq!(err.to_string(), "an argument does not decode");
     }
 
     #[test]

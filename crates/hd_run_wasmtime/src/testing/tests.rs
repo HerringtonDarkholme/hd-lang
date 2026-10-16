@@ -1,5 +1,5 @@
 use super::{BodyResult, BodyRunner, CaseRun, PanicInfo, State, TestCase, execute_case};
-use crate::codec::{Dec, Enc};
+use crate::codec::{Dec, Enc, encode};
 
 struct Fake<F>(F);
 impl<F: FnMut(State, bool) -> Result<BodyResult, String>> BodyRunner for Fake<F> {
@@ -22,7 +22,7 @@ fn successful_property_bodies_reuse_one_instance_in_seed_order() {
     let mut plans = Vec::new();
     let mut fake = Fake(|state: State, reuse: bool| {
         reuse_flags.push(reuse);
-        let encoded = state.start(3, 0, 0)?.expect("fresh plan");
+        let encoded = encode(&state.start(3, 0, 0)?.expect("fresh plan"));
         plans.push(decode_plan(&encoded));
         state.show("input");
         Ok(BodyResult {
@@ -261,7 +261,7 @@ fn shrinks_save_recorded_draws_and_only_passing_attempts_reuse_instances() {
     let mut reuse_flags = Vec::new();
     let mut fake = Fake(|state: State, reuse: bool| {
         reuse_flags.push(reuse);
-        let encoded = state.start(1, 6, 0)?.expect("plan");
+        let encoded = encode(&state.start(1, 6, 0)?.expect("plan"));
         let mut decoder = Dec::new(encoded.done());
         assert_eq!(decoder.leb().expect("no example"), 0);
         decoder.zz().expect("seed");
@@ -294,9 +294,11 @@ fn shrinks_save_recorded_draws_and_only_passing_attempts_reuse_instances() {
     assert!(results[0].trapped);
     let mut replayed = Vec::new();
     let mut fake = Fake(|state: State, _: bool| {
-        let encoded = state
-            .start(0, 0, 0)?
-            .expect("saved plan even without fresh cases");
+        let encoded = encode(
+            &state
+                .start(0, 0, 0)?
+                .expect("saved plan even without fresh cases"),
+        );
         let mut decoder = Dec::new(encoded.done());
         assert_eq!(decoder.leb().expect("no example"), 0);
         decoder.zz().expect("seed");

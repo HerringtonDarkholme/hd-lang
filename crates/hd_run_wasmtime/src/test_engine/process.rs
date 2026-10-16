@@ -7,7 +7,9 @@ use tokio::sync::oneshot;
 
 use super::engine::TestEnvironment;
 use crate::Shared;
-use crate::codec::{Dec, Enc};
+use crate::abi::{ProcessError, ProcessOutput};
+use crate::codec::{Dec, Enc, Wire, encode};
+use crate::core::process::failed;
 use crate::host::{Host, HostIo};
 use crate::limits::{Ledger, Reservation};
 use crate::reactor::Done;
@@ -87,7 +89,9 @@ impl ChildRun {
         match self.result.await {
             Ok(done) => done,
             Err(_) => Done::Child(
-                Some(failed("the test child thread panicked")),
+                Some(failed(ProcessError::Other {
+                    message: "the test child thread panicked".into(),
+                })),
                 Reservation::empty(&self.ledger),
             ),
         }
@@ -99,15 +103,11 @@ impl ChildRun {
     }
 }
 
-fn failed(message: &str) -> Enc {
-    let mut encoded = Enc::default();
-    encoded.leb(1).leb(3).str(message);
-    encoded
-}
-
 /// The result for a child that could not run.
 pub(crate) fn not_run(error: &str) -> Enc {
-    failed(&format!("cannot run the test child: {error}"))
+    failed(ProcessError::Other {
+        message: format!("cannot run the test child: {error}"),
+    })
 }
 
 /// `run.start` of a test case's child: the grant and the name are checked
@@ -123,17 +123,14 @@ pub(crate) fn start(
     ledger: &Arc<Ledger>,
 ) -> wasmtime::Result<Start> {
     let mut arguments = Dec::new(bytes);
-    let name = arguments.str()?;
-    let args = arguments.strings()?;
-    let input = arguments.bytes()?.to_vec();
-    let mut encoded = Enc::default();
+    let name = String::dec(&mut arguments)?;
+    let args = Vec::<String>::dec(&mut arguments)?;
+    let input = Vec::<u8>::dec(&mut arguments)?;
     if !grants.covers_name("Process", &name) {
-        encoded.leb(1).leb(2);
-        return Ok(Start::Ready(encoded));
+        return Ok(Start::Ready(failed(ProcessError::NotGranted)));
     }
     let Some(child) = environment.children.iter().find(|child| child.name == name) else {
-        encoded.leb(1).leb(0);
-        return Ok(Start::Ready(encoded));
+        return Ok(Start::Ready(failed(ProcessError::NotFound)));
     };
     let stop = Arc::new(AtomicBool::new(false));
     let (sender, result) = oneshot::channel();
@@ -254,25 +251,17 @@ fn run(
     if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
         return Done::Child(None, held);
     }
-    let mut encoded = Enc::default();
-    match result {
-        Ok(Outcome::Exit(status)) => {
-            encoded
-                .leb(0)
-                .str(&String::from_utf8_lossy(&out.take()))
-                .str(&String::from_utf8_lossy(&err.take()))
-                .zz(i64::from(status));
-        }
-        Ok(Outcome::Panic(_)) => {
-            encoded
-                .leb(0)
-                .str(&String::from_utf8_lossy(&out.take()))
-                .str(&String::from_utf8_lossy(&err.take()))
-                .zz(3);
-        }
-        Ok(Outcome::Internal(message)) | Err(message) => {
-            encoded.leb(1).leb(3).str(&message);
-        }
-    }
+    let ran = |status| {
+        Ok(ProcessOutput {
+            stdout: String::from_utf8_lossy(&out.take()).into_owned(),
+            stderr: String::from_utf8_lossy(&err.take()).into_owned(),
+            status,
+        })
+    };
+    let encoded = encode(&match result {
+        Ok(Outcome::Exit(status)) => ran(i32::from(status)),
+        Ok(Outcome::Panic(_)) => ran(3),
+        Ok(Outcome::Internal(message)) | Err(message) => Err(ProcessError::Other { message }),
+    });
     Done::Child(Some(encoded), held)
 }

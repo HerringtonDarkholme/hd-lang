@@ -257,7 +257,7 @@ pub(crate) async fn connect_candidates(
             }
         }
     }
-    Err(first_error.unwrap_or_else(|| NetError::new(2, host)))
+    Err(first_error.unwrap_or_else(|| NetError::Dns { host: host.into() }))
 }
 
 /// `listen!` (`udp` false) or `bind_udp!`, on the first address of `host`;
@@ -269,7 +269,7 @@ async fn open(udp: bool, host: &str, port: u16) -> Result<Got, NetError> {
         .next()
         .is_some_and(|ip| ip.parse::<Ipv6Addr>().is_ok());
     let Some(address) = addresses.into_iter().find(|a| !udp || a.is_ipv6() == ipv6) else {
-        return Err(NetError::new(2, host));
+        return Err(NetError::Dns { host: host.into() });
     };
     match bind(udp, address) {
         Ok(Bound::Listener(listener)) => Ok(Got::Opened(Opened::Listener(listener))),
@@ -381,7 +381,7 @@ async fn send_to(socket: &Udp, host: &str, port: u16, bytes: &[u8]) -> Result<Go
         addresses.into_iter().find(|a| a.is_ipv6() == socket.ipv6)
     };
     let Some(address) = address else {
-        return Err(NetError::new(2, host));
+        return Err(NetError::Dns { host: host.into() });
     };
     match socket.socket.send_to(bytes, address).await {
         Ok(_) => Ok(Got::None),
@@ -424,7 +424,7 @@ async fn receive(
 
 #[cfg(test)]
 mod tests {
-    use super::connect_candidates;
+    use super::{NetError, connect_candidates};
     use crate::net::test_support::{reserved_refused_port, runtime};
     use std::net::TcpListener;
 
@@ -443,7 +443,7 @@ mod tests {
                 "localhost",
                 address.port(),
             ))
-            .unwrap_or_else(|e| panic!("connection failed: {}", e.text));
+            .unwrap_or_else(|e| panic!("connection failed: {e:?}"));
         assert_eq!(socket.peer_addr().unwrap(), address);
         let (_, _) = server.accept().unwrap();
         drop(socket);
@@ -459,16 +459,15 @@ mod tests {
         // loopback port only after about two seconds, past the 250 ms
         // attempt timer, so there the first candidate's error is its
         // timeout: an `Other` that names the first address.
-        match error.variant {
-            3 => assert_eq!(error.text, format!("localhost:{}", address.port())),
-            4 => assert!(
-                error
-                    .text
-                    .starts_with(&format!("connect {refused_address}: ")),
-                "{}",
-                error.text
+        match error {
+            NetError::Refused { address: shown } => {
+                assert_eq!(shown, format!("localhost:{}", address.port()));
+            }
+            NetError::Other { message } => assert!(
+                message.starts_with(&format!("connect {refused_address}: ")),
+                "{message}"
             ),
-            variant => panic!("unexpected error variant {variant}: {}", error.text),
+            error => panic!("unexpected error {error:?}"),
         }
     }
 }

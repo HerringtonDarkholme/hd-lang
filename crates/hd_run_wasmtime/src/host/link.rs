@@ -106,7 +106,11 @@ fn define_with<'m>(
                 n,
                 FuncType::clone(&ty),
                 move |mut caller, params, out| {
-                    kind.validate_results(&results)?;
+                    // Malformed result shapes are refused before any
+                    // provider effect.
+                    if !kind.takes_results(&results) {
+                        return Err(site.unexpected_signature());
+                    }
                     let host = caller.data();
                     let replaying = host.replay.is_some() && site.record != Record::Skip;
                     let args =
@@ -141,12 +145,7 @@ fn define_with<'m>(
                             *a = int_val(&results[0], i64::from(s));
                             *b = int_val(&results[1], i64::from(v));
                         }
-                        _ => {
-                            return Err(Stop::Contract(format!(
-                                "the import {kind:?} has an unexpected signature"
-                            ))
-                            .into());
-                        }
+                        _ => return Err(site.unexpected_signature()),
                     }
                     if let Some(bytes) = payload {
                         put_bytes(&mut caller, &bytes)?;
@@ -187,6 +186,14 @@ fn handle_param(params: &[Val]) -> u32 {
 }
 
 impl Site {
+    fn unexpected_signature(&self) -> wasmtime::Error {
+        Stop::Contract(format!(
+            "the import `{}` `{}` has an unexpected signature",
+            self.module, self.name
+        ))
+        .into()
+    }
+
     /// The call's arguments as a journal holds them: its scalar
     /// parameters, then the exchange buffer bytes it reads.
     fn args(&self, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Vec<u8>> {

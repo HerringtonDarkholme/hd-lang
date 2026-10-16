@@ -24,5 +24,5 @@ mod sandbox_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub(crate) use api::{READ, Start, WRITE, not_run, read_file_until, start, write_file_until};
+pub(crate) use api::{Start, not_run, read_file_until, start, write_file_until};
 pub(crate) use sandbox::Sandbox;

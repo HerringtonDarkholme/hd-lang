@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 
 use hd_run::{Grants, Limit};
 
-use super::api::{Start, error, start};
+use super::api::{Start, start};
 use super::sandbox::Sandbox;
-use super::test_support::TempDir;
+use super::test_support::{TempDir, error, key};
 use crate::codec::Enc;
 use crate::limits::Ledger;
 
@@ -25,14 +25,6 @@ fn grants(entries: &[PathBuf]) -> Grants {
             ("FsRead".into(), Limit::Entries(list.clone())),
             ("FsWrite".into(), Limit::Entries(list)),
         ],
-    }
-}
-
-fn key(method: &str) -> &'static str {
-    if super::READ.contains(&method) {
-        "FsRead"
-    } else {
-        "FsWrite"
     }
 }
 
@@ -89,15 +81,14 @@ fn after_swap(
         .place(grants, key(method), &cwd.join(path), follow, false)
         .expect("granted");
     swap();
-    let mut e = Enc::default();
     let env = Env {
         cwd,
         deadline: None,
         held: None,
         sandbox: Some(&sandbox),
     };
-    match run(method, path, &place, None, payload, &mut e, env) {
-        Ok(()) => e,
+    match run(method, path, &place, None, payload, env) {
+        Ok(e) => e,
         Err(f) => failure(path, method, path, &f),
     }
 }

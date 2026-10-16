@@ -130,7 +130,8 @@ pub(crate) fn device_path(path: &str) -> bool {
 
 #[cfg(all(test, windows))]
 mod tests {
-    use crate::fs::api::{Failure, error, failure};
+    use crate::fs::api::{Failure, failure};
+    use crate::fs::test_support::error;
 
     #[test]
     fn device_namespace_detection_preserves_ordinary_files() {

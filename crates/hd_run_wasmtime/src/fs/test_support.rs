@@ -34,23 +34,30 @@ impl Drop for TempDir {
     }
 }
 
+/// The trait key of the `Fs` method `method`.
+pub(crate) fn key(method: &str) -> &'static str {
+    crate::abi::METHODS
+        .iter()
+        .find(|m| m.name == method && m.module.starts_with("hd:Fs"))
+        .and_then(|m| m.module.strip_prefix("hd:"))
+        .expect("an Fs method")
+}
+
+/// The encoded `.Err` of the `FsError` variant `variant` with its one
+/// field, `text`.
+pub(crate) fn error(text: &str, variant: u64) -> Enc {
+    let mut e = Enc::default();
+    e.leb(1).leb(variant).str(text);
+    e
+}
+
 pub(crate) fn invoke(method: &str, path: &str, payload: Option<&[u8]>) -> Enc {
     let mut args = Enc::default();
     args.str(path);
     if let Some(bytes) = payload {
         args.bytes(bytes);
     }
-    call(
-        if super::READ.contains(&method) {
-            "FsRead"
-        } else {
-            "FsWrite"
-        },
-        method,
-        args.done(),
-        &Grants::default(),
-    )
-    .expect("host call")
+    call(key(method), method, args.done(), &Grants::default()).expect("host call")
 }
 
 pub(crate) fn limited(
@@ -65,11 +72,7 @@ pub(crate) fn limited(
         args.bytes(bytes);
     }
     call_until(
-        if super::READ.contains(&method) {
-            "FsRead"
-        } else {
-            "FsWrite"
-        },
+        key(method),
         method,
         args.done(),
         &Grants::default(),

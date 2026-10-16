@@ -24,6 +24,7 @@
 //! A module that imports any other is refused at
 //! load with a message naming it; `hd` runs those on Node.
 
+pub mod abi;
 mod cache;
 mod codec;
 mod core;

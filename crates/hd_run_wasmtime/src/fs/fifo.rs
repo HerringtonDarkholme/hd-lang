@@ -36,13 +36,8 @@ fn begin_with(
     if let Some(bytes) = payload {
         args.bytes(bytes);
     }
-    let key = if super::READ.contains(&method) {
-        "FsRead"
-    } else {
-        "FsWrite"
-    };
     start(
-        key,
+        super::test_support::key(method),
         method,
         args.done(),
         &Grants::default(),

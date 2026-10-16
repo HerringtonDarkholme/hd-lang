@@ -77,7 +77,7 @@ pub(crate) async fn resolve_with(
 ) -> Result<Vec<SocketAddr>, NetError> {
     match tokio::task::spawn_blocking(lookup).await {
         Ok(Ok(addresses)) => Ok(addresses),
-        Ok(Err(_)) | Err(_) => Err(NetError::new(2, host)),
+        Ok(Err(_)) | Err(_) => Err(NetError::Dns { host: host.into() }),
     }
 }
 
@@ -180,7 +180,9 @@ pub(crate) enum Bound {
 }
 
 pub(crate) fn wrong_kind() -> NetError {
-    NetError::new(4, "an operation on a handle of another kind")
+    NetError::Other {
+        message: "an operation on a handle of another kind".into(),
+    }
 }
 
 pub(crate) fn socket_error(
@@ -199,18 +201,18 @@ pub(crate) fn socket_error(
         } else {
             String::new()
         };
-        return NetError::new(3, address);
+        return NetError::Refused { address };
     }
     let text = actual.map_or_else(
         || format!("{syscall}: {error}"),
         |address| format!("{syscall} {address}: {error}"),
     );
-    NetError::new(4, text)
+    NetError::Other { message: text }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CONNECT_ATTEMPT_TIMEOUT, connect_attempts, resolve_with};
+    use super::{CONNECT_ATTEMPT_TIMEOUT, NetError, connect_attempts, resolve_with};
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
@@ -225,13 +227,21 @@ mod tests {
                 "example.test",
                 9,
             );
-            assert_eq!(error.variant, 3);
-            assert_eq!(error.text, "example.test:9");
+            assert_eq!(
+                error,
+                NetError::Refused {
+                    address: "example.test:9".into()
+                }
+            );
         }
         let native = Error::from(ErrorKind::ConnectionReset);
         let error = super::socket_error(&native, "read", None, "", 0);
-        assert_eq!(error.variant, 4);
-        assert_eq!(error.text, format!("read: {native}"));
+        assert_eq!(
+            error,
+            NetError::Other {
+                message: format!("read: {native}")
+            }
+        );
     }
 
     #[test]

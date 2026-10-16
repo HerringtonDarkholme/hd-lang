@@ -5,23 +5,14 @@ use std::time::Instant;
 
 use hd_run::Grants;
 
-use crate::codec::{Dec, Enc};
+use crate::abi::{self, Entry, EntryKind, FsError};
+use crate::codec::{Dec, Enc, Wire, encode};
 use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Done;
 
 use super::io::{open, read, write};
 use super::ops::{Env, at, run};
 use super::sandbox::{Place, Sandbox, Stat, is_escape};
-
-pub(crate) const READ: &[&str] = &["read_bytes", "read_text", "list_dir", "stat"];
-pub(crate) const WRITE: &[&str] = &[
-    "write_bytes",
-    "write_text",
-    "append_text",
-    "create_dir_all",
-    "remove",
-    "rename",
-];
 
 /// The methods that open the path, so that a special file can make them
 /// wait. The others never open it, or fail at once on it.
@@ -100,14 +91,12 @@ impl Job {
         deadline: Option<Instant>,
         sandbox: Option<&Sandbox>,
     ) -> Option<Result<Enc, HeapExhausted>> {
-        let mut e = Enc::default();
         let result = run(
             &self.method,
             &self.path,
             &self.place,
             self.to_place.as_ref(),
             self.payload.as_deref(),
-            &mut e,
             Env {
                 cwd: &self.cwd,
                 deadline,
@@ -119,7 +108,7 @@ impl Job {
             return None;
         }
         match result {
-            Ok(()) => Some(Ok(e)),
+            Ok(e) => Some(Ok(e)),
             Err(Failure::Deadline) => None,
             Err(Failure::Exhausted) => Some(Err(HeapExhausted)),
             Err(err) => Some(Ok(failure(
@@ -138,7 +127,7 @@ pub(crate) fn not_run(error: &str) -> Enc {
 }
 
 fn error_text(text: &str) -> Enc {
-    error(text, 7)
+    error(other(text))
 }
 
 /// Executes relative paths in the case's directory without changing the
@@ -163,23 +152,26 @@ pub(crate) fn start(
 ) -> wasmtime::Result<Start> {
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
-    let path = d.str()?;
+    let abi::Path(path) = Wire::dec(&mut d)?;
     let to = if method == "rename" {
-        Some(d.str()?)
+        let abi::Path(to) = Wire::dec(&mut d)?;
+        Some(to)
+    } else {
+        None
+    };
+    // Every argument decodes before the grant is checked, as on Node: a
+    // payload is a `List[u8]` for `write_bytes`, a `string`'s bytes for the
+    // others.
+    let payload = if matches!(method, "write_bytes" | "write_text" | "append_text") {
+        Some(Vec::<u8>::dec(&mut d)?)
     } else {
         None
     };
     for p in std::iter::once(&path).chain(to.iter()) {
         if !grants.covers_path(key, Path::new(p), cwd) {
-            return Ok(Start::Ready(error(p, 2)));
+            return Ok(Start::Ready(not_granted(p)));
         }
     }
-    // Refusal takes precedence over decoding write payloads.
-    let payload = if matches!(method, "write_bytes" | "write_text" | "append_text") {
-        Some(d.bytes()?.to_vec())
-    } else {
-        None
-    };
     // Reject NUL before OS access, after checking the grant.
     for (p, name) in std::iter::once((
         &path,
@@ -192,10 +184,9 @@ pub(crate) fn start(
     .chain(to.iter().map(|p| (p, "destination path")))
     {
         if p.contains('\0') {
-            return Ok(Start::Ready(error(
-                &format!("{name} contains a NUL byte"),
-                7,
-            )));
+            return Ok(Start::Ready(error_text(&format!(
+                "{name} contains a NUL byte"
+            ))));
         }
     }
     // `stat`, `remove` and `rename` act on a final symbolic link itself.
@@ -203,12 +194,12 @@ pub(crate) fn start(
     let create = method == "create_dir_all";
     let place_of = |p: &str| sandbox.place(grants, key, &at(cwd, p), follow, create);
     let Some(place) = place_of(&path) else {
-        return Ok(Start::Ready(error(&path, 2)));
+        return Ok(Start::Ready(not_granted(&path)));
     };
     let to_place = match &to {
         Some(p) => match place_of(p) {
             Some(place) => Some(place),
-            None => return Ok(Start::Ready(error(p, 2))),
+            None => return Ok(Start::Ready(not_granted(p))),
         },
         None => None,
     };
@@ -378,15 +369,41 @@ fn file_failure(failure: Failure) -> io::Error {
     }
 }
 
-pub(crate) fn entry(e: &mut Enc, path: &str, st: &Stat) {
-    let kind = if st.link { 2 } else { u64::from(st.dir) };
-    e.str(path).leb(kind).leb(if st.dir { 0 } else { st.len });
+/// The `Entry` of `path`, whose metadata is `st`.
+pub(crate) fn entry(path: &str, st: &Stat) -> Entry {
+    Entry {
+        path: abi::Path(path.to_owned()),
+        kind: if st.link {
+            EntryKind::Symlink
+        } else if st.dir {
+            EntryKind::Directory
+        } else {
+            EntryKind::File
+        },
+        size: if st.dir { 0 } else { st.len },
+    }
 }
 
-pub(crate) fn error(path: &str, variant: u64) -> Enc {
-    let mut e = Enc::default();
-    e.leb(1).leb(variant).str(path);
-    e
+/// A method's result: `.Ok(value)`.
+pub(crate) fn ok<T: Wire>(value: T) -> Enc {
+    encode(&Ok::<T, FsError>(value))
+}
+
+/// A method's result: `.Err(error)`.
+pub(crate) fn error(error: FsError) -> Enc {
+    encode(&Err::<(), _>(error))
+}
+
+fn not_granted(path: &str) -> Enc {
+    error(FsError::NotGranted {
+        path: abi::Path(path.to_owned()),
+    })
+}
+
+fn other(message: &str) -> FsError {
+    FsError::Other {
+        message: message.to_owned(),
+    }
 }
 
 pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -> Enc {
@@ -394,24 +411,24 @@ pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -
         Failure::Deadline | Failure::Exhausted => {
             unreachable!("a deadline and an exhausted heap are host stops, not Fs errors")
         }
-        Failure::Message(message) => return error(message, 7),
-        Failure::NotGranted => return error(path, 2),
+        Failure::Message(message) => return error(other(message)),
+        Failure::NotGranted => return not_granted(path),
         Failure::System {
             error,
             syscall,
             path,
         } => (error, *syscall, path),
     };
-    let variant = match crate::native_io::error_kind(err) {
-        io::ErrorKind::NotFound => 0,
-        io::ErrorKind::PermissionDenied => 1,
-        io::ErrorKind::AlreadyExists => 3,
-        io::ErrorKind::NotADirectory => 4,
-        io::ErrorKind::IsADirectory => 5,
-        _ => 7,
-    };
-    if variant != 7 {
-        return error(path, variant);
+    let typed = abi::Path(path.to_owned());
+    match crate::native_io::error_kind(err) {
+        io::ErrorKind::NotFound => return error(FsError::NotFound { path: typed }),
+        io::ErrorKind::PermissionDenied => {
+            return error(FsError::PermissionDenied { path: typed });
+        }
+        io::ErrorKind::AlreadyExists => return error(FsError::AlreadyExists { path: typed }),
+        io::ErrorKind::NotADirectory => return error(FsError::NotADirectory { path: typed }),
+        io::ErrorKind::IsADirectory => return error(FsError::IsADirectory { path: typed }),
+        _ => {}
     }
     let path = error_path.as_deref().unwrap_or(path);
     let paths = if method == "rename" {
@@ -419,14 +436,14 @@ pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -
     } else {
         format!("{path:?}")
     };
-    error(&format!("{syscall} {paths}: {err}"), 7)
+    error(other(&format!("{syscall} {paths}: {err}")))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, call, call_until_at, error};
+    use super::{Failure, call, call_until_at};
     use crate::codec::{Dec, Enc};
-    use crate::fs::test_support::{TempDir, assert_time_limit, limited};
+    use crate::fs::test_support::{TempDir, assert_time_limit, error, limited};
     use hd_run::{Grants, Limit};
     use std::fs;
     use std::time::Instant;
@@ -534,12 +551,19 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), b"original");
     }
     #[test]
-    fn grants_precede_validation_and_payload_and_cover_both_rename_paths() {
+    fn grants_precede_validation_and_cover_both_rename_paths() {
         let denied = Grants {
             limits: vec![("FsWrite".into(), Limit::Deny)],
         };
+        // Every argument decodes before the grant is checked: a missing
+        // payload breaks the ABI even outside the grant.
         let mut args = Enc::default();
-        args.str("bad\0path"); // No payload: the refusal must come first.
+        args.str("bad\0path");
+        let Err(err) = call("FsWrite", "write_text", args.done(), &denied) else {
+            panic!("a call with no payload decodes");
+        };
+        assert_eq!(err.to_string(), "an argument does not decode");
+        args.str("text");
         assert_eq!(
             call("FsWrite", "write_text", args.done(), &denied)
                 .unwrap()

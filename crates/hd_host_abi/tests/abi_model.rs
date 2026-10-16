@@ -1,10 +1,11 @@
 //! The ABI model both hosts' codecs come from (#251): every host method of
 //! `hd_host_abi`'s tables with the std types its values cross as, and each
 //! std data type, enum and newtype those types reach, read from `lib/std`
-//! itself. The model is checked in as `host/gen/abi.json`, and the JS
-//! host's codecs and method descriptors generated from it as
-//! `host/gen/abi.mjs`; these tests fail when the tables or std change and
-//! the files do not. `HD_UPDATE_ABI=1` rewrites them.
+//! itself. The model is checked in as `host/gen/abi.json`, and both
+//! hosts' codecs and method descriptors generated from it: the JS host's
+//! as `host/gen/abi.mjs`, the wasmtime host's as
+//! `crates/hd_run_wasmtime/src/abi.rs`. These tests fail when the tables
+//! or std change and the files do not. `HD_UPDATE_ABI=1` rewrites them.
 //!
 //! A type is its source text. `Result[T, E]` (variant 0 `Ok`, 1 `Err`),
 //! `T?`, `List[T]`, tuples and the primitives are the language's, and a
@@ -687,4 +688,330 @@ fn the_checked_in_abi_model_matches_the_tables_and_std() {
 #[test]
 fn the_checked_in_js_glue_matches_the_model() {
     check("host/gen/abi.mjs", &glue());
+}
+
+/// The Rust type (`crates/hd_run_wasmtime/src/codec.rs`, or a generated std
+/// type) of `ty`; `scope` holds the generic parameters in scope.
+fn rs_type(ty: &Ty, scope: &[String], types: &BTreeMap<String, Reached<'_>>) -> String {
+    match ty {
+        Ty::Option(inner) => format!("Option<{}>", rs_type(inner, scope, types)),
+        Ty::Tuple(ts) => {
+            assert!(ts.len() > 1, "a one-element tuple has no Rust codec");
+            let ts: Vec<String> = ts.iter().map(|t| rs_type(t, scope, types)).collect();
+            format!("({})", ts.join(", "))
+        }
+        Ty::Named(name, args) => match (name.as_str(), args.as_slice()) {
+            ("void", []) => "()".to_owned(),
+            ("string", []) => "String".to_owned(),
+            (n @ ("u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64"), []) => {
+                n.to_owned()
+            }
+            // Its own codec: the length, then the bytes.
+            ("List", [Ty::Named(u8, a)]) if u8 == "u8" && a.is_empty() => "Vec<u8>".to_owned(),
+            ("List", [t]) => format!("Vec<{}>", rs_type(t, scope, types)),
+            ("Result", [ok, err]) => format!(
+                "Result<{}, {}>",
+                rs_type(ok, scope, types),
+                rs_type(err, scope, types)
+            ),
+            (g, []) if scope.iter().any(|s| s == g) => g.to_owned(),
+            (n, []) if types.contains_key(n) => n.to_owned(),
+            (n, args) if types.contains_key(n) => {
+                let args: Vec<String> = args.iter().map(|t| rs_type(t, scope, types)).collect();
+                format!("{n}<{}>", args.join(", "))
+            }
+            (n, _) => panic!("no Rust codec for `{n}`: add one to hd_run_wasmtime's codec.rs"),
+        },
+    }
+}
+
+/// A method's variant in the generated `Id`: its trait key and its name,
+/// in camel case (`Net` `TcpStream.read` is `NetTcpStreamRead`).
+fn rs_id(key: &str, name: &str) -> String {
+    let mut out = key.to_owned();
+    for word in name.split(['.', '_']) {
+        let mut cs = word.chars();
+        if let Some(c) = cs.next() {
+            out.push(c.to_ascii_uppercase());
+            out.extend(cs);
+        }
+    }
+    out
+}
+
+/// A host method's parameter or result as an `hd_host_abi::Codec`.
+fn rs_codec(c: &Codec) -> String {
+    match c {
+        Codec::Void => "Codec::Void".to_owned(),
+        Codec::Scalar(Scalar::I32) => "Codec::Scalar(Scalar::I32)".to_owned(),
+        Codec::Scalar(Scalar::I64) => "Codec::Scalar(Scalar::I64)".to_owned(),
+        Codec::Scalar(Scalar::F64) => "Codec::Scalar(Scalar::F64)".to_owned(),
+        Codec::Buffer(t) => format!("Codec::Buffer({})", js(t)),
+    }
+}
+
+/// The generic parameters of a declaration, as Rust writes them after its
+/// name, and as an impl's bounds.
+fn rs_generics(generics: &[String]) -> (String, String) {
+    if generics.is_empty() {
+        return (String::new(), String::new());
+    }
+    let bounds: Vec<String> = generics.iter().map(|g| format!("{g}: Wire")).collect();
+    (
+        format!("<{}>", generics.join(", ")),
+        format!("<{}>", bounds.join(", ")),
+    )
+}
+
+/// The Rust declaration and `Wire` impl of the std type `n`.
+fn rs_decl(n: &str, r: &Reached<'_>, types: &BTreeMap<String, Reached<'_>>) -> String {
+    let mut s = String::new();
+    let (module, decl) = match r {
+        Reached::Handle => {
+            let _ = writeln!(s, "/// `{n}`, a host handle: its handle number.");
+            let _ = writeln!(s, "pub type {n} = Handle;");
+            return s;
+        }
+        Reached::Std(module, decl) => (module, decl),
+    };
+    let _ = writeln!(s, "/// `{n}` of `{module}`.");
+    match decl {
+        Decl::Newtype(of) => {
+            let of = rs_type(&parse_ty(of), &[], types);
+            let _ = writeln!(s, "#[derive(Clone, Debug, PartialEq, Eq)]");
+            let _ = writeln!(s, "pub struct {n}(pub {of});\n");
+            let _ = writeln!(s, "impl Wire for {n} {{");
+            let _ = writeln!(s, "    fn enc(&self, e: &mut Enc) {{");
+            let _ = writeln!(s, "        self.0.enc(e);");
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(
+                s,
+                "    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {{"
+            );
+            let _ = writeln!(s, "        Ok(Self(Wire::dec(d)?))");
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(s, "}}");
+        }
+        Decl::Data { generics, fields } => {
+            let (params, bounds) = rs_generics(generics);
+            let _ = writeln!(s, "#[derive(Clone, Debug, PartialEq, Eq)]");
+            let _ = writeln!(s, "pub struct {n}{params} {{");
+            for (f, t) in fields {
+                let _ = writeln!(
+                    s,
+                    "    pub {f}: {},",
+                    rs_type(&parse_ty(t), generics, types)
+                );
+            }
+            let _ = writeln!(s, "}}\n");
+            let _ = writeln!(s, "impl{bounds} Wire for {n}{params} {{");
+            let _ = writeln!(s, "    fn enc(&self, e: &mut Enc) {{");
+            for (f, _) in fields {
+                let _ = writeln!(s, "        self.{f}.enc(e);");
+            }
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(
+                s,
+                "    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {{"
+            );
+            let _ = writeln!(s, "        Ok(Self {{");
+            for (f, _) in fields {
+                let _ = writeln!(s, "            {f}: Wire::dec(d)?,");
+            }
+            let _ = writeln!(s, "        }})");
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(s, "}}");
+        }
+        Decl::Enum { generics, variants } => {
+            let (params, bounds) = rs_generics(generics);
+            let _ = writeln!(s, "#[derive(Clone, Debug, PartialEq, Eq)]");
+            let _ = writeln!(s, "pub enum {n}{params} {{");
+            for (v, fs) in variants {
+                if fs.is_empty() {
+                    let _ = writeln!(s, "    {v},");
+                } else {
+                    let fs: Vec<String> = fs
+                        .iter()
+                        .map(|(f, t)| format!("{f}: {}", rs_type(&parse_ty(t), generics, types)))
+                        .collect();
+                    // rustfmt's `struct_variant_width`.
+                    assert!(
+                        fs.join(", ").len() <= 35,
+                        "`{n}.{v}`'s fields need rustfmt's vertical layout"
+                    );
+                    let _ = writeln!(s, "    {v} {{ {} }},", fs.join(", "));
+                }
+            }
+            let _ = writeln!(s, "}}\n");
+            let _ = writeln!(s, "impl{bounds} Wire for {n}{params} {{");
+            let _ = writeln!(s, "    fn enc(&self, e: &mut Enc) {{");
+            let _ = writeln!(s, "        match self {{");
+            for (i, (v, fs)) in variants.iter().enumerate() {
+                let names: Vec<&str> = fs.iter().map(|f| f.0.as_str()).collect();
+                if names.is_empty() {
+                    let _ = writeln!(s, "            Self::{v} => {{");
+                } else {
+                    let _ = writeln!(s, "            Self::{v} {{ {} }} => {{", names.join(", "));
+                }
+                let _ = writeln!(s, "                e.leb({i});");
+                for f in names {
+                    let _ = writeln!(s, "                {f}.enc(e);");
+                }
+                let _ = writeln!(s, "            }}");
+            }
+            let _ = writeln!(s, "        }}");
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(
+                s,
+                "    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {{"
+            );
+            let value = |v: &str, fs: &[(String, String)], at: &str| {
+                if fs.is_empty() {
+                    return format!("Self::{v}");
+                }
+                let inits: Vec<String> = fs
+                    .iter()
+                    .map(|f| format!("{}: Wire::dec(d)?", f.0))
+                    .collect();
+                // rustfmt's `struct_lit_width`.
+                if inits.join(", ").len() <= 18 {
+                    return format!("Self::{v} {{ {} }}", inits.join(", "));
+                }
+                let mut out = format!("Self::{v} {{\n");
+                for i in inits {
+                    let _ = writeln!(out, "{at}    {i},");
+                }
+                let _ = write!(out, "{at}}}");
+                out
+            };
+            if let [(v, fs)] = variants.as_slice() {
+                let _ = writeln!(s, "        d.tag(1)?;");
+                let _ = writeln!(s, "        Ok({})", value(v, fs, "        "));
+            } else {
+                let _ = writeln!(s, "        Ok(match d.tag({})? {{", variants.len());
+                for (i, (v, fs)) in variants.iter().enumerate() {
+                    let pat = if i + 1 == variants.len() {
+                        "_".to_owned()
+                    } else {
+                        i.to_string()
+                    };
+                    let _ = writeln!(s, "            {pat} => {},", value(v, fs, "            "));
+                }
+                let _ = writeln!(s, "        }})");
+            }
+            let _ = writeln!(s, "    }}");
+            let _ = writeln!(s, "}}");
+        }
+    }
+    s
+}
+
+/// The text of `crates/hd_run_wasmtime/src/abi.rs`: every std type the
+/// model reaches as a Rust type with its `Wire` codec, and every host
+/// method's descriptor.
+fn wasmtime_glue() -> String {
+    let decls = std_decls();
+    let types = reached(&decls);
+    for own in [
+        "Codec",
+        "Dec",
+        "Enc",
+        "Handle",
+        "HostMethod",
+        "Id",
+        "METHODS",
+        "ResourceArg",
+        "Scalar",
+        "Wait",
+        "Wire",
+    ] {
+        assert!(
+            !types.contains_key(own),
+            "the std type `{own}` has the name of an item of the generated Rust"
+        );
+    }
+    let mut out = String::from(
+        "//! The host ABI's wasmtime codecs and method descriptors, generated from\n\
+         //! the ABI model (`host/gen/abi.json`) by\n\
+         //! `crates/hd_host_abi/tests/abi_model.rs`. Do not edit: `HD_UPDATE_ABI=1\n\
+         //! cargo test -p hd_host_abi --test abi_model` rewrites it. `codec.rs`\n\
+         //! says how each value crosses.\n\
+         //!\n\
+         //! Each std type a host method crosses is a Rust type of the same name\n\
+         //! and shape: a data type a struct, an enum an enum, a newtype a tuple\n\
+         //! struct, a host handle a `Handle`; `T?` is `Option`, `List[T]` a\n\
+         //! `Vec` and `string` a `String`.\n\n\
+         use hd_host_abi::{Codec, ResourceArg, Scalar, Wait};\n\n\
+         use crate::codec::{Dec, Enc, Handle, Wire};\n",
+    );
+    for (n, r) in &types {
+        out.push('\n');
+        out.push_str(&rs_decl(n, r, &types));
+    }
+    out.push_str(
+        "\n/// A host method of the ABI model, by its trait key and name.\n\
+         #[derive(Clone, Copy, Debug, PartialEq, Eq)]\n\
+         pub enum Id {\n",
+    );
+    let mut rows = Vec::new();
+    for (_, table) in groups() {
+        for t in table {
+            for m in t.methods {
+                let id = rs_id(t.key, m.name);
+                let _ = writeln!(out, "    {id},");
+                rows.push((id, t.key, m));
+            }
+        }
+    }
+    out.push_str(
+        "}\n\n\
+         /// A host method (`crates/hd_run_wasmtime/DESIGN.md` §17.2): `wait` is\n\
+         /// `Never` for one import or `May` for `.start` and `.finish`;\n\
+         /// `resource` names the argument a grant checks; each parameter and the\n\
+         /// result is a scalar or a value of the std type it names in the\n\
+         /// exchange buffer.\n\
+         #[derive(Debug)]\n\
+         pub struct HostMethod {\n    \
+             pub id: Id,\n    \
+             pub module: &'static str,\n    \
+             pub name: &'static str,\n    \
+             pub wait: Wait,\n    \
+             pub resource: Option<ResourceArg>,\n    \
+             pub params: &'static [Codec],\n    \
+             pub result: Codec,\n\
+         }\n\n\
+         /// Each host method by import module and name.\n\
+         pub static METHODS: &[HostMethod] = &[\n",
+    );
+    for (id, key, m) in rows {
+        let resource = m
+            .resource
+            .map_or("None".to_owned(), |r| format!("Some(ResourceArg::{r:?})"));
+        let params: Vec<String> = m.params.iter().map(rs_codec).collect();
+        let _ = writeln!(out, "    HostMethod {{");
+        let _ = writeln!(out, "        id: Id::{id},");
+        let _ = writeln!(out, "        module: {},", js(&format!("hd:{key}")));
+        let _ = writeln!(out, "        name: {},", js(m.name));
+        let _ = writeln!(out, "        wait: Wait::{:?},", m.wait);
+        let _ = writeln!(out, "        resource: {resource},");
+        // rustfmt's `array_width`.
+        if params.join(", ").len() <= 60 {
+            let _ = writeln!(out, "        params: &[{}],", params.join(", "));
+        } else {
+            let _ = writeln!(out, "        params: &[");
+            for p in params {
+                let _ = writeln!(out, "            {p},");
+            }
+            let _ = writeln!(out, "        ],");
+        }
+        let _ = writeln!(out, "        result: {},", rs_codec(&m.result));
+        let _ = writeln!(out, "    }},");
+    }
+    out.push_str("];\n");
+    out
+}
+
+#[test]
+fn the_checked_in_wasmtime_codecs_match_the_model() {
+    check("crates/hd_run_wasmtime/src/abi.rs", &wasmtime_glue());
 }

@@ -7,9 +7,9 @@
 //! generates the hd-side provider stubs of the default profile from it.
 //! `tests/abi_model.rs` builds the ABI model from it and `lib/std`: every
 //! method with the std types it crosses and the std declarations they
-//! reach, checked in as `host/gen/abi.json`, and from the model the JS
-//! host's codecs and method descriptors, `host/gen/abi.mjs`. The wasmtime
-//! host (`hd_run_wasmtime`) is still written by hand against the table.
+//! reach, checked in as `host/gen/abi.json`, and from the model both
+//! hosts' codecs and method descriptors: the JS host's `host/gen/abi.mjs`
+//! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
 /// Scalar Wasm types at the boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

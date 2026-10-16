@@ -116,18 +116,25 @@ Std's capability traits are still declared in `lib/std` in hd. The table
 mirrors them, and a test fails when the two disagree.
 
 Implementation differs: items 1 and 4 come from the table (`hd_wasm`
-generates the hd-side stubs; `is_known_import` reads it), and item 3's
-codecs from the ABI model (#251). The model, `host/gen/abi.json`, lists
-every method of the three tables with the std types its values cross as,
-and each data type, enum and newtype those types reach, read from
-`lib/std`'s declarations. From it `host/gen/abi.mjs` holds the JS codec
-of each of those std types and each method's descriptor (§17.10). The
-test `crates/hd_host_abi/tests/abi_model.rs` generates both and fails
-when the tables or std change and the checked-in files do not;
-`HD_UPDATE_ABI=1` rewrites them. The wasmtime codecs and providers
-(`hd_run_wasmtime/src/host/`) and every provider's grant checks are
-still written by hand. That is worse: a hand-kept copy of every codec
-can drift from the table, and only tests catch it.
+generates the hd-side stubs; `is_known_import` reads it), and the codecs
+and method descriptors of items 2 and 3 from the ABI model (#251). The
+model, `host/gen/abi.json`, lists every method of the three tables with
+the std types its values cross as, and each data type, enum and newtype
+those types reach, read from `lib/std`'s declarations. From it:
+
+- `host/gen/abi.mjs` holds the JS codec of each of those std types and
+  each method's descriptor (§17.10);
+- `hd_run_wasmtime/src/abi.rs` holds each of those std types as a Rust
+  type of the same shape with its codec (`Wire`, built on `codec.rs`'s
+  `Enc` and `Dec`), each method's descriptor (`METHODS`: import module
+  and name, wait, resource argument, parameters and result), and `Id`,
+  one variant per method (§17.5).
+
+The test `crates/hd_host_abi/tests/abi_model.rs` generates all three and
+fails when the tables or std change and the checked-in files do not;
+`HD_UPDATE_ABI=1` rewrites them. No build step generates them: the
+generator is a test. Grant checks and providers stay written by hand on both
+hosts, since each trait refuses in its own way (§17.7).
 
 **A runtime profile's own traits.** An entry row's trait that the table
 does not list is a selected runtime profile's own, as a conformance
@@ -249,7 +256,8 @@ generates one encoder `(off, values...) -> off'` and one decoder
 `(off) -> (values..., off')` per `BTy`, as `rt` helpers, so methods that
 cross the same type share them. The JS host writes the same bytes with
 the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
-`host/wire.mjs`'s `Enc` and `Dec`.
+`host/wire.mjs`'s `Enc` and `Dec`, and the wasmtime host with those of
+`hd_run_wasmtime/src/abi.rs`, built on `codec.rs`.
 
 | Value | Encoding |
 | --- | --- |
@@ -336,6 +344,17 @@ the variant index and the path.
   wasmtime's async support is off: with start-and-poll, no Wasm call ever
   waits inside the engine, so no fiber stacks are needed, and each call
   stays a plain native call.
+- **Imports from the model.** An import of a host method is found in
+  the generated `METHODS` (§17.1) by module and name: a method that never
+  waits by its own name, one that may by `.start` and `.finish`. Its
+  descriptor gives the shape of its results, which the linker checks
+  before any effect, and which parameter holds its argument length, which
+  a REPL journal records. `host/call.rs` dispatches on its `Id`, so a
+  method the model adds does not compile until a provider handles it. A
+  provider decodes its arguments and encodes its result with the
+  generated std types. It decodes every argument before any grant or
+  handle check, as the JS host does, so a malformed argument is the
+  `host-contract` panic on both engines whatever the grants.
 - **The `hd-io` runtime** is one process-wide tokio current-thread
   runtime, driven on a dedicated `hd-io` thread and started by the first
   offloaded operation (`io_runtime.rs`). A `.start` that cannot finish at

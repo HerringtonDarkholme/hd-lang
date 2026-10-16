@@ -1,6 +1,6 @@
 use super::process::{Output, Request, Start, finish, start};
 use super::{random, sys_read};
-use crate::codec::Enc;
+use crate::codec::{Enc, Wire};
 use crate::limits::{Ledger, Reservation};
 use crate::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
@@ -93,15 +93,12 @@ fn sys_grant_is_checked_before_reading_and_failure_is_unsupported() {
     let grants = Grants {
         limits: vec![("Sys".into(), Limit::Entries(vec!["os".into()]))],
     };
-    let denied = sys_read("hostname", &grants, |_| panic!("denied read ran"));
+    let denied = sys_read::<String>("hostname", &grants, || panic!("denied read ran"));
     let mut expected = Enc::default();
     expected.leb(1).leb(0).str("hostname");
     assert_eq!(denied.done(), expected.done());
 
-    let unsupported = sys_read("hostname", &Grants::default(), |e| {
-        e.str("discard this partial answer");
-        false
-    });
+    let unsupported = sys_read::<String>("hostname", &Grants::default(), || None);
     let mut expected = Enc::default();
     expected.leb(1).leb(1).str("hostname");
     assert_eq!(unsupported.done(), expected.done());
@@ -131,11 +128,12 @@ fn process_invalid_names_and_arguments_are_typed_errors() {
         ),
     ] {
         let mut args = Enc::default();
-        args.str(name)
-            .list(&argv, |e, arg| {
-                e.str(arg);
-            })
-            .bytes(&[]);
+        args.str(name);
+        argv.iter()
+            .map(|arg| (*arg).to_owned())
+            .collect::<Vec<String>>()
+            .enc(&mut args);
+        args.bytes(&[]);
         let mut error = Enc::default();
         error.leb(1).leb(3).str(expected);
         assert_eq!(

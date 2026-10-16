@@ -16,18 +16,6 @@ pub use ops::Done;
 
 pub(crate) use socket::connect_attempts;
 
-pub(crate) const METHODS: &[&str] = &[
-    "lookup",
-    "connect",
-    "listen",
-    "bind_udp",
-    "TcpStream.read",
-    "TcpStream.write",
-    "TcpListener.accept",
-    "UdpSocket.send_to",
-    "UdpSocket.receive",
-];
-pub(crate) const CLOSE: &[&str] = &["TcpStream.close", "TcpListener.close", "UdpSocket.close"];
 /// The most bytes one read takes, and the receive buffer.
 pub(crate) const CHUNK: usize = 65536;
 pub(crate) const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
