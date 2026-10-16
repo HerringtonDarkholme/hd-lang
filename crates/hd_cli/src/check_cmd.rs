@@ -192,35 +192,67 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
     } else {
         Vec::new()
     };
-    for d in &docs {
-        t.program.sources.add_synthetic(&d.path, &d.test.program);
-    }
-    let goal = if tests {
-        Goal::CheckTests
+    // `cli.check.tests`: the library role as plain `hd check` checks it,
+    // then the test role over the same sources and the doc tests. The
+    // library role's entries are the ones plain `hd check` caches. A
+    // diagnostic both roles report is shown once.
+    let library;
+    let lib_sources = if tests && t.program.as_written.is_none() {
+        let mut only_library = t.program.sources.clone();
+        only_library.retain(|path| matches!(role_of(path), Role::Lib | Role::Exe));
+        library = only_library;
+        &library
     } else {
-        Goal::Analyze
+        &t.program.sources
     };
-    let store = crate::disk_store();
-    let clock = Wall(Instant::now());
-    let host = Host {
-        render_tir: &[],
-        sources: &t.program.sources,
-        store: &store,
-        clock: &clock,
-        executor: o.jobs.map_or_else(executor, crate::executor_of),
-    };
-    let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
-    let mut shown = shown(&out, &t, &docs);
-    for x in &mut shown {
-        if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
-            d.relocate(x);
+    let (mut shown, mut checked) = check_role(&t, o, lib_sources, &Goal::Analyze, &[]);
+    if tests {
+        for d in &docs {
+            t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
+        let (more, names) = check_role(&t, o, &t.program.sources, &Goal::CheckTests, &docs);
+        for x in more {
+            if !shown.contains(&x) {
+                shown.push(x);
+            }
+        }
+        checked.extend(names);
+        checked.sort();
+        checked.dedup();
     }
     report::relocate(&mut shown, |f| t.program.sources.display(f));
     let mut diags = t.program.problems;
     diags.extend(left_out);
     diags.extend(shown);
-    (diags, out.counters.modules_checked.len())
+    (diags, checked.len())
+}
+
+/// One role's run over `t`'s sources: its diagnostics, with the doc tests'
+/// relocated to their source, and the modules whose bodies it checked.
+fn check_role(
+    t: &Target,
+    o: &Options,
+    sources: &disk::DiskSources,
+    goal: &Goal,
+    docs: &[crate::test_cmd::Doc],
+) -> (Vec<Diag>, Vec<String>) {
+    let store = crate::disk_store();
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources,
+        store: &store,
+        clock: &clock,
+        executor: o.jobs.map_or_else(executor, crate::executor_of),
+    };
+    let out = build_packages(&host, &t.program.package, &t.program.packages(), goal);
+    let mut shown = shown(&out, t, docs);
+    for x in &mut shown {
+        if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
+            d.relocate(x);
+        }
+    }
+    (shown, out.counters.modules_checked)
 }
 
 /// The diagnostics of a whole-package check of `program`, as `hd check`

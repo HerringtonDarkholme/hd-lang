@@ -1,0 +1,12 @@
+# A single-file program: `--tests` also reports what the library role
+# reports, once.
+run: hd check --summary shapes.hd
+exit: 101
+stdout-json: []
+stderr: error: shapes.hd: unsatisfied-trait-bound: 1
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check --tests --summary shapes.hd
+exit: 101
+stdout-json: []
+stderr: error: shapes.hd: unsatisfied-trait-bound: 1
+stderr: check result: FAILED. errors: 1; warnings: 0

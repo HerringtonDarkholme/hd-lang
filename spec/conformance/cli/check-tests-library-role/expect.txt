@@ -1,0 +1,18 @@
+# Library code that relies on an impl only a `tests:` block provides is
+# a library error: `hd check` and `hd check --tests` both report it, and
+# `--tests` reports it once, though both roles find it.
+run: hd check --summary
+exit: 101
+stdout-json: []
+stderr: error: src/shapes.hd: unsatisfied-trait-bound: 1
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check --tests --summary
+exit: 101
+stdout-json: []
+stderr: error: src/shapes.hd: unsatisfied-trait-bound: 1
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check --tests --summary src/shapes.hd
+exit: 101
+stdout-json: []
+stderr: error: src/shapes.hd: unsatisfied-trait-bound: 1
+stderr: check result: FAILED. errors: 1; warnings: 0
