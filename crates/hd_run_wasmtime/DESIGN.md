@@ -120,7 +120,13 @@ generates the hd-side stubs; `is_known_import` reads it). The wasmtime
 providers (`hd_run_wasmtime/src/host/`) and the JS host
 (`host/core.mjs`) are written by hand, and `generate_js_glue` returns
 "not implemented". That is worse: three hand-kept copies of every codec
-and grant check can drift apart, and only tests catch it.
+and grant check can drift apart, and only tests catch it. The first step
+toward items 2 and 3 is built (#251): `host/gen/abi.json`, the model
+both generators will read. It lists every method of the three tables
+with the std types its values cross as, and each data type, enum and
+newtype those types reach, read from `lib/std`'s declarations. The test
+`crates/hd_host_abi/tests/abi_model.rs` fails when the tables or std
+change and the checked-in file does not.
 
 **A runtime profile's own traits.** An entry row's trait that the table
 does not list is a selected runtime profile's own, as a conformance

@@ -1,0 +1,160 @@
+{
+  "traits": [
+    { "key": "Console", "std": "std.console.Console", "methods": [
+      { "name": "write_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
+    ]},
+    { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
+      { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" }
+    ]},
+    { "key": "Clock", "std": "std.time.Clock", "methods": [
+      { "name": "now", "wait": "never", "resource": null, "params": [], "result": "i64" },
+      { "name": "monotonic", "wait": "never", "resource": null, "params": [], "result": "i64" },
+      { "name": "sleep", "wait": "may", "resource": null, "params": ["i64"], "result": "void" }
+    ]},
+    { "key": "FsRead", "std": "std.fs.FsRead", "methods": [
+      { "name": "read_bytes", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[List[u8], FsError]" },
+      { "name": "read_text", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[string, FsError]" },
+      { "name": "list_dir", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[List[Entry], FsError]" },
+      { "name": "stat", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[Entry?, FsError]" }
+    ]},
+    { "key": "FsWrite", "std": "std.fs.FsWrite", "methods": [
+      { "name": "write_bytes", "wait": "may", "resource": "path", "params": ["Path", "List[u8]"], "result": "Result[void, FsError]" },
+      { "name": "write_text", "wait": "may", "resource": "path", "params": ["Path", "string"], "result": "Result[void, FsError]" },
+      { "name": "append_text", "wait": "may", "resource": "path", "params": ["Path", "string"], "result": "Result[void, FsError]" },
+      { "name": "create_dir_all", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[void, FsError]" },
+      { "name": "remove", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[void, FsError]" },
+      { "name": "rename", "wait": "may", "resource": "path", "params": ["Path", "Path"], "result": "Result[void, FsError]" }
+    ]},
+    { "key": "Random", "std": "std.random.Random", "methods": [
+      { "name": "next_u64", "wait": "never", "resource": null, "params": [], "result": "i64" },
+      { "name": "fill", "wait": "never", "resource": null, "params": ["i32"], "result": "List[u8]" }
+    ]},
+    { "key": "Http", "std": "std.http.Http", "methods": [
+      { "name": "send", "wait": "may", "resource": "host", "params": ["Request"], "result": "Result[Response, HttpError]" }
+    ]},
+    { "key": "Net", "std": "std.net.Net", "methods": [
+      { "name": "lookup", "wait": "may", "resource": "host", "params": ["string"], "result": "Result[List[string], NetError]" },
+      { "name": "connect", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpStream, NetError]" },
+      { "name": "listen", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpListener, NetError]" },
+      { "name": "bind_udp", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[UdpSocket, NetError]" }
+    ]},
+    { "key": "Process", "std": "std.process.Process", "methods": [
+      { "name": "run", "wait": "may", "resource": "program", "params": ["string", "List[string]", "string"], "result": "Result[ProcessOutput, ProcessError]" }
+    ]},
+    { "key": "Sys", "std": "std.sys.Sys", "methods": [
+      { "name": "os", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
+      { "name": "arch", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
+      { "name": "hostname", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
+      { "name": "cpu_count", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[u32, SysError]" }
+    ]},
+    { "key": "Env", "std": "std.host.Env", "methods": [
+      { "name": "get", "wait": "never", "resource": "env-name", "params": ["string"], "result": "string?" },
+      { "name": "names", "wait": "never", "resource": null, "params": [], "result": "List[string]" }
+    ]},
+    { "key": "Args", "std": "std.host.Args", "methods": [
+      { "name": "program", "wait": "never", "resource": null, "params": [], "result": "string" },
+      { "name": "list", "wait": "never", "resource": null, "params": [], "result": "List[string]" }
+    ]}
+  ],
+  "runners": [
+    { "key": "TestRunner", "std": "std.testing.TestRunner", "methods": [
+      { "name": "row", "wait": "never", "resource": null, "params": ["i32"], "result": "i32" },
+      { "name": "report_timeout", "wait": "never", "resource": null, "params": ["i64"], "result": "void" },
+      { "name": "snapshot_check", "wait": "never", "resource": null, "params": ["string"], "result": "string" },
+      { "name": "temp_dir", "wait": "never", "resource": null, "params": [], "result": "string" }
+    ]},
+    { "key": "PropertyRunner", "std": "std.testing.PropertyRunner", "methods": [
+      { "name": "start", "wait": "never", "resource": null, "params": ["i32", "i32", "i32"], "result": "PropertyCase" },
+      { "name": "record", "wait": "never", "resource": null, "params": ["i64"], "result": "void" },
+      { "name": "show", "wait": "never", "resource": null, "params": ["string"], "result": "void" }
+    ]}
+  ],
+  "handles": [
+    { "key": "Net", "std": "std.net.TcpStream", "methods": [
+      { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], ResourceError[NetError]]" },
+      { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "TcpStream.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+    ]},
+    { "key": "Net", "std": "std.net.TcpListener", "methods": [
+      { "name": "TcpListener.accept", "wait": "may", "resource": null, "params": ["i32"], "result": "Result[TcpStream, ResourceError[NetError]]" },
+      { "name": "TcpListener.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+    ]},
+    { "key": "Net", "std": "std.net.UdpSocket", "methods": [
+      { "name": "UdpSocket.send_to", "wait": "may", "resource": "addr", "params": ["i32", "string", "i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "UdpSocket.receive", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[Datagram, ResourceError[NetError]]" },
+      { "name": "UdpSocket.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+    ]}
+  ],
+  "types": {
+    "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
+      { "name": "Closed", "fields": [] }
+    ] },
+    "Datagram": { "kind": "data", "module": "lib/std/net.hd", "generics": [], "fields": [{ "name": "bytes", "type": "List[u8]" }, { "name": "host", "type": "string" }, { "name": "port", "type": "u16" }] },
+    "Duration": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },
+    "Entry": { "kind": "data", "module": "lib/std/fs.hd", "generics": [], "fields": [{ "name": "path", "type": "Path" }, { "name": "kind", "type": "EntryKind" }, { "name": "size", "type": "u64" }] },
+    "EntryKind": { "kind": "enum", "module": "lib/std/fs.hd", "generics": [], "variants": [
+      { "name": "File", "fields": [] },
+      { "name": "Directory", "fields": [] },
+      { "name": "Symlink", "fields": [] }
+    ] },
+    "FsError": { "kind": "enum", "module": "lib/std/fs.hd", "generics": [], "variants": [
+      { "name": "NotFound", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "PermissionDenied", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "NotGranted", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "AlreadyExists", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "NotADirectory", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "IsADirectory", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "InvalidUtf8", "fields": [{ "name": "path", "type": "Path" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+    ] },
+    "HttpError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },
+      { "name": "InvalidUrl", "fields": [{ "name": "url", "type": "string" }] },
+      { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
+      { "name": "Connect", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Tls", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Timeout", "fields": [] },
+      { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+    ] },
+    "Method": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "Get", "fields": [] },
+      { "name": "Head", "fields": [] },
+      { "name": "Post", "fields": [] },
+      { "name": "Put", "fields": [] },
+      { "name": "Patch", "fields": [] },
+      { "name": "Delete", "fields": [] },
+      { "name": "Options", "fields": [] },
+      { "name": "Other", "fields": [{ "name": "name", "type": "string" }] }
+    ] },
+    "NetError": { "kind": "enum", "module": "lib/std/net.hd", "generics": [], "variants": [
+      { "name": "NotGranted", "fields": [{ "name": "address", "type": "string" }] },
+      { "name": "InvalidAddress", "fields": [{ "name": "address", "type": "string" }] },
+      { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
+      { "name": "Refused", "fields": [{ "name": "address", "type": "string" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+    ] },
+    "Path": { "kind": "newtype", "module": "lib/std/path.hd", "of": "string" },
+    "ProcessError": { "kind": "enum", "module": "lib/std/process.hd", "generics": [], "variants": [
+      { "name": "NotFound", "fields": [] },
+      { "name": "PermissionDenied", "fields": [] },
+      { "name": "NotGranted", "fields": [] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+    ] },
+    "ProcessOutput": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "stdout", "type": "string" }, { "name": "stderr", "type": "string" }, { "name": "status", "type": "i32" }] },
+    "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },
+    "Request": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "timeout", "type": "Duration?" }] },
+    "ResourceError": { "kind": "enum", "module": "lib/std/resource.hd", "generics": ["E"], "variants": [
+      { "name": "Operation", "fields": [{ "name": "error", "type": "E" }] },
+      { "name": "Disposed", "fields": [] }
+    ] },
+    "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }] },
+    "SysError": { "kind": "enum", "module": "lib/std/sys.hd", "generics": [], "variants": [
+      { "name": "NotGranted", "fields": [{ "name": "name", "type": "string" }] },
+      { "name": "Unsupported", "fields": [{ "name": "name", "type": "string" }] }
+    ] },
+    "TcpListener": { "kind": "handle" },
+    "TcpStream": { "kind": "handle" },
+    "UdpSocket": { "kind": "handle" }
+  }
+}

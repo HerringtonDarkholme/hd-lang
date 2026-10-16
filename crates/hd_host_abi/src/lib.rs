@@ -7,7 +7,10 @@
 //! generates the hd-side provider stubs of the default profile from it.
 //! The wasmtime host (`hd_run_wasmtime`) and the JS host
 //! (`host/core.mjs`) are written by hand against it; the
-//! generators of §17.1 are not written yet.
+//! generators of §17.1 are not written yet. Their model is:
+//! `host/gen/abi.json`, every method with the std types it crosses and
+//! the std declarations they reach, which `tests/abi_model.rs` keeps in
+//! step with this table and `lib/std`.
 
 use hd_base::{NotImplemented, Stage, StageResult};
 
