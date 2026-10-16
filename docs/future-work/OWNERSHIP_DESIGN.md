@@ -278,6 +278,22 @@ fn work() -> void $ Audit:
     defer: record()                                # error: a defer body cannot need $ Audit
 ```
 
+A `defer` body that names an owned value captures it, and the guard
+moves it in, so a later use of the value is `use-after-move`; the error
+names the `defer` that moved it. To keep using the value, the body
+captures a borrow instead:
+
+```text
+fn copy_log(path: string) -> void:
+    f := open(path)
+    let view: ^File = f                            # hypothetical syntax
+    defer: report_size(view)                       # captures the borrow, not the file
+    append(f, "done")                              # fine: f is still owned here
+```
+
+The guard is declared after `f`, so it drops first, while `f` is still
+open.
+
 A `drop` must not suspend and cannot fail. Cleanup that must, such as a
 buffered writer that flushes over the network, is an explicit method
 called before the drop:
@@ -748,7 +764,12 @@ This section states each rule from the tour once, grouped by topic.
 13. `OwnOnly` by `Structure` is a compiler-known rule, not a std
     template: `OwnOnly` has no members to generate. A type owned when
     either of two arguments is, as `Outcome[A, B]`, needs only the one
-    derivation.
+    derivation. The rule reads each field's type after substitution: an
+    `own` part or an `OwnOnly` type makes the instance `OwnOnly`; a
+    shared borrow `^U` does not, whatever `U` is; a `^mut` field needs a
+    hand-written `OwnOnly` impl, by rule 11; an unused type argument
+    counts for nothing. A recursive type is `OwnOnly` only if a
+    non-recursive path reaches such a field (the least fixed point).
 14. `DropOwn` extends `OwnOnly`, so only an `OwnOnly` type has a
     destructor. Its `drop(^mut self)` runs when an owned value of the
     type is dropped.
@@ -785,8 +806,12 @@ This section states each rule from the tour once, grouped by topic.
    primitive is copied out. An element of a borrowed collection is a
    plain value when its type is plain, and a borrow when it is owned.
    Moving through a borrow is an error.
-8. A `^mut` borrow of a receiver starts after the arguments run, so
-   `xs.push(xs.len())` is valid.
+8. A `^mut` borrow of a receiver has two phases, as Rust's two-phase
+   borrows do. While the arguments run, the receiver's place is
+   reserved: it may be read, but mutating or moving it, or taking a
+   `^mut` of anything that contains it, is `borrow-conflict`. Then the
+   exclusive borrow activates. So `xs.push(xs.len())` is valid, and
+   `holder.file.inspect_after(reset(holder))` is rejected.
 9. Rules 3 and 4 apply to every `^` of a local, owned or plain, and
    cover the borrowed variable only. A plain alias or a plain capture of
    the same object keeps garbage-collected semantics.
@@ -852,7 +877,11 @@ This section states each rule from the tour once, grouped by topic.
 1. A plain type parameter `[T]` takes only plain types, and its body may
    copy `T` values.
 2. `[T < own Any]` or `[T < own Trait]` takes owned and plain types. Its
-   body moves, borrows, or drops `T` values and never copies them.
+   body moves, borrows, or drops `T` values and never copies them. The
+   body is checked once, where it is written, for every mode the bound
+   allows: every value whose type mentions `T`, as `Boxed[T]` or
+   `List[T]`, is move-only there. So `fn dup[T < own Any](x: Boxed[T])`
+   returning `(x, x)` is an error at the definition, never at a caller.
 3. A call infers `T = own U` when the argument is owned and the
    parameter's bound allows it. `^T` with `T = own U` is `^U`.
 4. In generic code, a position's mode is decided after substitution: a
@@ -991,7 +1020,7 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 
 ## Parse Log
 
-Every `text` block, 28 in all, was parsed on 2026-10-16 with
+Every `text` block, 29 in all, was parsed on 2026-10-16 with
 `scripts/hd-conformance.sh parse`. Each was parsed as written and with
 the marks erased (`own`, `^`, `^{...}`, lifetime brackets). Parsing
 checks syntax only. Nothing was type-checked, and the blocks call
@@ -1000,4 +1029,4 @@ functions this study does not define.
 | Result | Blocks |
 | --- | --- |
 | Parses as written | 5, among them section 1, the REPL inputs in 3.11, and the `defer` row example in 3.1 |
-| Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 23 |
+| Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 24 |
