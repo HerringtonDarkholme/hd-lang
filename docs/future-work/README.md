@@ -21,6 +21,9 @@ action at a distance.
 - [Ownership And Borrows: Design Study](OWNERSHIP_DESIGN.md): the owner's
   Rust-model redirect for #163: `own` types, `^` borrows, lifetimes named
   by variables. Nothing in it is accepted.
+- [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md): twelve cases
+  and the same eleven evaluation dimensions, including cancellation,
+  linear collections, and exclusive callable/provider access.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
