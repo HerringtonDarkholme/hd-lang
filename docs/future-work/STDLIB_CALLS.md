@@ -442,3 +442,247 @@ these rules:
 12. `r[std-net.scripted.no-host]`: a scripted provider opens no socket and consults no grant.
 
 Also in `spec/std/testing.md`, Unit Test Providers: add the row `Net` | `ScriptedNet` | Scripted Net in net.md, and delete the sentence "Each host capability trait but `Net` has" (it becomes "Each host capability trait has") and the paragraph that says `Net` has no std provider. In `spec/cli/command-line.md` and the website, no change. Then file an implementation issue for `lib/std/net.hd` (about 150 lines of hd) and a conformance fixture per rule.
+
+## Net Timeouts, Options, And Local Address (#259, #261, #263)
+
+Three further `std.net` calls, each consistent with the Scripted Net
+call (#256): a scripted provider must be able to script every new
+behaviour. The spec is frozen, so each entry ends with the rules to add
+once the owner orders the edit, and the host work for the later
+implementation issue. The examples parse clean with
+`scripts/hd-conformance.sh parse`; their `tests:` blocks need the
+implementation to run.
+
+### Read And Connect Timeouts (#259)
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| #259 | A timeout is a per-socket setting for the calls that wait for the peer, plus one connect method. Each handle (`TcpStream`, `TcpListener`, `UdpSocket`) gets `set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]`. A `.Some(d)` bounds each later `read!`, `accept!`, or `receive!` call to `d`; `.None` removes the bound, and a new handle starts at `.None`, as today. | A read runs in a loop, so one setting beats an argument on every call site (Rust `set_read_timeout`, Java `setSoTimeout`, Go `SetReadDeadline`). `Http` puts the timeout on the request because a request is one call; a socket is many calls. `.None` as the default keeps every existing program unchanged. | own |
+| #259 | `Net` gets one required method, `connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]`. `connect!` is unchanged and waits without a bound. The timeout covers the whole connect, every address tried, as `std-http.send.timeout.whole` covers every redirect. | A connect has no handle yet, so it cannot be a handle setting. A second method leaves every `connect!` caller and the `Net` provider call shape alone. A default body cannot do it: a trait default sees only the trait (`r[trait.default.visible]`) and has no `Clock` to race. Rust has `TcpStream::connect_timeout` beside `connect`. The cost: each hand-written `Net` provider (such as `NoNetwork` in Net Providers) adds one method. | own |
+| #259 | `write!` and `send_to!` have no timeout. A program that must bound them wraps the call in `race!` with `sleep!`. | A timed-out `write!` leaves an unknown number of bytes sent, so the stream is unusable after it. A read that times out loses nothing (next row), so it can be retried. UDP sends do not wait on the peer. | own |
+| #259 | The error is a new bare variant, `NetError.Timeout`, as `HttpError.Timeout` is bare. A timed-out `read!`, `accept!`, or `receive!` returns `.Err(.Operation(.Timeout))`; a timed-out `connect_timeout!` returns `.Err(.Timeout)`. `Display` is `the net operation timed out`. `Eq`, `Debug`, `Display`, and `Error` follow the other variants. | The two chapters then read alike. An address would repeat what the caller passed. `Other(message)` would make a program match on text. | own |
+| #259 | A timeout does not close or poison the handle. The bytes `read!` or `receive!` had not returned stay for the next call, as `r[std-net.cancel.read]` keeps them after a cancel. A timed-out `connect_timeout!` opens no socket. | Retrying a slow read is the usual reaction; closing would make it impossible. The cancel rule already exists, so both exits from a wait behave the same. | own |
+| #259 | A timeout never fires on cancellation, and cancellation never reports `Timeout`. Cancelling a suspension of `read!`, `accept!`, `receive!`, or `connect_timeout!` aborts the wait by the existing rules, and the host drops its timer. | `std-http.send.cancel` has the same split. `race!` keeps working for a deadline across several calls, which a per-call bound cannot give. | own |
+| #259 | A net timeout counts host time, never the `Clock` provider, as an `Http` timeout does. `ManualClock` cannot fire it. A test scripts the outcome: `ScriptedStream::failing(reads, .Timeout)`, `ScriptedListener` and `ScriptedUdp` with the same `failing` form, and `ScriptedNet.fail_connection(address, .Timeout)`. | A scripted read returns at once and has no wait to bound, as the Scripted Net call says. This keeps `$.with(Net=net, Clock=clock)` independent. | own |
+| #259 | The scripted providers record what the code under test set. `ScriptedStream`, `ScriptedListener`, and `ScriptedUdp` get `set_timeout` (it stores the value and returns `.Ok(())`, or `Disposed` after `close`) and `timeout() -> Duration?`. `ScriptedNet.connect_timeout!` serves the same queue as `connect!`, records the address in `requested()`, and adds the duration to `connect_timeouts() -> List[Duration]`. | A test can check that the code asked for the timeout it meant to. | own |
+
+```text
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream}
+use std.time.s
+
+fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut stream = net.connect_timeout!(host, port, 3s)?
+    match stream.set_timeout(.Some(5s)):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("set timeout failed"))
+    reply := match stream.read!(128):
+        .Ok(bytes) => bytes
+        .Err(.Operation(.Timeout)) => return .Err(.Timeout)
+        .Err(_) => return .Err(.Other("read failed"))
+    _ := stream.close()
+    .Ok(string::from_utf8(reply).unwrap_or(""))
+
+tests:
+    use std.testing.assert_equal
+
+    it("sets both timeouts and reads the banner"):
+        let mut stream = ScriptedStream::new(["220 ready\n".to_utf8()])
+        let mut net = ScriptedNet::new()
+        net.add_connection("mail.local:25", stream)
+        $.with(Net=net):
+            assert_equal(banner!("mail.local", 25), .Ok("220 ready\n"), reason="banner")
+        assert_equal(net.connect_timeouts(), [3s], reason="connect timeout")
+        assert_equal(stream.timeout(), .Some(5s), reason="read timeout")
+
+    it("reports a read that times out"):
+        let mut stream = ScriptedStream::failing([], NetError.Timeout)
+        let mut net = ScriptedNet::new()
+        net.add_connection("mail.local:25", stream)
+        $.with(Net=net):
+            assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="timeout")
+
+    it("reports a connect that times out"):
+        let mut net = ScriptedNet::new()
+        net.fail_connection("mail.local:25", NetError.Timeout)
+        $.with(Net=net):
+            assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="connect timeout")
+```
+
+**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+`Timeout` to the `NetError` enum and a row `r[std-net.error.timeout]`
+(`Timeout` means a bounded wait ended before the peer answered); add
+`connect_timeout!` to the `Net` declaration and a rule
+`r[std-net.connect-timeout]` (whole-connect bound, `.Err(.Timeout)`);
+add `set_timeout` to the three handle declarations and the rules
+`r[std-net.timeout.set]` (`.None` default; applies to `read!`, `accept!`,
+`receive!` only), `r[std-net.timeout.error]` (`.Err(.Operation(.Timeout))`,
+handle stays open, unread bytes kept), `r[std-net.timeout.cancel]`
+(cancellation never reports `Timeout`), `r[std-net.timeout.host-time]`
+(not the `Clock` provider), and `r[std-net.timeout.negative]` (a zero or
+negative `Duration` times out at once; the implementation issue confirms
+this against both hosts); the `Display` text rule for `Timeout`; the
+`NoNetwork` example gains `connect_timeout!`; the Scripted Net rules gain
+`set_timeout`, `timeout()`, `connect_timeout!`, and `connect_timeouts()`.
+
+**Host and ABI work** (implementation issue). `lib/std/net.hd`: the
+variant with its `Eq`, `Debug`, `Display` arms, the new trait methods. In
+`crates/hd_host_abi`: `Net.connect_timeout` (`string`, `I32`, a `Duration`;
+`Wait::May`, `ResourceArg::Addr`) and `TcpStream.set_timeout`,
+`TcpListener.set_timeout`, `UdpSocket.set_timeout` (handle, `Duration?`;
+`Wait::Never`); the generated `host/gen/abi.mjs` follows the std
+`NetError`. Node (`host/net.mjs`): store the timeout on the handle, and
+make `Inbox.next` race its waiter against a timer for `read`, `accept`,
+and `receive`; `connect_timeout` uses a timer that destroys the pending
+socket and answers `Timeout`. wasmtime (`crates/hd_run_wasmtime/src/net`):
+`tokio::time::timeout` around the read, accept, receive, and connect
+futures (the connect path already uses it per address); `time` is already
+a tokio feature. Both hosts can do it; nothing is left out.
+
+### Socket Options (#261)
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| #261 | Two options are exposed, both on `TcpStream` only: `set_nodelay(mut self, enabled: bool) -> Result[void, ResourceError[NetError]]` (TCP_NODELAY) and `set_keepalive(mut self, idle: Duration?) -> Result[void, ResourceError[NetError]]`. `.Some(d)` turns keep-alive on with `d` of idle time before the first probe; `.None` turns it off. Both start at the system default (off). | Both hosts do both: Node has `socket.setNoDelay` and `setKeepAlive(enable, initialDelay)`, and `socket2` has `set_tcp_nodelay` and `TcpKeepalive::with_time`. Nodelay is what a latency-sensitive line or RPC protocol needs; keep-alive is what a long-lived connection behind NAT needs. | own |
+| #261 | They are methods on the handle, not arguments of `connect!` or `listen!`. A stream the listener accepts starts at the system default, and the code sets the options on it. | An option argument would change every provider's `connect!` and `listen!`. Options are set once, after the socket exists, as in Rust, Go, and Node. Inheritance from a listener differs between systems, so the spec promises none. | own |
+| #261 | Buffer sizes (SO_RCVBUF, SO_SNDBUF) are out. | Node has no API for TCP buffer sizes, so wasmtime could not match it (the brief's rule: one host cannot, so leave it out). Systems also round the value, so no portable promise exists. A later issue may add UDP receive size, which both hosts can set. | own |
+| #261 | Address reuse (SO_REUSEADDR) is out as an option and fixed by rule: on Unix a listener can bind an address whose old connections sit in `TIME_WAIT`, and two live listeners on one address are never allowed (`Refused`). | wasmtime already sets it on Unix and Node's `listen` does too, so a restarted server rebinds at once on both. On Windows the same option lets a second socket steal the port, so exposing it would let programs differ by system. | own |
+| #261 | SO_LINGER, TTL, and broadcast and multicast are out. | Nobody asked for them; `r[std-net.close.release]` already fixes the close. Each is a later issue with its own host check. | own |
+| #261 | `ScriptedStream` records the options: `set_nodelay` and `set_keepalive` store their argument and return `.Ok(())` (`Disposed` after `close`), and `nodelay() -> bool` and `keepalive() -> Duration?` read them back. | The same recording idea as `written()`: the test checks what the code under test asked for. | own |
+
+```text
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream}
+use std.time.s
+
+fn open_chat!(host: string, port: u16) -> Result[void, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut stream = net.connect!(host, port)?
+    match stream.set_nodelay(true):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("nodelay failed"))
+    match stream.set_keepalive(.Some(30s)):
+        .Ok(_) => pass
+        .Err(_) => return .Err(.Other("keepalive failed"))
+    match stream.write!("hello\n".to_utf8()):
+        .Ok(_) => .Ok(())
+        .Err(_) => .Err(.Other("write failed"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("turns on nodelay and a 30 second keep-alive"):
+        let mut stream = ScriptedStream::new([])
+        let mut net = ScriptedNet::new()
+        net.add_connection("chat.local:7000", stream)
+        $.with(Net=net):
+            assert_equal(open_chat!("chat.local", 7000), .Ok(()), reason="opened")
+        assert_equal(stream.nodelay(), true, reason="nodelay")
+        assert_equal(stream.keepalive(), .Some(30s), reason="keep-alive")
+```
+
+**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+`set_nodelay` and `set_keepalive` to the `TcpStream` declaration, and the
+rules `r[std-net.option.nodelay]`, `r[std-net.option.keepalive]` (idle
+time before the first probe; `.None` off), `r[std-net.option.default]`
+(system default, no inheritance from a listener), `r[std-net.option.closed]`
+(`Disposed` after `close`), `r[std-net.option.failure]` (a refusal by the
+system is `.Err(.Operation(.Other(message)))`), and
+`r[std-net.listen.reuse]` (a listener rebinds an address in `TIME_WAIT` on
+Unix; two live listeners never share an address); a Why note naming the
+options left out and the reason; the Scripted Net rules gain the setters
+and `nodelay()` and `keepalive()`.
+
+**Host and ABI work.** In `crates/hd_host_abi` `HANDLES`:
+`TcpStream.set_nodelay` (handle, `bool`) and `TcpStream.set_keepalive`
+(handle, `Duration?`), both `Wait::Never`. Node: `h.socket.setNoDelay(on)`
+and `h.socket.setKeepAlive(idle !== null, idleMs)` as new `ops` entries
+that need no waiting. wasmtime: `tokio::net::TcpStream::set_nodelay` and
+`socket2::SockRef::from(&stream).set_tcp_keepalive(...)`, with
+`set_keepalive(false)` for `.None`.
+
+### Local Address (#263)
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| #263 | `TcpListener` and `UdpSocket` get `local_address(self) -> Result[(string, u16), ResourceError[NetError]]`: the bound host as an IP address in text, and the port. After `listen!` or `bind_udp!` with port 0 the port is the one the system picked. After `close` it returns `.Err(.Disposed)`. | `listen!(host, 0)` is how a test server or an ephemeral service gets a free port, and today the program cannot learn which. Rust's `local_addr` and Go's `Addr()` are the proven shape. A `(string, u16)` pair reuses the host and port that `Datagram` already carries, so no address type is added. | own |
+| #263 | The host is the resolved IP address, not the name the caller passed: `listen!("localhost", 0)` reports `127.0.0.1` or `::1`. For `0.0.0.0` it reports `0.0.0.0`. | It is what the socket is bound to; the caller already has the name. Both hosts report it (`server.address()`, `socket.address()` in Node; `local_addr` in Rust). | own |
+| #263 | `local_address` takes `self`, not `mut self`, and waits for nothing. `TcpStream` gets none. | It only reads; a client's ephemeral port is rarely needed and the issue asks for listeners and UDP. | own |
+| #263 | `ScriptedListener` and `ScriptedUdp` get `set_local_address(mut self, host: string, port: u16)`. Without it, `local_address()` returns `.Err(.Operation(.Other(message)))`, and `message` is `ScriptedListener has no local address` or `ScriptedUdp has no local address`. `ScriptedNet` never fills it from the key it matched. | Echoing the key would answer `0` for a port-0 listen: a plausible fake answer, which the Scripted Net call rules out. The test names the port it wants. | own |
+
+```text
+use std.net.{Net, NetError, ScriptedListener, ScriptedNet}
+
+fn start_server!() -> Result[u16, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut listener = net.listen!("127.0.0.1", 0)?
+    match listener.local_address():
+        .Ok((_, port)) => .Ok(port)
+        .Err(_) => .Err(.Other("no local address"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("reports the port the system picked"):
+        let mut listener = ScriptedListener::new([])
+        listener.set_local_address("127.0.0.1", 49152)
+        let mut net = ScriptedNet::new()
+        net.add_listener("127.0.0.1:0", listener)
+        $.with(Net=net):
+            assert_equal(start_server!(), .Ok(49152), reason="the picked port")
+
+    it("fails when the listener has no scripted address"):
+        let mut listener = ScriptedListener::new([])
+        let mut net = ScriptedNet::new()
+        net.add_listener("127.0.0.1:0", listener)
+        $.with(Net=net):
+            assert_equal(start_server!(), .Err(.Other("no local address")), reason="unscripted")
+```
+
+A UDP socket gives the same answer:
+
+```text
+use std.net.{Datagram, Net, NetError, ScriptedNet, ScriptedUdp}
+
+fn announce!(host: string, port: u16) -> Result[u16, NetError] $ Net:
+    let mut net = $.use(Net)
+    let mut socket = net.bind_udp!("0.0.0.0", 0)?
+    own_port := match socket.local_address():
+        .Ok((_, picked)) => picked
+        .Err(_) => return .Err(.Other("no local address"))
+    msg := "reply to ${own_port}".to_utf8()
+    match socket.send_to!(host, port, msg):
+        .Ok(_) => .Ok(own_port)
+        .Err(_) => .Err(.Other("send failed"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("tells the peer which port to answer on"):
+        let mut socket = ScriptedUdp::new([])
+        socket.set_local_address("0.0.0.0", 40001)
+        let mut net = ScriptedNet::new()
+        net.add_udp("0.0.0.0:0", socket)
+        $.with(Net=net):
+            assert_equal(announce!("10.0.0.7", 9000), .Ok(40001), reason="own port")
+        assert_equal(socket.sent(), [Datagram { bytes: "reply to 40001".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="announce")
+```
+
+**Spec edit needed** (for the owner to order). In `spec/std/net.md`: add
+`local_address` to the `TcpListener` and `UdpSocket` declarations, and the
+rules `r[std-net.local-address]` (result, IP text, picked port for port
+0), `r[std-net.local-address.closed]` (`Disposed` after `close`), and
+`r[std-net.local-address.name]` (the host is the bound IP address, not the
+name passed); the Scripted Net rules gain `set_local_address` and the
+unscripted error text.
+
+**Host and ABI work.** In `crates/hd_host_abi` `HANDLES`:
+`TcpListener.local_address` and `UdpSocket.local_address` (handle;
+`Wait::Never`; result `Result[(string, u16), ResourceError[NetError]]`,
+which needs the ABI's buffer codec to carry a tuple; if it cannot, return
+a two-field `data` there and convert in the std trait). Node:
+`h.server.address()` and `h.socket.address()` give `{ address, port }`.
+wasmtime: `local_addr()` on the tokio listener and on the UDP socket
+(`Udp` in `socket.rs`), formatted with `ip().to_string()`. Both hosts can
+do it. The three entries share one implementation issue if the owner
+orders them together, since each adds a `NetError`, trait, or handle
+method to the same two files.
