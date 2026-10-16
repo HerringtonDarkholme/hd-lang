@@ -1371,7 +1371,9 @@ impl Ck<'_, '_> {
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let g = self.infer.shallow(pool, got);
         let w = self.infer.shallow(pool, want);
-        if g == Ty::NEVER || w == Ty::NEVER || g == w {
+        // `types.never.assignable`: `never` goes into every type, and no
+        // ordinary value goes into `never`.
+        if g == Ty::NEVER || g == w {
             return r;
         }
         // A least-common-type site's variable is not a declared type: the
@@ -1551,7 +1553,7 @@ impl Ck<'_, '_> {
         position: ExpectPosition,
     ) -> bool {
         let pool = self.pool();
-        if got == Ty::NEVER || want == Ty::NEVER {
+        if got == Ty::NEVER {
             return false;
         }
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
