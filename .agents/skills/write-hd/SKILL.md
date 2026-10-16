@@ -401,6 +401,9 @@ the code `hd check` reports today.
 | `?` in `main!() -> void` | `invalid-result-propagation` | `-> Result[void, ConsoleError]`, end with `.Ok(())` |
 | `$ Console, Clock` | `old-row-separator` | `$ Console + Clock` |
 | `let i = 0` compared with an `i32` | `mixed-signedness` | `let i = +0`, or `let i: i32 = 0` |
+| an `i32` counter (`+0`) plus `len()` or another `usize` | `mixed-signedness` (no hint) | keep counters `usize` (`0`), or convert explicitly: `i32(n)` |
+| `s.len()` used as a character count | (none: wrong result) | `len()` counts bytes; characters are `s.chars().count()` |
+| asserting a test got the error you expected | (none) | `assert_equal(r.is_err(), true, reason=...)`, or `match r:` with `.Err(.Low(balance=b)) => assert_equal(b, 5, ...)` and `.Ok(_) => panic("expected Low")` |
 | `n := +0` then `n = n + 1` | `non-reassignable-binding` | `let n = +0` |
 | `let mut n = +0` | `mut-on-primitive` | `let n = +0` |
 | `total: i64 = 0` | `missing-let` | `let total: i64 = 0` |

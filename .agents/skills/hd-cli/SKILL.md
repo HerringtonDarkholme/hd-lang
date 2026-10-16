@@ -119,6 +119,10 @@ orders/src/main.hd      pub fn main() -> void $ Console: ...
 orders/tests/orders.hd  an integration test that runs the program with hd_run!
 ```
 
+`hd new money --lib` writes `money/hd.toml`, `money/src/lib.hd` (the
+library root: other packages import its items as `dep.money.NAME`) and
+`money/tests/money.hd` (an integration test).
+
 - Modules are files under `src/`: `src/shop/cart.hd` is `pkg.shop.cart`.
 - `hd add ../money` adds `money = { path = "../money" }` under
   `[dependencies]`; the code then says `use dep.money.greet`.
