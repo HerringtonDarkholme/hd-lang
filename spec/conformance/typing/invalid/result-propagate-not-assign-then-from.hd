@@ -1,0 +1,23 @@
+# test: ? never applies an assignability rule and then a From call to one error
+# Spec 04 Result Propagation: types.result.propagate.not-both.
+use std.convert.From
+
+enum Code:
+    Fail
+
+impl Display for Code:
+    fn to_string(self) -> string:
+        "fail"
+
+enum Report:
+    Shown(text: string)
+
+impl From[dyn Display] for Report:
+    fn from(value: dyn Display) -> Report:
+        Report.Shown(value.to_string())
+
+fn code() -> Result[i32, Code]:
+    .Err(Code.Fail)
+
+fn report() -> Result[i32, Report]:
+    .Ok(code()?)  # diagnostic: invalid-result-propagation

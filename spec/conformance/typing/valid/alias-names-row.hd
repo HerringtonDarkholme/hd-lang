@@ -1,0 +1,6 @@
+# test: a transparent alias may name a requirement row
+# Spec 04 Transparent Aliases And Newtypes: types.alias.row.
+type Output = $ Console
+
+fn greet() -> void $ Output:
+    println("hello")

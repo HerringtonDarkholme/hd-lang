@@ -1,0 +1,4 @@
+# test: an optional value may be erased to dyn Any like any other enum value
+# Spec 04 Optional Identity And Variance: types.option.any.
+fn erase(value: i32?) -> dyn Any:
+    value

@@ -1,0 +1,4 @@
+# test: ? on an optional needs the enclosing function to return an optional
+# Spec 04 Representation And Propagation: types.option.propagate.result.
+fn first(value: i32?) -> i32:
+    value? + 1  # diagnostic: invalid-result-propagation

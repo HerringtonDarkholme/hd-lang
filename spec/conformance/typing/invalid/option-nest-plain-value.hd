@@ -1,0 +1,6 @@
+# test: a T? value is accepted where T?? is expected, but a plain T is not
+# Spec 04 Implicit Wrapping And Nesting: types.option.nest.accept.
+fn wrap(inner: i32?, plain: i32) -> void:
+    let _a: i32?? = inner
+    let _b: i32?? = plain  # diagnostic: type-mismatch
+    pass

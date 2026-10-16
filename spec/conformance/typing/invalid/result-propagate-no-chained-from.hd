@@ -1,0 +1,26 @@
+# test: ? converts an error by at most one From call, never a chain of two
+# Spec 04 Result Propagation: types.result.propagate.not-both.
+use std.convert.From
+
+enum Low:
+    Fail
+
+enum Mid:
+    FromLow(error: Low)
+
+enum High:
+    FromMid(error: Mid)
+
+impl From[Low] for Mid:
+    fn from(value: Low) -> Mid:
+        Mid.FromLow(value)
+
+impl From[Mid] for High:
+    fn from(value: Mid) -> High:
+        High.FromMid(value)
+
+fn low() -> Result[i32, Low]:
+    .Err(Low.Fail)
+
+fn high() -> Result[i32, High]:
+    .Ok(low()?)  # diagnostic: invalid-result-propagation

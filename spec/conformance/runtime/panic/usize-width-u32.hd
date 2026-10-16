@@ -1,0 +1,8 @@
+# test: on Wasm32 usize is as wide as u32: it holds u32's maximum, and one more overflows
+# Spec 04 Numeric Conversions: types.num.usize-width.
+fn next(value: usize) -> usize:
+    value + 1  # panic: integer-overflow
+
+tests:
+    it("u32's maximum is usize's maximum"):
+        _ := next(usize(u32(4294967295)))

@@ -1,0 +1,16 @@
+# test: T?? keeps an absent outer value apart from a present outer value holding an absent inner value
+# Spec 04 Implicit Wrapping And Nesting: types.option.nest.
+fn layer(value: i32??) -> string:
+    match value:
+        .None => "outer absent"
+        .Some(.None) => "inner absent"
+        .Some(.Some(_)) => "present"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the two absent values differ"):
+        let outer: i32?? = .None
+        let inner: i32?? = .Some(.None)
+        assert_equal(layer(outer), "outer absent", reason="outer layer")
+        assert_equal(layer(inner), "inner absent", reason="inner layer")

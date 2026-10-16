@@ -1,0 +1,6 @@
+# A program with a type error must not execute (types.no-execute): its
+# first line would print, but `hd FILE` rejects the file before running
+# any of it, so standard output stays empty.
+run: hd main.hd
+exit: 101
+stdout-json: []

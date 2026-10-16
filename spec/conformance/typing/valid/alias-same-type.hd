@@ -1,0 +1,9 @@
+# test: a transparent alias names the same type, so values pass both ways
+# Spec 04 Transparent Aliases And Newtypes: types.alias.same.
+type UserName = string
+
+fn plain(name: UserName) -> string:
+    name
+
+fn named(name: string) -> UserName:
+    plain(name)

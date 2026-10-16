@@ -1,0 +1,13 @@
+# test: .None with expected T?? is the outer absent value, and .Some(.None) is present
+# Spec 04 Implicit Wrapping And Nesting: types.option.nest.none.
+fn present(value: i32??) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false
+
+tests:
+    use std.testing.assert
+
+    it("only .None is absent"):
+        assert(!present(.None), reason=".None is the outer absent value")
+        assert(present(.Some(.None)), reason=".Some(.None) is present")

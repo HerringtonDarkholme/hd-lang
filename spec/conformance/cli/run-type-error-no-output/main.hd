@@ -1,0 +1,4 @@
+# Spec 04 Type System: types.no-execute. The type error on the last line
+# keeps the first line from printing.
+println("ran")
+let count: i32 = "one"

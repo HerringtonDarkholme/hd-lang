@@ -1,2 +1,3 @@
 path	issue	engine	reason
 typing/valid/index-trait-literal-key-default.hd	#0		placeholder for a new bug: with Index[usize] and Index[string], table[0] leaves Table::Out unresolved instead of selecting Index[usize] for the usize literal
+cli/check-numeric-widen-fix	#0		placeholder for a new bug: the type-mismatch for an i16 where an i64 is expected has no fix-it writing i64(small)

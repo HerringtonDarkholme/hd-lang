@@ -1,0 +1,6 @@
+# An i16 where an i64 is expected is type-mismatch (types.num.no-implicit.wider),
+# and that diagnostic should offer a fix-it that writes the cast, as in
+# i64(small) (types.num.no-implicit.fix). Its edits are not judged.
+run: hd check --format json calc.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","file":"calc.hd","line":3,"fixes":[{"message":null,"edits":null}]},{"kind":"summary","errors":1,"status":101}]

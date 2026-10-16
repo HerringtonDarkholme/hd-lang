@@ -1,0 +1,9 @@
+# test: the inner layer of T?? is written with an explicit .Some
+# Spec 04 Implicit Wrapping And Nesting: types.option.nest.explicit.
+tests:
+    use std.testing.assert_equal
+
+    it("one .Some builds the inner layer"):
+        let nested: i32?? = .Some(+1)
+        let inner: i32? = +1
+        assert_equal(nested, .Some(inner), reason="the outer layer holds .Some(1)")

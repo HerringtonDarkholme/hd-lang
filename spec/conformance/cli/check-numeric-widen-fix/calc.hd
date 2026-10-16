@@ -1,0 +1,4 @@
+# Spec 04 Numeric Conversions: types.num.no-implicit.wider, types.num.no-implicit.fix.
+fn total(small: i16, large: i64) -> i64:
+    let wide: i64 = small
+    wide + large

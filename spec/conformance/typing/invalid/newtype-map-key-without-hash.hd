@@ -1,0 +1,7 @@
+# test: a newtype over string is not a map key until it implements Eq and Hash
+# Spec 04 Newtypes: types.newtype.map-key.
+type Tag(string)
+
+fn index() -> void:
+    let _tags: Map[Tag, i32] = {}  # diagnostic: unsatisfied-trait-bound
+    pass

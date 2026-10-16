@@ -1,0 +1,20 @@
+# test: optionals match with .Some, .None, and the Option.-qualified forms
+# Spec 04 Optional Values: types.option.patterns.
+fn bare(value: i32?) -> i32:
+    match value:
+        .Some(n) => n
+        .None => +0
+
+fn qualified(value: i32?) -> i32:
+    match value:
+        Option.Some(n) => n
+        Option.None => -1
+
+tests:
+    use std.testing.assert_equal
+
+    it("both spellings match"):
+        assert_equal(bare(+4), +4, reason="bare Some")
+        assert_equal(bare(.None), +0, reason="bare None")
+        assert_equal(qualified(+4), +4, reason="qualified Some")
+        assert_equal(qualified(.None), -1, reason="qualified None")
