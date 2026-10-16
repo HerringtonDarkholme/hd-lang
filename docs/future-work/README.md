@@ -27,6 +27,9 @@ action at a distance.
 - [Ownership Adversarial Review 2](OWNERSHIP_STRESS_TEST_2.md): reevaluates
   the destructor-based revision against the same dimensions, including
   partial moves, drop-aware lifetimes, and move-only borrowed holders.
+- [Ownership Adversarial Review 3](OWNERSHIP_STRESS_TEST_3.md): checks the
+  `OwnOnly` revision, confirms earlier safety repairs, and tests generic
+  mode substitution, conditional impl coherence, and guard lowering.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
