@@ -17,9 +17,13 @@ an earlier draft is in [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md).
 
 ## Decisions So Far
 
-The owner chose Rust's model: ownership, moves, and borrows with
-lifetimes, including borrows inside types. hd stays garbage-collected
-and keeps `defer`, with no `Drop` or RAII. NonEscapable is dropped.
+The owner chose Rust's model: ownership, moves, borrows with lifetimes,
+including borrows inside types, and destructors. An owned value runs
+its type's `drop` when its owner's scope ends without moving it; the
+compiler knows that point exactly. Plain values stay garbage-collected
+and run no destructor. With destructors, `defer` is no longer needed as
+a statement; it can become a std guard value whose `drop` runs a
+closure. NonEscapable is dropped.
 
 Plain `T` and `mut T` keep today's garbage-collected object semantics,
 untouched. `own T` and `^T` are new semantics that code opts into, and
@@ -33,17 +37,18 @@ and a lifetime is named by a variable, as `^{x}`. The checker checks
 every `^` of a local, whatever its type, and a global may be borrowed
 as if it were owned.
 
-An owned value is unique, not linear: it may simply be dropped. Only a
-resource type, such as a connection or a file, must be consumed. A
-fresh value may start owned, as `let own user = User {...}`, if its
-plain fields are fresh too; borrowed fields are exempt. Generics follow
-`mut`: `T` may be `own Conn`.
+An owned value is unique, not linear: nothing forces code to consume
+it, and dropping it runs its destructor. No type is marked as a
+resource, and there is no `close` protocol. A fresh value may start
+owned, as `let own user = User {...}`, if its plain fields are fresh
+too; borrowed fields are exempt. Generics follow `mut`: `T` may be
+`own Conn`.
 
 A closure that captures a value exclusively, an owned value or a `^mut`
 borrow, can be called once. A job that must run repeatedly with
 exclusive access is named data with `^mut self` methods.
 
-No declaration rule makes a resource always owned. Earlier decisions
+No declaration rule makes a handle always owned. Earlier decisions
 hold: anything local shows in source, a store writes its destination on
 the stored value, and a downcast needs a `static` lifetime.
 
@@ -77,11 +82,13 @@ fn audit(c: Conn) -> void:
 
 Other collected languages rely on conventions: Go's `defer f.Close()`,
 Java's try-with-resources, Python's `with`. Nothing checks them. Rust
-catches all three mistakes at compile time, with ownership and borrows.
+rules out all three: a use after close and a kept borrow are compile
+errors, and a forgotten close cannot happen, since the owner's scope
+end runs the destructor.
 
-The idea in one sentence: **an `own` value has one owner, a resource
-must be consumed exactly once, a `^` value is borrowed for a checked
-lifetime, and every plain value stays as it is.**
+The idea in one sentence: **an `own` value has one owner and is dropped
+at a known point, a `^` value is borrowed for a checked lifetime, and
+every plain value stays as it is.**
 
 ## 2. The Model On One Page
 
@@ -93,45 +100,45 @@ written on the type at that position, as `mut` is. So one type, such as
 - **Plain** `T` and `mut T` are today's values, with garbage-collected
   object semantics. Copying makes an alias, and nothing is checked.
 - **Owned** `own T` is the only path to its value. Using it by value
-  moves it, and the owner may mutate it. It may be dropped, unless its
-  type is a resource.
+  moves it, and the owner may mutate it. When the owner's scope ends
+  and the value was not moved away, it is dropped.
 - **Borrowed** `^T` or `^mut T` refers to a place it does not own, for a
   lifetime the checker tracks.
 
-A **resource** is a type that must be closed, such as a file or a
-connection. The draft marks one with a std trait, here called `Close`.
-An owned value with a resource part must be consumed exactly once; any
-other owned value may simply go out of scope.
+A type may implement the std trait `Drop`, whose `drop` method runs
+when an owned value of that type is dropped. Because an owned value has
+one owner, and no borrow outlives it, the compiler knows the exact
+point: the end of the owner's scope, an assignment over it, or a
+cancelled bang call. A plain value never runs `drop`.
 
 ```text
 data File:
     fd: i32
 
-impl Close for File:                                             # hypothetical syntax
-    fn close(own self) -> void:                                  # hypothetical syntax
-        match self:
-            File { fd } => sys_close(fd)
+impl Drop for File:                                              # hypothetical syntax
+    fn drop(^mut self) -> void: sys_close(self.fd)               # hypothetical syntax
 
 fn open(path: string) -> own File: File { fd: sys_open(path) }   # hypothetical syntax
 fn size(f: ^File) -> usize: sys_size(f.fd)                       # hypothetical syntax
+fn archive(f: own File) -> void: sys_copy(f.fd, "archive/")      # hypothetical syntax
 
 fn main() -> void:
     f := open("app.log")                  # f is an own File
     n := size(f)                          # lends f for the call
-    f.close()                             # gives f away
+    archive(f)                            # gives f away; archive's scope end closes it
     m := size(f)                          # error: use-after-move
 ```
 
 `open` gives ownership, and `:=` keeps it. `size` borrows, so the caller
-still owns `f` after the call. `close` takes ownership and takes the
-value apart, which consumes it. The last line is rejected with
-`use-after-move`. `File` is a resource, so a `main` that never closed
-`f` would get `own-not-consumed`.
+still owns `f` after the call. `archive` takes ownership, and the file
+closes when `archive` returns. The last line is rejected with
+`use-after-move`. Had `main` kept `f`, it would close at the end of
+`main`.
 
 | | Plain `T` | Owned `own T` | Shared `^T` | Mutable `^mut T` |
 | --- | --- | --- | --- | --- |
 | Passing or assigning it | makes an alias | moves it | copies the borrow | moves the borrow |
-| Must be consumed | no | only with a resource part | no | no |
+| At its scope's end | nothing; the collector frees it later | dropped, running `drop` | the borrow ends | the borrow ends |
 | May be kept | anywhere | anywhere, by moving | within its lifetime | within its lifetime |
 | Mutation | with `mut T` | yes, by the owner | no | yes, exclusive |
 | Checked | only where `^` is written | always | always | always |
@@ -140,7 +147,14 @@ The two worlds never mix. A plain copy of an owned value would be a
 second path, and a plain value may already have aliases. A fresh value
 is the one way in, since it has no other path yet.
 
-**How a resource stays owned.** Its producers return `own T`, and no
+**Why ownership gives a reliable `drop`.** A destructor in a collected
+language cannot run at a known time: an alias may still be reachable,
+so only the collector can decide, and finalizers run late or never.
+Here the owner is the only path, and every borrow ends before the
+owner's scope does. So the end of that scope is the last moment
+anything can see the value, and `drop` runs exactly there.
+
+**How a handle stays owned.** Its producers return `own T`, and no
 owned value becomes plain; no rule on the type declaration is needed.
 The ways it can fail are the author's own choices, listed in the
 [appendix](#appendix-limits-and-holes).
@@ -153,14 +167,11 @@ holes, B7 and B8, that a type-level category would close.
 ## 3. A Guided Tour
 
 The tour uses this prelude. The I/O methods borrow the connection, and
-`close` consumes it. A socket is a resource, so it extends `Close`. No
-declaration carries `own`; `connect!` returns it.
+dropping it closes it, since a socket implements `Drop`. No declaration
+carries `own`; `connect!` returns it.
 
 ```text
-trait Close:
-    fn close(own self) -> void                                # hypothetical syntax
-
-trait Socket < Close:
+trait Socket < Drop:
     fn send!(^self, bytes: List[u8]) -> void                  # hypothetical syntax
     fn read!(^self) -> string                                 # hypothetical syntax
     fn sent(^self) -> usize                                   # hypothetical syntax
@@ -170,57 +181,53 @@ type Conn = dyn Socket
 fn connect!(host: string) -> own Conn: sys_connect!(host)    # hypothetical syntax
 ```
 
-### 3.1 Opening And Closing With `defer`
+### 3.1 Opening And Closing
 
 ```text
 fn fetch_user!(host: string, id: i32) -> string:
     c := connect!(host)
-    defer: c.close()
     c.send!(encode(id))
     c.read!()
 ```
 
-`connect!` returns an owned connection. A connection is a resource, so
-it must be consumed on every path out of its scope. `defer: c.close()`
-consumes `c` when the block exits. Registering it **reserves** `c`: it
-may be borrowed, never moved or assigned (`reserved-by-defer`).
+`connect!` returns an owned connection. Nothing closes it explicitly:
+when `fetch_user!` returns, `c` is dropped and its `drop` closes the
+socket. The same happens on every other way out: `?`, `return`,
+`break`, an early error, and cancellation at either bang call. A
+forgotten close cannot happen.
 
-The common mistake closes at the end instead:
-
-```text
-fn fetch_user!(host: string, id: i32) -> string:
-    c := connect!(host)
-    c.send!(encode(id))                   # error: own-not-consumed
-    reply := c.read!()
-    c.close()
-    reply
-```
-
-The checker reports `own-not-consumed` at `send!`. A bang call is a
-point where cancellation may arrive, and cancellation runs only
-registered `defer` suites. Cancelled there, `c` would leak. `?`,
-`return`, `break`, and `continue` are exits too.
-
-The same error covers a missing `close`, a `close` in one branch only,
-and `_ := connect!("db")`. A panic path needs nothing, since a panic
-runs no `defer` and poisons the instance. One cost follows: after a bang
-call, a resource binding must already be reserved, so it cannot move.
-
-None of this applies to an owned value that is not a resource. A
-`let own buf: List[u8] = []` is unique and may be mutated by its owner,
-and when the scope ends it is simply dropped.
-
-To validate a connection and then hand it off, std offers an owned
-holder, here called `Slot`. Its `defer` closes the content only if it is
-still there, and a reserved slot may still be borrowed:
+Handing a connection off after checking it needs nothing special:
 
 ```text
 fn adopt!(host: string, pool: ^mut Pool) -> void:   # hypothetical syntax
-    let own slot = Slot.of(connect!(host))          # hypothetical syntax
-    defer: slot.close()                             # closes the content if still there
-    check!(slot.peek())                             # cancelled here: the defer closes it
-    pool.give(slot.take())                          # moves the connection out
+    c := connect!(host)
+    check!(c)                                       # cancelled here: c is dropped and closed
+    pool.give(c)                                    # moved into the pool: not dropped here
 ```
+
+A value that was moved away is not dropped by its old owner. Where a
+value may or may not have moved, the compiler tracks it with a drop
+flag, as Rust does, so the destructor runs exactly once.
+
+An owned value whose type has no `drop` is simply freed by the
+collector later. A `let own buf: List[u8] = []` is unique and may be
+mutated by its owner, and nothing runs when it goes away. A panic runs
+no destructor, as it runs no `defer`: it poisons the instance, and the
+host closes what the instance held.
+
+Cleanup that is not tied to one value, such as restoring a setting or
+writing a log line on exit, no longer needs a `defer` statement. A std
+guard does it: `on_exit` returns an owned guard whose `drop` runs the
+closure, so it runs at the same points a destructor does.
+
+```text
+fn with_verbose!(job: own fn!() -> void) -> void:  # hypothetical syntax
+    set_verbose(true)
+    guard := on_exit(fn(): set_verbose(false))     # hypothetical syntax
+    job()                                          # cancelled or failed: guard still runs
+```
+
+Removing the `defer` statement from the language is a later spec edit.
 
 ### 3.2 Lending And Giving Away
 
@@ -230,19 +237,17 @@ A log rotator borrows a file to measure it, then gives it away.
 fn line_count(f: ^File) -> usize: sys_lines(f.fd)       # hypothetical syntax
 fn archive(f: own File) -> void:                        # hypothetical syntax
     sys_copy(f.fd, "archive/")
-    f.close()
 
 fn rotate(path: string) -> void:
     f := open(path)
     if line_count(f) > 1000:
         archive(f)
-    else:
-        f.close()
 ```
 
 The call site writes no mark; the parameter's mode decides. `line_count`
-borrows `f` for the call, and both branches consume it. Using `f` after
-`archive(f)` is `use-after-move`.
+borrows `f` for the call. If `archive` takes `f`, it closes when
+`archive` returns; otherwise it closes at the end of `rotate`. Using
+`f` after `archive(f)` is `use-after-move`.
 
 Passing an owned value to a plain parameter is the other common
 mistake:
@@ -253,7 +258,6 @@ fn describe(f: File) -> string: "fd ${f.fd}"
 fn show(path: string) -> void:
     f := open(path)
     println(describe(f))                  # error: own-to-plain
-    f.close()
 ```
 
 A plain parameter may keep its argument, so it cannot take the only
@@ -347,28 +351,22 @@ impl Pool:
         self.idle.push(c)
     fn peek(^self) -> Option[^Conn]:                  # hypothetical syntax
         self.idle.at(0)
-    fn shutdown(own self) -> void:                    # hypothetical syntax
-        for c in self.idle.into_iter():
-            c.close()
 
 fn warm!(hosts: List[string]) -> void:
     let own pool = Pool { idle: [] }                  # hypothetical syntax
-    defer: pool.shutdown()
     for h in hosts:
         pool.give(connect!(h))
 ```
 
 The pool owns its connections, and callers borrow them through `peek`.
-`shutdown` moves the list out of the consumed pool, and `into_iter`
-consumes every element. `List[own Conn]` is the ordinary list with
-`T = own Conn`; `push` and `pop` move through `^mut self`.
+`List[own Conn]` is the ordinary list with `T = own Conn`; `push` and
+`pop` move through `^mut self`.
 
-The pool holds resources, so it has a resource part and must be
-consumed too; its `defer` does that. A list whose elements are
-resources rejects the methods that would drop them, such as `clear` or
-`truncate`, with `resource-dropped`. `drain()` hands the removed values
-back instead, as owned values the caller must consume. A list of plain
-or non-resource owned values keeps every method.
+Dropping an owned value drops what it owns, fields in order. So when
+`warm!` returns, `pool` is dropped, then its list, then each
+connection, which closes. No shutdown method is needed. `clear`,
+`truncate`, and an early `break` out of `for c in conns.into_iter()`
+drop the elements they discard, so every list method keeps working.
 
 The mistake here is Rust's too:
 
@@ -435,7 +433,7 @@ of what it captures.
 
 ```text
 fn on_close(f: own File) -> own fn() -> void:        # hypothetical syntax
-    fn() -> void: f.close()
+    fn() -> void: archive(f)
 
 fn counter(c: ^Conn) -> ^{c} fn() -> usize:          # hypothetical syntax
     fn() -> usize: c.sent()
@@ -451,11 +449,10 @@ path to the value, so it is itself owned, `own fn(...)`. A call consumes
 it, as Rust's `FnOnce` does. The same holds for a `^mut` capture: two
 calls could otherwise overlap, so the closure may run only once.
 
-**A closure that holds a resource is a resource.** `done` above holds an
-open file, so it must be consumed: called, passed to an `own fn`
-parameter, or reserved with `defer: done()`. Dropping it is
-`own-not-consumed`. A closure that holds an owned value that is not a
-resource may be dropped, and the value goes with it.
+**Dropping a closure drops what it owns.** `done` above holds an open
+file. If it is never called, dropping `done` drops the file, which
+closes. If it is called, the file moves into `archive`, and the closure
+is gone.
 
 **Repeated exclusive work is named data.** A job that runs many times
 and needs exclusive access writes a type with a `^mut self` method,
@@ -472,12 +469,11 @@ impl Flusher:
         self.written = self.written + line.len()
 ```
 
-**Closures and concurrency.** A child of `all!` or `race!` that captures
-a resource reserves it with `defer` before its first bang call, so a
-cancelled child still closes it. A closure stored for later, as in an
-`own List[own fn!() -> void]`, keeps its obligation inside the list, and
-the list's owner consumes it (see [3.5](#35-a-pool-that-owns-connections)).
-An `own fn` is never a provider: `$.with` borrows its value.
+**Closures and concurrency.** A cancelled child of `all!` or `race!`
+drops what it owns, captured values included. A closure stored for
+later, as in an `own List[own fn!() -> void]`, is dropped with the list
+if it never runs. An `own fn` is never a provider: `$.with` borrows its
+value.
 
 A function type may name its parameters, as `fn(c: ^Conn) -> ^{c} Conn`.
 A mark inside `Fn[...]` is `misplaced-lifetime`, with a fix-it to
@@ -491,9 +487,8 @@ fn same[T](v: T) -> T: v                             # T may be own Conn
 fn first[T](items: ^List[T]) -> Option[^T]:          # hypothetical syntax
     items.at(0)
 
-fn close_all[T < own Close](xs: own List[T]) -> void:    # hypothetical syntax
-    for x in xs.into_iter():
-        x.close()
+fn take_first[T < own Any](xs: own List[T]) -> Option[own T]:   # hypothetical syntax
+    xs.into_iter().next()                            # the rest of xs is dropped
 
 fn bad[T](v: own T) -> void: pass                    # hypothetical syntax: error: own-on-type-parameter
 ```
@@ -520,56 +515,31 @@ fn mirror!(a: ^Conn, b: ^Conn) -> void:              # hypothetical syntax
     _ := all!(echo(a), echo(b))
 
 fn handle!(c: own Conn) -> void:                     # hypothetical syntax
-    defer: c.close()
     c.send!([1])
 
 fn later(c: own Conn) -> void:                       # hypothetical syntax
-    pending := handle(c)                             # error: own-in-cold-frame
-    pending.cancel()
+    pending := handle(c)                             # an owned cold frame holding c
+    pending.cancel()                                 # dropping the frame drops c, which closes
 ```
 
 Children of `all!` and `race!` may borrow the parent's places, since
 they end inside the call. As with Rust's `thread::scope`, two children
 cannot both borrow one place when either borrow is mutable.
 
-A bang call such as `handle!(c)` may take an owned argument. A plain
-call builds a cold frame, which may be discarded before its first poll,
-running no `defer`. So passing it an owned value is `own-in-cold-frame`.
+A plain call of a bang function builds a cold frame. A frame that holds
+an owned argument is itself an owned value: discarded before its first
+poll, it is dropped, and so is the argument. A cold frame is bounded by
+every borrow it captures, as `^{keep, scratch} mut Suspend[^{keep} Conn]`.
 
-A cold frame is bounded by every borrow it captures, as
-`^{keep, scratch} mut Suspend[^{keep} Conn]`.
-
-**Children that produce resources.** If `all!` gets a connection back
-from one child and then a sibling fails, the finished child's result
-sits in a buffer that no `defer` covers. So in the draft, a child of
-`all!` or `race!` must not return a value with a resource part
-(`resource-in-combinator`). Each child uses and closes its own
-connection, and returns a plain result:
+**Children that return owned values.** If `all!` gets a connection back
+from one child and a sibling then fails, the finished result sits in a
+buffer the combinator owns. Failing, it drops the buffer, and the
+connection closes. So children may return owned values freely:
 
 ```text
-fn both!(a: string, b: string) -> void:
-    pair := all!(connect(a), connect(b))     # error: resource-in-combinator
-
-fn ping!(host: string) -> usize:
-    c := connect!(host)
-    defer: c.close()
-    c.send!([1])
-    c.sent()
-
-fn ping_both!(a: string, b: string) -> usize:
-    counts := all!(ping(a), ping(b))
-    counts._0 + counts._1
+fn both!(a: string, b: string) -> (own Conn, own Conn):   # hypothetical syntax
+    all!(connect(a), connect(b))           # one fails: the other's connection is dropped
 ```
-
-A caller that needs the connections themselves opens them in sequence,
-or lets each child give its connection to a pool it borrows.
-
-**Leaving an owning loop early.** `for c in conns.into_iter():` consumes
-the list one element at a time. A `break` or `return` inside it would
-strand the remaining connections, so when the elements are resources
-the draft rejects an early exit there (`resource-dropped`). Code that
-must stop early drains the rest explicitly, as `conns.drain()` into a
-`close_all`. Other owned elements may be left behind and are dropped.
 
 ### 3.10 Providers
 
@@ -605,15 +575,15 @@ body, it is checked as a borrow of an owned local. A `^mut` borrow of a
 top-level binding is an error in the draft, since other functions can
 reach it without a path.
 
-A top-level binding may hold an owned value. In the draft it is never
-consumed; the instance's end releases it. REPL inputs are top-level
-bindings, so a handle opened in a REPL cannot be closed under the draft
-(open point 9 proposes letting a later input consume it):
+A top-level binding may hold an owned value. In the draft it is dropped
+when the instance ends, and no input may move it. REPL inputs are
+top-level bindings, so a handle opened in a REPL stays open until the
+session ends (open point 7 proposes letting a later input drop it):
 
 ```text
 c := connect!("db")              # a REPL input: an owned top-level binding
 c.send!([1])                     # a later input: a static borrow
-c.close()                        # error: move-out-of-top-level
+drop(c)                          # error: move-out-of-top-level
 ```
 
 ### 3.12 The Serialization Boundary
@@ -625,7 +595,7 @@ captures no borrow and no owned value.
 
 ```text
 @remote
-fn store(c: own Conn) -> void: c.close()             # hypothetical syntax: error: not boundary-safe
+fn store(c: own Conn) -> void: pass                  # hypothetical syntax: error: not boundary-safe
 ```
 
 [Serializable Closures](SERIALIZABLE_CLOSURE_DESIGN.md) uses the same
@@ -656,9 +626,9 @@ This section states each rule from the tour once, grouped by topic.
    exempt.
 9. A receiver (`own self`, `^self`, `^mut self`, and the plain forms)
    follows the same mode rules as a parameter.
-10. A resource type implements the std trait `Close`. A value has a
-    resource part when it is a resource, or an owned holder, list,
-    closure, or frame that holds one.
+10. A type may implement the std trait `Drop`, whose `drop(^mut self)`
+    runs when an owned value of the type is dropped. A plain value never
+    runs it.
 
 ### 4.2 Moves
 
@@ -721,27 +691,26 @@ This section states each rule from the tour once, grouped by topic.
 | Field | not allowed | names lifetime parameter `a` |
 | Local written type | a borrow, lifetime inferred | bounded by `a` |
 
-### 4.5 Resources And `defer`
+### 4.5 Drop
 
-1. An owned value without a resource part may be dropped at any exit.
-2. At each exit of its scope, an owned binding with a resource part is
-   consumed or reserved by a `defer`. Otherwise it is
-   `own-not-consumed`.
-3. The exits are the normal end, `return`, `break`, `continue`, `?`, and
-   every bang call.
-4. Where paths merge, a resource binding is consumed on all of them or
-   on none. A loop consumes an outer one only if it assigns it again.
-5. A resource temporary is consumed where it is made. A path that ends
-   in a panic needs no consumption.
-6. A `defer` that consumes a binding reserves it. A reserved binding may
-   be borrowed, never moved or assigned; that is `reserved-by-defer`.
-7. A method that would drop elements, such as `clear` or `truncate`, is
-   `resource-dropped` on a container whose elements are resources.
-   Removal that returns the values, such as `drain`, stays.
-8. An early `break` or `return` out of a loop over an owning iterator of
-   resources is `resource-dropped`.
-9. A child of `all!` or `race!` must not return a value with a resource
-   part; that is `resource-in-combinator`.
+1. An owned binding that still holds its value when its scope ends is
+   dropped there. The exits are the normal end, `return`, `break`,
+   `continue`, `?`, and cancellation at a bang call.
+2. Assigning to an owned place that holds a value drops the old value
+   first.
+3. Dropping a value runs its type's `drop`, if any, then drops its owned
+   fields in declaration order, and an owned list's elements in order.
+   Bindings in one scope drop in reverse order of declaration.
+4. A moved-out value is not dropped by its old owner. Where a value is
+   moved on some paths only, a drop flag decides at run time, so `drop`
+   runs exactly once.
+5. `drop` takes `^mut self`, must not suspend, and cannot be called
+   directly; std's `drop(x)` moves `x` in and ends it.
+6. A panic runs no `drop`. It poisons the instance, and the host releases
+   what the instance held.
+7. A plain value never runs `drop`, even when its type implements it.
+8. An owned temporary that is not bound is dropped at the end of its
+   statement.
 
 ### 4.6 Generics, `dyn`, Closures, And Frames
 
@@ -754,13 +723,13 @@ This section states each rule from the tour once, grouped by topic.
    only to `^{a} dyn K`, and a downcast needs `static`.
 5. A closure that captures an owned value moves it in. A closure that
    captures an owned value or a `^mut` borrow is `own fn(...)`, and a
-   call consumes it.
+   call consumes it. Dropping it uncalled drops its captures.
 6. A closure that captures a shared borrow is bounded by it and may be
    called any number of times while it lives.
 7. A capture of a plain binding stays shared storage, unchecked, as
    plain `T` is.
-8. A cold frame is bounded by every borrow it captures. Only a bang call
-   may take an owned argument; otherwise it is `own-in-cold-frame`.
+8. A cold frame is bounded by every borrow it captures. A frame that
+   holds an owned argument is owned, and dropping it drops the argument.
 9. `$.with(K = p)` borrows `p` for its block, and `$.use(K)` returns a
    borrow bounded by `$K`.
 10. A top-level binding may be borrowed as `static`, never as `^mut`.
@@ -770,27 +739,29 @@ This section states each rule from the tour once, grouped by topic.
 
 ## 5. What Changes From NonEscapable
 
-The old design made NonEscapable a category of types. Here `own` and `^`
-are modes at positions, an unmarked type is plain rather than global,
-and lifetimes are Rust's. Use after close and a forgotten close, parked
-before, are now checked, and `^mut` is exclusive.
+The old design made NonEscapable a category of types and relied on
+`defer` for cleanup. Here `own` and `^` are modes at positions, an
+unmarked type is plain rather than global, lifetimes are Rust's, and an
+owned value's destructor does the cleanup. A use after close is a
+compile error, a forgotten close cannot happen, and `^mut` is
+exclusive.
 
 | Use case | Old spelling | New spelling | Works? |
 | --- | --- | --- | --- |
 | A view over a handle | `data Excerpt: conn: ^Conn` with `impl NonEscapable` | `data Excerpt[^a]: conn: ^{a} Conn` | yes |
-| A producer of a fresh handle | `fn accept!(^self) -> Conn` | `-> own Conn`, and the caller writes a `defer` | yes; a leak is now an error |
+| A producer of a fresh handle | `fn accept!(^self) -> Conn` | `fn accept!(^self) -> own Conn` | yes; it closes when dropped |
 | A pool whose handles callers use | `conns: ^mut List[^Conn]`, `adopt(c: ^{self} Conn)` | `conns: own List[own Conn]`, `adopt(c: own Conn)` | yes, differently: the pool owns, callers borrow |
-| Concurrency | `fn echo!(c: ^Conn)` | the same | yes for borrows; an owned cold frame is rejected |
+| Concurrency | `fn echo!(c: ^Conn)` | the same | yes; a dropped frame or buffer drops what it owns |
 | Providers | `trait Pool < NonEscapable`, `-> ^Conn $ Pool` | `trait Pool`, `-> ^{$Pool} Conn $ Pool` | yes |
 | Callbacks | `List[^fn!() -> bool]` | `List[^{attempt} fn!() -> bool]` | yes; a global registry of owning closures is lost |
 | An error carrying a handle | `enum LinkError: Broken(conn: ^Conn)` | `enum LinkError[^c]: Broken(conn: ^{c} Conn)` | yes |
-| The REPL | `c := connect!("db")` | the same | use works; closing is rejected |
+| The REPL | `c := connect!("db")` | the same | use works; it closes when the session ends |
 | Generic code | `fn look_at[T](x: ^T)` | the same | yes; an owned `T` in an unconstrained body is a hole |
 | Locality of plain values | `fn fill(buf: ^mut List[u8])` | the same | yes, and the borrow freezes the variable |
 
-Over these cases, the annotation count is about the same: 34 marks
-before, 35 after. The extra marks are the `defer` lines that resources
-demand; an owned value that is not a resource needs none.
+Over these cases, the annotation count is the same, 34 marks before and
+after: `own` on a producer's result costs one, and the pool's `defer`
+line goes away.
 
 The old design promised no false alarms. This one inherits Rust's and
 adds a few of its own. Each rejects code the old design accepted:
@@ -800,18 +771,15 @@ adds a few of its own. Each rejects code the old design accepted:
   `contains` first, then looks up once.
 - **A method over one field.** A `^mut self` call while a borrow of a
   different field lives, as in Rust.
-- **A helper that always panics** but returns `void` leaves a resource
-  unconsumed. Declaring it `-> never` fixes it.
 - **Mutating a plain local** while a `^` view of it lives, by the
   owner's decision to check every `^`.
 - **Keeping a provider** from `$.use(K)` in module state.
-- **An owned cold frame** polled later.
 
 ## 6. Open Points
 
-1. **How a type becomes a resource.** Draft: it implements the std
-   trait `Close`. Alternative: automatic for any type that holds a host
-   handle, with nothing to write.
+1. **A plain value of a type with `drop`.** Draft: allowed, and its
+   `drop` never runs. Alternative: a type that implements `Drop` may be
+   held only owned or borrowed.
 2. **A call-site move mark.** Draft: none; the parameter decides.
    Alternative: `archive(move f)`, as Mojo's `f^`.
 3. **Plain parameters and borrows.** Draft: a plain parameter takes no
@@ -824,29 +792,26 @@ adds a few of its own. Each rejects code the old design accepted:
 6. **Primitive fields of an owned value.** Draft: exempt from the
    freshness rule. Alternative: every field value is fresh or owned.
 7. **An owned value moved into a plain holder** (hole B7). Draft:
-   allowed; a resource inside then leaks. Recommended: a holder that
+   allowed; its `drop` then never runs. Recommended: a holder that
    receives an owned value must itself be owned. Alternative: a type
    with an `own` field is never plain.
 8. **An unconstrained generic with an owned `T`** (hole B8). Draft:
    allowed. Recommended: only `T < own Any` takes owned types, as
    Swift's `~Copyable`. Alternatives: every body moves `T`, or check each
    instantiation.
-9. **Owned values at the top level.** Draft: borrow-only, never closed.
-   Recommended: a later statement or REPL input may consume it.
-   Alternative: forbid them.
+9. **Owned values at the top level.** Draft: dropped when the instance
+   ends, never moved. Recommended: a later statement or REPL input may
+   move or drop it. Alternative: forbid them.
 10. **`^mut` of a top-level binding.** Draft: forbidden, which rules out
     global job queues. Recommended: allowed in a body that calls nothing
     able to reach it. Alternative: allowed, unchecked.
-11. **Owned arguments to cold frames.** Draft: only a bang call may pass
-    one. Alternative: allow it, and panic when such a frame is discarded
-    unpolled.
-12. **Resource results from `all!` and `race!`.** Draft: forbidden.
-    Alternative: the combinator takes a cleanup function, called on each
-    buffered resource when a sibling fails or the call is cancelled.
-13. **Early exit from a loop over resources.** Draft: forbidden; drain
-    the rest explicitly. Alternative: the loop closes the remaining
-    elements, which needs every element type to implement `Close`.
-14. **Rust's false alarms.** Draft: accept them as known limits.
+11. **Cleanup that must suspend or fail.** Draft: `drop` is synchronous
+    and cannot fail, so a flushing close is an explicit method called
+    before the drop. Alternative: an asynchronous `drop`, run by the
+    enclosing bang call.
+12. **The `defer` statement.** Draft: removed from the language in favor
+    of std's `on_exit` guard. Alternative: keep it as sugar for the guard.
+13. **Rust's false alarms.** Draft: accept them as known limits.
     Alternative: avoid named ones, starting with problem case #3, as
     Polonius does.
 
@@ -854,7 +819,7 @@ adds a few of its own. Each rejects code the old design accepted:
 
 Holes, where the draft is unsound:
 
-- **B7.** A resource moved into a plain holder can never be consumed ([3.5](#35-a-pool-that-owns-connections)).
+- **B7.** An owned value moved into a plain holder is never dropped, so its `drop` never runs ([3.5](#35-a-pool-that-owns-connections)).
 - **B8.** An unconstrained generic body copies an owned `T`, as `fn dup[T](v: T) -> (T, T)` does ([3.8](#38-generics)).
 
 A plain alias or a plain closure capture that changes a borrowed
@@ -864,21 +829,17 @@ semantics by design ([3.6](#36-borrowing-plain-values)).
 Limits, where the draft rejects a reasonable program:
 
 - Owned handles in a global registry or job list need `^mut` of a global ([3.11](#311-top-level-bindings-and-the-repl)).
-- A handle opened at the top level or in a REPL cannot be closed ([3.11](#311-top-level-bindings-and-the-repl)).
-- An owned value cannot go into a cold frame polled later ([3.9](#39-concurrency-and-suspension)).
-- After a bang call, a resource binding hands off only through a `Slot` ([3.1](#31-opening-and-closing-with-defer)).
-- A child of `all!` or `race!` cannot return a resource ([3.9](#39-concurrency-and-suspension)).
-- A list of resources has no `clear` or `truncate`, and its owning loop has no early exit ([3.5](#35-a-pool-that-owns-connections), [3.9](#39-concurrency-and-suspension)).
-- A close that must suspend cannot run in a `defer` ([3.1](#31-opening-and-closing-with-defer)).
+- A handle opened at the top level or in a REPL stays open until the session ends ([3.11](#311-top-level-bindings-and-the-repl)).
+- A `drop` cannot suspend, so a close that must flush asynchronously is an explicit call ([3.1](#31-opening-and-closing)).
 - A struct cannot borrow its own field ([3.4](#34-a-struct-that-holds-a-borrow)).
 - A cleared list keeps its old elements' lifetime, as in Rust ([4.4](#44-lifetimes-and-elision)).
 - A local `^dyn` value cannot be downcast ([3.8](#38-generics)).
 - A borrowed value reaches a std method only once it takes `^self` ([3.6](#36-borrowing-plain-values)).
 - Rust's false alarms, and the draft's own ([5](#5-what-changes-from-nonescapable)).
 
-Ways a resource stops being owned, all by its author's choice ([2](#2-the-model-on-one-page)):
+Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-model-on-one-page)):
 
-- A producer declared `-> Conn` instead of `-> own Conn` hands out handles nobody can close.
+- A producer declared `-> Conn` instead of `-> own Conn` hands out plain handles, which no `drop` ever closes.
 - Public fields let any module write `let own f = File { fd: 3 }`; private fields stop it.
 - A handle type that derives `Default` or `Deserialize` can be forged the same way.
 
@@ -902,5 +863,5 @@ functions this study does not define.
 
 | Result | Blocks |
 | --- | --- |
-| Parses as written | 6, among them section 1, both blocks of 3.1, the `all!` block of 3.9, and the REPL inputs in 3.11 |
-| Fails only at the new marks; parses with the marks erased | the other 19 |
+| Parses as written | 4, among them section 1 and the REPL inputs in 3.11 |
+| Fails only at the new marks; parses with the marks erased | the other 21 |
