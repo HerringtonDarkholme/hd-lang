@@ -1,0 +1,5 @@
+# test: a positional argument after a named argument is an error
+# Spec 07 Positional And Named Arguments: fn.arg.positional-after-named.
+fn resize(width: i32, height: i32) -> i32: width * height
+
+fn area() -> i32: resize(width=+640, +480)  # diagnostic: argument-order

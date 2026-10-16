@@ -3101,3 +3101,17 @@ runtime/panic/map-insert-invalidates-iterator.hd	runtime	panic:iterator-invalida
 runtime/panic/exhausted-iterator-invalidated.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.panic
 runtime/valid/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.replace
 runtime/valid/list-replace-observed-later.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.replace.observed
+typing/invalid/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
+typing/invalid/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
+typing/invalid/omitted-result-cycle-reported-once.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report
+typing/valid/omitted-result-cycle-one-annotated.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
+runtime/valid/same-line-function-body.hd	runtime	accept	lang/07-functions.md#r-fn.body.same-line
+runtime/valid/call-keeps-argument-usable.hd	runtime	accept	lang/07-functions.md#r-fn.param.no-transfer
+parse/invalid/positional-argument-follows-named.hd	parse	reject:argument-order	lang/07-functions.md#r-fn.arg.positional-after-named
+typing/invalid/named-argument-unknown.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.arg.unknown-name
+typing/invalid/argument-supplied-twice.hd	type	reject:duplicate-argument	lang/07-functions.md#r-fn.arg.duplicate
+typing/invalid/default-names-later-parameter.hd	type	reject:binding-not-yet-visible	lang/07-functions.md#r-fn.default.later-parameter
+typing/invalid/default-uses-provider.hd	type	reject:requirement-in-default	lang/07-functions.md#r-fn.default.requirement-free.syntax
+typing/invalid/default-reads-callee-signature.hd	type	reject:requirement-in-default	lang/07-functions.md#r-fn.default.requirement-free.signatures
+typing/invalid/default-calls-function-value-with-row.hd	type	reject:requirement-in-default	lang/07-functions.md#r-fn.default.requirement-free.uniform
+parse/invalid/vararg-declares-default.hd	parse	reject:syntax-error	lang/07-functions.md#r-fn.vararg.no-default

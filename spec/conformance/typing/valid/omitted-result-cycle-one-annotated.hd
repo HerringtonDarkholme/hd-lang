@@ -1,0 +1,7 @@
+# test: adding a result type to one member of a cycle resolves it
+# Spec 07 Recursion Without A Result Type: fn.decl.omitted-cycle.resolve.
+fn is_even(n: i32) -> bool:
+    if n == 0: true else: is_odd(n - 1)
+
+fn is_odd(n: i32):
+    if n == 0: false else: is_even(n - 1)

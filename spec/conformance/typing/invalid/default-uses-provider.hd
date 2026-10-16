@@ -1,0 +1,7 @@
+# test: a default must not contain $.use
+# Spec 07 Requirement-Free Defaults: fn.default.requirement-free.syntax.
+trait Clock:
+    fn now(self) -> i32
+
+fn stamp(at: i32 = $.use(Clock).now()) -> i32:  # diagnostic: requirement-in-default
+    at

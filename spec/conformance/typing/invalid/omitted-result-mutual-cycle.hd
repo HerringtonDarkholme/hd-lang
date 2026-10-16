@@ -1,0 +1,7 @@
+# test: two functions with omitted result types that call each other form an error cycle
+# Spec 07 Recursion Without A Result Type: fn.decl.omitted-cycle.
+fn is_even(n: i32):  # diagnostic: recursive-function-needs-result-type
+    if n == 0: true else: is_odd(n - 1)
+
+fn is_odd(n: i32):
+    if n == 0: false else: is_even(n - 1)

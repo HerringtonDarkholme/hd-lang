@@ -1,0 +1,7 @@
+# test: the requirement-free check applies to a function value as to a named function
+# Spec 07 Requirement-Free Defaults: fn.default.requirement-free.uniform.
+trait Clock:
+    fn now(self) -> i32
+
+fn stamp(source: fn() -> i32 $ Clock, at: i32 = source()) -> i32:  # diagnostic: requirement-in-default
+    at

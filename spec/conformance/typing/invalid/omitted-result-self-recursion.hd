@@ -1,0 +1,4 @@
+# test: a function with an omitted result type must not call itself
+# Spec 07 Recursion Without A Result Type: fn.decl.omitted-recursion.
+fn countdown(n: i32):  # diagnostic: recursive-function-needs-result-type
+    if n == 0: +0 else: countdown(n - 1)

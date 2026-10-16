@@ -1,0 +1,10 @@
+# test: a default calling a function whose signature has a row is an error, though its body uses no provider
+# Spec 07 Requirement-Free Defaults: fn.default.requirement-free.signatures.
+trait Clock:
+    fn now(self) -> i32
+
+fn zero() -> i32 $ Clock:
+    +0
+
+fn stamp(at: i32 = zero()) -> i32:  # diagnostic: requirement-in-default
+    at

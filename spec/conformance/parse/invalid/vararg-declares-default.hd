@@ -1,0 +1,4 @@
+# test: a vararg has no default expression
+# Spec 07 Varargs: fn.vararg.no-default.
+fn total(values...: List[i32] = [+1]) -> usize:  # diagnostic: syntax-error
+    values.len()

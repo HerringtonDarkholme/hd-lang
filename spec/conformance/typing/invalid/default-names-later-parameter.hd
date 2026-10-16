@@ -1,0 +1,4 @@
+# test: a default that names a later parameter is an error
+# Spec 07 Default Values: fn.default.later-parameter.
+fn frame(width: i32 = height, height: i32 = +1) -> i32:  # diagnostic: binding-not-yet-visible
+    width * height

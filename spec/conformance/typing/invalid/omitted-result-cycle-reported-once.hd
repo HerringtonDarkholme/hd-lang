@@ -1,0 +1,10 @@
+# test: a three-function cycle with omitted result types is reported once, on its first member in source order
+# Spec 07 Recursion Without A Result Type: fn.decl.omitted-cycle.report.
+fn first(n: i32):  # diagnostic: recursive-function-needs-result-type
+    if n == 0: +0 else: second(n - 1)
+
+fn second(n: i32):
+    third(n)
+
+fn third(n: i32):
+    first(n)
