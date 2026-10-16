@@ -2791,9 +2791,6 @@ impl Em<'_> {
         let WTy::Func(ps, rs) = &sig else {
             return unsupported("a vtable slot type");
         };
-        if open.is_some() && self.env().suspends(method) {
-            return unsupported("a suspending generic method called through a trait value");
-        }
         let rl = self.a.local(VT::Eq);
         let vl = self.a.local(VT::r(vt.clone()));
         self.comp(args[0], 0, &VT::Eq)?;
@@ -2834,7 +2831,7 @@ impl Em<'_> {
         self.a.get(vl);
         self.a.struct_get(&vt, slot);
         self.a.call_ref(&sig);
-        if open.is_some_and(|o| o.ret) {
+        if open.is_some_and(|o| o.ret) && !self.env().suspends(method) {
             let want = self.vts(ret)?;
             let tmp = self.a.local(VT::Eq);
             self.a.set(tmp);
@@ -4616,9 +4613,9 @@ impl<'a> Em<'a> {
         let res = self.vts(ty)?;
         match tag {
             Tag::AwaitAll => self.await_all(i, k, &children, done, ty),
-            Tag::AwaitValue => {
-                self.await_stored(i, k, &res, |em, base| em.comp(a, 0, &VT::r(base.clone())))
-            }
+            Tag::AwaitValue => self.await_stored(i, k, &res, &res, |em, base| {
+                em.comp(a, 0, &VT::r(base.clone()))
+            }),
             _ => {
                 let Some(c) = Callee::from_words(self.b.record(a)) else {
                     return unsupported("a malformed callee record");
@@ -4635,7 +4632,23 @@ impl<'a> Em<'a> {
                     },
                 ) = (self.calls.get(&i), c)
                 {
-                    return self.await_stored(i, k, &res, |em, _| {
+                    let targs_sub: Vec<Ty> = self
+                        .pool()
+                        .list_items(targs)
+                        .iter()
+                        .map(|t| self.sub(*t))
+                        .collect();
+                    let slot =
+                        self.lay
+                            .dyn_slot(self.ty_of(args[0]), trait_, &targs_sub, method)?;
+                    let stored = if slot.open.is_some_and(|o| o.ret) {
+                        // The cold frame is one reference either way; its
+                        // poll returns the open result as `eqref`.
+                        vec![VT::Eq]
+                    } else {
+                        res.clone()
+                    };
+                    return self.await_stored(i, k, &stored, &res, |em, _| {
                         em.push_dyn(trait_, method, targs, &args, ty).map(|_| ())
                     });
                 }
@@ -4715,11 +4728,12 @@ impl<'a> Em<'a> {
         &mut self,
         i: u32,
         k: u32,
+        stored: &[VT],
         res: &[VT],
         fresh: impl FnOnce(&mut Self, &WTy) -> StageResult<()>,
     ) -> StageResult<()> {
         let (ft, _, frame, pc) = self.susp_parts()?;
-        let (base, poll) = suspend_base(res);
+        let (base, poll) = suspend_base(stored);
         let s = self.a.local(VT::rn(base.clone()));
         self.a.get(pc);
         self.a.i32(k.cast_signed());
@@ -4739,7 +4753,7 @@ impl<'a> Em<'a> {
         self.a.s().ref_as_non_null();
         self.a.struct_get(&base, F_POLL);
         self.a.call_ref(&poll);
-        let tmp: Vec<u32> = res.iter().map(|v| self.a.local(v.dflt())).collect();
+        let tmp: Vec<u32> = stored.iter().map(|v| self.a.local(v.dflt())).collect();
         let ready = self.a.local(VT::I32);
         for l in tmp.iter().rev() {
             self.a.set(*l);
@@ -4752,10 +4766,22 @@ impl<'a> Em<'a> {
         self.a.end();
         self.a.i32(0);
         self.a.set(pc);
-        for l in &tmp {
-            self.a.raw_get(*l);
-        }
         let dres: Vec<VT> = res.iter().map(VT::dflt).collect();
+        if stored == res {
+            for l in &tmp {
+                self.a.raw_get(*l);
+            }
+        } else {
+            // An erased generic method's poll returns its open result;
+            // only now, at the concrete await, unbox or cast it.
+            let [one] = stored else {
+                return unsupported("an erased result with several values");
+            };
+            if *one != VT::Eq {
+                return unsupported("an erased result that is not one reference");
+            }
+            unerase(&mut self.a, tmp[0], &dres);
+        }
         self.store_from(i, &dres)
     }
 
@@ -5058,10 +5084,7 @@ fn emit_body(
         matches!(pool.get(s(b.ty[ci])), TyData::Fn { suspends: true, .. })
     };
     if suspends {
-        if erased.is_some() {
-            return unsupported("a suspending generic method called through a trait value");
-        }
-        return emit_suspending(&lay, b, sub, args, ret, calls, key, held);
+        return emit_suspending(&lay, b, sub, args, ret, calls, key, erased, held);
     }
     let (mut params, results, plocals) = signature(&lay, b, sub, args, ret)?;
     if erased.is_some() {
@@ -5530,11 +5553,16 @@ fn emit_suspending(
     ret: Ty,
     calls: &HashMap<u32, Target>,
     key: Hash128,
+    erased: Option<Hash128>,
     held: Option<HoldStub>,
 ) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
-    let (cold_params, _, plocals) = signature(lay, b, sub, args, ret)?;
+    let (mut cold_params, _, plocals) = signature(lay, b, sub, args, ret)?;
+    if erased.is_some() {
+        let at = cold_params.len() - 2 * env.row_keys(b.item, args).len();
+        cold_params.insert(at, VT::r(witness_ty()));
+    }
     // The body's own parameters: a function's cold parameters, or a
     // closure's parameters without its environment and context.
     let (closure, result, own) = if sub == 0 {
@@ -5593,6 +5621,10 @@ fn emit_suspending(
             em.locals[l as usize] = Some((next..next + n).collect());
             next += n;
         }
+        let witness = next;
+        if erased.is_some() {
+            next += 1;
+        }
         let bind = if let Some(ci) = closure {
             // Locals for the captured values and the row's providers,
             // which the cold constructor fills through the frame.
@@ -5616,6 +5648,9 @@ fn emit_suspending(
             }
             None
         };
+        if let Some(family) = erased {
+            em.read_ops(witness, family)?;
+        }
         // Prologue: a frame resumes from its state with its locals.
         em.a.raw_get(0);
         em.a.ref_cast(&ft, true);

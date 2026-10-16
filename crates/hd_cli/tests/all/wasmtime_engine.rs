@@ -550,3 +550,16 @@ fn hd_build_takes_the_wasmtime_engine() {
         assert_eq!(text(&out.stdout), "open\n", "{engine} {module}");
     }
 }
+
+/// `trait.dyn.safe.suspending` and `.method-type-param`: a suspending
+/// generic method is callable through a trait value on both engines.
+#[test]
+fn a_suspending_generic_method_runs_through_dyn() {
+    let dir = program(
+        "dyn-suspending-generic",
+        "use std.time.{sleep, ms, Clock}\n\ntrait Fetch:\n    fn get![T](self, x: T) -> T $ Clock\n\ndata Slow:\n    n: i32\n\nimpl Fetch for Slow:\n    fn get![T](self, x: T) -> T $ Clock:\n        sleep!(1ms)\n        x\n\npub fn main!() -> void $ Console + Clock:\n    let v: dyn Fetch = Slow { n: 1 }\n    println(v.get!(+3))\n",
+    );
+    let out = both(&dir, &["main.hd"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "3\n");
+}

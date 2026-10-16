@@ -108,9 +108,9 @@ fn word_ty(b: &Body, word: u32) -> Option<Ty> {
 
 /// The open instructions of the erased body of `item` at `erased`
 /// (`erased_args`), in TIR order: the number of each is its thunk index
-/// (§13.5.1 step 1). Control and local moves stay in the body; a match,
-/// loop or branch whose operand is open, and an open instruction that
-/// owns blocks or suspends, has no outlined form yet. Every closure
+/// (§13.5.1 step 1). Control, local moves and suspension points stay in
+/// the body; a match, loop or branch whose operand is open, and an open
+/// instruction that owns blocks, has no outlined form yet. Every closure
 /// construction is outlined too, so its body instantiates concretely.
 pub fn open_insts(
     pool: &InternPool,
@@ -142,6 +142,8 @@ pub fn open_insts(
             out.push(u32::try_from(i).expect("insts"));
             continue;
         }
+        // An await stays in the erased body's own state machine; its
+        // callee is still collected and lowered below.
         match tag {
             Tag::LocalGet
             | Tag::LocalSet
@@ -151,6 +153,7 @@ pub fn open_insts(
             | Tag::If
             | Tag::Match
             | Tag::Loop
+            | Tag::Await
             | Tag::Break
             | Tag::Continue
             | Tag::Return
