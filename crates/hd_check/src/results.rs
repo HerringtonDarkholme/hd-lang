@@ -461,14 +461,18 @@ fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
 /// omitted, from its bodies in source order: non-public functions and
 /// non-public methods of inherent implementations.
 pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
+    let named = template_named(cx, bodies);
     let mut r = cx.results.borrow_mut();
     for &(def, node) in bodies {
         if Src::child(node, SyntaxKind::Block).is_none() {
             continue;
         }
+        // A callable a template names has the empty row when it writes
+        // none, as a public one does (`module.package.template-private.row`):
+        // its row is not inferred.
         let omits = Omits {
             ret: Src::type_child(node).is_none(),
-            row: Src::child(node, SyntaxKind::RequirementRow).is_none(),
+            row: Src::child(node, SyntaxKind::RequirementRow).is_none() && !named.contains(&def),
             at: node.index(),
         };
         if !omits.ret && !omits.row {
@@ -496,6 +500,58 @@ pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
             r.order.push(def);
         }
     }
+}
+
+/// The module's items that a template body names
+/// (`module.package.template-private`): each name in the body of a
+/// method of a `by` template that the module scope binds to an item,
+/// unless the body binds that name itself.
+fn template_named(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) -> hd_base::HashSet<DefId> {
+    let mut out = hd_base::HashSet::default();
+    for &(def, node) in bodies {
+        let Some(ItemData::Method { owner, .. }) = cx.lookup.item(def).map(|i| &i.data) else {
+            continue;
+        };
+        let template = matches!(
+            cx.lookup.item(*owner).map(|o| &o.data),
+            Some(ItemData::Impl {
+                kind: ImplKind::Template | ImplKind::TupleTemplate,
+                ..
+            })
+        );
+        if !template {
+            continue;
+        }
+        let name_of = |n: NodeRef<'_>| {
+            n.direct_tokens()
+                .find(|t| {
+                    matches!(
+                        cx.src.parse.tokens.kind(*t),
+                        TokenKind::Ident | TokenKind::RawIdent
+                    )
+                })
+                .map(|t| cx.src.text(t))
+        };
+        let local: hd_base::HashSet<&str> = node
+            .descendants()
+            .filter(|d| matches!(d.kind(), SyntaxKind::BindingPattern | SyntaxKind::Parameter))
+            .filter_map(name_of)
+            .collect();
+        for n in node
+            .descendants()
+            .filter(|d| d.kind() == SyntaxKind::NameExpr)
+        {
+            let Some(name) = name_of(n).filter(|x| !local.contains(x)) else {
+                continue;
+            };
+            if let Some(b) = cx.scope.lookup(cx.names.syms.intern(name))
+                && b.kind == hd_resolve::BindingKind::Item
+            {
+                out.insert(DefId::from_raw(b.value));
+            }
+        }
+    }
+    out
 }
 
 /// M1's sweep: checks every registered callable in source order. The

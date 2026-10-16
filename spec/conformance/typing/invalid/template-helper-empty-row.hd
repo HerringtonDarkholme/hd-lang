@@ -1,0 +1,36 @@
+# test: a private function that a template body names and that writes no requirement clause has the empty row, so a call needing a key is an error in its own body
+# Spec 10 Fully Annotated Declarations: module.package.template-private, module.package.template-private.row.
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Named:
+    fn title() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok(())
+
+fn titled(name: string, count: i32) -> string:
+    println("loud")  # diagnostic: missing-requirement
+    "The ${name}/${count}"
+
+impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        titled(Structure::name(), d.count)
+
+@derive(Named)
+data Point:
+    x: i32
+
+pub fn main() -> void $ Console:
+    println(Point::title())
