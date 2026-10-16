@@ -520,24 +520,24 @@ pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(mut Ch
     panic("std.testing: it_prop_with registers a test case only in test position")
 
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
-# Its generics are those of `it_each`, in order. The runner calls the one
+# Its generics and parameters are those of `it_each`, in order. The runner calls the one
 # test function once per row, each in a fresh instance: the function
 # reports the row count to the runner's `TestRunner`, which returns the row
 # it selected, and runs `body` with that row. With no rows, row 0 panics
 # with `index-out-of-bounds` after the runner heard count 0, which it reads
 # as an empty table.
-fn each_case![A, T, $R](rows: List[A], body: fn!(A) -> T $ R) -> T $ R + TestRunner:
+fn each_case![A, T, $R](_name: string, rows: List[A], _ignore: string?, _expect_panic: string?, _timeout: Duration?, body: fn!(A) -> T $ R) -> T $ R + TestRunner:
     index := $.use(TestRunner).row(rows.len())
     body!(rows[index])
 
 # The body of an `it_prop` test case (spec/std/testing.md#property-tests).
-# Its generics are those of `it_prop`, in order. The runner calls it once
+# Its generics and parameters are those of `it_prop`, in order. The runner calls it once
 # per case, each in a fresh instance. It reports its case and shrink caps
 # and its count of examples to the runner's `PropertyRunner`, takes the
 # example the case names or draws the input with `T`'s `Arbitrary` from a
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
-fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
+fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -547,7 +547,7 @@ fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, example
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](gen: fn(mut Choices) -> T, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
+fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(mut Choices) -> T, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:

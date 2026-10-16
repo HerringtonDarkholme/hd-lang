@@ -525,22 +525,17 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
     })
 }
 
-/// The std body that a test case of registration function `def` runs, and
-/// the registration's parameters it takes, in order (lib/std/testing.hd;
-/// `crates/hd_tir/DESIGN.md` §4.13.9). Its generics are the registration's.
-pub(crate) fn case_runner(
-    known: &hd_resolve::KnownItems,
-    def: DefId,
-) -> Option<(DefId, &'static [&'static str])> {
+/// The std body that a test case of registration function `def` runs. Its
+/// generics and parameters are the registration's, so the case passes the
+/// call's arguments as they are, each default after the values it reads
+/// (lib/std/testing.hd; `crates/hd_tir/DESIGN.md` §4.13.9, invariant 15).
+pub(crate) fn case_runner(known: &hd_resolve::KnownItems, def: DefId) -> Option<DefId> {
     if def == known.it_each {
-        Some((known.each_case, &["rows", "body"]))
+        Some(known.each_case)
     } else if def == known.it_prop {
-        Some((known.prop_case, &["cases", "shrink", "examples", "prop"]))
+        Some(known.prop_case)
     } else if def == known.it_prop_with {
-        Some((
-            known.prop_with_case,
-            &["gen", "cases", "shrink", "examples", "prop"],
-        ))
+        Some(known.prop_with_case)
     } else {
         None
     }
@@ -591,7 +586,7 @@ fn add_key(cx: &BodyCx<'_>, used: &mut RowData, runner: DefId) {
 /// The test case of an `it_each`, `it_prop` or `it_prop_with` call: a
 /// suspending function item with no parameters, whose body checks the call
 /// `e` against the registration function's signature and runs the std body
-/// of its test case with the arguments it takes (`case_runner`). Its result
+/// of its test case with the call's arguments (`case_runner`). Its result
 /// is the registration body's, `void` or, when that body uses `?`,
 /// `Result[void, dyn Error]` (`module.testing.reg.body-closure-result`). Its
 /// row is the keys of `profile` that the body uses, and the runner

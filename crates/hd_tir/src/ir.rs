@@ -1018,9 +1018,9 @@ pub struct VerifyError {
     pub what: String,
 }
 
-/// Invariants this verifier checks; the others (4, 7 to 9, 11 to 13, 15,
-/// 17) need types and the item table and are not implemented yet.
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 5, 6, 10, 14];
+/// Invariants this verifier checks; the others (4, 7 to 9, 11 to 13, 17)
+/// need types and the item table and are not implemented yet.
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 5, 6, 10, 14, 15];
 
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
@@ -1154,6 +1154,23 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
         }
     }
     for (i, &tag) in b.tags.iter().enumerate() {
+        if matches!(tag, Tag::Call | Tag::Await) {
+            let r = b.record(b.data[i][1]);
+            let args = &r[..r.len().saturating_sub(3)];
+            for (k, &v) in args.iter().enumerate() {
+                let d = v as usize;
+                if v & Ref::CONST_BIT != 0 || b.tags.get(d) != Some(&Tag::DefaultCall) {
+                    continue;
+                }
+                if b.record(b.data[d][1]) != &args[..k] {
+                    errs.push(VerifyError {
+                        invariant: 15,
+                        inst: v,
+                        what: format!("argument {k} of call %{i} is a default over other values"),
+                    });
+                }
+            }
+        }
         if tag == Tag::Defer {
             for v in defer_suite_violations(b, b.data[i][0]) {
                 errs.push(VerifyError {

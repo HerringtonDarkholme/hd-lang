@@ -1,0 +1,9 @@
+# expect: reject 15
+body 1 Fn
+labels
+caps
+modes
+extra 1 2147483648 4 0 0 0 0
+const 4 0
+%0 = DefaultCall 0 0 : 4 @-
+%1 = Call 0 2 : 4 @-

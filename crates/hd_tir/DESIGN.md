@@ -411,7 +411,9 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   body calls it, bang for a suspending one, so its row joins the case's
   row and the item's result is `T`. An `it_each`, `it_prop` or
   `it_prop_with` body gets the fixed result through
-  `registration_body_result` and runs under the std case body. For a
+  `registration_body_result` and runs under the std case body, which
+  takes the registration's generics and parameters, so the case passes
+  the call's arguments, defaults included, unchanged. For a
   result other than `void`, the driver roots the `std.rt` status
   function that `report_fn` picks, as for `main`: an `.Err` writes its
   report and cause chain through `entry_write` into the case's captured
@@ -928,11 +930,12 @@ The verifier checks each of these:
 17. A `CallDyn` has one evidence operand per method-level bound.
 
 Implementation differs: `verify` (`src/ir.rs:1011`) checks only
-invariants 1, 2, 5, 6, 10 and 14 (`CHECKED_INVARIANTS`), and of 1 only
+invariants 1, 2, 5, 6, 10, 14 and 15 (`CHECKED_INVARIANTS`), and of 1 only
 def-before-use, of 2 only block lists, of 5 only that labels exist and
 are written, of 6 only the `defer` suite half
 (`defer_suite_violations`, which the checker also uses to poison what
-it rejected). It runs on every `finish`, not only in debug builds. This
+it rejected), and of 15 only the operands, for a `DefaultCall` passed
+to a `Call` or `Await`. It runs on every `finish`, not only in debug builds. This
 is worse: type, provider and suspension errors in TIR reach codegen
 unchecked.
 

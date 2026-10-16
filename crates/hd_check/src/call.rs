@@ -1843,19 +1843,11 @@ impl Ck<'_, '_> {
                 let row = self.call_row(def, &sig, &vars, 0);
                 self.callee_row(def, row, vec![(def, vars.clone())], n)?;
                 // A registration call's test case runs its std body with
-                // the arguments that body takes, and returns the result of
-                // the registration's body (`crates/hd_tir/DESIGN.md` §4.13.9).
-                if let Some((body_fn, takes)) = runner {
-                    let mut picked = Vec::new();
-                    for t in takes {
-                        let at = params
-                            .iter()
-                            .position(|p| self.cx.names.text(p.0) == *t)
-                            .and_then(|i| refs.get(i));
-                        match at {
-                            Some(r) => picked.push(*r),
-                            None => return Ok((Ref(NONE), Ty::NEVER)),
-                        }
+                // the call's arguments, and returns the result of the
+                // registration's body (`crates/hd_tir/DESIGN.md` §4.13.9).
+                if let Some(body_fn) = runner {
+                    if refs.len() != params.len() {
+                        return Ok((Ref(NONE), Ty::NEVER));
                     }
                     let last = match params.last() {
                         Some((_, t)) => self.normalize_deep(*t)?,
@@ -1879,7 +1871,7 @@ impl Ck<'_, '_> {
                         def: body_fn,
                         targs: pool.list(&vars),
                     };
-                    return Ok(self.emit_call(&c, &picked, result, true, true, n));
+                    return Ok(self.emit_call(&c, &refs, result, true, true, n));
                 }
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.
