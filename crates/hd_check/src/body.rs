@@ -3091,6 +3091,16 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         self.check_store_target(base, (br, bt), lhs);
+        // `expr.index.trait.choice`: an unsuffixed literal key joins the
+        // choice of the implementation, with the value as its second
+        // argument.
+        if compound.is_none()
+            && self
+                .literal_arg_choice(set, "index_set", (br, bt), (&[key, rhs], kt), s)?
+                .is_some()
+        {
+            return Ok(());
+        }
         let (vr, vt) = match compound {
             None => self.expr(rhs, None)?,
             Some(k) => {
@@ -3103,12 +3113,27 @@ impl Ck<'_, '_> {
                     self.err(Code::TypeMismatch, lhs, &msg);
                     return Ok(());
                 }
-                let (cur, ct) =
-                    self.trait_call_args(index, "index", br, bt, &[(kr, kt, key)], lhs)?;
+                let chosen =
+                    self.literal_arg_choice(index, "index", (br, bt), (&[key], kt), lhs)?;
+                let (cur, ct) = match chosen {
+                    Some(c) => c,
+                    None => self.trait_call_args(index, "index", br, bt, &[(kr, kt, key)], lhs)?,
+                };
                 let v = self.compound(k, cur, ct, rhs, s)?;
                 (v, self.b.ty_of(v))
             }
         };
+        if compound.is_some() {
+            // The computed value stands for `rhs` in the trials, so it
+            // is not evaluated again.
+            let pre = self.pre_args.len();
+            self.pre_args.push((rhs.index(), vr, vt));
+            let chosen = self.literal_arg_choice(set, "index_set", (br, bt), (&[key, rhs], kt), s);
+            self.pre_args.truncate(pre);
+            if chosen?.is_some() {
+                return Ok(());
+            }
+        }
         self.trait_call_args(set, "index_set", br, bt, &[(kr, kt, key), (vr, vt, rhs)], s)?;
         Ok(())
     }

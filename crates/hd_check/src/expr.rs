@@ -963,6 +963,61 @@ impl Ck<'_, '_> {
         )
     }
 
+    /// The instantiation choice for an unsuffixed literal right operand or
+    /// index key (`expr.op.left-dispatch`, `expr.index.trait.choice`,
+    /// `trait.resolve.literal-arg`). The first of `args` is the operand
+    /// or key; a store adds its value. When several implementations of the
+    /// trait for the receiver apply, the literal joins the choice and
+    /// takes its default type. None when the operand is no literal or
+    /// fewer than two implementations exist. The trials are effect-free;
+    /// the already-evaluated receiver is shared, so evaluation still runs
+    /// left, right, call.
+    pub(crate) fn literal_arg_choice(
+        &mut self,
+        tr: DefId,
+        method: &str,
+        (a, at): (Ref, Ty),
+        (args, ct): (&[NodeRef<'_>], Ty),
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        let pool = self.pool();
+        let literal = args
+            .first()
+            .is_some_and(|k| k.kind() == SyntaxKind::LiteralExpr)
+            && matches!(
+                self.infer.kind_of(pool, self.strip_mut(ct)),
+                Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
+            );
+        if !literal {
+            return Ok(None);
+        }
+        let t = self.strip_mut(at);
+        // A parameter or trait value has bounds, not implementations; its
+        // clauses answer the call as they do without a literal.
+        if matches!(
+            pool.get(self.infer.resolve(pool, t)),
+            TyData::Param(_) | TyData::TraitValue { .. }
+        ) {
+            return Ok(None);
+        }
+        let goal = hd_types::solver::Goal::Instantiations {
+            self_ty: t,
+            trait_: tr,
+            mut_: false,
+        };
+        let Answer::Candidates(cands) = self.solve_goal(&goal)? else {
+            return Ok(None);
+        };
+        if cands.len() < 2 {
+            return Ok(None);
+        }
+        let method = self.cx.names.member(tr, PathKind::Member, method);
+        let mut call = crate::call::Args::empty();
+        call.positional.extend_from_slice(args);
+        self.choose_method((tr, method, t), &cands, Some(a), &call, (n, false), None)
+            .map(Some)
+    }
+
     /// `a op b` as the operator trait's method (`expr.op.desugar`), once
     /// the built-in rules do not type it.
     fn operator_trait_call(
@@ -991,37 +1046,11 @@ impl Ck<'_, '_> {
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
             return self.ordering((a, at), (c, ct), prim, n, rn);
         }
-        let pool = self.pool();
-        let literal_right = rn.kind() == SyntaxKind::LiteralExpr
-            && matches!(
-                self.infer.kind_of(pool, self.strip_mut(ct)),
-                Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
-            );
-        if literal_right {
-            // A literal operand joins the left operand's instantiation
-            // choice, just as it does for a method call
-            // (`expr.op.left-dispatch`, `trait.resolve.literal-arg`). Its
-            // trials are effect-free; the already-evaluated receiver is
-            // shared, so evaluation still runs left, right, call.
-            let t = self.strip_mut(at);
-            let goal = hd_types::solver::Goal::Instantiations {
-                self_ty: t,
-                trait_: tr,
-                mut_: false,
-            };
-            if let Answer::Candidates(cands) = self.solve_goal(&goal)?
-                && cands.len() > 1
-            {
-                let method = self.cx.names.member(tr, PathKind::Member, method);
-                let mut args = crate::call::Args::empty();
-                args.positional.push(rn);
-                let (v, _) =
-                    self.choose_method((tr, method, t), &cands, Some(a), &args, (n, false), None)?;
-                if prim == PrimOp::Ne {
-                    return Ok(self.b.prim(PrimOp::Not as u32, &[v], Ty::BOOL, n.index()));
-                }
-                return Ok(v);
+        if let Some((v, _)) = self.literal_arg_choice(tr, method, (a, at), (&[rn], ct), n)? {
+            if prim == PrimOp::Ne {
+                return Ok(self.b.prim(PrimOp::Not as u32, &[v], Ty::BOOL, n.index()));
             }
+            return Ok(v);
         }
         if let Some(info) = self.op_failure(tr, at, Some(ct))? {
             if let Some(msg) = self.unmet_derived_bound(&info) {
@@ -1041,6 +1070,7 @@ impl Ck<'_, '_> {
         // wider row does not fit. The message suggests the
         // implementation's function type
         // (`expr.op.left-dispatch.exact-function.message`).
+        let pool = self.pool();
         let operand = self.infer.resolve(pool, self.strip_mut(at));
         if matches!(pool.get(operand), TyData::Fn { .. })
             && let Some(winner) = self.op_impl_winner(tr, at, Some(ct))?
@@ -1628,6 +1658,9 @@ impl Ck<'_, '_> {
                 self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
                 Ty::POISON,
             ));
+        }
+        if let Some(chosen) = self.literal_arg_choice(index, "index", (br, bt), (&[*key], kt), n)? {
+            return Ok(chosen);
         }
         self.trait_call_args(index, "index", br, bt, &[(kr, kt, *key)], n)
     }

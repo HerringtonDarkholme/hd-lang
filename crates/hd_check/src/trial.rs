@@ -506,7 +506,7 @@ impl Ck<'_, '_> {
             .chain(args.spread)
             .chain(args.named.iter().map(|(_, e)| *e));
         for e in all {
-            if needs_expected(e) {
+            if needs_expected(e) || self.pre_args.iter().any(|p| p.0 == e.index()) {
                 continue;
             }
             let (r, t) = self.expr(e, None)?;
