@@ -42,9 +42,10 @@ pub struct LineTable {
     names: HashMap<u32, String>,
     /// Per function index, its rows: offset in its body, anchor; sorted.
     rows: HashMap<u32, Vec<(u32, u32)>>,
-    /// A written module's resolved anchors: per (item, instruction), its
-    /// file, line and printed function name.
-    resolved: HashMap<(String, u32), (String, u32, String)>,
+    /// A written module's resolved rows: per function index, its file and
+    /// printed name, and per row of its `hd.lines` (in that order) the
+    /// line, 0 for a row the build could not resolve.
+    resolved: HashMap<u32, (String, String, Vec<u32>)>,
 }
 
 impl LineTable {
@@ -93,12 +94,27 @@ impl LineTable {
                             }
                         }
                         "hd.positions" => {
+                            let mut strings = Vec::new();
                             for _ in 0..r.len()? {
-                                let item = r.name()?;
-                                let inst = num(&mut r)?;
-                                let file = r.name()?;
-                                let line = num(&mut r)?;
-                                t.resolved.insert((item, inst), (file, line, r.name()?));
+                                strings.push(r.name()?);
+                            }
+                            let string = |i: u32| {
+                                strings
+                                    .get(i as usize)
+                                    .cloned()
+                                    .ok_or("a string index out of range")
+                            };
+                            for _ in 0..r.len()? {
+                                let f = num(&mut r)?;
+                                let file = string(num(&mut r)?)?;
+                                let name = string(num(&mut r)?)?;
+                                let mut lines = Vec::new();
+                                let mut line = 0i64;
+                                for _ in 0..r.len()? {
+                                    line += zigzag(num(&mut r)?);
+                                    lines.push(u32::try_from(line).map_err(|e| e.to_string())?);
+                                }
+                                t.resolved.insert(f, (file, name, lines));
                             }
                         }
                         _ => {}
@@ -110,40 +126,49 @@ impl LineTable {
         Ok(t)
     }
 
-    /// Every anchor of the table, each once, in function then row order.
+    /// Each function with rows, in index order: its index, the stable
+    /// path of its item, and its rows' anchors in `hd.lines` order, which
+    /// `hd build` resolves into `hd.positions`.
     #[must_use]
-    pub fn anchors(&self) -> Vec<Anchored> {
+    pub fn functions(&self) -> Vec<(u32, String, Vec<u32>)> {
         let mut fs: Vec<&u32> = self.rows.keys().collect();
         fs.sort_unstable();
-        let mut out: Vec<Anchored> = Vec::new();
-        for f in fs {
-            let Some(name) = self.names.get(f) else {
-                continue;
-            };
-            let item = name
-                .rsplit_once('#')
-                .map_or(name.as_str(), |(item, _)| item);
-            for &(_, inst) in &self.rows[f] {
-                let a = Anchored {
-                    item: item.to_owned(),
-                    inst,
-                };
-                if !out.contains(&a) {
-                    out.push(a);
-                }
-            }
-        }
-        out
+        fs.into_iter()
+            .filter_map(|f| {
+                let name = self.names.get(f)?;
+                let item = name
+                    .rsplit_once('#')
+                    .map_or(name.as_str(), |(item, _)| item);
+                let insts = self.rows[f].iter().map(|&(_, inst)| inst).collect();
+                Some((*f, item.to_owned(), insts))
+            })
+            .collect()
+    }
+
+    /// The row index of each frame that lands on a row, as `anchor` finds
+    /// it: function index and row.
+    fn rows_of(&self, frames: &[RawFrame]) -> Vec<(u32, usize)> {
+        frames
+            .iter()
+            .filter_map(|&(f, addr)| {
+                let rows = self.rows.get(&f)?;
+                let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
+                let at = addr.checked_sub(start)?;
+                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                Some((f, k))
+            })
+            .collect()
     }
 
     /// A written module's frames as `FILE:LINE FUNCTION` lines, panic site
     /// first, from its `hd.positions` section; empty when it has none.
     #[must_use]
     pub fn resolved_lines(&self, frames: &[RawFrame]) -> Vec<String> {
-        self.anchor(frames)
+        self.rows_of(frames)
             .into_iter()
-            .filter_map(|a| {
-                let (file, line, name) = self.resolved.get(&(a.item, a.inst))?;
+            .filter_map(|(f, k)| {
+                let (file, name, lines) = self.resolved.get(&f)?;
+                let line = *lines.get(k).filter(|l| **l != 0)?;
                 Some(format!("{file}:{line} {name}"))
             })
             .collect()
@@ -197,10 +222,20 @@ fn num(r: &mut Bytes<'_>) -> Result<u32, String> {
     u32::try_from(r.leb()?).map_err(|e| e.to_string())
 }
 
-/// The `hd.positions` custom section, ready to append to a module: per
-/// anchor, its file, line and printed function name.
+/// A zigzag-encoded delta: 0, -1, 1, -2, … as 0, 1, 2, 3, ….
+fn zigzag(v: u32) -> i64 {
+    let v = i64::from(v);
+    if v & 1 == 0 { v >> 1 } else { -((v + 1) >> 1) }
+}
+
+/// The `hd.positions` custom section, ready to append to a module: a
+/// table of the file paths and printed names, each once; then per function
+/// (its index, file and name as table indices), the line of each of its
+/// `hd.lines` rows in order, as zigzag deltas from the row before (0 is a
+/// row the build could not resolve). Each entry is (function index, file,
+/// printed name, lines).
 #[must_use]
-pub fn positions_section(entries: &[(Anchored, String, u32, String)]) -> Vec<u8> {
+pub fn positions_section(funcs: &[(u32, String, String, Vec<u32>)]) -> Vec<u8> {
     fn leb(out: &mut Vec<u8>, mut v: usize) {
         loop {
             let b = u8::try_from(v & 0x7f).unwrap_or(0);
@@ -216,15 +251,37 @@ pub fn positions_section(entries: &[(Anchored, String, u32, String)]) -> Vec<u8>
         leb(out, s.len());
         out.extend_from_slice(s.as_bytes());
     }
+    fn index<'s>(s: &'s str, strings: &mut Vec<&'s str>) -> usize {
+        strings.iter().position(|x| *x == s).unwrap_or_else(|| {
+            strings.push(s);
+            strings.len() - 1
+        })
+    }
+    let mut strings: Vec<&str> = Vec::new();
+    let mut rows = Vec::new();
+    for (f, file, fname, lines) in funcs {
+        let (fi, ni) = (index(file, &mut strings), index(fname, &mut strings));
+        rows.push((*f, fi, ni, lines));
+    }
     let mut body = Vec::new();
     name(&mut body, "hd.positions");
-    leb(&mut body, entries.len());
-    for (a, file, line, fname) in entries {
-        name(&mut body, &a.item);
-        leb(&mut body, a.inst as usize);
-        name(&mut body, file);
-        leb(&mut body, *line as usize);
-        name(&mut body, fname);
+    leb(&mut body, strings.len());
+    for s in &strings {
+        name(&mut body, s);
+    }
+    leb(&mut body, rows.len());
+    for (f, fi, ni, lines) in rows {
+        leb(&mut body, f as usize);
+        leb(&mut body, fi);
+        leb(&mut body, ni);
+        leb(&mut body, lines.len());
+        let mut last = 0i64;
+        for &line in lines {
+            let d = i64::from(line) - last;
+            last = i64::from(line);
+            let z = if d >= 0 { d << 1 } else { ((-d) << 1) - 1 };
+            leb(&mut body, usize::try_from(z).unwrap_or(0));
+        }
     }
     let mut out = vec![0];
     leb(&mut out, body.len());
@@ -313,23 +370,21 @@ mod tests {
         }
     }
 
-    /// A written module's `hd.positions` names each anchor's file, line
-    /// and function, and `anchors` lists what `hd build` resolves.
+    /// A written module's `hd.positions` gives each row's file, line and
+    /// function, and `functions` lists what `hd build` resolves.
     #[test]
     fn a_written_module_prints_its_resolved_frames() {
         let mut m = module("name");
         let t = LineTable::parse(&m).expect("parses");
-        let at = |inst| Anchored {
-            item: "app/main/f".into(),
-            inst,
-        };
-        assert_eq!(t.anchors(), [at(5), at(9)]);
+        assert_eq!(t.functions(), [(2, "app/main/f".to_owned(), vec![5, 9])]);
         let start = t.starts[1];
         assert!(t.resolved_lines(&[(2, start + 3)]).is_empty());
-        m.extend(super::positions_section(&[
-            (at(5), "src/main.hd".into(), 4, "app.main.f".into()),
-            (at(9), "src/main.hd".into(), 7, "app.main.f".into()),
-        ]));
+        m.extend(super::positions_section(&[(
+            2,
+            "src/main.hd".into(),
+            "app.main.f".into(),
+            vec![4, 7],
+        )]));
         let t = LineTable::parse(&m).expect("parses with positions");
         assert_eq!(
             t.resolved_lines(&[(2, start + 8), (2, start + 3)]),

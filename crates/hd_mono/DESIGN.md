@@ -1229,9 +1229,9 @@ printed:
   lines, plus one map of each reachable module's `check` entry, a few ms
   per build. The cached `link` and `cwasm` entries stay anchored.
   Implementation differs: the written rows stay anchored, and an
-  added `hd.positions` section holds each anchor's file, line and
-  printed function name, with no column (crates/hd_wasm/DESIGN.md
-  §15.9).
+  added `hd.positions` section holds each row's line and each
+  function's file and printed name, with no column
+  (crates/hd_wasm/DESIGN.md §15.9).
 
 So a comment edit above a panic changes the line it reports and nothing
 that is compiled or cached.

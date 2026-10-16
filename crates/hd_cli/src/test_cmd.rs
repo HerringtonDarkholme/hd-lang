@@ -382,26 +382,29 @@ impl Frames {
 }
 
 impl Frames {
-    /// The `hd.positions` section of a module `hd build` writes: each
-    /// anchor of its line table resolved to the file, line and function
-    /// name a frame prints, so the written module stands alone
-    /// (`crates/hd_mono/DESIGN.md` "Positions"). An anchor the run did not
-    /// check is left out.
+    /// The `hd.positions` section of a module `hd build` writes: each row
+    /// of its line table resolved to the file, line and function name a
+    /// frame prints, so the written module stands alone
+    /// (`crates/hd_mono/DESIGN.md` "Positions"). A function the run did
+    /// not check is left out, and a row it cannot resolve has line 0.
     pub(crate) fn positions_section(&self, wasm: &[u8], src: &disk::DiskSources) -> Vec<u8> {
         let Ok(table) = hd_run::frames::LineTable::parse(wasm) else {
             return Vec::new();
         };
-        let entries: Vec<_> = table
-            .anchors()
+        let funcs: Vec<_> = table
+            .functions()
             .into_iter()
-            .filter_map(|a| {
-                let (file, line) = self.positions.line(&a.item, a.inst)?;
-                let file = src.display(file);
-                let name = self.positions.name(&a.item);
-                Some((a, file, line, name))
+            .filter_map(|(f, item, insts)| {
+                let at: Vec<Option<(&str, u32)>> = insts
+                    .iter()
+                    .map(|&inst| self.positions.line(&item, inst))
+                    .collect();
+                let file = src.display(at.iter().flatten().next()?.0);
+                let lines = at.iter().map(|x| x.map_or(0, |(_, l)| l)).collect();
+                Some((f, file, self.positions.name(&item), lines))
             })
             .collect();
-        hd_run::frames::positions_section(&entries)
+        hd_run::frames::positions_section(&funcs)
     }
 }
 
