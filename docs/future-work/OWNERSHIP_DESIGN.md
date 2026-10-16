@@ -12,7 +12,7 @@ an earlier draft is in [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md).
 - [3. A Guided Tour](#3-a-guided-tour)
 - [4. The Rules](#4-the-rules)
 - [5. What Changes From NonEscapable](#5-what-changes-from-nonescapable)
-- [6. Open Points](#6-open-points)
+- [6. Still To Think Through](#6-still-to-think-through)
 - [Appendix: Limits And Holes](#appendix-limits-and-holes)
 
 ## Decisions So Far
@@ -20,9 +20,9 @@ an earlier draft is in [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md).
 The owner chose Rust's model: ownership, moves, borrows with lifetimes,
 including borrows inside types, and destructors. An owned value runs
 its type's `drop` when its owner's scope ends without moving it; the
-compiler knows that point exactly. Plain values stay garbage-collected
-and run no destructor. With destructors, `defer` is no longer needed as
-a statement; it can become a std guard value whose `drop` runs a
+compiler knows that point exactly. The trait is `DropOwn`, since only
+owned values run it, and a type that implements it is held only owned
+or borrowed. `defer` stays as sugar for a std guard whose `drop` runs a
 closure. NonEscapable is dropped.
 
 Plain `T` and `mut T` keep today's garbage-collected object semantics,
@@ -41,8 +41,22 @@ An owned value is unique, not linear: nothing forces code to consume
 it, and dropping it runs its destructor. No type is marked as a
 resource, and there is no `close` protocol. A fresh value may start
 owned, as `let own user = User {...}`, if its plain fields are fresh
-too; borrowed fields are exempt. Generics follow `mut`: `T` may be
-`own Conn`.
+too; borrowed fields and immutable values such as numbers and strings
+are exempt. A holder that receives an owned value is owned too. A plain
+type parameter never takes an owned type; a generic that accepts one
+says `T < own Any`.
+
+A borrow reaches only `^` positions, so std's read-only methods take
+`^self`. A composite part read through a borrow is a borrow; the plain
+contents of a borrowed collection are plain values. A type may hold a
+`^mut` borrow, and such a holder moves.
+
+A later top-level statement or REPL input may move a top-level owned
+value. A `^mut` of a top-level binding is not allowed; code that needs a
+global mutable queue uses plain values. A cleanup that must suspend or
+can fail is an explicit method called before the drop. A move has no
+mark at the call site. Rust's known false alarms are accepted as
+limits.
 
 A closure that captures a value exclusively, an owned value or a `^mut`
 borrow, can be called once. A job that must run repeatedly with
@@ -52,9 +66,9 @@ No declaration rule makes a handle always owned. Earlier decisions
 hold: anything local shows in source, a store writes its destination on
 the stored value, and a downcast needs a `static` lifetime.
 
-Everything else here is the draft's proposal and needs the owner's
-review. [Open Points](#6-open-points) lists what is undecided. The full
-discussion, with the owner's words, is in this file's git history.
+Agent-written details beyond these, such as rule wording and diagnostic
+names, need the owner's review. The full discussion, with the owner's
+words, is in this file's git history.
 
 ## 1. Motivation
 
@@ -105,17 +119,18 @@ written on the type at that position, as `mut` is. So one type, such as
 - **Borrowed** `^T` or `^mut T` refers to a place it does not own, for a
   lifetime the checker tracks.
 
-A type may implement the std trait `Drop`, whose `drop` method runs
+A type may implement the std trait `DropOwn`, whose `drop` method runs
 when an owned value of that type is dropped. Because an owned value has
 one owner, and no borrow outlives it, the compiler knows the exact
 point: the end of the owner's scope, an assignment over it, or a
-cancelled bang call. A plain value never runs `drop`.
+cancelled bang call. A type that implements `DropOwn` is never held
+plain, so every value of it is dropped exactly once.
 
 ```text
 data File:
     fd: i32
 
-impl Drop for File:                                              # hypothetical syntax
+impl DropOwn for File:                                              # hypothetical syntax
     fn drop(^mut self) -> void: sys_close(self.fd)               # hypothetical syntax
 
 fn open(path: string) -> own File: File { fd: sys_open(path) }   # hypothetical syntax
@@ -167,11 +182,11 @@ holes, B7 and B8, that a type-level category would close.
 ## 3. A Guided Tour
 
 The tour uses this prelude. The I/O methods borrow the connection, and
-dropping it closes it, since a socket implements `Drop`. No declaration
+dropping it closes it, since a socket implements `DropOwn`. No declaration
 carries `own`; `connect!` returns it.
 
 ```text
-trait Socket < Drop:
+trait Socket < DropOwn:
     fn send!(^self, bytes: List[u8]) -> void                  # hypothetical syntax
     fn read!(^self) -> string                                 # hypothetical syntax
     fn sent(^self) -> usize                                   # hypothetical syntax
@@ -216,18 +231,29 @@ no destructor, as it runs no `defer`: it poisons the instance, and the
 host closes what the instance held.
 
 Cleanup that is not tied to one value, such as restoring a setting or
-writing a log line on exit, no longer needs a `defer` statement. A std
-guard does it: `on_exit` returns an owned guard whose `drop` runs the
-closure, so it runs at the same points a destructor does.
+writing a log line on exit, uses a guard. `on_exit` returns an owned
+guard whose `drop` runs the closure, so it runs at the same points a
+destructor does. `defer: body` stays as sugar for exactly that.
 
 ```text
 fn with_verbose!(job: own fn!() -> void) -> void:  # hypothetical syntax
     set_verbose(true)
-    guard := on_exit(fn(): set_verbose(false))     # hypothetical syntax
-    job()                                          # cancelled or failed: guard still runs
+    defer: set_verbose(false)                      # == guard := on_exit(fn(): set_verbose(false))
+    job()                                          # cancelled or failed: it still runs
 ```
 
-Removing the `defer` statement from the language is a later spec edit.
+A `drop` must not suspend and cannot fail. Cleanup that must, such as a
+buffered writer that flushes over the network, is an explicit method
+called before the drop:
+
+```text
+fn upload!(w: own Writer, bytes: List[u8]) -> Result[void, NetError]:   # hypothetical syntax
+    w.write!(bytes)?
+    w.finish!()       # flushes, may fail, consumes w
+```
+
+If `upload!` returns early or is cancelled, `w` is dropped, and its
+`drop` closes it without flushing.
 
 ### 3.2 Lending And Giving Away
 
@@ -482,7 +508,7 @@ A mark inside `Fn[...]` is `misplaced-lifetime`, with a fix-it to
 ### 3.8 Generics
 
 ```text
-fn same[T](v: T) -> T: v                             # T may be own Conn
+fn same[T](v: T) -> T: v                             # T is never owned here
 
 fn first[T](items: ^List[T]) -> Option[^T]:          # hypothetical syntax
     items.at(0)
@@ -493,9 +519,18 @@ fn take_first[T < own Any](xs: own List[T]) -> Option[own T]:   # hypothetical s
 fn bad[T](v: own T) -> void: pass                    # hypothetical syntax: error: own-on-type-parameter
 ```
 
-Generics follow `mut`: `T` may be `own Conn`, as it may be `mut User`.
-An unconstrained generic must not write `own T`. A body that consumes
-`T` values asks with a bound, `T < own Any` or `T < own Trait`.
+A plain type parameter never takes an owned type, since its body may
+copy a `T`. A generic that accepts owned values says so with a bound,
+`T < own Any` or `T < own Trait`, as Swift's `~Copyable`; its body moves
+`T` values and never copies them. `List` declares `[T < own Any]`, so
+`List[own Conn]` works. A generic must not write `own T` itself.
+
+This inverts Rust's default on purpose. In Rust an unbounded `T` is
+move-only, so `fn dup<T>(v: T) -> (T, T) { (v, v) }` is an error unless
+`T: Copy`. In hd a plain value already aliases freely, and every
+generic body written today uses that. So plain `[T]` keeps it, as
+Rust's `T: Copy` world does, and `[T < own Any]` is hd's spelling of
+Rust's unbounded `<T>`: owned values allowed, the body move-only.
 
 A plain `dyn K` holds no borrow, so a value that holds one converts only
 to `^{a} dyn K`. A downcast needs a `static` lifetime.
@@ -572,18 +607,20 @@ fn settings() -> ^{static} Settings:                 # hypothetical syntax
 
 A shared borrow of a top-level binding has lifetime `static`. Within a
 body, it is checked as a borrow of an owned local. A `^mut` borrow of a
-top-level binding is an error in the draft, since other functions can
-reach it without a path.
+top-level binding is an error, since other functions can reach it
+without a path. Code that needs a global mutable queue uses plain
+values, with garbage-collected semantics.
 
-A top-level binding may hold an owned value. In the draft it is dropped
-when the instance ends, and no input may move it. REPL inputs are
-top-level bindings, so a handle opened in a REPL stays open until the
-session ends (open point 7 proposes letting a later input drop it):
+A top-level binding may hold an owned value. A later top-level statement
+or REPL input may move it, checked in statement order; a function never
+may, since it could run before or after. Otherwise it is dropped when
+the instance ends.
 
 ```text
 c := connect!("db")              # a REPL input: an owned top-level binding
 c.send!([1])                     # a later input: a static borrow
-drop(c)                          # error: move-out-of-top-level
+drop(c)                          # a later input moves it: the socket closes
+c.send!([1])                     # error: use-after-move
 ```
 
 ### 3.12 The Serialization Boundary
@@ -626,9 +663,12 @@ This section states each rule from the tour once, grouped by topic.
    exempt.
 9. A receiver (`own self`, `^self`, `^mut self`, and the plain forms)
    follows the same mode rules as a parameter.
-10. A type may implement the std trait `Drop`, whose `drop(^mut self)`
-    runs when an owned value of the type is dropped. A plain value never
-    runs it.
+10. A type may implement the std trait `DropOwn`, whose
+    `drop(^mut self)` runs when an owned value of the type is dropped.
+    Such a type is held only as `own T` or `^T`; a plain position of it
+    is `drop-type-plain`.
+11. A holder that receives an owned value at construction is owned; a
+    plain holder receiving one is `own-upgrade`.
 
 ### 4.2 Moves
 
@@ -656,8 +696,10 @@ This section states each rule from the tour once, grouped by topic.
    lifetime, as in Rust's non-lexical lifetimes.
 6. A shared borrow copies. A mutable borrow moves, and a `^mut`
    parameter reborrows it for the call.
-7. A part read through a borrow is a borrow with the same lifetime; a
-   primitive is copied out. Moving through a borrow is an error.
+7. A field read through a borrow is a borrow with the same lifetime; a
+   primitive is copied out. An element of a borrowed collection is a
+   plain value when its type is plain, and a borrow when it is owned.
+   Moving through a borrow is an error.
 8. A `^mut` borrow of a receiver starts after the arguments run, so
    `xs.push(xs.len())` is valid.
 9. Rules 3 and 4 apply to every `^` of a local, owned or plain, and
@@ -714,27 +756,31 @@ This section states each rule from the tour once, grouped by topic.
 
 ### 4.6 Generics, `dyn`, Closures, And Frames
 
-1. A type parameter may be instantiated with an owned type, as
-   `List[own Conn]`.
-2. An unconstrained generic must not write `own T`. `T < own Any` asks
-   for owned values, and such a body may consume them.
-3. Inference never makes `T` owned. `^T` with `T = own U` is `^U`.
-4. `own U` converts to `own dyn K`. A value holding a borrow converts
+1. A plain type parameter `[T]` takes only plain types, and its body may
+   copy `T` values.
+2. `[T < own Any]` or `[T < own Trait]` takes owned and plain types. Its
+   body moves, borrows, or drops `T` values and never copies them.
+3. A call infers `T = own U` when the argument is owned and the
+   parameter's bound allows it. `^T` with `T = own U` is `^U`.
+4. A generic must not write `own T` itself.
+5. A std container declares `[T < own Any]`. Its methods that copy an
+   element live in an `impl` for plain `T` only.
+6. `own U` converts to `own dyn K`. A value holding a borrow converts
    only to `^{a} dyn K`, and a downcast needs `static`.
-5. A closure that captures an owned value moves it in. A closure that
+7. A closure that captures an owned value moves it in. A closure that
    captures an owned value or a `^mut` borrow is `own fn(...)`, and a
    call consumes it. Dropping it uncalled drops its captures.
-6. A closure that captures a shared borrow is bounded by it and may be
+8. A closure that captures a shared borrow is bounded by it and may be
    called any number of times while it lives.
-7. A capture of a plain binding stays shared storage, unchecked, as
+9. A capture of a plain binding stays shared storage, unchecked, as
    plain `T` is.
-8. A cold frame is bounded by every borrow it captures. A frame that
-   holds an owned argument is owned, and dropping it drops the argument.
-9. `$.with(K = p)` borrows `p` for its block, and `$.use(K)` returns a
-   borrow bounded by `$K`.
-10. A top-level binding may be borrowed as `static`, never as `^mut`.
+10. A cold frame is bounded by every borrow it captures. A frame that
+    holds an owned argument is owned, and dropping it drops the argument.
+11. `$.with(K = p)` borrows `p` for its block, and `$.use(K)` returns a
+    borrow bounded by `$K`.
+12. A top-level binding may be borrowed as `static`, never as `^mut`.
     Moving an owned one is `move-out-of-top-level`.
-11. Owned positions and types that carry a lifetime are not
+13. Owned positions and types that carry a lifetime are not
     boundary-safe.
 
 ## 5. What Changes From NonEscapable
@@ -753,10 +799,10 @@ exclusive.
 | A pool whose handles callers use | `conns: ^mut List[^Conn]`, `adopt(c: ^{self} Conn)` | `conns: own List[own Conn]`, `adopt(c: own Conn)` | yes, differently: the pool owns, callers borrow |
 | Concurrency | `fn echo!(c: ^Conn)` | the same | yes; a dropped frame or buffer drops what it owns |
 | Providers | `trait Pool < NonEscapable`, `-> ^Conn $ Pool` | `trait Pool`, `-> ^{$Pool} Conn $ Pool` | yes |
-| Callbacks | `List[^fn!() -> bool]` | `List[^{attempt} fn!() -> bool]` | yes; a global registry of owning closures is lost |
+| Callbacks | `List[^fn!() -> bool]` | `List[^{attempt} fn!() -> bool]` | yes; a global registry uses plain closures |
 | An error carrying a handle | `enum LinkError: Broken(conn: ^Conn)` | `enum LinkError[^c]: Broken(conn: ^{c} Conn)` | yes |
-| The REPL | `c := connect!("db")` | the same | use works; it closes when the session ends |
-| Generic code | `fn look_at[T](x: ^T)` | the same | yes; an owned `T` in an unconstrained body is a hole |
+| The REPL | `c := connect!("db")` | the same | yes; a later input may `drop(c)` |
+| Generic code | `fn look_at[T](x: ^T)` | the same, or `[T < own Any]` to take owned values | yes |
 | Locality of plain values | `fn fill(buf: ^mut List[u8])` | the same | yes, and the borrow freezes the variable |
 
 Over these cases, the annotation count is the same, 34 marks before and
@@ -775,71 +821,49 @@ adds a few of its own. Each rejects code the old design accepted:
   owner's decision to check every `^`.
 - **Keeping a provider** from `$.use(K)` in module state.
 
-## 6. Open Points
+## 6. Still To Think Through
 
-1. **A plain value of a type with `drop`.** Draft: allowed, and its
-   `drop` never runs. Alternative: a type that implements `Drop` may be
-   held only owned or borrowed.
-2. **A call-site move mark.** Draft: none; the parameter decides.
-   Alternative: `archive(move f)`, as Mojo's `f^`.
-3. **Plain parameters and borrows.** Draft: a plain parameter takes no
-   borrow, so std writes about 400 `^self` marks. Alternative: it
-   accepts one, and storing it becomes an error.
-4. **A composite copied out of a borrow.** Draft: an error. Alternative:
-   it becomes a plain alias, which breaks the "never kept" promise.
-5. **Mutable borrows inside types.** Draft: allowed; the holder moves.
-   Alternative: types hold only shared borrows.
-6. **Primitive fields of an owned value.** Draft: exempt from the
-   freshness rule. Alternative: every field value is fresh or owned.
-7. **An owned value moved into a plain holder** (hole B7). Draft:
-   allowed; its `drop` then never runs. Recommended: a holder that
-   receives an owned value must itself be owned. Alternative: a type
-   with an `own` field is never plain.
-8. **An unconstrained generic with an owned `T`** (hole B8). Draft:
-   allowed. Recommended: only `T < own Any` takes owned types, as
-   Swift's `~Copyable`. Alternatives: every body moves `T`, or check each
-   instantiation.
-9. **Owned values at the top level.** Draft: dropped when the instance
-   ends, never moved. Recommended: a later statement or REPL input may
-   move or drop it. Alternative: forbid them.
-10. **`^mut` of a top-level binding.** Draft: forbidden, which rules out
-    global job queues. Recommended: allowed in a body that calls nothing
-    able to reach it. Alternative: allowed, unchecked.
-11. **Cleanup that must suspend or fail.** Draft: `drop` is synchronous
-    and cannot fail, so a flushing close is an explicit method called
-    before the drop. Alternative: an asynchronous `drop`, run by the
-    enclosing bang call.
-12. **The `defer` statement.** Draft: removed from the language in favor
-    of std's `on_exit` guard. Alternative: keep it as sugar for the guard.
-13. **Rust's false alarms.** Draft: accept them as known limits.
-    Alternative: avoid named ones, starting with problem case #3, as
-    Polonius does.
+Every open point of the earlier drafts is decided. The owner asked for
+more thought on generics and ownership before the design settles:
+
+1. **Iteration.** How `for x in xs` reads a list of owned values: by
+   borrow, by consuming the list, or both, and which form is the default.
+2. **Traits over owned values.** How `Eq`, `Hash`, `Ord`, and `Display`
+   take their receiver (`^self`), and how a `Map` keyed by owned values
+   looks keys up by borrow.
+3. **Copying an owned value.** Whether a `Clone`-style trait gives
+   `own T` from `^T`, and whether derivation can provide it.
+4. **Drop and generics.** How a generic body's drop of a `T` finds the
+   instantiation's `drop`, through monomorphization or `dyn`, and the
+   cost of drop flags in generic code.
+5. **Higher-order functions.** The shapes of `map`, `filter`, and
+   `fold` over owned elements, and how an `own fn` callback composes
+   with them.
+6. **Migration.** The order of std's `^self` marks and its
+   `[T < own Any]` declarations, the lint that proposes them, and the
+   spec chapters each decision touches.
 
 ## Appendix: Limits And Holes
 
-Holes, where the draft is unsound:
-
-- **B7.** An owned value moved into a plain holder is never dropped, so its `drop` never runs ([3.5](#35-a-pool-that-owns-connections)).
-- **B8.** An unconstrained generic body copies an owned `T`, as `fn dup[T](v: T) -> (T, T)` does ([3.8](#38-generics)).
-
-A plain alias or a plain closure capture that changes a borrowed
-variable's object is not a hole: plain values keep garbage-collected
-semantics by design ([3.6](#36-borrowing-plain-values)).
+No known hole remains: B7 and B8 are closed by the owner's rules on
+owned holders and on `T < own Any`. A plain alias or a plain closure
+capture that changes a borrowed variable's object is not a hole: plain
+values keep garbage-collected semantics by design
+([3.6](#36-borrowing-plain-values)).
 
 Limits, where the draft rejects a reasonable program:
 
-- Owned handles in a global registry or job list need `^mut` of a global ([3.11](#311-top-level-bindings-and-the-repl)).
-- A handle opened at the top level or in a REPL stays open until the session ends ([3.11](#311-top-level-bindings-and-the-repl)).
-- A `drop` cannot suspend, so a close that must flush asynchronously is an explicit call ([3.1](#31-opening-and-closing)).
+- A global mutable queue of owned values is not possible; it uses plain values ([3.11](#311-top-level-bindings-and-the-repl)).
+- A `drop` cannot suspend or fail, so a flushing close is an explicit call ([3.1](#31-opening-and-closing)).
 - A struct cannot borrow its own field ([3.4](#34-a-struct-that-holds-a-borrow)).
 - A cleared list keeps its old elements' lifetime, as in Rust ([4.4](#44-lifetimes-and-elision)).
 - A local `^dyn` value cannot be downcast ([3.8](#38-generics)).
 - A borrowed value reaches a std method only once it takes `^self` ([3.6](#36-borrowing-plain-values)).
-- Rust's false alarms, and the draft's own ([5](#5-what-changes-from-nonescapable)).
+- Rust's known false alarms, accepted as limits, and the draft's own ([5](#5-what-changes-from-nonescapable)).
 
 Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-model-on-one-page)):
 
-- A producer declared `-> Conn` instead of `-> own Conn` hands out plain handles, which no `drop` ever closes.
+- A producer that builds a handle type outside `DropOwn`, or a handle type that forgets to implement it, closes nothing.
 - Public fields let any module write `let own f = File { fd: 3 }`; private fields stop it.
 - A handle type that derives `Default` or `Deserialize` can be forged the same way.
 
@@ -855,7 +879,7 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 
 ## Parse Log
 
-Every `text` block, 25 in all, was parsed on 2026-10-16 with
+Every `text` block, 26 in all, was parsed on 2026-10-16 with
 `scripts/hd-conformance.sh parse`. Each was parsed as written and with
 the marks erased (`own`, `^`, `^{...}`, lifetime brackets). Parsing
 checks syntax only. Nothing was type-checked, and the blocks call
@@ -864,4 +888,4 @@ functions this study does not define.
 | Result | Blocks |
 | --- | --- |
 | Parses as written | 4, among them section 1 and the REPL inputs in 3.11 |
-| Fails only at the new marks; parses with the marks erased | the other 21 |
+| Fails only at the new marks; parses with the marks erased | the other 22 |
