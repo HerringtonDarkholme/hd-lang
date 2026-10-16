@@ -10,7 +10,7 @@
 
 use hd_base::{HashMap, HashSet};
 
-use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
+use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::{ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -1705,6 +1705,41 @@ impl Ck<'_, '_> {
                 Code::TypeMismatch
             };
             self.err(code, n, &msg);
+            // `types.num.no-implicit.fix`: write the conversion around the
+            // value, as `i64(small)`.
+            if code == Code::TypeMismatch && self.num_widens(got, want) {
+                // A labelled field or argument: wrap the value after the
+                // label. A shorthand `{ x }` has no value to wrap.
+                let value = match n.kind() {
+                    SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument => n.children().next(),
+                    _ => Some(n),
+                };
+                let Some(value) = value else {
+                    return true;
+                };
+                let span = self.cx.src.span(value);
+                let ty = self.show(want);
+                self.diags.add_fix(
+                    &format!("convert the value with `{ty}(...)`"),
+                    hd_diag::FixSafety::Exact,
+                    &[
+                        (
+                            Span {
+                                hi: span.lo,
+                                ..span
+                            },
+                            &format!("{ty}("),
+                        ),
+                        (
+                            Span {
+                                lo: span.hi,
+                                ..span
+                            },
+                            ")",
+                        ),
+                    ],
+                );
+            }
             return true;
         }
         false
@@ -1727,17 +1762,27 @@ impl Ck<'_, '_> {
     /// Whether `want` is a narrower numeric type than `got` in the same
     /// family (`types.num.families`); `usize` is 32 bits wide.
     fn narrows(&self, got: Ty, want: Ty) -> bool {
+        self.family_widths(got, want).is_some_and(|(g, w)| w < g)
+    }
+
+    /// Whether `want` is a wider numeric type than `got` in the same
+    /// family (`types.num.no-implicit.wider`).
+    fn num_widens(&self, got: Ty, want: Ty) -> bool {
+        self.family_widths(got, want).is_some_and(|(g, w)| w > g)
+    }
+
+    /// The bit widths of two numeric primitives of one family
+    /// (`types.num.families`), `usize` counting as 32 bits.
+    fn family_widths(&self, got: Ty, want: Ty) -> Option<(u32, u32)> {
         let pool = self.pool();
         let prim = |t: Ty| {
             let t = self.strip_mut(self.infer.resolve(pool, t));
             match pool.get(t) {
-                TyData::Prim(p) => Some(p),
+                TyData::Prim(p) if p.is_integer() || p.is_float() => Some(p),
                 _ => None,
             }
         };
-        let (Some(g), Some(w)) = (prim(got), prim(want)) else {
-            return false;
-        };
+        let (g, w) = (prim(got)?, prim(want)?);
         let family = |p: hd_types::Prim| (p.is_float(), p.is_unsigned());
         let width = |p: hd_types::Prim| match p {
             hd_types::Prim::I8 | hd_types::Prim::U8 => 8,
@@ -1748,10 +1793,7 @@ impl Ck<'_, '_> {
             | hd_types::Prim::F32 => 32,
             _ => 64,
         };
-        (g.is_integer() || g.is_float())
-            && (w.is_integer() || w.is_float())
-            && family(g) == family(w)
-            && width(w) < width(g)
+        (family(g) == family(w)).then(|| (width(g), width(w)))
     }
 
     /// Whether `got` would convert to `want` by variance if one element

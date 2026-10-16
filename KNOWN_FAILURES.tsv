@@ -1,4 +1,3 @@
 path	issue	engine	reason
-cli/check-numeric-widen-fix	#331		the type-mismatch for an i16 where an i64 is expected has no fix-it writing i64(small)
 typing/invalid/doc-test-self-use.hd	#335		the driver conformance check of a package-tree file does not compile its doc tests, so a doc test with use self.{bump} reports no unknown-module; hd check --tests reports it
 cli/toolchain-dependency-too-old	#336		a path dependency whose manifest states hd = "999.0.0" builds with no toolchain-too-old; only the root manifest's minimum is checked
