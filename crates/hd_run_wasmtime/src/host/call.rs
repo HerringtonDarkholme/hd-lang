@@ -101,11 +101,6 @@ pub(crate) fn call(
                     .fixture
                     .read_file(file)
                     .map_err(Stop::Contract)?,
-                (profiles::Method::FileHandleClose, Work::FixtureClose { file }) => caller
-                    .data_mut()
-                    .fixture
-                    .close_file(file)
-                    .map_err(Stop::Contract)?,
                 _ => {
                     return Err(Stop::Contract(
                         "a finish of an operation that is not completed".into(),
@@ -126,7 +121,13 @@ pub(crate) fn call(
             }
             profiles::Method::FileHandleClose => {
                 let file = handle(int_arg(params, 0)?);
-                Ret::pair(1, caller.data_mut().reactor.fixture_close(file))
+                Ret::bytes(
+                    caller
+                        .data_mut()
+                        .fixture
+                        .close_file(file)
+                        .map_err(Stop::Contract)?,
+                )
             }
             profiles::Method::GateWait => Ret::pair(1, caller.data_mut().reactor.gate()),
             profiles::Method::GaugeLevel

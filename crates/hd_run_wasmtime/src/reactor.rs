@@ -70,8 +70,6 @@ pub enum Work {
     FixtureOpen,
     /// `disposed-file` `read!` of the file handle: decided at `.finish`.
     FixtureRead { file: i32 },
-    /// `disposed-file` `close` of the file handle: decided at `.finish`.
-    FixtureClose { file: i32 },
     /// `pending-gate` `wait!`: never completes, dropped at cancel.
     Gate,
     /// An operation offloaded to the `hd-io` runtime: its result, once
@@ -249,8 +247,8 @@ impl Reactor {
         self.start(Some(now_ns() + i128::from(ms) * NS_PER_MS), Work::Timer)
     }
 
-    /// A `disposed-file` `open!`, `read!`, or `close`: each completes at
-    /// once, and its `.finish` decides the result from the provider state.
+    /// A `disposed-file` `open!` or `read!`: each completes at once, and
+    /// its `.finish` decides the result from the provider state.
     pub fn fixture_open(&mut self) -> i32 {
         self.start(Some(now_ns()), Work::FixtureOpen)
     }
@@ -258,11 +256,6 @@ impl Reactor {
     /// A `disposed-file` `read!` of the file handle.
     pub fn fixture_read(&mut self, file: i32) -> i32 {
         self.start(Some(now_ns()), Work::FixtureRead { file })
-    }
-
-    /// A `disposed-file` `close` of the file handle.
-    pub fn fixture_close(&mut self, file: i32) -> i32 {
-        self.start(Some(now_ns()), Work::FixtureClose { file })
     }
 
     /// A `pending-gate` `wait!`: pending until its cancel drops it, so it

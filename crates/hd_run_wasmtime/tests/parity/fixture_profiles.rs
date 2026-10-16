@@ -347,14 +347,7 @@ fn waiting_fixture_imports_are_profile_gated() {
         ),
         (
             "hd:FileHandle",
-            "close.start",
-            &one,
-            &pair,
-            RuntimeProfile::DisposedFile,
-        ),
-        (
-            "hd:FileHandle",
-            "close.finish",
+            "close",
             &one,
             &one,
             RuntimeProfile::DisposedFile,
@@ -407,9 +400,9 @@ fn waiting_fixture_imports_are_profile_gated() {
     }
 }
 
-/// Drives one `disposed-file` operation: `.start`, one wake, `.finish`,
-/// then hex-dumps the result bytes from the exchange buffer, expecting
-/// `want` there.
+/// Drives one waiting `disposed-file` operation: `.start`, one wake,
+/// `.finish`, then hex-dumps the result bytes from the exchange buffer,
+/// expecting `want` there.
 fn drive_op(
     program: &mut Program,
     start: u32,
@@ -432,6 +425,14 @@ fn drive_op(
     program.expected.push(want.to_vec());
 }
 
+/// Calls `close` (which never waits) on handle `file`, then hex-dumps its
+/// result bytes, expecting `want`.
+fn close_op(program: &mut Program, close: u32, file: i32, want: &[u8]) {
+    program.instructions(&[I::I32Const(file), I::Call(close), I::LocalSet(0)]);
+    program.dump();
+    program.expected.push(want.to_vec());
+}
+
 #[test]
 fn disposed_file_open_read_close_then_reports_disposed() {
     use ValType::I32;
@@ -442,8 +443,7 @@ fn disposed_file_open_read_close_then_reports_disposed() {
     let open_finish = program.import("hd:Files", "open.finish", &one, &one);
     let read_start = program.import("hd:FileHandle", "read.start", &one, &pair);
     let read_finish = program.import("hd:FileHandle", "read.finish", &one, &one);
-    let close_start = program.import("hd:FileHandle", "close.start", &one, &pair);
-    let close_finish = program.import("hd:FileHandle", "close.finish", &one, &one);
+    let close = program.import("hd:FileHandle", "close", &one, &one);
     let block = program.import("hd:rt", "block", &[], &one);
     // A fresh instance allocates handle 1; the reported bytes are the
     // unsigned LEB128 handle number, then the `Result` encodings below it.
@@ -456,14 +456,7 @@ fn disposed_file_open_read_close_then_reports_disposed() {
         Some(1),
         &[0, 0],
     );
-    drive_op(
-        &mut program,
-        close_start,
-        close_finish,
-        block,
-        Some(1),
-        &[0],
-    );
+    close_op(&mut program, close, 1, &[0]);
     drive_op(
         &mut program,
         read_start,
@@ -472,14 +465,7 @@ fn disposed_file_open_read_close_then_reports_disposed() {
         Some(1),
         &[1, 1],
     );
-    drive_op(
-        &mut program,
-        close_start,
-        close_finish,
-        block,
-        Some(1),
-        &[1, 1],
-    );
+    close_op(&mut program, close, 1, &[1, 1]);
     let (wasm, expected) = program.finish(7);
     assert_eq!(
         expected, "01\n0000\n00\n0101\n0101\n",

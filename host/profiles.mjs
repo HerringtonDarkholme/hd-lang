@@ -31,6 +31,54 @@ export function providers(name, io) {
     // argument's boundary value unchanged, the bytes already at offset 0.
     case "serde-vault":
       return { "hd:Vault": { keep: (len) => len } };
+    // `trait Files: fn open!(self) -> mut FileHandle` and the handle's
+    // `trait FileHandle`: `read!(mut self)` and `close(mut self)`, each
+    // returning `Result[_, ResourceError[E]]`. A handle crosses as its
+    // number, which every handle method takes first. `open!` and `read!`
+    // complete at once and decide their result at `.finish`; after its
+    // first `.Ok(())` close, every operation on the handle is
+    // `.Err(ResourceError.Disposed)` (module.resource.disposed).
+    case "disposed-file": {
+      // Whether each handle number is still open; numbers are never reused.
+      const files = new Map();
+      // The handle number each pending `read!` reads.
+      const reads = new Map();
+      // `.Err(Disposed)`: `Err` is variant 1, `Disposed` variant 1.
+      const disposed = () => new io.Enc().leb(1).leb(1);
+      const known = (file) => {
+        if (!files.has(file)) throw new Error(`no disposed-file handle numbered ${file}`);
+        return files.get(file);
+      };
+      return {
+        "hd:Files": {
+          "open.start": () => io.pending(performance.now(), null),
+          "open.finish": (h) => {
+            io.finish(h);
+            const file = files.size + 1;
+            files.set(file, true);
+            return io.put(new io.Enc().leb(file));
+          },
+        },
+        "hd:FileHandle": {
+          "read.start": (file) => {
+            const [status, h] = io.pending(performance.now(), null);
+            reads.set(h, file);
+            return [status, h];
+          },
+          "read.finish": (h) => {
+            io.finish(h);
+            const file = reads.get(h);
+            reads.delete(h);
+            return io.put(known(file) ? new io.Enc().leb(0).str("") : disposed());
+          },
+          close: (file) => {
+            if (!known(file)) return io.put(disposed());
+            files.set(file, false);
+            return io.put(new io.Enc().leb(0));
+          },
+        },
+      };
+    }
     // `pending-write` is the host's own `Console`, whose `write_line!` is
     // pending on its first poll and writes the line on its second.
     case "pending-write":

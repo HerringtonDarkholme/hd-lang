@@ -2,8 +2,7 @@
 //! Their boundary values match `host/profiles.mjs`; the ordinary
 //! Console provider already supplies the `pending-write` behavior. The
 //! `disposed-file` and `pending-gate` providers follow the spec's Runtime
-//! Profiles (`spec/conformance/README.md`); Node has no providers for them
-//! yet either, so the spec text is the reference.
+//! Profiles (`spec/conformance/README.md`) too.
 
 use std::collections::BTreeMap;
 
@@ -43,6 +42,7 @@ impl RuntimeProfile {
             (Self::MisbehavingHost, "hd:Gauge", "level") => Some(Method::GaugeLevel),
             (Self::SpecialFloatHost, "hd:Sensor", "reading") => Some(Method::SensorReading),
             (Self::SerdeVault, "hd:Vault", "keep") => Some(Method::VaultKeep),
+            (Self::DisposedFile, "hd:FileHandle", "close") => Some(Method::FileHandleClose),
             _ => None,
         }
     }
@@ -55,12 +55,6 @@ impl RuntimeProfile {
             (Self::DisposedFile, "hd:Files", "open.finish") => (Method::FilesOpen, true),
             (Self::DisposedFile, "hd:FileHandle", "read.start") => (Method::FileHandleRead, false),
             (Self::DisposedFile, "hd:FileHandle", "read.finish") => (Method::FileHandleRead, true),
-            (Self::DisposedFile, "hd:FileHandle", "close.start") => {
-                (Method::FileHandleClose, false)
-            }
-            (Self::DisposedFile, "hd:FileHandle", "close.finish") => {
-                (Method::FileHandleClose, true)
-            }
             (Self::PendingGate, "hd:Gate", "wait.start") => (Method::GateWait, false),
             (Self::PendingGate, "hd:Gate", "wait.finish") => (Method::GateWait, true),
             _ => return None,
@@ -86,7 +80,10 @@ impl Method {
     pub(crate) fn is_waiting(self) -> bool {
         !matches!(
             self,
-            Method::GaugeLevel | Method::SensorReading | Method::VaultKeep
+            Method::GaugeLevel
+                | Method::SensorReading
+                | Method::VaultKeep
+                | Method::FileHandleClose
         )
     }
 }
@@ -174,11 +171,11 @@ impl State {
             // memory. The generated guest decoder enforces its boundary;
             // this deliberately transparent provider does not read or copy it.
             Method::VaultKeep => return Reply::EchoLength(length),
-            Method::FilesOpen
-            | Method::FileHandleRead
-            | Method::FileHandleClose
-            | Method::GateWait => {
+            Method::FilesOpen | Method::FileHandleRead | Method::GateWait => {
                 unreachable!("waiting fixture methods run as .start/.finish, never one call")
+            }
+            Method::FileHandleClose => {
+                unreachable!("`close` takes its handle number, so `call.rs` runs it")
             }
         }
         Reply::Encoded(encoded)

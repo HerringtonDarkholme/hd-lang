@@ -6791,7 +6791,12 @@ fn root_poll(
             // own, whose row comes from its declaration.
             let Some(host) = host else {
                 let key = p.rsplit(['.', '/']).next().unwrap_or("");
-                slots.push(profile_slot(&lay, key, name, m, sig, boundary)?);
+                let at = crate::boundary::AtProfile {
+                    codecs: boundary,
+                    out: false,
+                    handles: &[],
+                };
+                slots.push(profile_slot(&lay, key, name, m, sig, false, at)?);
                 continue;
             };
             // A method the table does not list runs its default body,
@@ -6840,26 +6845,31 @@ fn root_poll(
     })
 }
 
-/// The vtable slots of a host handle trait (`hd_host_abi::HANDLES`), in
-/// the trait's method order: each reads the handle number from its
-/// receiver and calls the host method `<Trait>.<method>` with it first
-/// (`boundary::BTy::Handle`).
+/// The vtable slots of a host handle trait, in the trait's method order:
+/// each reads the handle number from its receiver and calls the host
+/// method with it first (`boundary::BTy::Handle`). A trait in
+/// `hd_host_abi::HANDLES` names its methods `<Trait>.<method>` there; a
+/// runtime profile's own trait, at the profile's boundary `at`, is
+/// imported from `hd:<Trait>` by each method's name (`profile_slot`).
 pub(crate) fn handle_slots(
     lay: &Lay<'_>,
     trait_: DefId,
-    host: &hd_host_abi::HostTrait,
+    host: Option<&hd_host_abi::HostTrait>,
+    at: Option<crate::boundary::AtProfile<'_>>,
 ) -> StageResult<Vec<Helper>> {
     let tp = (lay.path)(trait_);
     let tname = tp.rsplit(['.', '/']).next().unwrap_or("");
     let mut slots = Vec::new();
     let key = lay.trait_key(trait_, TyList::EMPTY);
+    if !lay.dyn_supers(key).is_empty() {
+        return unsupported(format!(
+            "the host handle trait `{tp}`, which has supertraits"
+        ));
+    }
     for m in lay.env.trait_methods(trait_) {
         let sig = lay.slot_sig(key, m)?;
         let mp = (lay.path)(m);
-        let name = format!("{tname}.{}", mp.rsplit(['.', '/']).next().unwrap_or(""));
-        let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
-            return unsupported(format!("the host method `{name}`"));
-        };
+        let method = mp.rsplit(['.', '/']).next().unwrap_or("");
         let WTy::Func(params, results) = &sig else {
             return unsupported("a handle slot without a signature");
         };
@@ -6867,18 +6877,21 @@ pub(crate) fn handle_slots(
         let mut inner = params.clone();
         inner.insert(1, VT::I32);
         let inner = WTy::Func(inner, results.clone());
+        let inner = match (host, at) {
+            (Some(host), _) => {
+                let name = format!("{tname}.{method}");
+                let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
+                    return unsupported(format!("the host method `{name}`"));
+                };
+                host_slot(lay, host.key, &HostRow::of(hm), m, inner, true, None)?
+            }
+            (None, Some(at)) => profile_slot(lay, tname, method, m, inner, true, at)?,
+            (None, None) => return unsupported(format!("the host handle trait `{tp}`")),
+        };
         slots.push(Helper::HandleSlot {
             sig,
             payload: crate::boundary::handle_payload(),
-            inner: Box::new(host_slot(
-                lay,
-                host.key,
-                &HostRow::of(hm),
-                m,
-                inner,
-                true,
-                None,
-            )?),
+            inner: Box::new(inner),
         });
     }
     Ok(slots)
@@ -6912,14 +6925,16 @@ impl HostRow<'_> {
 /// type (`module.profile.host-result.*`). A data type with a field that
 /// is not `pub` crosses as its JSON text through the codecs collection
 /// gathered for it (`module.boundary.serialize.exact`,
-/// `.deserialize.exact`).
+/// `.deserialize.exact`). With `handle`, the trait is a profile handle's
+/// and the handle number crosses first, as an `i32` (`handle_slots`).
 fn profile_slot(
     lay: &Lay<'_>,
     key: &str,
     name: &str,
     m: DefId,
     sig: WTy,
-    boundary: &hd_mono::BoundaryMap,
+    handle: bool,
+    at: crate::boundary::AtProfile<'_>,
 ) -> StageResult<Helper> {
     use hd_host_abi::{Codec, Wait};
     let (pool, env) = (lay.pool, lay.env);
@@ -6932,7 +6947,10 @@ fn profile_slot(
         .map(|p| subst(pool, env, m, full, p))
         .collect();
     let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
-    let codecs = vec![Codec::Buffer(""); params.len()];
+    let mut codecs = vec![Codec::Buffer(""); params.len()];
+    if handle {
+        codecs.insert(0, Codec::Scalar(hd_host_abi::Scalar::I32));
+    }
     let row = HostRow {
         name,
         params: &codecs,
@@ -6947,7 +6965,7 @@ fn profile_slot(
             Wait::Never
         },
     };
-    host_slot(lay, key, &row, m, sig, false, Some(boundary))
+    host_slot(lay, key, &row, m, sig, handle, Some(at))
 }
 
 /// One vtable slot of a default-profile provider (`crates/hd_run_wasmtime/DESIGN.md`
@@ -6963,9 +6981,9 @@ fn host_slot(
     m: DefId,
     sig: WTy,
     handle: bool,
-    boundary: Option<&hd_mono::BoundaryMap>,
+    at: Option<crate::boundary::AtProfile<'_>>,
 ) -> StageResult<Helper> {
-    use crate::boundary::BTy;
+    use crate::boundary::{AtProfile, BTy};
     use crate::rt::{ArgCodec, ResCodec};
     use hd_host_abi::Codec;
     let (pool, env) = (lay.pool, lay.env);
@@ -7004,8 +7022,8 @@ fn host_slot(
             (Codec::Buffer(_), _) if hm.params.len() == 1 && lay.strip(pt) == Ty::STRING => {
                 ArgCodec::Str
             }
-            (Codec::Buffer(_), _) => ArgCodec::Buf(match boundary {
-                Some(boundary) => BTy::of_json(lay, pt, boundary, true)?,
+            (Codec::Buffer(_), _) => ArgCodec::Buf(match at {
+                Some(at) => BTy::of_json(lay, pt, AtProfile { out: true, ..at })?,
                 None => BTy::of(lay, pt)?,
             }),
             (Codec::Scalar(_), [VT::Ref(t, false)]) if t.fields() == [VT::I64] => {
@@ -7026,8 +7044,8 @@ fn host_slot(
             ResCodec::Scalar(v.clone())
         }
         (Codec::Buffer(_), _) => {
-            let b = match boundary {
-                Some(boundary) => BTy::of_json(lay, ret, boundary, false)?,
+            let b = match at {
+                Some(at) => BTy::of_json(lay, ret, AtProfile { out: false, ..at })?,
                 None => BTy::of(lay, ret)?,
             };
             if waits && b.is_tags() && rv == [VT::I32, VT::I32] {

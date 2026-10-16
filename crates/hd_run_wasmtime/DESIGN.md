@@ -289,6 +289,10 @@ its `Enc` and `Dec` classes.
   number first. The host keeps a closed handle's number, so every later
   call on it is `Disposed`
   ([`std-net.handles.closable`](../../spec/std/net.md#r-std-net.handles.closable)).
+  A runtime profile's own trait that a profile method returns crosses
+  the same way, its slots imported from `hd:<Trait>` by method name with
+  the number first (the `disposed-file` profile's `FileHandle`). A trait
+  that one of its own methods returns does not cross.
 - **Nesting.** Boundary types nest at most 32 deep, and recursive types
   do not cross, so a crossing value has no cycle
   ([`module.boundary.cycle`](../../spec/lang/10-modules.md#r-module.boundary.cycle)).

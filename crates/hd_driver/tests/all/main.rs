@@ -133,6 +133,7 @@ mod prelude_binding_shadow;
 mod privacy;
 mod private_main;
 mod private_type_leak;
+mod profile_handles;
 mod promotion;
 mod provider_keys_run;
 mod qualified_variants;

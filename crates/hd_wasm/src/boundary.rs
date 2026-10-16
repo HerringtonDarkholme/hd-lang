@@ -11,7 +11,7 @@
 //! end. A malformed or out-of-range result is the `host-contract` panic.
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{Hash128, StageResult};
+use hd_base::{DefId, Hash128, StageResult};
 use hd_mono::{BoundaryMap, JsonDecode, subst};
 use hd_types::{Prim, Ty, TyData};
 
@@ -106,6 +106,17 @@ pub fn handle_payload() -> WTy {
     crate::layout::box_of(&[VT::I32])
 }
 
+/// A runtime profile's boundary (`BTy::of_json`): the JSON codecs its
+/// private-field types cross through, the direction of the value, and
+/// the profile handle traits whose slots enclose it, innermost last.
+#[derive(Clone, Copy)]
+pub(crate) struct AtProfile<'a> {
+    pub(crate) codecs: &'a BoundaryMap,
+    /// The value leaves hd (`module.boundary.direction`).
+    pub(crate) out: bool,
+    pub(crate) handles: &'a [DefId],
+}
+
 /// An enum's layout (`layout::EnumShape`) with its payloads' boundary types.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EnumB {
@@ -125,18 +136,13 @@ impl BTy {
 
     /// The boundary type of `t` at a profile's boundary, where a data
     /// type with a field that is not `pub` crosses as its JSON text
-    /// through `boundary`'s codecs: `out` for a value leaving hd, `!out`
-    /// for one entering it (`module.boundary.direction`).
-    pub fn of_json(lay: &Lay<'_>, t: Ty, boundary: &BoundaryMap, out: bool) -> StageResult<BTy> {
-        Self::of_at(lay, t, 0, Some((boundary, out)))
+    /// through the profile's codecs, and a value of a program's own trait
+    /// enters hd as a profile handle.
+    pub(crate) fn of_json(lay: &Lay<'_>, t: Ty, at: AtProfile<'_>) -> StageResult<BTy> {
+        Self::of_at(lay, t, 0, Some(at))
     }
 
-    fn of_at(
-        lay: &Lay<'_>,
-        t: Ty,
-        depth: u32,
-        json: Option<(&BoundaryMap, bool)>,
-    ) -> StageResult<BTy> {
+    fn of_at(lay: &Lay<'_>, t: Ty, depth: u32, json: Option<AtProfile<'_>>) -> StageResult<BTy> {
         let pool = lay.pool;
         let t = lay.erase(t);
         let what = || format!("`{}` at the host boundary", pool.display(t));
@@ -203,7 +209,11 @@ impl BTy {
                     return unsupported(what());
                 }
                 if lay.env.has_private_field(def)
-                    && let Some((boundary, out)) = json
+                    && let Some(AtProfile {
+                        codecs: boundary,
+                        out,
+                        ..
+                    }) = json
                 {
                     let Some(codecs) = boundary.get(&t) else {
                         return unsupported(format!(
@@ -274,12 +284,37 @@ impl BTy {
                 trait_, args, vt, ..
             } if args == hd_types::TyList::EMPTY => {
                 let path = (lay.path)(trait_).replace('/', ".");
-                let Some(host) = hd_host_abi::handle_trait(&path) else {
+                let slots = if let Some(host) = hd_host_abi::handle_trait(&path) {
+                    crate::emit::handle_slots(lay, trait_, Some(host), None)?
+                } else if let Some(at) = json
+                    && !at.out
+                    && !path.starts_with("std.")
+                {
+                    // A value of a program's own trait that a profile's
+                    // host method returns can only be a handle the profile
+                    // made. Its slots' own results are built here too, so
+                    // a trait that one of its methods returns cannot.
+                    if at.handles.contains(&trait_) {
+                        return unsupported(format!(
+                            "the host handle trait `{path}`, which a method of its own returns"
+                        ));
+                    }
+                    let handles = [at.handles, &[trait_]].concat();
+                    crate::emit::handle_slots(
+                        lay,
+                        trait_,
+                        None,
+                        Some(AtProfile {
+                            handles: &handles,
+                            ..at
+                        }),
+                    )?
+                } else {
                     return unsupported(what());
                 };
                 BTy::Handle(Box::new(HandleB {
                     payload: handle_payload(),
-                    slots: crate::emit::handle_slots(lay, trait_, host)?,
+                    slots,
                     vt,
                 }))
             }

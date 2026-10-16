@@ -1536,32 +1536,38 @@ impl Cx<'_> {
     /// types need `encode` and a result's need `decode` plus its checked
     /// unwrap. Checking already reports a missing trait at the signature;
     /// selection here keeps the codec instances reachable for emission.
+    /// A trait value a result brings in is a host handle, whose methods
+    /// cross the same boundary.
     fn note_boundary_codecs(&mut self, roots: &[(DefId, TyList)]) -> StageResult<()> {
         let mut visited = HashSet::default();
+        let mut keys = Vec::new();
         for (def, args) in roots {
-            for key in self.env.row_keys(*def, *args) {
-                let TyData::TraitValue {
-                    def: trait_,
-                    args: targs,
-                    ..
-                } = self.pool.get(key)
-                else {
-                    continue;
-                };
-                if !visited.insert((trait_, targs)) {
-                    continue;
+            keys.extend(self.env.row_keys(*def, *args));
+        }
+        while let Some(key) = keys.pop() {
+            let TyData::TraitValue {
+                def: trait_,
+                args: targs,
+                ..
+            } = self.pool.get(key)
+            else {
+                continue;
+            };
+            if !visited.insert((trait_, targs)) {
+                continue;
+            }
+            for m in self.env.trait_methods(trait_) {
+                let mut full = vec![class_ref(self.pool)];
+                full.extend(self.pool.list_items(targs).iter().copied());
+                let full = self.pool.list(&full);
+                let params = self.env.params(m).unwrap_or_default();
+                for p in params.into_iter().skip(1) {
+                    let p = subst(self.pool, self.env, m, full, p);
+                    self.note_boundary_value(p, true, &mut Vec::new())?;
                 }
-                for m in self.env.trait_methods(trait_) {
-                    let mut full = vec![class_ref(self.pool)];
-                    full.extend(self.pool.list_items(targs).iter().copied());
-                    let full = self.pool.list(&full);
-                    let params = self.env.params(m).unwrap_or_default();
-                    for p in params.into_iter().skip(1) {
-                        self.note_boundary_value(subst(self.pool, self.env, m, full, p), true)?;
-                    }
-                    let ret = self.env.ret(m).unwrap_or(Ty::VOID);
-                    self.note_boundary_value(subst(self.pool, self.env, m, full, ret), false)?;
-                }
+                let ret = self.env.ret(m).unwrap_or(Ty::VOID);
+                let ret = subst(self.pool, self.env, m, full, ret);
+                self.note_boundary_value(ret, false, &mut keys)?;
             }
         }
         Ok(())
@@ -1570,8 +1576,9 @@ impl Cx<'_> {
     /// Records the JSON codec a private-field type in a boundary value
     /// needs: `encode` when `out` (the value leaves hd), `decode` plus
     /// its checked unwrap otherwise. A public wrapper still needs the
-    /// codecs of the private types inside it.
-    fn note_boundary_value(&mut self, ty: Ty, out: bool) -> StageResult<()> {
+    /// codecs of the private types inside it. The trait values inside it
+    /// go to `handles`.
+    fn note_boundary_value(&mut self, ty: Ty, out: bool, handles: &mut Vec<Ty>) -> StageResult<()> {
         let mut todo = vec![ty];
         let mut seen = HashSet::default();
         while let Some(ty) = todo.pop() {
@@ -1604,6 +1611,7 @@ impl Cx<'_> {
                     todo.extend(self.pool.list_items(elems).iter().copied());
                     todo.extend(rest);
                 }
+                TyData::TraitValue { .. } => handles.push(ty),
                 _ => {}
             }
         }
