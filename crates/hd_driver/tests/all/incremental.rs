@@ -1106,3 +1106,34 @@ fn a_type_that_turns_from_data_to_enum_re_emits_its_users() {
         r.counters.emitted
     );
 }
+
+/// A field added to one data type re-emits only the instances that lay it
+/// out (`crates/hd_mono/DESIGN.md` §13.8): every other instance keeps its
+/// code key.
+#[test]
+fn a_new_field_re_emits_only_the_instances_that_lay_out_its_type() {
+    let geo = format!(
+        "{GEO}\npub data Extra:\n    pub a: i32\n\npub fn extra_sum() -> i32:\n    e := Extra {{ a: 1 }}\n    e.a\n"
+    );
+    let main = DATA_MAIN
+        .replace(
+            "{Point, make, manhattan}",
+            "{Point, extra_sum, make, manhattan}",
+        )
+        .replace(
+            "    println(q.x + q.y)\n",
+            "    println(q.x + q.y)\n    println(extra_sum())\n",
+        );
+    let store = MemoryStore::default();
+    let ex = Executor::Serial(SerialOrder::Priority);
+    let cold = ok(&store, &program(&main, &geo), ex);
+    assert!(cold.counters.emitted > 2, "{}", cold.counters.emitted);
+    let grown = geo
+        .replace(
+            "pub data Extra:\n    pub a: i32\n",
+            "pub data Extra:\n    pub a: i32\n    pub b: i32\n",
+        )
+        .replace("Extra { a: 1 }", "Extra { a: 1, b: 2 }");
+    let r = ok(&store, &program(&main, &grown), ex);
+    assert_eq!(r.counters.emitted, 1, "only extra_sum lays out Extra");
+}

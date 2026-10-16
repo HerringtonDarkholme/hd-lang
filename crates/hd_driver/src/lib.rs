@@ -6696,22 +6696,6 @@ impl Run<'_> {
             },
         };
         let order = collected.table.content_order();
-        // Emitted code embeds the layouts of the data types it touches, and
-        // instance keys name types by path only: the program's data layouts
-        // are part of every code key, so two programs that declare one path
-        // with different fields never share code.
-        let mut layouts = hd_base::StableHasher::new("data-layouts");
-        let mut canons = hd_mono::layout::CanonMemo::default();
-        let ph = |x: DefId| env.path_hash(x);
-        for d in &collected.data {
-            layouts.hash(d.0);
-            let fields = env.data_fields(d.def()).unwrap_or_default();
-            layouts.u32(u32::try_from(fields.len()).unwrap_or(u32::MAX));
-            for f in fields {
-                layouts.hash(hd_mono::layout::canon(&self.pool, &ph, &mut canons, f));
-            }
-        }
-        let layouts = layouts.finish();
         let mut code_keys = Vec::new();
         let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
         let mut misses = Vec::new();
@@ -6719,9 +6703,15 @@ impl Run<'_> {
         for (slot, id) in order.iter().enumerate() {
             let item = collected.table.item[id.idx()];
             let tir = self.body_of(p, item).map_or(Hash128(0), |b| b.1);
+            // Emitted code embeds the layouts of the types it touches, and
+            // instance keys name types by path only. Collection hashes the
+            // `layout_hash` of every type an instance lays out into its
+            // callee representation hash (`crates/hd_mono/DESIGN.md` §13.8),
+            // so a field added to one data type re-emits only the instances
+            // that lay it out, and two programs that declare one path with
+            // different fields never share code.
             let mut reps = hd_base::StableHasher::new("code-deps");
             reps.hash(self.toolchain);
-            reps.hash(layouts);
             reps.hash(collected.callee_reps[id.idx()]);
             let ck = code_key(
                 self.pipeline,

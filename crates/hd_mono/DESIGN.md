@@ -1266,13 +1266,13 @@ payload at growing arguments (`E[List[T]]` in `E[T]`) included.
 
 Implementation differs: `hd_cache::code_key` hashes the pipeline,
 profile, instance key and item TIR hash with one dependency hash
-(`hd_driver`, `Collect`): the toolchain key, **one hash of every data
-type layout in the program**, and the instance's callee representation
-hash (each callee's path, instance key and signature layouts, and the
-instance's own signature `layout_hash`es and row keys). So a field added
-to any data type re-emits every instance of every program that has the
-type, and the per-item interface hashes and selected-impl hashes above
-are not read separately. Inline summaries and literal numbers are not
+(`hd_driver`, `Collect`): the toolchain key and the instance's callee
+representation hash. That hash holds the `layout_hash` of every type the
+instance's instructions have, each callee's path, instance key and
+signature layouts, and the instance's own signature `layout_hash`es and
+row keys. So a field added to one data type re-emits only the instances
+that lay it out. The per-item interface hashes and selected-impl hashes
+above are not read separately. Inline summaries and literal numbers are not
 needed while nothing inlines and literals are keyed by content.
 
 `pipeline_hash` replaces the earlier `tier` key part, and the profile is
