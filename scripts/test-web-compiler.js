@@ -51,8 +51,9 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // On 2026-10-16 the checker, mono and wasm fixes of that day (#176, #212,
 // #222, #267, #272, #274, #297 and others) took it to 4.8996 MB raw and
 // 1.5469 MB gzip, so the gates are 5.0 MB raw and 1.6 MB gzip (owner
-// approval, #49).
-const RAW_LIMIT = 5.0e6;
+// approval, #49). #317's single-copy join took it to 5.0005 MB raw, so
+// the raw gate is 5.2 MB (owner approval, 2026-10-16).
+const RAW_LIMIT = 5.2e6;
 const GZIP_LIMIT = 1.6e6;
 const RAW_FLOOR = 2e6;
 
