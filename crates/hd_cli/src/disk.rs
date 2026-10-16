@@ -170,6 +170,20 @@ pub fn source_dir(root: &Path) -> String {
 }
 
 fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), String> {
+    let real = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    walk_below(root, dir, out, &mut vec![real])
+}
+
+/// Lists the sources below `dir`. `open` holds the real paths of the
+/// directories being walked, outermost first. A linked directory at or
+/// above one of them (`src/loop -> ..`) would be walked again forever, so
+/// it is skipped; any other linked directory is walked like a real one.
+fn walk_below(
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<SourceEntry>,
+    open: &mut Vec<PathBuf>,
+) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut paths: Vec<(PathBuf, Kind)> =
         entries.flatten().map(|e| (e.path(), kind_of(&e))).collect();
@@ -183,7 +197,15 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), Strin
             continue;
         }
         if kind == Kind::Dir {
-            walk(root, &p, out)?;
+            let Ok(real) = std::fs::canonicalize(&p) else {
+                continue;
+            };
+            if open.iter().any(|d| d.starts_with(&real)) {
+                continue;
+            }
+            open.push(real);
+            walk_below(root, &p, out, open)?;
+            open.pop();
         } else if kind == Kind::File && p.extension().is_some_and(|x| x == "hd") {
             let rel = p
                 .strip_prefix(root)

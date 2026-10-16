@@ -930,3 +930,19 @@ fn a_format_flag_before_the_command_selects_json() {
         lines[1]
     );
 }
+
+/// A linked directory that leads back above itself (`src/loop -> ..`) is
+/// skipped, not walked again until the path runs out (#285).
+#[cfg(unix)]
+#[test]
+fn a_symlink_cycle_under_src_is_skipped() {
+    let dir = scratch("hd-check-symlink-cycle");
+    std::fs::create_dir_all(dir.join("src")).expect("src");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(dir.join("src/main.hd"), CLEAN).expect("write");
+    std::os::unix::fs::symlink("..", dir.join("src/loop")).expect("symlink");
+    let r = check(&dir, &[]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert_eq!(r.err, "check result: ok. errors: 0; warnings: 0\n");
+    assert_eq!(r.out, "");
+}
