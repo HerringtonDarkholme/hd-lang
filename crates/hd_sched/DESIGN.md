@@ -126,7 +126,9 @@ became ready; the driver reports a nonzero count as an internal error.
   else the number of cores, at most 8.
 - **Granularity: items are the logical unit, not the scheduling unit.**
   The task graph is per module, never one node per item: a module's
-  bodies are one `Body` task and run in order inside it. One task per
+  bodies are one `Body` task. Inside it, a large module's bodies run as
+  one batched parallel iterator on the task's pool (`par_map`), and a
+  small module's run in order. One task per
   body would pay about 1 µs of spawn and completion work on bodies that
   check in a few to tens of µs (half of `lib/std`'s bodies have 20 tokens
   or fewer), and would scatter a module's bodies away from its shared

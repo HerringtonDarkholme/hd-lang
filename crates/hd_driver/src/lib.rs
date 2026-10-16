@@ -240,6 +240,18 @@ pub enum Executor {
     Pool(usize),
 }
 
+/// A function body of `Body(m)`: its item and declaration, and the body
+/// M1 checked for it with that body's diagnostics.
+type BodySlot<'a> = (
+    DefId,
+    hd_syntax::NodeRef<'a>,
+    Option<(StageResult<Body>, DiagBuf)>,
+);
+
+/// A function body checked in a forked context: the body, its own
+/// diagnostics, and what it added to the module's state.
+type ForkedBody = (StageResult<Body>, DiagBuf, hd_check::fork::BodyLeft);
+
 /// What the caller supplies.
 pub struct Host<'a> {
     /// Item paths whose checked bodies the output renders (golden tests).
@@ -4640,6 +4652,9 @@ impl Run<'_> {
                 }
             }
         }
+        // The bodies to check, in source order, each with what M1 checked
+        // of it.
+        let mut slots: Vec<BodySlot<'_>> = Vec::new();
         for (def, node) in methods {
             // A body-less method of a built-in family (`impl[N < Num] Add
             // for N`) is the compiler's: there is no source to check.
@@ -4652,12 +4667,27 @@ impl Run<'_> {
             if lookup.item(def).is_none() && self.file_has_errors(m) {
                 continue;
             }
-            let checked = match hd_check::results::take(&cx, def) {
-                Some((checked, own)) => {
-                    diags.append(&own);
-                    checked
-                }
-                None => hd_check::check_fn(&cx, def, node, &mut diags),
+            slots.push((def, node, hd_check::results::take(&cx, def)));
+        }
+        #[cfg(feature = "threads")]
+        let mut early = self.bodies_in_parallel(&cx, &slots, diags.has_errors());
+        for (k, (def, node, taken)) in slots.into_iter().enumerate() {
+            #[cfg(feature = "threads")]
+            let forked = early.get_mut(k).and_then(Option::take);
+            #[cfg(not(feature = "threads"))]
+            let forked: Option<ForkedBody> = {
+                let _ = k;
+                None
+            };
+            let checked = if let Some((checked, own)) = taken {
+                diags.append(&own);
+                checked
+            } else if let Some((checked, own, left)) = forked {
+                diags.append(&own);
+                cx.join(left);
+                checked
+            } else {
+                hd_check::check_fn(&cx, def, node, &mut diags)
             };
             match checked {
                 Ok(b) => {
@@ -4982,6 +5012,78 @@ impl Run<'_> {
             dbg,
             bindings,
         )));
+    }
+
+    /// The function bodies of `Body(m)` that can be checked on the pool,
+    /// by slot (`crates/hd_tir/DESIGN.md` §4.13.1): each batch checks its
+    /// bodies in order in a context forked from `cx`.
+    ///
+    /// A body sees whether the module already holds an error, which
+    /// changes some of its reports (an error-recovery `never`,
+    /// `cannot-infer-type`). So only the bodies before the module's first
+    /// error are checked here, with the answer "no": the first body that
+    /// reports an error, or fails in a build, ends the run, and the slots
+    /// after it are `None`, for `Body(m)` to check in order as before.
+    #[cfg(feature = "threads")]
+    fn bodies_in_parallel(
+        &self,
+        cx: &BodyCx<'_>,
+        slots: &[BodySlot<'_>],
+        errors: bool,
+    ) -> Vec<Option<ForkedBody>> {
+        /// Below this many bodies, a module is checked on its own thread.
+        const MIN_BODIES: usize = 32;
+        /// The fewest bodies of a batch, which pays for one fork.
+        const MIN_BATCH: usize = 8;
+        let threads = hd_sched::task_threads();
+        if threads < 2 || errors {
+            return Vec::new();
+        }
+        let analyze = self.analyze();
+        // The bodies before the first that M1 checked with an error.
+        let mut todo = Vec::new();
+        for (k, (def, node, taken)) in slots.iter().enumerate() {
+            match taken {
+                None => todo.push((k, *def, *node)),
+                Some((checked, own)) if own.has_errors() || (checked.is_err() && !analyze) => {
+                    break;
+                }
+                Some(_) => {}
+            }
+        }
+        if todo.len() < MIN_BODIES {
+            return Vec::new();
+        }
+        let fork = cx.fork();
+        // The first slot known to end the run.
+        let stop = std::sync::atomic::AtomicUsize::new(usize::MAX);
+        let size = todo.len().div_ceil(threads * 4).max(MIN_BATCH);
+        let batches: Vec<&[(usize, DefId, hd_syntax::NodeRef<'_>)]> = todo.chunks(size).collect();
+        let done = hd_sched::par_map(&batches, |batch| {
+            let bcx = fork.cx();
+            let mut out = Vec::new();
+            for &(k, def, node) in *batch {
+                if k > stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                let mut own = DiagBuf::default();
+                let checked = hd_check::check_fn(&bcx, def, node, &mut own);
+                if own.has_errors() || (checked.is_err() && !analyze) {
+                    stop.fetch_min(k, std::sync::atomic::Ordering::Relaxed);
+                }
+                out.push((k, (checked, own, bcx.left())));
+            }
+            out
+        });
+        let mut early: Vec<Option<ForkedBody>> = (0..slots.len()).map(|_| None).collect();
+        for (k, body) in done.into_iter().flatten() {
+            let ends = body.1.has_errors() || (body.0.is_err() && !analyze);
+            early[k] = Some(body);
+            if ends {
+                break;
+            }
+        }
+        early
     }
 
     /// What declared each name REPL input `m` sees: `src/lib.hd`, or the
@@ -6425,7 +6527,7 @@ impl Run<'_> {
         &'a self,
         p: &'a ProgramTables,
         folders: &'a [Option<&'a FolderImpls>],
-        arity: &'a dyn Fn(DefId) -> usize,
+        arity: &'a (dyn Fn(DefId) -> usize + Sync),
     ) -> ImplView<'a> {
         ImplView {
             paths: &self.paths,

@@ -241,6 +241,18 @@ pub struct ModuleInit {
 }
 
 impl ModuleInit {
+    /// A copy for a forked context ([`crate::fork`]): everything but the
+    /// facts, which each body adds on its own.
+    pub(crate) fn fork(&self) -> ModuleInit {
+        ModuleInit {
+            globals: self.globals.clone(),
+            earlier: self.earlier.clone(),
+            declared_by: self.declared_by.clone(),
+            facts: HashMap::default(),
+            impl_methods: self.impl_methods.clone(),
+        }
+    }
+
     /// The state of a REPL input before its check: the earlier inputs'
     /// bindings and nothing of its own.
     #[must_use]

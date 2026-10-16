@@ -271,7 +271,7 @@ pub struct ImplView<'a> {
     pub extra: &'a UniverseImpls,
     /// A trait's number of arguments: a projection that leaves them
     /// implicit (`Self::Out`) has open arguments.
-    pub arity: &'a dyn Fn(DefId) -> usize,
+    pub arity: &'a (dyn Fn(DefId) -> usize + Sync),
     /// Block-local impls this context does not see: those whose suite does
     /// not hold it, or that are declared after it
     /// (`trait.impl.local.lookup`, `crates/hd_tir/DESIGN.md` "Local items lift

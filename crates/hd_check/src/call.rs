@@ -290,7 +290,7 @@ impl Ck<'_, '_> {
     fn method_index(&self) -> &crate::MethodIndex {
         self.cx
             .methods
-            .get_or_init(|| crate::MethodIndex::build(self.cx.lookup))
+            .get_or_init(|| std::sync::Arc::new(crate::MethodIndex::build(self.cx.lookup)))
     }
 
     /// The traits declaring a method `sym`, with their method, in the

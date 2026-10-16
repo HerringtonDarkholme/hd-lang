@@ -20,6 +20,7 @@ mod dupfacts;
 pub mod error;
 mod expr;
 mod facts;
+pub mod fork;
 pub mod newtype;
 pub use dupfacts::{SlotTypes, check_duplicate_facts, declaration_types, layer_types};
 pub use facts::{FactSource, FactTarget, check_decl_facts, check_fact_list, check_facts};

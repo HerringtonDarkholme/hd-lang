@@ -13,6 +13,29 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "threads")]
 pub mod pool;
 
+/// The threads a batched parallel iterator inside a task may use (§6.2):
+/// the pool's when this thread is one of its workers, else 1.
+#[must_use]
+pub fn task_threads() -> usize {
+    #[cfg(feature = "threads")]
+    if rayon::current_thread_index().is_some() {
+        return rayon::current_num_threads();
+    }
+    1
+}
+
+/// Maps `items` inside one task (§6.2 granularity rule): on the task's
+/// pool when [`task_threads`] is above 1, else in order on this thread.
+/// Either way the output is in item order.
+pub fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send) -> Vec<R> {
+    #[cfg(feature = "threads")]
+    if task_threads() > 1 {
+        use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+        return items.par_iter().map(f).collect();
+    }
+    items.iter().map(f).collect()
+}
+
 /// Every task of the run (§6.1). Payloads are dense run IDs: a file,
 /// folder or module index, or a program or instance slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

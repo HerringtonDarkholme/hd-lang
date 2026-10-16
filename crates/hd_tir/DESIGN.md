@@ -21,9 +21,17 @@ file keeps the summary of body checking and the TIR definition.
 | M3 | `ModuleFinish(m)` | serial within the module | write the init summary, sort diagnostics, write the `check` entry |
 
 Implementation differs: result and row inference runs at the start of
-`Body(m)`, and `Body(m)` checks the module's bodies serially
-(`crates/hd_driver/src/lib.rs:3800`). This is worse: a large module
-uses one core however many are free.
+`Body(m)`, serially, and it checks every private callable that omits its
+result type or row. On a pool thread, `Body(m)` checks the other function
+bodies in batches (`bodies_in_parallel` in `crates/hd_driver/src/lib.rs`).
+Each batch has a context forked from the module's (`hd_check::fork`),
+and what each body adds folds back in source order.
+
+A body's reports depend on whether the module already holds an error
+(`cannot-infer-type`, an error-recovery `never`). So the batches run only
+up to the module's first error, and the bodies after it are checked in
+order as before. This is worse: most bodies of ordinary code omit their
+row, so M1 checks them on one core.
 
 **Each body is checked exactly once per run** (crates/hd_check/DESIGN.md
 (type checking) rule TC-4). A body checked early for its result type or

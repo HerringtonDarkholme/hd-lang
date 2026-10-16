@@ -77,6 +77,7 @@ pub(crate) struct RowFacts {
 }
 
 /// An omitted row after its body is checked.
+#[derive(Clone)]
 enum RowState {
     /// It still depends on a callable being checked.
     Waiting {
@@ -110,6 +111,12 @@ pub struct Results {
     structure_reads: hd_base::HashSet<DefId>,
     /// Whether a body with an inferred result or a cycle reported an error.
     errors: bool,
+    /// How many rows are `RowState::Waiting`, so a check that leaves none
+    /// waiting solves nothing without a sweep.
+    waiting: usize,
+    /// In a forked context: how many of `template_named` it was forked
+    /// with ([`crate::fork`]).
+    named_base: usize,
 }
 
 /// What a caller sees of a registered callable's omitted parts.
@@ -127,6 +134,61 @@ enum RowSeen {
 }
 
 impl Results {
+    /// A copy for a forked context, taken after M1: every callable is
+    /// done, so no body is copied, and nothing waits.
+    pub(crate) fn fork(&self) -> Results {
+        debug_assert!(self.waits.is_empty() && self.active.is_empty());
+        let state = self
+            .state
+            .iter()
+            .map(|(d, s)| {
+                let s = match s {
+                    State::Pending(n) => State::Pending(*n),
+                    State::Active(n) => State::Active(*n),
+                    State::Done { ret, .. } => State::Done {
+                        ret: *ret,
+                        body: None,
+                    },
+                };
+                (*d, s)
+            })
+            .collect();
+        Results {
+            state,
+            omits: self.omits.clone(),
+            rows: self.rows.clone(),
+            waits: Vec::new(),
+            order: self.order.clone(),
+            active: Vec::new(),
+            module_diags: DiagBuf::default(),
+            reported: self.reported.clone(),
+            template_named: self.template_named.clone(),
+            structure_reads: hd_base::HashSet::default(),
+            errors: self.errors,
+            waiting: self.waiting,
+            named_base: self.template_named.len(),
+        }
+    }
+
+    /// What the bodies checked in a forked context since the last call
+    /// added: the callables a template named, in order, and the
+    /// templates that read `Structure`. Their reports are made again when
+    /// they join ([`Results::join`]), so the forked ones are dropped.
+    pub(crate) fn drain(&mut self) -> (Vec<DefId>, Vec<DefId>) {
+        let named = self.template_named.split_off(self.named_base);
+        self.module_diags = DiagBuf::default();
+        let reads = self.structure_reads.drain().collect();
+        (named, reads)
+    }
+
+    /// Adds what a forked body added, as if it had been checked here.
+    pub(crate) fn join(&mut self, cx: &BodyCx<'_>, named: Vec<DefId>, reads: Vec<DefId>) {
+        for def in named {
+            self.template_names(cx, def);
+        }
+        self.structure_reads.extend(reads);
+    }
+
     /// Whether an inferred result's body or a cycle reported an error, so
     /// a body whose types hold poison from it adds no `cannot-infer-type`.
     #[must_use]
@@ -247,6 +309,9 @@ impl Results {
     /// (`req.row.omitted.cycle`), by a monotone pass over the edges in
     /// source order until nothing grows.
     fn solve_ready(&mut self, cx: &BodyCx<'_>) {
+        if self.waiting == 0 {
+            return;
+        }
         let waiting: Vec<DefId> = self
             .order
             .iter()
@@ -335,6 +400,7 @@ impl Results {
         for d in group {
             let row = cx.names.pool.row(&cur.remove(&d).unwrap_or_default());
             self.rows.insert(d, RowState::Solved(row));
+            self.waiting -= 1;
         }
         for (f, at, k) in deep {
             let node = cx.src.parse.tree.node(at);
@@ -759,6 +825,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 edges: facts.edges,
             }
         };
+        r.waiting += usize::from(matches!(state, RowState::Waiting { .. }));
         r.rows.insert(def, state);
     }
     r.settle(cx);

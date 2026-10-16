@@ -300,7 +300,7 @@ pub struct MemberStep {
 /// its body and the walker bounds it names (`annot.limit.interfaces`).
 /// `None` when a context has no plan for the template: its member steps
 /// are then not asked.
-pub trait TuplePlans {
+pub trait TuplePlans: Sync {
     fn tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>>;
 }
 
