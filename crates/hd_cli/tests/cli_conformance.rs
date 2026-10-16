@@ -1154,6 +1154,7 @@ fn cli_conformance_passes_except_known_failures() {
     let (summary, errors) = known_failures::judge(
         "CLI",
         &engine,
+        None,
         &known,
         |path| path.starts_with("cli/"),
         &outcomes,

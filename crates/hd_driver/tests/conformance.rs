@@ -720,6 +720,15 @@ fn optimized_pipeline() -> bool {
     }
 }
 
+/// The selected pipeline's name, for the summary lines.
+fn pipeline_name() -> &'static str {
+    if optimized_pipeline() {
+        "optimized"
+    } else {
+        "dev"
+    }
+}
+
 /// The optimization level of every build, and of wasmtime's engine.
 fn level() -> OptLevel {
     if optimized_pipeline() {
@@ -867,11 +876,7 @@ fn finish_wasm_digests() {
     let Some(mode) = selection_env("HD_CONFORMANCE_WASM_DIGEST") else {
         return;
     };
-    let pipeline = if optimized_pipeline() {
-        "optimized"
-    } else {
-        "dev"
-    };
+    let pipeline = pipeline_name();
     for (target, digests) in WASM_DIGESTS.lock().expect("digest lock").iter() {
         let file = root().join(format!(
             "target/conformance-wasm-digests-{target}-{pipeline}.tsv"
@@ -939,8 +944,9 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
         println!("wasmtime differs: {d}");
     }
     println!(
-        "conformance {:?}: selected suite wall {:.3}s (including compilation; {} workers), {} output/status differences",
+        "conformance {:?}, {} pipeline: selected suite wall {:.3}s (including compilation; {} workers), {} output/status differences",
         engine_mode(),
+        pipeline_name(),
         elapsed.as_secs_f64(),
         workers(),
         diffs.len()
@@ -2102,6 +2108,7 @@ fn specification_conformance_passes_except_known_failures() {
     let (summary, errors) = known_failures::judge(
         "driver",
         engine,
+        Some(pipeline_name()),
         &known,
         |path| !path.starts_with("cli/"),
         &outcomes,

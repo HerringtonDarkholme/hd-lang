@@ -104,14 +104,16 @@ pub struct Outcome<'a> {
     pub bucket: Option<String>,
 }
 
-/// Applies the rule to one tier's full run on `engine`. `in_tier` picks
-/// the rows that belong to the tier. Returns the summary to print and the
+/// Applies the rule to one tier's full run on `engine`. `pipeline` names
+/// the optimization pipeline of every build when the tier fixes one, for
+/// the summary line. `in_tier` picks the rows that belong to the tier. Returns the summary to print and the
 /// errors: a case that does not pass and has no row, a listed case that
 /// passes, and a row that names no case of the tier.
 #[must_use]
 pub fn judge(
     tier: &str,
     engine: &str,
+    pipeline: Option<&str>,
     known: &[KnownFailure],
     in_tier: impl Fn(&str) -> bool,
     outcomes: &[Outcome<'_>],
@@ -166,8 +168,12 @@ pub fn judge(
             ));
         }
     }
+    let on = pipeline.map_or_else(
+        || engine.to_owned(),
+        |pipeline| format!("{engine}, {pipeline} pipeline"),
+    );
     let mut summary = format!(
-        "\n{tier} conformance on {engine}: pass {pass}, known {known_count}, fail {fail}, unsupported {unsupported}, total {}\n",
+        "\n{tier} conformance on {on}: pass {pass}, known {known_count}, fail {fail}, unsupported {unsupported}, total {}\n",
         outcomes.len()
     );
     for (bucket, paths) in buckets {
@@ -214,20 +220,31 @@ mod tests {
                 bucket: None,
             },
         ];
-        let (summary, errors) = judge("driver", "node", &rows, |_| true, &outcomes);
+        let (summary, errors) = judge("driver", "node", None, &rows, |_| true, &outcomes);
         assert!(errors.is_empty(), "{errors:?}");
-        assert!(summary.contains("pass 1, known 1, fail 0, unsupported 0, total 2"));
-        let (_, errors) = judge("driver", "wasmtime", &rows, |_| true, &outcomes);
+        assert!(summary.contains(
+            "driver conformance on node: pass 1, known 1, fail 0, unsupported 0, total 2"
+        ));
+        let (summary, _) = judge(
+            "driver",
+            "node",
+            Some("optimized"),
+            &rows,
+            |_| true,
+            &outcomes,
+        );
+        assert!(summary.contains("driver conformance on node, optimized pipeline: pass 1"));
+        let (_, errors) = judge("driver", "wasmtime", None, &rows, |_| true, &outcomes);
         assert_eq!(
             errors,
             ["b.hd passes now: remove its row from KNOWN_FAILURES.tsv"]
         );
-        let (_, errors) = judge("driver", "node", &rows, |_| true, &outcomes[1..]);
+        let (_, errors) = judge("driver", "node", None, &rows, |_| true, &outcomes[1..]);
         assert_eq!(
             errors,
             ["a.hd: no such driver case: remove its row from KNOWN_FAILURES.tsv"]
         );
-        let (_, errors) = judge("driver", "node", &[], |_| true, &outcomes);
+        let (_, errors) = judge("driver", "node", None, &[], |_| true, &outcomes);
         assert_eq!(
             errors,
             ["a.hd: unsupported:Link: fix it or list it in KNOWN_FAILURES.tsv with its issue"]

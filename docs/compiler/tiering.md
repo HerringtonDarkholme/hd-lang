@@ -205,10 +205,9 @@ with hd types in view.
 - **Conformance.** Check-phase fixtures do not depend on the tier. Every
   runtime fixture runs on both pipelines, and outputs must match, except
   fixtures whose expectation names an overflow or shift panic, which run
-  in their profile. Implementation differs: `HD_CONFORMANCE_PIPELINE=optimized`
-  builds the suite through the optimized pipeline, but only on request;
-  CI runs the dev pipeline alone, so a miscompile in a release pass
-  reaches main unseen.
+  in their profile. `HD_CONFORMANCE_PIPELINE=optimized` builds the suite
+  through the optimized pipeline; CI runs the driver tier once per
+  pipeline, the optimized run on both Node and wasmtime.
 - **Differential testing.** The spec's fuzzer generates programs without
   overflow, and the harness compares dev and release output byte for
   byte. Planned, not built.
