@@ -32,7 +32,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 
 | Command | Does |
 | --- | --- |
-| `hd FILE [-- ARGS]` | run a single file; outside a package it may use only std |
+| `hd FILE [-- ARGS]` | run one file as a single-file program: it may use only std, even inside a package (use `hd run` for the package) |
 | `hd check [FILE]` | type-check the package, or FILE and the modules it uses; runs nothing |
 | `hd check --tests` / `--all` | also the test code / also the tests and tasks |
 | `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
