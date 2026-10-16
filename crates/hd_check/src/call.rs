@@ -2079,6 +2079,12 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
         let pool = self.pool();
+        // A call of a known item reaches its body: a method call, inherent
+        // or associated, reads what that body reads
+        // (`names.init.transitive`, `names.exec.methods`).
+        if let Callee::Item { def, .. } = c {
+            self.note_call(*def);
+        }
         let ret = self.open_projections(ret, n);
         if bang {
             self.check_bang(suspends, n);

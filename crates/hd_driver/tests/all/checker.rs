@@ -1063,6 +1063,45 @@ fn top_level_bindings_are_read_in_order() {
     }
 }
 
+/// A top-level method call reaches the method's body, as a function call
+/// does: an inherent method, a method of a generic type, an associated
+/// function, an operator's impl and a trait's default body each read
+/// `offset` before its statement runs (`names.init.no-bypass`,
+/// `names.init.transitive`, `names.init.references`, `names.exec.methods`).
+#[test]
+fn method_calls_do_not_bypass_initialization_order() {
+    const METER: &str = "use std.ops.{Add}\ndata Meter:\n    scale: i32\n\
+        data Holder[T]:\n    value: T\n";
+    const LATE: &str = "offset := +1\n";
+    // A body sees only the bindings above it (`names.exec.not-before`).
+    const IMPLS: &str = "trait Reads:\n    fn reads(self) -> i32:\n        offset\n\
+        impl Meter:\n    fn read(self) -> i32:\n        self.scale + offset\n    \
+        fn zero() -> Meter:\n        Meter { scale: offset }\n\
+        impl[T] Holder[T]:\n    fn get(self) -> i32:\n        offset\n\
+        impl Add for Meter:\n    type Out = Meter\n    fn add(self, other: Meter) -> Meter:\n        \
+        Meter { scale: self.scale + other.scale + offset }\n\
+        impl Reads for Meter\n";
+    let uses = [
+        "made := Meter { scale: +2 }\nreading := made.read()\n",
+        "held := Holder { value: \"x\" }\ngot := held.get()\n",
+        "made := Meter.zero()\n",
+        "made := Meter { scale: +2 }\ntotal := made + made\n",
+        "made := Meter { scale: +2 }\nreading := made.reads()\n",
+    ];
+    for u in uses {
+        // `offset` and the impls come first: every read is after its
+        // initialization.
+        let ok = format!("{LATE}{METER}{IMPLS}{u}");
+        assert_eq!(item_codes(&ok), [], "{ok}");
+        let bad = format!("{METER}{u}{LATE}{IMPLS}");
+        assert_eq!(
+            item_codes(&bad),
+            [Code::TopLevelReadBeforeInitialization],
+            "{bad}"
+        );
+    }
+}
+
 /// A `:=` name bound in the operand of `&&` or `||` that may be skipped is
 /// usable only on the paths that ran it (`names.definite.path`,
 /// `names.definite.merge`, `names.definite.skipped`,

@@ -2,7 +2,6 @@ path	issue	engine	reason
 typing/valid/index-trait-literal-key-default.hd	#330		with Index[usize] and Index[string], table[0] leaves Table::Out unresolved instead of selecting Index[usize] for the usize literal
 cli/check-numeric-widen-fix	#331		the type-mismatch for an i16 where an i64 is expected has no fix-it writing i64(small)
 typing/invalid/init-read-through-function-value.hd	#332		a top-level statement that passes a function as a value before a binding it reads is initialized reports unknown-name in the function instead of top-level-read-before-initialization
-typing/invalid/method-call-no-init-bypass.hd	#333		a top-level method call that reads a binding before its initialization is accepted; it should report top-level-read-before-initialization
 typing/invalid/type-parameter-reused-by-value-parameter.hd	#334		a value parameter that reuses a type parameter's name is accepted; it should report duplicate-binding
 typing/invalid/doc-test-self-use.hd	#335		the driver conformance check of a package-tree file does not compile its doc tests, so a doc test with use self.{bump} reports no unknown-module; hd check --tests reports it
 cli/toolchain-dependency-too-old	#336		a path dependency whose manifest states hd = "999.0.0" builds with no toolchain-too-old; only the root manifest's minimum is checked
