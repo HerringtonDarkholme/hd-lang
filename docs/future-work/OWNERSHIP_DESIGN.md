@@ -21,8 +21,7 @@ The owner chose Rust's model: ownership, moves, borrows with lifetimes,
 including borrows inside types, and destructors. An owned value runs
 its type's `drop` when its owner's scope ends without moving it; the
 compiler knows that point exactly. The trait is `DropOwn`, since only
-owned values run it, and a type that implements it is held only owned
-or borrowed. `defer` stays as sugar for a std guard whose `drop` runs a
+owned values run it, and only a `OwnOnly` type may implement it. `defer` stays as sugar for a std guard whose `drop` runs a
 closure. NonEscapable is dropped.
 
 Plain `T` and `mut T` keep today's garbage-collected object semantics,
@@ -32,8 +31,11 @@ type error.
 
 `own` is written at the usage site, on the type at each position, as
 `mut` is. `own T` is the only path to its value, and it grants
-mutation; there is no `own mut T`. A borrow is written `^T` or `^mut T`,
-and a lifetime is named by a variable, as `^{x}`. The checker checks
+mutation; there is no `own mut T`. A type whose values are always owned
+implements the std marker trait `OwnOnly`, as
+`impl OwnOnly for File`: every use is then `own File` or `^File`,
+written out at each use. A borrow is written `^T` or `^mut T`, and a
+lifetime is named by a variable, as `^{x}`. The checker checks
 every `^` of a local, whatever its type, and a global may be borrowed
 as if it were owned.
 
@@ -42,18 +44,18 @@ it, and dropping it runs its destructor. No type is marked as a
 resource, and there is no `close` protocol. A fresh value may start
 owned, as `let own user = User {...}`, if its plain fields are fresh
 too; borrowed fields and immutable values such as numbers and strings
-are exempt. No data or enum field is written `own T`, so no object can
-hand out an untracked read of an owned value. A generic holder may
-carry one through a type parameter, as `data Box[T < own Any]: v: T`;
-then `Box[own Conn]` is itself owned, and the ownership shows where the
-type is used. std's containers, as `List[own Conn]`, follow the same
-rule. A plain type parameter never takes an owned type; a generic that
-accepts one says `T < own Any`.
+are exempt. Only a `OwnOnly` type may have a field written `own T`
+or `^mut T`, so no plain object can hand out an untracked read of an
+owned value. A generic data type keeps a plain header, `data Box[T]`;
+a conditional impl, `impl[T < OwnOnly] OwnOnly for Box[T]`,
+lets it hold an owned `T`, and that instance is then `OwnOnly`
+while `Box[i32]` stays plain. std's containers do the same. A generic
+function that accepts owned values says `T < own Any`; a plain type
+parameter never takes one.
 
 A borrow reaches only `^` positions, so std's read-only methods take
 `^self`. A composite part read through a borrow is a borrow; the plain
-contents of a borrowed collection are plain values. A type may hold a
-`^mut` borrow, and every value of such a type is held `own`. A value
+contents of a borrowed collection are plain values. A value
 whose type has a destructor keeps the borrows it holds live until its
 drop. Providers are plain values only; an owned or borrowed service is
 passed as a parameter.
@@ -70,8 +72,8 @@ A closure that captures a value exclusively, an owned value or a `^mut`
 borrow, can be called once. A job that must run repeatedly with
 exclusive access is named data with `^mut self` methods.
 
-No declaration rule makes a handle always owned. Earlier decisions
-hold: anything local shows in source, a store writes its destination on
+A handle type implements `OwnOnly`, so no producer can hand out a
+plain one. Earlier decisions hold: anything local shows in source, a store writes its destination on
 the stored value, and a downcast needs a `static` lifetime.
 
 Agent-written details beyond these, such as rule wording and diagnostic
@@ -138,6 +140,7 @@ plain, so every value of it is dropped exactly once.
 data File:
     fd: i32
 
+impl OwnOnly for File                                        # hypothetical syntax
 impl DropOwn for File:                                              # hypothetical syntax
     fn drop(^mut self) -> void: sys_close(self.fd)               # hypothetical syntax
 
@@ -177,16 +180,17 @@ Here the owner is the only path, and every borrow ends before the
 owner's scope does. So the end of that scope is the last moment
 anything can see the value, and `drop` runs exactly there.
 
-**How a handle stays owned.** Its producers return `own T`, and no
-owned value becomes plain; no rule on the type declaration is needed.
-The ways it can fail are the author's own choices, listed in the
-[appendix](#appendix-limits-and-holes).
+**How a handle stays owned.** It implements `OwnOnly`, so every use
+of it is `own File` or `^File`, and a bare `File` is `own-type-plain`,
+with a fix-it to either. No producer can hand out a plain handle, and
+only a `OwnOnly` type may implement `DropOwn`.
 
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
 passing convention on the parameter. hd puts both on the position, as
-`mut`. The price is the uniqueness rule for fresh values, plus two rules
-that a type-level category would make unnecessary: no field is written
-`own` field, and only `T < own Any` takes an owned type.
+`mut`, and marks a type that is always owned with the `OwnOnly`
+trait, as Rust and Swift mark copyability with `Copy` and `Copyable`. The price is the
+uniqueness rule for fresh values, plus the rule that only
+`T < own Any` takes an owned type.
 
 ## 3. A Guided Tour
 
@@ -371,6 +375,8 @@ data Export[^doc, ^out]:                              # hypothetical syntax
     out: ^{out} mut File                              # hypothetical syntax
     source: ^{doc} Document                           # hypothetical syntax
 
+impl[^doc, ^out] OwnOnly for Export[^{doc}, ^{out}]   # hypothetical syntax: holds a ^mut
+
 fn export(d: ^Document, path: string) -> void:       # hypothetical syntax
     f := open(path)                                   # the owner: closes at the end
     let own job = Export { out: f, source: d }        # holds a ^mut: held own
@@ -382,47 +388,50 @@ borrowed field already states its lifetime and how it may be used.
 
 ### 3.5 A Pool That Owns Connections
 
-No field is written `own`, so a pool of connections is an owned
-list, held by the function that runs the pool and lent to the code that
-uses it:
+A pool owns its connections, so it implements `OwnOnly`, the only
+kind of type that may have an `own` field:
 
 ```text
-fn give(idle: ^mut List[own Conn], c: own Conn) -> void:   # hypothetical syntax
-    idle.push(c)
+data Pool:
+    idle: own List[own Conn]                          # hypothetical syntax
 
-fn peek(idle: ^List[own Conn]) -> Option[^Conn]:          # hypothetical syntax
-    idle.at(0)
+impl OwnOnly for Pool                             # hypothetical syntax
+
+impl Pool:
+    fn give(^mut self, c: own Conn) -> void:          # hypothetical syntax
+        self.idle.push(c)
+    fn peek(^self) -> Option[^Conn]:                  # hypothetical syntax
+        self.idle.at(0)
 
 fn warm!(hosts: List[string]) -> void:
-    let own idle: List[own Conn] = []                     # hypothetical syntax
+    let own pool = Pool { idle: [] }                  # hypothetical syntax
     for h in hosts:
-        give(idle, connect!(h))
-    serve!(idle)                                           # lends the pool
+        pool.give(connect!(h))
+    serve!(pool)                                      # lends the pool
 ```
 
 `List[own Conn]` is the ordinary list with `T = own Conn`; `push` and
-`pop` move through `^mut self`. A data type cannot declare the list as
-an `own` field, because a plain object could then hand out reads of the
-connections that no check follows. A generic holder can carry it, as
-`Box[own List[own Conn]]`, which is then owned. A type that only
-borrows the list, as `data Server[^p]: idle: ^{p} mut List[own Conn]`,
-is fine; since it holds a `^mut`, each `Server` value is held `own`.
+`pop` move through `^mut self`. A plain `data` type cannot declare the
+list as an `own` field, because a plain object could then hand out
+reads of the connections that no check follows. Since `Pool` is
+`OwnOnly`, every use writes `own Pool` or `^Pool`. Leaving out the
+impl is `own-field-plain-type`, with a fix-it that adds it.
 
-When `warm!` returns, `idle` is dropped, then each connection, which
-closes. No shutdown method is needed. `clear`, `truncate`, and an early
-`break` out of `for c in conns.into_iter()` drop the elements they
-discard, so every list method keeps working.
+When `warm!` returns, `pool` is dropped, then its list, then each
+connection, which closes. No shutdown method is needed. `clear`,
+`truncate`, and an early `break` out of `for c in conns.into_iter()`
+drop the elements they discard, so every list method keeps working.
 
 The mistake here is Rust's too:
 
 ```text
-fn reuse!(idle: ^mut List[own Conn]) -> void:             # hypothetical syntax
-    first := peek(idle)
-    give(idle, connect!("backup"))         # error: borrow-conflict
+fn reuse!(pool: ^mut Pool) -> void:                   # hypothetical syntax
+    first := pool.peek()
+    pool.give(connect!("backup"))         # error: borrow-conflict
     _ := first
 ```
 
-`give` borrows the whole list while `first` still borrows it; finishing
+`give` borrows the whole pool while `first` still borrows it; finishing
 with `first` first fixes it.
 
 ### 3.6 Borrowing Plain Values
@@ -506,6 +515,8 @@ data Flusher[^f]:                                # hypothetical syntax
     out: ^{f} mut File                               # hypothetical syntax
     written: usize
 
+impl[^f] OwnOnly for Flusher[^{f}]           # hypothetical syntax
+
 impl Flusher:
     fn flush(^mut self, line: string) -> void:       # hypothetical syntax
         sys_write(self.out.fd, line)
@@ -539,8 +550,10 @@ fn bad[T](v: own T) -> void: pass                    # hypothetical syntax: erro
 A plain type parameter never takes an owned type, since its body may
 copy a `T`. A generic that accepts owned values says so with a bound,
 `T < own Any` or `T < own Trait`, as Swift's `~Copyable`; its body moves
-`T` values and never copies them. `List` declares `[T < own Any]`, so
-`List[own Conn]` works. A generic must not write `own T` itself.
+`T` values and never copies them. A data type such as `List` keeps a
+plain header and gets owned elements from a conditional impl,
+`impl[T < OwnOnly] OwnOnly for List[T]`, so `List[own Conn]`
+works. A generic must not write `own T` itself.
 
 This inverts Rust's default on purpose. In Rust an unbounded `T` is
 move-only, so `fn dup<T>(v: T) -> (T, T) { (v, v) }` is an error unless
@@ -698,18 +711,20 @@ This section states each rule from the tour once, grouped by topic.
    exempt.
 9. A receiver (`own self`, `^self`, `^mut self`, and the plain forms)
    follows the same mode rules as a parameter.
-10. A type may implement the std trait `DropOwn`, whose
-    `drop(^mut self)` runs when an owned value of the type is dropped.
-    Such a type is held only as `own T` or `^T`; a plain position of it
-    is `drop-type-plain`.
-11. A data or enum field is never written `own T`; that is
-    `own-field`. A field may have the type of a parameter bounded
-    `own Any`, and an instance whose argument is owned, as
-    `Box[own Conn]`, is itself owned: it is held `own` or `^`, never
-    plain. std's containers follow the same rule.
-12. Every value of a type with a `^mut` field is held `own`; a plain one
-    is `own-required`. So such a value is never copied or captured as
-    shared storage.
+10. A type implements the std marker trait `OwnOnly` to be always
+    owned. The impl is written in the type's own module. Every use of a
+    `OwnOnly` type is `own T` or `^T`; a plain position of it is
+    `own-type-plain`.
+11. Only a `OwnOnly` type may have a field written `own T` or
+    `^mut T`; otherwise it is `own-field-plain-type`.
+12. A generic data type keeps a plain header, `data Box[T]`. Its argument
+    may be owned only where a conditional impl covers it, as
+    `impl[T < OwnOnly] OwnOnly for Box[T]`; that instance is
+    then `OwnOnly`. An `own U` argument counts as `OwnOnly`.
+    Otherwise `Box[own Conn]` is `own-in-plain-type`.
+13. `DropOwn` extends `OwnOnly`, so only a `OwnOnly` type has a
+    destructor. Its `drop(^mut self)` runs when an owned value of the
+    type is dropped.
 
 ### 4.2 Moves
 
@@ -811,7 +826,9 @@ This section states each rule from the tour once, grouped by topic.
 3. A call infers `T = own U` when the argument is owned and the
    parameter's bound allows it. `^T` with `T = own U` is `^U`.
 4. A generic must not write `own T` itself.
-5. A std container declares `[T < own Any]`. Its methods that copy an
+5. A std container keeps a plain header and has the conditional impl of
+   4.1, so `List[own Conn]` is `OwnOnly`. Its methods that work on
+   owned elements live in an `impl[T < own Any]`; those that copy an
    element live in an `impl` for plain `T` only.
 6. `own U` converts to `own dyn K`. A value holding a borrow converts
    only to `^{a} dyn K`, and a downcast needs `static`.
@@ -898,13 +915,15 @@ more thought on generics and ownership before the design settles:
 
 ## Appendix: Limits And Holes
 
-The holes found so far are closed by the owner's rules: B7 by "no `own`
-fields, and an owned instance of a generic holder is owned", B8 by
-`T < own Any`, and the second review's U4 to U8 by no partial moves, drop counting as a use of held borrows, `own` for
-holders of `^mut`, plain-only providers, and immovable borrowed
-globals. A plain alias or a plain closure capture that changes a
-borrowed variable's object is not a hole: plain values keep
-garbage-collected semantics by design ([3.6](#36-borrowing-plain-values)).
+The holes found so far are closed by the owner's rules: B7 by allowing
+`own` and `^mut` fields only in `OwnOnly` types, with conditional
+impls for generic holders; B8 by `T < own Any`; and the second review's
+U4 to U8 by no partial moves, drop counting as a use of held borrows,
+`OwnOnly` for holders of `^mut`, plain-only providers, and
+immovable borrowed globals. A plain alias or a plain closure capture
+that changes a borrowed variable's object is not a hole: plain values
+keep garbage-collected semantics by design
+([3.6](#36-borrowing-plain-values)).
 No safety argument is complete until the spec is written; the second
 review is in [OWNERSHIP_STRESS_TEST_2.md](OWNERSHIP_STRESS_TEST_2.md).
 
@@ -945,4 +964,4 @@ functions this study does not define.
 | Result | Blocks |
 | --- | --- |
 | Parses as written | 4, among them section 1 and the REPL inputs in 3.11 |
-| Fails only at the new marks; parses with the marks erased | the other 23 |
+| Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 23 |
