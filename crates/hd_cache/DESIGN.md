@@ -237,9 +237,6 @@ obj/
   the same key both compute it.
 - **Write failures** (read-only or full disk) produce one warning and the
   run continues uncached. A cache never makes a check fail.
-  Implementation differs: `DiskStore::put` drops the failure silently,
-  which is worse: a user with an unwritable cache never learns why every
-  run is cold.
 - **Print, then publish.** Diagnostics are printed as soon as the last
   task that can add one finishes. Publishing runs on one I/O thread that
   drains a queue of finished entries, so output never waits for a

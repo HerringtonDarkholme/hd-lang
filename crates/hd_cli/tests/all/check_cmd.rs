@@ -630,6 +630,31 @@ fn a_folder_cycle_is_one_error_and_bodies_still_check() {
     );
 }
 
+/// `crates/hd_cache/DESIGN.md` §5.4: a cache directory that cannot be
+/// written gives one warning, and the check still succeeds uncached.
+#[cfg(unix)]
+#[test]
+fn an_unwritable_cache_warns_once_and_the_check_succeeds() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = package("hd-check-readonly-cache", CLEAN);
+    let cache = dir.cache();
+    std::fs::create_dir_all(&cache).expect("cache");
+    let mode = |m| std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(m));
+    mode(0o555).expect("read-only");
+    let r = check(&dir, &["--tests"]);
+    mode(0o755).expect("writable");
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert_eq!(
+        r.err
+            .matches("warning: cannot write the compiled cache")
+            .count(),
+        1,
+        "{}",
+        r.err
+    );
+    assert!(r.err.contains("check result: ok."), "{}", r.err);
+}
+
 /// `crates/hd_resolve/DESIGN.md` §4.8 rule 4: a tangle of three folders
 /// with two loops through it is one strongly connected component, so one
 /// `folder-cycle` error.

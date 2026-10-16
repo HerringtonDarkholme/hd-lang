@@ -331,7 +331,21 @@ pub(crate) fn cache_cap() -> Result<u64, String> {
 /// what it wrote and runs the bounded eviction (`cli.cache.obj.evict`).
 /// A command that compiles rejects an invalid cap before it gets here.
 pub(crate) fn disk_store() -> DiskStore {
-    DiskStore::new(cache_dir()).with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
+    DiskStore::new(cache_dir())
+        .with_cap(cache_cap().unwrap_or(hd_cache::disk::DEFAULT_CAP))
+        .on_write_failure(warn_cache_write)
+}
+
+/// Warns once per command that the compiled cache cannot be written; the
+/// command continues uncached (`crates/hd_cache/DESIGN.md` §5.4).
+fn warn_cache_write(root: &Path, error: &std::io::Error) {
+    static WARNED: std::sync::Once = std::sync::Once::new();
+    WARNED.call_once(|| {
+        eprintln!(
+            "warning: cannot write the compiled cache in {}: {error}; continuing without it",
+            root.display()
+        );
+    });
 }
 
 /// The thread count (`cli.jobs.env`, `cli.jobs.default`): `HD_JOBS`, else

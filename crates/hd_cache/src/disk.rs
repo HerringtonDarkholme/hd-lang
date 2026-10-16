@@ -59,6 +59,10 @@ pub struct DiskStore {
     /// The bytes this store published, per shard, not yet in the ledger.
     written: [AtomicU64; SHARDS],
     used: AtomicBool,
+    /// Set by the first failed publish; the store writes nothing after it.
+    write_failed: AtomicBool,
+    /// Told of the first failed publish, with the store's root (§5.4).
+    on_write_failure: Option<fn(&Path, &std::io::Error)>,
 }
 
 /// What [`DiskStore::collect`] found and left, in bytes.
@@ -78,7 +82,18 @@ impl DiskStore {
             evict_bound: EVICT_BOUND,
             written: std::array::from_fn(|_| AtomicU64::new(0)),
             used: AtomicBool::new(false),
+            write_failed: AtomicBool::new(false),
+            on_write_failure: None,
         }
+    }
+
+    /// The same store, calling `warn` on its first failed publish, such as
+    /// one to a read-only or full disk. The run continues uncached
+    /// (`crates/hd_cache/DESIGN.md` §5.4).
+    #[must_use]
+    pub fn on_write_failure(mut self, warn: fn(&Path, &std::io::Error)) -> Self {
+        self.on_write_failure = Some(warn);
+        self
     }
 
     /// The same store with the size cap `cap` in bytes.
@@ -283,19 +298,38 @@ impl CacheStore for DiskStore {
         Some(Arc::from(bytes))
     }
 
+    /// A failed publish is reported once and turns later puts off, so the
+    /// run continues uncached (§5.4).
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
         self.used.store(true, Ordering::Relaxed);
-        let path = self.path(kind, key);
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
+        if self.write_failed.load(Ordering::Relaxed) {
+            return;
         }
+        let path = self.path(kind, key);
         let tmp = path.with_extension(format!("tmp{}", std::process::id()));
-        if std::fs::write(&tmp, bytes).is_ok() {
-            if std::fs::rename(&tmp, &path).is_ok() {
+        let publish = || {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            std::fs::write(&tmp, bytes)?;
+            std::fs::rename(&tmp, &path).or_else(|e| {
+                let _ = std::fs::remove_file(&tmp);
+                // Another writer of the same key published first: a lost
+                // race, not a failure.
+                if path.is_file() { Ok(()) } else { Err(e) }
+            })
+        };
+        match publish() {
+            Ok(()) => {
                 self.written[shard_of(*key) as usize]
                     .fetch_add(bytes.len() as u64, Ordering::Relaxed);
-            } else {
-                let _ = std::fs::remove_file(&tmp);
+            }
+            Err(e) => {
+                if !self.write_failed.swap(true, Ordering::Relaxed)
+                    && let Some(warn) = self.on_write_failure
+                {
+                    warn(&self.root, &e);
+                }
             }
         }
     }
