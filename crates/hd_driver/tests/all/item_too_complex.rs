@@ -3,7 +3,9 @@
 //! implemented". The limit is implementation-defined, so no conformance
 //! fixture pins it: these tests set a small budget through the test-only
 //! `Packages::body_fuel` hook. The diagnostics reported before stay, and
-//! an omitted result type becomes poison, so callers see no cascade.
+//! an omitted result type becomes poison, so callers see no cascade. A
+//! module's top level reports it on the module, a test case on its
+//! registration, and a fact list on the decorated item.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
@@ -13,8 +15,17 @@ use hd_sched::SerialOrder;
 /// A budget that a few dozen expressions exhaust, and `main` never does.
 const FUEL: u64 = 64;
 
-/// Each diagnostic's code and 1-based line in `main.hd`.
+/// Each diagnostic's code and 1-based line in `main.hd`, built as a
+/// program.
 fn diags(main: &str, fuel: Option<u64>) -> Vec<(Code, usize)> {
+    let goal = Goal::Program {
+        entry: "main".into(),
+    };
+    diags_for(main, fuel, &goal)
+}
+
+/// Each diagnostic's code and 1-based line in `main.hd`, built for `goal`.
+fn diags_for(main: &str, fuel: Option<u64>, goal: &Goal) -> Vec<(Code, usize)> {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
     let store = crate::warm_store();
@@ -29,10 +40,7 @@ fn diags(main: &str, fuel: Option<u64>) -> Vec<(Code, usize)> {
         body_fuel: fuel,
         ..Packages::default()
     };
-    let goal = Goal::Program {
-        entry: "main".into(),
-    };
-    let out = build_packages(&host, "app", &packages, &goal);
+    let out = build_packages(&host, "app", &packages, goal);
     (0..out.diags.code.len())
         .map(|i| {
             let lo = out.diags.primary[i].lo as usize;
@@ -85,4 +93,65 @@ fn a_long_default_is_too_complex() {
         long_sum(100)
     );
     assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 1)]);
+}
+
+#[test]
+fn a_long_top_level_is_too_complex_on_the_module() {
+    let main = format!(
+        "fn small() -> i32:\n    1\n\nx := {}\n\npub fn main() -> void:\n    _ := x\n    _ := small()\n",
+        long_sum(100)
+    );
+    assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 1)]);
+    assert_eq!(diags(&main, None), vec![]);
+}
+
+const TESTS: Goal = Goal::Tests {
+    module: None,
+    filter: None,
+};
+
+#[test]
+fn a_long_test_case_is_too_complex_on_that_test() {
+    let main = format!(
+        "use std.testing.assert\n\ntests:\n    it(\"small\"):\n        assert(true, reason=\"holds\")\n\n    it(\"big\"):\n        _ := {}\n",
+        long_sum(100)
+    );
+    assert_eq!(
+        diags_for(&main, Some(FUEL), &TESTS),
+        vec![(Code::ItemTooComplex, 7)]
+    );
+    assert_eq!(diags_for(&main, None, &TESTS), vec![]);
+}
+
+#[test]
+fn a_long_registration_is_too_complex_on_that_test() {
+    let main = format!(
+        "tests:\n    use std.testing.it_each\n\n    it_each(\"rows\", [1, 2], body=fn!(n: i32):\n        _ := n + {}\n    )\n",
+        long_sum(100)
+    );
+    assert_eq!(
+        diags_for(&main, Some(FUEL), &TESTS),
+        vec![(Code::ItemTooComplex, 4)]
+    );
+    assert_eq!(diags_for(&main, None, &TESTS), vec![]);
+}
+
+#[test]
+fn a_long_function_fact_is_too_complex_on_the_function() {
+    let main = format!(
+        "fn tag(n: i32) -> i32:\n    n\n\n@tag({})\nfn tagged() -> void:\n    pass\n\npub fn main() -> void:\n    tagged()\n",
+        long_sum(100)
+    );
+    assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 4)]);
+    assert_eq!(diags(&main, None), vec![]);
+}
+
+#[test]
+fn a_long_declaration_fact_is_too_complex_on_the_declaration() {
+    let main = format!(
+        "fn tag(n: i32) -> i32:\n    n\n\n@tag({})\ndata Tagged:\n    n: i32\n\npub fn main() -> void:\n    _ := Tagged {{ n: 1 }}\n",
+        long_sum(100)
+    );
+    assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 4)]);
+    assert_eq!(diags(&main, None), vec![]);
 }

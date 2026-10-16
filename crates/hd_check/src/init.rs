@@ -17,7 +17,9 @@ use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, new_ck, unsupported};
+use crate::body::{
+    BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, too_complex, unsupported,
+};
 
 type Set = hd_base::HashSet<hd_base::LocalId>;
 
@@ -316,8 +318,80 @@ pub enum TopLevel {
 
 /// Checks a module's top-level statements as its `Init` body. Returns
 /// the body and each statement's summary: its facts and its first
-/// instruction.
+/// instruction. An init that runs out of fuel is one `item-too-complex`
+/// on the module, the item it initializes (`too_complex`): its body is
+/// poison, with no statement summaries, and every binding whose type is
+/// not known yet is poison too, so the module's bodies that read it see
+/// no cascade.
 pub fn check_init(
+    cx: &BodyCx<'_>,
+    item: DefId,
+    module: &str,
+    stmts: &[NodeRef<'_>],
+    top: TopLevel,
+    diags: &mut DiagBuf,
+) -> StageResult<(Body, Vec<StmtSummary>)> {
+    match init_steps(cx, item, module, stmts, top, diags) {
+        Err(e) if is_out_of_fuel(&e) => {
+            poison_bindings(cx, module, stmts);
+            let body = too_complex(cx, (item, BodyKind::Init), cx.src.root(), diags)?;
+            Ok((body, Vec::new()))
+        }
+        r => r,
+    }
+}
+
+/// The top-level bindings of an init that ran out of fuel: a binding
+/// with a type the check had not settled, or whose statement it had not
+/// reached, is poison.
+fn poison_bindings(cx: &BodyCx<'_>, module: &str, stmts: &[NodeRef<'_>]) {
+    let mut init = cx.init.borrow_mut();
+    for g in init.globals.values_mut() {
+        if g.ty.is_local() {
+            g.ty = Ty::POISON;
+        }
+    }
+    for (i, s) in stmts.iter().enumerate() {
+        let mut node = match s.kind() {
+            SyntaxKind::LetStmt => Some(*s),
+            SyntaxKind::ExprStmt => s
+                .children()
+                .next()
+                .filter(|b| b.kind() == SyntaxKind::BindingExpr),
+            _ => None,
+        };
+        // A chain `a := b := e` binds each name.
+        while let Some(n) = node {
+            let mut kids = n.children();
+            let (pat, rhs) = (kids.next(), kids.last());
+            node = rhs.filter(|r| r.kind() == SyntaxKind::BindingExpr);
+            let Some(pat) = pat.filter(|p| {
+                p.kind() == SyntaxKind::BindingPattern && p.children().next().is_none()
+            }) else {
+                continue;
+            };
+            let Some(t) = pat.direct_tokens().find(|t| {
+                matches!(
+                    cx.src.tkind(*t),
+                    Some(TokenKind::Ident | TokenKind::RawIdent)
+                )
+            }) else {
+                continue;
+            };
+            let text = cx.src.text(t);
+            let name = cx.names.syms.intern(text);
+            init.globals.entry(name).or_insert_with(|| Global {
+                def: cx.names.item(module, text),
+                ty: Ty::POISON,
+                stmt: i,
+                at: cx.src.span(*s).lo,
+                short: s.kind() == SyntaxKind::ExprStmt,
+            });
+        }
+    }
+}
+
+fn init_steps(
     cx: &BodyCx<'_>,
     item: DefId,
     module: &str,

@@ -1411,14 +1411,21 @@ on the item, once, keeps the diagnostics reported before, poisons the
 body and its M1 result, and replaces its TIR with a single poison value.
 
 Implementation: running out, in `Ck::charge` or as the solver's
-`OutOfFuel`, stops the check with `out_of_fuel`, and the entries of a
-function body (`check_fn_body`, which M1 uses too) and of a default
-(`check_default`) turn it into `item-too-complex` (`too_complex`).
+`OutOfFuel`, stops the check with `out_of_fuel`, and each body's entry
+turns it into `item-too-complex` (`too_complex`) on its item:
+
+| Body | Entry | Reported on |
+| --- | --- | --- |
+| a function body, M1 included | `check_fn_body` | the function |
+| a default | `check_default` | the default expression |
+| a module's `Init` | `check_init` | the module; an unsettled or unreached top-level binding is poison |
+| a test case or registration | `check_tests` | its registration call; the error fails the test run |
+| a fact list | `check_fact_list`, `check_decl_facts` | the decorated item, once |
+
 `BodyCx::fuel` is the budget; a driver test sets a small one through
 `Packages::body_fuel`, which is part of the check key.
-Implementation differs: a module's init body, a test case or
-registration, and a fact list still stop with a structured
-"not implemented".
+Implementation differs: the generated bodies (`@error`, delegation
+forwarders) still stop with a structured "not implemented".
 
 Other limits:
 

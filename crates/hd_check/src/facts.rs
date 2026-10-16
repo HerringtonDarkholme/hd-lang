@@ -27,7 +27,7 @@ use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex, unsupported};
 use crate::call::{Args, subst_owner};
 use crate::structure::FactLines;
 use crate::ty::Named;
@@ -146,7 +146,27 @@ pub enum FactTarget {
 /// reported at. The body is a `Fact` body: the program evaluates it once,
 /// on the first read (`annot.fact.eval.lazy`), and a panic in it names
 /// `label`, what the facts are attached to (`annot.fact.eval.panic-runtime`).
+/// A list that runs out of fuel is one `item-too-complex` on the decorated
+/// item `at`, and a poison body (`too_complex`).
 pub fn check_fact_list(
+    cx: &BodyCx<'_>,
+    (owner, def): (DefId, DefId),
+    sources: &[FactSource<'_>],
+    (target, label): (FactTarget, &str),
+    at: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    match fact_list_steps(cx, (owner, def), sources, (target, label), at, diags) {
+        Err(e) if is_out_of_fuel(&e) => {
+            let mut body = too_complex(cx, (def, BodyKind::Fact), at, diags)?;
+            body.label = label.into();
+            Ok(body)
+        }
+        r => r,
+    }
+}
+
+fn fact_list_steps(
     cx: &BodyCx<'_>,
     (owner, def): (DefId, DefId),
     sources: &[FactSource<'_>],
@@ -311,9 +331,17 @@ pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags:
         .map(|(slot, sources)| (lines.target(*slot), *sources))
         .chain(std::iter::once((FactTarget::Other, rest.as_slice())));
     for (target, sources) in groups {
-        if !sources.is_empty() {
-            // A fact the checker cannot type yet leaves its list unchecked.
-            let _ = check_fact_list(cx, (owner, def), sources, (target, ""), node, diags);
+        if sources.is_empty() {
+            continue;
+        }
+        // A fact the checker cannot type yet leaves its list unchecked.
+        // The declaration is one item: its first list that runs out of
+        // fuel reports it, and the rest are not checked.
+        if let Err(e) = fact_list_steps(cx, (owner, def), sources, (target, ""), node, diags)
+            && is_out_of_fuel(&e)
+        {
+            let _ = too_complex(cx, (def, BodyKind::Fact), node, diags);
+            break;
         }
     }
 }

@@ -20,7 +20,7 @@ use hd_tir::ir::{BodyKind, Ref, TirSink};
 use hd_types::solver::TraitRef;
 use hd_types::{RowData, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, new_ck};
+use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, too_complex};
 use crate::call::Args;
 use crate::expr::literal_text;
 
@@ -342,7 +342,10 @@ pub fn check_tests(
                 body,
                 timeout,
             };
-            let (body, item) = check_case(cx, module, &case, profile, diags)?;
+            let (body, item) = match check_case(cx, module, &case, profile, diags) {
+                Err(e) if is_out_of_fuel(&e) => too_complex_case(cx, module, &name, call, diags)?,
+                r => r?,
+            };
             out.bodies.push(body);
             out.items.push(item);
             reg.body = Some(name);
@@ -361,7 +364,12 @@ pub fn check_tests(
                 tries,
                 timed: timeout.is_some(),
             };
-            let (body, item) = check_registration(cx, module, &call, profile, diags)?;
+            let (body, item) = match check_registration(cx, module, &call, profile, diags) {
+                Err(err) if is_out_of_fuel(&err) => {
+                    too_complex_case(cx, module, &name, call.expr, diags)?
+                }
+                r => r?,
+            };
             out.bodies.push(body);
             out.items.push(item);
             reg.body = Some(name);
@@ -369,6 +377,31 @@ pub fn check_tests(
         out.regs.push(reg);
     }
     Ok(out)
+}
+
+/// The test case `name` whose check ran out of fuel: one
+/// `item-too-complex` on its registration `call` (`too_complex`), and a
+/// poison body. The error fails the test run, so the case never passes.
+fn too_complex_case(
+    cx: &BodyCx<'_>,
+    module: &str,
+    name: &str,
+    call: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<(Body, Item)> {
+    let def: DefId = cx.names.item(module, name);
+    let body = too_complex(cx, (def, BodyKind::TestCase), call, diags)?;
+    let sig = FnSig {
+        generics: vec![],
+        params: vec![],
+        defaults: vec![],
+        ret: Ty::POISON,
+        row: RowId::EMPTY,
+        suspends: true,
+        variadic: false,
+    };
+    let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
+    Ok((body, item))
 }
 
 /// An `it` call whose test case is checked: the case's item name, its
