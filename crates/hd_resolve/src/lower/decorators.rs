@@ -13,7 +13,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
 use super::Lower;
-use crate::iface::{Field, HeadKind, Item, ItemData};
+use crate::iface::{Field, HeadKind, ImplKind, Item, ItemData};
 use crate::view::Src;
 use crate::{Binding, BindingKind};
 
@@ -54,6 +54,7 @@ fn kind_bit(name: &str) -> Option<u16> {
 type DriftBlock = (
     DefId,
     String,
+    DefId,
     String,
     String,
     Vec<(String, bool, Vec<String>)>,
@@ -585,6 +586,7 @@ impl Lower<'_, '_, '_> {
         out.push((
             target_def,
             self.package_of(trait_def),
+            trait_def,
             trait_name.clone(),
             target_name.clone(),
             self.drift_lines(n),
@@ -897,21 +899,48 @@ impl Lower<'_, '_, '_> {
         }
         // `annot.line.drift`: derivation blocks for traits of one package
         // on one type whose member lines differ warn on the later block.
+        // `annot.line.drift.derive`: a block with a member line beside a
+        // `@derive` of another trait of its package warns too.
         // Different lines stay legal: only the warning is new.
-        // (`annot.line.drift.derive`, a block beside a `@derive`, has no
-        // emitter yet: its plain reading also fires on the derive-one and
-        // configure-another programs that `structure_run` builds clean.)
         for (i, block) in drift_blocks.iter().enumerate() {
-            let (target, package, trait_name, target_name, lines, span) = block;
+            let (target, package, trait_def, trait_name, target_name, lines, span) = block;
             let first = drift_blocks[..i]
                 .iter()
-                .find(|(t, p, _, _, _, _)| t == target && p == package);
-            if let Some((_, _, first_trait, _, first_lines, _)) = first
-                && first_lines != lines
-            {
-                let msg = format!(
-                    "`{trait_name}` configures different member lines for `{target_name}` than `{first_trait}` does"
-                );
+                .find(|(t, p, _, _, _, _, _)| t == target && p == package);
+            let drifted = match first {
+                Some((_, _, _, first_trait, _, first_lines, _)) if first_lines != lines => {
+                    Some(format!(
+                        "`{trait_name}` configures different member lines for `{target_name}` than `{first_trait}` does"
+                    ))
+                }
+                _ => None,
+            };
+            let msg = drifted.or_else(|| {
+                if lines.is_empty() {
+                    return None;
+                }
+                let derived = items
+                    .values()
+                    .filter_map(|it| match &it.data {
+                        ItemData::Impl {
+                            trait_,
+                            self_ty,
+                            kind: ImplKind::Derived,
+                            ..
+                        } if trait_ != trait_def
+                            && matches!(self.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == *target)
+                            && self.package_of(*trait_) == *package =>
+                        {
+                            Some(self.names.display_name(*trait_))
+                        }
+                        _ => None,
+                    })
+                    .min()?;
+                Some(format!(
+                    "`{trait_name}` configures member lines for `{target_name}` that its `@derive({derived})` does not"
+                ))
+            });
+            if let Some(msg) = msg {
                 self.diags.push(
                     Code::DerivationLineDrift,
                     Severity::Warning,

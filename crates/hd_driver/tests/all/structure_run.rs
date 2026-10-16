@@ -35,7 +35,17 @@ fn build_with(store: &MemoryStore, files: &[(&str, &str)]) -> Output {
             entry: "main".into(),
         },
     );
-    assert!(out.diags.is_empty(), "{}", out.render());
+    // A block with member lines beside a `@derive` of another trait of
+    // its package warns, and stays legal (`annot.line.drift.derive`,
+    // `annot.line.drift.legal`); nothing else may be reported.
+    assert!(
+        out.diags
+            .code
+            .iter()
+            .all(|c| *c == hd_diag::Code::DerivationLineDrift),
+        "{}",
+        out.render()
+    );
     out
 }
 
