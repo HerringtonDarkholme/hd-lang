@@ -3070,3 +3070,16 @@ typing/invalid/result-propagate-no-chained-from.hd	type	reject:invalid-result-pr
 typing/invalid/result-propagate-not-assign-then-from.hd	type	reject:invalid-result-propagation	lang/04-type-system.md#r-types.result.propagate.not-both
 runtime/panic/usize-width-u32.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.num.usize-width
 runtime/valid/string-from-bytes-checks-utf8.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8
+runtime/valid/integer-cast-wraps-examples.hd	runtime	accept	lang/04-type-system.md#r-types.cast.wrap.example
+runtime/valid/float-cast-saturates-examples.hd	runtime	accept	lang/04-type-system.md#r-types.cast.saturate.example
+runtime/panic/shift-count-at-bit-width.hd	runtime	panic:invalid-shift	lang/04-type-system.md#r-types.arith.shift-count.debug
+runtime/valid/numeric-display-notation.hd	runtime	accept	lang/04-type-system.md#numeric-display
+runtime/valid/numeric-display-special-values.hd	runtime	accept	lang/04-type-system.md#r-types.display.special
+runtime/valid/nan-compares-unordered.hd	runtime	accept	lang/04-type-system.md#r-types.display.nan-compare
+runtime/valid/assign-value-to-dyn-trait.hd	runtime	accept	lang/04-type-system.md#r-types.assign.trait-value
+runtime/valid/assign-dyn-child-to-supertrait.hd	runtime	accept	lang/04-type-system.md#r-types.assign.supertrait
+typing/invalid/optional-injection-one-layer.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.assign.optional
+typing/valid/function-value-row-subsumption.hd	type	accept	lang/04-type-system.md#r-types.assign.row-subsumption
+typing/valid/never-assignable-to-any-type.hd	type	accept	lang/04-type-system.md#r-types.assign.never
+typing/invalid/no-structural-record-subtyping.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.assign.no-subtyping
+runtime/valid/composite-value-aliases.hd	runtime	accept	lang/04-type-system.md#r-types.composite.aliases

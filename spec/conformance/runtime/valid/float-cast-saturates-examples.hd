@@ -1,0 +1,14 @@
+# test: a float-to-integer cast saturates, and NaN gives 0
+# Spec 04 Numeric Conversions: types.cast.saturate.example.
+fn small(value: f64) -> i8: i8(value)
+fn byte(value: f64) -> u8: u8(value)
+fn whole(value: f64) -> i32: i32(value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("saturates at each end, and NaN is 0"):
+        zero := 0.0
+        assert_equal(small(300.0), i8(127), reason="above the maximum gives the maximum")
+        assert_equal(byte(-1.5), u8(0), reason="below the minimum gives the minimum")
+        assert_equal(whole(zero / zero), +0, reason="NaN gives 0")

@@ -1,0 +1,9 @@
+# test: an expression of type never is assignable to any type
+# Spec 04 Assignability And Coercion: types.assign.never.
+fn fail(reason: string) -> never:
+    panic(reason)
+
+fn count(flag: bool) -> i32:
+    let total: i32 = if flag: +1 else: fail("no count")
+    let _label: string = fail("no label")
+    total

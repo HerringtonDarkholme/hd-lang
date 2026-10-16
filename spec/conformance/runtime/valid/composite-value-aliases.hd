@@ -1,0 +1,15 @@
+# test: two bindings may alias one composite value, and a change through one shows through the other
+# Spec 04 Composite Values And Access Permission: types.composite.aliases.
+data Box:
+    items: mut List[i32]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a list shared by a binding and a field is one value"):
+        let items: mut List[i32] = [+1]
+        let mut first = Box { items: items }
+        let mut second = Box { items: items }
+        first.items.push(+2)
+        second.items.push(+3)
+        assert_equal(items, [+1, +2, +3], reason="all three names reach one list")

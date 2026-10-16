@@ -1,0 +1,5 @@
+use pkg.math.{narrowed}
+use std.testing.assert_equal
+
+it("wraps the cast as a release build does"):
+    assert_equal(narrowed(+300), u8(44), reason="an explicit conversion behaves the same in every build")

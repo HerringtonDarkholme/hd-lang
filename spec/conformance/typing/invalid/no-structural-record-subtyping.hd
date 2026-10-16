@@ -1,0 +1,13 @@
+# test: a record with extra fields is not a subtype of a record with fewer
+# Spec 04 Assignment And Binding Types: types.assign.no-subtyping.
+data Point:
+    x: i32
+
+data Labeled:
+    x: i32
+    label: string
+
+fn left(point: Point) -> i32: point.x
+
+fn use_labeled(value: Labeled) -> i32:
+    left(value)  # diagnostic: type-mismatch

@@ -1,0 +1,7 @@
+# A release build wraps 2147483647 + 1, masks the shift count 33 to 1 for an i32, and wraps the cast of 300 to u8.
+run: hd run --release
+stdout: -2147483648
+stdout: 2
+stdout: 44
+# The test build gives the same cast result.
+run: hd test

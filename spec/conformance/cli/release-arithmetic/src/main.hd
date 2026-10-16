@@ -1,0 +1,6 @@
+use pkg.math.{narrowed, next, shifted}
+
+pub fn main() -> void $ Console:
+    println(next(2147483647))
+    println(shifted(+1, 33))
+    println(narrowed(+300))

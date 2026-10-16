@@ -1,0 +1,8 @@
+# test: in a test build a shift count not smaller than the bit width panics
+# Spec 04 Integer Arithmetic: types.arith.shift-count.debug.
+fn shifted(value: i32, count: u32) -> i32:
+    value << count  # panic: invalid-shift
+
+tests:
+    it("shifts an i32 by 32"):
+        _ := shifted(+1, 32)

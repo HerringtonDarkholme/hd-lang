@@ -1,0 +1,6 @@
+# test: a T is injected into T? but not into T??
+# Spec 04 Assignability And Coercion: types.assign.optional.
+fn wrap(value: i32) -> i32?: value
+
+fn twice(value: i32) -> i32??:
+    value  # diagnostic: type-mismatch

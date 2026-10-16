@@ -1,0 +1,15 @@
+# test: Display writes integers in base ten and floats in shortest round-trip digits, fixed or scientific by exponent
+# Spec 04 Numeric Display: types.display.int, types.display.float, types.display.notation, types.display.exponent, types.display.fixed.
+# expect-stdout: 255 -42
+# expect-stdout: 0.1 1.5 0.30000000000000004
+# expect-stdout: 1.0 100.0
+# expect-stdout: 100000000000000000000.0 1e+21
+# expect-stdout: 0.000001 1e-7 1.5e-7
+fn sum(a: f64, b: f64) -> f64: a + b
+
+pub fn main() -> void $ Console:
+    println("${u8(255)} ${-42}")
+    println("${0.1} ${1.5} ${sum(0.1, 0.2)}")
+    println("${1.0} ${100.0}")
+    println("${1e20} ${1e21}")
+    println("${0.000001} ${1e-7} ${1.5e-7}")

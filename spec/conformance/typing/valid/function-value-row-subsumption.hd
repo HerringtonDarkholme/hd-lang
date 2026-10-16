@@ -1,0 +1,10 @@
+# test: a function value whose row needs fewer keys is assignable to a function type with a larger row
+# Spec 04 Assignability And Coercion: types.assign.row-subsumption.
+trait Log:
+    fn line(self, text: string) -> void
+
+fn quiet(value: i32) -> i32: value + 1
+
+fn run(value: i32) -> i32 $ Log:
+    let step: fn(i32) -> i32 $ Log = quiet
+    step(value)

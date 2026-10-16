@@ -1,0 +1,32 @@
+# test: a dyn child-trait value is assignable to a dyn value of its transitive supertrait
+# Spec 04 Assignability And Coercion: types.assign.supertrait.
+trait Named:
+    fn name(self) -> string
+
+trait Titled < Named:
+    fn title(self) -> string
+
+trait Badged < Titled:
+    fn badge(self) -> string
+
+data Chief: pass
+
+impl Named for Chief:
+    fn name(self) -> string: "ada"
+
+impl Titled for Chief:
+    fn title(self) -> string: "chief"
+
+impl Badged for Chief:
+    fn badge(self) -> string: "gold"
+
+fn named(value: dyn Badged) -> dyn Named: value
+
+tests:
+    use std.testing.assert_equal
+
+    it("a dyn Badged is a dyn Titled and a dyn Named"):
+        let badged: dyn Badged = Chief {}
+        let titled: dyn Titled = badged
+        assert_equal(titled.title(), "chief", reason="direct supertrait")
+        assert_equal(named(badged).name(), "ada", reason="transitive supertrait")

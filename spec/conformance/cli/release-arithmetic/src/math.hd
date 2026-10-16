@@ -1,0 +1,11 @@
+pub fn next(value: i32) -> i32:
+    value + 1
+
+pub fn shifted(value: i32, count: u32) -> i32:
+    value << count
+
+pub fn narrowed(value: i32) -> u8:
+    u8(value)
+
+# Spec 04 Integer Arithmetic: types.arith.release, types.arith.shift-count.release, types.arith.always.
+# A release build wraps the addition and masks the shift count; the cast wraps in every build.
