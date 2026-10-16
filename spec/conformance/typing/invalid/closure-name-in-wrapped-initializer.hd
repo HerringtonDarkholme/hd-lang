@@ -1,0 +1,8 @@
+# test: only a direct closure initializer sees its own name; inside a wrapping call the name is not yet bound
+# Spec 03 Binding Start: names.scope.recursive-closure.eval.
+fn wrap(f: fn() -> i32) -> fn() -> i32:
+    f
+
+fn run() -> i32:
+    total := wrap(fn() -> i32: total())  # diagnostic: unknown-name
+    total()

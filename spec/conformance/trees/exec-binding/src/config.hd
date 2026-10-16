@@ -1,0 +1,4 @@
+limit := +3
+
+pub fn scaled(value: i32) -> i32:
+    value * limit

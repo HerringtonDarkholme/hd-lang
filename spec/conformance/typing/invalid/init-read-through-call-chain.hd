@@ -1,0 +1,11 @@
+# test: the initialization check follows every function a statement reaches, not only the one it calls
+# Spec 03 Initialization Order: names.init.transitive.
+first := outer()  # diagnostic: top-level-read-before-initialization
+
+start := +1
+
+fn inner() -> i32:
+    start
+
+fn outer() -> i32:
+    inner() + 1

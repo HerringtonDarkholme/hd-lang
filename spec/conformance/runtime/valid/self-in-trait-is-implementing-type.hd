@@ -1,0 +1,17 @@
+# test: in a trait, Self stands for the eventual implementing type
+# Spec 03 The Self Name: names.self-type.trait.
+trait Twin:
+    fn twin(self) -> Self
+
+data Coin:
+    cents: i32
+
+impl Twin for Coin:
+    fn twin(self) -> Coin:
+        Coin { cents: self.cents }
+
+tests:
+    use std.testing.assert_equal
+
+    it("the trait's Self is Coin in its implementation"):
+        assert_equal(Coin { cents: +5 }.twin().cents, +5, reason="twin returns a Coin")

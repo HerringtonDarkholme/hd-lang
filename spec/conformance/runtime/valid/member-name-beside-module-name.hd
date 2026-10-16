@@ -1,0 +1,23 @@
+# test: a field and a method live in their type's member namespace, so they may share a top-level function's name
+# Spec 03 Lookup Categories: names.category.member.
+data Order:
+    total: i32
+
+impl Order:
+    fn total_twice(self) -> i32:
+        self.total * 2
+
+fn total(order: Order) -> i32:
+    order.total
+
+fn total_twice() -> i32:
+    +0
+
+tests:
+    use std.testing.assert_equal
+
+    it("member names do not clash with module names"):
+        order := Order { total: +3 }
+        assert_equal(total(order), +3, reason="the field")
+        assert_equal(order.total_twice(), +6, reason="the method")
+        assert_equal(total_twice(), +0, reason="the function")

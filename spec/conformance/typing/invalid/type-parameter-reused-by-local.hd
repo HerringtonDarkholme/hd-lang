@@ -1,0 +1,5 @@
+# test: a local value inside a type parameter's scope may not reuse its name
+# Spec 03 Type Parameters: names.type-param.no-redeclare.
+fn keep[T](value: T) -> T:
+    T := value  # diagnostic: duplicate-binding
+    value

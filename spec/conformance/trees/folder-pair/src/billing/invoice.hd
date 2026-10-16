@@ -1,0 +1,4 @@
+use pkg.shipping.route.{Route}
+
+pub data Invoice:
+    pub route: Route

@@ -1,0 +1,11 @@
+# test: a function passed as a value counts as referenced by the statement that passes it
+# Spec 03 Initialization Order: names.init.references.
+fn apply(f: fn() -> i32) -> i32:
+    f()
+
+first := apply(total)  # diagnostic: top-level-read-before-initialization
+
+start := +1
+
+fn total() -> i32:
+    start

@@ -1,0 +1,6 @@
+# test: a function declared before a top-level binding cannot read it
+# Spec 03 Module Execution Scope: names.exec.not-before.
+fn read_count() -> i32:
+    count  # diagnostic: binding-not-yet-visible
+
+let count = +0

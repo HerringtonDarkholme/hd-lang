@@ -1,0 +1,7 @@
+# test: a type parameter is local to its declaration, so another function cannot name it
+# Spec 03 Type Parameters: names.type-param.local.
+fn keep[T](value: T) -> T:
+    value
+
+fn other(value: T) -> i32:  # diagnostic: unknown-type
+    +0

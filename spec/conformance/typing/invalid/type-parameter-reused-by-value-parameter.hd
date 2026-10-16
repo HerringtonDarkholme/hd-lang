@@ -1,0 +1,4 @@
+# test: a value parameter may not reuse a type parameter's name in its scope
+# Spec 03 Type Parameters: names.type-param.no-redeclare.
+fn keep[T](T: i32) -> i32:  # diagnostic: duplicate-binding
+    T

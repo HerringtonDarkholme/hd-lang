@@ -1,0 +1,12 @@
+# test: a direct local closure initializer with a result type may call the name it is bound to
+# Spec 03 Binding Start: names.scope.recursive-closure.
+fn factorial(n: i32) -> i32:
+    fact := fn(k: i32) -> i32:
+        if k <= 1: +1 else: k * fact(k - 1)
+    fact(n)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the closure recurses through its own name"):
+        assert_equal(factorial(+5), +120, reason="5!")

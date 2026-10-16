@@ -1,0 +1,13 @@
+# test: calling a method from a top-level statement does not bypass initialization order
+# Spec 03 Initialization Order: names.init.no-bypass.
+data Meter:
+    scale: i32
+
+made := Meter { scale: +2 }
+reading := made.read()  # diagnostic: top-level-read-before-initialization
+
+offset := +1
+
+impl Meter:
+    fn read(self) -> i32:
+        self.scale + offset

@@ -1,0 +1,8 @@
+# test: two files of one folder may use each other in a loop
+# Spec 03 Use Declarations: names.use.cycles-in-folder. The tree's src/shop/item.hd uses
+# pkg.shop.cart, and this file uses pkg.shop.item.
+# fixture-package-tree: file-pair/src/shop/cart.hd
+use pkg.shop.item.{Item}
+
+pub data Cart:
+    pub items: List[Item]

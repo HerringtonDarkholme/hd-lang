@@ -1,0 +1,4 @@
+# test: Self is a reserved word, so it cannot name a data type
+# Spec 03 The Self Name: names.self-type.reserved.
+data Self:  # diagnostic: syntax-error
+    x: i32

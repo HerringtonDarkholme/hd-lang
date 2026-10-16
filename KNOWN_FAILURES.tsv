@@ -1,3 +1,6 @@
 path	issue	engine	reason
 typing/valid/index-trait-literal-key-default.hd	#0		placeholder for a new bug: with Index[usize] and Index[string], table[0] leaves Table::Out unresolved instead of selecting Index[usize] for the usize literal
 cli/check-numeric-widen-fix	#0		placeholder for a new bug: the type-mismatch for an i16 where an i64 is expected has no fix-it writing i64(small)
+typing/invalid/init-read-through-function-value.hd	#0		placeholder for a new bug: a top-level statement that passes a function as a value before a binding it reads is initialized reports unknown-name in the function instead of top-level-read-before-initialization
+typing/invalid/method-call-no-init-bypass.hd	#0		placeholder for a new bug: a top-level method call that reads a binding before its initialization is accepted; it should report top-level-read-before-initialization
+typing/invalid/type-parameter-reused-by-value-parameter.hd	#0		placeholder for a new bug: a value parameter that reuses a type parameter's name is accepted; it should report duplicate-binding

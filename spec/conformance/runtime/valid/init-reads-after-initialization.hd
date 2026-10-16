@@ -1,0 +1,15 @@
+# test: a statement may call a function whose reads were all initialized by earlier statements
+# expect: test
+# Spec 03 Initialization Order: names.init.required.
+start := +1
+
+fn total() -> i32:
+    start + 1
+
+demo := total()
+
+tests:
+    use std.testing.assert_equal
+
+    it("demo read start after it was set"):
+        assert_equal(demo, +2, reason="1 + 1")

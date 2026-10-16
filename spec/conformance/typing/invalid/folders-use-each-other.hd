@@ -1,0 +1,11 @@
+# test: two folders of a package that use each other form a folder cycle
+# Spec 03 Use Declarations: names.use.folder-cycle. The tree's src/billing/invoice.hd uses
+# pkg.shipping.route, and this file, in src/shipping, uses pkg.billing.invoice.
+# fixture-package-tree: folder-pair/src/shipping/route.hd
+use pkg.billing.invoice.{Invoice}  # diagnostic: folder-cycle
+
+pub data Route:
+    pub stops: i32
+
+pub fn cost(invoice: Invoice) -> i32:
+    invoice.route.stops

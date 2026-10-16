@@ -1,0 +1,9 @@
+# test: one annotation on a let tuple binding describes the whole tuple
+# Spec 03 Tuple Bindings: names.tuple.annotation.
+tests:
+    use std.testing.assert_equal
+
+    it("each name takes its element type"):
+        let (count, name): (i32, string) = (+2, "pair")
+        assert_equal(count, +2, reason="the i32 element")
+        assert_equal(name, "pair", reason="the string element")

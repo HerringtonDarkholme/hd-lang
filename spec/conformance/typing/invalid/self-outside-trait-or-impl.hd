@@ -1,0 +1,4 @@
+# test: Self has no type meaning outside a trait or impl body
+# Spec 03 The Self Name: names.self-type.outside.
+fn make() -> Self:  # diagnostic: unknown-type
+    make()

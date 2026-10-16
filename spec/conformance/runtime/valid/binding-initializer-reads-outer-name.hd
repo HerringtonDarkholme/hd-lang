@@ -1,0 +1,13 @@
+# test: a local binding is not visible in its own initializer, so the same name there reads the outer binding
+# Spec 03 Binding Start: names.scope.not-in-initializer.
+let base = +1
+
+fn next() -> i32:
+    base := base + 1
+    base
+
+tests:
+    use std.testing.assert_equal
+
+    it("the right-hand base is the top-level one"):
+        assert_equal(next(), +2, reason="1 + 1")
