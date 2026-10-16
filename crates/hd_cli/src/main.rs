@@ -1,5 +1,3 @@
-// `unsafe_code` is denied workspace-wide; the one allowed use is
-// `memory_cap::exit_now` (owner-approved, see its comment).
 //! The `hd` command. It owns everything outside the core (design-overview
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`,
@@ -17,7 +15,6 @@ mod engine;
 mod fix_cmd;
 mod fmt_cmd;
 mod help;
-mod memory_cap;
 mod new_cmd;
 mod node;
 #[cfg(test)]
@@ -57,9 +54,8 @@ const USAGE: &str = "usage:
   hd fix [--jobs N]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
 
-  FILE.hd, FILE.wasm and hd run accept --max-heap SIZE and --time-limit DURATION
-  checking, building and running accept --max-memory SIZE (else HD_MAX_MEMORY)
-  SIZE: whole bytes or K/M/G; DURATION: whole ms/s/min/h";
+  FILE.hd, FILE.wasm, hd run and hd test accept --time-limit DURATION
+  DURATION: whole ms/s/min/h";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
 pub(crate) const HD_FAILURE: u8 = 101;
@@ -75,32 +71,16 @@ fn usage() -> ExitCode {
 }
 
 fn main() -> ExitCode {
-    if let Err(error) = memory_cap::startup(
-        std::env::args_os().skip(1),
-        std::env::var_os("HD_MAX_MEMORY").is_some(),
-    ) {
-        return fail(error);
-    }
-    let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
-    let (arguments, memory) = match compiler_memory_flag(&arguments) {
-        Ok(parsed) => parsed,
-        Err(error) => return fail(&error),
-    };
-    let arguments = format_after_command(arguments);
+    let arguments = format_after_command(std::env::args_os().skip(1).collect());
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
         // `cli.repl.open.terminal`: `hd` with no arguments on a terminal
         // opens the REPL. `cli.stdin.program`: without a terminal, it runs
         // standard input as a single-file program.
         if std::io::stdin().is_terminal() {
-            return if memory.is_some() {
-                usage()
-            } else {
-                repl_command()
-            };
+            return repl_command();
         }
-        return run_stdin_command(memory);
+        return run_stdin_command();
     };
-    // Help performs no compilation and should not arm compiler enforcement.
     let asks_help = arguments[1..]
         .iter()
         .take_while(|a| *a != "--")
@@ -109,26 +89,10 @@ fn main() -> ExitCode {
         print!("{text}");
         return ExitCode::SUCCESS;
     }
-    let compiling = compiles(command, &arguments);
-    if compiling {
-        let memory = match memory_limit(memory) {
-            Ok(memory) => memory,
-            Err(error) => return fail(&error),
-        };
-        if let Err(error) = cache_cap() {
-            return fail(&error);
-        }
-        let json = (0..arguments.len())
-            .take_while(|i| arguments[*i] != "--")
-            .filter_map(|i| report::format_flag(&arguments, i))
-            .any(|flag| matches!(flag, Ok((true, _))));
-        memory_cap::arm(
-            memory,
-            json,
-            !matches!(command, "build" | "check" | "test" | "doc"),
-        );
-    } else if memory.is_some() {
-        return fail("--max-memory applies to checking, building and running programs");
+    if compiles(command, &arguments)
+        && let Err(error) = cache_cap()
+    {
+        return fail(&error);
     }
     match (command, &arguments[1..]) {
         ("help" | "--help", []) => {
@@ -205,31 +169,6 @@ fn compiles(command: &str, arguments: &[OsString]) -> bool {
     }
 }
 
-/// Compiler options are global, but words after `--` belong to the program.
-fn compiler_memory_flag(args: &[OsString]) -> Result<(Vec<OsString>, Option<u64>), String> {
-    let mut words = Vec::with_capacity(args.len());
-    let mut memory = None;
-    let mut i = 0;
-    while i < args.len() {
-        if args[i] == "--" {
-            words.extend_from_slice(&args[i..]);
-            break;
-        }
-        if args[i] == "--max-memory" || args[i].to_string_lossy().starts_with("--max-memory=") {
-            let (flag, used) = engine::limit_flag(args, i).expect("compiler limit flag")?;
-            let engine::LimitFlag::CompilerMemory(bytes) = flag else {
-                unreachable!()
-            };
-            memory = Some(bytes);
-            i += used;
-        } else {
-            words.push(args[i].clone());
-            i += 1;
-        }
-    }
-    Ok((words, memory))
-}
-
 /// `--format` is a global flag (`hd help`): written before a command's
 /// name, as in `hd --format json check FILE`, it moves after the name,
 /// where the command reads it. Before a FILE it stays, since `hd FILE`
@@ -262,21 +201,6 @@ fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
         args.splice(1..1, flag);
     }
     args
-}
-
-/// `cli.memory.cap`: `--max-memory` wins; otherwise `HD_MAX_MEMORY` fills in.
-fn memory_limit(flag: Option<u64>) -> Result<Option<u64>, String> {
-    match flag {
-        Some(bytes) => Ok(Some(bytes)),
-        None => match std::env::var_os("HD_MAX_MEMORY") {
-            Some(value) => match value.to_str().map(engine::parse_size) {
-                Some(Ok(bytes)) => Ok(Some(bytes)),
-                Some(Err(error)) => Err(format!("HD_MAX_MEMORY: {error}")),
-                None => Err("HD_MAX_MEMORY is not a valid SIZE".to_string()),
-            },
-            None => Ok(None),
-        },
-    }
 }
 
 fn has_extension(word: &OsString, ext: &str) -> bool {
@@ -502,7 +426,7 @@ pub(crate) fn build_goal_in(
         doc_scopes,
         ..program.packages()
     };
-    let out: Output = memory_cap::build_packages(&host, &program.package, &packages, goal);
+    let out: Output = hd_driver::build_packages(&host, &program.package, &packages, goal);
     note_built(&out);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
     let mut diags = report::from_output(&out, as_written);
@@ -586,18 +510,6 @@ fn execute(
     if let Some(d) = caps::refusal(wasm, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
-    }
-    // Node enforces `--time-limit` (host/run.mjs) but has no heap cap:
-    // V8 exposes no per-store heap accounting like wasmtime's
-    // ResourceLimiter ledger, which counts linear-memory and GC backing
-    // bytes together, so only wasmtime can enforce a heap budget with
-    // the same behavior on every engine (`cli.engine.same-behavior`).
-    if engine == engine::EngineKind::Node && limits.heap_bytes.is_some() {
-        rep.diag(&report::Diag::new(
-            None,
-            hd_diag::Severity::Warning,
-            "--max-heap is ignored on Node: V8 exposes no per-store heap accounting, so only wasmtime enforces heap budgets; use --engine wasmtime for enforcement",
-        ));
     }
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
@@ -687,13 +599,9 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
-        if let Some(limit) = engine::limit_flag(args, i) {
-            let (flag, used) = limit?;
-            match flag {
-                engine::LimitFlag::Heap(bytes) => w.limits.heap_bytes = Some(bytes),
-                engine::LimitFlag::Time(ms) => w.limits.wall_ms = Some(ms),
-                engine::LimitFlag::CompilerMemory(_) => unreachable!("global flag removed"),
-            }
+        if let Some(limit) = engine::time_limit_flag(args, i) {
+            let (ms, used) = limit?;
+            w.limits.wall_ms = Some(ms);
             i += used;
             continue;
         }
@@ -754,7 +662,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
 /// standard input as a single-file program, as `hd FILE` runs FILE. The
 /// engine comes from `HD_ENGINE`, as without `--engine`; no other flags
 /// exist to give.
-fn run_stdin_command(memory: Option<u64>) -> ExitCode {
+fn run_stdin_command() -> ExitCode {
     let mut text = String::new();
     if let Err(e) = std::io::Read::read_to_string(&mut std::io::stdin(), &mut text) {
         return fail(&format!("standard input: {e}"));
@@ -763,11 +671,6 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
         Ok(engine) => engine,
         Err(error) => return fail(&error),
     };
-    let memory = match memory_limit(memory) {
-        Ok(memory) => memory,
-        Err(error) => return fail(&error),
-    };
-    memory_cap::arm(memory, false, true);
     let mut rep = Reporter::stderr(false);
     let program = match disk::load_stdin(&text) {
         Ok(p) => p,
@@ -906,14 +809,10 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             continue;
         }
         if command == "run"
-            && let Some(limit) = engine::limit_flag(args, i)
+            && let Some(limit) = engine::time_limit_flag(args, i)
         {
-            let (flag, used) = limit?;
-            match flag {
-                engine::LimitFlag::Heap(bytes) => w.limits.heap_bytes = Some(bytes),
-                engine::LimitFlag::Time(ms) => w.limits.wall_ms = Some(ms),
-                engine::LimitFlag::CompilerMemory(_) => unreachable!("global flag removed"),
-            }
+            let (ms, used) = limit?;
+            w.limits.wall_ms = Some(ms);
             i += used;
             continue;
         }
@@ -1268,7 +1167,7 @@ fn build_file(
 
 #[cfg(test)]
 mod limit_tests {
-    use super::{compiler_memory_flag, compiles, format_after_command};
+    use super::{compiles, format_after_command};
     use std::ffi::OsString;
 
     fn args(words: &[&str]) -> Vec<OsString> {
@@ -1276,7 +1175,7 @@ mod limit_tests {
     }
 
     #[test]
-    fn compiler_cap_follows_dispatch_not_incidental_source_arguments() {
+    fn compiling_follows_dispatch_not_incidental_source_arguments() {
         for command in ["run", "build", "check", "test", "fix"] {
             assert!(compiles(command, &args(&[command])));
         }
@@ -1291,20 +1190,6 @@ mod limit_tests {
     }
 
     #[test]
-    fn compiler_flags_are_global_and_last_explicit_value_wins() {
-        let (words, memory) = compiler_memory_flag(&args(&[
-            "--max-memory",
-            "1M",
-            "check",
-            "main.hd",
-            "--max-memory=2M",
-        ]))
-        .unwrap();
-        assert_eq!(words, args(&["check", "main.hd"]));
-        assert_eq!(memory, Some(2 * 1024 * 1024));
-    }
-
-    #[test]
     fn a_leading_format_flag_moves_after_the_command() {
         assert_eq!(
             format_after_command(args(&["--format", "json", "check", "main.hd"])),
@@ -1316,31 +1201,5 @@ mod limit_tests {
         );
         let file = args(&["--format", "json", "main.hd"]);
         assert_eq!(format_after_command(file.clone()), file);
-    }
-
-    #[test]
-    fn separator_keeps_all_program_options_untouched() {
-        let words = args(&[
-            "main.hd",
-            "--time-limit=1s",
-            "--",
-            "--max-memory=bad",
-            "--max-heap",
-            "x",
-        ]);
-        let (remaining, memory) = compiler_memory_flag(&words).unwrap();
-        assert_eq!(remaining, words);
-        assert_eq!(memory, None);
-    }
-
-    #[test]
-    fn compiler_flag_rejects_missing_invalid_and_overflowing_sizes() {
-        for words in [
-            args(&["check", "--max-memory"]),
-            args(&["check", "--max-memory=-1"]),
-            args(&["check", "--max-memory=18446744073709551615G"]),
-        ] {
-            assert!(compiler_memory_flag(&words).is_err(), "{words:?}");
-        }
     }
 }

@@ -459,14 +459,10 @@ cancelled and holds the worker until it ends.
 | Limit | Mechanism | Failure |
 | --- | --- | --- |
 | time (`--time-limit`, a test's `timeout`) | epoch interruption: one `hd-epochs` thread per process, started only when a store has a deadline, increments every registered engine's epoch every 10 ms; the store's epoch callback checks the wall clock, which stays authoritative | `time-limit`; a pending host wait is cut at the same deadline |
-| initial GC heap size | 64 MiB for an uncapped `hd run`; 0 when a heap cap is set and for `hd test`'s heaps, which start empty and grow on demand, so a small cap is not used up before the program allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
-| GC heap, the exchange buffer and host-held data (`--max-heap`) | one `Ledger` per program, enforced through a `ResourceLimiter` for the store's backing bytes; host operations, including tasks on `hd-io`, charge the same ledger (`std-host.op.heap`). A refused linear-memory growth makes `memory.grow` return `-1`, which the writer turns into `heap-exhausted` (§17.3); a GC allocation that fails after a collection traps | `heap-exhausted` |
+| initial GC heap size | 64 MiB for `hd run`; 0 for `hd test`'s heaps, which start empty and grow on demand, so a pooled store reserves nothing before its case allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
+| GC heap and the exchange buffer | no limit of the host's own: the engine's memory reservations and the machine. A failed linear-memory growth makes `memory.grow` return `-1`, which the writer turns into `heap-exhausted` (§17.3); a GC allocation that fails after a collection traps | `heap-exhausted` |
 | stack | `Config::max_wasm_stack`, 4 MiB by default | `stack-exhausted` |
 | instances, tables, memories, GC heaps in `hd test` | the pooling allocator's totals, one slot per worker plus shrink spares. The runner never runs more stores at once than the pool has slots, so exhaustion means a bug | an internal error naming the limit |
-
-One ledger for the store and host-held data replaces a design with a
-separate host budget; it is better, since the spec counts both against
-the one heap limit.
 
 **Test timeouts on Node.** A test case's `timeout` is evaluated first in
 its instance and reported with `TestRunner.report_timeout`

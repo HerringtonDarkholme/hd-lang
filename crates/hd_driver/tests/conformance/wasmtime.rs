@@ -196,7 +196,6 @@ fn native_test_results(
                 TestPoolConfig {
                     workers,
                     shrink_spares: workers,
-                    max_memory_bytes: u64::MAX,
                 },
             )
         })

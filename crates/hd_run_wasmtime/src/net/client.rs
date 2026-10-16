@@ -11,7 +11,6 @@ pub(crate) use crate::abi::NetError;
 use crate::abi::{Datagram, ResourceError};
 use crate::codec::{Dec, Enc, Handle, Wire, encode};
 use crate::host::Stop;
-use crate::limits::Ledger;
 
 use super::ops::{Done, Got, Job, Opened, ended};
 use super::socket::{End, Stream, Udp, wrong_kind};
@@ -74,15 +73,13 @@ impl Client {
 
     /// The `.start` of `method`, or its `close`. Refusals, unknown and
     /// closed handles, and what the handle already holds complete at once;
-    /// the rest wait as a `Job`. A payload past the heap budget of `ledger`
-    /// panics (`std-host.op.heap.exhausted`).
+    /// the rest wait as a `Job`.
     pub(crate) fn start(
         &mut self,
         method: &str,
         params: &[i64],
         bytes: &[u8],
         grants: &Grants,
-        ledger: &Arc<Ledger>,
     ) -> wasmtime::Result<Start> {
         let mut d = Dec::new(bytes);
         let scalar = |i: usize| {
@@ -152,11 +149,6 @@ impl Client {
                 if !state.unread.is_empty() {
                     let n = state.unread.len().min(max);
                     let bytes = state.unread.drain(..n).collect();
-                    if state.unread.is_empty() {
-                        state.held = None;
-                    } else if let Some(held) = &mut state.held {
-                        held.shrink(n);
-                    }
                     return ready(Outcome::Ok(Value::Bytes(bytes)));
                 }
                 if let Some(end) = state.end.clone() {
@@ -169,7 +161,6 @@ impl Client {
                     stream: Arc::clone(stream),
                     handle: scalar(0)?,
                     max,
-                    ledger: Arc::clone(ledger),
                 }
             }
             ("TcpStream.write", Some(Entry::Stream(stream))) => {
@@ -182,7 +173,6 @@ impl Client {
                 Job::Write {
                     stream: Arc::clone(stream),
                     handle: scalar(0)?,
-                    held: ledger.reserve(bytes.len())?,
                     bytes,
                 }
             }
@@ -205,14 +195,12 @@ impl Client {
                     handle: scalar(0)?,
                     host,
                     port,
-                    held: ledger.reserve(bytes.len())?,
                     bytes,
                 }
             }
             ("UdpSocket.receive", Some(Entry::Udp(socket))) => {
                 let max = unsigned(scalar(1)?);
-                if let Some((mut bytes, peer, held)) = socket.unread().pop_front() {
-                    drop(held);
+                if let Some((mut bytes, peer)) = socket.unread().pop_front() {
                     bytes.truncate(max);
                     return ready(Outcome::Ok(Value::Datagram(bytes, peer)));
                 }
@@ -220,7 +208,6 @@ impl Client {
                     socket: Arc::clone(socket),
                     handle: scalar(0)?,
                     max,
-                    ledger: Arc::clone(ledger),
                 }
             }
             ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
@@ -252,8 +239,7 @@ impl Client {
     }
 
     /// The `.finish` of a completed operation: a new socket gets its handle
-    /// here, so handles follow the order the program takes results in. The
-    /// heap that bytes hold is released before they are encoded.
+    /// here, so handles follow the order the program takes results in.
     pub(crate) fn finish(&mut self, done: Done) -> wasmtime::Result<Enc> {
         let outcome = match done.result {
             Err(error) => Outcome::Error(error),
@@ -261,18 +247,13 @@ impl Client {
             Ok(Got::Disposed) => Outcome::Disposed,
             Ok(Got::Addresses(addresses)) => Outcome::Ok(Value::Addresses(addresses)),
             Ok(Got::Opened(opened)) => Outcome::Ok(Value::Handle(self.open(opened))),
-            Ok(Got::Bytes { bytes, held, .. }) => {
-                drop(held);
-                Outcome::Ok(Value::Bytes(bytes))
-            }
+            Ok(Got::Bytes { bytes, .. }) => Outcome::Ok(Value::Bytes(bytes)),
             Ok(Got::Datagram {
                 mut bytes,
                 max,
                 peer,
-                held,
                 ..
             }) => {
-                drop(held);
                 bytes.truncate(max);
                 Outcome::Ok(Value::Datagram(bytes, peer))
             }
@@ -282,23 +263,14 @@ impl Client {
 
     /// Keeps what a completed `read!` or `receive!` took, when its
     /// suspension was cancelled before `.finish` returned it, for the next
-    /// call on that handle (`std-net.cancel.read`). It stays charged to the
-    /// heap until a call returns it or its socket closes.
+    /// call on that handle (`std-net.cancel.read`).
     pub(crate) fn unread(&mut self, done: Done) {
         match done.result {
-            Ok(Got::Bytes {
-                handle,
-                bytes,
-                held,
-            }) => {
+            Ok(Got::Bytes { handle, bytes }) => {
                 if let Some(Entry::Stream(stream)) = self.handles.get(&handle) {
                     let mut state = stream.state();
                     for byte in bytes.into_iter().rev() {
                         state.unread.push_front(byte);
-                    }
-                    match &mut state.held {
-                        Some(kept) => kept.absorb(held),
-                        None => state.held = Some(held),
                     }
                 }
             }
@@ -306,11 +278,10 @@ impl Client {
                 handle,
                 bytes,
                 peer,
-                held,
                 ..
             }) => {
                 if let Some(Entry::Udp(socket)) = self.handles.get(&handle) {
-                    socket.unread().push_front((bytes, peer, held));
+                    socket.unread().push_front((bytes, peer));
                 }
             }
             _ => {}
@@ -584,53 +555,6 @@ mod tests {
         assert_eq!(result_bytes(&ready(read(&mut net, handle, 2))), b"xy");
         assert_eq!(result_bytes(&ready(read(&mut net, handle, 8))), b"z");
         assert!(!net.reactor.waiting());
-        net.client.stop();
-    }
-
-    /// `std-host.op.heap`: a write's payload and a read's buffer count
-    /// against the heap budget. Bytes a cancelled read took stay charged
-    /// until a read returns them, and a buffer past the budget ends the
-    /// read with `heap-exhausted`.
-    #[test]
-    fn payloads_and_read_buffers_count_against_the_heap() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let mut net = Net::new();
-        net.ledger = crate::limits::Ledger::new(16);
-        let handle = net.opened("connect", listener.local_addr().unwrap().port());
-        let (mut peer, _) = listener.accept().unwrap();
-        let mut payload = Enc::default();
-        payload.bytes(&[0; 17]);
-        let error = net
-            .start(
-                "TcpStream.write",
-                &[handle],
-                payload.done(),
-                &Grants::default(),
-            )
-            .err()
-            .expect("the payload passes the budget");
-        assert!(crate::limits::is_heap_exhausted(&error));
-        assert_eq!(net.ledger.charged(), 0);
-        let completed = pending(read(&mut net, handle, 8));
-        peer.write_all(b"abc").unwrap();
-        net.wait_for(completed);
-        assert_eq!(net.ledger.charged(), 3);
-        net.abort(completed);
-        assert_eq!(net.ledger.charged(), 3, "the unread bytes stay charged");
-        assert_eq!(result_bytes(&ready(read(&mut net, handle, 2))), b"ab");
-        assert_eq!(net.ledger.charged(), 1);
-        assert_eq!(result_bytes(&ready(read(&mut net, handle, 8))), b"c");
-        assert_eq!(net.ledger.charged(), 0);
-        let exhausted = pending(read(&mut net, handle, 17));
-        peer.write_all(b"d").unwrap();
-        net.wait_for(exhausted);
-        assert!(matches!(
-            net.reactor.remove(exhausted).map(|op| op.work),
-            Some(crate::reactor::Work::Offloaded(Some(
-                crate::reactor::Done::Exhausted
-            )))
-        ));
-        assert_eq!(net.ledger.charged(), 0);
         net.client.stop();
     }
 

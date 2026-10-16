@@ -48,8 +48,8 @@ checking.
   `--release`. Optimizations run in the optimized pipeline only.
 - The first release targets Wasm only, run on wasmtime inside `hd` or on
   V8. A native backend with its own GC: not built yet; see #188.
-- The compiler process has no default memory cap (`--max-memory` or
-  `HD_MAX_MEMORY`). The shared cache defaults to 10 GB with LRU eviction.
+- The compiler process has no memory cap. The shared cache defaults to
+  10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact
   `hd.names` for backtraces.
 - NonEscapable types come after the first release; see #163. `defer`
@@ -219,7 +219,7 @@ compiled; the conformance suite on every engine.
 a regression file that replays first); unit and integration tests in
 parallel on a pooled runner; counted range loops, capture-free closures
 as constant globals, cheap `Option`; cheap host calls and host calls that
-can suspend; resource limits (`--max-heap`, `--time-limit`) with
+can suspend; a resource limit (`--time-limit`) with
 capability grants; symbolized backtraces in release builds.
 
 **Later:**

@@ -35,10 +35,6 @@ hd_syntax = { path = "../hd_syntax", optional = true }
 # and SIGINT while an input runs, which stops it (`cli.repl.stop`).
 ctrlc = { version = "=3.5.2", optional = true }
 rustyline = { version = "=18.0.1", default-features = false, optional = true }
-tracking-allocator = { version = "=0.4.0", default-features = false }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
 
 [lints]
 workspace = true

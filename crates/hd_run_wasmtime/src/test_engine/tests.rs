@@ -32,7 +32,6 @@ enum Body {
     ProcessSleep,
     // Computes until interrupted.
     Busy,
-    HeapGrow,
 }
 
 fn wasm(body: Body, standard: bool) -> Vec<u8> {
@@ -136,11 +135,6 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
         Body::Snapshot => {
             poll.instruction(&I::I32Const(1))
                 .instruction(&I::Call(1))
-                .instruction(&I::Drop);
-        }
-        Body::HeapGrow => {
-            poll.instruction(&I::I32Const(1))
-                .instruction(&I::MemoryGrow(0))
                 .instruction(&I::Drop);
         }
         #[cfg(unix)]
@@ -258,16 +252,7 @@ fn start_child(
     deadline: Option<std::time::Instant>,
 ) -> super::process::ChildRun {
     let arguments = child_arguments();
-    match super::start(
-        arguments.done(),
-        &Grants::default(),
-        environment,
-        deadline,
-        64 << 20,
-        &crate::limits::Ledger::new(u64::MAX),
-    )
-    .unwrap()
-    {
+    match super::start(arguments.done(), &Grants::default(), environment, deadline).unwrap() {
         super::Start::Run(run) => run,
         super::Start::Ready(_) => panic!("the child starts"),
     }
@@ -283,7 +268,7 @@ fn finished_child(reactor: &mut Reactor, h: i32) -> Option<crate::codec::Enc> {
         assert!(reactor.wait(), "the child is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
-        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded, _)))) => encoded,
+        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded)))) => encoded,
         _ => panic!("the child has no result"),
     }
 }
@@ -318,46 +303,6 @@ fn named_child_external_process_uses_case_cwd_without_changing_parent() {
     assert_eq!(inner.str().unwrap(), "");
     assert_eq!(inner.zz().unwrap(), 0);
     assert_eq!(std::env::current_dir().unwrap(), parent);
-}
-
-/// `std-host.op.heap`: a test child's output counts against the parent's
-/// heap budget. Output past it interrupts the child and its `.finish`
-/// panics; output within it stays charged until `.finish` takes it.
-#[cfg(unix)]
-#[test]
-fn a_childs_output_counts_against_the_parents_heap() {
-    use crate::limits::Ledger;
-    let environment = environment_with(Body::ProcessCwd, std::env::current_dir().unwrap());
-    for (max, exhausted) in [(4, true), (u64::MAX, false)] {
-        let ledger = Ledger::new(max);
-        let super::Start::Run(run) = super::start(
-            child_arguments().done(),
-            &Grants::default(),
-            &environment,
-            None,
-            64 << 20,
-            &ledger,
-        )
-        .unwrap() else {
-            panic!("the child starts");
-        };
-        let mut reactor = Reactor::new(None);
-        let h = reactor.offload(run.wait()).unwrap();
-        let mut out = Vec::new();
-        while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
-            assert!(reactor.wait(), "the child is pending");
-        }
-        match reactor.remove(h).map(|op| op.work) {
-            Some(Work::Offloaded(Some(crate::reactor::Done::Exhausted))) => assert!(exhausted),
-            Some(Work::Offloaded(Some(crate::reactor::Done::Child(Some(_), held)))) => {
-                assert!(!exhausted);
-                assert!(ledger.charged() > 0, "the output is charged");
-                drop(held);
-            }
-            _ => panic!("the child has no result"),
-        }
-        assert_eq!(ledger.charged(), 0);
-    }
 }
 
 /// Two children that take about a second each run at the same time, as
@@ -433,7 +378,6 @@ fn engine() -> TestEngine {
         TestPoolConfig {
             workers: 1,
             shrink_spares: 0,
-            max_memory_bytes: u64::MAX,
         },
     )
     .unwrap()
@@ -536,54 +480,6 @@ fn exit_three_is_not_a_trap() {
     assert_eq!(result.status, 3);
     assert!(!result.trapped);
     assert!(result.stderr.is_empty());
-}
-
-#[test]
-fn initial_test_memory_over_the_case_cap_is_a_heap_panic() {
-    let engine = engine();
-    let mut runner = runner(
-        &engine,
-        &wasm(Body::Counter, false),
-        Limits {
-            memory_bytes: 0,
-            ..Limits::default()
-        },
-    );
-    let result = runner.run_body(State::new(case()), false).unwrap();
-    assert_eq!(result.status, 3);
-    assert!(result.trapped);
-    assert!(
-        result.stderr.starts_with("panic: heap-exhausted:"),
-        "{}",
-        result.stderr
-    );
-    runner.finish();
-    assert!(runner.instance.is_none());
-}
-
-#[test]
-fn memory_growth_is_capped_independently_for_each_test_row() {
-    let engine = engine();
-    let mut runner = runner(
-        &engine,
-        &wasm(Body::HeapGrow, false),
-        Limits {
-            memory_bytes: 64 << 10,
-            ..Limits::default()
-        },
-    );
-    let state = State::new(case());
-    for row in 0..2 {
-        state.begin_body(row, u64::from(row));
-        let result = runner.run_body(state.clone(), false).unwrap();
-        assert_eq!(result.status, 3);
-        assert!(result.trapped);
-        assert!(
-            result.stderr.starts_with("panic: heap-exhausted:"),
-            "{}",
-            result.stderr
-        );
-    }
 }
 
 fn bounded_timeout(body: Body, wall_ms: Option<u64>, expected: &'static str) {

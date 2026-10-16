@@ -128,7 +128,6 @@ fn setup(wall_ms: Option<u64>) -> HostSetup {
         providers: vec![],
         grants: Grants::default(),
         limits: Limits {
-            memory_bytes: u64::MAX,
             fuel: None,
             wall_ms,
         },

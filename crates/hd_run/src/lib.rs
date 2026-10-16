@@ -51,21 +51,10 @@ pub enum StartError {
 }
 
 /// Resource limits (§17.8).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Limits {
-    pub memory_bytes: u64,
     pub fuel: Option<u64>,
     pub wall_ms: Option<u64>,
-}
-
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            memory_bytes: 1 << 30,
-            fuel: None,
-            wall_ms: None,
-        }
-    }
 }
 
 /// A host method call's result: ready now, or pending on an operation.

@@ -99,7 +99,7 @@ pub fn run_with_profile(
     setup: &HostSetup,
     io: HostIo,
 ) -> Result<Outcome, String> {
-    run_profile_with_guards(config, profile, wasm, setup, io, || (), || (), None).map(|(o, _, _)| o)
+    run_profile(config, profile, wasm, setup, io, None).map(|(o, _, _)| o)
 }
 
 /// [`run_captured_with_profile`] on the default profile, and the value of
@@ -118,14 +118,12 @@ pub fn run_captured_reading(
         err: Box::new(err.clone()),
         input: None,
     };
-    let (outcome, _, value) = run_profile_with_guards(
+    let (outcome, _, value) = run_profile(
         config,
         RuntimeProfile::Default,
         wasm,
         setup,
         io,
-        || (),
-        || (),
         Some(global),
     )?;
     let status = match outcome {
@@ -141,76 +139,42 @@ pub fn run_captured_reading(
     Ok((captured, value))
 }
 
-/// Runs with caller-owned guards around native compilation and guest execution.
-/// The guest guard remains alive until the instance and its host are dropped.
-pub fn run_with_guards<P, G>(
-    config: EngineConfig,
-    wasm: &[u8],
-    setup: &HostSetup,
-    io: HostIo,
-    preparing: impl FnOnce() -> P + Send,
-    guest: impl FnOnce() -> G + Send,
-) -> Result<Outcome, String> {
-    run_traced_with_guards(config, wasm, setup, io, preparing, guest).map(|(o, _)| o)
-}
-
-/// [`run_with_guards`], and with the Wasm frames of the trap the run ended
-/// in, innermost first as function index and module byte offset (empty when
+/// [`run`], and with the Wasm frames of the trap the run ended in,
+/// innermost first as function index and module byte offset (empty when
 /// it ended any other way), which the caller symbolizes through the
 /// module's line table (`flow.panic.report`).
-pub fn run_traced_with_guards<P, G>(
+pub fn run_traced(
     config: EngineConfig,
     wasm: &[u8],
     setup: &HostSetup,
     io: HostIo,
-    preparing: impl FnOnce() -> P + Send,
-    guest: impl FnOnce() -> G + Send,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
-    run_profile_with_guards(
-        config,
-        RuntimeProfile::Default,
-        wasm,
-        setup,
-        io,
-        preparing,
-        guest,
-        None,
-    )
-    .map(|(o, frames, _)| (o, frames))
+    run_profile(config, RuntimeProfile::Default, wasm, setup, io, None)
+        .map(|(o, frames, _)| (o, frames))
 }
 
 /// How a run ended, the trap's frames, and the global it was asked to read.
 type Ran = (Outcome, Vec<(u32, u32)>, Option<i32>);
 
-fn run_profile_with_guards<P, G>(
-    mut config: EngineConfig,
+fn run_profile(
+    config: EngineConfig,
     profile: RuntimeProfile,
     wasm: &[u8],
     setup: &HostSetup,
     io: HostIo,
-    preparing: impl FnOnce() -> P + Send,
-    guest: impl FnOnce() -> G + Send,
     read: Option<&str>,
 ) -> Result<Ran, String> {
-    // A bounded store grows lazily rather than reserving the profile's
-    // initial 64 MiB before the guest has allocated anything.
-    if setup.limits.memory_bytes != u64::MAX {
-        config.gc_heap_initial = 0;
-    }
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("hd-wasmtime".into())
             .stack_size(thread_stack(&config))
             .spawn_scoped(scope, move || {
-                let preparing = preparing();
                 let engine = WasmtimeEngine::new_with_profile(config, profile)?;
                 let module = engine
                     .load(wasm, &hd_cache::MemoryStore::default())
                     .map_err(|e| match e {
                         LoadError::NotHd(m) | LoadError::Engine(m) => m,
                     })?;
-                drop(preparing);
-                let _guest = guest();
                 let mut inst =
                     engine
                         .instantiate_with(&module, setup, io)

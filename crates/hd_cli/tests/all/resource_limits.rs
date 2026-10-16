@@ -1,6 +1,5 @@
 //! CLI flag routing and observable Wasmtime limit failures, using raw Wasm.
 //! The tests that run Wasmtime need the `wasmtime` feature.
-use std::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -16,8 +15,7 @@ fn hd(dir: &Path) -> Command {
     command
         .current_dir(dir)
         .env("HD_CACHE", dir.join("cache"))
-        .env_remove("HD_ENGINE")
-        .env_remove("HD_MAX_MEMORY");
+        .env_remove("HD_ENGINE");
     command
 }
 
@@ -84,115 +82,33 @@ fn prebuilt_deadline_interrupts_busy_init() {
     );
 }
 
-#[cfg(feature = "wasmtime")]
+/// `hd` has no heap or compiler memory flag: `--max-heap` and
+/// `--max-memory` are usage errors, in each place they used to be taken.
 #[test]
-fn heap_growth_and_initial_memory_fail_as_panics() {
-    let dir = work("heap");
-    std::fs::write(dir.join("main.wasm"), module(&[0x41, 2, 0x40, 0, 0x1a])).unwrap();
-    for limit in ["0", "64K"] {
-        let mut command = hd(&dir);
-        command.args(["main.wasm", "--engine=wasmtime", "--max-heap", limit]);
-        let output = bounded(command);
-        assert_eq!(output.status.code(), Some(3), "{output:?}");
-        assert_eq!(
-            output.stderr,
-            b"panic: heap-exhausted: the program heap cannot allocate more memory\n"
-        );
-    }
+fn heap_and_memory_flags_are_usage_errors() {
+    let dir = work("no-memory-flags");
+    std::fs::write(
+        dir.join("x.hd"),
+        "pub fn main() -> void $ Console:\n    println(\"hi\")\n",
+    )
+    .unwrap();
     let mut command = hd(&dir);
-    command.args(["main.wasm", "--engine=wasmtime"]);
+    command.args(["check", "x.hd"]);
     assert!(bounded(command).status.success());
-}
-
-#[test]
-fn compiler_memory_reports_once_on_check_json_stream() {
-    let dir = work("memory-json");
-    let mut command = hd(&dir);
-    command.args(["check", "missing.hd", "--max-memory=0", "--format=json"]);
-    let output = bounded(command);
-    assert_eq!(output.status.code(), Some(101), "{output:?}");
-    let text = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        text.matches("\"code\":\"memory-limit\"").count(),
-        1,
-        "{text}"
-    );
-    assert!(text.contains("starting compiler"), "{text}");
-    assert!(output.stderr.is_empty(), "{output:?}");
-}
-
-/// `cli.memory.cap`, `cli.memory.cap.error`: in a workspace `hd test`, the
-/// first member's tests disarm the compiler cap for their run; the second
-/// member's compile is limited again. Member `a` alone fits in 32 MiB
-/// (about 17 MiB); `b`'s 10000 functions need about 68 MiB to compile.
-#[test]
-fn compiler_memory_cap_limits_each_workspace_members_compile() {
-    let dir = work("memory-members");
-    let test = "pub fn one() -> i32:\n    1\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"adds\"):\n        assert_equal(one(), 1, reason=\"one\")\n";
-    let mut big = String::new();
-    for i in 0..10_000 {
-        writeln!(big, "pub fn g{i}(x: i32) -> i32:\n    x + {i}\n").unwrap();
-    }
-    big.push_str(&test[test.find("tests:").unwrap()..]);
-    for (path, text) in [
-        ("hd.toml", "[workspace]\nmembers = [\"a\", \"b\"]\n"),
-        ("a/hd.toml", "[package]\nname = \"a\"\n"),
-        ("a/src/lib.hd", test),
-        ("b/hd.toml", "[package]\nname = \"b\"\n"),
-        ("b/src/lib.hd", &big.replace("one()", "g0(1)")),
+    for args in [
+        &["run", "--max-heap", "1M", "x.hd"][..],
+        &["x.hd", "--max-heap=1M"],
+        &["check", "--max-memory", "4G", "x.hd"],
+        &["--max-memory=4G", "check", "x.hd"],
+        &["test", "--max-heap=1M", "x.hd"],
     ] {
-        let file = dir.join(path);
-        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
-        std::fs::write(file, text).unwrap();
-    }
-    // Each run gets a cold cache, so no run reuses another's compile.
-    let run = |cache: &str, args: &[&str]| {
         let mut command = hd(&dir);
-        command
-            .env("HD_CACHE", dir.join(cache))
-            .args(["test", "--jobs", "1"])
-            .args(args);
-        bounded(command)
-    };
-    let output = run("cache-a", &["-p", "a", "--max-memory=32M"]);
-    assert!(output.status.success(), "{output:?}");
-    let output = run("cache-tight", &["--max-memory=32M"]);
-    assert_eq!(output.status.code(), Some(101), "{output:?}");
-    let error = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(error.lines().count(), 1, "{error}");
-    assert!(
-        error.starts_with(
-            "error: memory-limit: compiler memory limit of 33554432 bytes exceeded while "
-        ),
-        "{error}"
-    );
-    let output = run("cache-generous", &["--max-memory=256M"]);
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "test result: ok. 2 passed; 0 failed; 0 ignored\n"
-    );
-}
-
-#[cfg(feature = "wasmtime")]
-#[test]
-fn explicit_compiler_limit_overrides_invalid_environment() {
-    let dir = work("env-override");
-    std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
-    let mut command = hd(&dir);
-    command.env("HD_MAX_MEMORY", "invalid").args([
-        "--max-memory=18446744073709551615",
-        "main.wasm",
-        "--engine=wasmtime",
-    ]);
-    assert!(bounded(command).status.success());
-    let mut command = hd(&dir);
-    command
-        .env("HD_MAX_MEMORY", "invalid")
-        .args(["main.wasm", "--engine=wasmtime"]);
-    let output = bounded(command);
-    assert_eq!(output.status.code(), Some(101));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("HD_MAX_MEMORY"));
+        command.args(args);
+        let output = bounded(command);
+        assert_eq!(output.status.code(), Some(101), "{args:?}: {output:?}");
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.starts_with("error: "), "{args:?}: {error}");
+    }
 }
 
 #[cfg(feature = "wasmtime")]
@@ -212,11 +128,11 @@ fn source_file_and_package_run_route_program_limits() {
         "run",
         "--engine",
         "wasmtime",
-        "--max-heap=0",
+        "--time-limit=0ms",
     ]);
     let output = bounded(command);
     assert_eq!(output.status.code(), Some(3), "{output:?}");
-    assert!(String::from_utf8_lossy(&output.stderr).contains("panic: heap-exhausted:"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("panic: time-limit:"));
 }
 
 #[cfg(feature = "wasmtime")]
@@ -224,11 +140,7 @@ fn source_file_and_package_run_route_program_limits() {
 fn invalid_runtime_forms_fail_but_program_words_are_not_parsed() {
     let dir = work("separator");
     std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
-    for flag in [
-        "--time-limit=1.5s",
-        "--max-heap=-1",
-        "--time-limit=18446744073709551615h",
-    ] {
+    for flag in ["--time-limit=1.5s", "--time-limit=18446744073709551615h"] {
         let mut command = hd(&dir);
         command.args(["--engine=wasmtime", "main.wasm", flag]);
         assert_eq!(bounded(command).status.code(), Some(101));
@@ -242,26 +154,6 @@ fn invalid_runtime_forms_fail_but_program_words_are_not_parsed() {
         "--time-limit=bad",
     ]);
     assert!(bounded(command).status.success());
-}
-
-#[test]
-fn node_heap_limit_warns_without_enforcement() {
-    let dir = work("node-warnings");
-    std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
-    let mut command = hd(&dir);
-    command.args([
-        "--engine=node",
-        "--max-heap=0",
-        "--time-limit=60s",
-        "main.wasm",
-    ]);
-    let output = bounded(command);
-    assert!(output.status.success(), "{output:?}");
-    let warning = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(warning.matches("warning:").count(), 1, "{warning}");
-    assert!(
-        warning.contains("--max-heap is ignored on Node: V8 exposes no per-store heap accounting")
-    );
 }
 
 #[cfg(not(feature = "wasmtime"))]

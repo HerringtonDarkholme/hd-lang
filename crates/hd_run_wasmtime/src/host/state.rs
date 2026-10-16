@@ -57,7 +57,6 @@ pub struct Host {
     pub(crate) sandbox: crate::fs::Sandbox,
     pub(crate) noticed: HashSet<String>,
     pub(crate) net: net::Client,
-    pub(crate) heap: crate::limits::HeapBudget,
     deadline: Option<Instant>,
     pub(crate) fixture: crate::profiles::State,
     pub(crate) testing: Option<crate::testing::State>,
@@ -66,7 +65,6 @@ pub struct Host {
     /// A session's stop flag: set from another thread, read at every
     /// deadline check and epoch tick.
     pub(crate) interrupt: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
-    pub(crate) memory_bytes: u64,
     timeout_millis: Option<i64>,
     /// A REPL session's journal (`docs/future-work/live-execution.md` §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
@@ -91,7 +89,6 @@ impl Host {
         program: String,
         grants: Grants,
         wall_ms: Option<u64>,
-        memory_bytes: u64,
     ) -> Host {
         let deadline = wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms)));
         Host {
@@ -108,14 +105,12 @@ impl Host {
             sandbox: crate::fs::Sandbox::default(),
             noticed: HashSet::default(),
             net: net::Client::default(),
-            heap: crate::limits::HeapBudget::new(crate::limits::Ledger::new(memory_bytes)),
             deadline,
             fixture: crate::profiles::State::default(),
             testing: None,
             environment: None,
             base_deadline: deadline,
             interrupt: None,
-            memory_bytes,
             timeout_millis: None,
             journal: None,
             replay: None,
@@ -132,21 +127,18 @@ impl Host {
             err: Box::new(std::io::sink()),
             input: None,
         };
-        Host::new(io, Vec::new(), String::new(), Grants::default(), None, 0)
+        Host::new(io, Vec::new(), String::new(), Grants::default(), None)
     }
 
     /// Readies this host for a new store, as a session's rebuild makes one:
     /// the store's memory and heap are new, nothing is pending, and the
     /// journal starts again as `journal`. The streams, standard input and open
-    /// sockets stay: they are the world outside the store. So does the heap
-    /// ledger, which what the sockets hold is still charged to; the old
-    /// store's memory is released from it.
+    /// sockets stay: they are the world outside the store.
     pub(crate) fn restart(&mut self, journal: hd_run::journal::Recorder) {
         self.flush();
         self.memory = None;
         self.reported = false;
         self.panic = None;
-        self.heap = crate::limits::HeapBudget::new(std::sync::Arc::clone(self.heap.ledger()));
         self.drop_pending();
         self.journal = Some(journal);
         self.replay = None;

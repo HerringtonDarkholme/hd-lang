@@ -9,7 +9,6 @@ use ureq::unversioned::transport::{Connector, RustlsConnector};
 pub(crate) use crate::abi::HttpError;
 use crate::abi::{self, Method};
 use crate::codec::{self, Dec, Enc, Wire};
-use crate::limits::{HeapExhausted, Ledger, Reservation};
 
 use super::client::granted_url;
 use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
@@ -24,15 +23,7 @@ pub(crate) struct Request {
     timeout: i64,
 }
 
-/// The most bytes of a response body one read takes.
-const BODY_CHUNK: usize = 16 * 1024;
-
 impl Request {
-    /// The bytes of the body, which the request holds until it ends.
-    pub(crate) fn body_len(&self) -> usize {
-        self.body.len()
-    }
-
     pub(crate) fn timeout(&self) -> Duration {
         Duration::from_millis(u64::try_from(self.timeout).unwrap_or(0))
     }
@@ -70,36 +61,6 @@ pub(crate) struct Response {
     status: u16,
     headers: Headers,
     body: Vec<u8>,
-    /// The heap the body holds.
-    held: Reservation,
-}
-
-impl Response {
-    /// The response with its body's heap released, for `.finish` to copy.
-    pub(crate) fn released(mut self) -> Response {
-        drop(self.held.take());
-        self
-    }
-}
-
-/// Why a request ended with no response.
-#[derive(Debug)]
-pub(crate) enum Ended {
-    Failed(HttpError),
-    /// The body would pass the heap budget (`std-host.op.heap.exhausted`).
-    HeapExhausted,
-}
-
-impl From<HttpError> for Ended {
-    fn from(failure: HttpError) -> Ended {
-        Ended::Failed(failure)
-    }
-}
-
-impl From<HeapExhausted> for Ended {
-    fn from(_: HeapExhausted) -> Ended {
-        Ended::HeapExhausted
-    }
 }
 
 /// A send's encoded result.
@@ -113,21 +74,19 @@ pub(crate) fn encode(response: Result<Response, HttpError>) -> Enc {
 
 /// Sends `request`, following its redirects, each rechecked against
 /// `grants` before any DNS or I/O, until `deadline`. It blocks, so it runs
-/// on the blocking pool; `cancel` ends it at once. Each response body is
-/// charged to `ledger` as it is read.
+/// on the blocking pool; `cancel` ends it at once.
 pub(crate) fn send(
     mut request: Request,
     grants: &Grants,
     deadline: Option<Instant>,
     cancel: &Cancel,
-    ledger: &Arc<Ledger>,
-) -> Result<Response, Ended> {
+) -> Result<Response, HttpError> {
     for redirects in 0..=10 {
         let url = granted_url(&request.url, grants)?;
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-            return Err(HttpError::Timeout.into());
+            return Err(HttpError::Timeout);
         }
-        let got = once(&url, &request, deadline, cancel, ledger)?;
+        let got = once(&url, &request, deadline, cancel)?;
         let location = got
             .headers
             .iter()
@@ -143,19 +102,17 @@ pub(crate) fn send(
         if !location.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(HttpError::InvalidUrl {
                 url: location.into(),
-            }
-            .into());
+            });
         }
         let next = resolve(&request.url, location);
         if next.parse::<ureq::http::Uri>().is_err() {
             return Err(HttpError::Other {
                 message: "Invalid URL".into(),
-            }
-            .into());
+            });
         }
         request.url = next;
         if redirects == 10 {
-            return Err(HttpError::TooManyRedirects { url: request.url }.into());
+            return Err(HttpError::TooManyRedirects { url: request.url });
         }
         if got.status == 303 || (matches!(got.status, 301 | 302) && request.method == "POST") {
             request.method = "GET".into();
@@ -170,8 +127,7 @@ fn once(
     request: &Request,
     deadline: Option<Instant>,
     cancel: &Cancel,
-    ledger: &Arc<Ledger>,
-) -> Result<Response, Ended> {
+) -> Result<Response, HttpError> {
     let method = if request.method.is_empty() {
         "GET".into()
     } else if is_token(&request.method) {
@@ -179,8 +135,7 @@ fn once(
     } else {
         return Err(HttpError::Other {
             message: format!("Method must be a valid HTTP token [\"{}\"]", request.method),
-        }
-        .into());
+        });
     };
     let internal = outgoing(url, &method, &request.headers)?;
     let candidates = Arc::new(Mutex::new(None));
@@ -244,37 +199,22 @@ fn once(
             (name.as_str().to_owned(), text)
         })
         .collect();
-    let (body, held) = read_body(response.body_mut(), url, ledger)?;
+    let body = read_body(response.body_mut(), url)?;
     Ok(Response {
         status,
         headers,
         body,
-        held,
     })
 }
 
-/// Reads the whole body, reserving each chunk before keeping it, so a body
-/// past the heap budget stops the read. No other limit applies
-/// (`std-host.op.heap.no-other-cap`).
-fn read_body(
-    body: &mut ureq::Body,
-    url: &Target,
-    ledger: &Arc<Ledger>,
-) -> Result<(Vec<u8>, Reservation), Ended> {
-    let mut reader = body.with_config().reader();
+/// Reads the whole body, with no size limit of its own.
+fn read_body(body: &mut ureq::Body, url: &Target) -> Result<Vec<u8>, HttpError> {
     let mut bytes = Vec::new();
-    let mut held = Reservation::empty(ledger);
-    let mut chunk = vec![0; BODY_CHUNK];
-    loop {
-        let n = match reader.read(&mut chunk) {
-            Ok(0) => return Ok((bytes, held)),
-            Ok(n) => n,
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(failure(&ureq::Error::from(error), url).into()),
-        };
-        held.grow(n)?;
-        bytes.extend_from_slice(&chunk[..n]);
-    }
+    body.with_config()
+        .reader()
+        .read_to_end(&mut bytes)
+        .map_err(|error| failure(&ureq::Error::from(error), url))?;
+    Ok(bytes)
 }
 
 fn failure(error: &ureq::Error, url: &Target) -> HttpError {

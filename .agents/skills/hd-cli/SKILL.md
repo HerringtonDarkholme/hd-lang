@@ -18,8 +18,8 @@ In this repo, build the compiler with `cargo build -p hd_cli` and run
 2. `hd check --format json FILE`, or `hd check --format json --tests` in a
    package. Read each diagnostic's `code`, `line`, `column`, `message`, and
    `fixes`. Fix the first error first; later ones are often follow-ons.
-3. In a package, `hd fix` applies the safe fix-its for you, then prints
-   what remains.
+3. In a package, `hd fix` applies the safe fix-its to the source files
+   for you, then prints what remains. It never edits `hd.toml`.
 4. `hd test` (or `hd test FILE`). A failure prints a `repro:` line; run
    that one case while you fix it.
 5. Run the program: `hd FILE` or `hd run`, with arguments after `--`.
@@ -36,7 +36,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd check [FILE]` | type-check the package, or FILE and the modules it uses; runs nothing |
 | `hd check --tests` / `--all` | also the test code / also the tests and tasks |
 | `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
-| `hd fix` | apply the package's safe fix-its, at most 3 rounds; no FILE, package only |
+| `hd fix` | apply the package's safe fix-its to its source files, at most 3 rounds; never edits `hd.toml`; no FILE, package only |
 | `hd test [FILE]` | run the package's tests, or those of FILE's module |
 | `hd test --filter WORD` | only the cases whose name contains WORD |
 | `hd test --affected` | only the test programs that changed since they last passed |
@@ -53,7 +53,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 Run flags (`hd FILE`, `hd run`, `hd test`, `hd build` where they apply):
 `--release` (overflow wraps instead of panicking), `--engine NAME` (this
 build offers `node` and `wasmtime`; a program behaves the same on each),
-`--time-limit 30s`, `--max-heap 256M`, `--cap NAME=VALUE` (grant or deny a
+`--time-limit 30s`, `--cap NAME=VALUE` (grant or deny a
 capability, as `--cap FsRead=false`; with no table or flag, everything is
 granted), and `-p NAME` for one workspace member.
 Put flags after the command word: `hd check --format json FILE`.

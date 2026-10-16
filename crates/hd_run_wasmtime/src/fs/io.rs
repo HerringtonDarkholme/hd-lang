@@ -8,19 +8,9 @@ use std::time::Instant;
 
 use super::api::{Failure, check_deadline};
 use super::sandbox::{Place, below_a_file};
-use crate::limits::Reservation;
 
-/// How much a special file's read takes before it asks the heap budget.
-const CHUNK: usize = 64 * 1024;
-
-/// The whole file. With `held`, the bytes are reserved in chunks as they
-/// are read, so a stream longer than the budget fails with
-/// `Failure::Exhausted` instead of growing without bound.
-pub(crate) fn read(
-    place: &Place,
-    deadline: Option<Instant>,
-    held: Option<&mut Reservation>,
-) -> Result<Vec<u8>, Failure> {
+/// The whole file.
+pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
     let mut file = open(place, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
@@ -36,34 +26,10 @@ pub(crate) fn read(
         )));
     }
     let mut bytes = Vec::new();
-    match held {
-        None => {
-            file.read_to_end(&mut bytes)
-                .map_err(|err| Failure::new("read", err))?;
-        }
-        Some(held) => read_charged(&mut file, &mut bytes, held)?,
-    }
+    file.read_to_end(&mut bytes)
+        .map_err(|err| Failure::new("read", err))?;
     check_deadline(deadline)?;
     Ok(bytes)
-}
-
-/// Reads to the end, reserving each chunk before keeping it.
-fn read_charged(
-    file: &mut File,
-    bytes: &mut Vec<u8>,
-    held: &mut Reservation,
-) -> Result<(), Failure> {
-    let mut chunk = vec![0; CHUNK];
-    loop {
-        let count = match file.read(&mut chunk) {
-            Ok(0) => return Ok(()),
-            Ok(count) => count,
-            Err(err) if err.kind() == ErrorKind::Interrupted => continue,
-            Err(err) => return Err(Failure::new("read", err)),
-        };
-        held.grow(count).map_err(|_| Failure::Exhausted)?;
-        bytes.extend_from_slice(&chunk[..count]);
-    }
 }
 
 pub(crate) fn write(

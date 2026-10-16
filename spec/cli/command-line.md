@@ -15,7 +15,7 @@ command finds a package and what each command runs:
 - `hd clean`, which removes the build directory or the dependency cache;
 - `hd fmt` and `hd fix`, which rewrite source files;
 - the compiled cache and `hd cache gc`;
-- resource limits on a program and on `hd` itself, and threads;
+- resource limits on a program, and threads;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -1132,7 +1132,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 hd fix    # applies each safe fix-it, rechecks, and lists the changes and what remains
 ```
 
-1. r[cli.fix.command] `hd fix` checks the package as `hd check` does, and applies each safe fix-it of the diagnostics it reports.
+1. r[cli.fix.command] `hd fix` checks the package as `hd check` does, and applies each safe fix-it of the diagnostics it reports. It applies fix-its to the package's source files only, and never edits `hd.toml`. So the fix-it of `unlisted-entry` is reported, not applied.
 2. r[cli.fix.safe] A fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd fix` applies no other fix-it.
 3. r[cli.fix.overlap] When the edits of two safe fix-its overlap, `hd fix` applies only the one whose diagnostic comes first in output order.
 4. r[cli.fix.rounds] After it applies fix-its, `hd fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or a bounded number of rounds has run.
@@ -1151,42 +1151,24 @@ the same edits.
 ### Program Limits
 
 ```sh
-hd run --max-heap 256M --time-limit 30s   # panics with heap-exhausted or time-limit past either
-hd test --time-limit 5s                   # each test case gets five seconds
+hd run --time-limit 30s    # panics with time-limit past 30 seconds
+hd test --time-limit 5s    # each test case gets five seconds
 ```
 
-1. r[cli.limit.heap] `--max-heap SIZE` limits the heap of the program that the command runs. An allocation past it panics, by [`flow.panic.heap-exhausted`](../lang/06-control-flow.md#r-flow.panic.heap-exhausted).
-2. r[cli.limit.time] `--time-limit DURATION` limits how long the program runs. A program that runs past it panics, by [`flow.panic.time-limit`](../lang/06-control-flow.md#r-flow.panic.time-limit).
-3. r[cli.limit.commands] `hd FILE`, `hd FILE.wasm`, `hd run`, and `hd test` take both flags, before the `--` of the program arguments.
-4. r[cli.limit.none] Neither limit has a default. Without its flag, a program is limited only by its host.
-5. r[cli.limit.test] In `hd test`, each limit applies to each test case on its own, in its own program instance.
+1. r[cli.limit.time] `--time-limit DURATION` limits how long the program runs. A program that runs past it panics, by [`flow.panic.time-limit`](../lang/06-control-flow.md#r-flow.panic.time-limit).
+2. r[cli.limit.commands] `hd FILE`, `hd FILE.wasm`, `hd run`, and `hd test` take the flag, before the `--` of the program arguments.
+3. r[cli.limit.none] The limit has no default. Without the flag, a program is limited only by its host.
+4. r[cli.limit.test] In `hd test`, the limit applies to each test case on its own, in its own program instance.
 
 | Form | Meaning | Examples |
 | --- | --- | --- |
 | SIZE | a whole number of bytes, or a whole number followed by `K`, `M`, or `G`, for 1024, 1024², or 1024³ bytes | `65536`, `256M`, `2G` |
 | DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.prelude.time-suffixes) | `500ms`, `30s`, `2min` |
 
-6. r[cli.limit.forms] A SIZE or DURATION value has a form of the table above. Any other value is a usage error.
+5. r[cli.limit.forms] A SIZE or DURATION value has a form of the table above. Any other value is a usage error.
 
 > **Why.** An agent runs code it has not read. A limit turns a runaway
-> loop or allocation into a panic with a stable category, in place of a
-> hung or killed process.
-
-### Compiler Memory
-
-```sh
-hd check --max-memory 4G        # one memory-limit error, naming the stage, past 4 GiB
-HD_MAX_MEMORY=4G hd test        # the same cap from the environment
-```
-
-1. r[cli.memory.cap] `--max-memory SIZE` caps the memory of the `hd` process itself, as it checks and builds. The environment variable `HD_MAX_MEMORY` sets the cap when no flag does.
-2. r[cli.memory.cap.default] There is no cap by default.
-3. r[cli.memory.cap.error] When `hd` passes the cap, it stops its work and reports one error that names the stage it was in, such as checking bodies. Error: `memory-limit`.
-4. r[cli.memory.cap.program] The cap does not cover the program that a command runs, which `--max-heap` limits.
-
-> **Note.** When the cap is reached depends on how work was scheduled.
-> So the same command may pass in one run and fail in another, which is
-> why the cap is off unless asked for.
+> loop into a panic with a stable category, in place of a hung process.
 
 ### Threads
 

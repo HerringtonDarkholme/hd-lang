@@ -104,8 +104,8 @@ Tools and front ends:
 - **The driver does no I/O of its own.** Sources, the cache store, the
   executor and the clock come from the caller, so `hd_cli`, `hd_web` and
   the tests share one driver.
-- **`unsafe_code` is denied** workspace-wide. Three modules allow it:
-  `hd_base`'s `AppendVec`, `hd_cli`'s memory cap and `hd_web`'s exports.
+- **`unsafe_code` is denied** workspace-wide. Two modules allow it:
+  `hd_base`'s `AppendVec` and `hd_web`'s exports.
 
 ## Cross-Cutting Design Docs
 

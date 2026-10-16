@@ -39,20 +39,14 @@ pub enum Done {
     /// `Process.run!`: how the child's run ended.
     Process(crate::core::process::Ran),
     /// `Process.run!` of a test case's named child, run on a thread of its
-    /// own: the encoded result, or `None` for the time-limit trap, and the
-    /// heap its output holds.
-    Child(Option<crate::codec::Enc>, crate::limits::Reservation),
+    /// own: the encoded result, or `None` for the time-limit trap.
+    Child(Option<crate::codec::Enc>),
     /// A `Net` operation's result.
     Net(crate::net::Done),
     /// `Http.send!`: the response or the failure.
     Http(crate::http::client::Sent),
-    /// An `Fs` call on a special file: its encoded result, and the heap its
-    /// data holds.
-    Fs(crate::codec::Enc, crate::limits::Reservation),
-    /// An operation whose data would pass the heap budget: it ended its
-    /// work, and `.finish` panics `heap-exhausted`
-    /// (`std-host.op.heap.exhausted`).
-    Exhausted,
+    /// An `Fs` call on a special file: its encoded result.
+    Fs(crate::codec::Enc),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),

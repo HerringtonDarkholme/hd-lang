@@ -27,17 +27,14 @@ impl TestHostKind {
 }
 
 /// Slots bound simultaneous stores, not the amount of committed memory.
-/// The combined linear/GC backing-byte cap remains a per-store limiter.
 #[derive(Clone, Copy, Debug)]
 pub struct TestPoolConfig {
     pub workers: u32,
     pub shrink_spares: u32,
-    pub max_memory_bytes: u64,
 }
 
 pub(crate) struct Inner {
     pub(crate) engine: Arc<wasmtime::Engine>,
-    pub(crate) max_memory_bytes: u64,
     cache: crate::cache::ModuleCache,
 }
 
@@ -71,8 +68,8 @@ impl TestEngine {
         let memories = slots
             .checked_mul(2)
             .ok_or_else(|| "the test memory slot count overflows".to_owned())?;
-        // Test heaps grow lazily. A fixed initial heap would falsely consume
-        // small explicit budgets before a case allocates anything.
+        // Test heaps grow lazily, so a pooled store reserves no fixed
+        // initial heap before a case allocates anything.
         config.gc_heap_initial = 0;
         // The engine stays per `TestEngine`: pool slots bound simultaneous
         // stores, so sharing the pool would merge independent capacity
@@ -97,7 +94,6 @@ impl TestEngine {
         crate::deadline::register(&engine)?;
         Ok(Self(Arc::new(Inner {
             engine,
-            max_memory_bytes: pool.max_memory_bytes,
             cache: crate::cache::ModuleCache::new(),
         })))
     }

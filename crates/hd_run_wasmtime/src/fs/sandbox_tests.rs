@@ -12,7 +12,6 @@ use super::api::{Start, start};
 use super::sandbox::Sandbox;
 use super::test_support::{TempDir, error, key};
 use crate::codec::Enc;
-use crate::limits::Ledger;
 
 /// `FsRead` and `FsWrite` both limited to `entries`.
 fn grants(entries: &[PathBuf]) -> Grants {
@@ -42,19 +41,7 @@ fn call(
     if let Some(bytes) = payload {
         args.bytes(bytes);
     }
-    let ledger = Ledger::new(u64::MAX);
-    match start(
-        key(method),
-        method,
-        args.done(),
-        grants,
-        sandbox,
-        None,
-        cwd,
-        &ledger,
-    )
-    .expect("host call")
-    {
+    match start(key(method), method, args.done(), grants, sandbox, None, cwd).expect("host call") {
         Start::Ready(encoded) => encoded,
         Start::Run(_) => panic!("{method} of {path} was offloaded"),
     }
@@ -84,7 +71,6 @@ fn after_swap(
     let env = Env {
         cwd,
         deadline: None,
-        held: None,
         sandbox: Some(&sandbox),
     };
     match run(method, path, &place, None, payload, env) {
@@ -252,18 +238,9 @@ fn a_link_outside_the_grant_is_not_removed_or_renamed() {
     );
     let mut args = Enc::default();
     args.str("outside/in").str("granted/moved");
-    let ledger = Ledger::new(u64::MAX);
-    let Start::Ready(renamed) = start(
-        "FsWrite",
-        "rename",
-        args.done(),
-        &g,
-        &sandbox,
-        None,
-        &dir.0,
-        &ledger,
-    )
-    .unwrap() else {
+    let Start::Ready(renamed) =
+        start("FsWrite", "rename", args.done(), &g, &sandbox, None, &dir.0).unwrap()
+    else {
         panic!("a rename was offloaded");
     };
     assert_eq!(renamed.done(), error("outside/in", 2).done());

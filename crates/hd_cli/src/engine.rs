@@ -65,13 +65,12 @@ impl TestSession {
         kind: EngineKind,
         level: OptLevel,
         jobs: usize,
-        limits: ProgramLimits,
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
         match kind {
             EngineKind::Node => Ok(Self::Node),
             EngineKind::Wasmtime => {
-                wasmtime::Session::new(level, jobs, limits, programs).map(Self::Wasmtime)
+                wasmtime::Session::new(level, jobs, programs).map(Self::Wasmtime)
             }
         }
     }
@@ -122,28 +121,19 @@ impl TestSession {
     }
 }
 
-/// Explicit program limits; neither has a default (`cli.limit.none`).
+/// The explicit program limit, which has no default (`cli.limit.none`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ProgramLimits {
-    pub heap_bytes: Option<u64>,
     pub wall_ms: Option<u64>,
 }
 
 impl From<ProgramLimits> for Limits {
     fn from(limits: ProgramLimits) -> Self {
         Self {
-            memory_bytes: limits.heap_bytes.unwrap_or(u64::MAX),
             fuel: None,
             wall_ms: limits.wall_ms,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LimitFlag {
-    Heap(u64),
-    Time(u64),
-    CompilerMemory(u64),
 }
 
 fn scaled(value: &str, suffixes: &[(&str, u64)]) -> Option<u64> {
@@ -183,35 +173,24 @@ pub(crate) fn parse_duration(value: &str) -> Result<u64, String> {
     })
 }
 
-/// A resource-limit flag at `args[i]`, and the number of words it used.
-pub(crate) fn limit_flag(
-    args: &[OsString],
-    i: usize,
-) -> Option<Result<(LimitFlag, usize), String>> {
+/// `--time-limit DURATION` at `args[i]` (`cli.limit.time`): the limit in
+/// milliseconds, and the number of words it used.
+pub(crate) fn time_limit_flag(args: &[OsString], i: usize) -> Option<Result<(u64, usize), String>> {
+    const FLAG: &str = "--time-limit";
     let text = args.get(i)?.to_string_lossy();
-    for flag in ["--max-heap", "--time-limit", "--max-memory"] {
-        let (value, used) = if text == flag {
-            let Some(value) = args.get(i + 1) else {
-                return Some(Err(format!("`{flag}` needs a value")));
-            };
-            (value.to_string_lossy().into_owned(), 2)
-        } else if let Some(value) = text.strip_prefix(&format!("{flag}=")) {
-            (value.to_owned(), 1)
-        } else {
-            continue;
+    let (value, used) = if text == FLAG {
+        let Some(value) = args.get(i + 1) else {
+            return Some(Err(format!("`{FLAG}` needs a value")));
         };
-        let result = match flag {
-            "--max-heap" => parse_size(&value).map(LimitFlag::Heap),
-            "--time-limit" => parse_duration(&value).map(LimitFlag::Time),
-            _ => parse_size(&value).map(LimitFlag::CompilerMemory),
-        };
-        return Some(
-            result
-                .map(|limit| (limit, used))
-                .map_err(|e| format!("{flag}: {e}")),
-        );
-    }
-    None
+        (value.to_string_lossy().into_owned(), 2)
+    } else {
+        (text.strip_prefix("--time-limit=")?.to_owned(), 1)
+    };
+    Some(
+        parse_duration(&value)
+            .map(|ms| (ms, used))
+            .map_err(|e| format!("{FLAG}: {e}")),
+    )
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -291,7 +270,6 @@ pub(crate) fn run(
     match kind {
         EngineKind::Node => {
             let store = crate::disk_store();
-            let _guest = crate::memory_cap::enter_guest();
             let node = crate::node::NodeEngine::default();
             let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;
             let frames = node.trace.lock().map(|t| t.clone()).unwrap_or_default();
@@ -303,7 +281,7 @@ pub(crate) fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{EngineKind, LimitFlag, ProgramLimits, limit_flag, parse_duration, parse_size};
+    use super::{EngineKind, ProgramLimits, parse_duration, parse_size, time_limit_flag};
     use hd_run::Limits;
     use std::ffi::OsString;
 
@@ -433,85 +411,61 @@ mod tests {
     }
 
     #[test]
-    fn limit_flags_accept_both_value_forms_and_return_words_used() {
-        for (flag, value, expected) in [
-            ("--max-heap", "2G", LimitFlag::Heap(2 * 1024 * 1024 * 1024)),
-            ("--time-limit", "2min", LimitFlag::Time(120_000)),
-            (
-                "--max-memory",
-                "4M",
-                LimitFlag::CompilerMemory(4 * 1024 * 1024),
-            ),
-        ] {
-            let separate = [
-                OsString::from("other"),
-                OsString::from(flag),
-                OsString::from(value),
-            ];
-            assert_eq!(limit_flag(&separate, 1), Some(Ok((expected, 2))));
-            let joined = [OsString::from(format!("{flag}={value}"))];
-            assert_eq!(limit_flag(&joined, 0), Some(Ok((expected, 1))));
-        }
+    fn time_limit_flag_accepts_both_value_forms_and_returns_words_used() {
+        let separate = [
+            OsString::from("other"),
+            OsString::from("--time-limit"),
+            OsString::from("2min"),
+        ];
+        assert_eq!(time_limit_flag(&separate, 1), Some(Ok((120_000, 2))));
+        let joined = [OsString::from("--time-limit=2min")];
+        assert_eq!(time_limit_flag(&joined, 0), Some(Ok((120_000, 1))));
     }
 
     #[test]
-    fn limit_flags_report_missing_and_invalid_values() {
-        for flag in ["--max-heap", "--time-limit", "--max-memory"] {
-            let args = [OsString::from(flag)];
-            assert_eq!(
-                limit_flag(&args, 0),
-                Some(Err(format!("`{flag}` needs a value")))
-            );
-            for value in ["", "+1", "1.5G", "18446744073709551616"] {
-                let joined = [OsString::from(format!("{flag}={value}"))];
-                let error = limit_flag(&joined, 0)
-                    .expect("recognized flag")
-                    .expect_err("invalid value");
-                assert!(error.starts_with(&format!("{flag}: ")), "{error}");
-                let separate = [OsString::from(flag), OsString::from(value)];
-                assert_eq!(limit_flag(&separate, 0), Some(Err(error)));
-            }
+    fn time_limit_flag_reports_missing_and_invalid_values() {
+        let args = [OsString::from("--time-limit")];
+        assert_eq!(
+            time_limit_flag(&args, 0),
+            Some(Err("`--time-limit` needs a value".to_owned()))
+        );
+        for value in ["", "+1", "1.5s", "18446744073709551616ms"] {
+            let joined = [OsString::from(format!("--time-limit={value}"))];
+            let error = time_limit_flag(&joined, 0)
+                .expect("recognized flag")
+                .expect_err("invalid value");
+            assert!(error.starts_with("--time-limit: "), "{error}");
+            let separate = [OsString::from("--time-limit"), OsString::from(value)];
+            assert_eq!(time_limit_flag(&separate, 0), Some(Err(error)));
         }
     }
 
+    /// `--max-heap` and `--max-memory` are no flags of `hd`.
     #[test]
-    fn limit_flags_leave_other_arguments_to_the_caller() {
+    fn time_limit_flag_leaves_other_arguments_to_the_caller() {
         for arg in [
             "--",
             "--engine=wasmtime",
             "main.hd",
-            "--max-heap-extra=1K",
+            "--max-heap=1M",
+            "--max-memory=4G",
             "--time-limits=1s",
         ] {
-            assert_eq!(limit_flag(&[OsString::from(arg)], 0), None, "{arg}");
+            assert_eq!(time_limit_flag(&[OsString::from(arg)], 0), None, "{arg}");
         }
-        assert_eq!(limit_flag(&[], 0), None);
-        assert_eq!(limit_flag(&[OsString::from("--max-heap=0")], 1), None);
+        assert_eq!(time_limit_flag(&[], 0), None);
+        assert_eq!(
+            time_limit_flag(&[OsString::from("--time-limit=1s")], 1),
+            None
+        );
     }
 
     #[test]
     fn program_limits_preserve_omission_zero_and_explicit_values() {
-        assert_eq!(
-            Limits::from(ProgramLimits::default()),
-            Limits {
-                memory_bytes: u64::MAX,
-                fuel: None,
-                wall_ms: None,
-            }
-        );
-        for (heap_bytes, wall_ms) in [
-            (Some(0), Some(0)),
-            (Some(1024), Some(500)),
-            (None, Some(0)),
-            (Some(0), None),
-        ] {
+        for wall_ms in [None, Some(0), Some(500)] {
             assert_eq!(
-                Limits::from(ProgramLimits {
-                    heap_bytes,
-                    wall_ms
-                }),
+                Limits::from(ProgramLimits { wall_ms }),
                 Limits {
-                    memory_bytes: heap_bytes.unwrap_or(u64::MAX),
                     fuel: None,
                     wall_ms,
                 }

@@ -1,13 +1,11 @@
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Instant;
 
 use hd_run::Grants;
 
 use crate::abi::{self, Entry, EntryKind, FsError};
 use crate::codec::{Dec, Enc, Wire, encode};
-use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Done;
 
 use super::io::{open, read, write};
@@ -35,10 +33,6 @@ pub(crate) enum Start {
 }
 
 /// A call on a special file, ready to run off the program thread.
-///
-/// What it holds counts against the heap budget (`std-host.op.heap`): a
-/// write's payload from `.start`, a read's bytes as they arrive. `.finish`
-/// releases it, or dropping the job does, once its thread ends.
 pub(crate) struct Job {
     method: String,
     path: String,
@@ -48,16 +42,10 @@ pub(crate) struct Job {
     to_place: Option<Place>,
     payload: Option<Vec<u8>>,
     cwd: PathBuf,
-    /// Whether the file is special, so that its reads are charged.
-    special: bool,
-    ledger: Arc<Ledger>,
-    held: Reservation,
 }
 
 impl Job {
-    /// Runs the call on the blocking pool and gives its encoded result and
-    /// the heap it holds, or `Done::Exhausted` when a read passes the heap
-    /// budget.
+    /// Runs the call on the blocking pool and gives its encoded result.
     ///
     /// Aborting drops only this future, which discards the result: the
     /// blocking thread cannot be cancelled, so it lingers until its I/O
@@ -66,31 +54,20 @@ impl Job {
     /// beyond "other tasks run" (`std-fs.special-file.deadline`), and a
     /// cancelled write may have happened (`std-fs.cancel.write`).
     pub(crate) async fn run(self: Box<Self>) -> Done {
-        let ledger = Arc::clone(&self.ledger);
         match tokio::task::spawn_blocking(move || self.run_blocking()).await {
-            Ok(Ok((encoded, held))) => Done::Fs(encoded, held),
-            Ok(Err(HeapExhausted)) => Done::Exhausted,
-            Err(error) => Done::Fs(
-                error_text(&format!("the file operation failed: {error}")),
-                Reservation::empty(&ledger),
-            ),
+            Ok(encoded) => Done::Fs(encoded),
+            Err(error) => Done::Fs(error_text(&format!("the file operation failed: {error}"))),
         }
     }
 
     /// The call, run on this thread, which waits for the file.
-    pub(crate) fn run_blocking(mut self: Box<Self>) -> Result<(Enc, Reservation), HeapExhausted> {
-        let encoded = self
-            .execute(None, None)
-            .unwrap_or_else(|| Ok(error_text("the file operation ran past a deadline")))?;
-        Ok((encoded, self.held))
+    pub(crate) fn run_blocking(self: Box<Self>) -> Enc {
+        self.execute(None, None)
+            .unwrap_or_else(|| error_text("the file operation ran past a deadline"))
     }
 
     /// The encoded result, or `None` once the deadline passed.
-    fn execute(
-        &mut self,
-        deadline: Option<Instant>,
-        sandbox: Option<&Sandbox>,
-    ) -> Option<Result<Enc, HeapExhausted>> {
+    fn execute(&self, deadline: Option<Instant>, sandbox: Option<&Sandbox>) -> Option<Enc> {
         let result = run(
             &self.method,
             &self.path,
@@ -100,7 +77,6 @@ impl Job {
             Env {
                 cwd: &self.cwd,
                 deadline,
-                held: self.special.then_some(&mut self.held),
                 sandbox,
             },
         );
@@ -108,15 +84,14 @@ impl Job {
             return None;
         }
         match result {
-            Ok(e) => Some(Ok(e)),
+            Ok(e) => Some(e),
             Err(Failure::Deadline) => None,
-            Err(Failure::Exhausted) => Some(Err(HeapExhausted)),
-            Err(err) => Some(Ok(failure(
+            Err(err) => Some(failure(
                 self.to.as_deref().unwrap_or(&self.path),
                 &self.method,
                 &self.path,
                 &err,
-            ))),
+            )),
         }
     }
 }
@@ -135,11 +110,7 @@ fn error_text(text: &str) -> Enc {
 /// guest's original spelling. Under a grant with scope entries, the call
 /// acts under the handle of the granted directory that covers it
 /// (`sandbox`). A regular file or a directory runs here;
-/// anything else (a FIFO, a device, a named pipe) comes back as a `Job`,
-/// whose data counts against the heap budget of `ledger`; a payload past
-/// it panics `heap-exhausted` (`std-host.op.heap.exhausted`). An inline
-/// call holds nothing: its data goes straight to the program's memory,
-/// which the budget already counts.
+/// anything else (a FIFO, a device, a named pipe) comes back as a `Job`.
 pub(crate) fn start(
     key: &str,
     method: &str,
@@ -148,7 +119,6 @@ pub(crate) fn start(
     sandbox: &Sandbox,
     deadline: Option<Instant>,
     cwd: &Path,
-    ledger: &Arc<Ledger>,
 ) -> wasmtime::Result<Start> {
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
@@ -204,11 +174,7 @@ pub(crate) fn start(
         None => None,
     };
     let special = OPENING.contains(&method) && place.is_special();
-    let held = match &payload {
-        Some(bytes) if special => ledger.reserve(bytes.len())?,
-        _ => Reservation::empty(ledger),
-    };
-    let mut job = Job {
+    let job = Job {
         method: method.to_owned(),
         path,
         to,
@@ -216,15 +182,12 @@ pub(crate) fn start(
         to_place,
         payload,
         cwd: cwd.to_owned(),
-        special,
-        ledger: Arc::clone(ledger),
-        held,
     };
     if special {
         return Ok(Start::Run(Box::new(job)));
     }
     match job.execute(deadline, Some(sandbox)) {
-        Some(encoded) => Ok(Start::Ready(encoded?)),
+        Some(encoded) => Ok(Start::Ready(encoded)),
         None => Err(crate::host::Stop::TimeLimit.into()),
     }
 }
@@ -239,12 +202,11 @@ pub(crate) fn call_until_at(
     deadline: Option<Instant>,
     cwd: &Path,
 ) -> wasmtime::Result<Enc> {
-    let ledger = Ledger::new(u64::MAX);
     let sandbox = Sandbox::default();
     Ok(
-        match start(key, method, bytes, grants, &sandbox, deadline, cwd, &ledger)? {
+        match start(key, method, bytes, grants, &sandbox, deadline, cwd)? {
             Start::Ready(encoded) => encoded,
-            Start::Run(job) => job.run_blocking()?.0,
+            Start::Run(job) => job.run_blocking(),
         },
     )
 }
@@ -273,8 +235,6 @@ pub(crate) fn call(
 
 pub(crate) enum Failure {
     Deadline,
-    /// A special file's read passed the heap budget.
-    Exhausted,
     System {
         error: io::Error,
         syscall: &'static str,
@@ -316,7 +276,7 @@ pub(crate) fn check_deadline(deadline: Option<Instant>) -> Result<(), Failure> {
 // (`std-fs.special-file.deadline`).
 pub(crate) fn read_file_until(path: &Path, deadline: Option<Instant>) -> io::Result<Vec<u8>> {
     let place = Place::Ambient(path.to_owned());
-    bounded(path, deadline, move || read(&place, None, None)).map_err(file_failure)
+    bounded(path, deadline, move || read(&place, None)).map_err(file_failure)
 }
 
 pub(crate) fn write_file_until(
@@ -362,7 +322,6 @@ fn file_failure(failure: Failure) -> io::Error {
             io::ErrorKind::TimedOut,
             "the program exceeded its time limit",
         ),
-        Failure::Exhausted => io::ErrorKind::OutOfMemory.into(),
         Failure::System { error, .. } => error,
         Failure::Message(message) => io::Error::other(message),
         Failure::NotGranted => io::ErrorKind::PermissionDenied.into(),
@@ -408,9 +367,7 @@ fn other(message: &str) -> FsError {
 
 pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -> Enc {
     let (err, syscall, error_path) = match failure {
-        Failure::Deadline | Failure::Exhausted => {
-            unreachable!("a deadline and an exhausted heap are host stops, not Fs errors")
-        }
+        Failure::Deadline => unreachable!("a deadline is a host stop, not an Fs error"),
         Failure::Message(message) => return error(other(message)),
         Failure::NotGranted => return not_granted(path),
         Failure::System {

@@ -1,0 +1,6 @@
+[package]
+name = "shop"
+
+[[executable]]
+name = "migrate"
+module = "tools.migrate"

@@ -10,17 +10,12 @@
 //! its process group, on Windows its Job object (audit §5.3 Q1). The
 //! child is reaped only after both output pipes close, so its process
 //! group ID cannot be reused while the group can still be killed.
-//!
-//! The child's input and the output kept so far count against the
-//! program's heap budget (`std-host.op.heap`). Output that would pass it
-//! kills the group the same way, and `.finish` panics `heap-exhausted`.
 
 use std::future::{Future, poll_fn};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::process::{ExitStatus, Stdio};
-use std::sync::Arc;
 use std::task::Poll;
 
 use hd_run::Grants;
@@ -29,7 +24,6 @@ use tokio::process::{Child, ChildStdin, Command};
 
 use crate::abi::{ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
-use crate::limits::{HeapExhausted, Ledger, Reservation};
 use crate::reactor::Done;
 
 /// The most bytes one read of an output pipe takes.
@@ -50,31 +44,21 @@ pub(crate) struct Request {
     pub(crate) argv: Vec<String>,
     pub(crate) input: Vec<u8>,
     pub(crate) cwd: Option<PathBuf>,
-    /// The heap budget the output is charged to.
-    pub(crate) ledger: Arc<Ledger>,
-    /// The heap the input holds.
-    pub(crate) held: Reservation,
 }
 
 /// A child's standard output, standard error and status.
 pub(crate) type Output = (Vec<u8>, Vec<u8>, i32);
 
-/// What the task delivers: the program, for the error text, how its run
-/// ended, and the heap its output holds.
+/// What the task delivers: the program, for the error text, and how its
+/// run ended.
 pub(crate) struct Ran {
     name: String,
     result: io::Result<Output>,
-    held: Reservation,
 }
 
 /// `run.start`'s checks, in the Node host's order: the grant, the empty
-/// name, then NUL bytes. An input past the heap budget panics.
-pub(crate) fn start(
-    bytes: &[u8],
-    grants: &Grants,
-    cwd: Option<&Path>,
-    ledger: &Arc<Ledger>,
-) -> wasmtime::Result<Start> {
+/// name, then NUL bytes.
+pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Result<Start> {
     let mut d = Dec::new(bytes);
     let name = String::dec(&mut d)?;
     let argv = Vec::<String>::dec(&mut d)?;
@@ -88,14 +72,11 @@ pub(crate) fn start(
     if let Some(message) = validate_process(&name, &argv) {
         return Ok(Start::Refused(failed(ProcessError::Other { message })));
     }
-    let held = ledger.reserve(input.len())?;
     Ok(Start::Run(Request {
         name,
         argv,
         input,
         cwd: cwd.map(Path::to_path_buf),
-        ledger: Arc::clone(ledger),
-        held,
     }))
 }
 
@@ -112,35 +93,18 @@ pub(crate) fn failed(error: ProcessError) -> Enc {
 }
 
 impl Request {
-    /// The task: runs the child to its end. `Done::Exhausted` when its
-    /// output would pass the heap budget; the group is killed then.
+    /// The task: runs the child to its end.
     pub(crate) async fn run(self) -> Done {
-        let mut held = Reservation::empty(&self.ledger);
-        let result = run_child(&self, &mut held).await;
-        // The input's heap: the child has ended, so nothing holds it now.
-        drop(self.held);
-        if result.as_ref().is_err_and(is_exhausted) {
-            return Done::Exhausted;
-        }
+        let result = run_child(&self).await;
         Done::Process(Ran {
             name: self.name,
             result,
-            held,
         })
     }
 }
 
-/// Whether a run failed because its output would pass the heap budget.
-fn is_exhausted(error: &io::Error) -> bool {
-    error
-        .get_ref()
-        .is_some_and(<dyn std::error::Error + Send + Sync>::is::<HeapExhausted>)
-}
-
-/// `run.finish`'s result: the output, or why the program did not run. The
-/// output's heap is released first.
+/// `run.finish`'s result: the output, or why the program did not run.
 pub(crate) fn finish(ran: Ran) -> Enc {
-    drop(ran.held);
     match ran.result {
         Ok((out, err, status)) => encode(&Ok::<_, ProcessError>(ProcessOutput {
             stdout: String::from_utf8_lossy(&out).into_owned(),
@@ -174,9 +138,8 @@ fn validate_process(name: &str, argv: &[String]) -> Option<String> {
 }
 
 /// Spawns the child, feeds its input while draining both outputs, and
-/// reaps it once both outputs close. Output that `held` cannot reserve
-/// kills the group.
-async fn run_child(request: &Request, held: &mut Reservation) -> io::Result<Output> {
+/// reaps it once both outputs close.
+async fn run_child(request: &Request) -> io::Result<Output> {
     let mut command = Command::new(&request.name);
     command
         .args(&request.argv)
@@ -193,18 +156,7 @@ async fn run_child(request: &Request, held: &mut Reservation) -> io::Result<Outp
     let mut child = command.spawn()?;
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let mut group = Group::new(child);
-    let (mut out_held, mut err_held) = (
-        Reservation::empty(&request.ledger),
-        Reservation::empty(&request.ledger),
-    );
-    let piped = pipes(
-        feed(stdin, &request.input),
-        drain(stdout, &mut out_held),
-        drain(stderr, &mut err_held),
-    )
-    .await;
-    held.absorb(out_held);
-    held.absorb(err_held);
+    let piped = pipes(feed(stdin, &request.input), drain(stdout), drain(stderr)).await;
     match piped {
         Ok((written, out, err)) => {
             let status = group.reap().await?;
@@ -234,13 +186,8 @@ async fn feed(stdin: Option<ChildStdin>, input: &[u8]) -> io::Result<()> {
     stdin.write_all(input).await
 }
 
-/// Reads one output to its end, reserving each chunk in `held` before
-/// keeping it. A chunk past the heap budget fails the read with
-/// `HeapExhausted`.
-async fn drain(
-    pipe: Option<impl AsyncRead + Unpin>,
-    held: &mut Reservation,
-) -> io::Result<Vec<u8>> {
+/// Reads one output to its end.
+async fn drain(pipe: Option<impl AsyncRead + Unpin>) -> io::Result<Vec<u8>> {
     let Some(mut pipe) = pipe else {
         return Ok(Vec::new());
     };
@@ -251,8 +198,6 @@ async fn drain(
         if n == 0 {
             return Ok(bytes);
         }
-        held.grow(n)
-            .map_err(|error| io::Error::new(io::ErrorKind::OutOfMemory, error))?;
         bytes.extend_from_slice(&chunk[..n]);
     }
 }

@@ -35,7 +35,6 @@ impl Session {
     pub(crate) fn new(
         level: hd_driver::OptLevel,
         jobs: usize,
-        limits: ProgramLimits,
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
         let config = hd_run_wasmtime::EngineConfig::pipeline(level);
@@ -45,7 +44,6 @@ impl Session {
             hd_run_wasmtime::TestPoolConfig {
                 workers,
                 shrink_spares: workers,
-                max_memory_bytes: limits.heap_bytes.unwrap_or(u64::MAX),
             },
         )?;
         let children = match programs {
@@ -166,13 +164,11 @@ pub(crate) fn run_program(
     wasm: &[u8],
     host: &HostSetup,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
-    hd_run_wasmtime::run_traced_with_guards(
+    hd_run_wasmtime::run_traced(
         hd_run_wasmtime::EngineConfig::pipeline(level),
         wasm,
         host,
         hd_run_wasmtime::HostIo::process(),
-        || crate::memory_cap::stage("Precompile"),
-        crate::memory_cap::enter_guest,
     )
 }
 

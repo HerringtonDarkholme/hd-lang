@@ -15,7 +15,6 @@ use std::time::Instant;
 use hd_check::tests::PANIC_CATEGORIES;
 use hd_driver::{Executor, Goal, Host, TestCase};
 
-use crate::memory_cap::build_packages;
 use hd_project::SourceSet as _;
 use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
@@ -93,15 +92,9 @@ fn parse_with_engine(
             i += used;
             continue;
         }
-        if let Some(limit) = crate::engine::limit_flag(args, i) {
-            let (flag, used) = limit?;
-            match flag {
-                crate::engine::LimitFlag::Heap(bytes) => o.limits.heap_bytes = Some(bytes),
-                crate::engine::LimitFlag::Time(ms) => o.limits.wall_ms = Some(ms),
-                crate::engine::LimitFlag::CompilerMemory(_) => {
-                    return Err("--max-memory is a global compiler option".into());
-                }
-            }
+        if let Some(limit) = crate::engine::time_limit_flag(args, i) {
+            let (ms, used) = limit?;
+            o.limits.wall_ms = Some(ms);
             i += used;
             continue;
         }
@@ -253,16 +246,6 @@ pub fn command(args: &[OsString]) -> ExitCode {
         failing: Vec::new(),
         unrun: Vec::new(),
     };
-    if o.engine == crate::engine::EngineKind::Node && o.limits.heap_bytes.is_some() {
-        // As in `main.rs`: V8 exposes no per-store heap accounting like
-        // wasmtime's ResourceLimiter ledger, so only wasmtime enforces
-        // heap budgets with the same behavior on every engine.
-        report.rep.diag(&report::Diag::new(
-            None,
-            hd_diag::Severity::Warning,
-            "--max-heap is ignored on Node: V8 exposes no per-store heap accounting, so only wasmtime enforces heap budgets; use --engine wasmtime for enforcement",
-        ));
-    }
     if o.file.is_some() && !o.packages.is_empty() {
         return report
             .rep
@@ -561,9 +544,6 @@ fn test_one(
     o: &Options,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
-    // An earlier member's tests disarmed the compiler memory cap
-    // (`cli.memory.cap`); this member's builds are limited again.
-    crate::memory_cap::rearm();
     let rep = &mut report.rep;
     // `cli.file.check-test`, `cli.package.no-root`: a FILE outside any
     // package or under no root is tested as a single-file program, which
@@ -678,7 +658,7 @@ fn test_one(
             module: spec.module.clone(),
             filter: o.filter.clone(),
         };
-        let mut out = build_packages(&host, package, &packages, &goal);
+        let mut out = hd_driver::build_packages(&host, package, &packages, &goal);
         crate::note_built(&out);
         let mut found = report::from_output(&out, None);
         // `cli.test.program`: the program of a doc test or an integration
@@ -1168,12 +1148,10 @@ fn run(
         return Ok(());
     }
     let (session, prepared) = {
-        let _preparing = crate::memory_cap::stage("Precompile");
         let session = TestSession::new(
             options.engine,
             crate::level_of(options.release),
             options.jobs,
-            options.limits,
             programs,
         )
         .map_err(|error| report.rep.fail(&error))?;
@@ -1195,7 +1173,6 @@ fn run(
         }
         (session, prepared)
     };
-    let _guest = crate::memory_cap::enter_guest();
     for ((prog, running), prepared) in built.iter().zip(&running).zip(&prepared) {
         if running.is_empty() {
             continue;
@@ -1642,7 +1619,6 @@ mod tests {
                     "--engine",
                     "wasmtime",
                     "--release",
-                    "--max-heap=2M",
                     "--time-limit",
                     "0ms",
                 ]),
@@ -1651,13 +1627,7 @@ mod tests {
             .unwrap();
             assert_eq!(native.engine, EngineKind::Wasmtime);
             assert!(native.release);
-            assert_eq!(
-                native.limits,
-                ProgramLimits {
-                    heap_bytes: Some(2 * 1024 * 1024),
-                    wall_ms: Some(0)
-                }
-            );
+            assert_eq!(native.limits, ProgramLimits { wall_ms: Some(0) });
             let explicit = parse_with_engine(
                 &words(&["--engine=wasmtime", "--engine=node"]),
                 EngineKind::Wasmtime,
@@ -1668,7 +1638,7 @@ mod tests {
         for words in [
             words(&["--engine=unknown"]),
             words(&["--engine"]),
-            words(&["--max-heap=bad"]),
+            words(&["--max-heap=1M"]),
             words(&["--time-limit", "5"]),
         ] {
             assert!(parse_with_engine(&words, EngineKind::Node).is_err());

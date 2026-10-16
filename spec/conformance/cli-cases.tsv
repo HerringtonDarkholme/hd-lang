@@ -104,6 +104,7 @@ fmt-syntax-error	cli.fmt.syntax-error,cli.fmt.file,cli.fmt.check,cli.exit.hd-fai
 fix-trait-dyn	cli.fix.command,cli.fix.safe,cli.fix.status,cli.exit.success
 fix-remaining-error	cli.fix.command,cli.fix.status,cli.exit.hd-failure
 fix-unsafe-left	cli.fix.safe,cli.fix.status,cli.exit.hd-failure
+fix-manifest-left	cli.fix.command,cli.fix.status,cli.exit.hd-failure
 check-summary	cli.check.summary-mode,cli.check.output-options,cli.check.report.stream,cli.check.report.summary,cli.check.summary-mode.line,cli.check.summary-mode.order,cli.exit.hd-failure,cli.exit.success
 dep-add-path-target	cli.dep.add.target,cli.dep.target.order,cli.dep.target.path,cli.dep.key.inferred,cli.dep.key.same,cli.dep.add.several,cli.dep.add.report,cli.dep.path,cli.dep.remove
 dep-add-name-flag	cli.dep.key.name-flag,cli.dep.key.name-flag.one,cli.dep.add.report,cli.dep.unchanged-on-error,cli.exit.hd-failure

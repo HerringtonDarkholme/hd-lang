@@ -13,7 +13,6 @@ use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
-use crate::memory_cap::build_packages;
 use hd_project::{ModuleTable, Role, role_of};
 
 use crate::report::{self, Diag, Summary};
@@ -255,7 +254,7 @@ fn check_role(
             .chain(docs.iter().map(|d| d.path.clone()))
             .collect()
     });
-    let out = build_packages(&host, &t.program.package, &packages, goal);
+    let out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
     let mut shown = shown(&out, t, docs);
     for x in &mut shown {
         if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {

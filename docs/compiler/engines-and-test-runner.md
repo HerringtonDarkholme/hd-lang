@@ -34,9 +34,9 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 | allocation strategy | pooling for `hd test` (§18.3); on-demand otherwise | same |
 | parallel compilation | off | off |
 
-- **Test heaps start empty.** A fixed initial heap per pooled slot would
-  count against a small `--max-heap` before a case allocates anything.
-  This is better than the design's small fixed per-slot heaps.
+- **Test heaps start empty.** A pooled slot reserves no fixed initial
+  heap before its case allocates anything. This is better than the
+  design's small fixed per-slot heaps.
 - **Parallel compilation.** The design compiled a module's functions in
   parallel, capped at the `--jobs` budget. Implementation differs:
   wasmtime's `parallel-compilation` feature is off, so every module
@@ -113,7 +113,6 @@ Not built yet; see #182.
   decides growth against the whole heap, so a long-lived set near the
   semi-space size is re-copied on every collection; one report measured
   337 collections and an 8.8x slowdown, fixed by a larger initial heap.
-  `--max-heap` still caps it.
 - Planned, not built: a null collector for short test instances, adopted
   only if it measurably cuts `unit-test-perf`.
 
@@ -296,8 +295,8 @@ only for a property whose cases leave state behind.
 
 ## 22. Resource Limits
 
-The spec's resource limits (`cli.limit.*`, `cli.memory.*`,
-`flow.panic.heap-exhausted`, `flow.panic.time-limit`) on wasmtime:
+The spec's resource limits (`cli.limit.*`, `flow.panic.heap-exhausted`,
+`flow.panic.time-limit`) on wasmtime:
 
 - **`--time-limit`.** A shared 10 ms epoch ticker (`deadline.rs`) and an
   absolute wall deadline per store; a wall-clock check stops an early tick
@@ -306,17 +305,8 @@ The spec's resource limits (`cli.limit.*`, `cli.memory.*`,
   `panic: time-limit`, status 3. In `hd test` it applies per case and
   composes with `report_timeout`. Epochs cannot interrupt one blocked
   kernel call, such as a file read.
-- **`--max-heap`.** A `ResourceLimiter` installed before instantiation.
-  wasmtime sends both linear-memory and GC backing allocations through
-  it, so the exchange buffer, the GC heap's growth and both copying
-  semi-spaces share one cap. A refused growth panics `heap-exhausted`.
-  No default cap.
-- **`--max-memory` / `HD_MAX_MEMORY`.** A counting global allocator tracks
-  live Rust allocation bytes of the compiler, not RSS, and is enabled only
-  when a cap is asked for. Past the cap, one `memory-limit` diagnostic
-  names the stage and the process exits 101. Enforcement ends at guest
-  entry. Off by default (`cli.memory.cap.default`).
+- **Heap.** No flag and no limit of the host's own. A linear-memory or
+  GC growth that the engine cannot satisfy panics `heap-exhausted`.
 - **Stack.** `max_wasm_stack` from the profile traps as `stack-exhausted`;
   there is no stack flag.
-- **On Node,** `--max-heap` is accepted and ignored with a warning; see
-  #203. `--time-limit` is enforced by the Node host.
+- **On Node,** `--time-limit` is enforced by the Node host.

@@ -26,10 +26,6 @@ const CAP: (&str, &str) = (
     "--cap NAME=VALUE",
     "grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com",
 );
-const MAX_HEAP: (&str, &str) = (
-    "--max-heap SIZE",
-    "limit the program's heap, as 256M; past it the program panics",
-);
 const TIME_LIMIT: (&str, &str) = (
     "--time-limit DURATION",
     "limit how long the program runs, as 30s; past it the program panics",
@@ -46,31 +42,25 @@ const JOBS: (&str, &str) = (
     "--jobs N",
     "use N threads; the default is HD_JOBS, else the cores, at most 8",
 );
-const MAX_MEMORY: (&str, &str) = (
-    "--max-memory SIZE",
-    "cap the memory of hd itself, as 4G; the default is HD_MAX_MEMORY, else none",
-);
 
 /// The commands of the Commands table, in its order.
 const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
         ],
-        flags: &[
-            RELEASE, ENGINE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY,
-        ],
+        flags: &[RELEASE, ENGINE, CAP, TIME_LIMIT, FORMAT, JOBS],
     },
     Command {
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
-        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--max-heap SIZE] [--time-limit DURATION] FILE.wasm [-- ARGS]",
+        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] FILE.wasm [-- ARGS]",
         about: &["Run a module that hd build wrote. Its grant comes from --cap flags alone."],
-        flags: &[ENGINE, CAP, MAX_HEAP, TIME_LIMIT],
+        flags: &[ENGINE, CAP, TIME_LIMIT],
     },
     Command {
         name: "build",
@@ -81,7 +71,7 @@ const COMMANDS: &[Command] = &[
             "build/release/ with --release; with FILE, its module to build/debug/files/STEM.wasm.",
             "A package with no executable is checked, and no .wasm file is written.",
         ],
-        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS, MAX_MEMORY],
+        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS],
     },
     Command {
         name: "run",
@@ -94,9 +84,7 @@ const COMMANDS: &[Command] = &[
             "Without NAME, the package must have exactly one executable: src/main.hd, or",
             "one [[executable]] table of hd.toml. Words after -- are the program's arguments.",
         ],
-        flags: &[
-            RELEASE, ENGINE, PACKAGE, CAP, MAX_HEAP, TIME_LIMIT, FORMAT, JOBS, MAX_MEMORY,
-        ],
+        flags: &[RELEASE, ENGINE, PACKAGE, CAP, TIME_LIMIT, FORMAT, JOBS],
     },
     Command {
         name: "test",
@@ -121,11 +109,9 @@ const COMMANDS: &[Command] = &[
             ),
             ("--update", "rewrite each failing snapshot's expected text"),
             CAP,
-            MAX_HEAP,
             TIME_LIMIT,
             FORMAT,
             JOBS,
-            MAX_MEMORY,
         ],
     },
     Command {
@@ -153,7 +139,6 @@ const COMMANDS: &[Command] = &[
             ),
             FORMAT,
             JOBS,
-            MAX_MEMORY,
         ],
     },
     Command {
@@ -263,9 +248,11 @@ const COMMANDS: &[Command] = &[
         about: &[
             "Check the package as hd check does and apply each safe fix-it: one that adds",
             "no syntax error and no new diagnostic. Check again and repeat, at most 3 rounds.",
+            "Fix-its apply to the package's source files only; hd.toml is never edited, so",
+            "the fix-it of unlisted-entry is reported, not applied.",
             "Print each change, then the diagnostics that remain.",
         ],
-        flags: &[JOBS, MAX_MEMORY],
+        flags: &[JOBS],
     },
     Command {
         name: "cache gc",

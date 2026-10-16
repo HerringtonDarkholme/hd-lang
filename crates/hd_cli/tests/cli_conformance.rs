@@ -79,20 +79,11 @@ enum RuntimeRoute {
     OtherTest,
 }
 
-/// Follow main's dispatch after removing the global compiler-memory option.
-/// `run` covers named package executables, workspace members and package tasks.
+/// Follow main's dispatch: the command word comes first. `run` covers named
+/// package executables, workspace members and package tasks.
 fn runtime_command(words: &[String]) -> Option<(usize, bool)> {
     let before = &words[..words.iter().position(|w| w == "--").unwrap_or(words.len())];
-    let mut index = 0;
-    while let Some(word) = before.get(index) {
-        if word == "--max-memory" {
-            index += 2;
-        } else if word.starts_with("--max-memory=") {
-            index += 1;
-        } else {
-            break;
-        }
-    }
+    let index = 0;
     match before.get(index)?.as_str() {
         "test" => Some((index, true)),
         "run" => Some((index, false)),
@@ -1227,7 +1218,6 @@ fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary(
         words(&["run"]),
         words(&["run", "named-executable", "--", "arg"]),
         words(&["run", "task-name", "-p", "member"]),
-        words(&["--max-memory", "1G", "run", "task-name"]),
     ] {
         let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
         assert_eq!(route, RuntimeRoute::Wasmtime);
@@ -1247,7 +1237,7 @@ fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary(
     }
     for before in [
         words(&["test", "main.hd"]),
-        words(&["--max-memory=1G", "test", "-p", "member"]),
+        words(&["test", "-p", "member"]),
     ] {
         let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
         assert_eq!(route, RuntimeRoute::WasmtimeTest);

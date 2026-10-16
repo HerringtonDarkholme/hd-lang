@@ -37,7 +37,6 @@ impl Session {
     pub(crate) fn new(
         _level: hd_driver::OptLevel,
         _jobs: usize,
-        _limits: ProgramLimits,
         _programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
         missing()

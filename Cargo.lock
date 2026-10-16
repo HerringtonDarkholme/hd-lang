@@ -657,9 +657,7 @@ dependencies = [
  "hd_sched",
  "hd_syntax",
  "hd_testkit",
- "libc",
  "rustyline",
- "tracking-allocator",
 ]
 
 [[package]]
@@ -1596,12 +1594,6 @@ name = "toml_writer"
 version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
-
-[[package]]
-name = "tracking-allocator"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b61e0cb3385e17df7db29c565b40fd0350dfe8a076c7eea83d416e30cfd0581"
 
 [[package]]
 name = "typenum"

@@ -98,7 +98,6 @@ impl WasmtimeEngine {
             setup.program.clone(),
             setup.grants.clone(),
             setup.limits.wall_ms,
-            setup.limits.memory_bytes,
         );
         self.instantiate_host(m, host)
     }
@@ -180,13 +179,11 @@ pub(crate) fn new_store(
     engine: &Arc<wasmtime::Engine>,
     host: Host,
 ) -> Result<Store<Host>, StartError> {
-    // Store metadata is engine infrastructure, outside the guest's
-    // linear/GC backing-byte budget. Its typed allocation failure is a
-    // startup error, not a guest heap-exhausted panic or a Rust panic.
+    // A typed allocation failure of the store's metadata is a startup
+    // error, not a guest heap-exhausted panic or a Rust panic.
     let mut store = Store::try_new(engine, host).map_err(|error| {
         StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
     })?;
-    store.limiter(|host| &mut host.heap);
     if store.data().deadline().is_some() || store.data().interrupt.is_some() {
         deadline::register(engine).map_err(StartError::Engine)?;
         store.epoch_deadline_callback(|cx| {

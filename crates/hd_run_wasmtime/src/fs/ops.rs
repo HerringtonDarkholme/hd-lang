@@ -8,7 +8,6 @@ use crate::codec::Enc;
 use super::api::{Failure, check_deadline, entry, error, ok};
 use super::io::{open, read, write};
 use super::sandbox::{Place, Sandbox, below_a_file};
-use crate::limits::Reservation;
 
 /// A guest path against the case's directory. An empty argument stays
 /// empty: Node rejects it instead of treating it as the working directory.
@@ -22,12 +21,10 @@ pub(crate) fn at(cwd: &Path, path: &str) -> std::path::PathBuf {
 }
 
 /// Where and under what limits a call runs.
+#[derive(Clone, Copy)]
 pub(crate) struct Env<'a> {
     pub(crate) cwd: &'a Path,
     pub(crate) deadline: Option<Instant>,
-    /// Set for a special file: what its reads hold counts against the heap
-    /// budget.
-    pub(crate) held: Option<&'a mut Reservation>,
     /// Set for a call that runs inline: a `remove` or a `rename` first
     /// drops the handles of granted directories it takes away, which
     /// Windows would not let it remove while they are open.
@@ -47,15 +44,14 @@ pub(crate) fn run(
     let Env {
         cwd,
         deadline,
-        held,
         sandbox,
     } = env;
     let path_of = || abi::Path(path.to_owned());
     check_deadline(deadline)?;
     Ok(match method {
-        "read_bytes" => ok(read(place, deadline, held)?),
+        "read_bytes" => ok(read(place, deadline)?),
         "read_text" => {
-            let bytes = read(place, deadline, held)?;
+            let bytes = read(place, deadline)?;
             check_deadline(deadline)?;
             match String::from_utf8(bytes) {
                 Ok(text) => ok(text),

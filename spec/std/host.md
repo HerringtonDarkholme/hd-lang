@@ -118,9 +118,6 @@ fn both!(left: string, right: string) -> (Result[Response, HttpError], Result[Re
 2. r[std-host.op.no-order] Independent host operations that complete together have no defined order, so the instance may resume their tasks in any order.
 3. r[std-host.op.cancel] Cancelling the suspension of a pending host operation ends that operation. Each trait states what the operation leaves behind, as the table below lists.
 4. r[std-host.op.cancel.write] A cancelled host operation that writes may have happened, in whole or in part.
-5. r[std-host.op.heap] Data that the host holds for a host operation counts against the heap limit of [`cli.limit.heap`](../cli/command-line.md#r-cli.limit.heap). Such data includes an `Http` body, `Process` output, and socket data the program has not read.
-6. r[std-host.op.heap.exhausted] A host operation whose data would pass that limit panics. Panic: `heap-exhausted`.
-7. r[std-host.op.heap.no-other-cap] No other fixed limit caps that data.
 
 | Trait | A cancelled operation leaves |
 | --- | --- |
@@ -132,7 +129,6 @@ fn both!(left: string, right: string) -> (Result[Response, HttpError], Result[Re
 > **Why.** A `race!` timeout around a host call is portable only when
 > the call lets the timer run. Completions that arrive together may
 > reach the instance in one batch, so no program may rely on their order.
-> A host buffer is memory the program asked for, so one budget covers it.
 
 See also: [Program Arguments](../cli/command-line.md#program-arguments),
 [Entry Arguments](../lang/10-modules.md#entry-arguments).

@@ -1,7 +1,6 @@
 use super::process::{Output, Request, Start, finish, start};
 use super::{random, sys_read};
 use crate::codec::{Enc, Wire};
-use crate::limits::{Ledger, Reservation};
 use crate::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
 use std::io;
@@ -11,17 +10,13 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 
-/// A request for `name` with `argv` and `input`, under a heap budget of
-/// `limit` bytes for its output.
-fn request(name: &str, argv: &[String], input: &[u8], limit: u64) -> Request {
-    let ledger = Ledger::new(limit);
+/// A request for `name` with `argv` and `input`.
+fn request(name: &str, argv: &[String], input: &[u8]) -> Request {
     Request {
         name: name.into(),
         argv: argv.to_vec(),
         input: input.to_vec(),
         cwd: None,
-        held: Reservation::empty(&ledger),
-        ledger,
     }
 }
 
@@ -49,7 +44,6 @@ fn finished(reactor: &mut Reactor, h: i32) -> Done {
 fn ran(done: Done) -> super::process::Ran {
     match done {
         Done::Process(ran) => ran,
-        Done::Exhausted => panic!("the output passed the heap budget"),
         _ => panic!("the operation is not a run"),
     }
 }
@@ -61,17 +55,9 @@ fn run(request: Request) -> io::Result<Output> {
     ran(finished(&mut reactor, h)).into_result()
 }
 
-/// Whether `request`'s output passes its heap budget.
-#[cfg(unix)]
-fn exhausts(request: Request) -> bool {
-    let mut reactor = Reactor::new(None);
-    let h = offload(&mut reactor, request);
-    matches!(finished(&mut reactor, h), Done::Exhausted)
-}
-
 /// `run.start` then, when it runs a child, `run.finish`: the encoded result.
 fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
-    match start(bytes, grants, None, &Ledger::new(u64::MAX)).expect("the arguments decode") {
+    match start(bytes, grants, None).expect("the arguments decode") {
         Start::Refused(e) => e.into_bytes(),
         Start::Run(request) => {
             let mut reactor = Reactor::new(None);

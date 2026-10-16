@@ -49,10 +49,6 @@ impl NativeBodyRunner {
             self.environment.program.clone(),
             self.setup.grants.clone(),
             None,
-            self.setup
-                .limits
-                .memory_bytes
-                .min(self.prepared.engine.max_memory_bytes),
         );
         host.testing = Some(state);
         host.environment = Some(self.environment.clone());

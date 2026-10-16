@@ -230,12 +230,9 @@ fn host(
         | Id::FsWriteRemove
         | Id::FsWriteRename => {
             if finish {
-                let Done::Fs(encoded, held) = finished(caller, params)? else {
+                let Done::Fs(encoded) = finished(caller, params)? else {
                     return Err(not_completed());
                 };
-                // Released before the copy into the exchange buffer, which the
-                // store's memory growth counts.
-                drop(held);
                 return Ok(Ret::encoded(encoded));
             }
             let key = method.module.strip_prefix("hd:").unwrap_or(method.module);
@@ -245,7 +242,6 @@ fn host(
                 Some(environment) => environment.cwd.clone(),
                 None => std::env::current_dir().map_err(|e| Stop::Internal(e.to_string()))?,
             };
-            let ledger = host.heap.ledger();
             match fs::start(
                 key,
                 method.name,
@@ -254,7 +250,6 @@ fn host(
                 &host.sandbox,
                 host.deadline(),
                 &cwd,
-                ledger,
             )? {
                 fs::Start::Ready(e) => Ret::ready(e)?,
                 fs::Start::Run(job) => match host.reactor.offload(job.run()) {
@@ -266,11 +261,8 @@ fn host(
         Id::ProcessRun if finish => match finished(caller, params)? {
             Done::Process(ran) => Ret::encoded(core::process::finish(ran)),
             // A test child that ran into the time limit ends the case.
-            Done::Child(None, _) => return Err(Stop::TimeLimit.into()),
-            Done::Child(Some(encoded), held) => {
-                drop(held);
-                Ret::encoded(encoded)
-            }
+            Done::Child(None) => return Err(Stop::TimeLimit.into()),
+            Done::Child(Some(encoded)) => Ret::encoded(encoded),
             _ => return Err(not_completed()),
         },
         Id::ProcessRun => {
@@ -278,14 +270,8 @@ fn host(
             let host = caller.data_mut();
             match &host.environment {
                 Some(environment) if host.testing.is_some() => {
-                    match crate::test_engine::start(
-                        &b,
-                        &host.grants,
-                        environment,
-                        host.deadline(),
-                        host.memory_bytes,
-                        host.heap.ledger(),
-                    )? {
+                    match crate::test_engine::start(&b, &host.grants, environment, host.deadline())?
+                    {
                         crate::test_engine::Start::Ready(e) => Ret::ready(e)?,
                         crate::test_engine::Start::Run(run) => {
                             match host.reactor.offload(run.wait()) {
@@ -297,7 +283,7 @@ fn host(
                 }
                 environment => {
                     let cwd = environment.as_ref().map(|e| e.cwd.as_path());
-                    match core::process::start(&b, &host.grants, cwd, host.heap.ledger())? {
+                    match core::process::start(&b, &host.grants, cwd)? {
                         core::process::Start::Refused(e) => Ret::ready(e)?,
                         core::process::Start::Run(request) => {
                             let name = request.name.clone();
@@ -319,7 +305,7 @@ fn host(
         Id::HttpSend => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
-            match http::client::start(&b, &host.grants, host.heap.ledger())? {
+            match http::client::start(&b, &host.grants)? {
                 http::client::Start::Ready(e) => Ret::ready(e)?,
                 http::client::Start::Run(job) => match host.reactor.offload(job.run()) {
                     Ok(h) => Ret::pair(1, h),
@@ -355,10 +341,7 @@ fn host(
                 None => Vec::new(),
             };
             let host = caller.data_mut();
-            match host
-                .net
-                .start(method.name, &args, &b, &host.grants, host.heap.ledger())?
-            {
+            match host.net.start(method.name, &args, &b, &host.grants)? {
                 net::client::Start::Ready(e) if close => Ret::encoded(e),
                 net::client::Start::Ready(e) => Ret::ready(e)?,
                 net::client::Start::Closed { reply, handle } => {
@@ -479,15 +462,13 @@ fn runner(caller: &mut Caller<'_, Host>) -> wasmtime::Result<crate::testing::Sta
 }
 
 /// Takes the result of the offloaded operation whose handle is the first
-/// argument, for its `.finish`. An operation whose data would have passed
-/// the heap budget panics `heap-exhausted` (`std-host.op.heap.exhausted`).
+/// argument, for its `.finish`.
 fn finished(caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Done> {
     let h = handle(int_arg(params, 0)?);
     let Some(op) = caller.data_mut().reactor.remove(h) else {
         return Err(Stop::Contract("a finish of an operation that is not pending".into()).into());
     };
     match op.work {
-        Work::Offloaded(Some(Done::Exhausted)) => Err(crate::limits::HeapExhausted.into()),
         Work::Offloaded(Some(done)) => Ok(done),
         _ => Err(not_completed()),
     }

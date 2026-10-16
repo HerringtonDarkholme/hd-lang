@@ -191,37 +191,6 @@ pub trait Clock: Sync {
     fn now_ns(&self) -> u64;
 }
 
-/// Observes the stage executing on the calling thread, including pool workers.
-/// `enter` returns an opaque restoration token, passed to `exit` on that same
-/// thread when the stage ends (also when unwinding). Nested stages restore the
-/// enclosing stage. Observers must not panic.
-pub trait StageObserver: Sync {
-    fn enter(&self, stage: Stage) -> usize;
-    fn exit(&self, token: usize);
-}
-
-struct ObservedStage<'a> {
-    observer: Option<&'a dyn StageObserver>,
-    token: usize,
-}
-
-impl<'a> ObservedStage<'a> {
-    fn new(observer: Option<&'a dyn StageObserver>, stage: Stage) -> Self {
-        Self {
-            observer,
-            token: observer.map_or(0, |o| o.enter(stage)),
-        }
-    }
-}
-
-impl Drop for ObservedStage<'_> {
-    fn drop(&mut self) {
-        if let Some(observer) = self.observer {
-            observer.exit(self.token);
-        }
-    }
-}
-
 /// A clock that reads zero: the browser and deterministic tests.
 pub struct NoClock;
 
@@ -1145,7 +1114,6 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 
 struct Run<'a> {
     host: &'a Host<'a>,
-    observer: Option<&'a dyn StageObserver>,
     package: String,
     /// Whether the root package is a single-file program
     /// ([`Packages::single_file`]).
@@ -1532,29 +1500,6 @@ pub fn build_packages(
     packages: &Packages<'_>,
     goal: &Goal,
 ) -> Output {
-    build_packages_inner(host, package, packages, goal, None)
-}
-
-/// `build_packages`, with thread-local stage observation for host accounting.
-#[must_use]
-pub fn build_packages_observed(
-    host: &Host<'_>,
-    package: &str,
-    packages: &Packages<'_>,
-    goal: &Goal,
-    observer: &dyn StageObserver,
-) -> Output {
-    build_packages_inner(host, package, packages, goal, Some(observer))
-}
-
-fn build_packages_inner(
-    host: &Host<'_>,
-    package: &str,
-    packages: &Packages<'_>,
-    goal: &Goal,
-    observer: Option<&dyn StageObserver>,
-) -> Output {
-    let _discover = ObservedStage::new(observer, Stage::Discover);
     // The embedded std, or the root package's own when it is std.
     let embedded = (package != "std").then(embedded_std);
     let root_std;
@@ -1663,7 +1608,6 @@ fn build_packages_inner(
     });
     let run = Run {
         host,
-        observer,
         package: package.to_owned(),
         single_file: packages.single_file,
         goal: goal.clone(),
@@ -1798,7 +1742,6 @@ fn build_packages_inner(
             );
         }
     }
-    let _finish = ObservedStage::new(observer, Stage::PackageResult);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -2383,25 +2326,6 @@ impl Run<'_> {
     }
 
     fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
-        let stage = match kind {
-            TaskKind::Skim(_) => Stage::Skim,
-            TaskKind::Parse(_) => Stage::Parse,
-            TaskKind::FolderGraph => Stage::FolderGraph,
-            TaskKind::FolderIface(_) => Stage::FolderIface,
-            TaskKind::HeaderCheck(_) => Stage::HeaderCheck,
-            TaskKind::ModulePrep(_) => Stage::ModulePrep,
-            TaskKind::Body(_) => Stage::Body,
-            TaskKind::ModuleFinish(_) => Stage::ModuleFinish,
-            TaskKind::Coherence => Stage::Coherence,
-            TaskKind::InitOrder(_) => Stage::InitOrder,
-            TaskKind::PackageResult => Stage::PackageResult,
-            TaskKind::Ext(ExtTask::Collect) => Stage::Collect,
-            TaskKind::Ext(ExtTask::Emit(_)) => Stage::Emit,
-            TaskKind::Ext(ExtTask::Link) => Stage::Link,
-            TaskKind::Ext(ExtTask::Precompile) => Stage::Precompile,
-            TaskKind::Ext(ExtTask::RunCase(_)) => Stage::Run,
-        };
-        let _stage = ObservedStage::new(self.observer, stage);
         let t0 = self.host.clock.now_ns();
         match kind {
             TaskKind::Skim(f) => self.skim(f as usize),

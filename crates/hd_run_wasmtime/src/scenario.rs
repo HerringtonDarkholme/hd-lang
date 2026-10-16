@@ -34,15 +34,12 @@ pub struct ScenarioRan {
 /// Drives `scenario` over `wasm`'s scenario exports, with the fixture's
 /// runtime profile, and returns what the run captured.
 pub fn drive_scenario(
-    mut config: EngineConfig,
+    config: EngineConfig,
     profile: RuntimeProfile,
     wasm: &[u8],
     setup: &HostSetup,
     scenario: Scenario,
 ) -> Result<ScenarioRan, String> {
-    if setup.limits.memory_bytes != u64::MAX {
-        config.gc_heap_initial = 0;
-    }
     let (out, err) = (crate::Shared::default(), crate::Shared::default());
     let status = std::thread::scope(|scope| {
         let (io_out, io_err) = (out.clone(), err.clone());

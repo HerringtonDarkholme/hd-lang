@@ -12,7 +12,6 @@ use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use super::CONNECT_ATTEMPT_TIMEOUT;
 use super::client::NetError;
-use crate::limits::Reservation;
 
 #[derive(Clone, Copy)]
 pub(crate) struct ConnectAttempt {
@@ -93,8 +92,6 @@ pub(crate) struct StreamState {
     /// suspension was cancelled after it completed: the next read returns
     /// them first (`std-net.cancel.read`).
     pub(crate) unread: VecDeque<u8>,
-    /// The heap `unread` holds (`std-host.op.heap`).
-    pub(crate) held: Option<Reservation>,
     /// How reading ended, which every later read reports again; a failed
     /// write ends the stream too.
     pub(crate) end: Option<End>,
@@ -124,17 +121,15 @@ impl Stream {
 }
 
 /// A UDP socket, and the datagrams cancelled receives took but never
-/// returned (`std-net.cancel.read`), for the next receive, each with the
-/// heap it holds.
+/// returned (`std-net.cancel.read`), for the next receive.
 pub(crate) struct Udp {
     pub(crate) socket: tokio::net::UdpSocket,
     pub(crate) ipv6: bool,
     pub(crate) unread: Mutex<VecDeque<Unread>>,
 }
 
-/// A datagram a cancelled receive took: its bytes, its sender, and the
-/// heap it holds.
-pub(crate) type Unread = (Vec<u8>, SocketAddr, Reservation);
+/// A datagram a cancelled receive took: its bytes and its sender.
+pub(crate) type Unread = (Vec<u8>, SocketAddr);
 
 impl Udp {
     pub(crate) fn unread(&self) -> std::sync::MutexGuard<'_, VecDeque<Unread>> {

@@ -133,7 +133,6 @@ impl WasmtimeEngine {
             setup.program.clone(),
             setup.grants.clone(),
             setup.limits.wall_ms,
-            setup.limits.memory_bytes,
         );
         let flag = Arc::new(AtomicBool::new(false));
         host.interrupt = Some(Arc::clone(&flag));
@@ -353,13 +352,6 @@ impl WasmtimeSession {
     #[cfg(test)]
     pub(crate) fn pending(&self) -> bool {
         self.run.store.data().waiting()
-    }
-
-    /// The heap that host operations hold now: what the ledger counts past
-    /// the store's own memory. The test that reads it runs Unix programs.
-    #[cfg(all(test, unix))]
-    pub(crate) fn heap_held(&self) -> u64 {
-        self.run.store.data().heap.held()
     }
 
     /// Starts a new journal, or with `on` false records none from now on:
