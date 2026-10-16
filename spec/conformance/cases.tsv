@@ -3038,3 +3038,16 @@ runtime/valid/index-trait-without-use.hd	runtime	accept	lang/05-expressions.md#r
 typing/invalid/index-set-readonly-receiver.hd	type	reject:readonly-root	lang/05-expressions.md#r-expr.index.trait.mut
 runtime/valid/index-builtin-receivers-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.builtin-direct
 runtime/valid/index-set-without-index.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.independent
+typing/invalid/named-argument-given-twice.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.duplicate
+typing/invalid/two-positional-spreads.hd	type	reject:nonfinal-positional-spread	lang/05-expressions.md#r-expr.call.spread.position
+runtime/valid/spread-at-vararg-evaluated-once.hd	runtime	accept	lang/05-expressions.md#r-expr.call.spread.at-vararg
+runtime/valid/spread-after-tuple-vararg-arguments.hd	runtime	accept	lang/05-expressions.md#r-expr.call.spread.tuple-vararg-tail
+typing/invalid/vararg-by-name-and-positional.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.vararg-by-name.exclusive
+typing/valid/explicit-generic-call-arguments.hd	type	accept	lang/05-expressions.md#explicit-generic-arguments
+typing/valid/callable-value-trait-shapes.hd	type	accept	lang/05-expressions.md#r-expr.call.apply.std
+typing/invalid/callable-value-read-type.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.call.apply.read-type
+runtime/valid/callable-value-update-choice.hd	runtime	accept	lang/05-expressions.md#r-expr.call.apply.choice
+runtime/valid/callable-value-without-trait-use.hd	runtime	accept	lang/05-expressions.md#r-expr.call.apply.no-use
+runtime/valid/callable-value-store-mutates-callee.hd	runtime	accept	lang/05-expressions.md#r-expr.call.apply.mut
+runtime/valid/callable-value-update-alone.hd	runtime	accept	lang/05-expressions.md#r-expr.call.apply.independent
+runtime/valid/suspension-call-callee-and-arguments-first.hd	runtime	accept	lang/05-expressions.md#suspension-calls

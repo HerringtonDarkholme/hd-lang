@@ -1,0 +1,16 @@
+# test: reading and storing through a callable value needs no use of Apply or Update
+# Spec 05 Callable Values: expr.call.apply.no-use. The tree's src/cell.hd imports
+# std.ops.{Apply, Update} and implements both for Cell.
+# fixture-package-tree: live-cell/src/panel.hd
+use pkg.cell.{Cell, live}
+
+fn bump() -> i32:
+    let mut count = live(+1)
+    count() = count() + 5
+    count()
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls apply and update with no use of either trait"):
+        assert_equal(bump(), +6, reason="1, then stored 1 + 5")

@@ -1,0 +1,20 @@
+# test: explicit generic arguments come before the argument list, may omit trailing ones, and specialize a module function or one a use declaration introduces
+# Spec 05 Explicit Generic Arguments: expr.call.generic.position, expr.call.generic.trailing, expr.call.generic.targets.
+fn first[T](items: List[T], fallback: T) -> T:
+    match items.get(0):
+        .Some(item) => item
+        .None => fallback
+
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)
+
+fn name() -> string: first::[string](["ada"], "none")
+
+fn labeled() -> (string, i32):
+    pair::[string]("left", +1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a used function takes explicit arguments"):
+        assert_equal::[string](name(), "ada", reason="first item")

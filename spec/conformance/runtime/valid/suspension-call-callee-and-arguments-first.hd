@@ -1,0 +1,30 @@
+# test: a bang call drives a child suspension to its value, after the callee and arguments evaluate left to right
+# Spec 05 Suspension Calls: expr.call.suspension, expr.call.suspension.order.
+data Log:
+    text: string
+
+fn note(log: mut Log, tag: string, value: i32) -> i32:
+    log.text = log.text + tag
+    value
+
+fn fetch!(key: string) -> string: "value of $key"
+
+fn work!(log: mut Log, first: i32, second: i32) -> i32:
+    log.text = log.text + "body"
+    first * 10 + second
+
+fn pick(log: mut Log) -> fn!(mut Log, i32, i32) -> i32:
+    log.text = log.text + "f"
+    work
+
+tests:
+    use std.testing.assert_equal
+
+    it("the bang call yields the child's value"):
+        assert_equal(fetch!("a") + fetch!("b"), "value of avalue of b", reason="each child runs to completion, left to right")
+
+    it("callee and arguments evaluate before the child body"):
+        let mut log = Log { text: "" }
+        result := (pick(log))!(log, note(log, "a", +1), note(log, "b", +2))
+        assert_equal(log.text, "fabbody", reason="callee, then arguments, then the body")
+        assert_equal(result, +12, reason="the child sees the arguments")

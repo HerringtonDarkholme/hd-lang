@@ -1,0 +1,19 @@
+# test: Apply has an associated Out and Update[V] takes a value, and a callable value is called with no arguments
+# Spec 05 Callable Values: expr.call.apply.std, expr.call.apply.zero-keys.
+use std.ops.{Apply, Update}
+
+data Gauge:
+    level: u8
+
+impl Apply for Gauge:
+    type Out = u8
+    fn apply(self) -> u8: self.level
+
+impl Update[u8] for Gauge:
+    fn update(mut self, value: u8) -> void:
+        self.level = value
+
+fn reset(gauge: mut Gauge) -> u8:
+    before := gauge()
+    gauge() = 0
+    before

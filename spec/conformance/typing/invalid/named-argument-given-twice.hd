@@ -1,0 +1,6 @@
+# test: a call cannot name one parameter twice
+# Spec 05 Named Arguments: expr.call.duplicate.
+fn resize(width: i32, height: i32) -> i32: width * height
+
+fn area() -> i32:
+    resize(height=+480, width=+640, height=+1)  # diagnostic: duplicate-argument

@@ -1,0 +1,22 @@
+# test: an argument ending in ... spreads its value; at a vararg a list operand is evaluated once and becomes the collected value
+# Spec 05 Positional Spreads: expr.call.spread, expr.call.spread.fills, expr.call.spread.at-vararg.
+data Log:
+    count: i32
+
+fn items(log: mut Log) -> List[i32]:
+    log.count = log.count + 1
+    [+4, +5, +6]
+
+fn total(scale: i32, values...: List[i32]) -> i32:
+    let sum = +0
+    for value in values:
+        sum = sum + value * scale
+    sum
+
+tests:
+    use std.testing.assert_equal
+
+    it("a list spread at a vararg fills it with the list"):
+        let mut log = Log { count: +0 }
+        assert_equal(total(+10, items(log)...), 150, reason="the vararg holds 4, 5 and 6")
+        assert_equal(log.count, +1, reason="the spread operand is evaluated once")

@@ -1,0 +1,6 @@
+# test: a call that passes a vararg by name cannot also give it positional values
+# Spec 05 Positional Spreads: expr.call.vararg-by-name.exclusive.
+fn collect(values...: List[i32]) -> List[i32]: values
+
+fn both() -> List[i32]:
+    collect(+1, values=[+2])  # diagnostic: duplicate-argument

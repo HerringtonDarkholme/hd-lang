@@ -1,0 +1,20 @@
+# test: a spread after separate arguments of a tuple vararg fills the tuple's rest element
+# Spec 05 Positional Spreads: expr.call.spread.tuple-vararg-tail.
+use std.function.{Fn, Tuple}
+
+fn joined(a: usize, b: usize, xs...: List[i32]) -> usize: a * 100 + b * 10 + xs.len()
+
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+    f(args...)
+
+fn tail(head: i32, rest...: (i32, List[i32]...)) -> usize:
+    let (_, more...) = rest
+    more.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the spread list becomes the rest element"):
+        xs := [+7, +8, +9]
+        assert_equal(call(joined, 1, 2, xs...), 123, reason="1 and 2 are separate, xs is the rest")
+        assert_equal(tail(+0, +1, xs...), 3, reason="xs fills the rest after the separate 1")

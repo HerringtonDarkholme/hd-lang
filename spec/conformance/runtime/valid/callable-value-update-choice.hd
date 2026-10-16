@@ -1,0 +1,25 @@
+# test: a store through v() picks the Update implementation by the callee's type, then by the stored value's type
+# Spec 05 Callable Values: expr.call.apply.choice.
+use std.ops.Update
+
+data Slot:
+    number: i32
+    text: string
+
+impl Update[i32] for Slot:
+    fn update(mut self, value: i32) -> void:
+        self.number = value
+
+impl Update[string] for Slot:
+    fn update(mut self, value: string) -> void:
+        self.text = value
+
+tests:
+    use std.testing.assert_equal
+
+    it("the stored value's type chooses the implementation"):
+        let mut slot = Slot { number: +0, text: "" }
+        slot() = +7
+        slot() = "seven"
+        assert_equal(slot.number, +7, reason="Update[i32] stored the number")
+        assert_equal(slot.text, "seven", reason="Update[string] stored the text")

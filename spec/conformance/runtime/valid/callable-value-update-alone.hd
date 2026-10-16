@@ -1,0 +1,18 @@
+# test: Apply and Update are independent, so a type with Update alone is a store target
+# Spec 05 Callable Values: expr.call.apply.independent.
+use std.ops.Update
+
+data Sink:
+    last: string
+
+impl Update[string] for Sink:
+    fn update(mut self, value: string) -> void:
+        self.last = value
+
+tests:
+    use std.testing.assert_equal
+
+    it("stores through a type with no Apply"):
+        let mut sink = Sink { last: "" }
+        sink() = "kept"
+        assert_equal(sink.last, "kept", reason="Update alone makes v() a store place")

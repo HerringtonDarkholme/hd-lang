@@ -1,0 +1,14 @@
+# test: the type of v() is the Out of the callee's Apply implementation
+# Spec 05 Callable Values: expr.call.apply.read-type.
+use std.ops.Apply
+
+data Counter:
+    hits: i32
+
+impl Apply for Counter:
+    type Out = i32
+    fn apply(self) -> i32: self.hits
+
+fn label(counter: Counter) -> string:
+    let text: string = counter()  # diagnostic: type-mismatch
+    text
