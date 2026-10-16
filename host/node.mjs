@@ -46,12 +46,13 @@ import {
   EndCase,
   Enc,
   HostContract,
+  panicOfReport,
   PROGRAM_TIME_LIMIT,
   TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
 
-export { Deadlock, Dec, EndCase, Enc, PROGRAM_TIME_LIMIT, timeLimitReport };
+export { Deadlock, Dec, EndCase, Enc, panicOfReport, PROGRAM_TIME_LIMIT, timeLimitReport };
 
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory

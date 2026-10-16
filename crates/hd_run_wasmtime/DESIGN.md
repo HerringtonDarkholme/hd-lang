@@ -27,7 +27,7 @@ build.
 | boundary encoders and decoders | generated per boundary type | like a derive, from the type's structure (§17.4) |
 | `Array[T]` operations, string byte access, `dbg`, panics | intrinsics (`hd_host_abi::INTRINSICS`, lowering `Compiler`) | a few Wasm instructions each |
 | float text, float parsing, case mapping | host primitives (`hd:prim`, §17.2) | the spec makes them host work |
-| capability methods, `hd:rt` (block, abort, stderr, stdout), `TestRunner`, `PropertyRunner` | host | §17 |
+| capability methods, `hd:rt` (block, abort, stderr, stdout, panic), `TestRunner`, `PropertyRunner` | host | §17 |
 
 Planned, not built: `Hasher` with `write_u8` to `write_u64` and
 `write_str` default methods (a std and spec change), so an integer or
@@ -140,7 +140,7 @@ wasmtime, never enabled by the default host.
 | scalars only, never waits | one function with Wasm parameters and results | `hd:Clock` `now() -> i64` |
 | structured values, never waits | `(len: i32) -> i32`: arguments in the exchange buffer, result length back | `hd:Env` `get` |
 | may wait | `name.start(len) -> (i32 status, i32 value)`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
-| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)` | |
+| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()` | |
 | host primitive | `hd:prim` `name`, no receiver, never waits | `format_f64` |
 
 A `.start` call returns two values. Status `0` means the operation

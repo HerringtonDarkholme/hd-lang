@@ -141,10 +141,13 @@ impl Session {
     }
 }
 
-/// The result the test command judges. It drops the panic report, which
-/// the command reads from standard error.
+/// The result the test command judges, with the panic the host recorded.
 fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
     CaseRun {
+        panic: case.panic.map(|p| super::Panic {
+            category: p.category,
+            message: p.message,
+        }),
         test: case.test,
         status: case.status,
         trapped: case.trapped,

@@ -22,7 +22,9 @@
 //   writes the completed handles to the exchange buffer and returns their
 //   count; `stderr(len)` writes the buffer's first `len` bytes to standard
 //   error; `stdout(len)` holds them with the console's output (the REPL's
-//   value line).
+//   value line); `panic()` starts a panic stub's report: it writes
+//   `panic: `, and the standard error written until the trap is the
+//   report, whose category and message a run's result carries.
 // - Each provider asks the grant before it touches a resource
 //   (cli.host.default-profile.granted); a refused call returns the
 //   method's `NotGranted` result, or `.None` and a notice for `Env.get`
@@ -83,6 +85,18 @@ export const timeLimitReport = (ms) =>
 
 // The panic report of a program that ran past its `--time-limit`.
 export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
+
+// The category and message of a recorded panic report, the text after
+// `panic: `: `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
+// category is the compiler's or the host's, never program text, so the
+// first `: ` ends it; the message is the rest, whatever it holds.
+export const panicOfReport = (report) => {
+  const text = report.endsWith("\n") ? report.slice(0, -1) : report;
+  const colon = text.indexOf(": ");
+  return colon < 0
+    ? { category: text, message: "" }
+    : { category: text.slice(0, colon), message: text.slice(colon + 2) };
+};
 
 // Whether `text` can be an `Http` request URL (std-http.url.valid,
 // .non-ascii, .no-normalize): RFC 3986 has no space, control or non-ASCII
@@ -296,7 +310,18 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     stderr: (len) => {
       st.reported = true;
       flush();
-      sink.err(decodeUtf8(view(len)));
+      const text = decodeUtf8(view(len));
+      sink.err(text);
+      if (st.panic !== null) st.panic += text;
+    },
+    // A panic stub's start: the host writes `panic: `, and what the
+    // instance writes to standard error until it traps is the report,
+    // which a test runner reads instead of the standard error text.
+    panic: () => {
+      st.reported = true;
+      flush();
+      sink.err("panic: ");
+      st.panic = "";
     },
     block: () => {
       for (;;) {
@@ -479,6 +504,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const st = {
     memory: null,
     reported: false,
+    // The panic report being written or written, after its `panic: `.
+    panic: null,
     timeoutMs: null,
     baseDeadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
     deadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
@@ -544,10 +571,16 @@ export function createCoreHost(sink, env = {}, layer = null) {
     });
     return due.length;
   };
-  const deadlock = () => {
+  // Writes the host's own panic report `report`, `panic: CATEGORY:
+  // MESSAGE` and a newline, and records it.
+  const hostPanic = (report) => {
     flush();
-    sink.err("panic: deadlock: the program waits, but no host operation is pending\n");
+    sink.err(report);
     st.reported = true;
+    st.panic = report.slice("panic: ".length);
+  };
+  const deadlock = () => {
+    hostPanic("panic: deadlock: the program waits, but no host operation is pending\n");
     throw new Deadlock();
   };
   const finish = (h) => {
@@ -650,8 +683,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         return { status: 0, trapped: false, ended: true };
       }
       if (e instanceof HostContract) {
-        sink.err(`panic: host-contract: ${e.message}\n`);
-        st.reported = true;
+        hostPanic(`panic: host-contract: ${e.message}\n`);
       } else if (e instanceof TimeLimit) {
         st.reported = true;
         limited = true;
@@ -659,10 +691,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
         // V8 reports a guest stack overflow as a RangeError ("Maximum call
         // stack size exceeded"), not a WebAssembly.RuntimeError; it is the
         // stack-exhausted panic. Other RangeErrors are host bugs and rethrow.
-        sink.err(
+        hostPanic(
           "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
         );
-        st.reported = true;
         frames = wasmFrames(e);
       } else if (e instanceof WebAssembly.RuntimeError) {
         frames = wasmFrames(e);
@@ -680,12 +711,14 @@ export function createCoreHost(sink, env = {}, layer = null) {
     // A body that ended after its deadline ran longer than its timeout,
     // whatever it did after the deadline.
     if (limited || overran()) {
-      sink.err(st.timeoutMs === null ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs));
+      hostPanic(st.timeoutMs === null ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs));
       status = 3;
       trapped = true;
       frames = [];
     }
-    return { status, trapped, ended, frames };
+    // A trap's panic as the host recorded it, or null.
+    const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
+    return { status, trapped, ended, frames, panic };
   };
 
   // Releases what the platform layer holds (its client threads, its
@@ -1034,6 +1067,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     // A panic or standard error of an earlier input does not hide this
     // one's internal error.
     st.reported = false;
+    st.panic = null;
     recorder.input(number, source, wasm);
     let outcome;
     try {
@@ -1059,6 +1093,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     flush();
     st.ops.clear();
     st.reported = false;
+    st.panic = null;
     st.memory = null;
     recorder = journal;
     replay = null;

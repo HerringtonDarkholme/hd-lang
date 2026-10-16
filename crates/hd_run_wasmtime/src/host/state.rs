@@ -44,6 +44,10 @@ pub struct Host {
     /// Whether a panic report or any standard error was written, so a trap
     /// is not also an internal error.
     pub reported: bool,
+    /// The panic report being written or written, after its `panic: `
+    /// prefix: what a test runner reads the category and message of
+    /// (`take_panic`), never the standard error text.
+    panic: Option<String>,
     pub(crate) reactor: Reactor,
     pub(crate) args: Vec<String>,
     pub(crate) program: String,
@@ -96,6 +100,7 @@ impl Host {
             out: Vec::new(),
             memory: None,
             reported: false,
+            panic: None,
             reactor: Reactor::new(io.input),
             args,
             program,
@@ -140,6 +145,7 @@ impl Host {
         self.flush();
         self.memory = None;
         self.reported = false;
+        self.panic = None;
         self.heap = crate::limits::HeapBudget::new(std::sync::Arc::clone(self.heap.ledger()));
         self.drop_pending();
         self.journal = Some(journal);
@@ -161,13 +167,47 @@ impl Host {
         self.timeout_millis = None;
     }
 
-    pub(crate) fn time_limit_report(&self) -> String {
-        match self.timeout_millis {
-            Some(millis) => format!(
-                "panic: time-limit: the test case ran longer than its timeout of {millis}ms\n"
-            ),
-            None => "panic: time-limit: the program exceeded its time limit\n".into(),
+    /// Reports the `time-limit` panic.
+    pub(crate) fn report_time_limit(&mut self) {
+        let message = match self.timeout_millis {
+            Some(millis) => format!("the test case ran longer than its timeout of {millis}ms"),
+            None => "the program exceeded its time limit".into(),
+        };
+        self.report_panic("time-limit", &message);
+    }
+
+    /// The guest's `hd:rt` `panic` import: writes `panic: ` and records the
+    /// standard error that follows until the trap as the report.
+    pub(crate) fn begin_panic(&mut self) {
+        self.reported = true;
+        self.err("panic: ");
+        self.panic = Some(String::new());
+    }
+
+    /// Writes the host's own panic report, `panic: CATEGORY: MESSAGE`.
+    pub(crate) fn report_panic(&mut self, category: &str, message: &str) {
+        let report = format!("{category}: {message}\n");
+        self.reported = true;
+        self.err(&format!("panic: {report}"));
+        self.panic = Some(report);
+    }
+
+    /// Writes `text`, a guest's standard error, which a panic report being
+    /// written also records.
+    pub(crate) fn guest_err(&mut self, text: &str) {
+        self.reported = true;
+        self.err(text);
+        if let Some(report) = &mut self.panic {
+            report.push_str(text);
         }
+    }
+
+    /// The category and message of the panic reported, if one was, and
+    /// forgets it.
+    pub(crate) fn take_panic(&mut self) -> Option<crate::testing::PanicInfo> {
+        self.panic
+            .take()
+            .map(|report| crate::testing::PanicInfo::from_report(&report))
     }
 
     pub(crate) fn report_timeout(&mut self, millis: i64) {

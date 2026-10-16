@@ -17,7 +17,7 @@ use std::ffi::OsString;
 use hd_driver::{EngineTarget, OptLevel};
 use hd_run::{HostSetup, Limits, Outcome, run_program};
 
-pub(crate) use crate::node::{CaseRun, HostCase, Snapshot};
+pub(crate) use crate::node::{CaseRun, HostCase, Panic, Snapshot};
 
 #[cfg_attr(not(feature = "wasmtime"), path = "engine/no_wasmtime.rs")]
 mod wasmtime;

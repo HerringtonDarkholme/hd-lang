@@ -215,7 +215,13 @@ async function runTests(
       // An `it_each` row is named `name[i]` (std-testing.it-each.name).
       const name = record.row === undefined ? test.name : `${test.name}[${record.row}]`;
       const verdict = judge(
-        { status: record.status, trapped: record.trapped ?? false, stderr: record.stderr ?? "" },
+        {
+          status: record.status,
+          trapped: record.trapped ?? false,
+          stderr: record.stderr ?? "",
+          category: record.category,
+          message: record.message,
+        },
         test.expectPanic,
       );
       if (verdict.outcome === "passed") {

@@ -304,9 +304,11 @@ pub(crate) fn call(
         }
         Kind::Stderr => {
             let t = text(caller, int_arg(params, 0)?)?;
-            let host = caller.data_mut();
-            host.reported = true;
-            host.err(&t);
+            caller.data_mut().guest_err(&t);
+            Ret::void()
+        }
+        Kind::Panic => {
+            caller.data_mut().begin_panic();
             Ret::void()
         }
         // Held with `Console`'s output, so a later `stderr` write puts it

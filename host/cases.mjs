@@ -29,7 +29,9 @@
 //
 // One record per result goes to `emit`: its case's `test` index, then
 // `status`, `trapped`, its captured output and its time. A trapped run's
-// record adds its Wasm `frames`. A row's record also has `row` and `rows`;
+// record adds its Wasm `frames`, and the `category` and `message` of its
+// panic as the host recorded them, which a runner judges instead of the
+// report on standard error. A row's record also has `row` and `rows`;
 // an empty table is one record with `rows: 0` and no result. A property's
 // record adds the shrunk input's text as `input` when it fails.
 //
@@ -112,7 +114,7 @@ class Runner {
     );
     const t0 = performance.now();
     const instance = await WebAssembly.instantiate(this.module, host.imports);
-    const { status, trapped, ended, frames } = await host.run(
+    const { status, trapped, ended, frames, panic } = await host.run(
       instance,
       `hd.init.${c.init}`,
       `hd.test.${c.test}`,
@@ -121,7 +123,7 @@ class Runner {
     host.close();
     if (dir) this.files.remove(dir);
     const us = Math.round((performance.now() - t0) * 1000);
-    return { status, trapped, ended, stdout, stderr, us, frames };
+    return { status, trapped, ended, stdout, stderr, us, frames, panic: panic ?? null };
   }
 }
 
@@ -135,6 +137,7 @@ const result = (c, r, extra = {}) => ({
   stdout: r.stdout,
   stderr: r.stderr,
   us: r.us,
+  ...(r.trapped && r.panic ? { category: r.panic.category, message: r.panic.message } : {}),
   ...(r.trapped && r.frames?.length ? { frames: r.frames } : {}),
 });
 
@@ -249,24 +252,17 @@ class Property {
   }
 }
 
-// The panic message of a run's report, if it panicked.
-const panicMessage = (r) => {
-  if (!r.trapped) return null;
-  const line = r.stderr
-    .split("\n")
-    .reverse()
-    .find((l) => l.startsWith("panic: "));
-  if (line === undefined) return null;
-  const rest = line.slice("panic: ".length);
-  return rest.startsWith("explicit-panic: ") ? rest.slice("explicit-panic: ".length) : rest;
-};
+// Whether a run's recorded panic is the discard panic; never its
+// standard error text, which a program's own message could imitate.
+const isDiscard = (r) =>
+  r.trapped && r.panic?.category === "explicit-panic" && r.panic.message === DISCARD;
 
 // What a run of a property case came to: a discard is the discard panic
 // before `show` (std-testing.runner.discard-read); the same panic after it
 // is a failure (std-testing.runner.discard-after-show).
 const outcome = (run, r) => {
   if (r.ended) return "ended";
-  if (r.trapped) return run.shown === null && panicMessage(r) === DISCARD ? "discard" : "fail";
+  if (r.trapped) return run.shown === null && isDiscard(r) ? "discard" : "fail";
   return r.status === 0 ? "pass" : "fail";
 };
 
@@ -435,21 +431,26 @@ export async function runCases(options, start = { case: 0, row: 0, rows: 0 }) {
   }
 }
 
-// The category and message of a trapped run's panic report (`panic:
-// <category>: <message>`, the last such line of its standard error), and
-// its other lines, the `dbg` output (cli.dbg.test). A report with no
-// `panic:` line is the runner's own failure, `internal`.
-export function panicOf(stderr) {
-  const lines = stderr.split("\n").filter((l) => l !== "");
-  const at = lines.findLastIndex((l) => l.startsWith("panic: "));
-  if (at < 0) return { category: "internal", message: stderr.trim(), debug: [] };
-  const rest = lines[at].slice("panic: ".length);
-  const colon = rest.indexOf(": ");
-  const head = colon < 0 ? rest : rest.slice(0, colon);
-  const message = colon < 0 ? "" : rest.slice(colon + 2);
-  const debug = lines.filter((_, i) => i !== at);
+// The category and message of a trapped run's panic, as its record has
+// them from the host, and the other lines of its standard error, the
+// `dbg` output before the report (cli.dbg.test). A record with no panic
+// is the runner's own failure, `internal`.
+export function panicOf(record) {
+  const stderr = record.stderr ?? "";
+  if (record.category === undefined) {
+    return { category: "internal", message: stderr.trim(), debug: [] };
+  }
+  const { category, message } = record;
+  const before = [`panic: ${category}: ${message}\n`, `panic: ${category}\n`]
+    .filter((report) => stderr.endsWith(report))
+    .map((report) => stderr.slice(0, stderr.length - report.length))[0];
+  const debug = (before ?? stderr).split("\n").filter((l) => l !== "");
   // The host's `deadlock` report is the `suspension-deadlock` panic.
-  return { category: head === "deadlock" ? "suspension-deadlock" : head, message, debug };
+  return {
+    category: category === "deadlock" ? "suspension-deadlock" : category,
+    message,
+    debug,
+  };
 }
 
 // What one result record of the case `expectPanic` (its `expect_panic`
@@ -459,7 +460,7 @@ export function panicOf(stderr) {
 // debug }`.
 export function judge(record, expectPanic) {
   if (record.trapped) {
-    const panic = panicOf(record.stderr);
+    const panic = panicOf(record);
     if (panic.category === expectPanic) return { outcome: "passed" };
     return { outcome: "panicked", ...panic };
   }

@@ -1247,11 +1247,12 @@ fn plain_tests(text: &str) -> bool {
         .all(|name| directive(text, name).is_none())
 }
 
-/// Whether a test host result line reports panic category `code`.
+/// Whether a test host result line reports panic category `code`: its
+/// `category` field, which the host recorded, never the report text. In
+/// the JSON line every quote inside a string is escaped, so the key's
+/// unescaped `"category":"` cannot come from program text.
 fn reports_panic(line: &str, code: &str) -> bool {
-    [":", "\\n", "\""]
-        .iter()
-        .any(|end| line.contains(&format!("panic: {code}{end}")))
+    line.contains(&format!("\"category\":\"{code}\""))
 }
 
 /// A package-tree fixture whose only harness is its tree and its primary

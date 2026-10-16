@@ -60,6 +60,17 @@ impl CaseRun {
         } else {
             None
         };
+        // A panicked run's `category` and `message`, which the runner reads
+        // instead of the report on standard error.
+        let panic = if object.contains_key("category") {
+            Some(crate::testing::PanicInfo {
+                category: string("category")?,
+                message: string("message")?,
+                frames: Vec::new(),
+            })
+        } else {
+            None
+        };
         let frames = match object.get("frames") {
             None => Vec::new(),
             Some(v) => v
@@ -86,7 +97,7 @@ impl CaseRun {
             us: integer("us")?,
             row,
             input,
-            panic: None,
+            panic,
             frames,
         })
     }
@@ -105,6 +116,15 @@ impl CaseRun {
         );
         if let Some((row, rows)) = self.row {
             write!(line, ",\"row\":{row},\"rows\":{rows}").expect("write string");
+        }
+        if let Some(panic) = &self.panic {
+            write!(
+                line,
+                ",\"category\":{},\"message\":{}",
+                serde_json::to_string(&panic.category).expect("serialize string"),
+                serde_json::to_string(&panic.message).expect("serialize string")
+            )
+            .expect("write string");
         }
         if let Some(input) = &self.input {
             write!(
@@ -126,12 +146,17 @@ impl CaseRun {
         line
     }
 
-    /// All existing JSON-observable fields except measured microseconds and
-    /// raw frames, whose depth differs by engine on an exhausted stack.
-    /// Structured panic metadata is not part of the legacy Node protocol.
+    /// All JSON-observable fields except measured microseconds and raw
+    /// frames, whose depth differs by engine on an exhausted stack.
     #[must_use]
     pub fn equivalent(&self, other: &Self) -> bool {
-        self.test == other.test
+        let panic = |run: &Self| {
+            run.panic
+                .as_ref()
+                .map(|p| (p.category.clone(), p.message.clone()))
+        };
+        panic(self) == panic(other)
+            && self.test == other.test
             && self.status == other.status
             && self.trapped == other.trapped
             && self.stdout == other.stdout
@@ -156,7 +181,11 @@ mod tests {
             us: 123,
             row: Some((1, 2)),
             input: Some("x".into()),
-            panic: None,
+            panic: Some(crate::testing::PanicInfo {
+                category: "explicit-panic".into(),
+                message: "a\npanic: integer-overflow: \"b\"".into(),
+                frames: Vec::new(),
+            }),
             frames: vec![(4, 120), (9, 77)],
         };
         assert_eq!(
@@ -168,6 +197,9 @@ mod tests {
         different.frames.clear();
         assert!(result.equivalent(&different));
         different.input = None;
+        assert!(!result.equivalent(&different));
+        let mut different = result.clone();
+        different.panic = None;
         assert!(!result.equivalent(&different));
         let empty = CaseRun {
             test: 2,

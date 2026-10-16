@@ -23,7 +23,7 @@ use hd_run::tests_model::{
 
 use crate::affected;
 use crate::caps::CapFlag;
-use crate::engine::{CaseRun, HostCase, Snapshot, TestEnv, TestPrograms, TestSession};
+use crate::engine::{CaseRun, HostCase, Panic, Snapshot, TestEnv, TestPrograms, TestSession};
 use crate::report::{self, Reporter};
 use crate::{HD_FAILURE, Wall, disk, fail};
 
@@ -1295,14 +1295,25 @@ fn run(
 /// `module.testing.expect-panic-fail`).
 fn judge(case: &TestCase, run: &CaseRun, frames: Vec<String>) -> CaseResult {
     if run.trapped {
-        let (category, message) = panic_of(&run.stderr);
+        // The host's recorded panic, never the standard error text, which
+        // a program's own message could imitate. A trap without one is
+        // the runner's own failure.
+        let Some(panic) = &run.panic else {
+            return CaseResult::Panicked {
+                category: "internal".into(),
+                message: run.stderr.trim().to_owned(),
+                debug: run.stderr.lines().collect::<Vec<_>>().join("\n"),
+                frames,
+            };
+        };
+        let (category, message) = category_of(&panic.category, &panic.message);
         if case.expect_panic.as_deref() == Some(category.as_str()) {
             return CaseResult::Passed { us: run.us };
         }
         return CaseResult::Panicked {
             category,
             message,
-            debug: debug_lines(&run.stderr),
+            debug: debug_lines(&run.stderr, panic),
             frames,
         };
     }
@@ -1324,28 +1335,29 @@ fn judge(case: &TestCase, run: &CaseRun, frames: Vec<String>) -> CaseResult {
     }
 }
 
-/// The `dbg` lines of a trapped case's standard error: everything but the
-/// panic report (`cli.dbg.test`).
-fn debug_lines(stderr: &str) -> String {
-    let mut lines: Vec<&str> = stderr.lines().collect();
-    if let Some(report) = lines.iter().rposition(|l| l.starts_with("panic: ")) {
-        lines.remove(report);
-    }
-    lines.join("\n")
+/// The `dbg` lines of a trapped case's standard error: what precedes the
+/// panic report `panic`, which ends it (`cli.dbg.test`).
+fn debug_lines(stderr: &str, panic: &Panic) -> String {
+    let (category, message) = (&panic.category, &panic.message);
+    let before = [
+        format!("panic: {category}: {message}\n"),
+        format!("panic: {category}\n"),
+    ]
+    .iter()
+    .find_map(|report| stderr.strip_suffix(report.as_str()))
+    .unwrap_or(stderr);
+    before.lines().collect::<Vec<_>>().join("\n")
 }
 
-/// The category and message of the host's panic report
-/// (`panic: <category>: <message>`); a report without a known category is
-/// the runner's own failure.
-fn panic_of(stderr: &str) -> (String, String) {
-    let Some(rest) = stderr.lines().rev().find_map(|l| l.strip_prefix("panic: ")) else {
-        return ("internal".into(), stderr.trim().to_owned());
-    };
-    let (cat, msg) = rest.split_once(": ").unwrap_or((rest, ""));
-    match cat {
-        c if PANIC_CATEGORIES.contains(&c) => (c.to_owned(), msg.to_owned()),
-        "deadlock" => ("suspension-deadlock".into(), msg.to_owned()),
-        _ => ("explicit-panic".into(), rest.to_owned()),
+/// The category and message a report names: the host's `deadlock` is the
+/// `suspension-deadlock` panic, and a category the spec does not name is
+/// part of an explicit panic's message.
+fn category_of(category: &str, message: &str) -> (String, String) {
+    match category {
+        c if PANIC_CATEGORIES.contains(&c) => (c.to_owned(), message.to_owned()),
+        "deadlock" => ("suspension-deadlock".into(), message.to_owned()),
+        c if message.is_empty() => ("explicit-panic".into(), c.to_owned()),
+        c => ("explicit-panic".into(), format!("{c}: {message}")),
     }
 }
 

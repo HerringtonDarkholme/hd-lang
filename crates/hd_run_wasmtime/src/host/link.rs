@@ -12,8 +12,10 @@ use crate::profiles::RuntimeProfile;
 
 /// Reports the deadlock and stops the instance.
 pub fn deadlock(host: &mut Host) -> wasmtime::Error {
-    host.err("panic: deadlock: the program waits, but no host operation is pending\n");
-    host.reported = true;
+    host.report_panic(
+        "deadlock",
+        "the program waits, but no host operation is pending",
+    );
     Stop::Deadlock.into()
 }
 

@@ -45,6 +45,9 @@ export interface CaseRecord {
   frames?: [number, number][];
   /** A failed property case's shrunk input. */
   input?: string;
+  /** A trapped run's panic as the host recorded it. */
+  category?: string;
+  message?: string;
 }
 
 export interface RunCasesOptions {
@@ -67,14 +70,20 @@ export interface Panic {
   debug: string[];
 }
 
-export function panicOf(stderr: string): Panic;
+/** The fields of a result record that judging it reads. */
+export interface JudgedRecord {
+  status: number;
+  trapped: boolean;
+  stderr: string;
+  category?: string;
+  message?: string;
+}
+
+export function panicOf(record: JudgedRecord): Panic;
 
 export type Verdict =
   | { outcome: "passed" }
   | { outcome: "failed"; message: string }
   | ({ outcome: "panicked" } & Panic);
 
-export function judge(
-  record: { status: number; trapped: boolean; stderr: string },
-  expectPanic: string | null,
-): Verdict;
+export function judge(record: JudgedRecord, expectPanic: string | null): Verdict;

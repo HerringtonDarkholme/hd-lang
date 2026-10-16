@@ -257,11 +257,14 @@ results: printed by the release cursor in content order
 
 **`expect_panic`.** The panic's category is read from the instance's
 globals, and a matching category passes the case. Implementation
-differs: the emitter exports no category or message globals, so the
-runner reads the `panic: CATEGORY: MESSAGE` report line from the case's
-standard error (`testing/runner.rs`, `hd_cli::test_cmd`). Worse: a
-runner depends on report text, and a message that looks like a report
-line can fool it.
+differs: the emitter exports no category or message globals. A panic
+stub calls the `hd:rt` `panic` import before it writes its report, and
+the host records the report's text from that call to the trap; a host
+panic (`time-limit`, `heap-exhausted`, a deadlock) records its own. A
+result carries that category and message (`PanicInfo`; the Node
+record's `category` and `message`), and `expect_panic`, a property's
+discard and the conformance harness judge them, never standard error,
+so a message that looks like a report line keeps its own category.
 
 **`timeout`.** `report_timeout(millis)` sets the store's epoch deadline
 and a reactor timer, so a busy loop traps and a pending host wait is cut

@@ -34,7 +34,14 @@
 import { readFileSync, writeSync } from "node:fs";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { runCases } from "./cases.mjs";
-import { createHost, exitPast, nodeFiles, PROGRAM_TIME_LIMIT, timeLimitReport } from "./node.mjs";
+import {
+  createHost,
+  exitPast,
+  nodeFiles,
+  panicOfReport,
+  PROGRAM_TIME_LIMIT,
+  timeLimitReport,
+} from "./node.mjs";
 
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.
@@ -126,12 +133,14 @@ async function supervise(module, config) {
         stoppedWorkers.push(worker);
         const c = config.cases[at.ci];
         const shown = ms ?? config.timeLimitMs;
+        const report = ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms);
         const line = {
           test: c.test,
           status: 3,
           trapped: true,
           stdout: "",
-          stderr: ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms),
+          stderr: report,
+          ...panicOfReport(report.slice("panic: ".length)),
           us: Math.round((shown + GRACE_MS) * 1000),
         };
         if (at.row !== null && at.rows !== null) {

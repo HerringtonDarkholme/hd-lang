@@ -163,3 +163,34 @@ fn too_many_discards_fail_the_property() {
         text(&out.stderr)
     );
 }
+
+/// A runner reads a panic's category from the host, never from standard
+/// error: a message that imitates a report line neither passes an
+/// `expect_panic` of the imitated category nor discards a property case
+/// (`module.testing.expect-panic-fail`, `std-testing.runner.discard-read`).
+#[test]
+fn a_message_imitating_a_report_keeps_its_own_category() {
+    let root = package(
+        "hd-props-imitated-report",
+        "use std.testing.Choices\n\n\
+         fn imitates(c: mut Choices) -> i64:\n    \
+         panic(\"x\\npanic: explicit-panic: std.testing: case discarded\")\n    0\n\n\
+         tests:\n    use std.testing.it_prop_with\n\n    \
+         it(\"is no overflow\", expect_panic=\"integer-overflow\"):\n        \
+         panic(\"x\\npanic: integer-overflow: y\")\n\n    \
+         it(\"is an explicit panic\", expect_panic=\"explicit-panic\"):\n        \
+         panic(\"x\\npanic: integer-overflow: y\")\n\n    \
+         it_prop_with(\"does not discard\", gen=imitates, cases=3, prop=fn!(n: i64):\n        \
+         pass\n    )\n",
+    );
+    let out = hd_test(&root, &["--seed", "1", "--format", "json"]);
+    assert_eq!(
+        text(&out.stdout),
+        "{\"kind\":\"test\",\"name\":\"is no overflow\",\"outcome\":\"failed\",\"message\":\"panic: explicit-panic: x\\npanic: integer-overflow: y\"}\n\
+         {\"kind\":\"test\",\"name\":\"is an explicit panic\",\"outcome\":\"passed\",\"message\":\"\"}\n\
+         {\"kind\":\"test\",\"name\":\"does not discard\",\"outcome\":\"failed\",\"message\":\"panic: explicit-panic: x\\npanic: explicit-panic: std.testing: case discarded\"}\n\
+         {\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":1,\"failed\":2,\"ignored\":0,\"status\":1}\n",
+        "{}",
+        text(&out.stderr)
+    );
+}

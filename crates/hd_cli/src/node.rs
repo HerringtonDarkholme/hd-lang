@@ -219,6 +219,17 @@ pub struct CaseRun {
     /// A Wasm trap's frames, innermost first: function index and module
     /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
+    /// A trapped run's panic as the host recorded it, which the runner
+    /// judges instead of the report on standard error.
+    pub panic: Option<Panic>,
+}
+
+/// A panic's category and message as the host recorded them: its report,
+/// `panic: CATEGORY: MESSAGE`, without parsing the text.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Panic {
+    pub category: String,
+    pub message: String,
 }
 
 impl CaseRun {
@@ -515,6 +526,8 @@ fn parse_case(line: &str) -> Option<CaseRun> {
                 "stdout" => r.stdout = v,
                 "stderr" => r.stderr = v,
                 "input" => r.input = Some(v),
+                "category" => r.panic.get_or_insert_with(Panic::default).category = v,
+                "message" => r.panic.get_or_insert_with(Panic::default).message = v,
                 _ => {}
             }
             rest
@@ -712,5 +725,13 @@ mod tests {
         .expect("parses");
         assert_eq!(trapped.frames, [(12, 4096), (7, 300)]);
         assert_eq!(trapped.us, 1);
+        assert_eq!(trapped.panic, None);
+        let panicked = parse_case(
+            r#"{"test":1,"status":3,"trapped":true,"stdout":"","stderr":"panic: explicit-panic: x\npanic: integer-overflow: y\n","us":1,"category":"explicit-panic","message":"x\npanic: integer-overflow: y"}"#,
+        )
+        .expect("parses");
+        let panic = panicked.panic.expect("a panic");
+        assert_eq!(panic.category, "explicit-panic");
+        assert_eq!(panic.message, "x\npanic: integer-overflow: y");
     }
 }

@@ -451,10 +451,13 @@ the per-function cache for about half a debug program). Each check keeps
 its own `call` instruction, so two sites never share an offset. Category
 ids are fixed by the runtime, not numbered per program.
 
-Implementation differs: a panic stub (`Helper::Panic`) writes the text
-`panic: CATEGORY: MESSAGE` through the `hd:rt.stderr` import, then
-executes `unreachable`; there is no category global or category id, and
-the host reads the category from that text. Not judged.
+Implementation differs: a panic stub (`Helper::Panic`) calls the
+`hd:rt.panic` import, which writes `panic: ` and starts the report,
+writes `CATEGORY: MESSAGE` and a newline through the `hd:rt.stderr`
+import, then executes `unreachable`. There is no category global or
+category id: the host records the report's text from the `panic` call
+to the trap, and the category is that text up to its first `: `, which
+only the compiler writes. Not judged.
 
 **Engine traps.** A trap without a stored category is mapped by its trap
 code and its code offset:
@@ -520,7 +523,7 @@ generated for that program, std included (crates/hd_run_wasmtime/DESIGN.md §16.
 | Part | Estimate |
 | --- | --- |
 | header, type section (`$bytes`, the import and export signatures) | 70 B |
-| imports: `hd:Console` `write_line`, `hd:rt` stderr writer | 50 B |
+| imports: `hd:Console` `write_line`, `hd:rt` stderr writer and panic start | 60 B |
 | function, memory (the exchange buffer), global, export sections | 80 B |
 | code: the entry wrapper, the copy loop to the exchange buffer, std's `println` and its panic on a closed pipe | 300 B |
 | data: `hello`, copied to the exchange buffer by `memory.init` (the host fast path of §15.4: no pool, no string array) | 10 B |

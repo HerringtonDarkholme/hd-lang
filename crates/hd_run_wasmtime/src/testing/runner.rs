@@ -24,24 +24,11 @@ impl Attempt {
         !self.result.ended && (self.result.trapped || self.result.status != 0) && !self.discarded()
     }
     fn discarded(&self) -> bool {
-        // Interim fallback: the compiler does not yet export structured
-        // panic globals/tables. Only the last actual panic report and its
-        // exact explicit-panic message count, never a substring or stdout.
-        let discard = self.result.panic.as_ref().map_or_else(
-            || {
-                self.result
-                    .stderr
-                    .lines()
-                    .rev()
-                    .find(|line| line.starts_with("panic: "))
-                    .is_some_and(|line| {
-                        line == "panic: explicit-panic: std.testing: case discarded"
-                    })
-            },
-            |panic| {
-                panic.category == "explicit-panic" && panic.message == "std.testing: case discarded"
-            },
-        );
+        // The host's recorded panic, never the standard error text, which
+        // a program's own message could imitate.
+        let discard = self.result.panic.as_ref().is_some_and(|panic| {
+            panic.category == "explicit-panic" && panic.message == "std.testing: case discarded"
+        });
         self.result.trapped && self.draws.shown.is_none() && discard
     }
     fn reusable(&self) -> bool {

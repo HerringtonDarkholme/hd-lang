@@ -245,7 +245,7 @@ pub enum Helper {
     Panic(String),
     /// `panic(message)`.
     PanicStr,
-    /// The start of a panic report, `panic: `. A program that evaluates
+    /// The start of a panic report, the `panic` import. A program that evaluates
     /// facts says first that the panic happened while one was evaluated
     /// (`annot.fact.eval.panic-runtime`).
     PanicHead,
@@ -980,6 +980,21 @@ pub fn stderr_import() -> Sym {
     }
 }
 
+/// The host runtime's `panic` import, which begins a panic report: the
+/// host writes `panic: ` to standard error, and what the instance writes
+/// there until it traps, `CATEGORY: MESSAGE` and a newline, is the report,
+/// which test runners read the category and message of
+/// (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
+#[must_use]
+pub fn panic_import() -> Sym {
+    Sym::Import {
+        module: "hd:rt".into(),
+        name: "panic".into(),
+        params: vec![],
+        results: vec![],
+    }
+}
+
 /// The host runtime's stdout import: the REPL's value line, which needs
 /// no `Console` requirement.
 #[must_use]
@@ -1222,16 +1237,16 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             let mut a = Asm::new(vec![]);
             if facts {
                 a.call(Sym::Helper(Helper::PanicHead));
-                write_lit(&mut a, &format!("{msg}\n"));
             } else {
-                write_lit(&mut a, &format!("panic: {msg}\n"));
+                a.call(panic_import());
             }
+            write_lit(&mut a, &format!("{msg}\n"));
             a.s().unreachable();
             a.finish(vec![])
         }
         Helper::PanicHead => {
             let mut a = Asm::new(vec![]);
-            write_lit(&mut a, "panic: ");
+            a.call(panic_import());
             if facts {
                 let ctx = fact_global();
                 a.global_get(ctx.clone());
@@ -1257,10 +1272,10 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             let mut a = Asm::new(str_vts());
             if facts {
                 a.call(Sym::Helper(Helper::PanicHead));
-                write_lit(&mut a, "explicit-panic: ");
             } else {
-                write_lit(&mut a, "panic: explicit-panic: ");
+                a.call(panic_import());
             }
+            write_lit(&mut a, "explicit-panic: ");
             a.get(0);
             a.get(1);
             a.call(Sym::Helper(Helper::StrToBuf));

@@ -137,11 +137,14 @@ impl BodyRunner for NativeBodyRunner {
                 instance
                     .store
                     .data_mut()
-                    .err(&format!("panic: {}: {}\n", report.category, report.message));
+                    .report_panic(&report.category, &report.message);
                 3
             }
             Outcome::Internal(message) => return Err(message),
         };
+        // The category and message the runner judges (`expect_panic`, a
+        // property's discard), never the standard error text.
+        let panic = instance.store.data_mut().take_panic().filter(|_| trapped);
         let ended = state.ended();
         let result = BodyResult {
             status,
@@ -150,7 +153,7 @@ impl BodyRunner for NativeBodyRunner {
             stdout: String::from_utf8_lossy(&self.out.take()).into_owned(),
             stderr: String::from_utf8_lossy(&self.err.take()).into_owned(),
             us: u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX),
-            panic: None,
+            panic,
             frames,
         };
         if trapped || status != 0 || ended {

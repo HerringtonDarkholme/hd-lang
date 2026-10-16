@@ -95,9 +95,7 @@ fn discard_limit_is_exact_and_never_reuses_a_poisoned_instance() {
         assert!(!reuse);
         calls += 1;
         state.start(2, 0, 0)?.expect("plan");
-        let mut result = discarded();
-        result.panic = None; // Approved interim Node-output fallback.
-        Ok(result)
+        Ok(discarded())
     });
     let mut results = Vec::new();
     execute_case(&TestCase::default(), &mut fake, &mut |result| {
@@ -109,6 +107,49 @@ fn discard_limit_is_exact_and_never_reuses_a_poisoned_instance() {
     assert_eq!(
         results[0].stderr,
         "the property discarded 21 cases, more than 10 times its 2 cases\n"
+    );
+}
+
+/// A discard is the host's recorded panic: a message whose text imitates
+/// the discard report is a failure (`std-testing.runner.discard-read`).
+#[test]
+fn a_message_imitating_the_discard_report_is_a_failure() {
+    let mut fake = Fake(|state: State, _: bool| {
+        state.start(1, 0, 0)?.expect("plan");
+        let report = "explicit-panic: x\npanic: explicit-panic: std.testing: case discarded\n";
+        Ok(BodyResult {
+            status: 3,
+            trapped: true,
+            stderr: format!("panic: {report}"),
+            panic: Some(PanicInfo::from_report(report)),
+            ..BodyResult::default()
+        })
+    });
+    let mut results = Vec::new();
+    execute_case(&TestCase::default(), &mut fake, &mut |result| {
+        results.push(result);
+    })
+    .expect("run");
+    assert_eq!(results.len(), 1);
+    assert!(results[0].trapped);
+    assert_eq!(
+        results[0].panic.as_ref().map(|p| p.message.as_str()),
+        Some("x\npanic: explicit-panic: std.testing: case discarded")
+    );
+}
+
+/// The report's first `: ` ends the category; the message keeps the rest.
+#[test]
+fn a_report_splits_at_its_first_separator() {
+    let panic = PanicInfo::from_report("explicit-panic: panic: integer-overflow: no\n");
+    assert_eq!(
+        (panic.category.as_str(), panic.message.as_str()),
+        ("explicit-panic", "panic: integer-overflow: no")
+    );
+    let panic = PanicInfo::from_report("assertion-failed\n");
+    assert_eq!(
+        (panic.category.as_str(), panic.message.as_str()),
+        ("assertion-failed", "")
     );
 }
 

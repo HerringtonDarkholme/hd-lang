@@ -33,6 +33,23 @@ pub struct PanicInfo {
     pub frames: Vec<PanicFrame>,
 }
 
+impl PanicInfo {
+    /// The panic of a host's recorded report, the text after `panic: `:
+    /// `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
+    /// category is the compiler's or the host's, never program text, so
+    /// the first `: ` ends it; the message is the rest, whatever it holds.
+    #[must_use]
+    pub fn from_report(report: &str) -> Self {
+        let report = report.strip_suffix('\n').unwrap_or(report);
+        let (category, message) = report.split_once(": ").unwrap_or((report, ""));
+        Self {
+            category: category.to_owned(),
+            message: message.to_owned(),
+            frames: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BodyResult {
     pub status: i64,

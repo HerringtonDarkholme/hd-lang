@@ -457,6 +457,7 @@ pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
     ("hd:rt", "abort"),
     ("hd:rt", "stderr"),
     ("hd:rt", "stdout"),
+    ("hd:rt", "panic"),
 ];
 
 /// How the compiler supplies an `@intrinsic("key")` body of std

@@ -225,17 +225,17 @@ impl WasmtimeInstance {
         let host = self.store.data_mut();
         host.flush();
         if limits::is_heap_exhausted(e) {
-            host.err("panic: heap-exhausted: the program heap cannot allocate more memory\n");
+            host.report_panic(
+                "heap-exhausted",
+                "the program heap cannot allocate more memory",
+            );
         } else if let Some(stop) = e.downcast_ref::<Stop>() {
             match stop {
-                Stop::Contract(m) => host.err(&format!("panic: host-contract: {m}\n")),
+                Stop::Contract(m) => host.report_panic("host-contract", m),
                 Stop::HeapExhausted => {
-                    host.err("panic: heap-exhausted: the exchange buffer cannot grow\n");
+                    host.report_panic("heap-exhausted", "the exchange buffer cannot grow");
                 }
-                Stop::TimeLimit => {
-                    let report = host.time_limit_report();
-                    host.err(&report);
-                }
+                Stop::TimeLimit => host.report_time_limit(),
                 Stop::Interrupted => {
                     host.err("stopped\n");
                     self.halt = Some(End::Stopped);
@@ -245,8 +245,9 @@ impl WasmtimeInstance {
                 Stop::EndCase => unreachable!("handled before panic reporting"),
             }
         } else if let Some(Trap::StackOverflow) = e.downcast_ref::<Trap>() {
-            host.err(
-                "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
+            host.report_panic(
+                "stack-exhausted",
+                "the call stack ran out; check for recursion that never ends",
             );
         } else if !host.reported {
             let text = match e.downcast_ref::<Trap>() {

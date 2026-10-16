@@ -791,6 +791,7 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
                 "finish",
                 "end Exit(0)",
                 "input 5",
+                "call hd:rt panic",
                 "call hd:rt stderr",
                 "end Trapped",
             ]
@@ -837,8 +838,13 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
             panic!("{:?}", events[12]);
         };
         assert_eq!(request, &Request::Args(vec![2, b'h', b'i']));
+        // The panic stub starts its report, then writes it.
         assert!(matches!(
             &events[17],
+            Event::Call { request: Request::Args(args), .. } if args.is_empty()
+        ));
+        assert!(matches!(
+            &events[18],
             Event::Call {
                 request: Request::Digest { .. },
                 ..

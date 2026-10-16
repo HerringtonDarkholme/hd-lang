@@ -1130,9 +1130,10 @@ std change and a change to the trait in
   the caller frame's code offset, which maps to the site.
 - **Type-only:** yes.
 
-Implementation differs: a panic stub writes its whole report
-(`panic: CATEGORY: MESSAGE`) through the `hd:rt` `stderr` import, then
-traps (`Helper::Panic`, `PanicHead`); the panic site comes from the
-trap's frames through `hd.lines`, and there is no `hd.sites` table. Worse
-for runners: `expect_panic` and property discards parse report text
-instead of reading the category.
+Implementation differs: a panic stub calls the `hd:rt` `panic` import,
+which writes `panic: `, writes `CATEGORY: MESSAGE` through the `hd:rt`
+`stderr` import, then traps (`Helper::Panic`, `PanicHead`). There is no
+category global: the host records the report text from the `panic` call
+to the trap, and runners read the category and message it recorded,
+never standard error. The panic site comes from the trap's frames
+through `hd.lines`, and there is no `hd.sites` table.
