@@ -1435,6 +1435,29 @@ impl Ck<'_, '_> {
     /// Unifies `got` with `want`, inserting the coercions of
     /// `crates/hd_check/DESIGN.md` (type checking) §4.2 (`never`, `.Some` wrapping, trait values).
     /// `position` flows to `expect`, selecting its error codes.
+    /// Stores `v` in local `l`. A `mut T` value stored in a readonly
+    /// local of type `T` passes through `Weaken`, so the stored value has
+    /// the local's type (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
+    pub(crate) fn set_local(&mut self, l: LocalId, v: Ref, syn: hd_base::NodeIdx) {
+        let pool = self.pool();
+        let lt = self.b.local_ty(l);
+        let weakens = v.0 != NONE
+            && matches!(
+                pool.get(self.infer.resolve(pool, self.b.ty_of(v))),
+                TyData::Mut(_)
+            )
+            && !matches!(
+                pool.get(self.infer.resolve(pool, lt)),
+                TyData::Mut(_) | TyData::Infer(_) | TyData::Poison
+            );
+        let v = if weakens {
+            self.b.coerce(Coercion::Weaken, NONE, v, lt, syn)
+        } else {
+            v
+        };
+        self.b.set(l, v, syn);
+    }
+
     pub(crate) fn coerce(
         &mut self,
         r: Ref,
@@ -1577,6 +1600,26 @@ impl Ck<'_, '_> {
             )
         {
             self.fit_row(gr, wr, n, what);
+        }
+        // An accepted conversion whose types still differ is explicit
+        // (Rule TC-6): `mut T` to `T`, a wider row, or declared variance.
+        if self.diags.len() == before && !joined {
+            let (gr, wr) = (
+                self.infer.resolve(pool, got),
+                self.infer.resolve(pool, want),
+            );
+            if gr != wr
+                && ![gr, wr]
+                    .iter()
+                    .any(|t| pool.has_infer(*t) || pool.has_poison(*t))
+            {
+                let kind = match (pool.get(gr), pool.get(wr)) {
+                    (TyData::Mut(i), _) if i == wr => Coercion::Weaken,
+                    (TyData::Fn { .. }, TyData::Fn { .. }) => Coercion::RowSubsume,
+                    _ => Coercion::Variance,
+                };
+                return self.b.coerce(kind, NONE, r, want, n.index());
+            }
         }
         r
     }
@@ -2910,7 +2953,7 @@ impl Ck<'_, '_> {
                     }
                 };
                 self.note_write(l, depth);
-                self.b.set(l, v, s.index());
+                self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {
                 let Some(base) = lhs.children().next() else {
@@ -3652,9 +3695,12 @@ impl Ck<'_, '_> {
             let item = self.b.body_mut().item;
             crate::results::add_waits(self.cx, item, waits);
         }
+        // A reported mismatch may leave a value of another type behind
+        // (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
+        let tolerated: &[u8] = if self.diags.has_errors() { &[4] } else { &[] };
         let body = self
             .b
-            .finish(root, &modes)
+            .finish_tolerating(root, &modes, tolerated)
             .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
         Ok((body, ret, facts))
     }

@@ -1,0 +1,9 @@
+# expect: reject 4
+body 1 Fn
+local 4 0 - 0
+labels
+caps
+modes
+extra
+const 6 0
+%0 = LocalSet 0 2147483648 : 0 @-

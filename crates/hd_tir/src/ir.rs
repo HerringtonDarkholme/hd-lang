@@ -810,16 +810,29 @@ impl TirBuilder {
     /// End of the body: the root block's instruction, capture modes, then
     /// the verifier. Unfilled slots are rejected by the verifier.
     pub fn finish(
+        self,
+        root: Ref,
+        capture_modes: &[CaptureMode],
+    ) -> Result<Body, Vec<VerifyError>> {
+        self.finish_tolerating(root, capture_modes, &[])
+    }
+
+    /// `finish`, ignoring findings of the `tolerated` invariants: a body
+    /// in a module with errors may break invariant 4 after a reported
+    /// mismatch, and D2 does not lower it.
+    pub fn finish_tolerating(
         mut self,
         root: Ref,
         capture_modes: &[CaptureMode],
+        tolerated: &[u8],
     ) -> Result<Body, Vec<VerifyError>> {
         self.body.sub_root[0] = root.0;
         self.body.cap_mode = capture_modes.to_vec();
         self.body
             .cap_mode
             .resize(self.body.cap_local.len(), CaptureMode::Shared);
-        let errs = verify(&self.body);
+        let mut errs = verify(&self.body);
+        errs.retain(|e| !tolerated.contains(&e.invariant));
         if errs.is_empty() {
             Ok(self.body)
         } else {
@@ -1018,9 +1031,9 @@ pub struct VerifyError {
     pub what: String,
 }
 
-/// Invariants this verifier checks; the others (4, 7 to 9, 11 to 13, 17)
-/// need types and the item table and are not implemented yet.
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 5, 6, 10, 14, 15];
+/// Invariants this verifier checks; the others (7 to 9, 11 to 13, 17)
+/// need the item table and are not implemented yet.
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 4, 5, 6, 10, 14, 15];
 
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
@@ -1153,7 +1166,44 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
             }
         }
     }
+    let ty_of = |v: u32| {
+        if v & Ref::CONST_BIT != 0 {
+            b.consts.get((v & !Ref::CONST_BIT) as usize).map(|c| c.0)
+        } else {
+            b.ty.get(v as usize).copied()
+        }
+    };
     for (i, &tag) in b.tags.iter().enumerate() {
+        let [a, w] = b.data[i];
+        // Of invariant 4, the operands a body's own columns type: a
+        // stored value against its local, a `break` value against its
+        // target. `never` goes anywhere, and poison follows an error.
+        let want = match tag {
+            Tag::LocalSet => b.local_ty.get(a as usize).copied(),
+            Tag::Break if w != NONE => b
+                .label_inst
+                .get(a as usize)
+                .and_then(|&t| b.ty.get(t as usize).copied()),
+            _ => None,
+        };
+        if let Some(want) = want
+            && let Some(got) = ty_of(w)
+            && got != want
+            && ![got, want]
+                .iter()
+                .any(|t| *t == Ty::NEVER || *t == Ty::POISON)
+        {
+            errs.push(VerifyError {
+                invariant: 4,
+                inst: u32::try_from(i).expect("i"),
+                what: format!(
+                    "{} value of type {} where {} is expected",
+                    tag.name(),
+                    got.0,
+                    want.0
+                ),
+            });
+        }
         if matches!(tag, Tag::Call | Tag::Await) {
             let r = b.record(b.data[i][1]);
             let args = &r[..r.len().saturating_sub(3)];

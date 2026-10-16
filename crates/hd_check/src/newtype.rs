@@ -242,12 +242,12 @@ impl Conversion {
         let out_l = ck.b.local(out_ty, out_s, local_flags::ASSIGNED, at);
         let i_l = ck.b.local(usize_ty, i_s, local_flags::ASSIGNED, at);
         let n_l = ck.b.local(usize_ty, n_s, local_flags::ASSIGNED, at);
-        ck.b.set(src_l, r, at);
+        ck.set_local(src_l, r, at);
         let empty = ck.b.refs_record(&[]);
         let fresh = ck.b.emit(Tag::NewList, NONE, empty, out_ty, at);
-        ck.b.set(out_l, fresh, at);
+        ck.set_local(out_l, fresh, at);
         let zero = ck.b.const_value(usize_ty, 0);
-        ck.b.set(i_l, zero, at);
+        ck.set_local(i_l, zero, at);
         let s = ck.b.get(src_l, list_from, at);
         let rec = ck.b.refs_record(&[s]);
         let len = ck.b.emit(
@@ -257,7 +257,7 @@ impl Conversion {
             usize_ty,
             at,
         );
-        ck.b.set(n_l, len, at);
+        ck.set_local(n_l, len, at);
         let lp = ck.b.open_loop();
         let lb = ck.b.open_block();
         let (i, n) = (ck.b.get(i_l, usize_ty, at), ck.b.get(n_l, usize_ty, at));
@@ -281,7 +281,7 @@ impl Conversion {
         let i = ck.b.get(i_l, usize_ty, at);
         let one = ck.b.const_value(usize_ty, 1);
         let next = ck.b.prim(PrimOp::Add as u32, &[i, one], usize_ty, at);
-        ck.b.set(i_l, next, at);
+        ck.set_local(i_l, next, at);
         let then = ck.b.close_block(tb, None, Ty::VOID, at);
         let eb = ck.b.open_block();
         ck.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);

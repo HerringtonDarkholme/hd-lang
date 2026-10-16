@@ -6,4 +6,4 @@ caps
 modes
 extra
 %0 = LocalSet 0 1 : 0 @-
-%1 = Poison - - : 0 @-
+%1 = Poison - - : 4 @-

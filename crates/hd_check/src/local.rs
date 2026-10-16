@@ -237,7 +237,7 @@ impl Ck<'_, '_> {
             return unsupported("a local function without its name");
         };
         self.b.body_mut().local_ty[l.idx()] = ft;
-        self.b.set(l, r, n.index());
+        self.set_local(l, r, n.index());
         Ok(())
     }
 
@@ -465,7 +465,7 @@ impl Ck<'_, '_> {
                     return unsupported("a default without its name");
                 };
                 self.b.body_mut().local_ty[l.idx()] = ft;
-                self.b.set(l, r, p.index());
+                self.set_local(l, r, p.index());
                 Ok(l)
             })
         };

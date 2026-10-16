@@ -10,7 +10,7 @@ use hd_diag::{Code, Severity};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
@@ -1323,7 +1323,7 @@ impl Ck<'_, '_> {
         });
         let sym = self.cx.names.syms.intern("order");
         let l = self.b.local(vt, sym, local_flags::ASSIGNED, n.index());
-        self.b.set(l, v, n.index());
+        self.set_local(l, v, n.index());
         let eq = self.cx.names.known.eq;
         // Ordering's variants: Less, Equal, Greater.
         let (first, second) = match prim {
@@ -1891,16 +1891,29 @@ impl Ck<'_, '_> {
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
                     // `expr.list.spread.expected`, `expr.list.spread.inferred`.
-                    if this.coerce(
+                    // Each element converts; a conversion with no run-time
+                    // meaning leaves the list as it is.
+                    let cp = this.b.checkpoint();
+                    let c = this.coerce(
                         r,
                         item,
                         elem,
                         operand,
                         "list spread",
                         ExpectPosition::General,
-                    ) != r
-                    {
-                        return unsupported("a list spread that converts its elements");
+                    );
+                    if c != r {
+                        let body = this.b.body_mut();
+                        let kind = c
+                            .as_inst()
+                            .filter(|i| body.tags[i.0 as usize] == Tag::Coerce)
+                            .and_then(|i| body.record(body.data[i.0 as usize][1]).first().copied());
+                        let static_kinds =
+                            [Coercion::Weaken, Coercion::Variance, Coercion::RowSubsume];
+                        if !kind.is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k)) {
+                            return unsupported("a list spread that converts its elements");
+                        }
+                        this.b.rollback(cp);
                     }
                     spreads.push(u32::try_from(k).unwrap_or(0));
                     refs.push(r);
@@ -2355,6 +2368,17 @@ impl Ck<'_, '_> {
         };
         let els = self.loop_else_of(e, want)?;
         let result = els.map(|(_, t)| t);
+        // `flow.while.infinite`: `while true`, or `while (true)`, without
+        // a `break` never completes.
+        let mut lit = cond;
+        while lit.kind() == SyntaxKind::ParenExpr
+            && let Some(inner) = lit.children().next()
+        {
+            lit = inner;
+        }
+        let infinite = lit.kind() == SyntaxKind::LiteralExpr
+            && self.cx.src.tkind(self.cx.src.first(lit)) == Some(TokenKind::KwTrue)
+            && !Self::has_break(body);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
@@ -2370,22 +2394,13 @@ impl Ck<'_, '_> {
         let then = self.b.close_block(tb, None, Ty::VOID, body.index());
         self.loops.pop();
         let eb = self.b.open_block();
-        self.loop_exit(lp, els, e.index())?;
+        // The `else` suite of a `never` loop is still checked, but its
+        // value reaches no loop result (`flow.while.infinite.else`).
+        self.loop_exit(lp, els, e.index(), !infinite)?;
         let exit = self.b.close_block(eb, None, Ty::VOID, e.index());
         let rec = self.b.refs_record(&[then, exit]);
         self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
-        // `flow.while.infinite`: `while true`, or `while (true)`, without
-        // a `break` never completes.
-        let mut lit = cond;
-        while lit.kind() == SyntaxKind::ParenExpr
-            && let Some(inner) = lit.children().next()
-        {
-            lit = inner;
-        }
-        let infinite = lit.kind() == SyntaxKind::LiteralExpr
-            && self.cx.src.tkind(self.cx.src.first(lit)) == Some(TokenKind::KwTrue)
-            && !Self::has_break(body);
         let ty = if infinite {
             Ty::NEVER
         } else {
@@ -2426,19 +2441,21 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A loop's normal exit: its `else` suite's value, then `break`.
+    /// A loop's normal exit: its `else` suite's value, then `break`; the
+    /// `break` carries the value only when `valued`.
     pub(crate) fn loop_exit(
         &mut self,
         lp: hd_tir::ir::LoopMark,
         els: Option<(hd_base::NodeIdx, Ty)>,
         at: hd_base::NodeIdx,
+        valued: bool,
     ) -> StageResult<()> {
         let v = match els {
             None => NONE,
             Some((blk, t)) => {
                 let node = self.cx.src.parse.tree.node(blk);
                 let (tail, _) = self.block_value(node, Some(t))?;
-                tail.map_or(NONE, |r| r.0)
+                tail.filter(|_| valued).map_or(NONE, |r| r.0)
             }
         };
         self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, at);
@@ -2591,7 +2608,7 @@ impl Ck<'_, '_> {
         let itl = self
             .b
             .local(it_ty, it_sym, hd_tir::ir::local_flags::ASSIGNED, e.index());
-        self.b.set(itl, it, e.index());
+        self.set_local(itl, it, e.index());
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let cur = self.b.get(itl, it_ty, e.index());
@@ -2615,7 +2632,7 @@ impl Ck<'_, '_> {
         self.scopes.pop();
         self.loops.pop();
         let bb = self.b.open_block();
-        self.loop_exit(lp, els, e.index())?;
+        self.loop_exit(lp, els, e.index(), true)?;
         let arm1 = self.b.close_block(bb, None, Ty::VOID, e.index());
         // Decision: `.Some(p)` to arm 0, `.None` to arm 1.
         let rows = vec![crate::pat::Row::some(pat, binds), crate::pat::Row::rest()];
@@ -2652,11 +2669,11 @@ impl Ck<'_, '_> {
         let end_l = self.b.local(et, end_s, ASSIGNED, at);
         let inc_l = self.b.local(Ty::BOOL, inc_s, ASSIGNED, at);
         let start = self.b.emit(Tag::Field, sr.0, 0, et, at);
-        self.b.set(cur_l, start, at);
+        self.set_local(cur_l, start, at);
         let end = self.b.emit(Tag::Field, sr.0, 1, et, at);
-        self.b.set(end_l, end, at);
+        self.set_local(end_l, end, at);
         let inc = self.b.emit(Tag::Field, sr.0, 2, Ty::BOOL, at);
-        self.b.set(inc_l, inc, at);
+        self.set_local(inc_l, inc, at);
         let lt = PrimOp::Lt as u32;
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
@@ -2680,7 +2697,7 @@ impl Ck<'_, '_> {
         let mut binds = Vec::new();
         self.declare_pattern(pat, et, &mut binds)?;
         for (_, l) in &binds {
-            self.b.set(*l, item, at);
+            self.set_local(*l, item, at);
         }
         let (c, d) = (self.b.get(cur_l, et, at), self.b.get(end_l, et, at));
         let more = self.b.prim(lt, &[c, d], Ty::BOOL, at);
@@ -2688,11 +2705,11 @@ impl Ck<'_, '_> {
         let c = self.b.get(cur_l, et, at);
         let one = self.b.const_value(et, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[c, one], et, at);
-        self.b.set(cur_l, next, at);
+        self.set_local(cur_l, next, at);
         let iblk = self.b.close_block(ib, None, Ty::VOID, at);
         let fb = self.b.open_block();
         let no = self.b.const_value(Ty::BOOL, 0);
-        self.b.set(inc_l, no, at);
+        self.set_local(inc_l, no, at);
         let fblk = self.b.close_block(fb, None, Ty::VOID, at);
         let rec = self.b.refs_record(&[iblk, fblk]);
         self.b.emit(Tag::If, more.0, rec, Ty::VOID, at);
@@ -2701,7 +2718,7 @@ impl Ck<'_, '_> {
         self.loops.pop();
         let then = self.b.close_block(tb, None, Ty::VOID, at);
         let eb = self.b.open_block();
-        self.loop_exit(lp, loop_else, at)?;
+        self.loop_exit(lp, loop_else, at, true)?;
         let els = self.b.close_block(eb, None, Ty::VOID, at);
         let rec = self.b.refs_record(&[then, els]);
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
@@ -2740,7 +2757,7 @@ impl Ck<'_, '_> {
             sym(self, "$end"),
         );
         let src_l = self.b.local(st, src_s, ASSIGNED, at);
-        self.b.set(src_l, sr, at);
+        self.set_local(src_l, sr, at);
         let len_l = self.b.local(us, len_s, ASSIGNED, at);
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
@@ -2751,7 +2768,7 @@ impl Ck<'_, '_> {
             (IntrinsicOp::ListLen, IntrinsicOp::ListIndex)
         };
         let n = intr(self, len_op, &[c], us);
-        self.b.set(len_l, n, at);
+        self.set_local(len_l, n, at);
         // A map's loop visits the slots written when it began; a list's,
         // its captured length.
         let end = if map {
@@ -2760,9 +2777,9 @@ impl Ck<'_, '_> {
         } else {
             self.b.get(len_l, us, at)
         };
-        self.b.set(end_l, end, at);
+        self.set_local(end_l, end, at);
         let zero = self.b.const_value(us, 0);
-        self.b.set(pos_l, zero, at);
+        self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, n) = (self.b.get(src_l, st, at), self.b.get(len_l, us, at));
@@ -2774,7 +2791,7 @@ impl Ck<'_, '_> {
                 self.b.get(end_l, us, at),
             );
             let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
-            self.b.set(pos_l, next, at);
+            self.set_local(pos_l, next, at);
         }
         let (p, d) = (self.b.get(pos_l, us, at), self.b.get(end_l, us, at));
         let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
@@ -2787,7 +2804,7 @@ impl Ck<'_, '_> {
         let p = self.b.get(pos_l, us, at);
         let one = self.b.const_value(us, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
-        self.b.set(pos_l, next, at);
+        self.set_local(pos_l, next, at);
         let mut binds = Vec::new();
         let before = self.diags.len();
         self.declare_pattern(pat, item_ty, &mut binds)?;
@@ -2813,7 +2830,7 @@ impl Ck<'_, '_> {
         self.loops.pop();
         let then = self.b.close_block(tb, None, Ty::VOID, at);
         let eb = self.b.open_block();
-        self.loop_exit(lp, loop_else, at)?;
+        self.loop_exit(lp, loop_else, at, true)?;
         let els = self.b.close_block(eb, None, Ty::VOID, at);
         let rec = self.b.refs_record(&[then, els]);
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
@@ -2974,7 +2991,7 @@ impl Ck<'_, '_> {
         let empty = self.b.refs_record(&[]);
         let tag = if is_map { Tag::NewMap } else { Tag::NewList };
         let fresh = self.b.emit(tag, NONE, empty, mt, n.index());
-        self.b.set(acc, fresh, n.index());
+        self.set_local(acc, fresh, n.index());
         self.scopes.push(HashMap::default());
         let r = self.clauses(clauses, *element, (acc, mt), &args, n);
         self.scopes.pop();
@@ -3341,7 +3358,7 @@ impl Ck<'_, '_> {
                     "a recursive local function whose requirements are inferred; write its `$` clause",
                 );
             }
-            self.b.set(l, Ref(NONE), n.index());
+            self.set_local(l, Ref(NONE), n.index());
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))

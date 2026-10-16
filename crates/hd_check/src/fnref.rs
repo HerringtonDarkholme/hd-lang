@@ -777,7 +777,7 @@ impl Ck<'_, '_> {
             self.check_receiver(recv_ty, rt, n);
             let receiver = self.cx.names.syms.intern("$receiver");
             let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
-            self.b.set(rl, recv, syn);
+            self.set_local(rl, recv, syn);
             captured = Some((rl, rt));
         } else {
             ptys.push(recv_ty);
@@ -903,7 +903,7 @@ impl Ck<'_, '_> {
         let syn = n.index();
         let receiver = self.cx.names.syms.intern("$receiver");
         let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
-        self.b.set(rl, recv, syn);
+        self.set_local(rl, recv, syn);
         let ptys = pool.list_items(params).to_vec();
         let locals: Vec<_> = ptys
             .iter()

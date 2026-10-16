@@ -894,7 +894,7 @@ impl Ck<'_, '_> {
                 }
                 None => self.bind_local(name, t, pat),
             };
-            self.b.set(l, r, at.index());
+            self.set_local(l, r, at.index());
             return Ok(());
         }
         // A pattern: a two-arm (or one-arm) match whose bindings stay in
@@ -1167,7 +1167,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let first = m.remove(0);
         for &(l, v, at) in &first.sets {
-            self.b.set(l, v, at);
+            self.set_local(l, v, at);
         }
         let row = &rows[first.row];
         match row.guard {

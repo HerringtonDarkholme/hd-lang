@@ -274,7 +274,7 @@ impl Target<'_, '_> {
                     let sym = names.syms.intern(&name);
                     let at = v.members[j].node.index();
                     let l = ck.b.local(t, sym, local_flags::ASSIGNED, at);
-                    ck.b.set(l, r, at);
+                    ck.set_local(l, r, at);
                     scope.insert(sym, l);
                 }
                 if self.shape.is_enum
@@ -289,7 +289,7 @@ impl Target<'_, '_> {
                         let rec = ck.b.refs_record(&[Ref(g.raw())]);
                         let r = ck.b.emit(Tag::GlobalGet, rec, NONE, f.ty, msg.index());
                         let l = ck.b.local(f.ty, f.name, local_flags::ASSIGNED, msg.index());
-                        ck.b.set(l, r, msg.index());
+                        ck.set_local(l, r, msg.index());
                         scope.insert(f.name, l);
                     }
                 }

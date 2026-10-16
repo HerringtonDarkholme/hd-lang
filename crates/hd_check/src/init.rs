@@ -896,7 +896,7 @@ impl Ck<'_, '_> {
                     .last_mut()
                     .expect("scope")
                     .insert(params[k].0, l);
-                self.b.set(l, *r, e.index());
+                self.set_local(l, *r, e.index());
             }
             // A shared default is requirement-free
             // (`data.shared.default.requirement-free`).
