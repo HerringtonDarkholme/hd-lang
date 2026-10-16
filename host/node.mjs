@@ -230,6 +230,33 @@ const syncClient = (file) => {
   };
 };
 
+// How long the workers still running when a run ends have to exit before
+// the host ends its own process.
+const EXIT_GRACE_MS = 500;
+
+// A worker thread blocked in a system call, such as a read of a FIFO that
+// has no writer, cannot be stopped, and Node cannot exit while one runs:
+// its exit, `process.exit` too, waits for every worker thread. Once the
+// run's output is written, `exitPast(workers, status, statusFile)` gives
+// the `workers` still running EXIT_GRACE_MS to exit. Then it writes the
+// run's `status` to `statusFile`, when there is one, where `hd` reads it
+// in place of the process's exit status, and kills this process.
+export function exitPast(workers, status = 0, statusFile = null) {
+  // A worker's `threadId` is -1 once its thread stopped.
+  const running = workers.filter((w) => w.threadId !== -1);
+  if (!running.length) return;
+  let left = running.length;
+  const timer = setTimeout(() => {
+    if (statusFile) writeFileSync(statusFile, `${status}\n`);
+    process.kill(process.pid, "SIGKILL");
+  }, EXIT_GRACE_MS);
+  for (const w of running) {
+    w.once("exit", () => {
+      if (--left === 0) clearTimeout(timer);
+    });
+  }
+}
+
 // HTTP requests hold nothing open, so one client serves every instance.
 const httpClient = syncClient("http.mjs");
 const httpSend = (request, left) => httpClient.call(request, left);
@@ -687,6 +714,8 @@ const nodeLayer = {
     const netClient = { call: (request) => net.call(request, waiting) };
     // A waiting file operation on the paths that `paths(d)` reads from the
     // arguments; `run(e, paths, d)` does it once the grant covers each path.
+    // It can block, as a read of a FIFO with no writer does, so the output
+    // is flushed first (std-console.host.visible).
     const fsOp = (key, paths, run) => ({
       start: (len) => {
         const d = argsOf(len);
@@ -694,6 +723,7 @@ const nodeLayer = {
         const e = new Enc();
         const refused = ps.find((p) => !grant.coversPath(key, p));
         if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
+        flush();
         try {
           run(e, ps, d);
         } catch (err) {

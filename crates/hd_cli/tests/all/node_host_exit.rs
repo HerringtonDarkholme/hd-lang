@@ -344,3 +344,80 @@ it(\"third\"):
     );
     assert_eq!(output.status.code(), Some(0));
 }
+
+/// Makes the FIFO `path`, which no process writes to.
+#[cfg(unix)]
+fn fifo(path: &Path) {
+    let status = Command::new("mkfifo").arg(path).status().unwrap();
+    assert!(status.success(), "mkfifo {}", path.display());
+}
+
+/// A read of a FIFO with no writer blocks a host worker thread in a system
+/// call that the time limit cannot cut (#229): the run still ends.
+#[cfg(unix)]
+#[test]
+fn node_time_limit_ends_a_run_blocked_in_a_file_read() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "node-fifo-read");
+    let wasm = build(
+        &dir,
+        "fifo",
+        "use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
+         pub fn main!() -> void $ Console + FsRead:\n    println(\"before\")\n    \
+         match read_text!(Path(\"pipe/ff\")):\n        .Ok(t) => println(t)\n        \
+         .Err(e) => println(\"${e}\")\n",
+    );
+    std::fs::create_dir_all(dir.join("pipe")).unwrap();
+    fifo(&dir.join("pipe/ff"));
+    let mut command = hd(&dir);
+    command
+        .arg(&wasm)
+        .args(["--engine=node", "--cap", "FsRead=pipe", "--time-limit=1s"]);
+    let output = finish(spawn(command, Stdio::null()), Duration::from_secs(20), "hd");
+    assert_eq!(output.status.code(), Some(3), "{output:?}");
+    assert_eq!(output.stdout, b"before\n");
+    assert_eq!(output.stderr, TIME_PANIC);
+}
+
+/// `hd test` ends too once a case blocked in a FIFO read is cut (#229).
+#[cfg(unix)]
+#[test]
+fn node_test_time_limit_ends_a_run_blocked_in_a_file_read() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "node-test-fifo-read");
+    let package = dir.join("probe");
+    std::fs::create_dir_all(package.join("src")).unwrap();
+    std::fs::create_dir_all(package.join("tests")).unwrap();
+    std::fs::write(package.join("hd.toml"), "[package]\nname = \"probe\"\n").unwrap();
+    std::fs::write(package.join("src/lib.hd"), "pub fn one() -> i32:\n    1\n").unwrap();
+    std::fs::write(
+        package.join("tests/reads.hd"),
+        "use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
+         it(\"reads\"):\n    match read_text!(Path(\"../ff\")):\n        \
+         .Ok(t) => println(t)\n        .Err(e) => println(\"${e}\")\n\n\
+         it(\"fast\"):\n    println(\"fast\")\n",
+    )
+    .unwrap();
+    // Outside the package, whose files `hd test` reads.
+    fifo(&dir.join("ff"));
+    let mut command = hd(&package);
+    command.args([
+        "test",
+        "--engine=node",
+        "--cap",
+        "FsRead=../ff",
+        "--time-limit=1s",
+    ]);
+    let output = finish(
+        spawn(command, Stdio::null()),
+        Duration::from_mins(1),
+        "hd test",
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "PANIC tests/reads.hd:4: reads\n    \
+         panic: time-limit: the program exceeded its time limit\n    \
+         repro: hd test tests/reads.hd --filter \"reads\"\n\
+         test result: FAILED. 1 passed; 1 failed; 0 ignored\n",
+        "{output:?}"
+    );
+    assert_eq!(output.status.code(), Some(1));
+}

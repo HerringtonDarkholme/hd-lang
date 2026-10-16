@@ -132,6 +132,9 @@ impl NodeInstance {
     /// Runs the whole program in one Node process, with our standard
     /// streams, so it reads our input (`ConsoleInput`) and writes as it
     /// goes. Its configuration holds its `Args.program` and its grant.
+    /// A host that cannot exit after a time-limit panic, because a worker
+    /// thread is blocked in a system call, kills its own process; the
+    /// run's status is then in `status.txt`, not in the exit status.
     fn run(&self) -> Outcome {
         let dir = match Scratch::new(&self.wasm) {
             Ok(d) => d,
@@ -139,7 +142,13 @@ impl NodeInstance {
         };
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
-        let text = run_config(&self.program, &self.grants, self.wall_ms, Some(&frames));
+        let killed = dir.0.join("status.txt");
+        let text = run_config(
+            &self.program,
+            &self.grants,
+            self.wall_ms,
+            Some((&frames, &killed)),
+        );
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
@@ -155,6 +164,11 @@ impl NodeInstance {
             && let Ok(mut trace) = self.trace.lock()
         {
             *trace = raw;
+        }
+        if let Ok(text) = std::fs::read_to_string(&killed)
+            && let Ok(code) = text.trim().parse::<u8>()
+        {
+            return Outcome::Exit(code);
         }
         match status {
             Ok(s) if s.success() => Outcome::Exit(0),
@@ -350,20 +364,25 @@ impl Programs {
 }
 
 /// The run host's configuration (`run.mjs`): the program's `Args.program`,
-/// its grant, its time limit in milliseconds, and, for `hd run`, the file
-/// where it writes the frames of a trap.
+/// its grant, its time limit in milliseconds, and, for `hd run`, the files
+/// where it writes the frames of a trap and the status of a run whose
+/// process it kills.
 fn run_config(
     program: &str,
     grants: &Grants,
     wall_ms: Option<u64>,
-    frames: Option<&Path>,
+    files: Option<(&Path, &Path)>,
 ) -> String {
     let limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
-    let frames = frames.map_or(String::new(), |f| {
-        format!(",\"framesFile\":{}", quote(&f.to_string_lossy()))
+    let files = files.map_or(String::new(), |(frames, status)| {
+        format!(
+            ",\"framesFile\":{},\"statusFile\":{}",
+            quote(&frames.to_string_lossy()),
+            quote(&status.to_string_lossy())
+        )
     });
     format!(
-        "{{\"program\":{},\"grants\":{}{limit}{frames}}}",
+        "{{\"program\":{},\"grants\":{}{limit}{files}}}",
         quote(program),
         grants_json(grants)
     )

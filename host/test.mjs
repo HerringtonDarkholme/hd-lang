@@ -25,12 +25,16 @@
 // row of a table, its own deadline, which the host cuts its waits at
 // (core.mjs `env.deadline`). A body still running past it is stopped the
 // same way, with the report of a program that ran past its time limit.
+// A worker stopped while blocked in a system call, such as a read of a FIFO
+// with no writer, keeps running, and Node cannot exit while it does, so
+// after the last case the supervisor kills the process if such a worker
+// has not exited soon after (node.mjs `exitPast`).
 //
 // One JSON line per result record (cases.mjs) goes to standard output.
 import { readFileSync, writeSync } from "node:fs";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { runCases } from "./cases.mjs";
-import { createHost, nodeFiles, PROGRAM_TIME_LIMIT, timeLimitReport } from "./node.mjs";
+import { createHost, exitPast, nodeFiles, PROGRAM_TIME_LIMIT, timeLimitReport } from "./node.mjs";
 
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.
@@ -81,9 +85,11 @@ function configOf(spec) {
 
 // Runs the cases in a worker from `start` (a case index, and for a table
 // resumed after a stopped row, its next row and its row count), restarting
-// it after each run it stops for overrunning its timeout.
+// it after each run it stops for overrunning its timeout. Returns the
+// workers it stopped.
 async function supervise(module, config) {
   let start = { case: 0, row: 0, rows: 0 };
+  const stoppedWorkers = [];
   while (start.case < config.cases.length) {
     start = await new Promise((next, fail) => {
       const worker = new Worker(new URL(import.meta.url), {
@@ -117,6 +123,7 @@ async function supervise(module, config) {
       const stop = (ms) => {
         stopped = true;
         worker.terminate();
+        stoppedWorkers.push(worker);
         const c = config.cases[at.ci];
         const shown = ms ?? config.timeLimitMs;
         const line = {
@@ -178,11 +185,13 @@ async function supervise(module, config) {
       });
     });
   }
+  return stoppedWorkers;
 }
 
 if (isMainThread) {
   const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
-  await supervise(compiled, configOf(process.argv[3] ?? ""));
+  // Every result is written; `hd` reads the results, not the status.
+  exitPast(await supervise(compiled, configOf(process.argv[3] ?? "")));
 } else {
   await runCases(
     {

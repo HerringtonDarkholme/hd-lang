@@ -2,11 +2,12 @@
 // `hd.poll` to completion (core.mjs); its status is the process's.
 // `argv[3]`, when it ends in `.json`, is the run's configuration that `hd`
 // writes: the program's `Args.program` (`program`), its capability grant
-// (`grants`), its `--time-limit` in milliseconds (`timeLimitMs`), and the
-// file where a trap's Wasm frames go (`framesFile`). The
-// program's arguments follow (`cli.args.pass`). The conformance runner's
-// configuration may name a fixture's runtime `profile` instead, whose
-// providers profiles.mjs holds.
+// (`grants`), its `--time-limit` in milliseconds (`timeLimitMs`), the file
+// where a trap's Wasm frames go (`framesFile`), and the file where the
+// run's status goes when this process has to kill itself (`statusFile`).
+// The program's arguments follow (`cli.args.pass`). The conformance
+// runner's configuration may name a fixture's runtime `profile` instead,
+// whose providers profiles.mjs holds.
 //
 // A run with a time limit (cli.limit.time) runs the instance in a worker
 // thread. The host cuts its own waits at the deadline and reports the
@@ -14,9 +15,12 @@
 // a read the host cannot cut, never returns to the host, so this main
 // thread stops a worker still running a little past the deadline and
 // reports the panic for it. The worker sends its output here, in order,
-// so the two never both report. This thread also reads standard input for
-// the worker: a thread blocked in a read cannot be stopped, and the
-// process cannot exit while it waits.
+// so the two never both report. A worker blocked in a system call, such
+// as a read of a FIFO with no writer, does not stop, and Node cannot exit
+// while it runs, so once the run has ended this thread kills the process
+// if the worker has not exited soon after (node.mjs `exitPast`). This
+// thread also reads standard input for the worker: a thread blocked in a
+// read cannot be stopped, and the process cannot exit while it waits.
 import { readFileSync, writeFileSync, writeSync } from "node:fs";
 import {
   isMainThread,
@@ -25,7 +29,7 @@ import {
   Worker,
   workerData,
 } from "node:worker_threads";
-import { createHost, PROGRAM_TIME_LIMIT } from "./node.mjs";
+import { createHost, exitPast, PROGRAM_TIME_LIMIT } from "./node.mjs";
 
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
@@ -152,6 +156,7 @@ function supervise(module, config, args, limit) {
       clearTimeout(timer);
       port.close();
       input.close();
+      exitPast([worker], s, config.statusFile);
       done(s);
     };
     // What the worker sent before the deadline is written first; a worker
