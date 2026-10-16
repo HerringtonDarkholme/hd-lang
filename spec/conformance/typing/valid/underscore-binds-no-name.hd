@@ -1,0 +1,8 @@
+# test: _ := expression binds no local name, so it may repeat in one scope without a duplicate-binding error
+# Spec 06 Must-Use Values: flow.must-use.underscore.
+fn save() -> Result[i32, string]:
+    .Ok(+1)
+
+fn twice() -> void:
+    _ := save()
+    _ := save()

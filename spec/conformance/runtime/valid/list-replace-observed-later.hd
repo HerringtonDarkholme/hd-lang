@@ -1,0 +1,16 @@
+# test: a later visit of a list loop observes an element replaced earlier in the loop
+# Spec 06 Iterator Invalidation: flow.for.replace.observed.
+fn visit(items: mut List[i32]) -> List[i32]:
+    let seen: mut List[i32] = []
+    for item in items:
+        seen.push(item)
+        if seen.len() == 1:
+            items[1] = +9
+    seen
+
+tests:
+    use std.testing.assert_equal
+
+    it("the second visit sees the replacement"):
+        let items: mut List[i32] = [+1, +2]
+        assert_equal(visit(items), [+1, +9], reason="replaced before its visit")

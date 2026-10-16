@@ -1,0 +1,18 @@
+# test: a loop over a string's contents iterates chars(), char_indices(), or bytes()
+# Spec 06 Iteration Protocols: flow.for.string-explicit.
+tests:
+    use std.testing.assert_equal
+
+    it("each view yields its own items"):
+        let chars: mut List[char] = []
+        for c in "hé".chars():
+            chars.push(c)
+        let offsets: mut List[usize] = []
+        for (offset, _) in "hé".char_indices():
+            offsets.push(offset)
+        let bytes: mut List[u8] = []
+        for b in "hé".bytes():
+            bytes.push(b)
+        assert_equal(chars, ['h', 'é'], reason="two scalars")
+        assert_equal(offsets, [0, 1], reason="the byte offset of each scalar")
+        assert_equal(bytes.len(), 3, reason="three bytes")

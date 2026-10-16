@@ -1,0 +1,10 @@
+# test: pass is the explicit no-op for an intentionally empty body
+# Spec 06 Suite Values: flow.block.pass.
+fn idle() -> void:
+    pass
+
+fn skip(flag: bool) -> void:
+    if flag:
+        pass
+    else:
+        idle()

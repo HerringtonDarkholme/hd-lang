@@ -1,0 +1,23 @@
+# test: a must-use value may be propagated, matched, returned, stored, or discarded with _
+# Spec 06 Must-Use Values: flow.must-use.handled.
+fn save() -> Result[i32, string]:
+    .Ok(+1)
+
+fn propagated() -> Result[i32, string]:
+    n := save()?
+    .Ok(n)
+
+fn matched() -> i32:
+    match save():
+        .Ok(n) => n
+        .Err(_) => +0
+
+fn returned() -> Result[i32, string]:
+    save()
+
+fn stored(log: mut List[Result[i32, string]]) -> void:
+    log.push(save())
+
+fn discarded() -> void:
+    _ := save()
+    let _ = save()

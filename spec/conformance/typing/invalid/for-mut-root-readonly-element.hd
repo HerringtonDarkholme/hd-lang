@@ -1,0 +1,8 @@
+# test: a mutable list root does not make its readonly elements mutable during iteration
+# Spec 06 Built-In Collection Iteration: flow.for.no-root-grant.
+data Child:
+    name: string
+
+fn rename(children: mut List[Child]) -> void:
+    for child in children:
+        child.name = "renamed"  # diagnostic: readonly-root

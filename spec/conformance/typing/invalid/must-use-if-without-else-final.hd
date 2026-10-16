@@ -1,0 +1,8 @@
+# test: the final expression of an if without else is discarded, so a Result there is an error
+# Spec 06 Must-Use Values: flow.must-use.discarded-suite.
+fn save() -> Result[i32, string]:
+    .Ok(+1)
+
+fn maybe_save(ready: bool) -> void:
+    if ready:
+        save()  # diagnostic: discarded-must-use-value

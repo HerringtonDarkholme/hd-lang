@@ -1,0 +1,10 @@
+# test: a map iterator is invalidated when an insert changes the map's length
+# Spec 06 Iterator Invalidation: flow.for.invalidate.
+fn grow(entries: mut Map[string, i32]) -> void:
+    for (key, value) in entries:  # panic: iterator-invalidated
+        entries[key + "!"] = value
+
+tests:
+    it("an insert during the loop"):
+        let entries: mut Map[string, i32] = {"a": +1}
+        grow(entries)

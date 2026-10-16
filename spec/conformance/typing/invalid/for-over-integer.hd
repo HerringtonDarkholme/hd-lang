@@ -1,0 +1,5 @@
+# test: a for over a value that is neither Iterable nor an Iterator is an error
+# Spec 06 Iteration Protocols: flow.for.not-iterable-or-iterator.
+fn count(n: i32) -> void:
+    for item in n:  # diagnostic: unsatisfied-trait-bound
+        pass

@@ -1,0 +1,33 @@
+# test: return, break, and ? end a suite abruptly, so its final value is never produced
+# Spec 06 Suite Values: flow.block.abrupt.
+let log = ""
+
+fn mark(text: string) -> string:
+    log = log + text
+    text
+
+fn early(flag: bool) -> string:
+    if flag:
+        return "returned"
+    mark("kept")
+
+fn half(value: i32?) -> i32?:
+    n := value?
+    mark("after ?")
+    .Some(n / 2)
+
+fn first(items: List[i32]) -> i32:
+    let found = -1
+    for item in items:
+        found = item
+        break
+    found
+
+tests:
+    use std.testing.assert_equal
+
+    it("each form skips the rest of its suite"):
+        assert_equal(early(true), "returned", reason="return")
+        assert_equal(half(.None), .None, reason="? on .None")
+        assert_equal(first([+4, +5]), +4, reason="break")
+        assert_equal(log, "", reason="no later statement ran")

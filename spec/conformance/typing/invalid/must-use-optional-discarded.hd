@@ -1,0 +1,8 @@
+# test: discarding a T? value in a non-final expression statement is an error
+# Spec 06 Must-Use Values: flow.must-use.discard.
+fn find(name: string) -> i32?:
+    .None
+
+fn lookup() -> void:
+    find("ada")  # diagnostic: discarded-must-use-value
+    pass
