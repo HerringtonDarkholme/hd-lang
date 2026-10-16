@@ -552,19 +552,15 @@ impl char:
 ## Returns the parts in order with `separator` between each two.
 ## See [std-text.join.decl](../../spec/std/text.md#r-std-text.join.decl).
 pub fn join(parts: List[string], separator: string) -> string:
-    if parts.len() == 0:
-        return ""
-    join_range(parts, separator, 0, parts.len())
-
-# The parts from `start` up to `end`, which is above `start`, joined by
-# halves. Appending each part to the joined text so far copies that text
-# again for every part, a quadratic cost; joining halves copies each byte
-# at most twice per level, and there are about log2(n) levels.
-fn join_range(parts: List[string], separator: string, start: usize, end: usize) -> string:
-    if end - start == 1:
-        return parts[start]
-    middle := start + (end - start) / 2
-    join_range(parts, separator, start, middle) + separator + join_range(parts, separator, middle, end)
+    if bytes_len(separator) == 0:
+        return concat_all(parts)
+    # The parts with a separator between each two, then one copy of all.
+    let pieces: mut List[string] = []
+    for part in parts:
+        if pieces.len() > 0:
+            pieces.push(separator)
+        pieces.push(part)
+    concat_all(pieces)
 
 impl List[string]:
     # The parts in order with `separator` between each two
@@ -593,7 +589,7 @@ impl StringBuilder:
     ## Returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
     ## See [std-text.builder.build](../../spec/std/text.md#r-std-text.builder.build).
     pub fn build(self) -> string:
-        join(self.parts, "")
+        concat_all(self.parts)
 
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
 # needle can only match at a scalar boundary, so comparing bytes is exact.
@@ -890,6 +886,11 @@ fn bytes_slice(text: string, start: usize, end: usize) -> string:
 
 @intrinsic("bytes_concat")
 fn bytes_concat(left: string, right: string) -> string:
+    panic("intrinsic")
+
+# Every part's bytes in order, copied once into one new string.
+@intrinsic("concat_all")
+fn concat_all(parts: List[string]) -> string:
     panic("intrinsic")
 
 # The string of `bytes`, which the caller has checked are UTF-8.

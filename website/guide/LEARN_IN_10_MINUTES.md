@@ -310,6 +310,23 @@ are in the [text module](../../spec/std/text.md).
 | `s.pad_start(width)`, `s.pad_end(width)` | `string` |
 | `s.repeat(n)` | `string` |
 
+To build text in a loop, use a `StringBuilder` or `join`. Each copies
+every byte once. `out = out + piece` copies all of `out` again on every
+pass, as Go's `s += t` does.
+
+```hd
+use std.text.StringBuilder
+
+fn csv(cells: List[string]) -> string:
+    let out: mut StringBuilder = StringBuilder::new()
+    for cell in cells:
+        out.push(cell)
+        out.push(";")
+    out.build()
+```
+
+`cells.join(";")` builds the same text without the trailing separator.
+
 ## Where Next
 
 - The [tour](../tour/01-hello.md) runs each topic in the browser.

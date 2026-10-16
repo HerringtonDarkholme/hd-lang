@@ -322,3 +322,4 @@ says that the check covered syntax only.
 | 2026-10-16 | #234 TypeId loop test | syntax | `let mut same = 0` for a reassigned counter | mut-on-primitive: `let mut` on a primitive value | yes | `let same = 0` | muse |
 | 2026-10-16 | #234 TypeId loop test | type | `let i = 0` compared with an `i32` parameter `n` | mixed-signedness: in operand: expected usize, found i32 | yes | `let i: i32 = 0` | muse |
 | 2026-10-16 | #234 TypeId loop test | type | `let same = 0` returned from a `-> i32` function | type-mismatch: in result: expected i32, found usize | yes | `let same: i32 = 0` | muse |
+| 2026-10-16 | #317 string-build bench | semantic | `let out = StringBuilder::new()`, then `out.push(...)` | mutable-receiver-required: this method takes `mut self`, but the receiver is a readonly StringBuilder | partly | `let out: mut StringBuilder = StringBuilder::new()`; the message does not say the binding dropped the `mut` the constructor returned | muse |

@@ -1154,6 +1154,21 @@ fn str_eq_same_view(a: &mut Asm) {
     a.end();
 }
 
+/// Pushes byte `k + j` of the string in parameters `bytes` and `span`
+/// (its array and its `len << 32 | start`).
+fn str_byte(a: &mut Asm, bytes: u32, span: u32, k: u32, j: i32) {
+    a.get(bytes);
+    a.get(span);
+    a.s().i32_wrap_i64();
+    a.get(k);
+    a.s().i32_add();
+    if j != 0 {
+        a.i32(j);
+        a.s().i32_add();
+    }
+    a.array_get(&WTy::Bytes);
+}
+
 /// The literal pool: one cell per pooled literal, filled on first use.
 #[must_use]
 pub fn lit_pool() -> WTy {
@@ -1310,24 +1325,50 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             a.i32(0);
             a.s().return_();
             a.end();
+            // Eight bytes a step, as Go's `bytealg` compares words: Wasm
+            // GC has no wide array read, so the step ORs the eight
+            // bytes' XORs and branches once (#317).
+            let (wide, acc) = (a.local(VT::I32), a.local(VT::I32));
+            a.get(len);
+            a.i32(-8);
+            a.s().i32_and();
+            a.set(wide);
+            a.block();
+            a.loop_();
+            a.get(k);
+            a.get(wide);
+            a.s().i32_ge_u();
+            a.br_if(1);
+            a.i32(0);
+            a.set(acc);
+            for j in 0..8 {
+                a.get(acc);
+                str_byte(&mut a, 0, 1, k, j);
+                str_byte(&mut a, 2, 3, k, j);
+                a.s().i32_xor().i32_or();
+                a.set(acc);
+            }
+            a.get(acc);
+            a.if_();
+            a.i32(0);
+            a.s().return_();
+            a.end();
+            a.get(k);
+            a.i32(8);
+            a.s().i32_add();
+            a.set(k);
+            a.br(0);
+            a.end();
+            a.end();
+            // The tail, byte by byte.
             a.block();
             a.loop_();
             a.get(k);
             a.get(len);
             a.s().i32_ge_u();
             a.br_if(1);
-            a.get(0);
-            a.get(1);
-            a.s().i32_wrap_i64();
-            a.get(k);
-            a.s().i32_add();
-            a.array_get(&WTy::Bytes);
-            a.get(2);
-            a.get(3);
-            a.s().i32_wrap_i64();
-            a.get(k);
-            a.s().i32_add();
-            a.array_get(&WTy::Bytes);
+            str_byte(&mut a, 0, 1, k, 0);
+            str_byte(&mut a, 2, 3, k, 0);
             a.s().i32_ne();
             a.if_();
             a.i32(0);
@@ -3037,7 +3078,7 @@ mod tests {
 
     /// A string compared with itself returns before the byte loop: the
     /// helper's first instructions are the `ref.eq` and span check, and
-    /// its only loop comes after them.
+    /// its loops come after them.
     #[test]
     fn str_eq_returns_before_the_byte_loop_on_one_view() {
         let code = helper_code(&Helper::StrEq, false).unwrap();
@@ -3055,7 +3096,8 @@ mod tests {
                 loops.push(at);
             }
         }
-        assert_eq!(loops.len(), 1);
-        assert!(loops[0] >= start + fast.out.len());
+        // The eight-byte loop, then the tail's.
+        assert_eq!(loops.len(), 2);
+        assert!(loops.iter().all(|l| *l >= start + fast.out.len()));
     }
 }

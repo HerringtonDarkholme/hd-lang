@@ -2800,6 +2800,7 @@ impl Em<'_> {
             "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
             "bytes_concat" => self.concat(i, args),
             "string_from_bytes" => self.string_from_list(i, args[0]),
+            "concat_all" => self.concat_all(i, args[0]),
             "char_scalar" => {
                 self.comp(args[0], 0, &VT::I32)?;
                 self.store(i)
@@ -3568,6 +3569,99 @@ impl Em<'_> {
         self.a.end();
         self.a.get(arr);
         self.a.get(n);
+        self.a.s().i64_extend_i32_u();
+        self.a.i64(32);
+        self.a.s().i64_shl();
+        self.store(i)
+    }
+
+    /// `concat_all(parts)`: every part's bytes in order, in one new array
+    /// whose length is summed first, so each byte is copied once.
+    fn concat_all(&mut self, i: u32, list: u32) -> StageResult<()> {
+        let (elem, lt) = self.list_parts(self.ty_of(list))?;
+        if elem != [VT::r(WTy::Bytes), VT::I64] {
+            return unsupported("a `concat_all` whose parts are not strings");
+        }
+        let (bytes, spans) = (
+            WTy::Array(storage(&elem[0]).dflt()),
+            WTy::Array(storage(&elem[1]).dflt()),
+        );
+        let l = self.a.local(VT::r(lt.clone()));
+        let (n, k, total, off, span) = (
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(VT::I64),
+        );
+        let arr = self.a.local(VT::r(WTy::Bytes));
+        self.comp(list, 0, &VT::r(lt.clone()))?;
+        self.a.set(l);
+        self.a.get(l);
+        self.a.struct_get(&lt, 0);
+        self.a.set(n);
+        // Each pass walks the parts with `k`; the first sums the lengths,
+        // the second copies.
+        let walk = |em: &mut Self, body: &dyn Fn(&mut Self)| {
+            em.a.i32(0);
+            em.a.set(k);
+            em.a.block();
+            em.a.loop_();
+            em.a.get(k);
+            em.a.get(n);
+            em.a.s().i32_ge_u();
+            em.a.br_if(1);
+            em.a.get(l);
+            em.a.struct_get(&lt, 2);
+            em.a.get(k);
+            em.a.array_get(&spans);
+            em.a.set(span);
+            body(em);
+            em.a.get(k);
+            em.a.i32(1);
+            em.a.s().i32_add();
+            em.a.set(k);
+            em.a.br(0);
+            em.a.end();
+            em.a.end();
+        };
+        let len = |em: &mut Self| {
+            em.a.get(span);
+            em.a.i64(32);
+            em.a.s().i64_shr_u().i32_wrap_i64();
+        };
+        self.a.i32(0);
+        self.a.set(total);
+        walk(self, &|em| {
+            em.a.get(total);
+            len(em);
+            em.a.s().i32_add();
+            em.a.set(total);
+        });
+        self.a.get(total);
+        self.a.array_new_default(&WTy::Bytes);
+        self.a.set(arr);
+        self.a.i32(0);
+        self.a.set(off);
+        walk(self, &|em| {
+            em.a.get(arr);
+            em.a.get(off);
+            em.a.get(l);
+            em.a.struct_get(&lt, 1);
+            em.a.get(k);
+            em.a.array_get(&bytes);
+            em.a.conv(&storage(&elem[0]).dflt(), &VT::r(WTy::Bytes));
+            em.a.get(span);
+            em.a.s().i32_wrap_i64();
+            len(em);
+            em.a.array_copy(&WTy::Bytes, &WTy::Bytes);
+            em.a.get(off);
+            len(em);
+            em.a.s().i32_add();
+            em.a.set(off);
+        });
+        self.a.get(arr);
+        self.a.get(total);
         self.a.s().i64_extend_i32_u();
         self.a.i64(32);
         self.a.s().i64_shl();
