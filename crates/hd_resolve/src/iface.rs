@@ -651,7 +651,7 @@ impl Declarations for LookupDecls<'_> {
 #[derive(Debug)]
 pub struct FolderIface {
     pub folder: String,
-    pub items: Vec<Item>,
+    pub items: Items,
     pub by_def: HashMap<DefId, usize>,
     pub exports: Vec<Export>,
     pub export_index: HashMap<(String, Symbol), usize>,
@@ -1124,11 +1124,24 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
 /// order, exports sorted by (module, name).
 pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> StageResult<Vec<u8>> {
     let mut t = TableWriter::new(names.pool, names.paths, names.syms);
-    let mut w = Writer::default();
-    w.len_of(items);
+    // The records, each at an offset the index names, so one decodes alone.
+    let mut body = Writer::default();
+    let mut index = Writer::default();
+    index.len_of(items);
     for it in items {
-        put_item(&mut w, &mut t, it)?;
+        index.u32(t.def(it.def));
+        index.u32(u32::try_from(body.bytes.len()).expect("blob"));
+        let (own, params) = param_names(it);
+        index.u8(u8::from(own));
+        index.len_of(params);
+        for g in params {
+            index.u32(t.sym(g.name));
+        }
+        put_item(&mut body, &mut t, it)?;
     }
+    let mut w = Writer::default();
+    w.bytes.extend_from_slice(&index.bytes);
+    w.blob(&body.bytes);
     let mut ex: Vec<&Export> = exports.iter().collect();
     ex.sort_by(|a, b| {
         (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
@@ -1146,17 +1159,53 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     Ok(out.bytes)
 }
 
+/// The generic parameters `record_params` names for an item, and whether
+/// its own `Self` comes first (a trait's).
+fn param_names(item: &Item) -> (bool, &[Generic]) {
+    match &item.data {
+        ItemData::Fn(sig) | ItemData::Method { sig, .. } => (false, &sig.generics),
+        ItemData::Trait(_) => (true, &item.generics),
+        _ => (false, &item.generics),
+    }
+}
+
 /// Decodes items and exports into this run; `None` on a malformed blob (a miss).
 #[must_use]
 pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<Export>)> {
-    let mut r = Reader::new(bytes);
+    let (items, exports) = decode_lazy(names, Arc::from(bytes))?;
+    let all = (0..items.len())
+        .map(|i| items.get(i).cloned())
+        .collect::<Option<Vec<Item>>>()?;
+    Some((all, exports))
+}
+
+/// Reads a blob's tables, item index and exports into this run, and
+/// leaves each item record to decode on first use (`Items`,
+/// docs/compiler/data-structures.md §3.9.1). The items' parameter names
+/// are recorded now, as an eager decode records them.
+#[must_use]
+pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Export>)> {
+    let mut r = Reader::new(&bytes);
     let t = Tables::read(&mut r, names.pool, names.paths, names.syms)?;
-    let mut items = Vec::new();
-    for _ in 0..r.count() {
-        let item = get_item(&mut r, &t)?;
-        names.record_params(&item);
-        items.push(item);
+    let n = r.count();
+    let (mut defs, mut offsets) = (Vec::with_capacity(n), Vec::with_capacity(n));
+    for _ in 0..n {
+        let def = t.def(r.u32())?;
+        offsets.push(r.u32());
+        let own = r.u8() != 0;
+        let owner = PathId::from_raw(def.raw());
+        if own {
+            names.paths.set_param_name(owner, 0, "Self");
+        }
+        for i in 0..r.count() {
+            let name = t.sym(r.u32())?;
+            let index = u16::from(own) + u16::try_from(i).unwrap_or(u16::MAX);
+            names.paths.set_param_name(owner, index, names.text(name));
+        }
+        defs.push(def);
     }
+    let body = r.blob();
+    let base = r.pos() - body.len();
     let mut exports = Vec::new();
     for _ in 0..r.count() {
         let module = r.str().to_owned();
@@ -1170,7 +1219,116 @@ pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<E
             kind,
         });
     }
-    r.ok().then_some((items, exports))
+    if !r.ok() {
+        return None;
+    }
+    let source = Some(Source {
+        bytes,
+        tables: t,
+        base,
+        offsets,
+    });
+    Some((Items::with_source(defs, source), exports))
+}
+
+/// Where a lazily decoded item's records are: the blob, its tables in
+/// this run, and each record's offset in the item region at `base`.
+#[derive(Debug)]
+struct Source {
+    bytes: Arc<[u8]>,
+    tables: Tables,
+    base: usize,
+    offsets: Vec<u32>,
+}
+
+/// A folder interface's items, by position: each decoded from the blob on
+/// first use (docs/compiler/data-structures.md §3.9.1), or given whole when the
+/// interface was built in this run. `decoded` counts the records read.
+#[derive(Debug, Default)]
+pub struct Items {
+    defs: Vec<DefId>,
+    slots: Vec<std::sync::OnceLock<Option<Item>>>,
+    source: Option<Source>,
+    decoded: std::sync::atomic::AtomicUsize,
+}
+
+impl Items {
+    /// Items built in this run.
+    #[must_use]
+    pub fn new(items: Vec<Item>) -> Self {
+        let defs = items.iter().map(|i| i.def).collect();
+        let slots = items
+            .into_iter()
+            .map(|i| std::sync::OnceLock::from(Some(i)))
+            .collect();
+        Self {
+            defs,
+            slots,
+            source: None,
+            decoded: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    fn with_source(defs: Vec<DefId>, source: Option<Source>) -> Self {
+        let slots = defs.iter().map(|_| std::sync::OnceLock::new()).collect();
+        Self {
+            defs,
+            slots,
+            source,
+            decoded: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.defs.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.defs.is_empty()
+    }
+
+    /// The items' definitions, in order, without decoding a record.
+    #[must_use]
+    pub fn defs(&self) -> &[DefId] {
+        &self.defs
+    }
+
+    /// Item `i`, decoded on first use; `None` past the end or for a
+    /// malformed record.
+    #[must_use]
+    pub fn get(&self, i: usize) -> Option<&Item> {
+        self.slots
+            .get(i)?
+            .get_or_init(|| {
+                let src = self.source.as_ref()?;
+                let at = src.base + *src.offsets.get(i)? as usize;
+                self.decoded
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                get_item(&mut Reader::new(src.bytes.get(at..)?), &src.tables)
+            })
+            .as_ref()
+    }
+
+    /// Every item, in order, each decoded on first use.
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        (0..self.len()).filter_map(|i| self.get(i))
+    }
+
+    /// How many records were decoded from the blob.
+    #[must_use]
+    pub fn decoded(&self) -> usize {
+        self.decoded.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl<'a> IntoIterator for &'a Items {
+    type Item = &'a Item;
+    type IntoIter = Box<dyn Iterator<Item = &'a Item> + 'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        Box::new(self.iter())
+    }
 }
 
 /// `deep_hash(F) = H("deep", api_hash(F), sorted [(path(G), deep_hash(G))
@@ -1247,7 +1405,11 @@ pub fn private_impl_items(pool: &InternPool, all: &[Item]) -> hd_base::HashSet<D
 /// Every item a set of interface items names, in first-mention order:
 /// the folders of these are the interface's `mentions` (§4.11.3).
 #[must_use]
-pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> Vec<DefId> {
+pub fn mentioned_defs<'a>(
+    pool: &InternPool,
+    items: impl IntoIterator<Item = &'a Item>,
+    exports: &[Export],
+) -> Vec<DefId> {
     let mut out = Vec::new();
     let mut seen = hd_base::HashSet::default();
     let mut push = |d: DefId, out: &mut Vec<DefId>| {
@@ -1361,7 +1523,7 @@ pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> 
 #[must_use]
 pub fn folder_iface(
     folder: &str,
-    items: Vec<Item>,
+    items: Items,
     exports: Vec<Export>,
     blob: Arc<[u8]>,
     api_blob: Option<Hash128>,
@@ -1369,9 +1531,10 @@ pub fn folder_iface(
     module_uses: Vec<(String, String, String)>,
 ) -> FolderIface {
     let by_def = items
+        .defs()
         .iter()
         .enumerate()
-        .map(|(i, it)| (it.def, i))
+        .map(|(i, d)| (*d, i))
         .collect();
     let export_index = exports
         .iter()
@@ -1643,7 +1806,8 @@ fn show_row_in(names: &Names<'_>, pool: hd_types::Types<'_>, r: hd_types::RowId)
 #[cfg(test)]
 mod tests {
     use super::{
-        Export, FnSig, Generic, HeadKind, Item, ItemData, Names, decode_items, encode_items,
+        Export, FnSig, Generic, HeadKind, Item, ItemData, Names, decode_items, decode_lazy,
+        encode_items,
     };
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, ParamRef, TyData};
@@ -1693,5 +1857,49 @@ mod tests {
         assert_eq!(back[0].def, n2.item("app.geo", "first"));
         assert_eq!(ex[0].def, n2.item("app.geo", "first"));
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);
+        // The parameter names come with the index, before any record.
+        assert_eq!(n2.param_name(back[0].def, 0), "T");
+    }
+
+    /// A lazily read interface decodes only the records asked for
+    /// (docs/compiler/data-structures.md §3.9.1, #213): its index names
+    /// every item's definition and parameters without decoding one.
+    #[test]
+    fn a_lazy_interface_decodes_only_the_items_it_is_asked_for() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let known = crate::KnownItems::new(&paths);
+        let n = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let items: Vec<Item> = (0..10)
+            .map(|i| {
+                let name = format!("f{i}");
+                let f = n.item("app.geo", &name);
+                let t = pool.intern_ty(&TyData::Param(ParamRef { owner: f, index: 0 }));
+                let sig = FnSig::simple(
+                    vec![Generic::plain(syms.intern("T"))],
+                    vec![(syms.intern("a"), t)],
+                    t,
+                );
+                Item::new(f, syms.intern(&name), true, ItemData::Fn(sig))
+            })
+            .collect();
+        let blob = encode_items(&n, &items, &[]).expect("encode");
+        let (items2, _) = decode_lazy(&n, std::sync::Arc::from(blob.as_slice())).expect("decode");
+        assert_eq!(items2.len(), 10);
+        assert_eq!(items2.decoded(), 0, "the index reads no record");
+        assert_eq!(items2.defs()[7], n.item("app.geo", "f7"));
+        assert_eq!(items2.get(7).expect("item").name, syms.intern("f7"));
+        assert_eq!(items2.get(7).expect("again").def, n.item("app.geo", "f7"));
+        assert_eq!(items2.decoded(), 1, "one record, decoded once");
+        assert_eq!(items2.iter().count(), 10);
+        assert_eq!(items2.decoded(), 10);
     }
 }

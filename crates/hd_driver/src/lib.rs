@@ -35,7 +35,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, JsonItems, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
-use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
+use hd_resolve::{FolderIface, Item, ItemData, Items, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
@@ -2194,11 +2194,11 @@ fn u32_of(i: usize) -> u32 {
 /// The interface's span table from decoded anchor rows (item index, module
 /// index, slot, anchor).
 fn spans_of(
-    items: &[Item],
+    items: &Items,
     rows: &[(u32, u32, u32, hd_resolve::anchor::Anchor)],
 ) -> HashMap<(DefId, u32), (u32, hd_resolve::anchor::Anchor)> {
     rows.iter()
-        .filter_map(|(i, m, slot, a)| Some(((items.get(*i as usize)?.def, *slot), (*m, *a))))
+        .filter_map(|(i, m, slot, a)| Some(((*items.defs().get(*i as usize)?, *slot), (*m, *a))))
         .collect()
 }
 
@@ -2800,10 +2800,10 @@ impl Run<'_> {
 
     /// The other folders an interface names, with their deep hashes
     /// (§4.11.3): `None` when one of them is not built.
-    fn mentions(
+    fn mentions<'a>(
         &self,
         fid: FolderId,
-        items: &[Item],
+        items: impl IntoIterator<Item = &'a Item>,
         exports: &[hd_resolve::Export],
     ) -> Option<Vec<(String, Hash128)>> {
         let names = self.names();
@@ -3086,7 +3086,7 @@ impl Run<'_> {
         );
         let mut iface = hd_resolve::folder_iface(
             &folder.path,
-            items,
+            Items::new(items),
             out.exports,
             Arc::from(blob),
             api_blob,
@@ -3114,7 +3114,9 @@ impl Run<'_> {
         let folder = &self.table.folders[fi];
         let names = self.names();
         let (blob, dsec) = (sections.first()?, sections.get(1)?);
-        let (items, exports) = hd_resolve::decode_items(&names, blob)?;
+        let blob: Arc<[u8]> = Arc::from(blob.as_slice());
+        // Each item record decodes on first use (#213).
+        let (items, exports) = hd_resolve::decode_lazy(&names, blob.clone())?;
         let (Some(diags), Some(rows), Some(private), Some(looped), Some(module_uses)) = (
             decode_iface_diags(dsec),
             sections.get(2).and_then(|b| hd_resolve::anchor::decode(b)),
@@ -3144,7 +3146,7 @@ impl Run<'_> {
             &folder.path,
             items,
             exports,
-            Arc::from(blob.as_slice()),
+            blob,
             api_blob,
             &mentions,
             module_uses,
@@ -7880,11 +7882,11 @@ fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, Str
 }
 
 /// Stage-B findings by item index in the folder's interface.
-fn encode_header_findings(found: &[hd_check::header::Finding], items: &[Item]) -> Vec<u8> {
+fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);
     for f in found {
-        let at = items.iter().position(|i| i.def == f.item).unwrap_or(0);
+        let at = items.defs().iter().position(|d| *d == f.item).unwrap_or(0);
         w.u32(u32_of(at));
         w.u32(f.slot);
         w.str(f.code.as_str());
@@ -7893,7 +7895,7 @@ fn encode_header_findings(found: &[hd_check::header::Finding], items: &[Item]) -
     w.bytes
 }
 
-fn decode_header_findings(b: &[u8], items: &[Item]) -> Option<Vec<hd_check::header::Finding>> {
+fn decode_header_findings(b: &[u8], items: &Items) -> Option<Vec<hd_check::header::Finding>> {
     let mut r = Reader::new(b);
     let mut out = Vec::new();
     for _ in 0..r.count() {
@@ -7902,7 +7904,7 @@ fn decode_header_findings(b: &[u8], items: &[Item]) -> Option<Vec<hd_check::head
         let code = Code::from_name(r.str())?;
         let message = r.str().to_owned();
         out.push(hd_check::header::Finding {
-            item: items.get(at)?.def,
+            item: *items.defs().get(at)?,
             slot,
             code,
             message,

@@ -301,11 +301,11 @@ tokens ─► syntax tree ─► interface (cached) ─► TIR, one per body ─
 | TIR | collection and emission | tag + 8-byte data + `extra` (§3.18) |
 | Wasm code entries | the linker | bytes plus relocations (§3.22) |
 
-Implementation differs: interface blobs and entries are decoded into
-Rust structs when read (`decode_items` in
-`crates/hd_resolve/src/iface.rs:1146`; TIR in `Collect`). The design
-read them in place, so a warm run did no decode work for records it
-never touched and held no second copy.
+Implementation differs: an interface blob's tables and item index are
+decoded when the entry is read, and each item record when first used
+(`decode_lazy`, `Items` in `crates/hd_resolve/src/iface.rs`). Entries
+are copied out of the store, and TIR is decoded in `Collect`. The design
+read all of them in place, with no decode step and no second copy.
 
 #### 3.9.2 The InternPool
 
@@ -642,9 +642,15 @@ entry-local tables (§3.20.2), then the items, then the exports sorted by
 
 Implementation differs: the design kept the blob as the in-memory
 interface, decoded one record on first use through memo arrays, and
-memory-mapped it from the cache. The code decodes every item when the
-entry is read (`crates/hd_resolve/src/iface.rs:1146`), so a warm run pays
-for every record of every folder it reads, std's included.
+memory-mapped it from the cache.
+- **What is built.** The blob carries an item index: each item's
+  definition, record offset and parameter names. Reading an entry
+  decodes its tables and that index. `Items` decodes a record on first
+  use and counts it (`Items::decoded`).
+- **What is not.** The blob is not memory-mapped, the tables still
+  intern every row up front, and the passes that scan every item
+  (coherence's `Universe`, the conflict checks) still decode every
+  record (#213).
 
 Planned, not built: std's blobs embedded as one pack in the binary
 (`hd_stdpack`). Today the driver embeds std's sources and builds std's

@@ -51,7 +51,7 @@ pub struct Finding {
 /// ([`in_interface_check`]), in item order: bounds of written header types
 /// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
-pub fn stage_b(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
+pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<Finding>> {
     stage_b_over(
         cx,
         items
