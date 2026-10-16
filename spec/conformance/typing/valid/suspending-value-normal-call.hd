@@ -1,0 +1,4 @@
+# test: calling a suspending function value normally constructs a mut Suspend
+# Spec 07 Suspending Function Values: fn.type.suspend.call.
+fn start(fetch: fn!(string) -> string) -> mut Suspend[string]:
+    fetch("key")

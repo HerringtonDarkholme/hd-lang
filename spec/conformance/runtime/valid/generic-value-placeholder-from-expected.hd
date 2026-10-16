@@ -1,0 +1,11 @@
+# test: a _ placeholder in a generic value's type arguments is solved from the expected function type
+# Spec 07 Generic Function Values: fn.type.generic.placeholder.
+fn pair[A, B](a: A, b: B) -> (A, B):
+    (a, b)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the placeholder becomes string"):
+        let make: fn(i32, string) -> (i32, string) = pair::[i32, _]
+        assert_equal(make(+1, "one")._1, "one", reason="B is string")

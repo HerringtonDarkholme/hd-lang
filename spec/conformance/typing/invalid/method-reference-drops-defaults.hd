@@ -1,0 +1,12 @@
+# test: a method reference keeps no defaults, so every parameter must be passed
+# Spec 07 Method References: fn.ref.value.
+data Greeter:
+    word: string
+
+impl Greeter:
+    fn greet(self, name: string = "you") -> string:
+        "${self.word} $name"
+
+fn hello(greeter: Greeter) -> string:
+    greet := Greeter::greet
+    greet(greeter)  # diagnostic: argument-count

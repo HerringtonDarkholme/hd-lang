@@ -1,0 +1,8 @@
+# test: naming a generic function as a value with nothing to instantiate its parameter is an error
+# Spec 07 Generic Function Values: fn.type.generic.instantiate-every.
+fn identity[T](value: T) -> T:
+    value
+
+fn keep() -> void:
+    _same := identity  # diagnostic: cannot-infer-type
+    pass

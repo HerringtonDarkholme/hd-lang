@@ -1,0 +1,15 @@
+# test: a reference to a generic associated function is instantiated from its expected type
+# Spec 07 Method References: fn.ref.generic.instantiate.
+data Maker:
+    tag: i32
+
+impl Maker:
+    fn single[T](value: T) -> List[T]:
+        [value]
+
+tests:
+    use std.testing.assert_equal
+
+    it("T is string from the expected type"):
+        let make: fn(string) -> List[string] = Maker::single
+        assert_equal(make("a"), ["a"], reason="one element")

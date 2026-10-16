@@ -1,0 +1,5 @@
+# test: mut written directly before fn in a closure header is a syntax error
+# Spec 07 No Access Permission: fn.type.no-mut.syntax.
+fn counter() -> i32:
+    next := mut fn() -> i32: +1  # diagnostic: syntax-error
+    next()

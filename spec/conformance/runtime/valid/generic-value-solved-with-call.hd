@@ -1,0 +1,13 @@
+# test: a generic function passed as an argument is instantiated together with the call
+# Spec 07 Generic Function Values: fn.type.generic.argument.
+fn identity[T](value: T) -> T:
+    value
+
+fn apply[A, B](value: A, f: fn(A) -> B) -> B:
+    f(value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("A, B and T are all i32"):
+        assert_equal(apply(+3, identity), +3, reason="identity of 3")

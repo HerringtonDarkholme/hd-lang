@@ -1,0 +1,10 @@
+# test: a generic value's parameter that no source solves is an error
+# Spec 07 Generic Function Values: fn.type.generic.unsolved.
+fn identity[T](value: T) -> T:
+    value
+
+fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
+    pass
+
+fn run() -> void:
+    call_with_nothing(identity)  # diagnostic: cannot-infer-type

@@ -1,0 +1,19 @@
+# test: a method reference whose name two traits supply is ambiguous
+# Spec 07 Method References: fn.ref.lookup.ambiguous.
+trait Label:
+    fn name(self) -> string
+
+trait Title:
+    fn name(self) -> string
+
+data Book:
+    pages: i32
+
+impl Label for Book:
+    fn name(self) -> string: "label"
+
+impl Title for Book:
+    fn name(self) -> string: "title"
+
+fn namer() -> fn(Book) -> string:
+    Book::name  # diagnostic: ambiguous-method

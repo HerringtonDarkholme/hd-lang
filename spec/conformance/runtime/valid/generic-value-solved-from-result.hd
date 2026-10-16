@@ -1,0 +1,14 @@
+# test: a generic value's type arguments may come from the call's expected result type
+# Spec 07 Generic Function Values: fn.type.generic.argument.sources.
+fn empty[T]() -> List[T]:
+    []
+
+fn produce[B](make: fn() -> B) -> B:
+    make()
+
+tests:
+    use std.testing.assert_equal
+
+    it("B and T come from the binding's type"):
+        let items: List[i32] = produce(empty)
+        assert_equal(items.len(), 0, reason="an empty List[i32]")

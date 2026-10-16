@@ -1,0 +1,9 @@
+# test: a generic function value is instantiated once, so it is not polymorphic
+# Spec 07 Generic Function Values: fn.type.generic.not-polymorphic.
+fn identity[T](value: T) -> T:
+    value
+
+fn use_twice() -> void:
+    same := identity::[i32]
+    _ := same(+1)
+    _ := same("text")  # diagnostic: type-mismatch

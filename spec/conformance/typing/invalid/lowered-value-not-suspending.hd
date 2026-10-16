@@ -1,0 +1,4 @@
+# test: a function returning mut Suspend does not convert back to a fn! type
+# Spec 07 Suspending Function Values: fn.type.suspend.no-reverse.
+fn raise(lowered: fn(string) -> mut Suspend[string]) -> fn!(string) -> string:
+    lowered  # diagnostic: type-mismatch

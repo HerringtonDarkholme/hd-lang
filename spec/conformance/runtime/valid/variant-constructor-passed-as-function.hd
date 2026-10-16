@@ -1,0 +1,23 @@
+# test: a variant constructor with one payload field passes where its function type is expected
+# Spec 07 Passing Function Values: fn.type.variant-value.
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+    Offline
+
+fn lift(error: FsError, wrap: fn(FsError) -> SyncError) -> SyncError:
+    wrap(error)
+
+fn describe(error: SyncError) -> string:
+    match error:
+        .Fs(.NotFound(path)) => path
+        .Offline => "offline"
+
+tests:
+    use std.testing.assert_equal
+
+    it("SyncError.Fs is a fn(FsError) -> SyncError"):
+        lifted := lift(FsError.NotFound("a.txt"), SyncError.Fs)
+        assert_equal(describe(lifted), "a.txt", reason="the constructor wrapped the error")

@@ -1,0 +1,4 @@
+# test: a suspending function value may be bang-called in a suspending body
+# Spec 07 Suspending Function Values: fn.type.suspend.bang.
+fn run!(fetch: fn!(string) -> string) -> string:
+    fetch!("key")

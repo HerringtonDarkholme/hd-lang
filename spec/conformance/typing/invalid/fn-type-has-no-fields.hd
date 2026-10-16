@@ -1,0 +1,6 @@
+# test: a function type has no fields; its values come only from functions, closures, and references
+# Spec 07 Function Type Constructors: fn.type.ctor.opaque-sources.
+use std.function.Fn
+
+fn inputs(callback: Fn[(), i32, $()]) -> i32:
+    callback.inputs  # diagnostic: unknown-data-field

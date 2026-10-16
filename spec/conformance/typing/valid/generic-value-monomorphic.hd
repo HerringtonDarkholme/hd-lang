@@ -1,0 +1,9 @@
+# test: an instantiated generic value has an ordinary monomorphic function type
+# Spec 07 Generic Function Values: fn.type.generic.monomorphic.
+fn identity[T](value: T) -> T:
+    value
+
+fn plain() -> fn(i32) -> i32:
+    same := identity::[i32]
+    let typed: fn(i32) -> i32 = same
+    typed

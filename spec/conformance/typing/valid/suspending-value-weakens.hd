@@ -1,0 +1,7 @@
+# test: a fn! value weakens to the lowered type that returns mut Suspend
+# Spec 07 Suspending Function Values: fn.type.suspend.weaken.
+fn fetch!(key: string) -> string:
+    "value of $key"
+
+fn lowered() -> fn(string) -> mut Suspend[string]:
+    fetch
