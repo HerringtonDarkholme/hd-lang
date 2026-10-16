@@ -186,11 +186,22 @@ with a fix-it to either. No producer can hand out a plain handle, and
 only a `OwnOnly` type may implement `DropOwn`.
 
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
-passing convention on the parameter. hd puts both on the position, as
-`mut`, and marks a type that is always owned with the `OwnOnly`
-trait, as Rust and Swift mark copyability with `Copy` and `Copyable`. The price is the
-uniqueness rule for fresh values, plus the rule that only
-`T < own Any` takes an owned type.
+passing convention on the parameter; none of them is garbage-collected.
+hd puts both on the position, as `mut`, and marks a type that is always
+owned with the `OwnOnly` trait, as Rust and Swift mark copyability with
+`Copy` and `Copyable`. The price is the uniqueness rule for fresh
+values, plus the rule that only `T < own Any` takes an owned type.
+
+The closest precedent is OxCaml, Jane Street's OCaml, which keeps the
+garbage collector and adds modes written on values, not types: `local`
+(the value does not escape its region, so it lives on the stack),
+`unique` (one reference, so a destructive operation such as an explicit
+`free` is safe), and `once` (a closure called at most once). Ordinary
+values keep the default modes and the heap, as hd's plain `T` does, and
+some types cross modes, as hd exempts primitives. OxCaml has no
+destructors: its cleanup is an explicit consuming call. hd's `DropOwn`
+goes further, because an owned value has one owner and no borrow
+outlives it, so its drop point is known.
 
 ## 3. A Guided Tour
 
@@ -975,6 +986,8 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 - Mojo Manual, [ownership](https://docs.modular.com/mojo/manual/values/ownership/)
 - Hylo, [parameter passing conventions](https://docs.hylo-lang.org/language-tour/functions-and-methods)
 - Austral, [linear types](https://austral-lang.org/tutorial/linear-types)
+- Lorenzen, White, Dolan, Eisenberg, Lindley, [Oxidizing OCaml with Modal Memory Management](https://doi.org/10.1145/3674642), ICFP 2024
+- OxCaml documentation: [modes](https://oxcaml.org/documentation/modes/intro/), [stack allocation](https://oxcaml.org/documentation/stack-allocation/intro/), [uniqueness](https://oxcaml.org/documentation/uniqueness/intro/)
 
 ## Parse Log
 
