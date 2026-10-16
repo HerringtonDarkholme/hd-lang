@@ -1,0 +1,11 @@
+# test: tuple types are structural: two signatures that write the same tuple type share it
+# Spec 04 Type System: types.tuple.structural.
+
+fn make() -> (i32, string):
+    (1, "a")
+
+fn first(pair: (i32, string)) -> i32:
+    pair._0
+
+fn run() -> i32:
+    first(make())

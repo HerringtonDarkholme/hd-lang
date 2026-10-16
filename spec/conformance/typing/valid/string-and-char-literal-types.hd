@@ -1,0 +1,7 @@
+# test: a string literal has type string and a character literal has type char
+# Spec 04 Type System: types.literal.string.
+
+fn letters() -> (string, char):
+    let word: string = "hd"
+    let letter: char = 'h'
+    (word, letter)

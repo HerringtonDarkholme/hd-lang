@@ -1,0 +1,12 @@
+# test: a rest element holds the trailing values as one list, in order
+# Spec 04 Type System: types.tuple.rest.value.
+
+fn tail(values: (string, List[i32]...)) -> List[i32]:
+    values._1
+
+tests:
+    use std.testing.assert_equal
+
+    it("the rest element is a list of the trailing values"):
+        assert_equal(tail(("a", 1, 2, 3)), [1, 2, 3], reason="the trailing values in order")
+        assert_equal(tail(("b",)), [], reason="no trailing values make an empty list")

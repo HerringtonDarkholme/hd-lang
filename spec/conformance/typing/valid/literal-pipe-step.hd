@@ -1,0 +1,9 @@
+# test: a literal piped into a step takes the step's parameter type
+# Spec 04 Type System: types.literal.local.form.pipe.
+
+fn twice(n: i64) -> i64:
+    n * 2
+
+fn run() -> i64:
+    let doubled = 3 |> twice
+    doubled

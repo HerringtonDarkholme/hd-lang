@@ -1,0 +1,9 @@
+# test: a literal inside an interpolation takes its width from the expression's own typed parts
+# Spec 04 Type System: types.literal.local.form.interpolation.
+
+tests:
+    use std.testing.assert_equal
+
+    it("the literal is an i64 beside an i64"):
+        let price: i64 = 9223372036854775806
+        assert_equal("${price + 1}", "9223372036854775807", reason="1 is an i64, so the sum fits")

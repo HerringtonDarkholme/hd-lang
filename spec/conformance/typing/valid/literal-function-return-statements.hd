@@ -1,0 +1,11 @@
+# test: the return paths of a non-public function with an omitted result type join across its statements
+# Spec 04 Type System: types.literal.local.form.function-return.statements.
+
+fn floor(x: i64):
+    if x < 0:
+        return 0
+    x
+
+fn run() -> i64:
+    let r: i64 = floor(-3)
+    r

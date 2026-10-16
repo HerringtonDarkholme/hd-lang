@@ -1,0 +1,5 @@
+# test: there is no literal for an absent optional; null names nothing
+# Spec 04 Type System: types.literal.no-absent.
+
+fn none() -> i32?:
+    null  # diagnostic: unknown-name

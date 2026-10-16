@@ -1,0 +1,10 @@
+# test: the else value and the break values of one loop decide its literal's width
+# Spec 04 Type System: types.literal.local.form.loop-else.
+
+fn first_big(items: List[i64]) -> i64:
+    let found = for item in items:
+        if item > 10:
+            break item
+    else:
+        0
+    found

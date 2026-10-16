@@ -1,0 +1,9 @@
+# test: a literal class that meets no type by the end of its statement takes its default type
+# Spec 04 Type System: types.literal.local.class.open.
+
+fn take(n: i32) -> i32:
+    n
+
+fn run() -> i32:
+    let count = 0
+    take(count)  # diagnostic: type-mismatch

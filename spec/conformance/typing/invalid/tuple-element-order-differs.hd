@@ -1,0 +1,6 @@
+# test: tuples with the same arity but different element types differ
+# Spec 04 Type System: types.tuple.same.
+
+fn swap() -> (string, i32):
+    let pair: (i32, string) = (1, "a")
+    pair  # diagnostic: type-mismatch

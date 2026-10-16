@@ -1,0 +1,10 @@
+# test: the return paths of a closure with no written result type decide its literal's width
+# Spec 04 Type System: types.literal.local.form.closure-return.
+
+fn clamp_all(limit: i64) -> i64:
+    clamp := fn(x: i64):
+        if x > limit:
+            return limit
+        0
+    let r: i64 = clamp(5)
+    r

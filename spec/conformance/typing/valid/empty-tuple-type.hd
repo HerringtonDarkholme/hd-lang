@@ -1,0 +1,6 @@
+# test: () is the empty tuple
+# Spec 04 Type System: types.tuple.empty.
+
+fn empty() -> ():
+    let nothing: () = ()
+    nothing

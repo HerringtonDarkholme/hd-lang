@@ -1,0 +1,7 @@
+# test: a one-element tuple needs a trailing comma; without it the parentheses only group
+# Spec 04 Type System: types.tuple.one-element.
+
+fn single() -> (i32,):
+    let t: (i32,) = (1,)
+    let _grouped: (i32,) = (1)  # diagnostic: type-mismatch
+    t

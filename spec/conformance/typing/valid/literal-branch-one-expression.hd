@@ -1,0 +1,6 @@
+# test: a branch that is one expression is part of the enclosing expression, so its literal takes the other branch's type
+# Spec 04 Type System: types.literal.local.block.
+
+fn pick(flag: bool, big: i64) -> i64:
+    let value = if flag: 5000000000 else: big
+    value

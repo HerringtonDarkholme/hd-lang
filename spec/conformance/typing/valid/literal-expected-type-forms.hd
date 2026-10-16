@@ -1,0 +1,16 @@
+# test: a default argument, a returned value, an assigned value and a typed field give a literal its type
+# Spec 04 Type System: types.literal.local.form.expected.
+
+data Account:
+    balance: i64
+
+fn pay(amount: i64 = -5000000000) -> i64:
+    amount
+
+fn debt() -> i64:
+    -5000000000
+
+fn run() -> (i64, Account):
+    let total: i64 = 0
+    total = -5000000000
+    (total, Account { balance: -5000000000 })

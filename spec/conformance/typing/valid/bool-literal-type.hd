@@ -1,0 +1,7 @@
+# test: true and false have type bool
+# Spec 04 Type System: types.literal.bool.
+
+fn both() -> (bool, bool):
+    let yes: bool = true
+    let no: bool = false
+    (yes, no)

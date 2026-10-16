@@ -1,0 +1,11 @@
+# test: a literal class that reaches a join stays open, and takes its default type when the join meets no type
+# Spec 04 Type System: types.literal.local.form.join-open.
+
+fn pick(flag: bool):
+    if flag:
+        return 1
+    2
+
+fn run() -> usize:
+    let r: usize = pick(true)
+    r

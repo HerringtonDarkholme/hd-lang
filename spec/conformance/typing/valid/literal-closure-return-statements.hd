@@ -1,0 +1,10 @@
+# test: a closure's return paths join across the statements of its body
+# Spec 04 Type System: types.literal.local.form.closure-return.statements.
+
+fn run(limit: i64) -> i64:
+    floor := fn(x: i64):
+        if x < 0:
+            return 0
+        x
+    let r: i64 = floor(limit)
+    r

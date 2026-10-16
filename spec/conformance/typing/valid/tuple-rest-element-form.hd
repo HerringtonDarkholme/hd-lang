@@ -1,0 +1,8 @@
+# test: a tuple type may end in one rest element after its fixed elements
+# Spec 04 Type System: types.tuple.rest.form.
+
+fn tail(values: (string, List[i32]...)) -> usize:
+    values._1.len()
+
+fn run() -> usize:
+    tail(("a", 1, 2, 3))

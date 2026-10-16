@@ -1,0 +1,5 @@
+# test: a tuple type with a rest element differs from one without, even with the same element types
+# Spec 04 Type System: types.tuple.rest.same.
+
+fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
+    values  # diagnostic: type-mismatch

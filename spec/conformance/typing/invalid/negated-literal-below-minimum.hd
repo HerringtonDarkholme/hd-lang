@@ -1,0 +1,5 @@
+# test: a negated literal below the signed minimum is still out of range
+# Spec 04 Type System: types.literal.negation.below-minimum.
+
+fn low() -> i8:
+    -129  # diagnostic: integer-literal-range
