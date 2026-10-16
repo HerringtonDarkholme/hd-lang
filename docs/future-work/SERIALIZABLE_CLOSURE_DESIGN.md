@@ -9,6 +9,7 @@
 - [D. Stress Test](#d-stress-test)
 - [E. Cost Model](#e-cost-model)
 - [F. Findings, Settled Points, And Owner Questions](#f-findings-settled-points-and-owner-questions)
+- [G. Recommended Design And Discussion Log](#g-recommended-design-and-discussion-log)
 - [Sources](#sources)
 
 ## Status
@@ -1247,6 +1248,162 @@ dependency's functions served by an explicit re-export.
 and adding a dependency never adds an endpoint. (c) is close, but a
 re-export is a second meaning for `pub use`. Added by the orchestrator's
 review ([D.4](#d4-holes-found-in-review)).
+
+## G. Recommended Design And Discussion Log
+
+Status: the orchestrator's recommended design, 2026-10-16, written for
+external review. The owner has not yet answered the [F.3](#f3-owner-questions)
+questions; this section is the design those recommendations add up to.
+
+### G.1 Discussion Log
+
+- 2026-10-15, owner: "let's first focus on being correct"; serializable
+  closures are one of two big designs to settle, with lifetimes (#163).
+- Owner's goals: (1) protocol-transparent RPC; (2) an easier way to fetch
+  data; (3) secure, not exposing arbitrary data or procedures publicly;
+  (4) ideally a cache, like Skip; (5) minimal: think about what to send.
+- Owner: add React Server Actions to the study; "the big idea is that the
+  language should help you manage data". The vision quote in
+  [A.1](#a1-the-big-idea).
+- Study committed (this file, sections A to F); the orchestrator's review
+  added [D.4](#d4-holes-found-in-review) and Q6.
+- 2026-10-16, owner asked for the whole design before the questions; the
+  orchestrator answered with G.2 to G.9.
+
+### G.2 Expose A Function: `@remote`
+
+```hd
+@remote
+pub fn post!(room: string, text: string) -> Result[void, ChatError] $ MessageWrite + Caller:
+    user := match $.use(Caller).user():
+        .Some(u) => u
+        .None => return .Err(.NotSignedIn)
+    if text.len() > 2000:
+        return .Err(.TooLong)
+    $.use(MessageWrite).append!(room, Message { author: user, text: text })
+    .Ok()
+```
+
+- Only marked functions are reachable; an unmarked function never is, even
+  a public one.
+- Every parameter and the result are boundary-safe data. Handles,
+  providers, closures and mutable values are rejected by type;
+  NonEscapable values by category.
+- No generic remote functions: a home cannot compile unknown
+  instantiations.
+- Arguments are untrusted and decoded by their declared types only.
+  Authorization is ordinary code over `$ Caller`.
+
+### G.3 Call It: `remote!`
+
+```hd
+fn send!(room: string, text: string) -> string $ Remote:
+    match remote!(post, room, text):
+        .Ok(.Ok()) => "sent"
+        .Ok(.Err(.TooLong)) => "too long"
+        .Ok(.Err(.NotSignedIn)) => "please sign in"
+        .Err(e) => "network: ${e}"
+```
+
+- The caller needs only `$ Remote`; the home binds the function's own row.
+  No authority travels.
+- The transport is the `Remote` provider (HTTP, WebSocket, a worker
+  message, in-process for tests); user code never names it.
+- The call is explicit, so its type and row show the hop: the protocol is
+  hidden, the network is not.
+- `RemoteError` is kept apart from domain errors: `Unreachable`,
+  `OutcomeUnknown`, `Incompatible`, `Rejected`, `Panicked`. Cancelling the
+  caller cancels the call.
+
+### G.4 State The Client Cannot Forge: `Sealed[T]`
+
+```hd
+pub data DocVersion:
+    pub value: i64
+
+@query
+pub fn open_draft!(id: string) -> Draft $ Docs + Seal:
+    docs := $.use(Docs)
+    Draft { title: docs.title!(id), seen: seal(DocVersion { value: docs.version!(id) }) }
+
+@remote
+pub fn publish!(id: string, seen: Sealed[DocVersion]) -> Result[void, PublishError] $ Docs + Caller + Seal:
+    docs := $.use(Docs)
+    if seen.open().value != docs.version!(id):
+        return .Err(.Changed)
+    docs.publish!(id)
+    .Ok()
+```
+
+- The client carries a sealed value but can neither read nor alter it: it
+  is authenticated encryption under a key held by the home's `Seal`
+  provider. A client has no `Seal`.
+- The type identity and a purpose label are bound into the encryption, so
+  a `Sealed[DocVersion]` cannot pass where a `Sealed[Discount]` is wanted
+  ([D.4](#d4-holes-found-in-review)).
+- Optional expiry in the payload; optional binding to the caller's
+  principal (off by default, since it breaks shared links).
+- No server state: a sealed value survives a restart while the key lasts.
+  React `.bind` and Next.js closures port to a named function plus a
+  sealed argument.
+
+### G.5 Fetch, Cached And Live: `@query`
+
+```hd
+@query
+pub fn recent!(room: string) -> List[Message] $ MessageRead:
+    $.use(MessageRead).latest!(room, 50)
+```
+
+- A query's row holds only tracked, read-only input traits and `Caller`,
+  so it cannot write.
+- Memo key: the function's content identity, the canonical arguments, the
+  caller when `Caller` is in the row, and the revisions of the reads it
+  made. The runtime records reads at the host boundary and invalidates
+  entries whose reads change; subscribers (a library `watch`) get new
+  results. This is Skip's and Convex's model; the language supplies
+  determinism, the read set and the code hash.
+- An eviction policy bounds the memo table; a lint flags queries that read
+  top-level mutable state.
+
+### G.6 Two Identities
+
+- Call identity (module path, name, signature fingerprint) routes a call
+  and survives body changes, so a deployed client keeps working after a
+  bug fix; a signature change gives `Incompatible`.
+- Content identity (a hash of the function and everything it calls, type
+  layouts and compiler version) keys caches and durable histories, so a
+  body change invalidates exactly what it should.
+
+### G.7 Serving And Security
+
+- A home serves the modules its registration names; a dependency's
+  `@remote` functions are never exposed by accident (Q6).
+- Registration checks each served function's row against the home's
+  profile before any call, so a missing provider fails at startup.
+- The default transport turns on Origin and CSRF checks.
+- One `Remote` key; host configuration maps modules to homes.
+
+### G.8 Durability And Failure
+
+- A recorded `@remote` mutation replays after a crash under the Replay
+  Rules; no stack is serialized.
+- Retries carry a request ID, so the home returns the recorded result
+  instead of running twice.
+- A home panic reaches the caller as `RemoteError.Panicked` and never
+  poisons it.
+
+### G.9 Left Out On Purpose
+
+- Shipping code. A later `Portable[F]` (a content identity plus captured
+  data, still no code) is parked.
+- Server-side references (shape 3): no pipelining and no server-to-client
+  callbacks; they can be added beside this design if needed.
+
+In one sentence: mark what is reachable, call it with `remote!`, seal what
+must come back unchanged, mark cacheable reads `@query`, and the language
+handles the endpoint, the encoding, the authority boundary and the cache
+keys.
 
 ## Sources
 
