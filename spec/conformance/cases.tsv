@@ -1143,6 +1143,7 @@ typing/invalid/tests-block-item-outside.hd	type	reject:unknown-name	lang/03-name
 typing/invalid/tests-block-name-collision.hd	type	reject:duplicate-module-name	lang/03-names-and-scopes.md#r-names.tests.unique
 runtime/valid/tests-block-use-shadow.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.tests.shadow
 runtime/valid/tests-block-impl-provider.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.tests.module-items
+typing/invalid/tests-block-impl-overlap.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.error
 typing/invalid/tests-block-use-leak.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.tests.inside-only
 runtime/valid/suspending-trailing-block.hd	runtime	accept	lang/07-functions.md#r-fn.trailing.suspending
 runtime/valid/test-case-options.hd	runtime	accept	lang/10-modules.md#test-cases

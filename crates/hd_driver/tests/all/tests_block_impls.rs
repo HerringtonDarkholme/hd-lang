@@ -92,3 +92,61 @@ fn the_library_build_does_not_see_the_block_impls() {
     assert_eq!(codes, [Code::UnsatisfiedTraitBound], "{}", out.render());
     assert!(out.wasm.is_none());
 }
+
+/// The module and its `tests:` block both implement `Show for Clock`.
+const OVERLAP: &str = "\
+trait Show:
+    fn show(self) -> string
+
+data Clock:
+    hour: i32
+
+impl Show for Clock:
+    fn show(self) -> string: \"${self.hour}h\"
+
+fn greet[T < Show](t: T) -> string:
+    \"hi ${t.show()}\"
+
+tests:
+    use std.testing.assert_equal
+
+    impl Show for Clock:
+        fn show(self) -> string: \"clock:${self.hour}\"
+
+    it(\"greets the clock\"):
+        assert_equal(greet(Clock { hour: 3 }), \"hi 3h\", reason=\"the module's impl\")
+";
+
+fn overlap_codes(goal: &Goal) -> Vec<Code> {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", OVERLAP);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "app", goal);
+    out.diags
+        .content_order()
+        .into_iter()
+        .map(|i| out.diags.code[i])
+        .collect()
+}
+
+#[test]
+fn a_block_impl_overlapping_a_module_impl_is_reported_in_the_test_role() {
+    let tests = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    assert_eq!(overlap_codes(&tests), [Code::OverlappingImpl]);
+    assert_eq!(overlap_codes(&Goal::CheckTests), [Code::OverlappingImpl]);
+}
+
+#[test]
+fn the_library_role_ignores_a_block_impl_overlap() {
+    assert_eq!(overlap_codes(&Goal::Analyze), []);
+}

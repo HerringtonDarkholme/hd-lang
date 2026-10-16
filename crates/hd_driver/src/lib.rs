@@ -3863,6 +3863,82 @@ impl Run<'_> {
         }
     }
 
+    /// The overlap check (`trait.overlap.definition`,
+    /// `trait.overlap.error`) for the impls of module `m`'s `tests:` block,
+    /// which are module items in the test role (`names.tests.module-items`)
+    /// but in no folder interface, so [`Self::coherence`] never sees them.
+    /// Each is checked against the impls of `ifaces`, the test role's
+    /// closure (`test_closure(m)`), and the block's other impls. The
+    /// findings go into the module's test-role `check` entry, whose key
+    /// holds those interfaces; the library role never runs this.
+    fn test_overlaps(
+        &self,
+        m: usize,
+        ifaces: &[Arc<FolderIface>],
+        (items, anchors): (&[Item], &hd_resolve::anchor::Anchors),
+        src: &Src<'_>,
+        diags: &mut DiagBuf,
+    ) {
+        let Some(own) = self.iface_of(self.table.modules[m].folder) else {
+            return;
+        };
+        let test_impls: Vec<&Item> = items
+            .iter()
+            .filter(|i| matches!(i.data, ItemData::Impl { .. }) && own.item(i.def).is_none())
+            .collect();
+        if test_impls.is_empty() {
+            return;
+        }
+        let test_only: HashSet<DefId> = test_impls.iter().map(|i| i.def).collect();
+        let names = self.names();
+        let u = hd_resolve::Universe::new(
+            names,
+            ifaces
+                .iter()
+                .flat_map(|i| i.items.iter())
+                .chain(test_impls.iter().copied()),
+        );
+        let anchor = |d: DefId| {
+            anchors
+                .iter()
+                .find(|(def, slot, _)| *def == d && *slot == 0)
+                .map(|(_, _, a)| *a)
+        };
+        // Content order: the block's impls come after every impl the test
+        // code sees, in source order, so the later impl reported is the
+        // block's.
+        let order = |d: DefId| {
+            let at = anchor(d).map_or((0, 0, 0), |a| (a.decl, a.member, a.tok));
+            format!(
+                "{}\0{:010}{:010}{:010}\0{}",
+                u8::from(test_only.contains(&d)),
+                at.0,
+                at.1,
+                at.2,
+                names.path(d)
+            )
+        };
+        let fallback = Span {
+            file: src.file,
+            lo: 0,
+            hi: 0,
+        };
+        for (a, b, witness) in u.overlaps(&order) {
+            if !test_only.contains(&b) {
+                continue;
+            }
+            let span = anchor(b)
+                .and_then(|at| hd_resolve::anchor::resolve(src, &at))
+                .unwrap_or(fallback);
+            let msg = format!(
+                "implementations {} and {} both apply to {witness}",
+                names.path(a),
+                names.path(b)
+            );
+            diags.error(Code::OverlappingImpl, span, &msg);
+        }
+    }
+
     fn check_key(&self, m: usize) -> Option<Hash128> {
         let module = &self.table.modules[m];
         let templates = self.template_sources(m)?;
@@ -4258,6 +4334,15 @@ impl Run<'_> {
         // The `tests:` block's use and header diagnostics, which no folder
         // interface reports.
         diags.append(&lowered.test_diags);
+        if tests {
+            self.test_overlaps(
+                m,
+                &ifaces,
+                (&lowered.items, &lowered.anchors),
+                &src,
+                &mut diags,
+            );
+        }
         // `grammar.tests.once`: a file's second and later `tests:` blocks.
         // `module.test.no-tests-block`: no block of a test module or an
         // integration test. Each offending block gets one diagnostic.

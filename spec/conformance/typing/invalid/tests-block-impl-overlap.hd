@@ -1,0 +1,24 @@
+# test: an implementation in a tests block overlaps the module's implementation of the same pair
+# Spec 09 Overlap: trait.overlap.definition, trait.overlap.error.
+# Spec 03 Tests Blocks: names.tests.module-items; the block's implementations
+# are module items, so the test code checks them against every implementation it sees.
+trait Show:
+    fn show(self) -> string
+
+data Clock:
+    hour: i32
+
+impl Show for Clock:
+    fn show(self) -> string: "${self.hour}h"
+
+fn announce[T < Show](t: T) -> string:
+    "now ${t.show()}"
+
+tests:
+    use std.testing.assert_equal
+
+    impl Show for Clock:  # diagnostic: overlapping-impl
+        fn show(self) -> string: "clock:${self.hour}"
+
+    it("announces the clock"):
+        assert_equal(announce(Clock { hour: 3 }), "now 3h", reason="the module's impl")
