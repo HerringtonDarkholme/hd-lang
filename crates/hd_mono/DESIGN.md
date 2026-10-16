@@ -64,10 +64,10 @@ compiles and runs outside the task graph.
 | Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set; code-entry hits and folder groups with misses | program | serial per program; programs in parallel | inside `link` | none |
 | Emit | one folder group's missed instances: generic TIR, substitutions, and callees' TIR | Wasm body bytes, relocations, site and line records | folder group (`codepack`) | groups in parallel | `code` entries in `codepack` | §13.8 |
 
-Implementation differs: `Emit` runs per missed instance
-(`ExtTask::Emit(slot)`), and each instance's code is its own `code`
-entry, with no `codepack` grouping. Finer parallelism, but one cache
-lookup and file per instance; not judged.
+Implementation differs: a folder group is the folder of an instance's
+item, and each instance's code is its own `code` entry, with no
+`codepack` grouping (#216). One cache lookup and file per instance; not
+judged.
 | Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
 | Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
@@ -82,7 +82,7 @@ The back half's tasks are `TaskKind::Ext` tasks (crates/hd_sched/DESIGN.md §6.1
 ```rust
 pub enum ExtTask {   // hd_sched
     Collect,         // after the check entry of every module the program can reach
-    Emit(u32),       // created by Collect, one per missed instance
+    Emit(u32),       // created by Collect, one per folder group with a miss
     Link,            // after every Emit of its program
     Precompile,      // scheduled, no work yet
     RunCase(u32),    // scheduled, no work yet

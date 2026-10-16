@@ -14,7 +14,7 @@ pub enum TaskKind {                         // payloads: dense run IDs (file, fo
     FolderIface(u32), HeaderCheck(u32),
     ModulePrep(u32), Body(u32), ModuleFinish(u32),
     Coherence, InitOrder(u32), PackageResult,
-    Ext(ExtTask),                           // Collect, Emit(slot), Link, Precompile, RunCase(case)
+    Ext(ExtTask),                           // Collect, Emit(group), Link, Precompile, RunCase(case)
 }
 struct TaskNode { kind, waiting_on: u32, successors: Vec<TaskId>, state, priority: u32 }
 pub struct TaskGraph { nodes: Vec<TaskNode>, ready: VecDeque<TaskId> }
@@ -32,12 +32,10 @@ owns what each task does.
   `PackageResult` adds one `InitOrder` per folder and then `Collect`. `Collect` performs the code-entry lookups and adds a held
   `Link`; for each folder group with at least one miss it creates one
   `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
-  The folder group is the `codepack` cache unit
+  The folder group is the folder of the instance's item, the `codepack`
+  cache unit
   (crates/hd_cache/DESIGN.md §5.2). An edge from a task that is already
   done counts as satisfied at once.
-  Implementation differs: `Collect` creates one `Emit` per missed
-  instance slot, which is worse: a cold build makes thousands of
-  single-instance tasks, each paying graph bookkeeping.
 - **The creation guard.** `add_held` creates a task with one extra wait
   count, dropped by `release`, so edges added after creation cannot race
   its start (docs/compiler/data-structures.md §3.21). An edge into a

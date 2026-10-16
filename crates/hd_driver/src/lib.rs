@@ -739,6 +739,9 @@ struct CollectOut {
     order: Vec<hd_base::InstId>,
     codes: Vec<OnceLock<WasmCode>>,
     code_keys: Vec<Hash128>,
+    /// The missed slots by folder group, the folder of each instance's
+    /// item (`crates/hd_sched/DESIGN.md` §6.1): one `Emit` task each.
+    groups: Vec<Vec<usize>>,
     prog_key: Hash128,
     roots: Roots,
     /// Nominal types' layouts, shared by the program's emissions so each
@@ -6744,18 +6747,32 @@ impl Run<'_> {
                 None => misses.push(slot),
             }
         }
+        // A folder group is the folder of an instance's item; an item in no
+        // folder of the table makes a group of its own.
+        let mut by_folder: BTreeMap<Option<u32>, Vec<usize>> = BTreeMap::new();
+        for slot in misses {
+            let item = collected.table.item[order[slot].idx()];
+            let folder = self.table.folder_of_module(&names.module_of(item));
+            by_folder
+                .entry(folder.map(FolderId::raw))
+                .or_default()
+                .push(slot);
+        }
+        let groups: Vec<Vec<usize>> = by_folder.into_values().collect();
+        let emits = groups.len();
         let _ = self.collect.set(CollectOut {
             collected,
             order,
             codes,
             code_keys,
+            groups,
             prog_key: pkey,
             roots: plan,
             layouts: hd_wasm::layout::Layouts::new(self.lowering),
         });
         let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
-        for slot in misses {
-            let e = sp.add(TaskKind::Ext(ExtTask::Emit(u32_of(slot))), &[]);
+        for g in 0..emits {
+            let e = sp.add(TaskKind::Ext(ExtTask::Emit(u32_of(g))), &[]);
             sp.edge(e, link);
         }
         sp.release(link);
@@ -7073,14 +7090,12 @@ impl Run<'_> {
         )
     }
 
-    fn emit(&self, slot: usize) {
+    /// `Emit(g)`: the missed instances of folder group `g`, as one batch
+    /// over one program view.
+    fn emit(&self, group: usize) {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
-        let id = c.order[slot];
-        let item = c.collected.table.item[id.idx()];
-        let sub = c.collected.table.sub[id.idx()];
-        let args = c.collected.table.args[id.idx()];
         let folders = self.program_folders();
         let arity = p.arity();
         let view = self.program_view(p, &folders, &arity);
@@ -7091,12 +7106,31 @@ impl Run<'_> {
             sealed: self.known.sealed(),
         };
         let names = self.names();
+        let scenario = self.scenario_hold(p);
+        for &slot in &c.groups[group] {
+            self.emit_slot(c, p, &env, &names, scenario, slot);
+        }
+    }
+
+    fn emit_slot(
+        &self,
+        c: &CollectOut,
+        p: &ProgramTables,
+        env: &Env<'_>,
+        names: &Names<'_>,
+        scenario: Option<(DefId, bool)>,
+        slot: usize,
+    ) {
+        let id = c.order[slot];
+        let item = c.collected.table.item[id.idx()];
+        let sub = c.collected.table.sub[id.idx()];
+        let args = c.collected.table.args[id.idx()];
         let ret = env.ret(item).unwrap_or(Ty::VOID);
         let path = |d: DefId| names.path(d);
         let calls = &c.collected.calls[id.idx()];
         // A held call emits its stub here, and the stub never reaches
         // the code cache (collect misses it on purpose).
-        let held = self.scenario_hold(p).and_then(|(d, active)| {
+        let held = scenario.and_then(|(d, active)| {
             (d == item).then_some(if active {
                 hd_wasm::HoldStub::Active
             } else {
@@ -7109,7 +7143,7 @@ impl Run<'_> {
                 match c.collected.supplied_body(&self.pool, item, args).or(body) {
                     Some(body) => hd_wasm::emit(
                         &self.pool,
-                        &env,
+                        env,
                         &path,
                         &c.layouts,
                         body,
@@ -7125,13 +7159,13 @@ impl Run<'_> {
             }
             // A function reference's adapter has no TIR (`crates/hd_mono/DESIGN.md` §13.11).
             hd_mono::Sub::Adapter => {
-                hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls)
+                hd_wasm::emit_adapter(&self.pool, env, &path, &c.layouts, item, args, calls)
             }
             // A generic method's erased body and its thunks (§13.5.1).
             hd_mono::Sub::Erased | hd_mono::Sub::Thunk(_) => match self.body_of(p, item) {
                 Some((body, _)) if sub == hd_mono::Sub::Erased => hd_wasm::emit_erased(
                     &self.pool,
-                    &env,
+                    env,
                     &path,
                     &c.layouts,
                     body,
@@ -7142,7 +7176,7 @@ impl Run<'_> {
                 ),
                 Some((body, _)) => hd_wasm::emit_thunk(
                     &self.pool,
-                    &env,
+                    env,
                     &path,
                     &c.layouts,
                     body,

@@ -109,8 +109,8 @@ Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) �
 - `PackageResult` waits for every header check, `Coherence` and module
   finish. It creates one `InitOrder(F)` per built
   folder, and, for a program with no error, `Collect` after them.
-  `Collect` creates one `Emit` per code-entry miss and a `Link` after
-  them.
+  `Collect` creates one `Emit` per folder group with a code-entry miss
+  and a `Link` after them.
 - A file is parsed on demand, by the task that first needs its tree,
   and at most once per run. `hd check` and `hd doc` also add a
   `Parse(f)` task per file.

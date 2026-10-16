@@ -88,6 +88,14 @@ fn incremental(executor: Executor) {
     };
     assert_eq!(own(&cold.counters), 2);
     assert!(cold.counters.modules_checked.len() > 2);
+    // One Emit per folder group with a miss (`crates/hd_sched/DESIGN.md`
+    // §6.1): app, geo and the std folders reached, not one per instance.
+    let emits = cold.counters.ran("Emit");
+    assert!(
+        emits >= 2 && emits < cold.counters.emitted,
+        "{emits} Emit tasks for {} instances",
+        cold.counters.emitted
+    );
     let cold_wasm = cold.wasm.clone().expect("wasm");
 
     // Warm, no edit: every boundary hits.
@@ -134,6 +142,7 @@ fn incremental(executor: Executor) {
     assert_eq!(c.miss("link"), 1, "TIR changed, so the program relinks");
     assert!(c.hit("code") >= 1, "unchanged instances reuse their code");
     assert_eq!(c.emitted, 1, "only the edited function is re-emitted");
+    assert_eq!(c.ran("Emit"), 1, "the one miss is one folder group");
 
     // 2. Comment-only edit: the check key holds the token hash, so the
     // module is only parsed (the parse proof), not rechecked; link hits.
