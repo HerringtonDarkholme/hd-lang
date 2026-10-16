@@ -592,6 +592,16 @@ every file of a folder whose interface misses
 (`crates/hd_syntax/src/skim.rs:44`). An interface rebuild costs a full
 parse of the folder.
 
+That full parse is not wasted today (#214). The interface key and every
+check key of the folder's modules hold the deep hashes of the folder's
+closure, and a check key also holds the module's token hash. So a
+folder whose interface misses also rechecks its modules in the same
+run, and the check needs the full parse anyway. A header-only build
+would add a pass: on the 200-function file of bench/profile-signature,
+the header pass takes 0.52 ms and the full parse 0.92 ms (release, best
+of 30). It pays only once a check key can hit while its folder's
+interface misses.
+
 ### 3.15 Name-Resolution Tables
 
 A module scope answers "what does this name mean here" for headers and
