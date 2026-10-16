@@ -42,17 +42,18 @@ import {
   createGrant as createCoreGrant,
   createSession,
   Deadlock,
-  Dec,
   EndCase,
-  Enc,
   HostContract,
+  httpProvider,
   panicOfReport,
   PROGRAM_TIME_LIMIT,
   TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
+import { FsError, METHODS, NetError, Path } from "./gen/abi.mjs";
+import { Err, Ok, variant } from "./wire.mjs";
 
-export { Deadlock, Dec, EndCase, Enc, panicOfReport, PROGRAM_TIME_LIMIT, timeLimitReport };
+export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, timeLimitReport };
 
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory
@@ -82,65 +83,27 @@ export function validHost(host) {
   return isIP(host) !== 0 || name.test(host);
 }
 
-// `FsError`'s variants (std.fs), in declaration order.
-const FS = {
-  NotFound: 0,
-  PermissionDenied: 1,
-  NotGranted: 2,
-  AlreadyExists: 3,
-  NotADirectory: 4,
-  IsADirectory: 5,
-  InvalidUtf8: 6,
-  Other: 7,
-};
+// The `FsError` variant of a failed file operation's error code.
 const FS_CODES = {
-  ENOENT: FS.NotFound,
-  EACCES: FS.PermissionDenied,
-  EPERM: FS.PermissionDenied,
-  EEXIST: FS.AlreadyExists,
-  ENOTDIR: FS.NotADirectory,
-  EISDIR: FS.IsADirectory,
+  ENOENT: "NotFound",
+  EACCES: "PermissionDenied",
+  EPERM: "PermissionDenied",
+  EEXIST: "AlreadyExists",
+  ENOTDIR: "NotADirectory",
+  EISDIR: "IsADirectory",
 };
-// `EntryKind`'s variants.
-const KIND = { File: 0, Directory: 1, Symlink: 2 };
-// `Method`'s variants (std.http), by index, as the wire names them.
-const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
-// `HttpError`'s variants (std.http).
-const HTTP = {
-  NotGranted: 0,
-  InvalidUrl: 1,
-  Dns: 2,
-  Connect: 3,
-  Tls: 4,
-  Timeout: 5,
-  TooManyRedirects: 6,
-  Other: 7,
-};
-// `NetError`'s variants (std.net), and `ResourceError`'s.
-const NET = { NotGranted: 0, InvalidAddress: 1, Dns: 2, Refused: 3, Other: 4 };
-const RES = { Operation: 0, Disposed: 1 };
-// `SysError`'s variants (std.sys).
-const SYS = { NotGranted: 0, Unsupported: 1 };
 // The names `std.sys` gives Node's platforms and architectures
 // (std-sys.os, std-sys.arch); any other is Node's own name.
 const OS_NAMES = { darwin: "macos", win32: "windows" };
 const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
-// `ProcessError`'s variants (std.process).
-const PROC = { NotFound: 0, PermissionDenied: 1, NotGranted: 2, Other: 3 };
 
-// `.Err(FsError)` of a failed file operation on `path`.
-const fsErr = (e, path, variant) => {
-  e.leb(1).leb(variant);
-  return variant === FS.Other ? e : e.str(path);
-};
-const fsFail = (e, path, err) => {
-  const v = FS_CODES[err?.code];
-  return v === undefined
-    ? e
-        .leb(1)
-        .leb(FS.Other)
-        .str(String(err?.message ?? err))
-    : fsErr(e, path, v);
+// `.Err(FsError)` of the variant `tag` for a file operation on `path`.
+const fsErr = (path, tag) => Err(variant(FsError, tag, path));
+const fsFail = (path, err) => {
+  const tag = FS_CODES[err?.code];
+  return tag === undefined
+    ? Err({ tag: "Other", message: String(err?.message ?? err) })
+    : fsErr(path, tag);
 };
 // Windows reports a path below a file as ENOENT, or as ENOTDIR on some
 // libuv paths, so the code is not stable there. A failed open whose nearest
@@ -182,37 +145,19 @@ const beforeDotDot = (path) => {
       try {
         st = statSync(prefix);
       } catch {
-        return FS.NotFound;
+        return "NotFound";
       }
-      if (!st.isDirectory()) return FS.NotADirectory;
+      if (!st.isDirectory()) return "NotADirectory";
     }
     prefix = `${prefix}/${part}`;
   }
   return undefined;
 };
 // An `Entry`: path, kind, size.
-const entry = (e, path, st) => {
-  const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
-  return e
-    .str(path)
-    .leb(kind)
-    .leb(kind === KIND.Directory ? 0 : st.size);
+const entry = (path, st) => {
+  const kind = st.isSymbolicLink() ? "Symlink" : st.isDirectory() ? "Directory" : "File";
+  return { path, kind: { tag: kind }, size: kind === "Directory" ? 0 : st.size };
 };
-// A waiting method's `.start`/`.finish` pair from one table.
-const waiting = (ops) => {
-  const o = {};
-  for (const [name, { start, finish }] of Object.entries(ops)) {
-    o[`${name}.start`] = start;
-    o[`${name}.finish`] = finish;
-  }
-  return o;
-};
-// A `.finish` of an operation that never pends: a stale handle.
-const never = () => {
-  throw new HostContract("a finish of an operation that is not pending");
-};
-// One path argument, decoded.
-const one = (d) => [d.str()];
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
 // first call. `call(request, left)` posts the request and waits for the
@@ -334,94 +279,51 @@ function lineReader(fd) {
 // `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
 // it cannot be read. `env.readLine`, when a host has one, reads it instead
 // of `lineReader` (run.mjs, whose main thread reads for a worker).
-function consoleInputImports({ env, flush, ready }) {
+function consoleInputProvider({ env, flush }) {
   const readLine = env.readLine ?? lineReader(env.stdin === undefined ? 0 : env.stdin);
   return {
-    // `Result[string?, ConsoleError]`: the next line, `.None` at the end
-    // of input, `.Err(.Closed)` when it cannot be read.
-    "read_line.start": () => {
+    read_line: () => {
       // A completed prompt must reach the sink before this read blocks.
       flush();
       const line = readLine();
-      const e = new Enc();
-      if (line === false) return ready(e.leb(1).leb(0));
-      return ready(line === null ? e.leb(0).leb(0) : e.leb(0).leb(1).str(line));
+      return line === false ? Err({ tag: "Closed" }) : Ok(line);
     },
-    "read_line.finish": never,
   };
 }
 
 // The host system's four reads (std-sys.*). The grant covers each by
 // its method's name (cli.cap.scope.sys); a refused or unanswerable
 // read is `.Err` with that name (std-sys.not-granted, .unsupported).
-function sysImports({ grant, put }) {
+function sysProvider({ grant }) {
   // `Result[T, SysError]` of the read `name`: `.Ok` of what `value`
-  // encodes, `.Err(.NotGranted(name))` outside the grant, or
+  // returns, `.Err(.NotGranted(name))` outside the grant, or
   // `.Err(.Unsupported(name))` when the host cannot answer it.
   const sysRead = (name, value) => {
-    const e = new Enc();
-    if (!grant.coversName("Sys", name)) return put(e.leb(1).leb(SYS.NotGranted).str(name));
+    if (!grant.coversName("Sys", name)) return Err({ tag: "NotGranted", name });
     try {
-      return put(value(new Enc().leb(0)));
+      return Ok(value());
     } catch {
-      return put(e.leb(1).leb(SYS.Unsupported).str(name));
+      return Err({ tag: "Unsupported", name });
     }
   };
   return {
-    os: () => sysRead("os", (e) => e.str(OS_NAMES[platform()] ?? platform())),
-    arch: () => sysRead("arch", (e) => e.str(ARCH_NAMES[osArch()] ?? osArch())),
-    hostname: () => sysRead("hostname", (e) => e.str(hostname())),
-    cpu_count: () => sysRead("cpu_count", (e) => e.leb(availableParallelism())),
+    os: () => sysRead("os", () => OS_NAMES[platform()] ?? platform()),
+    arch: () => sysRead("arch", () => ARCH_NAMES[osArch()] ?? osArch()),
+    hostname: () => sysRead("hostname", () => hostname()),
+    cpu_count: () => sysRead("cpu_count", () => availableParallelism()),
   };
-}
-
-// `hd:Http`: one `send`, decoded, made, and encoded (std-http.send.*).
-function httpImports({ argsOf, ready, grants, left }) {
-  // `Http.send!` (std-http.send.*): decodes the `Request` (its method,
-  // URL, header pairs, body, and timeout), makes it on the client thread
-  // under the program's grant, and encodes `Result[Response, HttpError]`.
-  const httpRequest = (d) => {
-    const m = d.num();
-    const method = m < METHODS.length ? METHODS[m] : d.str();
-    const url = d.str();
-    const headers = d.list((d) => [d.str(), d.str()]);
-    const body = Uint8Array.from(d.bytes());
-    const timeout = d.num() === 1 ? Number(d.zz()) : null;
-    const r = httpSend({ method, url, headers, body, timeout, grants }, left);
-    const e = new Enc();
-    if (r.error) {
-      e.leb(1).leb(HTTP[r.error]);
-      return r.error === "Timeout" ? e : e.str(r.text);
-    }
-    return e
-      .leb(0)
-      .leb(r.status)
-      .list(r.headers, (e, [n, v]) => e.str(n).str(v))
-      .bytes(r.body);
-  };
-  return waiting({
-    send: { start: (len) => ready(httpRequest(argsOf(len))), finish: never },
-  });
 }
 
 // `hd:Net` and its socket handles (spec/std/net.md).
-function netImports({ argsOf, ready, put, grant, netClient, text }) {
-  // `.Err(NetError)`, for a `Net` method, from a client outcome.
-  const netErr = (e, [variant, text]) => e.leb(NET[variant]).str(text);
-  // `Result[T, NetError]` of a `Net` method: `ok(e, value)` encodes `T`.
-  const netResult = (r, ok) => {
-    const e = new Enc();
-    return r.error ? netErr(e.leb(1), r.error) : ok(e.leb(0), r.ok);
-  };
+function netProvider({ grant, netClient }) {
+  // `Result[T, NetError]` of a `Net` method from a client outcome.
+  const netResult = (r) => (r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok));
   // `Result[T, ResourceError[NetError]]` of a handle's method.
-  const handleResult = (r, ok) => {
-    const e = new Enc();
+  const handleResult = (r) => {
     if (r.unknown) throw new HostContract("an operation on a handle the host never made");
-    if (r.disposed) return e.leb(1).leb(RES.Disposed);
-    return r.error ? netErr(e.leb(1).leb(RES.Operation), r.error) : ok(e.leb(0), r.ok);
+    if (r.disposed) return Err({ tag: "Disposed" });
+    return r.error ? Err({ tag: "Operation", error: variant(NetError, ...r.error) }) : Ok(r.ok);
   };
-  const handle = (e, h) => e.leb(h);
-  const none = (e) => e;
   // A call names its address `host:port` (std-net.error.address): one
   // whose host is no host is `InvalidAddress`, and one the grant does not
   // cover `NotGranted` (cli.cap.scope.net), before any socket opens.
@@ -431,128 +333,109 @@ function netImports({ argsOf, ready, put, grant, netClient, text }) {
     if (!grant.coversHost("Net", host, port)) return { error: ["NotGranted", address] };
     return netClient.call({ op, host, port, address, ...more });
   };
-  const closeHandle = (h) => put(handleResult(netClient.call({ op: "close", handle: h }), none));
-  const opened = (op) => (port, len) => {
-    const host = argsOf(len).str();
-    return ready(netResult(netAt(op, host, port), handle));
-  };
+  const opened = (op) => (host, port) => netResult(netAt(op, host, port));
+  const handleOp = (op) => (h, more) => handleResult(netClient.call({ op, handle: h, ...more }));
+  // A second `close` is `Disposed` (std-net.handles.closable).
+  const close = (h) => handleResult(netClient.call({ op: "close", handle: h }));
   return {
-    ...waiting({
-      // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
-      lookup: {
-        start: (len) => {
-          const host = text(len);
-          const r = !validHost(host)
-            ? { error: ["InvalidAddress", host] }
-            : grant.coversHostName("Net", host)
-              ? netClient.call({ op: "lookup", host })
-              : { error: ["NotGranted", host] };
-          return ready(netResult(r, (e, found) => e.list(found, (e, a) => e.str(a))));
-        },
-        finish: never,
-      },
-      connect: { start: opened("connect"), finish: never },
-      listen: { start: opened("listen"), finish: never },
-      bind_udp: { start: opened("bind_udp"), finish: never },
-      "TcpStream.read": {
-        start: (h, max) =>
-          ready(handleResult(netClient.call({ op: "read", handle: h, max }), (e, b) => e.bytes(b))),
-        finish: never,
-      },
-      "TcpStream.write": {
-        start: (h, len) => {
-          const bytes = Uint8Array.from(argsOf(len).bytes());
-          return ready(handleResult(netClient.call({ op: "write", handle: h, bytes }), none));
-        },
-        finish: never,
-      },
-      "TcpListener.accept": {
-        start: (h) => ready(handleResult(netClient.call({ op: "accept", handle: h }), handle)),
-        finish: never,
-      },
-      // std-net.send-to.grant: each datagram's own address.
-      "UdpSocket.send_to": {
-        start: (h, port, len) => {
-          const d = argsOf(len);
-          const host = d.str();
-          const bytes = Uint8Array.from(d.bytes());
-          // Preserve ABI decoding, then reject closed and unknown handles
-          // before destination validation. This checks metadata only.
-          const checked = netClient.call({ op: "check", handle: h });
-          if (checked.unknown || checked.disposed) return ready(handleResult(checked, none));
-          // Each live send still checks its destination grant.
-          const r = netAt("send_to", host, port, { handle: h, bytes });
-          return ready(handleResult(r, none));
-        },
-        finish: never,
-      },
-      "UdpSocket.receive": {
-        start: (h, max) =>
-          ready(
-            handleResult(netClient.call({ op: "receive", handle: h, max }), (e, d) =>
-              e.bytes(d.bytes).str(d.host).leb(d.port),
-            ),
-          ),
-        finish: never,
-      },
-    }),
-    // A second `close` is `Disposed` (std-net.handles.closable).
-    "TcpStream.close": (h) => closeHandle(h),
-    "TcpListener.close": (h) => closeHandle(h),
-    "UdpSocket.close": (h) => closeHandle(h),
+    // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
+    lookup: (host) =>
+      netResult(
+        !validHost(host)
+          ? { error: ["InvalidAddress", host] }
+          : grant.coversHostName("Net", host)
+            ? netClient.call({ op: "lookup", host })
+            : { error: ["NotGranted", host] },
+      ),
+    connect: opened("connect"),
+    listen: opened("listen"),
+    bind_udp: opened("bind_udp"),
+    "TcpStream.read": (h, max) => handleOp("read")(h, { max }),
+    "TcpStream.write": (h, bytes) => handleOp("write")(h, { bytes }),
+    "TcpStream.close": close,
+    "TcpListener.accept": (h) => handleOp("accept")(h),
+    "TcpListener.close": close,
+    // std-net.send-to.grant: each datagram's own address.
+    "UdpSocket.send_to": (h, host, port, bytes) => {
+      // Reject closed and unknown handles before destination validation.
+      // This checks metadata only.
+      const checked = netClient.call({ op: "check", handle: h });
+      if (checked.unknown || checked.disposed) return handleResult(checked);
+      // Each live send still checks its destination grant.
+      return handleResult(netAt("send_to", host, port, { handle: h, bytes }));
+    },
+    "UdpSocket.receive": (h, max) => handleOp("receive")(h, { max }),
+    "UdpSocket.close": close,
   };
 }
 
 // `hd:Env`: granted variables read, the rest read as unset with one
 // notice per name.
-function envImports({ grant, sink, st, flush, put, text }) {
+function envProvider({ grant, sink, st, flush }) {
   return {
     // A variable outside the grant reads as unset; when it is set, a
     // notice names the flag, once per name (cli.cap.env.notice).
-    get: (len) => {
-      const name = text(len);
+    get: (name) => {
       const value = process.env[name];
-      const e = new Enc();
       if (!grant.coversName("Env", name)) {
         if (value !== undefined && !st.noticed.has(name)) {
           st.noticed.add(name);
           flush();
           sink.err(`hd: env ${name} is set but not granted; run with --cap Env=${name}\n`);
         }
-        return put(e.leb(0));
+        return null;
       }
-      return put(value === undefined ? e.leb(0) : e.leb(1).str(value));
+      return value ?? null;
     },
-    names: () =>
-      put(
-        new Enc().list(
-          Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
-          (e, n) => e.str(n),
-        ),
-      ),
+    names: () => Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
   };
 }
 
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
-function fsImports({ fsOp }) {
-  return {
-    "hd:FsRead": waiting({
-      read_bytes: fsOp("FsRead", one, (e, [p]) =>
-        e.leb(0).bytes(opening(p, () => readFileSync(p))),
-      ),
-      read_text: fsOp("FsRead", one, (e, [p]) => {
-        const bytes = opening(p, () => readFileSync(p));
-        let s;
-        try {
-          s = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        } catch {
-          return fsErr(e, p, FS.InvalidUtf8);
-        }
-        return e.leb(0).str(s);
+function fsProviders({ grant, flush }) {
+  // The methods `ops` of `module`, each `run` once the grant covers every
+  // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
+  // method can block, as a read of a FIFO with no writer does, so the
+  // output is flushed first (std-console.host.visible). A method that
+  // creates its directories keeps the OS's own rule for a `..` after a
+  // missing name, as the Rust host's `create` does.
+  const fsOps = (module, ops) =>
+    Object.fromEntries(
+      Object.entries(ops).map(([name, op]) => {
+        const m = METHODS[module][name];
+        const { run, create = false } = typeof op === "function" ? { run: op } : op;
+        const provider = (...args) => {
+          const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
+          const refused = ps.find((p) => !grant.coversPath(module.slice("hd:".length), p));
+          if (refused !== undefined) return fsErr(refused, "NotGranted");
+          for (const p of create ? [] : ps) {
+            const missing = beforeDotDot(p);
+            if (missing !== undefined) return fsErr(p, missing);
+          }
+          flush();
+          try {
+            return run(...args);
+          } catch (err) {
+            return fsFail(ps[ps.length - 1], err);
+          }
+        };
+        return [name, provider];
       }),
+    );
+  return {
+    "hd:FsRead": fsOps("hd:FsRead", {
+      read_bytes: (p) => Ok(opening(p, () => readFileSync(p))),
+      read_text: (p) => {
+        const bytes = opening(p, () => readFileSync(p));
+        try {
+          return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        } catch {
+          return fsErr(p, "InvalidUtf8");
+        }
+      },
       // The entries in the byte order of their names; each path is the
       // directory's, `/`, and the name (as `MemoryFs` lists them).
-      list_dir: fsOp("FsRead", one, (e, [p]) => {
+      list_dir: (p) => {
         const names = opening(p, () => readdirSync(p)).sort((a, b) =>
           Buffer.compare(Buffer.from(a), Buffer.from(b)),
         );
@@ -560,75 +443,54 @@ function fsImports({ fsOp }) {
         const found = [];
         for (const n of names) {
           try {
-            found.push([under + n, lstatSync(under + n)]);
+            found.push(entry(under + n, lstatSync(under + n)));
           } catch {
             // Gone since the listing.
           }
         }
-        e.leb(0).list(found, (e, [path, st]) => entry(e, path, st));
-      }),
-      stat: fsOp("FsRead", one, (e, [p]) => {
+        return Ok(found);
+      },
+      stat: (p) => {
         let st;
         try {
           st = lstatSync(p);
         } catch (err) {
-          if (err.code === "ENOENT" || err.code === "ENOTDIR") return e.leb(0).leb(0);
+          if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
           throw err;
         }
-        return entry(e.leb(0).leb(1), p, st);
-      }),
+        return Ok(entry(p, st));
+      },
     }),
-    "hd:FsWrite": waiting({
-      write_bytes: fsOp("FsWrite", one, (e, [p], d) => {
-        opening(p, () => writeFileSync(p, d.bytes()));
-        e.leb(0);
-      }),
-      write_text: fsOp("FsWrite", one, (e, [p], d) => {
-        opening(p, () => writeFileSync(p, d.bytes()));
-        e.leb(0);
-      }),
-      append_text: fsOp("FsWrite", one, (e, [p], d) => {
-        opening(p, () => appendFileSync(p, d.bytes()));
-        e.leb(0);
-      }),
-      create_dir_all: fsOp(
-        "FsWrite",
-        one,
-        (e, [p]) => {
-          if (existsSync(p) && !statSync(p).isDirectory()) {
-            return fsErr(e, p, FS.NotADirectory);
-          }
+    "hd:FsWrite": fsOps("hd:FsWrite", {
+      write_bytes: (p, bytes) => Ok(opening(p, () => writeFileSync(p, bytes))),
+      write_text: (p, text) => Ok(opening(p, () => writeFileSync(p, text))),
+      append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
+      create_dir_all: {
+        run: (p) => {
+          if (existsSync(p) && !statSync(p).isDirectory()) return fsErr(p, "NotADirectory");
           mkdirSync(p, { recursive: true });
-          e.leb(0);
+          return Ok(undefined);
         },
-        { create: true },
-      ),
-      remove: fsOp("FsWrite", one, (e, [p]) => {
+        create: true,
+      },
+      remove: (p) => {
         if (lstatSync(p).isDirectory()) rmdirSync(p);
         else unlinkSync(p);
-        e.leb(0);
-      }),
+        return Ok(undefined);
+      },
       // cli.cap.scope.rename: the grant covers both paths.
-      rename: fsOp(
-        "FsWrite",
-        (d) => [d.str(), d.str()],
-        (e, [from, to]) => {
-          renameSync(from, to);
-          e.leb(0);
-        },
-      ),
+      rename: (from, to) => Ok(renameSync(from, to)),
     }),
   };
 }
 
-// `hd:Process`: running host programs (`Process.run!`).
-function processImports({ argsOf, grant, env, ready, left }) {
-  // `Process.run!` (cli.host.default-profile, cli.test.process): the test
-  // runner's provider starts the package's executables and tasks by name,
-  // the default profile's a host program.
-  const runProcess = (name, argv, input) => {
-    const e = new Enc();
-    if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
+// `hd:Process`: running host programs (`Process.run!`, cli.host.default-
+// profile, cli.test.process): the test runner's provider starts the
+// package's executables and tasks by name, the default profile's a host
+// program.
+function processProvider({ grant, env, left }) {
+  const run = (name, argv, input) => {
+    if (!grant.coversName("Process", name)) return Err({ tag: "NotGranted" });
     // The child runs at most until the run's deadline.
     const ms = left();
     if (ms <= 0) throw new TimeLimit();
@@ -636,7 +498,7 @@ function processImports({ argsOf, grant, env, ready, left }) {
     let r;
     if (env.programs) {
       const p = env.programs[name];
-      if (!p) return e.leb(1).leb(PROC.NotFound);
+      if (!p) return Err({ tag: "NotFound" });
       r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
         input,
         cwd: p.cwd,
@@ -653,34 +515,23 @@ function processImports({ argsOf, grant, env, ready, left }) {
           timeout,
         });
       } catch (error) {
-        if (name === "") return e.leb(1).leb(PROC.NotFound);
-        return e.leb(1).leb(PROC.Other).str(String(error.message));
+        if (name === "") return Err({ tag: "NotFound" });
+        return Err({ tag: "Other", message: String(error.message) });
       }
     }
     if (r.error) {
       const code = r.error.code;
       if (code === "ETIMEDOUT") throw new TimeLimit();
-      if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);
-      if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
-      return e.leb(1).leb(PROC.Other).str(String(r.error.message));
+      if (code === "ENOENT") return Err({ tag: "NotFound" });
+      if (code === "EACCES" || code === "EPERM") return Err({ tag: "PermissionDenied" });
+      return Err({ tag: "Other", message: String(r.error.message) });
     }
     // std-process.child.signal: a child ended by a signal reports 128 plus
     // the signal number.
     const status = r.status ?? 128 + (osConstants.signals[r.signal] ?? 0);
-    return e.leb(0).str(r.stdout.toString("utf8")).str(r.stderr.toString("utf8")).zz(status);
+    return Ok({ stdout: r.stdout.toString("utf8"), stderr: r.stderr.toString("utf8"), status });
   };
-  return waiting({
-    run: {
-      start: (len) => {
-        const d = argsOf(len);
-        const name = d.str();
-        const argv = d.list((d) => d.str());
-        const input = Buffer.from(d.bytes());
-        return ready(runProcess(name, argv, input));
-      },
-      finish: never,
-    },
-  });
+  return { run };
 }
 
 // The files of a test run on disk (cases.mjs): the case's temporary
@@ -697,7 +548,7 @@ export const nodeFiles = {
 
 // `hd:TestRunner`: the temp directory of a case
 // (std-testing.runner.temp-dir); the core has the other hooks.
-function testRunnerImports({ env, put, st }) {
+function testRunnerProvider({ env, st }) {
   const tempDir = () => {
     if (!env.tempDir) {
       // A run without a configured directory makes its own.
@@ -708,12 +559,7 @@ function testRunnerImports({ env, put, st }) {
     st.tempMade = true;
     return env.tempDir;
   };
-  return {
-    imports: {
-      temp_dir: () => put(new Enc().str(tempDir())),
-    },
-    tempDir,
-  };
+  return { provider: { temp_dir: tempDir }, tempDir };
 }
 
 // A relative path is from `cwd` (the process's by default), with `..` and
@@ -729,7 +575,7 @@ const nodeLayer = {
   resolveTarget,
   sep,
   files: nodeFiles,
-  providers: ({ env, sink, st, grant, flush, put, ready, text, argsOf, left }) => {
+  providers: ({ env, sink, st, grant, flush, left }) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.mjs");
@@ -741,44 +587,18 @@ const nodeLayer = {
       return left();
     };
     const netClient = { call: (request) => net.call(request, waiting) };
-    // A waiting file operation on the paths that `paths(d)` reads from the
-    // arguments; `run(e, paths, d)` does it once the grant covers each path.
-    // It can block, as a read of a FIFO with no writer does, so the output
-    // is flushed first (std-console.host.visible).
-    const fsOp = (key, paths, run, { create = false } = {}) => ({
-      start: (len) => {
-        const d = argsOf(len);
-        const ps = paths(d);
-        const e = new Enc();
-        const refused = ps.find((p) => !grant.coversPath(key, p));
-        if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
-        // A path that creates its directories keeps the OS's own rule, as
-        // the Rust host's `create` does.
-        for (const p of create ? [] : ps) {
-          const missing = beforeDotDot(p);
-          if (missing !== undefined) return ready(fsErr(e, p, missing));
-        }
-        flush();
-        try {
-          run(e, ps, d);
-        } catch (err) {
-          return ready(fsFail(new Enc(), ps[ps.length - 1], err));
-        }
-        return ready(e);
-      },
-      finish: never,
-    });
-    const testRunner = testRunnerImports({ env, put, st });
+    const grants = env.grants ?? {};
+    const testRunner = testRunnerProvider({ env, st });
     return {
-      imports: {
-        "hd:ConsoleInput": consoleInputImports({ env, flush, ready }),
-        "hd:Sys": sysImports({ grant, put }),
-        "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {}, left: waiting }),
-        "hd:Net": netImports({ argsOf, ready, put, grant, netClient, text }),
-        "hd:Env": envImports({ grant, sink, st, flush, put, text }),
-        ...fsImports({ fsOp }),
-        "hd:Process": processImports({ argsOf, grant, env, ready, left: waiting }),
-        "hd:TestRunner": testRunner.imports,
+      traits: {
+        "hd:ConsoleInput": consoleInputProvider({ env, flush }),
+        "hd:Sys": sysProvider({ grant }),
+        "hd:Http": httpProvider((request) => httpSend({ ...request, grants }, waiting)),
+        "hd:Net": netProvider({ grant, netClient }),
+        "hd:Env": envProvider({ grant, sink, st, flush }),
+        ...fsProviders({ grant, flush }),
+        "hd:Process": processProvider({ grant, env, left: waiting }),
+        "hd:TestRunner": testRunner.provider,
       },
       tempDir: testRunner.tempDir,
       // Removes a directory the host made for itself, and closes its

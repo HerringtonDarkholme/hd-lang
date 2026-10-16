@@ -11,28 +11,7 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import {
-  createCoreHost,
-  createSession,
-  Enc,
-  HostContract,
-  isAsciiUrl,
-  writtenHost,
-} from "./core.mjs";
-
-// `Method`'s variants (std.http), by index, as the wire names them.
-const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
-// `HttpError`'s variants (std.http).
-const HTTP = {
-  NotGranted: 0,
-  InvalidUrl: 1,
-  Dns: 2,
-  Connect: 3,
-  Tls: 4,
-  Timeout: 5,
-  TooManyRedirects: 6,
-  Other: 7,
-};
+import { createCoreHost, createSession, httpProvider, isAsciiUrl, writtenHost } from "./core.mjs";
 
 // The text of a request the browser refused (std-http.playground.refused).
 const REFUSED = "the browser refused the request: a network error or CORS";
@@ -96,48 +75,13 @@ export function browserSend({ method, url, headers, body, timeout }) {
   };
 }
 
-// `hd:Http`: one `send`, decoded, made with the browser, and encoded
-// (std-http.send.*), as the Node layer's `httpImports` does.
-function httpImports({ argsOf, ready }) {
-  const send = (d) => {
-    const m = d.num();
-    const method = m < METHODS.length ? METHODS[m] : d.str();
-    const url = d.str();
-    const headers = d.list((d) => [d.str(), d.str()]);
-    const body = Uint8Array.from(d.bytes());
-    const timeout = d.num() === 1 ? Number(d.zz()) : null;
-    const r = browserSend({ method, url, headers, body, timeout });
-    const e = new Enc();
-    if (r.error) {
-      e.leb(1).leb(HTTP[r.error]);
-      return r.error === "Timeout" ? e : e.str(r.text);
-    }
-    return e
-      .leb(0)
-      .leb(r.status)
-      .list(r.headers, (e, [n, v]) => e.str(n).str(v))
-      .bytes(r.body);
-  };
-  return {
-    "send.start": (len) => ready(send(argsOf(len))),
-    // `send` never pends, so a finish names a stale handle.
-    "send.finish": () => {
-      throw new HostContract("a finish of an operation that is not pending");
-    },
-  };
-}
-
-// `hd:TestRunner`: the temp directory of a case, a path in the run's
-// in-memory files (`memoryFiles`); the core has the other hooks.
-function testRunnerImports({ env, put }) {
-  return { temp_dir: () => put(new Enc().str(env.tempDir ?? "/tmp")) };
-}
-
 const webLayer = {
-  providers: ({ env, argsOf, ready, put }) => ({
-    imports: {
-      "hd:Http": httpImports({ argsOf, ready }),
-      "hd:TestRunner": testRunnerImports({ env, put }),
+  providers: ({ env }) => ({
+    traits: {
+      "hd:Http": httpProvider(browserSend),
+      // The temp directory of a case, a path in the run's in-memory files
+      // (`memoryFiles`); the core has the other hooks.
+      "hd:TestRunner": { temp_dir: () => env.tempDir ?? "/tmp" },
     },
   }),
 };

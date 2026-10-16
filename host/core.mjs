@@ -1,23 +1,23 @@
 // The platform-neutral core of the JS host (V8 in Node, and browsers): the
 // import object of the ABI in `hd_host_abi` (crates/hd_run_wasmtime/DESIGN.md §17.2,
-// §17.10), the exchange-buffer codecs of §17.4, the providers that need
-// nothing from the platform (`Console`, `Clock`, `Random`, `Args`, `rt`,
-// `prim`, and the test and property runners' hooks), and the entry driver
-// of crates/hd_wasm/DESIGN.md §14.4. It uses web-standard APIs only. A platform layer
-// (node.mjs) adds the providers that touch the machine by passing `layer`
-// to `createCoreHost`.
+// §17.10), built from the method descriptors and codecs generated from the
+// ABI model (gen/abi.mjs, over wire.mjs's encoding of §17.4); the providers
+// that need nothing from the platform (`Console`, `Clock`, `Random`,
+// `Args`, `rt`, `prim`, and the test and property runners' hooks); and the
+// entry driver of crates/hd_wasm/DESIGN.md §14.4. It uses web-standard APIs
+// only. A platform layer (node.mjs, web.mjs) adds the providers that touch
+// the machine by passing `layer` to `createCoreHost`.
 //
-// - Import shapes (§17.2): a method that never waits is one import; its
-//   structured arguments are encoded one after another at offset 0 of the
-//   exchange buffer and their length is its last parameter, a lone string
-//   argument crosses as its bytes alone, and scalars are parameters. A
-//   structured result is written at offset 0 and its length returned.
-// - A method that may wait is `.start`, which returns `[status, value]`,
-//   then `.finish(h)`. Status 0: done at once, the result is in the buffer
-//   and `value` is its length. Status 1: pending, `value` is its handle.
-//   `hd:Console` `write_line` completes at once (the line is written at
-//   completion); `hd:Clock` `sleep` completes when its duration has
-//   passed. Every other method runs synchronously and finishes at once.
+// - A provider is a host trait's methods as JS functions by name: each
+//   takes its arguments and returns its result as plain values (wire.mjs
+//   says which), and `traitImports` makes the imports of §17.2 around it.
+//   A method that never waits is one import; one that may wait is
+//   `.start`, which returns `[status, value]`, then `.finish(h)`. Status 0:
+//   done at once, the result is in the buffer and `value` is its length.
+//   Status 1: pending, `value` is its handle. `hd:Console` `write_line`
+//   completes at once (the line is written at completion); `hd:Clock`
+//   `sleep` completes when its duration has passed. Every other method
+//   runs synchronously and finishes at once.
 // - `hd:rt` `block()` waits synchronously for at least one completion,
 //   writes the completed handles to the exchange buffer and returns their
 //   count; `stderr(len)` writes the buffer's first `len` bytes to standard
@@ -38,6 +38,7 @@
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
+import { HttpError, METHODS } from "./gen/abi.mjs";
 import {
   Diverged,
   Recorder,
@@ -48,6 +49,9 @@ import {
   ran,
   recorded,
 } from "./journal.mjs";
+import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
+
+export { HostContract };
 
 export class Deadlock extends Error {}
 
@@ -55,9 +59,6 @@ export class Deadlock extends Error {}
 // nothing left to run: the instance ends, and the runner counts the case
 // as discarded (std-testing.runner.examples-done).
 export class EndCase extends Error {}
-
-// A host result that breaks the ABI: the `host-contract` panic.
-export class HostContract extends Error {}
 
 // A test body that ran longer than its `timeout`, or a program past its
 // `--time-limit` (cli.limit.time): the `time-limit` panic
@@ -176,111 +177,6 @@ export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "
   };
 }
 
-const utf8 = new TextEncoder();
-// Lossy UTF-8 text that keeps a leading byte-order mark, as Node's
-// Node's UTF-8 decoding does.
-const lossy = new TextDecoder("utf-8", { ignoreBOM: true });
-export const decodeUtf8 = (bytes) => lossy.decode(bytes);
-
-// The encoder of §17.4: integers as LEB128 (zigzag when signed), strings
-// and byte lists as their length then their bytes, lists as their count
-// then their elements, an optional as 0, or 1 and the value, an enum as
-// its variant index then its payload, data as its fields in order.
-export class Enc {
-  constructor() {
-    this.buf = new Uint8Array(64);
-    this.len = 0;
-  }
-  room(n) {
-    if (this.len + n <= this.buf.length) return;
-    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
-    next.set(this.buf.subarray(0, this.len));
-    this.buf = next;
-  }
-  leb(v) {
-    let x = BigInt(v);
-    this.room(10);
-    do {
-      let b = Number(x & 0x7fn);
-      x >>= 7n;
-      if (x) b |= 0x80;
-      this.buf[this.len++] = b;
-    } while (x);
-    return this;
-  }
-  zz(v) {
-    const x = BigInt(v);
-    return this.leb(x >= 0n ? x << 1n : (-x << 1n) - 1n);
-  }
-  bytes(u8) {
-    this.leb(u8.length);
-    this.room(u8.length);
-    this.buf.set(u8, this.len);
-    this.len += u8.length;
-    return this;
-  }
-  str(s) {
-    return this.bytes(utf8.encode(s));
-  }
-  // An `f64` as its raw IEEE 754 bits, little-endian.
-  f64(v) {
-    this.room(8);
-    new DataView(this.buf.buffer, this.buf.byteOffset).setFloat64(this.len, v, true);
-    this.len += 8;
-    return this;
-  }
-  list(xs, each) {
-    this.leb(xs.length);
-    for (const x of xs) each(this, x);
-    return this;
-  }
-  done() {
-    return this.buf.subarray(0, this.len);
-  }
-}
-
-// The decoder of §17.4, over a copy of the argument bytes.
-export class Dec {
-  constructor(bytes) {
-    this.b = bytes;
-    this.at = 0;
-  }
-  leb() {
-    let r = 0n;
-    let s = 0n;
-    let b;
-    do {
-      b = this.b[this.at++];
-      if (b === undefined) throw new HostContract("an argument does not decode");
-      r |= BigInt(b & 0x7f) << s;
-      s += 7n;
-    } while (b & 0x80);
-    return r;
-  }
-  num() {
-    return Number(this.leb());
-  }
-  zz() {
-    const x = this.leb();
-    return (x >> 1n) ^ -(x & 1n);
-  }
-  bytes() {
-    const n = this.num();
-    if (this.at + n > this.b.length) throw new HostContract("an argument does not decode");
-    const out = this.b.subarray(this.at, this.at + n);
-    this.at += n;
-    return out;
-  }
-  str() {
-    return decodeUtf8(this.bytes());
-  }
-  list(each) {
-    const n = this.num();
-    const out = [];
-    for (let i = 0; i < n; i++) out.push(each(this));
-    return out;
-  }
-}
 // A synchronous sleep of `ms` milliseconds. Where `SharedArrayBuffer`
 // exists and the context may block (Node, a worker), it waits with
 // `Atomics.wait`. Elsewhere (a page that is not cross-origin isolated, or a
@@ -357,31 +253,86 @@ function primImports({ put, text }) {
   };
 }
 
-// `hd:Console`: one line per `write_line`, completed at once.
-function consoleImports({ text, pending, finish, put, st }) {
+// A provider's answer to a method that may wait when the operation is
+// pending: it completes at `at`, on `performance.now()`'s clock, and
+// `done()`, when given, does it then and returns its result.
+class Later {
+  constructor(at, done) {
+    this.at = at;
+    this.done = done;
+  }
+}
+const later = (at, done = null) => new Later(at, done);
+
+// A method's provider arguments from its import's (§17.4): its scalar
+// arguments are the import's parameters, in order, and its structured ones
+// are encoded in the exchange buffer, whose length is the last parameter;
+// a lone `string` crosses as its bytes alone. They are decoded from a copy
+// of the buffer, which the result may overwrite.
+function argsDecoder(m, view, text) {
+  const scalars = m.params.filter((p) => typeof p === "string").length;
+  if (scalars === m.params.length) return (raw) => raw;
+  if (m.params.length === 1 && m.params[0] === str) return (raw) => [text(raw[0])];
+  return (raw) => {
+    const d = new Dec(Uint8Array.from(view(raw[scalars])));
+    let at = 0;
+    return m.params.map((p) => (typeof p === "string" ? raw[at++] : p.dec(d)));
+  };
+}
+
+// The imports of the host trait module `module` (§17.2) around `provider`,
+// its methods' JS functions by name, as its generated descriptors
+// (gen/abi.mjs `METHODS`) shape them. `io` reads and writes the exchange
+// buffer and keeps the pending operations.
+function traitImports(module, provider, { view, text, put, pending, finished }) {
+  const out = {};
+  for (const [name, f] of Object.entries(provider)) {
+    const m = METHODS[module]?.[name];
+    if (!m) throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
+    const decode = argsDecoder(m, view, text);
+    const key = `${module} ${name}`;
+    // The import's result: a scalar as itself; a structured value written
+    // at offset 0 and its length; `void` nothing, or 0 from a `.finish`.
+    const written = (v) => {
+      if (typeof m.result !== "string") {
+        const e = new Enc();
+        m.result.enc(e, v);
+        return put(e);
+      }
+      if (m.result !== "void") return v;
+      return m.wait === "may" ? 0 : undefined;
+    };
+    if (m.wait === "never") {
+      out[name] = (...raw) => written(f(...decode(raw)));
+      continue;
+    }
+    out[`${name}.start`] = (...raw) => {
+      const v = f(...decode(raw));
+      return v instanceof Later ? pending(v.at, v.done, key) : [0, written(v)];
+    };
+    out[`${name}.finish`] = (h) => written(finished(h, key));
+  }
+  return out;
+}
+
+// `hd:Console`: one line per `write_line`, written when it completes, at
+// once.
+function consoleProvider({ st }) {
   return {
-    "write_line.start": (len) => {
-      const line = text(len);
-      return pending(performance.now(), () => st.out.push(line + "\n"));
-    },
-    // `.Ok(())`.
-    "write_line.finish": (h) => {
-      finish(h);
-      return put(Uint8Array.of(0));
-    },
+    write_line: (line) =>
+      later(performance.now(), () => {
+        st.out.push(line + "\n");
+        return Ok(undefined);
+      }),
   };
 }
 
 // `hd:Clock`: the time, and sleeps that complete when due.
-function clockImports({ pending, finish }) {
+function clockProvider() {
   return {
     now: () => BigInt(Date.now()),
     monotonic: () => BigInt(Math.floor(performance.now())),
-    "sleep.start": (ms) => pending(performance.now() + Number(ms), null),
-    "sleep.finish": (h) => {
-      finish(h);
-      return 0;
-    },
+    sleep: (ms) => later(performance.now() + Number(ms)),
   };
 }
 
@@ -395,46 +346,37 @@ function randomBytes(count) {
 // The operating system's random source (cli.host.default-profile).
 // `Random` has no scope entries: a grant of `false` refuses the whole
 // program at startup (cli.cap.total.refuse).
-function randomImports({ put }) {
+function randomProvider() {
   return {
     next_u64: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
-    fill: (count) => put(new Enc().bytes(randomBytes(count >>> 0))),
+    fill: (count) => randomBytes(count >>> 0),
   };
 }
 
 // `hd:Args`: the program's path and arguments.
-function argsImports({ put, program, args }) {
-  return {
-    program: () => put(new Enc().str(program)),
-    list: () => put(new Enc().list(args, (e, a) => e.str(a))),
-  };
+function argsProvider({ program, args }) {
+  return { program: () => program, list: () => args };
 }
 
 // `hd:PropertyRunner`: property cases ask the test runner for draws.
-function propertyRunnerImports({ env, put, text }) {
+function propertyRunnerProvider({ env }) {
   return {
     // The property runner's side of a property case
     // (std-testing.runner.start-case, .record, .show): the test runner
     // decides each case and keeps its draws and its input's text.
     start: (cases, shrink, examples) => {
       if (!env.runner) throw new HostContract("no property runner binds this run");
-      const c = env.runner.start(cases, shrink, examples);
-      const e = new Enc();
-      if (c.example === null) e.leb(0);
-      else e.leb(1).leb(c.example);
-      e.zz(c.seed).zz(c.size);
-      e.list(c.replay, (e, v) => e.zz(v));
-      return put(e);
+      return env.runner.start(cases, shrink, examples);
     },
     record: (value) => env.runner?.record(BigInt(value)),
-    show: (len) => env.runner?.show(text(len)),
+    show: (text) => env.runner?.show(text),
   };
 }
 
 // `hd:TestRunner`: the hooks every host has (a platform layer adds
 // `temp_dir`). Snapshot files are read and written through `files`
 // (cases.mjs describes it): the disk on Node, memory in the playground.
-function testRunnerImports({ env, st, put, text, files }) {
+function testRunnerProvider({ env, st, files }) {
   // Snapshot files of the case (std-testing.snapshot-file.*).
   const snapshotCheck = (actual) => {
     const s = env.snapshot;
@@ -473,7 +415,23 @@ function testRunnerImports({ env, st, put, text, files }) {
       st.deadline = base ? st.baseDeadline : at;
       env.runner?.timeout?.(ms);
     },
-    snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
+    snapshot_check: snapshotCheck,
+  };
+}
+
+// `hd:Http` over `send`, a client that takes `{ method, url, headers,
+// body, timeout }` (`timeout` milliseconds or `null`) and answers
+// `{ status, headers, body }`, or `{ error, text }` with an `HttpError`
+// variant's name and text: http.mjs's thread on Node, `browserSend` in the
+// browser (std-http.send.*).
+export function httpProvider(send) {
+  return {
+    send: (r) => {
+      const method = r.method.tag === "Other" ? r.method.name : r.method.tag.toUpperCase();
+      const timeout = r.timeout === null ? null : Number(r.timeout.millis);
+      const a = send({ method, url: r.url, headers: r.headers, body: r.body, timeout });
+      return a.error ? Err(variant(HttpError, a.error, a.text)) : Ok(a);
+    },
   };
 }
 
@@ -518,8 +476,6 @@ export function createCoreHost(sink, env = {}, layer = null) {
     payload: null,
   };
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
-  // A copy of the argument bytes, which a result may overwrite.
-  const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
   const text = (len) => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
   // buffer to fit, and returns its length (§17.3). A session's recorder
@@ -533,18 +489,18 @@ export function createCoreHost(sink, env = {}, layer = null) {
     st.payload = bytes;
     return bytes.length;
   };
-  // A waiting method that finished at once (§17.2): status 0, the length.
-  const ready = (e) => [0, put(e)];
   const flush = () => {
     if (st.out.length) {
       sink.out(st.out.join(""));
       st.out.length = 0;
     }
   };
-  // Pending operations by handle: `at` is when it completes.
-  const pending = (at, done) => {
+  // Pending operations by handle: `at` is when it completes, `done()` what
+  // it does then, its result kept as `value`, and `method` the import
+  // module and method that started it, whose `.finish` alone takes it.
+  const pending = (at, done, method = null) => {
     const h = st.nextHandle++;
-    st.ops.set(h, { at, done, completed: false });
+    st.ops.set(h, { at, done, method, completed: false, value: undefined });
     return [1, h];
   };
   const nextDeadline = () => {
@@ -566,7 +522,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     const words = new DataView(st.memory.buffer);
     due.forEach(([h, o], i) => {
       o.completed = true;
-      if (o.done) o.done();
+      if (o.done) o.value = o.done();
       words.setInt32(4 * i, h, true);
     });
     return due.length;
@@ -586,6 +542,16 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const finish = (h) => {
     st.ops.delete(h);
   };
+  // The result of the completed operation `h` that `method` started, which
+  // its `.finish` takes; any other handle is a broken contract (§17.2).
+  const finished = (h, method) => {
+    const o = st.ops.get(h);
+    if (o?.method !== method || !o.completed) {
+      throw new HostContract("a finish of an operation that is not pending");
+    }
+    st.ops.delete(h);
+    return o.value;
+  };
   // Waits at most until `d`, and never past the timeout: a pending host
   // wait is cut at the deadline (crates/hd_run_wasmtime/DESIGN.md §17.8).
   const until = (d) => (st.deadline === null ? d : Math.min(d, st.deadline));
@@ -593,23 +559,28 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // The milliseconds left before the deadline. A provider that waits
   // inside its `.start` throws `TimeLimit` when none are left.
   const left = () => (st.deadline === null ? Infinity : st.deadline - performance.now());
-  const imports = {
-    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
-    "hd:prim": primImports({ put, text }),
-    "hd:Console": consoleImports({ text, pending, finish, put, st }),
-    "hd:Clock": clockImports({ pending, finish }),
-    "hd:Random": randomImports({ put }),
-    "hd:Args": argsImports({ put, program, args }),
-    "hd:TestRunner": testRunnerImports({ env, st, put, text, files: env.files ?? layer?.files }),
-    "hd:PropertyRunner": propertyRunnerImports({ env, put, text }),
+  const providers = {
+    "hd:Console": consoleProvider({ st }),
+    "hd:Clock": clockProvider(),
+    "hd:Random": randomProvider(),
+    "hd:Args": argsProvider({ program, args }),
+    "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
+    "hd:PropertyRunner": propertyRunnerProvider({ env }),
   };
 
   // The platform layer's providers; a module it names extends the core's
-  // table for that module rather than replacing it.
-  const platform =
-    layer?.providers({ env, sink, st, grant, flush, put, ready, text, argsOf, left }) ?? null;
-  for (const [module, table] of Object.entries(platform?.imports ?? {})) {
-    imports[module] = { ...imports[module], ...table };
+  // provider for that module rather than replacing it.
+  const platform = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
+  for (const [module, provider] of Object.entries(platform?.traits ?? {})) {
+    providers[module] = { ...providers[module], ...provider };
+  }
+  const imports = {
+    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
+    "hd:prim": primImports({ put, text }),
+  };
+  const io = { view, text, put, pending, finished };
+  for (const [module, provider] of Object.entries(providers)) {
+    imports[module] = traitImports(module, provider, io);
   }
 
   // A runtime profile's own providers (`env.providers`, profiles.mjs):
@@ -767,30 +738,17 @@ function recordOf(module, name) {
   return name.endsWith(".finish") ? "finish" : "call";
 }
 
-// The imports whose first parameter is the length of the exchange buffer
-// bytes they read (`Kind::input`).
-const READS_ARGS = new Set([
-  "hd:TestRunner snapshot_check",
-  "hd:PropertyRunner show",
-  "hd:Process run.start",
-  "hd:Http send.start",
-  "hd:rt stderr",
-  "hd:rt stdout",
-  "hd:prim string_lower",
-  "hd:prim string_upper",
-  "hd:prim parse_f64",
-  "hd:Console write_line.start",
-  "hd:Env get",
-]);
-const NET_READS = { lookup: 0, connect: 1, listen: 1, bind_udp: 1, "TcpStream.write": 1 };
-
 // The parameter that holds the length of the exchange buffer bytes a call
-// reads, with its scalar parameters the call's request; null for none.
+// reads, with its scalar parameters the call's request; null for none
+// (`Kind::input`). A host method's is after its scalar parameters, when
+// it takes a structured one (gen/abi.mjs `METHODS`).
 function readsArgs(module, name) {
-  const method = name.endsWith(".start") ? name.slice(0, -".start".length) : null;
-  if (module === "hd:Net") return NET_READS[method] ?? (method === "UdpSocket.send_to" ? 2 : null);
-  if (module === "hd:FsRead" || module === "hd:FsWrite") return method === null ? null : 0;
-  return READS_ARGS.has(`${module} ${name}`) ? 0 : null;
+  if (module === "hd:rt") return name === "stderr" || name === "stdout" ? 0 : null;
+  const starts = name.endsWith(".start");
+  const m = METHODS[module]?.[starts ? name.slice(0, -".start".length) : name];
+  if (!m || (m.wait === "may") !== starts) return null;
+  const scalars = m.params.filter((p) => typeof p === "string").length;
+  return scalars < m.params.length ? scalars : null;
 }
 
 // A reply value as a Wasm result of type `type`: a narrower integer keeps

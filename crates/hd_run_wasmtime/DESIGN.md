@@ -115,18 +115,19 @@ Four things are generated from it:
 Std's capability traits are still declared in `lib/std` in hd. The table
 mirrors them, and a test fails when the two disagree.
 
-Implementation differs: only items 1 and 4 come from the table (`hd_wasm`
-generates the hd-side stubs; `is_known_import` reads it). The wasmtime
-providers (`hd_run_wasmtime/src/host/`) and the JS host
-(`host/core.mjs`) are written by hand, and `generate_js_glue` returns
-"not implemented". That is worse: three hand-kept copies of every codec
-and grant check can drift apart, and only tests catch it. The first step
-toward items 2 and 3 is built (#251): `host/gen/abi.json`, the model
-both generators will read. It lists every method of the three tables
-with the std types its values cross as, and each data type, enum and
-newtype those types reach, read from `lib/std`'s declarations. The test
-`crates/hd_host_abi/tests/abi_model.rs` fails when the tables or std
-change and the checked-in file does not.
+Implementation differs: items 1 and 4 come from the table (`hd_wasm`
+generates the hd-side stubs; `is_known_import` reads it), and item 3's
+codecs from the ABI model (#251). The model, `host/gen/abi.json`, lists
+every method of the three tables with the std types its values cross as,
+and each data type, enum and newtype those types reach, read from
+`lib/std`'s declarations. From it `host/gen/abi.mjs` holds the JS codec
+of each of those std types and each method's descriptor (§17.10). The
+test `crates/hd_host_abi/tests/abi_model.rs` generates both and fails
+when the tables or std change and the checked-in files do not;
+`HD_UPDATE_ABI=1` rewrites them. The wasmtime codecs and providers
+(`hd_run_wasmtime/src/host/`) and every provider's grant checks are
+still written by hand. That is worse: a hand-kept copy of every codec
+can drift from the table, and only tests catch it.
 
 **A runtime profile's own traits.** An entry row's trait that the table
 does not list is a selected runtime profile's own, as a conformance
@@ -247,7 +248,8 @@ each boundary type as a `BTy` (its parts and Wasm layout, no pool) and
 generates one encoder `(off, values...) -> off'` and one decoder
 `(off) -> (values..., off')` per `BTy`, as `rt` helpers, so methods that
 cross the same type share them. The JS host writes the same bytes with
-its `Enc` and `Dec` classes.
+the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
+`host/wire.mjs`'s `Enc` and `Dec`.
 
 | Value | Encoding |
 | --- | --- |
@@ -510,9 +512,15 @@ One ES module, generated from `hd_host_abi` and checked in:
 
 It uses only web platform APIs, so it also runs under Node.
 
-Implementation differs: the glue is hand-written. `host/core.mjs` holds
-the import object, codecs, platform-neutral providers and the entry
-driver; `host/node.mjs` and `host/web.mjs` add platform providers;
-`host/run.mjs`, `host/test.mjs` and `host/cases.mjs` drive runs and
-tests. That is worse for the same reason as §17.1: the codecs are a
-second hand-kept copy of the table.
+Implementation differs: only the codecs and method descriptors are
+generated. `host/gen/abi.mjs`, generated from the ABI model (§17.1), holds
+each std type's codec, built on `host/wire.mjs`'s encoding, and `METHODS`:
+each method by import module and name, with its wait flag, its resource
+argument, and its parameters and result (a scalar as its Wasm type, any
+other value as its codec). `host/core.mjs` makes the import object from
+them around providers: each method a JS function that takes and returns
+plain values (`traitImports`). It also holds the platform-neutral
+providers and the entry driver; `host/node.mjs` and `host/web.mjs` add
+platform providers; `host/run.mjs`, `host/test.mjs` and `host/cases.mjs`
+drive runs and tests. Grant checks stay in each provider, since each
+trait refuses in its own way (§17.7).

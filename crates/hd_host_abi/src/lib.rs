@@ -5,14 +5,11 @@
 //!
 //! The table mirrors std's capability traits in `lib/std`. `hd_wasm`
 //! generates the hd-side provider stubs of the default profile from it.
-//! The wasmtime host (`hd_run_wasmtime`) and the JS host
-//! (`host/core.mjs`) are written by hand against it; the
-//! generators of §17.1 are not written yet. Their model is:
-//! `host/gen/abi.json`, every method with the std types it crosses and
-//! the std declarations they reach, which `tests/abi_model.rs` keeps in
-//! step with this table and `lib/std`.
-
-use hd_base::{NotImplemented, Stage, StageResult};
+//! `tests/abi_model.rs` builds the ABI model from it and `lib/std`: every
+//! method with the std types it crosses and the std declarations they
+//! reach, checked in as `host/gen/abi.json`, and from the model the JS
+//! host's codecs and method descriptors, `host/gen/abi.mjs`. The wasmtime
+//! host (`hd_run_wasmtime`) is still written by hand against the table.
 
 /// Scalar Wasm types at the boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -605,11 +602,6 @@ pub enum SlotState {
     Pending,
     Completed,
     Cancelled,
-}
-
-/// The generators of §17.1: hd-side stubs, wasmtime stubs, the JS glue.
-pub fn generate_js_glue() -> StageResult<String> {
-    Err(NotImplemented::new(Stage::Link, "JS glue generator"))
 }
 
 #[cfg(test)]

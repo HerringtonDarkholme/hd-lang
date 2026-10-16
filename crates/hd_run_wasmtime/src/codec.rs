@@ -1,5 +1,5 @@
 //! The exchange-buffer encoding of `crates/hd_run_wasmtime/DESIGN.md` §17.4, as the
-//! Node host's `Enc` writes it (`host/core.mjs`): integers as
+//! JS host's `Enc` writes it (`host/wire.mjs`): integers as
 //! LEB128 (zigzag when signed), strings and byte lists as their length
 //! then their bytes, lists as their count then their elements, an
 //! optional as 0, or 1 and the value, an enum as its variant index then

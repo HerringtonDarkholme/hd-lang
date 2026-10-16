@@ -35,6 +35,10 @@ const NET: &str = include_str!("../../../host/net.mjs");
 const FLOAT: &str = include_str!("../../../host/float.mjs");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
+/// The exchange-buffer encoding the hosts' codecs are built on.
+const WIRE: &str = include_str!("../../../host/wire.mjs");
+/// The codecs and method descriptors generated from the ABI model.
+const ABI: &str = include_str!("../../../host/gen/abi.mjs");
 
 /// Node as the engine. `trace` receives the Wasm frames of a trap the run
 /// ended in, innermost first, which the caller symbolizes
@@ -102,7 +106,7 @@ impl Scratch {
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("hd-run-{}-{n}", std::process::id()));
         let s = Scratch(dir);
-        std::fs::create_dir_all(&s.0).map_err(|e| format!("{}: {e}", s.0.display()))?;
+        std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
             ("core.mjs", CORE),
             ("node.mjs", NODE),
@@ -113,6 +117,8 @@ impl Scratch {
             ("net.mjs", NET),
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
+            ("wire.mjs", WIRE),
+            ("gen/abi.mjs", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }

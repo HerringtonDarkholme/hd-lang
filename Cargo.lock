@@ -734,7 +734,6 @@ dependencies = [
 name = "hd_host_abi"
 version = "0.0.0"
 dependencies = [
- "hd_base",
  "hd_syntax",
 ]
 
