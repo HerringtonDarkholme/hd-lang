@@ -18,7 +18,8 @@ For the details, read the source instead of guessing:
 - [The spec](../../../spec/README.md): `spec/lang/` for the language,
   `spec/std/` for each std module. It is the authority.
 - `hd doc std.text.split` prints the signature and summary of any std
-  item, and `hd doc std.text` prints a whole module (see the hd-cli skill).
+  item, and `hd doc std.text` prints a whole module. It runs inside a
+  package (a folder with `hd.toml`); see the hd-cli skill.
 
 ## Entry Points
 

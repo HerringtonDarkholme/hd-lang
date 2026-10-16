@@ -47,7 +47,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd fmt [--check] [FILE]` | format in place; `--check` only lists files that would change |
 | `hd new PATH --app` / `--lib` | create an application or a library package |
 | `hd add ../money`, `hd add OWNER/REPO@1.2` | require a dependency; `--dev` for test-only |
-| `hd doc NAME` | print one item's docs, as `hd doc std.text.split`; `hd doc std.text` prints a module |
+| `hd doc NAME` | print one item's docs, as `hd doc std.text.split`; `hd doc std.text` prints a module. Run it inside a package (a folder with `hd.toml`); outside one it is an error |
 | `hd` | the REPL on a terminal; piped stdin runs as a program |
 
 Run flags (`hd FILE`, `hd run`, `hd test`, `hd build` where they apply):
