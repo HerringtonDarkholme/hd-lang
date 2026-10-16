@@ -1,8 +1,9 @@
 # Agent Skills For hd
 
-This folder holds five reusable skills for agents that work on hd's
-design. Each is a standard [Agent Skills](https://agentskills.io/home)
-folder, `SKILL.md` with `name` and `description` frontmatter.
+This folder holds seven reusable skills: five for agents that work on
+hd's design, and two for agents that write hd code. Each is a standard
+[Agent Skills](https://agentskills.io/home) folder, `SKILL.md` with `name`
+and `description` frontmatter.
 
 | Skill | Use it to |
 | --- | --- |
@@ -11,10 +12,14 @@ folder, `SKILL.md` with `name` and `description` frontmatter.
 | [`brainstorm`](skills/brainstorm/SKILL.md) | survey other languages and compare three to five options for an open question |
 | [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, compiler, docs, checks, and push |
 | [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
+| [`write-hd`](skills/write-hd/SKILL.md) | write hd code: syntax by example, the prelude and std imports, and the common mistakes with their fixes |
+| [`hd-cli`](skills/hd-cli/SKILL.md) | drive the `hd` command: the edit-check loop, JSON diagnostics and fix-its, tests, packages, exit statuses |
 
-All five follow [skills/shared-rules.md](skills/shared-rules.md): the owner
-decides design, agents only ask (only `spec-update` edits the spec, and only
-to apply a decision), and the git, safety, and writing rules.
+The five design skills follow [skills/shared-rules.md](skills/shared-rules.md):
+the owner decides design, agents only ask (only `spec-update` edits the
+spec, and only to apply a decision), and the git, safety, and writing
+rules. `write-hd` and `hd-cli` are working references for writing and
+running hd code, and need no other file.
 
 ## Layout
 
@@ -29,6 +34,8 @@ AGENTS.md                      repo instructions; points here
     brainstorm/SKILL.md
     spec-update/SKILL.md
     write-issue/SKILL.md
+    write-hd/SKILL.md
+    hd-cli/SKILL.md
 .claude/skills -> ../.agents/skills   committed symlink, for Claude Code
 ```
 

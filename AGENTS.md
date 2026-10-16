@@ -9,6 +9,8 @@ apply a decided owner decision), and `write-issue`. Each follows
 [.agents/skills/shared-rules.md](.agents/skills/shared-rules.md), which
 also holds the git and safety rules for this repo. See
 [.agents/README.md](.agents/README.md) for which harness reads what.
+To write hd code or run `hd`, use `write-hd` (syntax, std imports, common
+mistakes) and `hd-cli` (the edit-check loop, diagnostics, tests).
 The compiler's build, test and gate commands are in
 [crates/README.md](crates/README.md), and docs are indexed in
 [docs/README.md](docs/README.md).
