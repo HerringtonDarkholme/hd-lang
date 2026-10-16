@@ -42,17 +42,24 @@ it, and dropping it runs its destructor. No type is marked as a
 resource, and there is no `close` protocol. A fresh value may start
 owned, as `let own user = User {...}`, if its plain fields are fresh
 too; borrowed fields and immutable values such as numbers and strings
-are exempt. A holder that receives an owned value is owned too. A plain
+are exempt. No data or enum type declares an `own` field: an owner
+lives only in a local, a parameter, a result, or a std container such
+as `List[own Conn]`, so no object can hand out an untracked read of an
+owned value. A plain
 type parameter never takes an owned type; a generic that accepts one
 says `T < own Any`.
 
 A borrow reaches only `^` positions, so std's read-only methods take
 `^self`. A composite part read through a borrow is a borrow; the plain
 contents of a borrowed collection are plain values. A type may hold a
-`^mut` borrow, and such a holder moves.
+`^mut` borrow, and every value of such a type is held `own`. A value
+whose type has a destructor keeps the borrows it holds live until its
+drop. Providers are plain values only; an owned or borrowed service is
+passed as a parameter.
 
 A later top-level statement or REPL input may move a top-level owned
-value. A `^mut` of a top-level binding is not allowed; code that needs a
+value, unless some function borrows it, which makes it immovable. A
+`^mut` of a top-level binding is not allowed; code that needs a
 global mutable queue uses plain values. A cleanup that must suspend or
 can fail is an explicit method called before the drop. A move has no
 mark at the call site. Rust's known false alarms are accepted as
@@ -177,8 +184,8 @@ The ways it can fail are the author's own choices, listed in the
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
 passing convention on the parameter. hd puts both on the position, as
 `mut`. The price is the uniqueness rule for fresh values, plus two rules
-that a type-level category would make unnecessary: an owned value makes
-its holder owned, and only `T < own Any` takes an owned type.
+that a type-level category would make unnecessary: no data type has an
+`own` field, and only `T < own Any` takes an owned type.
 
 ## 3. A Guided Tour
 
@@ -354,16 +361,19 @@ is `missing-lifetime`, with a fix-it that writes `[^]`.
 several independent lifetimes, as `data Session[^client, ^upstream]`.
 As in Rust, a field cannot borrow a sibling field.
 
-An owned value may hold a borrowed field. A job that owns its output
-file while it reads a borrowed document is fine:
+A data type never owns a handle; it may borrow one. A job that writes
+to a file while it reads a borrowed document borrows both, and the
+function that opened the file owns it:
 
 ```text
-data Export[^doc]:                                    # hypothetical syntax
-    out: own File                                     # hypothetical syntax
+data Export[^doc, ^out]:                              # hypothetical syntax
+    out: ^{out} mut File                              # hypothetical syntax
     source: ^{doc} Document                           # hypothetical syntax
 
-fn export(d: ^Document, path: string) -> own Export[^]:   # hypothetical syntax
-    Export { out: open(path), source: d }
+fn export(d: ^Document, path: string) -> void:       # hypothetical syntax
+    f := open(path)                                   # the owner: closes at the end
+    let own job = Export { out: f, source: d }        # holds a ^mut: held own
+    run(job)
 ```
 
 The freshness rule for owned values covers plain fields only; a
@@ -371,45 +381,47 @@ borrowed field already states its lifetime and how it may be used.
 
 ### 3.5 A Pool That Owns Connections
 
-```text
-data Pool:
-    idle: own List[own Conn]                          # hypothetical syntax
+No data type has an `own` field, so a pool of connections is an owned
+list, held by the function that runs the pool and lent to the code that
+uses it:
 
-impl Pool:
-    fn give(^mut self, c: own Conn) -> void:          # hypothetical syntax
-        self.idle.push(c)
-    fn peek(^self) -> Option[^Conn]:                  # hypothetical syntax
-        self.idle.at(0)
+```text
+fn give(idle: ^mut List[own Conn], c: own Conn) -> void:   # hypothetical syntax
+    idle.push(c)
+
+fn peek(idle: ^List[own Conn]) -> Option[^Conn]:          # hypothetical syntax
+    idle.at(0)
 
 fn warm!(hosts: List[string]) -> void:
-    let own pool = Pool { idle: [] }                  # hypothetical syntax
+    let own idle: List[own Conn] = []                     # hypothetical syntax
     for h in hosts:
-        pool.give(connect!(h))
+        give(idle, connect!(h))
+    serve!(idle)                                           # lends the pool
 ```
 
-The pool owns its connections, and callers borrow them through `peek`.
 `List[own Conn]` is the ordinary list with `T = own Conn`; `push` and
-`pop` move through `^mut self`.
+`pop` move through `^mut self`. A data type cannot hold the list,
+because a plain object could then hand out reads of the connections
+that no check follows. A type that only borrows the list, as
+`data Server[^p]: idle: ^{p} mut List[own Conn]`, is fine; since it
+holds a `^mut`, each `Server` value is held `own`.
 
-Dropping an owned value drops what it owns, fields in order. So when
-`warm!` returns, `pool` is dropped, then its list, then each
-connection, which closes. No shutdown method is needed. `clear`,
-`truncate`, and an early `break` out of `for c in conns.into_iter()`
-drop the elements they discard, so every list method keeps working.
+When `warm!` returns, `idle` is dropped, then each connection, which
+closes. No shutdown method is needed. `clear`, `truncate`, and an early
+`break` out of `for c in conns.into_iter()` drop the elements they
+discard, so every list method keeps working.
 
 The mistake here is Rust's too:
 
 ```text
-fn reuse!(pool: ^mut Pool) -> void:                   # hypothetical syntax
-    first := pool.peek()
-    pool.give(connect!("backup"))         # error: borrow-conflict
+fn reuse!(idle: ^mut List[own Conn]) -> void:             # hypothetical syntax
+    first := peek(idle)
+    give(idle, connect!("backup"))         # error: borrow-conflict
     _ := first
 ```
 
-`give` borrows the whole pool while `first` still borrows it; finishing
-with `first` first fixes it. Through a plain holder, an `own` field can
-only be borrowed (`move-out-of-plain`), so two aliases can never both
-consume it.
+`give` borrows the whole list while `first` still borrows it; finishing
+with `first` first fixes it.
 
 ### 3.6 Borrowing Plain Values
 
@@ -488,8 +500,8 @@ and needs exclusive access writes a type with a `^mut self` method,
 not a closure:
 
 ```text
-data Flusher:
-    out: own File                                    # hypothetical syntax
+data Flusher[^f]:                                # hypothetical syntax
+    out: ^{f} mut File                               # hypothetical syntax
     written: usize
 
 impl Flusher:
@@ -581,22 +593,27 @@ fn both!(a: string, b: string) -> (own Conn, own Conn):   # hypothetical syntax
 
 ### 3.10 Providers
 
+Providers stay plain, exactly as today. `$.with(K = p)` takes a plain
+value, and `$.use(K)` returns it; sibling tasks share it with
+garbage-collected semantics, as the spec's mutable providers do now. An
+owned or borrowed value is never a provider:
+
 ```text
-trait Upstream:
-    fn get(^self) -> ^Conn                           # hypothetical syntax
+fn emit!(sink: ^mut dyn Sink) -> void:               # hypothetical syntax
+    sink.write!()
 
-fn grab() -> ^{$Upstream} Conn $ Upstream:           # hypothetical syntax
-    $.use(Upstream).get()
+fn twice!(sink: ^mut dyn Sink) -> void:              # hypothetical syntax
+    emit!(sink)                                      # an exclusive service is a parameter
+    emit!(sink)
 
-fn serve!(p: ^dyn Upstream) -> void:                 # hypothetical syntax
-    $.with(Upstream=p):
-        grab().send!([1])
+fn wrong!(sink: ^mut dyn Sink) -> void:              # hypothetical syntax
+    $.with(Sink=sink):                               # error: provider-not-plain
+        pass
 ```
 
-`$.with(K = p)` borrows `p` for the block. `$.use(K)` always returns a
-borrow bounded by `$K`, and the result names it, since a key never
-counts for elision. Plain code that kept a provider in module state is
-now rejected.
+So a service that must be used exclusively, or that owns handles, is a
+parameter, and its borrows follow the ordinary rules: two children
+cannot hold one `^mut` at once.
 
 ### 3.11 Top-Level Bindings And The REPL
 
@@ -624,6 +641,19 @@ c := connect!("db")              # a REPL input: an owned top-level binding
 c.send!([1])                     # a later input: a static borrow
 drop(c)                          # a later input moves it: the socket closes
 c.send!([1])                     # error: use-after-move
+```
+
+A function that borrows a top-level owner can return the borrow as
+`^{static}`, and a caller may hold it past any later statement. So a
+top-level owned binding that any function borrows never moves; it
+drops when the instance ends:
+
+```text
+GLOBAL := open("global")
+
+fn current() -> ^{static} File: GLOBAL               # hypothetical syntax
+
+drop(GLOBAL)                     # error: GLOBAL is borrowed by current(); it cannot move
 ```
 
 ### 3.12 The Serialization Boundary
@@ -670,8 +700,13 @@ This section states each rule from the tour once, grouped by topic.
     `drop(^mut self)` runs when an owned value of the type is dropped.
     Such a type is held only as `own T` or `^T`; a plain position of it
     is `drop-type-plain`.
-11. A holder that receives an owned value at construction is owned; a
-    plain holder receiving one is `own-upgrade`.
+11. A data or enum field is never `own T`, and never of a type parameter
+    bounded `own Any`; that is `own-field`. Only std's built-in
+    containers (`List`, `Map`, `Option`, `Result`, tuples) hold owned
+    values.
+12. Every value of a type with a `^mut` field is held `own`; a plain one
+    is `own-required`. So such a value is never copied or captured as
+    shared storage.
 
 ### 4.2 Moves
 
@@ -679,12 +714,13 @@ This section states each rule from the tour once, grouped by topic.
    `use-after-move`. Assigning it again initializes it.
 2. Assigning a place that still holds an owned value drops the old
    value first (4.5).
-3. Moving a place needs an owned step at every field on its path;
-   otherwise it is `move-out-of-plain`.
-4. Through an owned path, one field may move out alone. The holder is
-   unusable whole until the field is assigned again.
-5. A pattern that binds every field of an owned value consumes it. A
-   private field moves out only in its type's module.
+3. A move takes a whole owned binding, or an element out of an owned
+   container through its methods (`pop`, `take`, `into_iter`). No field
+   holds an owner, so there is no partial move.
+4. A pattern that binds every field of an owned value consumes it. A
+   private field moves out only in its type's module. A type that
+   implements `DropOwn` cannot be taken apart this way, since its
+   `drop` must see a whole value.
 
 ### 4.3 Borrows
 
@@ -710,6 +746,10 @@ This section states each rule from the tour once, grouped by topic.
    the same object keeps garbage-collected semantics.
 10. A borrow never reaches a top-level binding, a plain position, or a
     result that does not name it. That is `borrow-escapes`.
+11. A value whose type has a destructor uses every borrow it holds when
+    it is dropped, so each such borrow lives until that drop. Ending the
+    borrowed place earlier is `borrow-conflict`, as Rust's drop check
+    makes it.
 
 ### 4.4 Lifetimes And Elision
 
@@ -780,12 +820,13 @@ This section states each rule from the tour once, grouped by topic.
    plain `T` is.
 10. A cold frame is bounded by every borrow it captures. A frame that
     holds an owned argument is owned, and dropping it drops the argument.
-11. `$.with(K = p)` borrows `p` for its block, and `$.use(K)` returns a
-    borrow bounded by `$K`.
+11. A provider is a plain value. `$.with(K = p)` with an owned or
+    borrowed `p` is `provider-not-plain`.
 12. A top-level binding may be borrowed as `static`, never as `^mut`.
     A later top-level statement may move an owned one, checked in
     statement order; a function body never may
-    (`move-out-of-top-level`).
+    (`move-out-of-top-level`). A top-level owned binding that any
+    function borrows never moves.
 13. Owned positions and types that carry a lifetime are not
     boundary-safe.
 
@@ -802,9 +843,9 @@ exclusive.
 | --- | --- | --- | --- |
 | A view over a handle | `data Excerpt: conn: ^Conn` with `impl NonEscapable` | `data Excerpt[^a]: conn: ^{a} Conn` | yes |
 | A producer of a fresh handle | `fn accept!(^self) -> Conn` | `fn accept!(^self) -> own Conn` | yes; it closes when dropped |
-| A pool whose handles callers use | `conns: ^mut List[^Conn]`, `adopt(c: ^{self} Conn)` | `conns: own List[own Conn]`, `adopt(c: own Conn)` | yes, differently: the pool owns, callers borrow |
+| A pool whose handles callers use | `conns: ^mut List[^Conn]`, `adopt(c: ^{self} Conn)` | an owned `List[own Conn]` local, lent as `^mut` | yes, differently: a function owns the pool, callers borrow |
 | Concurrency | `fn echo!(c: ^Conn)` | the same | yes; a dropped frame or buffer drops what it owns |
-| Providers | `trait Pool < NonEscapable`, `-> ^Conn $ Pool` | `trait Pool`, `-> ^{$Pool} Conn $ Pool` | yes |
+| Providers | `trait Pool < NonEscapable`, `-> ^Conn $ Pool` | a plain provider; owned handles are passed as parameters | yes, differently |
 | Callbacks | `List[^fn!() -> bool]` | `List[^{attempt} fn!() -> bool]` | yes; a global registry uses plain closures |
 | An error carrying a handle | `enum LinkError: Broken(conn: ^Conn)` | `enum LinkError[^c]: Broken(conn: ^{c} Conn)` | yes |
 | The REPL | `c := connect!("db")` | the same | yes; a later input may `drop(c)` |
@@ -825,7 +866,6 @@ adds a few of its own. Each rejects code the old design accepted:
   different field lives, as in Rust.
 - **Mutating a plain local** while a `^` view of it lives, by the
   owner's decision to check every `^`.
-- **Keeping a provider** from `$.use(K)` in module state.
 
 ## 6. Still To Think Through
 
@@ -834,6 +874,9 @@ more thought on generics and ownership before the design settles:
 
 1. **Iteration.** How `for x in xs` reads a list of owned values: by
    borrow, by consuming the list, or both, and which form is the default.
+   A lazy adapter that keeps an owned value across calls (the review's
+   U9) needs a named producer with a `^mut self` step, since a closure
+   that captures an owned value runs once.
 2. **Traits over owned values.** How `Eq`, `Hash`, `Ord`, and `Display`
    take their receiver (`^self`), and how a `Map` keyed by owned values
    looks keys up by borrow.
@@ -851,11 +894,15 @@ more thought on generics and ownership before the design settles:
 
 ## Appendix: Limits And Holes
 
-No known hole remains: B7 and B8 are closed by the owner's rules on
-owned holders and on `T < own Any`. A plain alias or a plain closure
-capture that changes a borrowed variable's object is not a hole: plain
-values keep garbage-collected semantics by design
-([3.6](#36-borrowing-plain-values)).
+The holes found so far are closed by the owner's rules: B7 by "no `own`
+fields", B8 by `T < own Any`, and the second review's U4 to U8 by no
+partial moves, drop counting as a use of held borrows, `own` for
+holders of `^mut`, plain-only providers, and immovable borrowed
+globals. A plain alias or a plain closure capture that changes a
+borrowed variable's object is not a hole: plain values keep
+garbage-collected semantics by design ([3.6](#36-borrowing-plain-values)).
+No safety argument is complete until the spec is written; the second
+review is in [OWNERSHIP_STRESS_TEST_2.md](OWNERSHIP_STRESS_TEST_2.md).
 
 Limits, where the draft rejects a reasonable program:
 
@@ -885,7 +932,7 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 
 ## Parse Log
 
-Every `text` block, 26 in all, was parsed on 2026-10-16 with
+Every `text` block, 27 in all, was parsed on 2026-10-16 with
 `scripts/hd-conformance.sh parse`. Each was parsed as written and with
 the marks erased (`own`, `^`, `^{...}`, lifetime brackets). Parsing
 checks syntax only. Nothing was type-checked, and the blocks call
@@ -894,4 +941,4 @@ functions this study does not define.
 | Result | Blocks |
 | --- | --- |
 | Parses as written | 4, among them section 1 and the REPL inputs in 3.11 |
-| Fails only at the new marks; parses with the marks erased | the other 22 |
+| Fails only at the new marks; parses with the marks erased | the other 23 |
