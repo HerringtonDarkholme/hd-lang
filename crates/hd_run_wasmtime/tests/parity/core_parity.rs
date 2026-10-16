@@ -865,13 +865,13 @@ fn malformed_structured_arguments_report_host_contract() {
             b"panic: host-contract: an argument does not decode\n"
         );
     }
-    // fsOp checks its path grant before decoding the write payload.
+    // A well-formed write outside the grant is refused and writes nothing.
     let outside = scratch.at("not-granted");
     let mut p = Program::new();
     p.call(
         "hd:FsWrite",
         "write_bytes",
-        one(&outside),
+        Enc::default().str(path(&outside)).bytes(&[1]).0,
         fs_error(&outside, 2),
     );
     assert_program(
