@@ -1007,6 +1007,23 @@ fn str_vts() -> Vec<VT> {
     vec![VT::r(WTy::Bytes), VT::I64]
 }
 
+/// `StrEq`'s fast path: two views of one array with one span (start and
+/// length) are equal with no byte loop, since a string's array is never
+/// written once a string views it (`docs/compiler/lowering-catalog.md`
+/// "String").
+fn str_eq_same_view(a: &mut Asm) {
+    a.get(0);
+    a.get(2);
+    a.s().ref_eq();
+    a.get(1);
+    a.get(3);
+    a.s().i64_eq().i32_and();
+    a.if_();
+    a.i32(1);
+    a.s().return_();
+    a.end();
+}
+
 /// A literal getter, once link knows its segment offset and cell global.
 #[must_use]
 pub fn lit_code(off: u32, len: u32, global: u32) -> Code {
@@ -1110,6 +1127,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         Helper::StrEq => {
             let mut a = Asm::new([str_vts(), str_vts()].concat());
             let (len, k) = (a.local(VT::I32), a.local(VT::I32));
+            str_eq_same_view(&mut a);
             a.get(1);
             a.i64(32);
             a.s().i64_shr_u().i32_wrap_i64();
@@ -2386,7 +2404,7 @@ impl Helper {
 
 #[cfg(test)]
 mod tests {
-    use super::{Helper, helper_code, owner_global, root_global};
+    use super::{Helper, helper_code, owner_global, root_global, str_eq_same_view};
     use crate::asm::Asm;
     use crate::{Reloc, Sym, VT};
     use hd_base::Hash128;
@@ -2565,5 +2583,29 @@ mod tests {
         helper.encode(&mut w);
         let mut r = Reader::new(&w.bytes);
         assert_eq!(Helper::decode(&mut r), Some(helper));
+    }
+
+    /// A string compared with itself returns before the byte loop: the
+    /// helper's first instructions are the `ref.eq` and span check, and
+    /// its only loop comes after them.
+    #[test]
+    fn str_eq_returns_before_the_byte_loop_on_one_view() {
+        let code = helper_code(&Helper::StrEq, false).unwrap();
+        let body = wasmparser::FunctionBody::new(wasmparser::BinaryReader::new(&code.body, 0));
+        let mut ops = body.get_operators_reader().unwrap();
+        let start = usize::try_from(ops.original_position()).unwrap();
+        let mut fast = Asm::new(vec![]);
+        str_eq_same_view(&mut fast);
+        assert!(fast.out.contains(&0xd3), "ref.eq");
+        assert!(code.body[start..].starts_with(&fast.out));
+        let mut loops = Vec::new();
+        while !ops.eof() {
+            let at = usize::try_from(ops.original_position()).unwrap();
+            if matches!(ops.read().unwrap(), wasmparser::Operator::Loop { .. }) {
+                loops.push(at);
+            }
+        }
+        assert_eq!(loops.len(), 1);
+        assert!(loops[0] >= start + fast.out.len());
     }
 }

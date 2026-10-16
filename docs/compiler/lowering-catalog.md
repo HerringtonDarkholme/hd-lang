@@ -204,10 +204,7 @@ The layout and its table by position are in crates/hd_wasm/DESIGN.md §15.2.
   checks. `len()` is two instructions; a byte read adds one `add` to the
   start. Equality compares the lengths, returns early when both views
   share one array and one start (`ref.eq`), and otherwise compares bytes
-  one per step. Implementation differs: the `StrEq` helper compares the
-  lengths, then the bytes, with no `ref.eq` fast path; worse for a string
-  compared with itself or a copy of its view, such as a map key found
-  again.
+  one per step.
 - **Size:** 12 bytes per string at rest in a field or a list element (a
   4-byte reference plus the `i64`), with no header object. Each string
   argument or result is two Wasm values.
