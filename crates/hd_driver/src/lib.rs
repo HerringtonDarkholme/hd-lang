@@ -890,6 +890,9 @@ enum Roots {
         key: Hash128,
         own: Vec<Hash128>,
     },
+    /// The inputs of a joined REPL build ([`Packages::inputs_from`]), in
+    /// order, each a script.
+    Inputs(Vec<JoinedInput>),
     /// Each running case (item, instance, report), and per test module
     /// the inits it reaches.
     Tests {
@@ -909,6 +912,22 @@ enum Roots {
         /// `hd.scenario.cleanup`; `None` when it declares none.
         cleanup: Option<Hash128>,
     },
+}
+
+/// Whether this build of the compiler builds joined REPL inputs
+/// ([`Packages::inputs_from`]). The web compiler does not: the JS host's
+/// session keeps one module per input, so it leaves that code out.
+const JOINED_INPUTS: bool = cfg!(not(target_arch = "wasm32"));
+
+/// One input of a joined REPL build: its number, its first own init body
+/// and that body's instance, every init it runs, in order, and its own
+/// ones (as [`Roots::Script`]'s `own`).
+struct JoinedInput {
+    number: u32,
+    def: DefId,
+    key: Hash128,
+    inits: Vec<Hash128>,
+    own: Vec<Hash128>,
 }
 
 /// A module's `tests:` blocks after checking: the case items and the
@@ -942,6 +961,13 @@ struct ReplInputs {
     /// is no input of a package ([`build_repl_prelude`]), and every other
     /// goal.
     input: Option<usize>,
+    /// The numbers of the inputs this run builds, from the first to the
+    /// goal's input ([`Packages::inputs_from`]); `None` for every other
+    /// goal.
+    built: Option<(u32, u32)>,
+    /// Whether the run builds them as one module of several inputs, with
+    /// numbered entry exports ([`Packages::inputs_from`]).
+    joined: bool,
     /// The root package's `src/lib.hd`, if it has one.
     lib: Option<usize>,
     /// Per module: whether it is an input whose session holds `src/lib.hd`
@@ -958,7 +984,12 @@ impl ReplInputs {
     /// when one of the input's identifiers is a name the library declares
     /// ([`lib_names`]). `text` reads a module's text; only the library's
     /// and the inputs' are read, and only while no input holds the library.
-    fn new(table: &ModuleTable, goal: &Goal, text: &mut dyn FnMut(usize) -> Arc<str>) -> Self {
+    fn new(
+        table: &ModuleTable,
+        goal: &Goal,
+        from: Option<u32>,
+        text: &mut dyn FnMut(usize) -> Arc<str>,
+    ) -> Self {
         let n = table.modules.len();
         let numbers: Vec<Option<u32>> = (0..n)
             .map(|k| {
@@ -998,9 +1029,17 @@ impl ReplInputs {
             sorted,
             numbers,
             input,
+            built: built.map(|b| (from.unwrap_or(b), b)),
+            joined: JOINED_INPUTS && built.is_some() && from.is_some(),
             lib,
             with_lib,
         }
+    }
+
+    /// Whether the run builds input `number` ([`ReplInputs::built`]).
+    fn builds(&self, number: u32) -> bool {
+        self.built
+            .is_some_and(|(first, last)| (first..=last).contains(&number))
     }
 }
 
@@ -1182,9 +1221,9 @@ struct Run<'a> {
     session: Option<&'a Session>,
     /// What this run's module adds to that session ([`Output::session_added`]).
     session_added: OnceLock<Session>,
-    /// The entries of the REPL input this run builds, as it reads or
-    /// writes them, for [`Session::inputs`].
-    input_entries: Mutex<InputEntries>,
+    /// The entries of each REPL input this run builds, by number, as it
+    /// reads or writes them, for [`Session::inputs`].
+    input_entries: Mutex<BTreeMap<u32, InputEntries>>,
     /// Per folder: whether it is an earlier REPL input's, read from the
     /// session ([`Run::read_kept`]), so it has no task.
     kept: OnceLock<Vec<bool>>,
@@ -1295,6 +1334,13 @@ pub struct Packages<'a> {
     /// not cached, since it depends on the session, except the prelude's
     /// ([`build_repl_prelude`]), which every session starts with.
     pub session: Option<&'a Session>,
+    /// For a `Goal::ReplInput { input }` with a session: build every input
+    /// from this number to `input` as one module, for a rebuild that holds
+    /// many inputs in one instance (`docs/future-work/live-execution.md`
+    /// §5.4). The sources hold each one's `repl#K` file. Input `K`'s top
+    /// level runs from the exports `hd.init.K` and `hd.poll.K`. `None`
+    /// builds `input` alone, whose exports are `hd.init` and `hd.poll`.
+    pub inputs_from: Option<u32>,
     /// A test-only hook: the fuel of each body of the root package's
     /// modules, smaller than `Fuel::BODY_DEFAULT`, so a small program
     /// reaches `item-too-complex` (`fn.limit.complexity.error`) fast.
@@ -1584,7 +1630,7 @@ fn build_packages_inner(
         (package != "std").then(|| skims::StdSkims::new(host.store, toolchain)),
         table.modules.len(),
     );
-    let repl_inputs = ReplInputs::new(&table, goal, &mut text);
+    let repl_inputs = ReplInputs::new(&table, goal, packages.inputs_from, &mut text);
     // A REPL input reads only the modules it reaches; every other run reads
     // them all.
     let ModuleTexts {
@@ -3590,7 +3636,7 @@ impl Run<'_> {
     fn kept_input(&self, m: usize) -> Option<&InputEntries> {
         let n = self.repl_number(m)?;
         match self.goal {
-            Goal::ReplInput { input } if input != n => self.session?.inputs.get(&n),
+            Goal::ReplInput { .. } if !self.repl_inputs.builds(n) => self.session?.inputs.get(&n),
             _ => None,
         }
     }
@@ -3611,16 +3657,16 @@ impl Run<'_> {
             .is_some_and(|k| k[self.table.modules[m].folder.idx()])
     }
 
-    /// Records an entry of the REPL input this run builds, when module `m`
-    /// is that input ([`Session::inputs`]).
+    /// Records an entry of a REPL input this run builds, when module `m`
+    /// is one ([`Session::inputs`]).
     fn keep_input<T>(
         &self,
         m: usize,
         part: fn(&mut InputEntries) -> &mut Option<T>,
         value: impl FnOnce() -> T,
     ) {
-        if matches!(self.goal, Goal::ReplInput { input } if self.repl_number(m) == Some(input)) {
-            *part(&mut lock(&self.input_entries)) = Some(value());
+        if let Some(n) = self.repl_number(m).filter(|n| self.repl_inputs.builds(*n)) {
+            *part(lock(&self.input_entries).entry(n).or_default()) = Some(value());
         }
     }
 
@@ -7194,6 +7240,9 @@ impl Run<'_> {
         // Only they may `block_on`, and a script runs them with its entry
         // providers.
         let mut own: Vec<DefId> = Vec::new();
+        // A joined build's one root is its last input, whose init order
+        // every input's inits are split from.
+        let mut order: Vec<(DefId, &str)> = Vec::new();
         for m in &root_modules {
             let defs = match self.root_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
@@ -7202,6 +7251,9 @@ impl Run<'_> {
                     return;
                 }
             };
+            if JOINED_INPUTS && self.repl_inputs.joined {
+                order.clone_from(&defs);
+            }
             for (d, module) in &defs {
                 if !all_inits.contains(d) {
                     all_inits.push(*d);
@@ -7308,6 +7360,15 @@ impl Run<'_> {
         };
         let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
         let plan = match &self.goal {
+            Goal::ReplInput { .. } if JOINED_INPUTS && self.repl_inputs.joined => {
+                match self.joined_inputs(&order, &key_of_init) {
+                    Ok(inputs) => Roots::Inputs(inputs),
+                    Err(e) => {
+                        self.stage::<()>(Stage::Collect, Err(e));
+                        return;
+                    }
+                }
+            }
             Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } if script => {
                 Roots::Script {
                     def: root,
@@ -7610,6 +7671,96 @@ impl Run<'_> {
             }
             _ => Some((rt("entry_status_display"), args)),
         }
+    }
+
+    /// The inputs a joined build runs ([`Packages::inputs_from`]). `order`
+    /// is the init order its last input reaches. Each init goes to the
+    /// first input whose uses reach its module, so it runs when it ran as
+    /// the session first ran its inputs one at a time
+    /// (`module.init.cycle.once`). Its place among that input's inits is
+    /// the same too: an input's init order is the last one's, cut to the
+    /// modules the input reaches.
+    fn joined_inputs(
+        &self,
+        order: &[(DefId, &str)],
+        key_of: &dyn Fn(&DefId) -> Option<Hash128>,
+    ) -> hd_base::StageResult<Vec<JoinedInput>> {
+        let mut owner: Vec<Option<u32>> = vec![None; self.table.modules.len()];
+        let mut out = Vec::new();
+        let repl = &self.repl_inputs;
+        for &(number, m) in repl.sorted.iter().filter(|(n, _)| repl.builds(*n)) {
+            let mut stack = vec![m];
+            while let Some(x) = stack.pop() {
+                if owner[x].is_none() {
+                    owner[x] = Some(number);
+                    stack.extend(self.use_edges(x));
+                }
+            }
+            let path = self.table.modules[m].path.as_str();
+            let mut inits = Vec::new();
+            let mut own = Vec::new();
+            for (d, module) in order {
+                let mine = self.table.module(module).and_then(|k| owner[k.idx()]) == Some(number);
+                if let Some(k) = key_of(d).filter(|_| mine) {
+                    inits.push(k);
+                    if *module == path {
+                        own.push((*d, k));
+                    }
+                }
+            }
+            let Some(&(def, key)) = own.first() else {
+                return Err(NotImplemented::new(
+                    Stage::Collect,
+                    "a joined REPL input without its own init",
+                ));
+            };
+            out.push(JoinedInput {
+                number,
+                def,
+                key,
+                inits,
+                own: own.into_iter().map(|(_, k)| k).collect(),
+            });
+        }
+        Ok(out)
+    }
+
+    /// The entry exports of a joined build: each input's script exports,
+    /// `hd.init.N` and `hd.poll.N`, then one `hd.wake`.
+    fn joined_exports(
+        &self,
+        inputs: &[JoinedInput],
+        env: &Env<'_>,
+        path: &dyn Fn(DefId) -> String,
+        c: &CollectOut,
+    ) -> hd_base::StageResult<Vec<(String, hd_wasm::Helper)>> {
+        let mut out = Vec::new();
+        if !JOINED_INPUTS {
+            return Ok(out);
+        }
+        let mut wake = None;
+        for i in inputs {
+            let entry = hd_wasm::script_entry(
+                &self.pool,
+                env,
+                path,
+                self.lowering,
+                i.def,
+                i.key,
+                &i.inits,
+                &i.own,
+                &c.collected.boundary,
+            )?;
+            for (name, helper) in entry {
+                if name == "hd.wake" {
+                    wake = Some((name, helper));
+                } else {
+                    out.push((format!("{name}.{}", i.number), helper));
+                }
+            }
+        }
+        out.extend(wake);
+        Ok(out)
     }
 
     /// The init bodies a program root module `entry` reaches
@@ -8047,6 +8198,7 @@ impl Run<'_> {
                 own,
                 &c.collected.boundary,
             ),
+            Roots::Inputs(inputs) => self.joined_exports(inputs, &env, &path, c),
             Roots::Tests { cases, inits } => hd_wasm::test_entry(
                 &self.pool,
                 &env,
@@ -8102,13 +8254,14 @@ impl Run<'_> {
                 added.externs.add_module(&codes);
                 added.inits_run.extend(c.collected.inits.iter().copied());
                 let entries = std::mem::take(&mut *lock(&self.input_entries));
-                if let Goal::ReplInput { input } = self.goal
-                    && input != 0
-                    && entries.iface.is_some()
-                    && entries.header.is_some()
-                    && entries.check.is_some()
-                {
-                    added.inputs.insert(input, entries);
+                for (input, entries) in entries {
+                    if input != 0
+                        && entries.iface.is_some()
+                        && entries.header.is_some()
+                        && entries.check.is_some()
+                    {
+                        added.inputs.insert(input, entries);
+                    }
                 }
                 if self.prelude() {
                     let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);

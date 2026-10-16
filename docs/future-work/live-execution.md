@@ -533,6 +533,9 @@ rebuild(session, base'):                     ;; base' = the package snapshot to 
 - **Same-code rebuilds recompile nothing.** In the browser the compiler
   worker keeps each input's `WebAssembly.Module`; in the CLI the `code`
   and `cwasm` entries hit.
+- **[Decided 2026-10-16, #228]** The CLI also rebuilds past 1000 inputs,
+  and its rebuilds hold each run of joined inputs in one module, to bound
+  memory. See [REPL Decisions](#repl-decisions-2026-10-12-and-2026-10-13).
 
 ## 6. Resume (Durable Execution, Later)
 
@@ -990,3 +993,14 @@ deleted plan (`git show f1c55020:future-work/compiler/repl-plan.md`, §5).
 - Late blocks with no trait, **2026-10-13:** accepted, as late `Debug` and `Display` are. A derivation that an input built before a later input's block with no trait keeps the facts it saw: its implementation and the code compiled against it do not change. A derivation built after the block sees the block's facts.
 - `:share`, **2026-10-13:** the playground's `:share` command is browser-only and stays outside the spec, which lists the commands every REPL has (`cli.repl.command.*`).
 - What a session builds, **2026-10-13 (#159):** an input builds only what its scope reaches, so a broken package file stops only the inputs that reach it. The driver reads and builds, from the input's own module, the modules its uses reach and those of its session scope: the input before it, and `src/lib.hd` once the session holds it (`cli.repl.package.lib`, `cli.repl.uses.other`). Another package's folder is read whole. `src/lib.hd` loads lazily: the session holds it from the first input with an identifier that names one of the library's names (its top-level names and the names of its functions and methods, read from its tokens), and every input after that holds it too. So with a broken `src/lib.hd`, `1 + 2` runs, and the first input that names a library item reports the library's errors; `:reload` after the fix runs it. `src/main.hd` and a module nothing reaches are never read. An implementation in a module of `src/` that no reached module uses is not in the session, as one in a folder outside the closure already was not. Build time per input is unchanged (about 14 to 17 ms on a package of eight modules, dev profile, loaded machine).
+- Rebuild past a bound, **2026-10-16 (#228, orchestrator for the owner):** this is Q3's "later". wasmtime frees an instance only with its store, so a rebuild must hold the inputs in fewer instances to free memory.
+  - **Trigger.** The CLI REPL rebuilds the session from its journal once more than 1000 inputs ran since it started or last rebuilt (`hd_run_wasmtime::REBUILD_AFTER`; tests lower it).
+  - **Reporting.** The rebuild writes no `reloaded:` line. It still reports each stopped input it skipped and the first input it dropped (`cli.repl.rebuild.stopped`, `.prefix`).
+  - **Linking.** A rebuild builds each run of consecutive inputs that joined the session, the prelude aside, as one module (`hd_driver::Packages::inputs_from`). It is one more session module: it imports from the modules before it and exports every instance and global, so later inputs link against it as before.
+  - **Replay.** The joined module has one instance. Input N runs from its exports `hd.init.N` and `hd.poll.N`, with one shared `hd.wake` and `hd.cancel`, under its own record and its own `Input` and `End` rows.
+  - **Init order.** Each init runs in the input that first reaches its module, in the order of the last input's init order cut to that input. So every init runs where it ran live.
+  - **Code identity.** A joined input's `Input` row names the joined module's hash, the code it ran (§4.4).
+  - **Panics.** An input that panicked or exited otherwise added nothing for the inputs after it. So it is built alone and ends a run, and the next run builds over the inputs before it.
+  - **Fallback.** When an input no longer builds or replays, the rebuild starts again with one module per input, which keeps the longest prefix as §5.4 says. `:reload` takes the same path.
+  - **Website.** The JS host's session (`host/core.mjs` `createSession`, the website REPL) keeps one module per input and has no bound, so the web compiler leaves the joined build out (`hd_driver`'s `JOINED_INPUTS`).
+  - **Cost.** A rebuild of 200 inputs took about 0.5 s, against 3.4 s with one module per input (dev profile, loaded machine).

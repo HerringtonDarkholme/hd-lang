@@ -9,7 +9,10 @@
 //! journal and writes the Node session's own journal. A new wasmtime
 //! session is then rebuilt from that one. Each rebuild makes no host call,
 //! prints nothing, records a journal equal to the one it replayed, and
-//! goes on live: a later input reads the rebuilt bindings.
+//! goes on live: a later input reads the rebuilt bindings. The wasmtime
+//! rebuild holds each run of inputs that joined the session in one module
+//! (#228), so its journal names that module where Node's names each
+//! input's own; it is equal to Node's but for those hashes.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -167,14 +170,24 @@ fn a_session_runs_and_replays_the_same_on_node() {
         assert_eq!(repl.session.host_calls(), 0, "a host call repeated");
         assert_eq!(text(&io.out), "");
         assert_eq!(text(&io.err), "");
-        assert!(
-            repl.session.journal() == Some(&journal[..]),
+        assert_eq!(
+            but_modules(repl.session.journal().expect("recording")),
+            but_modules(&journal),
             "the rebuilt journal differs from the Node journal it replayed"
         );
         repl.next = *numbers.last().expect("inputs");
         assert_eq!(repl.input(AFTER), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "3\n");
     });
+}
+
+/// What `journal` records, with each input's module hash left out.
+fn but_modules(journal: &[u8]) -> hd_run::replay::Recorded {
+    let mut record = hd_run::replay::recorded(journal).expect("the journal reads");
+    for input in &mut record.inputs {
+        input.module = 0;
+    }
+    record
 }
 
 /// Rebuilds `repl`'s session from `journal` over its texts.

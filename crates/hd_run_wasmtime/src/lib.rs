@@ -71,7 +71,7 @@ pub use run::{
     Captured, run, run_captured, run_captured_reading, run_captured_with_profile,
     run_traced_with_guards, run_with_guards, run_with_profile,
 };
-pub use session::{Rebuilder, Rebuilt, Stopper, WasmtimeSession};
+pub use session::{REBUILD_AFTER, Rebuilder, Rebuilt, Stopper, WasmtimeSession};
 pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
     TestModule, TestPoolConfig,

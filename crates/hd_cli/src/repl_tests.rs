@@ -13,7 +13,7 @@ use hd_run::Outcome;
 use hd_run_wasmtime::{EngineConfig, HostIo};
 use hd_testkit::Scratch;
 
-use super::{Line, Lines, Streams, is_complete, run};
+use super::{Bounds, Line, Lines, Streams, is_complete, run};
 use crate::disk;
 
 const SCRATCH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp");
@@ -94,17 +94,17 @@ fn session_in(
     script: Script,
     on_start: impl FnOnce(hd_run_wasmtime::Stopper),
 ) -> Transcript {
-    session_with(dir, script, on_start, None, hd_run::journal::SESSION_CAP)
+    session_with(dir, script, on_start, None, Bounds::default())
 }
 
 /// `session_in`, with the guest's standard output in `stdout` when given
-/// and a journal of at most `journal_cap` bytes.
+/// and within `bounds`.
 fn session_with(
     dir: &Path,
     mut script: Script,
     on_start: impl FnOnce(hd_run_wasmtime::Stopper),
     stdout: Option<&Buffer>,
-    journal_cap: usize,
+    bounds: Bounds,
 ) -> Transcript {
     let err = Buffer::default();
     let out = stdout.cloned().unwrap_or_else(|| err.clone());
@@ -117,7 +117,7 @@ fn session_with(
         diags: Box::new(err.clone()),
     };
     let program = disk::load_session(dir).expect("the session's scope");
-    run(&mut script, dir, program, streams, journal_cap, on_start).expect("the session ends");
+    run(&mut script, dir, program, streams, bounds, on_start).expect("the session ends");
     Transcript {
         out: err.text(),
         script,
@@ -172,7 +172,7 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
         .sources
         .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
     let mut diags = Vec::new();
-    let input = super::build_input(&program, &store, &built, 1, &mut diags);
+    let input = super::build_input(&program, &store, &built, None, 1, &mut diags);
     assert!(input.is_some(), "{}", String::from_utf8_lossy(&diags));
     assert_eq!(crate::take_built(), [pipeline, pipeline]);
 }
@@ -200,13 +200,7 @@ fn dbg_lines_come_before_the_value_line() {
         "",
         "next(+5)",
     ]);
-    let t = session_with(
-        &dir,
-        script,
-        |_| {},
-        Some(&stdout),
-        hd_run::journal::SESSION_CAP,
-    );
+    let t = session_with(&dir, script, |_| {}, Some(&stdout), Bounds::default());
     assert_eq!(stdout.text(), "out\n6 : i32\n");
     assert_eq!(t.out, "repl#2:2:5: x = 5\n");
 }
@@ -238,7 +232,7 @@ fn the_value_line_is_on_standard_output_alone() {
         Script::of(&["[3, 6]", "1 + 2"]),
         |_| {},
         Some(&stdout),
-        hd_run::journal::SESSION_CAP,
+        Bounds::default(),
     );
     assert_eq!(stdout.text(), "[3, 6] : List[usize]\n3 : usize\n");
     assert_eq!(t.out, "");
@@ -1033,7 +1027,11 @@ fn a_full_journal_is_noted_once() {
         "+7",
         ":reload",
     ]);
-    let t = session_with(&dir, script, |_| {}, None, 200);
+    let bounds = Bounds {
+        journal_cap: 200,
+        ..Bounds::default()
+    };
+    let t = session_with(&dir, script, |_| {}, None, bounds);
     assert_eq!(
         t.out,
         format!(
@@ -1069,6 +1067,35 @@ fn reload_repeats_no_host_call() {
         ["once", "reloaded: 7 inputs replayed", lines[0]]
     );
     assert_eq!(lines[4], "true : bool");
+}
+
+/// #228: past its bound of inputs the session rebuilds from its journal,
+/// silently. With a bound of 2 it rebuilds after the third input and
+/// again after the sixth. The clock is not read again, nothing prints
+/// again, and the bindings stay.
+#[test]
+fn a_session_past_its_bound_rebuilds_silently() {
+    let dir = Scratch::new(SCRATCH, "repl-rebuild-bound");
+    let script = Script::of(&[
+        "use std.time.{now}",
+        "t := now().unix_milliseconds()",
+        "println(\"once\")",
+        "t",
+        "let total = 1",
+        "total = total + 1",
+        "t",
+        "total",
+    ]);
+    let bounds = Bounds {
+        rebuild_after: 2,
+        ..Bounds::default()
+    };
+    let t = session_with(&dir, script, |_| {}, None, bounds);
+    let lines: Vec<&str> = t.out.lines().collect();
+    assert_eq!(lines.len(), 4, "{}", t.out);
+    assert_eq!(lines[0], "once");
+    assert!(lines[1].ends_with(" : i64"), "{}", t.out);
+    assert_eq!(lines[2..], [lines[1], "2 : usize"]);
 }
 
 /// A package `shop` whose `lib.hd` the test edits when the script hands
@@ -1340,6 +1367,7 @@ fn long_session(mix: bool) {
                     &repl.program,
                     &repl.store,
                     &repl.built,
+                    None,
                     repl.next,
                     &mut diags,
                 );

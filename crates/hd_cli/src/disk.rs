@@ -294,6 +294,7 @@ impl Program {
             doc_scopes: false,
             check_roots: None,
             session: None,
+            inputs_from: None,
             body_fuel: None,
         }
     }

@@ -84,6 +84,18 @@ fn build_input(
     built: &hd_driver::Session,
     number: u32,
 ) -> hd_driver::Output {
+    build_inputs(files, store, built, None, number)
+}
+
+/// Builds the inputs `from` to `number` as one module over the session
+/// `built`, or with `from` `None` the input `number` alone.
+fn build_inputs(
+    files: &hd_project::MemorySources,
+    store: &hd_cache::MemoryStore,
+    built: &hd_driver::Session,
+    from: Option<u32>,
+    number: u32,
+) -> hd_driver::Output {
     let host = hd_driver::Host {
         render_tir: &[],
         sources: files,
@@ -93,6 +105,7 @@ fn build_input(
     };
     let packages = hd_driver::Packages {
         session: Some(built),
+        inputs_from: from,
         ..hd_driver::Packages::default()
     };
     let goal = hd_driver::Goal::ReplInput { input: number };
@@ -159,14 +172,47 @@ impl crate::Rebuilder for Again<'_> {
         Ok((text, wasm))
     }
 
+    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String> {
+        let started = std::time::Instant::now();
+        let (Some(&first), Some(&last)) = (numbers.first(), numbers.last()) else {
+            return Err("no inputs".into());
+        };
+        let mut texts = Vec::new();
+        for n in numbers {
+            let text = self
+                .texts
+                .get(n)
+                .ok_or_else(|| format!("no text for input {n}"))?
+                .clone();
+            self.files.insert(&hd_project::repl_file(*n), &text);
+            texts.push(text);
+        }
+        let out = build_inputs(self.files, self.store, self.built, Some(first), last);
+        self.building += started.elapsed();
+        if !out.diags.is_empty() {
+            return Err(out.render());
+        }
+        let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
+            return Err(format!("inputs {first} to {last} built no module"));
+        };
+        self.added.insert(last, added);
+        Ok((texts, wasm))
+    }
+
     fn replayed(&mut self, number: u32, joined: bool) {
         let added = self.added.remove(&number);
-        if joined {
-            self.built.add(added.expect("built before it is replayed"));
-        } else {
+        if !joined {
             let file = hd_project::repl_file(number);
             self.files.retain(|p| p != file);
+        } else if let Some(added) = added {
+            self.built.add(added);
         }
+    }
+
+    fn restart(&mut self) {
+        *self.built = hd_driver::Session::start();
+        *self.files = hd_project::MemorySources::default();
+        self.added.clear();
     }
 }
 
@@ -1133,6 +1179,8 @@ fn a_long_session_rebuild_is_timed() {
         assert_eq!(rebuilt.kept.len(), 201);
         assert!(rebuilt.dropped.is_empty(), "{:?}", rebuilt.reason);
         assert_eq!(repl.session.host_calls(), calls);
+        // The prelude's instance, and one for the 200 inputs.
+        assert_eq!(repl.session.instances(), 2);
         assert_eq!(text(&io.err), "");
         assert_eq!(repl.input("total\n"), Outcome::Exit(0));
         let total: usize = (1..200).filter(|i| i % 10 != 0).sum();
@@ -1144,6 +1192,90 @@ fn a_long_session_rebuild_is_timed() {
             took.saturating_sub(building),
             took.saturating_sub(building) / 201
         );
+    });
+}
+
+/// #228: once more inputs than its bound ran, a session wants a rebuild,
+/// and the rebuild holds the replayed inputs in one instance. With a
+/// bound of 3 the fourth input asks for it, and only it: the session then
+/// holds two instances, the prelude's and the inputs'. No host call
+/// repeats, nothing prints again, and later inputs see the same bindings.
+#[test]
+fn a_session_past_its_bound_rebuilds_into_one_instance() {
+    let inputs = [
+        "use std.time.{now}\nfn twice(n: usize) -> usize: n * 2\n",
+        "let total = 5\nstarted := now().unix_milliseconds()\nprintln(\"once\")\n",
+        "started\n",
+        "total = twice(total)\n",
+        "started\n",
+        "total\n",
+        "1 + 1\n",
+    ];
+    with_session(|session, io| {
+        session.set_rebuild_after(3);
+        let mut repl = repl_with_prelude(session);
+        let mut rebuilds = 0;
+        let mut out = String::new();
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+            out.push_str(&text(&io.out));
+            if repl.session.wants_rebuild() {
+                assert_eq!(repl.session.instances(), 5);
+                let calls = repl.session.host_calls();
+                let rebuilt = repl.rebuild();
+                assert_eq!(
+                    rebuilt,
+                    crate::Rebuilt {
+                        kept: (0..=4).collect(),
+                        ..crate::Rebuilt::default()
+                    }
+                );
+                assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+                assert_eq!(repl.session.instances(), 2);
+                assert_eq!(text(&io.out), "");
+                rebuilds += 1;
+            }
+        }
+        assert_eq!(rebuilds, 1);
+        assert_eq!(repl.session.instances(), 5);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 5, "{out}");
+        assert_eq!(lines[0], "once");
+        assert!(lines[1].ends_with(" : i64"), "{out}");
+        assert_eq!(lines[2], lines[1]);
+        assert_eq!(lines[3..], ["10 : usize", "2 : usize"]);
+        assert_eq!(text(&io.err), "");
+        assert_eq!(journal_inputs(repl.session), (0..=7).collect::<Vec<_>>());
+    });
+}
+
+/// #228: an input that panicked added nothing for the inputs after it, so
+/// a rebuild builds it alone, between the runs of inputs it holds in one
+/// instance each. Its change to an earlier value survives.
+#[test]
+fn a_rebuild_builds_a_panicked_input_alone() {
+    let inputs = [
+        ("let log: mut List[string] = []\n", 0),
+        ("log.push(\"a\")\nline := log[5]\n", 3),
+        ("log.push(\"b\")\n", 0),
+        ("log.len()\n", 0),
+    ];
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        for (input, status) in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(status));
+        }
+        assert_eq!(text(&io.out), "2 : usize\n");
+        assert_eq!(
+            text(&io.err),
+            "panic: index-out-of-bounds: list index out of bounds\n"
+        );
+        assert_eq!(repl.rebuild().kept, [0, 1, 2, 3, 4]);
+        // The prelude, input 1, input 2 alone, then inputs 3 and 4.
+        assert_eq!(repl.session.instances(), 4);
+        assert_eq!(repl.input("log.join(\", \")\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.out), "\"a, b\" : string\n");
+        assert_eq!(text(&io.err), "");
     });
 }
 

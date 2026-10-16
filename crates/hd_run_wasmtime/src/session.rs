@@ -33,6 +33,13 @@
 //! `session_rebuild.rs`). Past
 //! `hd_run::journal::SESSION_CAP` recording stops; the REPL then says once
 //! that the session can no longer be rebuilt (`take_journal_notice`).
+//!
+//! wasmtime frees no instance before its store, so each input holds its
+//! instance, about 89 KiB, until the session ends. Once more than
+//! `REBUILD_AFTER` inputs ran since the session started or last rebuilt,
+//! `wants_rebuild` says so, and the REPL rebuilds the session silently: a
+//! rebuild holds the inputs it replays in one instance
+//! (`session_rebuild.rs`).
 
 use hd_base::HashSet;
 use std::sync::Arc;
@@ -53,6 +60,11 @@ use crate::{cache, limits};
 #[path = "session_rebuild.rs"]
 mod rebuild;
 pub use rebuild::{Rebuilder, Rebuilt};
+
+/// How many inputs a session runs, after it starts or rebuilds, before it
+/// wants a rebuild to free their instances' memory (#228, decided
+/// 2026-10-16): about 87 MiB of instances at 89 KiB each.
+pub const REBUILD_AFTER: usize = 1000;
 
 /// A REPL session: the instances of every input that ran, in one store.
 /// Like the `Engine` methods, it runs on a thread with at least
@@ -75,6 +87,13 @@ pub struct WasmtimeSession {
     /// Set by a `Stopper`; the store's epoch callback, every host call and
     /// the host's wait read it.
     flag: Arc<AtomicBool>,
+    /// The instances the store holds.
+    instances: usize,
+    /// The inputs, not the prelude, that `run_input` started since the
+    /// store did.
+    ran: usize,
+    /// `REBUILD_AFTER`, or a test's lower bound.
+    rebuild_after: usize,
 }
 
 /// Interrupts the input a `WasmtimeSession` is running. It is `Send +
@@ -137,6 +156,9 @@ impl WasmtimeEngine {
             config: self.config,
             profile: self.profile,
             flag,
+            instances: 0,
+            ran: 0,
+            rebuild_after: REBUILD_AFTER,
         })
     }
 }
@@ -150,7 +172,31 @@ impl WasmtimeSession {
     /// run: one wasmtime refuses, an import not on wasmtime yet, or a
     /// session import no earlier input exports. Such an input does not run.
     pub fn run_input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
-        self.run_ended(number, source, wasm).0
+        let (outcome, end) = self.run_ended(number, source, wasm);
+        if end.is_some() && number != 0 {
+            self.ran += 1;
+        }
+        outcome
+    }
+
+    /// Whether more inputs than the bound (`REBUILD_AFTER`) ran since the
+    /// session started or last rebuilt, so a rebuild would free the
+    /// memory of their instances.
+    #[must_use]
+    pub fn wants_rebuild(&self) -> bool {
+        self.ran > self.rebuild_after
+    }
+
+    /// Sets the bound `wants_rebuild` reads, `REBUILD_AFTER` until then.
+    pub fn set_rebuild_after(&mut self, inputs: usize) {
+        self.rebuild_after = inputs;
+    }
+
+    /// The instances the session's store holds: one per input that ran,
+    /// or after a rebuild one for each run of inputs it held together.
+    #[must_use]
+    pub fn instances(&self) -> usize {
+        self.instances
     }
 
     /// Runs an input as `run_input` does, and answers how it ended too, as
@@ -178,7 +224,14 @@ impl WasmtimeSession {
         self.run.halt = None;
         self.run.last_trapped = false;
         let result = self.execute(&module);
-        let end = match (&result, self.run.halt) {
+        let end = self.ended(&result);
+        (result, Some(end))
+    }
+
+    /// How the input that ran ended, as its `End` row says, which this
+    /// writes.
+    fn ended(&mut self, result: &Result<Outcome, String>) -> End {
+        let end = match (result, self.run.halt) {
             (Ok(_), Some(halt)) => halt,
             (Ok(Outcome::Exit(_)), None) if self.run.last_trapped => End::Trapped,
             (Ok(Outcome::Exit(status)), None) => End::Exit(*status),
@@ -188,14 +241,37 @@ impl WasmtimeSession {
         if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
             journal.end(end);
         }
-        (result, Some(end))
+        end
     }
 
     /// Instantiates and runs an input whose host imports the linker
     /// defines.
     fn execute(&mut self, module: &wasmtime::Module) -> Result<Outcome, String> {
-        let instance = match self.linker.instantiate(&mut self.run.store, module) {
+        let instance = match self.instantiate(module)? {
             Ok(instance) => instance,
+            Err(outcome) => return Ok(outcome),
+        };
+        let outcome = self.run_entry(instance, "hd.init", "hd.poll")?;
+        if outcome == Outcome::Exit(0) {
+            self.add(instance)?;
+        } else {
+            self.reset()?;
+        }
+        Ok(outcome)
+    }
+
+    /// Instantiates a module whose host imports the linker defines, or
+    /// answers how its input ended when that ran out of heap or time or
+    /// was stopped. `Err` is a module the session cannot instantiate.
+    fn instantiate(
+        &mut self,
+        module: &wasmtime::Module,
+    ) -> Result<Result<wasmtime::Instance, Outcome>, String> {
+        match self.linker.instantiate(&mut self.run.store, module) {
+            Ok(instance) => {
+                self.instances += 1;
+                Ok(Ok(instance))
+            }
             Err(error)
                 if limits::is_heap_exhausted(&error)
                     || matches!(
@@ -206,15 +282,24 @@ impl WasmtimeSession {
                 self.run.done = None;
                 let outcome = self.run.trapped(&error);
                 self.reset()?;
-                return Ok(outcome);
+                Ok(Err(outcome))
             }
-            Err(error) => return Err(format!("{error:#}")),
-        };
-        self.run
-            .enter(instance, "hd.init", "hd.poll")
-            .map_err(|e| match e {
-                StartError::Refused(m) | StartError::Engine(m) => m,
-            })?;
+            Err(error) => Err(format!("{error:#}")),
+        }
+    }
+
+    /// Runs an input from `instance`'s entry exports `init` and `poll`, as
+    /// a program's entry runs, and answers how it ended. A panic is
+    /// reported on standard error and ends it with status 3.
+    fn run_entry(
+        &mut self,
+        instance: wasmtime::Instance,
+        init: &str,
+        poll: &str,
+    ) -> Result<Outcome, String> {
+        self.run.enter(instance, init, poll).map_err(|e| match e {
+            StartError::Refused(m) | StartError::Engine(m) => m,
+        })?;
         let outcome = match self.run.init() {
             Outcome::Exit(0) => hd_run::drive(&mut self.run, usize::MAX),
             other => other,
@@ -228,11 +313,6 @@ impl WasmtimeSession {
             }
             other => other,
         };
-        if outcome == Outcome::Exit(0) {
-            self.add(instance)?;
-        } else {
-            self.reset()?;
-        }
         Ok(outcome)
     }
 

@@ -231,6 +231,17 @@ on wasmtime only.
    that waits on the host (`cli.repl.stop`, `cli.repl.cancel`).
 4. `:reload` rebuilds the session from disk and replays each input with
    its host calls served from the journal (`cli.repl.rebuild`).
+5. Each input holds its wasmtime instance until the store goes. Once
+   more than `hd_run_wasmtime::REBUILD_AFTER` (1000) inputs ran since the
+   session started or last rebuilt, the REPL rebuilds it over the same
+   files (#228). It writes no `reloaded:` line, but still reports a
+   skipped or dropped input (`cli.repl.rebuild.stopped`, `.prefix`).
+6. A rebuild, this one or `:reload`'s, builds each run of inputs that
+   joined the session as one module (`Packages::inputs_from`), so the
+   store holds one instance for them. Input N runs from its exports
+   `hd.init.N` and `hd.poll.N`. A panicked input is built alone. When an
+   input no longer builds or replays, the rebuild starts again with one
+   module per input, which finds the prefix to keep.
 
 ### 7.9 The Playground
 

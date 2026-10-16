@@ -20,6 +20,16 @@
 //!
 //! The new journal records the replayed inputs again, so after the last
 //! one the session goes on live, recording after them.
+//!
+//! A rebuild first tries to hold the inputs in few instances, since
+//! wasmtime frees an instance only with its store (#228). Each run of
+//! consecutive inputs that joined the session, the prelude aside, is built
+//! as one module (`Rebuilder::build_joined`) and instantiated once; input
+//! N runs from its exports `hd.init.N` and `hd.poll.N`, each with its own
+//! record. An input that panicked or exited otherwise added nothing for
+//! the inputs after it, so it is built alone and ends its run. When an
+//! input no longer builds or replays, the rebuild starts again with one
+//! module per input, which finds the prefix to keep as described above.
 
 use std::sync::Arc;
 
@@ -29,7 +39,7 @@ use hd_run::replay::{Recorded, RecordedInput, Replay, recorded};
 use wasmtime::Linker;
 
 use super::WasmtimeSession;
-use crate::host::Host;
+use crate::host::{Host, define_session};
 use crate::instance::WasmtimeInstance;
 use crate::new_store;
 
@@ -41,9 +51,20 @@ pub trait Rebuilder {
     /// builds. Input 0 is the session's prelude.
     fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String>;
 
+    /// Builds inputs `numbers`, consecutive inputs that each joined the
+    /// session, again as one module over the inputs kept so far: their
+    /// source texts, in order, and the module, whose exports `hd.init.N`
+    /// and `hd.poll.N` run input N. `Err` when one no longer builds.
+    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String>;
+
     /// Input `number`, just built, ran again as it first did; `joined` when
-    /// it ended with status 0, so later inputs see what it declares.
+    /// it ended with status 0, so later inputs see what it declares. After
+    /// `build_joined`, each of its inputs is told once all of them ran.
     fn replayed(&mut self, number: u32, joined: bool);
+
+    /// Forgets every input built so far: the rebuild starts again, from
+    /// the prelude.
+    fn restart(&mut self);
 }
 
 /// What a rebuild kept, skipped and dropped, by input number, in order.
@@ -105,6 +126,10 @@ impl WasmtimeSession {
         cap: usize,
         rebuilder: &mut dyn Rebuilder,
     ) -> Result<Rebuilt, String> {
+        if let Some(rebuilt) = self.rebuild_joined(record, cap, rebuilder)? {
+            return Ok(rebuilt);
+        }
+        rebuilder.restart();
         self.restart(Recorder::new(cap, record.execution))?;
         let mut rebuilt = Rebuilt::default();
         // The kept inputs, built, for a second start.
@@ -153,6 +178,136 @@ impl WasmtimeSession {
         Ok(rebuilt)
     }
 
+    /// Rebuilds the session from `record` with each run of consecutive
+    /// inputs that joined it held in one instance; see the module text.
+    /// `None` when an input no longer builds or replays as before.
+    fn rebuild_joined(
+        &mut self,
+        record: &Recorded,
+        cap: usize,
+        rebuilder: &mut dyn Rebuilder,
+    ) -> Result<Option<Rebuilt>, String> {
+        self.restart(Recorder::new(cap, record.execution))?;
+        let mut rebuilt = Rebuilt::default();
+        let mut inputs: Vec<&RecordedInput> = Vec::new();
+        for input in &record.inputs {
+            if matches!(input.end, Some(End::Stopped | End::Cancelled)) {
+                rebuilt.skipped.push(input.number);
+            } else {
+                inputs.push(input);
+            }
+        }
+        let joins = |i: &&RecordedInput| i.number != 0 && i.end == Some(End::Exit(0));
+        let mut at = 0;
+        while let Some(&input) = inputs.get(at) {
+            let run = inputs[at..].iter().take_while(|i| joins(i)).count();
+            if run == 0 {
+                let Ok((source, wasm)) = rebuilder.build(input.number) else {
+                    return Ok(None);
+                };
+                if !input.ran(&source) {
+                    return Ok(None);
+                }
+                let Ok(outcome) = self.replay_input(input, &source, &wasm) else {
+                    return Ok(None);
+                };
+                rebuilder.replayed(input.number, outcome == Outcome::Exit(0));
+                rebuilt.kept.push(input.number);
+                at += 1;
+                continue;
+            }
+            let run = &inputs[at..at + run];
+            let numbers: Vec<u32> = run.iter().map(|i| i.number).collect();
+            let Ok((sources, wasm)) = rebuilder.build_joined(&numbers) else {
+                return Ok(None);
+            };
+            let same =
+                sources.len() == run.len() && run.iter().zip(&sources).all(|(i, s)| i.ran(s));
+            if !same || self.replay_joined(run, &sources, &wasm).is_err() {
+                return Ok(None);
+            }
+            for n in numbers {
+                rebuilder.replayed(n, true);
+                rebuilt.kept.push(n);
+            }
+            at += run.len();
+        }
+        Ok(Some(rebuilt))
+    }
+
+    /// Runs `inputs` again, consecutive inputs that each joined the
+    /// session, of the texts `sources`, from one instance of `wasm`, which
+    /// holds them all: input N from its exports `hd.init.N` and
+    /// `hd.poll.N`, with its host calls and wakes served from its record
+    /// and its output dropped. `Err` is a module the session cannot run,
+    /// or a divergence.
+    fn replay_joined(
+        &mut self,
+        inputs: &[&RecordedInput],
+        sources: &[String],
+        wasm: &[u8],
+    ) -> Result<(), String> {
+        self.flag.store(false, std::sync::atomic::Ordering::Relaxed);
+        let module = self.load(wasm)?;
+        define_session(&mut self.linker, &module, self.profile, &mut self.hosts)?;
+        self.run.store.data_mut().muted = true;
+        let result = self.replay_each(inputs, sources, wasm, &module);
+        let host = self.run.store.data_mut();
+        host.muted = false;
+        host.replay = None;
+        result
+    }
+
+    /// `replay_joined`'s inputs, in order, then the instance's session
+    /// keys added to the linker for later inputs.
+    fn replay_each(
+        &mut self,
+        inputs: &[&RecordedInput],
+        sources: &[String],
+        wasm: &[u8],
+        module: &wasmtime::Module,
+    ) -> Result<(), String> {
+        let mut instance = None;
+        for (input, source) in inputs.iter().zip(sources) {
+            let host = self.run.store.data_mut();
+            host.replay = Some(Replay::new(input));
+            host.reported = false;
+            if let Some(journal) = host.journal.as_mut() {
+                journal.input(input.number, source.as_bytes(), wasm);
+            }
+            self.run.halt = None;
+            self.run.last_trapped = false;
+            let made = match instance {
+                Some(made) => Ok(made),
+                None => self.instantiate(module)?,
+            };
+            let result = match made {
+                Ok(made) => {
+                    instance = Some(made);
+                    let n = input.number;
+                    self.run_entry(made, &format!("hd.init.{n}"), &format!("hd.poll.{n}"))
+                }
+                Err(outcome) => Ok(outcome),
+            };
+            let end = self.ended(&result);
+            let mut replay = self
+                .run
+                .store
+                .data_mut()
+                .replay
+                .take()
+                .ok_or("the replay ended before its input")?;
+            replay.end(end, input.end)?;
+            if result? != Outcome::Exit(0) {
+                return Err(format!("input {} did not end as before", input.number));
+            }
+        }
+        match instance {
+            Some(instance) => self.add(instance),
+            None => Ok(()),
+        }
+    }
+
     /// Runs `input` again, of the text `source` built as `wasm`, with its
     /// host calls and wakes served from its record and its output dropped.
     /// `Err` is a divergence: it asked for what the record does not hold,
@@ -198,6 +353,8 @@ impl WasmtimeSession {
         self.hosts.clear();
         self.memory = false;
         self.runtime.clear();
+        self.instances = 0;
+        self.ran = 0;
         Ok(())
     }
 }
