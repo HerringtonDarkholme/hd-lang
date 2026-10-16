@@ -94,6 +94,13 @@ pub struct Counters {
     /// How many TIR bodies were decoded: only the ones collection and
     /// emission reach (#49).
     pub bodies_decoded: usize,
+    /// How many folder interface item records were decoded from blobs:
+    /// only the ones the run reads (#213).
+    pub iface_records: usize,
+    /// Of those, the records of items other than impls and traits, which
+    /// the solver's tables and the method index read whole: the ones the
+    /// run named.
+    pub iface_other_records: usize,
     /// Impl head pairs the coherence check unified (§4.12.3).
     pub overlap_pairs: usize,
     pub emitted: usize,

@@ -4724,7 +4724,7 @@ pub fn template_of(
         .own
         .iter()
         .find(is)
-        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.iter().find(is)))
+        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.impls().find(is)))
         .map(|it| it.def)
 }
 
@@ -4979,7 +4979,7 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
             continue;
         };
         let node = names.module(m);
-        for it in &iface.items {
+        for it in iface.items.impls() {
             if let ItemData::Impl {
                 trait_,
                 by: Some(by),

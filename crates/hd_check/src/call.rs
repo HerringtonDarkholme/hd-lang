@@ -50,8 +50,9 @@ impl MethodIndex {
         for it in lookup.own {
             add(it);
         }
+        // Only impls and traits name methods (#213).
         for f in &lookup.ifaces {
-            for it in &f.items {
+            for it in f.items.impls().chain(f.items.traits()) {
                 add(it);
             }
         }

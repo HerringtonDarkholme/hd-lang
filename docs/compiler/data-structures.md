@@ -647,10 +647,19 @@ memory-mapped it from the cache.
   definition, record offset and parameter names. Reading an entry
   decodes its tables and that index. `Items` decodes a record on first
   use and counts it (`Items::decoded`).
-- **What is not.** The blob is not memory-mapped, the tables still
-  intern every row up front, and the passes that scan every item
-  (coherence's `Universe`, the conflict checks) still decode every
-  record (#213).
+- **Index scans.** The passes that used to scan every item read the
+  index instead: each item's tag marks an impl (and its kind) or a
+  trait, so coherence's `Universe`, the solver's impl tables, the
+  conflict checks, template lookup and the method index decode only
+  those records.
+- **Mentions.** An interface entry stores the folders its interface
+  names, so a hit derives its deep hash without decoding.
+- **Cost.** A warm `println` check decodes std's impls, which the
+  solver's tables hold whole, plus the three other records it names
+  (`Counters::iface_other_records`, crates/hd_driver/tests/all/lazy_ifaces.rs).
+- **What is not built.** The blob is not memory-mapped, the tables still
+  intern every row up front, and an impl table is not built per trait on
+  demand.
 
 Planned, not built: std's blobs embedded as one pack in the binary
 (`hd_stdpack`). Today the driver embeds std's sources and builds std's

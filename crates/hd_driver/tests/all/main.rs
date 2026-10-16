@@ -93,6 +93,7 @@ mod item_too_complex;
 mod join_once;
 mod key_assoc_function_run;
 mod known_closure_calls;
+mod lazy_ifaces;
 mod least_common_type_run;
 mod let_mut_module_level;
 mod let_pattern_mut_run;

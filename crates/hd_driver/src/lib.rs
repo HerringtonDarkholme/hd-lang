@@ -1707,6 +1707,19 @@ fn build_packages_inner(
     }
     let mut counters = lock(&run.counters).clone();
     counters.body_passes = run.planner.pass_runs();
+    // The interface item records this run decoded from blobs (#213).
+    counters.iface_records = run
+        .iface
+        .iter()
+        .filter_map(|i| i.get().cloned().flatten())
+        .map(|i| i.items.decoded())
+        .sum();
+    counters.iface_other_records = run
+        .iface
+        .iter()
+        .filter_map(|i| i.get().cloned().flatten())
+        .map(|i| i.items.decoded_other())
+        .sum();
     counters.sort();
     let report = lock(&run.report).clone();
     let diags = std::mem::take(&mut *lock(&run.diags));
@@ -2827,6 +2840,19 @@ impl Run<'_> {
             .collect()
     }
 
+    /// The folders an interface entry's mention section names, with this
+    /// run's deep hashes: `None` when one is not built or is gone.
+    fn mentioned(&self, b: &[u8]) -> Option<Vec<(String, Hash128)>> {
+        let mut r = Reader::new(b);
+        let mut out = Vec::new();
+        for _ in 0..r.count() {
+            let path = r.str();
+            let f = self.table.folders.iter().find(|f| f.path == path)?;
+            out.push((path.to_owned(), self.iface_of(f.id)?.deep_hash));
+        }
+        r.ok().then_some(out)
+    }
+
     /// Re-emits a folder's stage-A diagnostics against this run's files,
     /// with the severity each was reported with.
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
@@ -3064,21 +3090,35 @@ impl Run<'_> {
         let psec = hd_resolve::encode_private_names(&names, &out.private_names);
         let lsec = hd_resolve::encode_private_names(&names, &out.loop_names);
         let usec = hd_resolve::encode_module_uses(&out.module_uses);
-        self.put(
-            EntryKind::Iface,
-            key,
-            &[&blob, &dsec, &asec, &psec, &lsec, &usec, &hsec],
-        );
-        self.keep_input(
-            folder.modules[0].idx(),
-            |e| &mut e.iface,
-            || vec![blob.clone(), dsec, asec, psec, lsec, usec.clone(), hsec],
-        );
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
             return;
         };
+        // The folders the interface names, so a hit finds them without
+        // decoding its items (#213).
+        let msec = encode_mentioned(&mentions);
+        self.put(
+            EntryKind::Iface,
+            key,
+            &[&blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec],
+        );
+        self.keep_input(
+            folder.modules[0].idx(),
+            |e| &mut e.iface,
+            || {
+                vec![
+                    blob.clone(),
+                    dsec,
+                    asec,
+                    psec,
+                    lsec,
+                    usec.clone(),
+                    hsec,
+                    msec,
+                ]
+            },
+        );
         self.keep_input(
             folder.modules[0].idx(),
             |e| &mut e.mentions,
@@ -3134,7 +3174,10 @@ impl Run<'_> {
         };
         let mentions = match mentions {
             Some(m) => m.to_vec(),
-            None => self.mentions(folder.id, &items, &exports)?,
+            None => match sections.get(7) {
+                Some(b) => self.mentioned(b)?,
+                None => self.mentions(folder.id, &items, &exports)?,
+            },
         };
         // The hash of the blob without the impls of private types, when
         // it has any: sixteen bytes, or none.
@@ -3903,7 +3946,7 @@ impl Run<'_> {
         }
         self.computed(Stage::Coherence);
         let names = self.names();
-        let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
+        let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.impls()));
         // A REPL session is one module whose content runs `src/lib.hd`
         // first, then the inputs by number (`cli.repl.redefine.impl`), so
         // input 10 sorts after input 9.
@@ -4190,22 +4233,26 @@ impl Run<'_> {
             let iface = self.iface_of(c)?;
             let templates = self.folder_templates[c.idx()].get_or_init(|| {
                 let names = self.names();
-                let mut ts: Vec<FolderTemplate> = iface
-                    .items
-                    .iter()
-                    .filter_map(|it| match it.data {
-                        ItemData::Impl {
-                            kind: hd_resolve::ImplKind::Template,
-                            trait_,
-                            ..
-                        } => Some((names.module_of(it.def), Some(trait_))),
-                        ItemData::Impl {
-                            kind: hd_resolve::ImplKind::TupleTemplate,
-                            ..
-                        } => Some((names.module_of(it.def), None)),
-                        _ => None,
+                // From the item index: only a template's record is read (#213).
+                let items = &iface.items;
+                let mut ts: Vec<FolderTemplate> = (0..items.len())
+                    .filter_map(|i| {
+                        let (kind, _) = items.impl_kind(i)?;
+                        let template = match kind {
+                            hd_resolve::ImplKind::Template => true,
+                            hd_resolve::ImplKind::TupleTemplate => false,
+                            _ => return None,
+                        };
+                        let p = names.module_of(*items.defs().get(i)?);
+                        if p.starts_with("std.") {
+                            return None;
+                        }
+                        let trait_ = match items.get(i)?.data {
+                            ItemData::Impl { trait_, .. } if template => Some(trait_),
+                            _ => None,
+                        };
+                        Some((p, trait_))
                     })
-                    .filter(|(p, _)| !p.starts_with("std."))
                     .collect();
                 ts.sort_by(|a, b| (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw))));
                 ts.dedup();
@@ -4344,11 +4391,8 @@ impl Run<'_> {
         self.folder_impls[f.idx()]
             .get_or_init(|| {
                 let iface = self.iface_of(f)?;
-                let impls: Vec<&Item> = iface
-                    .items
-                    .iter()
-                    .filter(|x| matches!(x.data, ItemData::Impl { .. }))
-                    .collect();
+                // Only the impls' records are read (#213).
+                let impls: Vec<&Item> = iface.items.impls().collect();
                 let table = hd_resolve::impl_table(&self.names(), &impls);
                 let fi = FolderImpls::new(f, table, self.pool.types(), &self.paths, self.owners());
                 Some(Arc::new(fi))
@@ -7882,6 +7926,16 @@ fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, Str
 }
 
 /// Stage-B findings by item index in the folder's interface.
+/// The folders an interface names, by path, for its entry.
+fn encode_mentioned(mentions: &[(String, Hash128)]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(mentions);
+    for (path, _) in mentions {
+        w.str(path);
+    }
+    w.bytes
+}
+
 fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);

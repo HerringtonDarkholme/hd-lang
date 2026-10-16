@@ -1131,6 +1131,7 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     for it in items {
         index.u32(t.def(it.def));
         index.u32(u32::try_from(body.bytes.len()).expect("blob"));
+        index.u8(impl_tag(it));
         let (own, params) = param_names(it);
         index.u8(u8::from(own));
         index.len_of(params);
@@ -1158,6 +1159,24 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     out.bytes.extend_from_slice(&w.bytes);
     Ok(out.bytes)
 }
+
+/// An item's index tag: its impl kind's position in `ImplKind::ALL`, with
+/// `INHERENT` set for an inherent block; `TRAIT` for a trait; else
+/// `NOT_IMPL`.
+fn impl_tag(item: &Item) -> u8 {
+    match &item.data {
+        ItemData::Impl { kind, trait_, .. } => {
+            let at = ImplKind::ALL.iter().position(|k| k == kind).unwrap_or(0);
+            u8::try_from(at).unwrap_or(0) | if *trait_ == DefId::NONE { INHERENT } else { 0 }
+        }
+        ItemData::Trait(_) => TRAIT,
+        _ => NOT_IMPL,
+    }
+}
+
+const NOT_IMPL: u8 = 0xff;
+const TRAIT: u8 = 0xfe;
+const INHERENT: u8 = 0x80;
 
 /// The generic parameters `record_params` names for an item, and whether
 /// its own `Self` comes first (a trait's).
@@ -1188,10 +1207,15 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
     let mut r = Reader::new(&bytes);
     let t = Tables::read(&mut r, names.pool, names.paths, names.syms)?;
     let n = r.count();
-    let (mut defs, mut offsets) = (Vec::with_capacity(n), Vec::with_capacity(n));
+    let (mut defs, mut offsets, mut tags) = (
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+    );
     for _ in 0..n {
         let def = t.def(r.u32())?;
         offsets.push(r.u32());
+        tags.push(r.u8());
         let own = r.u8() != 0;
         let owner = PathId::from_raw(def.raw());
         if own {
@@ -1228,7 +1252,7 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
         base,
         offsets,
     });
-    Some((Items::with_source(defs, source), exports))
+    Some((Items::with_source(defs, tags, source), exports))
 }
 
 /// Where a lazily decoded item's records are: the blob, its tables in
@@ -1247,6 +1271,8 @@ struct Source {
 #[derive(Debug, Default)]
 pub struct Items {
     defs: Vec<DefId>,
+    /// Each item's `impl_tag`, so an impl is found without its record.
+    tags: Vec<u8>,
     slots: Vec<std::sync::OnceLock<Option<Item>>>,
     source: Option<Source>,
     decoded: std::sync::atomic::AtomicUsize,
@@ -1257,22 +1283,25 @@ impl Items {
     #[must_use]
     pub fn new(items: Vec<Item>) -> Self {
         let defs = items.iter().map(|i| i.def).collect();
+        let tags = items.iter().map(impl_tag).collect();
         let slots = items
             .into_iter()
             .map(|i| std::sync::OnceLock::from(Some(i)))
             .collect();
         Self {
             defs,
+            tags,
             slots,
             source: None,
             decoded: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
-    fn with_source(defs: Vec<DefId>, source: Option<Source>) -> Self {
+    fn with_source(defs: Vec<DefId>, tags: Vec<u8>, source: Option<Source>) -> Self {
         let slots = defs.iter().map(|_| std::sync::OnceLock::new()).collect();
         Self {
             defs,
+            tags,
             slots,
             source,
             decoded: std::sync::atomic::AtomicUsize::new(0),
@@ -1309,6 +1338,45 @@ impl Items {
                 get_item(&mut Reader::new(src.bytes.get(at..)?), &src.tables)
             })
             .as_ref()
+    }
+
+    /// Item `i`'s impl kind, and whether it is an inherent block, read
+    /// from the index: `None` for an item that is not an impl.
+    #[must_use]
+    pub fn impl_kind(&self, i: usize) -> Option<(ImplKind, bool)> {
+        let tag = *self.tags.get(i)?;
+        if tag == NOT_IMPL || tag == TRAIT {
+            return None;
+        }
+        let kind = *ImplKind::ALL.get(usize::from(tag & !INHERENT))?;
+        Some((kind, tag & INHERENT != 0))
+    }
+
+    /// The impls, in order, decoding only their records.
+    pub fn impls(&self) -> impl Iterator<Item = &Item> {
+        (0..self.len())
+            .filter(|&i| self.impl_kind(i).is_some())
+            .filter_map(|i| self.get(i))
+    }
+
+    /// The traits, in order, decoding only their records.
+    pub fn traits(&self) -> impl Iterator<Item = &Item> {
+        (0..self.len())
+            .filter(|&i| self.tags.get(i) == Some(&TRAIT))
+            .filter_map(|i| self.get(i))
+    }
+
+    /// How many records of items other than impls and traits were
+    /// decoded: the ones a run asked for by definition.
+    #[must_use]
+    pub fn decoded_other(&self) -> usize {
+        if self.source.is_none() {
+            return 0;
+        }
+        (0..self.len())
+            .filter(|&i| self.tags.get(i) == Some(&NOT_IMPL))
+            .filter(|&i| self.slots.get(i).is_some_and(|s| s.get().is_some()))
+            .count()
     }
 
     /// Every item, in order, each decoded on first use.

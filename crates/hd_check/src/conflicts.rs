@@ -61,7 +61,7 @@ pub fn inherent_methods(names: &Names<'_>, lookup: &Lookup<'_>) -> Inherent {
     let all = lookup
         .own
         .iter()
-        .chain(lookup.ifaces.iter().flat_map(|f| f.items.iter()));
+        .chain(lookup.ifaces.iter().flat_map(|f| f.items.impls()));
     for it in all {
         if let ItemData::Impl {
             trait_,
