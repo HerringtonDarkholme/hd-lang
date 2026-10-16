@@ -1,0 +1,8 @@
+# test: a repeated trait in one bound still may not bind the same associated type twice
+# Spec 09 Binding Names: trait.binding.once.error; Spec 09 Generic Bounds And Static Dispatch: trait.bound.repeat.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn count[I < Supplier[Item = i32] & Supplier[Item = string]](source: I) -> i32:  # diagnostic: duplicate-associated-binding
+    0

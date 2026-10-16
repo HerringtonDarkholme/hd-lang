@@ -1,0 +1,11 @@
+# test: a binding must name an associated type the trait declares or reaches through its supertraits
+# Spec 09 Binding Names: trait.binding.name-reach.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+fn first[I < NamedSupplier[Element = i32]](source: I) -> I::Item:  # diagnostic: unknown-associated-type
+    source.get()

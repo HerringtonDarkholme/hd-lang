@@ -1,0 +1,8 @@
+# test: binding one associated type twice in the same bound is an error even when both name the same type
+# Spec 09 Binding Names: trait.binding.once, trait.binding.once.error.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn first[I < Supplier[Item = i32, Item = i32]](source: I) -> i32:  # diagnostic: duplicate-associated-binding
+    source.get()
