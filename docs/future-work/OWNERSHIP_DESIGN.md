@@ -255,6 +255,17 @@ fn with_verbose!(job: own fn!() -> void) -> void:  # hypothetical syntax
     job()                                          # cancelled or failed: it still runs
 ```
 
+A guard's `drop` runs with no requirement row, so a `defer` body may
+call only code that needs none. Code that needs a provider fetches it
+first and calls methods on the captured value:
+
+```text
+fn work() -> void $ Audit:
+    a := $.use(Audit)
+    defer: a.note()                                # fine: needs no row
+    defer: record()                                # error: a defer body cannot need $ Audit
+```
+
 A `drop` must not suspend and cannot fail. Cleanup that must, such as a
 buffered writer that flushes over the network, is an explicit method
 called before the drop:
@@ -821,6 +832,9 @@ This section states each rule from the tour once, grouped by topic.
    (4.1), so every value of it is dropped exactly once.
 8. An owned temporary that is not bound is dropped at the end of its
    statement.
+9. `defer: body` means `guard := on_exit(fn(): body)`. Its body runs
+   with no requirement row; a call that needs one is
+   `defer-needs-row`.
 
 ### 4.6 Generics, `dyn`, Closures, And Frames
 
@@ -964,7 +978,7 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 
 ## Parse Log
 
-Every `text` block, 27 in all, was parsed on 2026-10-16 with
+Every `text` block, 28 in all, was parsed on 2026-10-16 with
 `scripts/hd-conformance.sh parse`. Each was parsed as written and with
 the marks erased (`own`, `^`, `^{...}`, lifetime brackets). Parsing
 checks syntax only. Nothing was type-checked, and the blocks call
@@ -972,5 +986,5 @@ functions this study does not define.
 
 | Result | Blocks |
 | --- | --- |
-| Parses as written | 4, among them section 1 and the REPL inputs in 3.11 |
+| Parses as written | 5, among them section 1, the REPL inputs in 3.11, and the `defer` row example in 3.1 |
 | Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 23 |
