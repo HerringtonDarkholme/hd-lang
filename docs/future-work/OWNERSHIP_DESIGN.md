@@ -950,10 +950,9 @@ more thought on generics and ownership before the design settles:
 ## Appendix: Limits And Holes
 
 The holes found so far are closed by the owner's rules: B7 by allowing
-`own` and `^mut` fields only in `OwnOnly` types, with conditional
-ownership derived by `Structure` for generic holders; B8 by
-`T < own Any`; and the second review's
-U4 to U8 by no partial moves, drop counting as a use of held borrows,
+`own` and `^mut` fields only in `OwnOnly` types, with ownership
+derived by `Structure` for generic holders; B8 by `T < own Any`; and the
+second review's U4 to U8 by no partial moves, drop counting as a use of held borrows,
 `OwnOnly` for holders of `^mut`, plain-only providers, and
 immovable borrowed globals. A plain alias or a plain closure capture
 that changes a borrowed variable's object is not a hole: plain values
