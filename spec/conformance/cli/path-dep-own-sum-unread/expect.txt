@@ -1,0 +1,3 @@
+# The root's selection holds for money: its own hd.sum and workspace are never read.
+run: hd run
+stdout: 300

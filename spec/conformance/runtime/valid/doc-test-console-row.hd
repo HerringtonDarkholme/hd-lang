@@ -1,0 +1,12 @@
+# test: the runner binds a doc test's row as for an integration test case, so println gets Console
+# Spec 10 Doc Tests: module.test.doc.requirements.
+# fixture-package-tree: doc-tests/src/greeting.hd
+
+## Greets a name.
+##
+## ```hd
+## use pkg.greeting.{greet}
+##
+## println(greet("ada"))
+## ```
+pub fn greet(name: string) -> string: "hello, $name"

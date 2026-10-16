@@ -1,0 +1,7 @@
+use dep.money.{cents}
+
+pub fn main() -> void $ Console:
+    println(cents(3))
+
+# Spec 10 Path Requirements: module.path-dep.root-selection. money's own hd.sum
+# is not a sum file and its workspace names a missing member, but neither is read.

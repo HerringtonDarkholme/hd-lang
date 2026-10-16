@@ -1,0 +1,7 @@
+use dep.billing.{billing_name}
+
+pub fn main() -> void $ Console:
+    println(billing_name())
+
+# Spec 10 Path Requirements: module.path-dep.fetched-outside. billing's untagged
+# commit requires money = { path = "../money" }, outside its repository.

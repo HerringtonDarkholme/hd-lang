@@ -1,0 +1,5 @@
+pub fn main() -> void $ Console:
+    println("built")
+
+# Spec 10 Toolchain Version: module.toolchain.minimum. hd.toml states the minimum
+# toolchain 0.0.0, which every toolchain meets.

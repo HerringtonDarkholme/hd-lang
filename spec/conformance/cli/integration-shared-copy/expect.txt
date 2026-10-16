@@ -1,0 +1,3 @@
+# tests/cart.hd and tests/checkout.hd are two programs. Each gets its own copy of
+# tests/common/mod.hd, whose top-level push runs once in each, so both pass.
+run: hd test

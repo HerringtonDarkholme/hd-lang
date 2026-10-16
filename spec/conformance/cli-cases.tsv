@@ -162,3 +162,10 @@ workspace-one-selection	cli.dep.workspace-fetch,cli.mode.workspace,cli.workspace
 workspace-fetched-member	cli.dep.workspace-fetch,cli.mode.workspace,cli.workspace.select.anywhere
 dep-path-version-local	cli.dep.implicit-fetch,cli.run.default.one
 dep-path-version-fetched	cli.dep.fetch,cli.dep.tag
+path-dep-workspace-manifest	cli.dep.invalid,cli.json.diagnostic.file
+path-dep-own-sum-unread	cli.dep.path,cli.dep.reached
+path-dep-fetched-outside	cli.dep.invalid,cli.dep.pseudo,cli.dep.fetch
+toolchain-minimum-met	cli.manifest.toolchain-keys,cli.exit.success
+toolchain-dependency-too-old	cli.manifest.toolchain-keys,cli.dep.reached
+integration-shared-copy	cli.test.every-case,cli.exit.success
+doc-test-compile-fail-compiles	cli.test.doc.default,cli.exit.test-failure

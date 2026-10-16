@@ -1,0 +1,6 @@
+# test: only a lowercase mod.hd is a directory module, so src/sub/Mod.hd is the module sub.Mod
+# Spec 10 Module Identity: module.path.suffix. The tree holds src/sub/Mod.hd.
+# fixture-package-tree: path-suffix/src/app.hd
+use pkg.sub.Mod.{inner}
+
+pub fn shown() -> i32: inner()

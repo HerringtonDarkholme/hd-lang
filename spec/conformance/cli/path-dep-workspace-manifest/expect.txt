@@ -1,0 +1,4 @@
+# money/hd.toml has a [workspace] table and no [package], so the path requirement names no package.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","file":"hd.toml"},{"kind":"summary","errors":1,"status":101}]

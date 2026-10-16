@@ -1,0 +1,7 @@
+# billing is fetched at an untagged commit, whose manifest holds the path
+# requirement money = { path = "../money" }. That directory lies outside
+# billing's repository, so no host path names it.
+run: hd fetch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum

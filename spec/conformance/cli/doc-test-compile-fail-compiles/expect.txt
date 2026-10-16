@@ -1,0 +1,3 @@
+# The compile-fail doc test compiles, so it fails, and hd test exits 1.
+run: hd test
+exit: 1

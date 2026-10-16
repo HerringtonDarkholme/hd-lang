@@ -1,0 +1,8 @@
+# test: src/lib.hd is the root's public index, so its pub use names reach pkg.{...}
+# Spec 10 Root Files: module.path.lib-index. The tree's src/lib.hd re-exports
+# Cart and empty from pkg.shop.cart.
+# fixture-package-tree: lib-index/src/checkout.hd
+use pkg.{Cart, empty}
+
+pub fn start() -> Cart:
+    empty()

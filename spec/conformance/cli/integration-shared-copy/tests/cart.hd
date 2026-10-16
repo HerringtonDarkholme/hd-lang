@@ -1,0 +1,6 @@
+use pkg.{price}
+use self.common.{known}
+use std.testing.assert_equal
+
+it("cart sees one initialized copy"):
+    assert_equal(known(), [price()], reason="the top-level push ran once in this program")

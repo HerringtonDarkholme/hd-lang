@@ -1,0 +1,4 @@
+# money, a package in the selected graph, needs a newer toolchain than this one.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"toolchain-too-old","severity":"error"},{"kind":"summary","errors":1,"status":101}]

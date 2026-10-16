@@ -3137,3 +3137,12 @@ typing/invalid/use-names-exec-binding.hd	type	reject:unknown-import	lang/03-name
 typing/valid/files-of-folder-use-each-other.hd	type	accept	lang/03-names-and-scopes.md#r-names.use.cycles-in-folder
 typing/invalid/folders-use-each-other.hd	type	reject:folder-cycle	lang/03-names-and-scopes.md#r-names.use.folder-cycle
 runtime/valid/tuple-binding-one-annotation.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.tuple.annotation
+typing/valid/lib-index-pub-use.hd	type	accept	lang/10-modules.md#r-module.path.lib-index
+typing/invalid/module-path-case-sensitive.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.case-sensitive
+typing/invalid/module-path-case-fold-collision.hd	type	reject:duplicate-module-name	lang/10-modules.md#r-module.path.case-collision
+typing/invalid/module-path-uppercase-suffix.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.suffix
+typing/valid/module-path-capital-mod-file.hd	type	accept	lang/10-modules.md#r-module.path.suffix
+runtime/valid/integration-program-no-module-path.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.no-path
+typing/invalid/doc-test-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.doc.relative
+runtime/valid/doc-test-console-row.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.requirements
+typing/invalid/source-root-not-a-module.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.lib-only-root

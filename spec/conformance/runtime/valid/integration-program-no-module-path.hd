@@ -1,0 +1,10 @@
+# test: tests/checkout.hd has no module path, so it never clashes with the library module src/tests/checkout.hd
+# Spec 10 Test Modules: module.test.integration.no-path. The tree holds both files.
+# fixture-package-tree: integration-no-path/src/lib.hd
+pub fn total() -> i32: +3
+
+tests:
+    use std.testing.assert_equal
+
+    it("the package builds with both checkout files"):
+        assert_equal(total(), +3, reason="no duplicate-module-name")

@@ -1,0 +1,8 @@
+let prices: mut List[i32] = []
+prices.push(+250)
+
+pub fn known() -> List[i32]:
+    prices
+
+# Spec 10 Test Modules: module.test.integration.shared-copy. Each integration test
+# program has its own copy of this module, so its top-level push runs once in each.

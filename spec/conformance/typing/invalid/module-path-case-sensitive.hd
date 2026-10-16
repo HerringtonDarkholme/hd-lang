@@ -1,0 +1,6 @@
+# test: module identities are case-sensitive, so src/Shop.hd is not pkg.shop, even on a case-insensitive filesystem
+# Spec 10 Module Identity: module.path.case-sensitive. The tree holds src/Shop.hd.
+# fixture-package-tree: case-modules/src/app.hd
+use pkg.shop.{label}  # diagnostic: unknown-module
+
+pub fn shown() -> string: label()

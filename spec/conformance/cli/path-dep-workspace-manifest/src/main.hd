@@ -1,0 +1,5 @@
+pub fn main() -> void $ Console:
+    println("shop")
+
+# Spec 10 Path Requirements: module.path-dep.no-package. money/hd.toml declares a
+# workspace and no package, so the path requirement names no package.

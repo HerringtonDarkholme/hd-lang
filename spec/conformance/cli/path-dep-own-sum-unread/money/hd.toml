@@ -1,0 +1,5 @@
+[package]
+name = "money"
+
+[workspace]
+members = ["missing"]

@@ -1,0 +1,5 @@
+pub data Cart:
+    pub items: i32
+
+pub fn empty() -> Cart:
+    Cart { items: +0 }

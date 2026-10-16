@@ -1,0 +1,7 @@
+use dep.money.{cents}
+
+pub fn main() -> void $ Console:
+    println(cents())
+
+# Spec 10 Toolchain Version: module.toolchain.graph-minimum. The root states no
+# minimum, but its dependency money needs toolchain 999.0.0.

@@ -1,0 +1,12 @@
+# test: a doc test's use path cannot start with self or super
+# Spec 10 Doc Tests: module.test.doc.relative.
+# fixture-package-tree: doc-tests/src/counter.hd
+
+## Adds one.
+##
+## ```hd
+## use self.{bump}  # diagnostic: unknown-module
+##
+## _ := bump(+1)
+## ```
+pub fn bump(value: i32) -> i32: value + 1

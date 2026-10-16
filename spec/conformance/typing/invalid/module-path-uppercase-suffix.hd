@@ -1,0 +1,6 @@
+# test: the .hd suffix is lowercase and case-sensitive, so src/cart.HD is no module
+# Spec 10 Module Identity: module.path.suffix. The tree holds src/cart.HD.
+# fixture-package-tree: path-suffix/src/app.hd
+use pkg.cart.{upper}  # diagnostic: unknown-module
+
+pub fn shown() -> i32: upper()

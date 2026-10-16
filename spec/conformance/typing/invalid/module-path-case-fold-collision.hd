@@ -1,0 +1,4 @@
+# test: src/cart.hd and src/Cart/mod.hd fold to one module path, so the package is rejected
+# Spec 10 Module Identity: module.path.case-collision. The tree holds src/Cart/mod.hd.
+# fixture-package-tree: case-collision/src/cart.hd
+pub fn second() -> i32: +2  # diagnostic: duplicate-module-name

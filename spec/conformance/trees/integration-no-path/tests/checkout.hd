@@ -1,0 +1,5 @@
+use pkg.{total}
+use std.testing.assert_equal
+
+it("totals the cart"):
+    assert_equal(total(), +3, reason="the library total")

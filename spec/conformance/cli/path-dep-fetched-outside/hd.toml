@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dependencies]
+billing = "github.com/acme/billing@0.0.0-20260921141320-d236515fb8c4"
