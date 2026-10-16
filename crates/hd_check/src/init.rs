@@ -235,6 +235,11 @@ pub struct ModuleInit {
     /// repeats none of them (`cli.repl.redeclare.binding`).
     pub declared_by: HashMap<Symbol, String>,
     pub facts: HashMap<DefId, InitFacts>,
+    /// The bindings of the top-level statements the check has not reached
+    /// yet: name, definition and source offset. A body checked on demand
+    /// for an earlier statement reads them before they have a type
+    /// (`names.init.references`).
+    pub(crate) pending: HashMap<Symbol, (DefId, u32)>,
     /// The methods of the module's own trait impls, by trait; built on
     /// first use (`module.init.definite.dispatch`).
     impl_methods: Option<HashMap<DefId, Vec<(Symbol, DefId)>>>,
@@ -249,6 +254,7 @@ impl ModuleInit {
             earlier: self.earlier.clone(),
             declared_by: self.declared_by.clone(),
             facts: HashMap::default(),
+            pending: self.pending.clone(),
             impl_methods: self.impl_methods.clone(),
         }
     }
@@ -450,6 +456,14 @@ fn init_steps(
         ck.declare_annotated(i, *s);
         if let Some(name) = ck.binding_name(*s) {
             ck.later_names.entry(name).or_insert(i);
+            let module = ck.module_init.clone().unwrap_or_default();
+            let def = cx.names.item(&module, cx.names.text(name));
+            let at = cx.src.span(*s).lo;
+            cx.init
+                .borrow_mut()
+                .pending
+                .entry(name)
+                .or_insert((def, at));
         }
     }
     let mut per_stmt = Vec::new();
@@ -1030,6 +1044,27 @@ impl Ck<'_, '_> {
             );
             self.err(Code::TopLevelReadBeforeInitialization, n, &msg);
             return Some(self.poison_value(n));
+        }
+        // A body checked on demand for an earlier statement names a binding
+        // no statement has declared yet. Its read is a fact of the body,
+        // which the initialization check weighs against the statement that
+        // reaches the body (`names.init.references`); the binding has no
+        // type yet.
+        if own.is_none() && earlier.is_none() && self.module_init.is_none() {
+            let pending = self.cx.init.borrow().pending.get(&name).copied();
+            if let Some((def, at)) = pending {
+                if self.at < at {
+                    let msg = format!(
+                        "`{}` is bound further down the module, so it is not visible here",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::BindingNotYetVisible, n, &msg);
+                } else {
+                    self.fact_read(def);
+                    self.cx.results.borrow_mut().note_poisoned_read();
+                }
+                return Some(self.poison_value(n));
+            }
         }
         if own.is_none() && earlier.is_none() {
             return None;

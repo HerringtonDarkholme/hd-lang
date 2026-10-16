@@ -196,6 +196,13 @@ impl Results {
         self.errors
     }
 
+    /// A body read a binding no statement had declared yet. The
+    /// initialization check reports it, and the poison it left in an
+    /// inferred result adds no `cannot-infer-type` to a caller.
+    pub(crate) fn note_poisoned_read(&mut self) {
+        self.errors = true;
+    }
+
     /// A template names `def`: a private callable with an omitted result
     /// type follows the public signature rules, so it is an error, once at
     /// its declaration (`module.package.template-private.result`).

@@ -1102,6 +1102,49 @@ fn method_calls_do_not_bypass_initialization_order() {
     }
 }
 
+/// A function, a bound method reference or an unbound one taken as a value
+/// reaches its body, so a statement that takes it reads what the body reads
+/// (`names.init.references`, `names.exec.methods`).
+#[test]
+fn function_values_do_not_bypass_initialization_order() {
+    const DECLS: &str = "data Meter:\n    scale: i32\n\
+        fn run(f: fn() -> i32) -> i32:\n    f()\n\
+        fn run_with(f: fn(Meter) -> i32, m: Meter) -> i32:\n    f(m)\n";
+    const LATE: &str = "offset := +1\n";
+    const BODIES: &str = "fn helper() -> i32:\n    offset\n\
+        impl Meter:\n    fn read(self) -> i32:\n        self.scale + offset\n";
+    let uses = [
+        "taken := helper\n",
+        "got := run(helper)\n",
+        "made := Meter { scale: +2 }\nbound := made::read\n",
+        "made := Meter { scale: +2 }\ngot := run(made::read)\n",
+        "unbound := Meter::read\n",
+        "made := Meter { scale: +2 }\ngot := run_with(Meter::read, made)\n",
+    ];
+    for u in uses {
+        let ok = format!("{DECLS}{LATE}{BODIES}{u}");
+        assert_eq!(item_codes(&ok), [], "{ok}");
+        let bad = format!("{DECLS}{u}{LATE}{BODIES}");
+        assert_eq!(
+            item_codes(&bad),
+            [Code::TopLevelReadBeforeInitialization],
+            "{bad}"
+        );
+    }
+}
+
+/// A body that infers its result from a binding declared below reports
+/// the read once, with no `cannot-infer-type` from the poisoned result.
+#[test]
+fn inferred_result_of_a_late_read_reports_once() {
+    let src = "x := inferred()\noffset := +1\n\nfn inferred():\n    offset * 2\n";
+    assert_eq!(
+        item_codes(src),
+        [Code::TopLevelReadBeforeInitialization],
+        "{src}"
+    );
+}
+
 /// A `:=` name bound in the operand of `&&` or `||` that may be skipped is
 /// usable only on the paths that ran it (`names.definite.path`,
 /// `names.definite.merge`, `names.definite.skipped`,
