@@ -432,6 +432,15 @@ pub enum Helper {
         name: String,
         shown: String,
     },
+    /// `() -> (ref ty)`: the `TypeId` (`ty`) whose key is `name` and whose
+    /// printable name is `shown`, built on the first call and read from
+    /// its global ([`type_id_global`]) after, so no call but the first
+    /// allocates (`crates/hd_wasm/DESIGN.md` §15.4).
+    TypeIdOf {
+        ty: WTy,
+        name: String,
+        shown: String,
+    },
     /// `(n)`: marks the `n` handles in the exchange buffer as completed.
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
@@ -749,6 +758,12 @@ impl Helper {
                 enc_wty(payload, w);
                 inner.encode(w);
             }
+            Helper::TypeIdOf { ty, name, shown } => {
+                w.u8(42);
+                enc_wty(ty, w);
+                w.str(name);
+                w.str(shown);
+            }
             Helper::RuntimeType {
                 sig,
                 ty,
@@ -966,6 +981,11 @@ impl Helper {
                 sig: dec_wty(r)?,
                 payload: dec_wty(r)?,
                 inner: Box::new(Helper::decode(r)?),
+            },
+            42 => Helper::TypeIdOf {
+                ty: dec_wty(r)?,
+                name: r.str().to_owned(),
+                shown: r.str().to_owned(),
             },
             25 => Helper::RuntimeType {
                 sig: dec_wty(r)?,
@@ -1624,8 +1644,25 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                 return unsupported("a `runtime_type` slot without a signature");
             };
             let mut a = Asm::new(params.clone());
-            push_type_id(&mut a, ty, name, shown);
+            a.call(Sym::Helper(Helper::TypeIdOf {
+                ty: ty.clone(),
+                name: name.clone(),
+                shown: shown.clone(),
+            }));
             a.finish(results.clone())
+        }
+        Helper::TypeIdOf { ty, name, shown } => {
+            let g = type_id_global(ty, name);
+            let mut a = Asm::new(vec![]);
+            a.global_get(g.clone());
+            a.s().ref_is_null();
+            a.if_();
+            push_type_id(&mut a, ty, name, shown);
+            a.global_set(g.clone());
+            a.end();
+            a.global_get(g);
+            a.s().ref_as_non_null();
+            a.finish(vec![VT::r(ty.clone())])
         }
         // Light until link finds an `all!` (`wake_nodes`).
         Helper::WakeMark => wake_mark(false),
@@ -1944,6 +1981,15 @@ pub(crate) fn write_lit_to(a: &mut Asm, text: &str, write: Sym) {
     a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     a.call(Sym::Helper(Helper::StrToBuf));
     a.call(write);
+}
+
+/// The global that holds the `TypeId` (`st`) whose key is `key` once
+/// [`Helper::TypeIdOf`] built it: null until then.
+#[must_use]
+pub fn type_id_global(st: &WTy, key: &str) -> GSym {
+    let mut h = hd_base::StableHasher::new("type-id");
+    h.str(key);
+    GSym::Binding(h.finish(), 0, VT::rn(st.clone()))
 }
 
 /// Pushes a `TypeId`, the std data type `st` over its key string `key`
@@ -2724,6 +2770,7 @@ impl Helper {
             Helper::Unlowered { .. } => "unlowered".into(),
             Helper::HandleSlot { inner, .. } => format!("handle_slot({})", inner.short_name()),
             Helper::RuntimeType { .. } => "runtime_type".into(),
+            Helper::TypeIdOf { name, .. } => format!("type_id({})", plain(name)),
             Helper::WakeMark => "wake_mark".into(),
             Helper::WakeTake => "wake_take".into(),
             Helper::ForbidCheck => "forbid_check".into(),

@@ -2892,10 +2892,15 @@ impl Em<'_> {
     }
 
     /// Pushes the `TypeId` of `t` (trait.typeid.*): the std data type
-    /// `TypeId` (`ty`, `runtime_type`'s result) over `t`'s printable name.
+    /// `TypeId` (`ty`, `runtime_type`'s result) over `t`'s printable name,
+    /// read from its global after the first build.
     fn push_type_id(&mut self, t: Ty, ty: Ty) -> StageResult<()> {
         let (st, key, shown) = self.type_id_parts(t, ty)?;
-        crate::rt::push_type_id(&mut self.a, &st, &key, &shown);
+        self.a.call(Sym::Helper(Helper::TypeIdOf {
+            ty: st,
+            name: key,
+            shown,
+        }));
         Ok(())
     }
 

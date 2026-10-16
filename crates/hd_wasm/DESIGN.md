@@ -396,8 +396,10 @@ witnesses, fieldless data values, payloadless variant singletons
 global's initializer is its whole tree, supertraits included, written
 once per tree and named by its hash (`Em::vtable_value`), so a coercion
 reads it and allocates nothing; a subtable the tree repeats is built
-again in the initializer, once, at instantiation. `TypeId` values still
-allocate. Short literals have no `array.new_fixed` globals.
+again in the initializer, once, at instantiation. A `TypeId` is not a
+constant: `Helper::TypeIdOf` builds it on its type's first request into
+a mutable global and returns the global after, so only that first call
+allocates. Short literals have no `array.new_fixed` globals.
 
 **Stable numbering.** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's
