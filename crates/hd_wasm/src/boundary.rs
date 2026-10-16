@@ -793,11 +793,15 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
                 a.get(len);
                 a.s().i64_extend_i32_u();
             });
-            copy_out(&mut a, 0, len, k, |a| {
+            copy_out(&mut a, 0, len, k, |a, j| {
                 a.get(1);
                 a.get(start);
                 a.get(k);
                 a.s().i32_add();
+                if j > 0 {
+                    a.i32(j);
+                    a.s().i32_add();
+                }
                 a.array_get(&WTy::Bytes);
             });
         }
@@ -811,10 +815,14 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
                 a.get(n);
                 a.s().i64_extend_i32_u();
             });
-            copy_out(&mut a, 0, n, k, |a| {
+            copy_out(&mut a, 0, n, k, |a, j| {
                 a.get(1);
                 a.struct_get(t, 1);
                 a.get(k);
+                if j > 0 {
+                    a.i32(j);
+                    a.s().i32_add();
+                }
                 a.array_get(&arr);
             });
         }
@@ -1011,13 +1019,54 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
     Ok(a.finish(vec![VT::I32]))
 }
 
-/// Grows the buffer to `off + n`, writes `n` bytes, each pushed by
-/// `byte` with `k` its index, and sets `off` to the end.
-fn copy_out(a: &mut Asm, off: u32, n: u32, k: u32, byte: impl Fn(&mut Asm)) {
+/// Pushes whether fewer than 8 of the `n` bytes remain after index `k`.
+fn under_word(a: &mut Asm, n: u32, k: u32) {
+    a.get(n);
+    a.get(k);
+    a.s().i32_sub();
+    a.i32(8);
+    a.s().i32_lt_u();
+}
+
+/// Adds 8 to local `k`.
+fn next_word(a: &mut Asm, k: u32) {
+    a.get(k);
+    a.i32(8);
+    a.s().i32_add();
+    a.set(k);
+}
+
+/// Grows the buffer to `off + n`, writes `n` bytes, the one at index
+/// `k + j` pushed by `byte(a, j)`, and sets `off` to the end. Each whole
+/// 8 bytes go in one `i64.store`, then the rest one byte at a time
+/// (`crates/hd_run_wasmtime/DESIGN.md` §17.3). The buffer side has any
+/// alignment, so the store's alignment hint is 1 byte.
+fn copy_out(a: &mut Asm, off: u32, n: u32, k: u32, byte: impl Fn(&mut Asm, i32)) {
     a.get(off);
     a.get(n);
     a.s().i32_add();
     a.call(Sym::Helper(Helper::Fit));
+    a.block();
+    a.loop_();
+    under_word(a, n, k);
+    a.br_if(1);
+    a.get(off);
+    a.get(k);
+    a.s().i32_add();
+    for j in 0..8 {
+        byte(a, j);
+        a.i32(255);
+        a.s().i32_and().i64_extend_i32_u();
+        if j > 0 {
+            a.i64(i64::from(8 * j));
+            a.s().i64_shl().i64_or();
+        }
+    }
+    a.s().i64_store(mem(0));
+    next_word(a, k);
+    a.br(0);
+    a.end();
+    a.end();
     a.block();
     a.loop_();
     a.get(k);
@@ -1027,7 +1076,7 @@ fn copy_out(a: &mut Asm, off: u32, n: u32, k: u32, byte: impl Fn(&mut Asm)) {
     a.get(off);
     a.get(k);
     a.s().i32_add();
-    byte(a);
+    byte(a, 0);
     a.mem8_store(0);
     a.get(k);
     a.i32(1);
@@ -1043,8 +1092,43 @@ fn copy_out(a: &mut Asm, off: u32, n: u32, k: u32, byte: impl Fn(&mut Asm)) {
 }
 
 /// Reads `n` bytes from `off` into the array in local `arr` of type `t`,
-/// and sets `off` to the end.
+/// and sets `off` to the end. Each whole 8 bytes come from one
+/// `i64.load`, with a 1-byte alignment hint as in `copy_out`, then the
+/// rest one byte at a time.
 fn copy_in(a: &mut Asm, off: u32, n: u32, k: u32, arr: u32, t: &WTy) {
+    let w = a.local(VT::I64);
+    a.block();
+    a.loop_();
+    under_word(a, n, k);
+    a.br_if(1);
+    a.get(off);
+    a.get(k);
+    a.s().i32_add().i64_load(mem(0));
+    a.set(w);
+    for j in 0..8 {
+        a.get(arr);
+        a.get(k);
+        if j > 0 {
+            a.i32(j);
+            a.s().i32_add();
+        }
+        a.get(w);
+        if j > 0 {
+            a.i64(i64::from(8 * j));
+            a.s().i64_shr_u();
+        }
+        a.s().i32_wrap_i64();
+        // A packed `i8` array keeps the low byte itself.
+        if *t != WTy::Bytes {
+            a.i32(255);
+            a.s().i32_and();
+        }
+        a.array_set(t);
+    }
+    next_word(a, k);
+    a.br(0);
+    a.end();
+    a.end();
     a.block();
     a.loop_();
     a.get(k);

@@ -227,9 +227,7 @@ Rust's own `{:e}` and `{:.N}` printing.
   copies only the viewed range, so a slice crosses at its own size,
   never its source's. Host to Wasm builds one exact-size array, viewed
   from start 0. The host reads the bytes in one slice. The loop reads
-  and writes 8 bytes per step. Implementation differs: `copy_out` and
-  `copy_in` (`hd_wasm/src/boundary.rs`) move one byte per step, which is
-  worse: several times the loop work on large strings.
+  and writes 8 bytes per step, then the tail one byte at a time.
 
 Planned, not built: a string literal passed straight to a host call
 copied from the module's data segment into the buffer with
