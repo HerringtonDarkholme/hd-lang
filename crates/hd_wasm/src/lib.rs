@@ -2546,6 +2546,87 @@ mod tests {
         assert_eq!(exports, ["hd.cancel".to_owned(), MEMORY_KEY.to_owned(), fb]);
     }
 
+    /// `a(p: (ref $S)) -> (ref $S)` built by `body`, linked and validated:
+    /// its non-null locals and its `ref.as_non_null` instructions.
+    fn non_null_counts(body: impl FnOnce(&mut Asm, &WTy)) -> (usize, usize) {
+        let s = WTy::Struct {
+            fields: vec![VT::I32],
+            sup: None,
+            open: false,
+        };
+        let mut a = Asm::new(vec![VT::r(s.clone())]);
+        body(&mut a, &s);
+        let wasm = link(
+            &[(Hash128(0xa), a.finish(vec![VT::r(s)]))],
+            &["a".into()],
+            &[],
+            &hd_mono::Witnesses::default(),
+            false,
+            LinkMode::Program,
+        )
+        .expect("link");
+        imports_exports(&wasm);
+        let (mut locals, mut narrows) = (0, 0);
+        for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+            if let wasmparser::Payload::CodeSectionEntry(f) = payload.expect("payload") {
+                for l in f.get_locals_reader().expect("locals") {
+                    let (n, t) = l.expect("local");
+                    if matches!(t, wasmparser::ValType::Ref(r) if !r.is_nullable()) {
+                        locals += n as usize;
+                    }
+                }
+                let mut ops = f.get_operators_reader().expect("operators");
+                while !ops.eof() {
+                    if matches!(ops.read().expect("op"), wasmparser::Operator::RefAsNonNull) {
+                        narrows += 1;
+                    }
+                }
+            }
+        }
+        (locals, narrows)
+    }
+
+    #[test]
+    fn a_local_written_at_declaration_is_read_without_narrowing() {
+        // Read in the block of its write and in a block inside it.
+        let counts = non_null_counts(|a, s| {
+            a.raw_get(0);
+            let l = a.local_init(VT::r(s.clone()));
+            a.block();
+            a.get(l);
+            a.s().drop();
+            a.end();
+            a.get(l);
+        });
+        assert_eq!(counts, (1, 0));
+    }
+
+    #[test]
+    fn a_local_read_outside_the_block_of_its_write_is_narrowed() {
+        // Read after its block ends, and in an `else` after a write in the
+        // `if` arm: Wasm's init check fails, so the local is defaultable
+        // and every read narrows, the type reloc after it shifted.
+        let counts = non_null_counts(|a, s| {
+            a.block();
+            a.raw_get(0);
+            let l = a.local_init(VT::r(s.clone()));
+            a.get(l);
+            a.s().drop();
+            a.end();
+            a.i32(1);
+            a.if_();
+            a.raw_get(0);
+            let m = a.local_init(VT::r(s.clone()));
+            a.else_();
+            a.get(m);
+            a.s().drop();
+            a.end();
+            a.get(l);
+            a.ref_cast(s, false);
+        });
+        assert_eq!(counts, (0, 3));
+    }
+
     #[test]
     fn a_session_module_refuses_a_call_no_module_defines() {
         let mut b = Asm::new(vec![]);

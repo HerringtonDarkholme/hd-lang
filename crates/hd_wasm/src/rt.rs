@@ -2182,7 +2182,7 @@ fn unmarshal(a: &mut Asm, result: &ResCodec, n: u32) {
             a.get(n);
             a.i32(1);
             a.s().i32_gt_s();
-            a.s().if_(BlockType::Result(wasm_encoder::ValType::I32));
+            a.if_ty(BlockType::Result(wasm_encoder::ValType::I32));
             a.i32(0);
             a.mem8_load(1);
             a.else_();

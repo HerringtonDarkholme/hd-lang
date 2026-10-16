@@ -150,10 +150,17 @@ value that is always present costs nothing. A narrowing read is one
 `ref.as_non_null`, which cannot fail after the test. `struct.new_default`
 is valid for every frame type.
 
-Implementation differs: `Asm::local` declares every reference local in
-its defaultable form and emits `ref.as_non_null` on each read of a
-non-null one; that adds a cast to every read of a value that is always
-present.
+Implementation differs: `Asm::local` declares a reference local in its
+defaultable form and emits `ref.as_non_null` on each read of a non-null
+one. `Asm::local_init` instead declares the local non-null and writes it
+at declaration: an instruction's result stored in the block the
+instruction started in, a `let` binding's first write, and a temporary.
+Wasm accepts a read of such a local only after a write in the same or an
+enclosing block. `Asm` tracks that check, and a read that fails it, such
+as a `defer` suite reading a body binding or a match arm reading a
+decision's binding, demotes the local to its defaultable form; finish
+then narrows each of its reads. A suspending body declares every local
+defaultable, since it reloads them from frame fields (#274).
 
 **Enum layout per enum.** Every enum is an identity-free value
 (S1c) and normally uses the value layout of "One predicate for

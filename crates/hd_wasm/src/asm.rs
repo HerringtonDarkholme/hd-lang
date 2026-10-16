@@ -11,11 +11,24 @@ pub struct Asm {
     pub out: Vec<u8>,
     pub relocs: Vec<(u32, Reloc)>,
     pub params: Vec<VT>,
-    /// Declared locals: every one defaultable, so a local set in one
-    /// branch validates when read after it; reads narrow (§15.2).
+    /// Declared locals: defaultable, so a local set in one branch
+    /// validates when read after it; reads narrow (§15.2). A local from
+    /// [`Asm::local_init`] is declared non-null at finish instead.
     pub locals: Vec<VT>,
     /// What each local holds: a non-null reference is narrowed on read.
     logical: Vec<VT>,
+    /// Per local, its non-null state (#274).
+    nn: Vec<Nn>,
+    /// Each read of a non-null local: the offset just after its
+    /// `local.get`, where a demoted local's read gets `ref.as_non_null`.
+    nn_reads: Vec<(u32, u32)>,
+    /// Open blocks: the depth of the innermost, and per depth the
+    /// non-null locals first initialized there.
+    depth: usize,
+    inits: Vec<Vec<u32>>,
+    /// Every local is declared defaultable: a suspending body saves and
+    /// reloads its locals from defaultable frame fields (§14.2).
+    dflt_only: bool,
     /// What each parameter holds, when it is declared defaultable (a
     /// suspending body's resume arguments, `crates/hd_wasm/DESIGN.md` §14.1).
     param_logical: Vec<VT>,
@@ -25,6 +38,22 @@ pub struct Asm {
     /// Per call written at an anchor: its offset and the anchor, the
     /// code entry's `lines` (`crates/hd_wasm/DESIGN.md` §15.9).
     lines: Vec<(u32, u32)>,
+}
+
+/// A local's non-null state: [`Asm::local_init`] declares a non-null
+/// reference local in its own form, so its reads need no narrowing.
+/// Wasm accepts a read of one only where a `local.set` earlier in the
+/// same or an enclosing block initialized it; a read anywhere else
+/// demotes the local to its defaultable form, and finish narrows each
+/// read again.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Nn {
+    /// Defaultable, as declared by [`Asm::local`].
+    No,
+    /// Non-null; initialized from this depth inward, if at all.
+    Live(Option<usize>),
+    /// Read before an initialization: defaultable after all.
+    Demoted,
 }
 
 #[must_use]
@@ -50,6 +79,7 @@ impl Asm {
         Asm {
             params: logical.iter().map(VT::dflt).collect(),
             param_logical: logical,
+            dflt_only: true,
             ..Asm::default()
         }
     }
@@ -70,7 +100,12 @@ impl Asm {
     }
     /// Reads a local as declared, never narrowed.
     pub fn raw_get(&mut self, l: u32) {
+        let live = self.live_read(l);
         self.s().local_get(l);
+        if live {
+            let at = u32::try_from(self.out.len()).expect("offset");
+            self.nn_reads.push((at, l));
+        }
     }
     pub fn global_get(&mut self, g: GSym) {
         self.out.push(0x23);
@@ -109,10 +144,71 @@ impl Asm {
     pub fn local(&mut self, vt: VT) -> u32 {
         self.locals.push(vt.dflt());
         self.logical.push(vt);
+        self.nn.push(Nn::No);
         u32::try_from(self.params.len() + self.locals.len() - 1).expect("locals")
     }
+    /// A fresh local of type `vt`, set from the value on top of the
+    /// stack, which must have type `vt`. A non-null reference local is
+    /// declared non-null, and its reads in the block of this write need
+    /// no `ref.as_non_null` (#274).
+    pub fn local_init(&mut self, vt: VT) -> u32 {
+        let nn = matches!(vt, VT::Ref(_, false)) && !self.dflt_only;
+        let l = self.local(vt);
+        if nn {
+            *self.nn.last_mut().expect("local") = Nn::Live(None);
+        }
+        self.set(l);
+        l
+    }
+    /// Locals of `vts`, set from the values on top of the stack, the
+    /// last on top: [`Self::local_init`] of each.
+    pub fn locals_init(&mut self, vts: &[VT]) -> Vec<u32> {
+        let mut ls: Vec<u32> = vts
+            .iter()
+            .rev()
+            .map(|v| self.local_init(v.clone()))
+            .collect();
+        ls.reverse();
+        ls
+    }
+    /// Makes local `l` defaultable again before a write of a value that
+    /// may be null.
+    pub fn demote(&mut self, l: u32) {
+        if let Some(n) = self.nn_mut(l)
+            && matches!(n, Nn::Live(_))
+        {
+            *n = Nn::Demoted;
+        }
+    }
+    fn nn_mut(&mut self, l: u32) -> Option<&mut Nn> {
+        let np = self.params.len();
+        (l as usize)
+            .checked_sub(np)
+            .and_then(|k| self.nn.get_mut(k))
+    }
+    /// Whether a read of `l` here reads a live non-null local, demoting
+    /// it first when no write initializes it here.
+    fn live_read(&mut self, l: u32) -> bool {
+        let Some(n) = self.nn_mut(l) else {
+            return false;
+        };
+        match *n {
+            Nn::Live(Some(_)) => true,
+            Nn::Live(None) => {
+                *n = Nn::Demoted;
+                false
+            }
+            Nn::No | Nn::Demoted => false,
+        }
+    }
     pub fn get(&mut self, l: u32) {
+        let live = self.live_read(l);
         self.s().local_get(l);
+        if live {
+            let at = u32::try_from(self.out.len()).expect("offset");
+            self.nn_reads.push((at, l));
+            return;
+        }
         let np = self.params.len();
         let narrow = if (l as usize) >= np {
             matches!(self.logical.get(l as usize - np), Some(VT::Ref(_, false)))
@@ -125,6 +221,39 @@ impl Asm {
     }
     pub fn set(&mut self, l: u32) {
         self.s().local_set(l);
+        let depth = self.depth;
+        if let Some(Nn::Live(init)) = self.nn_mut(l)
+            && init.is_none_or(|d| d > depth)
+        {
+            *init = Some(depth);
+            if self.inits.len() <= depth {
+                self.inits.resize(depth + 1, Vec::new());
+            }
+            self.inits[depth].push(l);
+        }
+    }
+    /// How many blocks are open around the next instruction.
+    #[must_use]
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
+    /// Opens a block level for the init check.
+    fn open(&mut self) {
+        self.depth += 1;
+    }
+    /// Closes the innermost block level: the locals first initialized in
+    /// it are uninitialized again.
+    fn close(&mut self) {
+        let depth = self.depth;
+        if let Some(ls) = self.inits.get_mut(depth) {
+            for l in std::mem::take(ls) {
+                if let Some(Nn::Live(init)) = self.nn_mut(l)
+                    && *init == Some(depth)
+                {
+                    *init = None;
+                }
+            }
+        }
     }
     pub fn i32(&mut self, v: i32) {
         self.s().i32_const(v);
@@ -134,18 +263,29 @@ impl Asm {
     }
     pub fn block(&mut self) {
         self.s().block(BlockType::Empty);
+        self.open();
     }
     pub fn loop_(&mut self) {
         self.s().loop_(BlockType::Empty);
+        self.open();
     }
     pub fn if_(&mut self) {
-        self.s().if_(BlockType::Empty);
+        self.if_ty(BlockType::Empty);
     }
+    /// An `if` of block type `bt`.
+    pub fn if_ty(&mut self, bt: BlockType) {
+        self.s().if_(bt);
+        self.open();
+    }
+    /// `else`: Wasm resets the locals initialized in the `if` arm.
     pub fn else_(&mut self) {
         self.s().else_();
+        self.close();
     }
     pub fn end(&mut self) {
         self.s().end();
+        self.close();
+        self.depth = self.depth.saturating_sub(1);
     }
     pub fn br(&mut self, d: u32) {
         self.s().br(d);
@@ -269,6 +409,42 @@ impl Asm {
             _ => {}
         }
     }
+    /// Declares each live non-null local non-null, and narrows each read
+    /// of a demoted one with `ref.as_non_null`, shifting the offsets
+    /// recorded after it.
+    fn narrow_demoted(&mut self) {
+        let np = self.params.len();
+        for (k, n) in self.nn.iter().enumerate() {
+            if matches!(n, Nn::Live(_)) {
+                self.locals[k] = self.logical[k].clone();
+            }
+        }
+        let at: Vec<u32> = self
+            .nn_reads
+            .iter()
+            .filter(|(_, l)| self.nn[*l as usize - np] == Nn::Demoted)
+            .map(|(at, _)| *at)
+            .collect();
+        if at.is_empty() {
+            return;
+        }
+        let mut out = Vec::with_capacity(self.out.len() + at.len());
+        let mut from = 0;
+        for &p in &at {
+            out.extend_from_slice(&self.out[from..p as usize]);
+            out.push(0xd4);
+            from = p as usize;
+        }
+        out.extend_from_slice(&self.out[from..]);
+        self.out = out;
+        let shift = |o: u32| o + u32::try_from(at.partition_point(|&p| p <= o)).expect("reads");
+        for (o, _) in &mut self.relocs {
+            *o = shift(*o);
+        }
+        for (o, _) in &mut self.lines {
+            *o = shift(*o);
+        }
+    }
     pub fn mem8_load(&mut self, off: u64) {
         self.s().i32_load8_u(mem(off));
     }
@@ -289,6 +465,7 @@ impl Asm {
     #[must_use]
     pub fn finish(mut self, results: Vec<VT>) -> Code {
         self.s().end();
+        self.narrow_demoted();
         let mut head = Vec::new();
         let mut relocs = Vec::new();
         let n = u32::try_from(self.locals.len()).expect("locals");

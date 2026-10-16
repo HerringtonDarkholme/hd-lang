@@ -116,6 +116,9 @@ struct Em<'a> {
     /// are a `$.with` scope's, which a key of the open context may name
     /// too, so they go in front of it.
     open_base: usize,
+    /// The instruction being emitted and the block depth it started at:
+    /// its result is written at declaration when stored there (#274).
+    here: Option<(u32, usize)>,
 }
 
 /// The locals a closure captures by shared cell, each with its first
@@ -389,8 +392,21 @@ impl Em<'_> {
         self.vals.insert(i, (ls.clone(), vs));
         Ok(ls)
     }
+    /// Whether `i`'s result has no locals yet and a store now is in the
+    /// block `i` started in, which holds its reads (`Asm` demotes the
+    /// local when one is outside): its locals are then written at
+    /// declaration (#274).
+    fn fresh_here(&self, i: u32) -> bool {
+        !self.vals.contains_key(&i) && self.here == Some((i, self.a.depth()))
+    }
     /// Pops the instruction's values (pushed in its layout) into its locals.
     fn store(&mut self, i: u32) -> StageResult<()> {
+        if self.fresh_here(i) {
+            let vs = self.vts(self.sub(self.b.ty[i as usize]))?;
+            let ls = self.a.locals_init(&vs);
+            self.vals.insert(i, (ls, vs));
+            return Ok(());
+        }
         let ls = self.result(i)?;
         for l in ls.iter().rev() {
             self.a.set(*l);
@@ -399,16 +415,36 @@ impl Em<'_> {
     }
     /// Stores the values on the stack, in `have`, as `i`'s result.
     fn store_from(&mut self, i: u32, have: &[VT]) -> StageResult<()> {
-        let tmp: Vec<u32> = have.iter().map(|v| self.a.local(v.clone())).collect();
-        for l in tmp.iter().rev() {
-            self.a.set(*l);
+        let want = match self.vals.get(&i) {
+            Some((_, vs)) => vs.clone(),
+            None => self.vts(self.sub(self.b.ty[i as usize]))?,
+        };
+        if have == want.as_slice() {
+            return self.store(i);
         }
-        let ls = self.result(i)?;
-        let want = self.vals[&i].1.clone();
-        for ((t, h), (l, w)) in tmp.iter().zip(have).zip(ls.iter().zip(&want)) {
+        let fresh = self.fresh_here(i) && have.len() == want.len();
+        if !fresh {
+            self.result(i)?;
+        }
+        let tmp = self.a.locals_init(have);
+        let ls = if fresh {
+            Vec::new()
+        } else {
+            self.vals[&i].0.clone()
+        };
+        for (k, (t, h)) in tmp.iter().zip(have).enumerate() {
+            let Some(w) = want.get(k) else {
+                break;
+            };
             self.a.get(*t);
             self.a.conv(h, w);
-            self.a.set(*l);
+            if let Some(l) = ls.get(k) {
+                self.a.set(*l);
+            }
+        }
+        if fresh {
+            let ls = self.a.locals_init(&want);
+            self.vals.insert(i, (ls, want));
         }
         Ok(())
     }
@@ -519,8 +555,10 @@ impl Em<'_> {
         {
             self.a.at = Some(i);
         }
+        let here = self.here.replace((i, self.a.depth()));
         let r = self.inst_code(i);
         self.a.at = outer;
+        self.here = here;
         r
     }
 
@@ -560,9 +598,29 @@ impl Em<'_> {
                 self.store(i)?;
             }
             Tag::LocalSet => {
-                let ls = self.local(a)?;
                 let t = self.sub(self.b.local_ty[a as usize]);
                 let want = self.vts(t)?;
+                // A local's first write with a value declares its Wasm
+                // locals there, written at declaration (#274).
+                let first = !self.cells.contains_key(&a)
+                    && bw != NONE
+                    && !matches!(self.locals.get(a as usize), Some(Some(_)));
+                if first {
+                    self.load_as(bw, &want)?;
+                    let ls = self.a.locals_init(&want);
+                    if self.locals.len() <= a as usize {
+                        self.locals.resize(a as usize + 1, None);
+                    }
+                    self.locals[a as usize] = Some(ls);
+                    return Ok(());
+                }
+                let ls = self.local(a)?;
+                if bw == NONE {
+                    // No value yet: the components are written null.
+                    for l in &ls {
+                        self.a.demote(*l);
+                    }
+                }
                 self.load_as(bw, &want)?;
                 if let Some(first) = self.cells.get(&a).copied() {
                     // The cell's own field types: a declaration with no
@@ -4316,6 +4374,7 @@ impl<'a> Em<'a> {
             ops: None,
             open_ctx: None,
             open_base: 0,
+            here: None,
         }
     }
 
