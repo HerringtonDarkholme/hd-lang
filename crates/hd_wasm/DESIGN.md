@@ -749,11 +749,16 @@ re-entering the nesting with skip flags as Binaryen's Asyncify does,
 costs code size on every path. The cost of flattening is a branch through `$dispatch` at
 each control transfer inside a suspending loop, a few cycles.
 
-Implementation differs: `emit_suspending` runs two emission passes, the
-first learning every Wasm local the body declares, and saves all of them
-at every suspension point (`Em::save`). There is no liveness and no
-clearing of dead references, so frames are larger, every wait stores
-every local, and a reused frame keeps dead values reachable (#236).
+Implementation differs: liveness runs on Wasm, not TIR, and once per
+body, not per point. `emit_suspending` runs two emission passes. The
+first writes no save or reload, and `live::live_at_entry` reads its code
+back: a resume is one path from the body's start, so a local that every
+path writes before reading needs no field. The second pass gives a field
+to each local live at the start and saves all of them at every point
+(`Em::save`). So a value dead before every wait is never saved, but one
+live at some point is stored at every point, and nothing is cleared.
+Over the 31 suspending `main!` fixtures this halved the frames' fields
+and cut module size by 18%.
 Blocks are not flattened either. A block list whose items hold two or
 more states is entered through one `br_table` on `pc - lo`
 (`Em::resume_list`): each such item starts a segment after the `end` of

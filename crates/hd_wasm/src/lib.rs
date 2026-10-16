@@ -15,6 +15,7 @@ pub mod asm;
 pub mod boundary;
 pub mod emit;
 pub mod layout;
+pub mod live;
 pub mod lowering;
 pub mod map;
 pub mod meta;

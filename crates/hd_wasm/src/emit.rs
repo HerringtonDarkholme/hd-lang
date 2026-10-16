@@ -6320,9 +6320,21 @@ fn emit_suspending(
         }
         Ok((em.a.finish(bres.clone()), all, bind))
     };
-    let (_, saved, _) = pass(Vec::new())?;
+    // The first pass, with no save or reload, learns the body's locals;
+    // those live at its entry are the ones a resume reads, so only they
+    // get frame fields (`crate::live`). The second pass saves them.
+    let (first, all, _) = pass(Vec::new())?;
+    let saved: Vec<(u32, VT)> = match crate::live::live_at_entry(&first.body, u32_of(logical.len()))
+    {
+        Some(live) => all
+            .iter()
+            .filter(|(l, _)| live.get(*l as usize) == Some(&true))
+            .cloned()
+            .collect(),
+        None => all.clone(),
+    };
     let (body, again, bind) = pass(saved.clone())?;
-    if again != saved {
+    if again != all {
         return unsupported("a suspending body whose two emission passes differ");
     }
     let ft = frame_ty(&saved);
@@ -6343,16 +6355,15 @@ fn emit_suspending(
     a.get(f);
     a.ref_func(Sym::Part(key, Part::Poll));
     a.struct_set(&ft, F_POLL);
-    // Cold parameter `first + j` is the body's local `j + 1`.
+    // Cold parameter `first + j` is the body's local `j + 1`. A local the
+    // body never reads before writing has no field, and takes nothing.
     let first = u32::from(bind.is_some());
-    let slot = |l: u32| match field(l) {
-        Some(fi) => Ok(fi),
-        None => unsupported("a suspending body's local without a frame field"),
-    };
     for j in 0..u32_of(own.len()) {
-        a.get(f);
-        a.get(first + j);
-        a.struct_set(&ft, slot(j + 1)?);
+        if let Some(fi) = field(j + 1) {
+            a.get(f);
+            a.get(first + j);
+            a.struct_set(&ft, fi);
+        }
     }
     if let Some(bind) = bind {
         let e = a.local(VT::r(bind.env.clone()));
@@ -6360,25 +6371,31 @@ fn emit_suspending(
         a.ref_cast(&bind.env, false);
         a.set(e);
         for (fi, l) in bind.caps {
-            a.get(f);
-            a.get(e);
-            a.struct_get(&bind.env, fi);
-            a.struct_set(&ft, slot(l)?);
+            if let Some(to) = field(l) {
+                a.get(f);
+                a.get(e);
+                a.struct_get(&bind.env, fi);
+                a.struct_set(&ft, to);
+            }
         }
         let (keys_at, provs_at) = (u32_of(cold_params.len() - 2), u32_of(cold_params.len() - 1));
         for (k, vt, ls) in bind.provs {
             let got = ctx_provider(&mut a, pool, env, k, &vt, keys_at, provs_at);
             for (g, l) in got.into_iter().zip(ls) {
-                a.get(f);
-                a.get(g);
-                a.struct_set(&ft, slot(l)?);
+                if let Some(to) = field(l) {
+                    a.get(f);
+                    a.get(g);
+                    a.struct_set(&ft, to);
+                }
             }
         }
         if let Some(ls) = bind.ctx {
             for (g, l) in [keys_at, provs_at].into_iter().zip(ls) {
-                a.get(f);
-                a.raw_get(g);
-                a.struct_set(&ft, slot(l)?);
+                if let Some(to) = field(l) {
+                    a.get(f);
+                    a.raw_get(g);
+                    a.struct_set(&ft, to);
+                }
             }
         }
     }

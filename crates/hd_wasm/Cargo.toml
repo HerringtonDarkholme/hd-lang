@@ -13,6 +13,8 @@ hd_tir = { path = "../hd_tir" }
 hd_mono = { path = "../hd_mono" }
 hd_host_abi = { path = "../hd_host_abi" }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
+# Reads emitted bodies back for the suspension liveness pass (`live`).
+wasmparser = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 # The validator hd_web already builds (through wasmprinter); link tests

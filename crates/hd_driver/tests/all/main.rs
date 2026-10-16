@@ -170,6 +170,7 @@ mod structure_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
 mod suspending_fn_weaken_run;
+mod suspension_frames;
 mod template_shape;
 mod test_placement;
 mod test_plan;
