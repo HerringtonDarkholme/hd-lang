@@ -1516,3 +1516,126 @@ pub fn count() -> i32:
         assert_eq!(moved.wasm, ok(&MemoryStore::default(), &src, executor).wasm);
     }
 }
+
+/// Two traits with impls in two folders, and an overlap in `Area`
+/// (`crates/hd_cache/DESIGN.md`, "Coherence runs per changed trait").
+const SHAPES: &str = "\
+pub data Point:
+    pub x: i32
+
+pub trait Area:
+    fn area(self) -> i32
+
+pub trait Label:
+    fn label(self) -> string
+
+impl Area for Point:
+    fn area(self) -> i32:
+        self.x
+
+impl Label for Point:
+    fn label(self) -> string:
+        \"point\"
+
+impl[T] Area for List[T]:
+    fn area(self) -> i32:
+        0
+
+impl Area for List[i32]:
+    fn area(self) -> i32:
+        1
+";
+
+/// The other folder's impls, of both traits.
+const BOXES: &str = "\
+use pkg.shapes.defs.{Area, Label}
+
+pub data Box:
+    pub w: i32
+
+pub data Wrap[T]:
+    pub v: T
+
+impl Area for Box:
+    fn area(self) -> i32:
+        self.w
+
+impl Label for Box:
+    fn label(self) -> string:
+        \"box\"
+";
+
+fn shapes_program(boxes: &str) -> MemorySources {
+    let mut s = MemorySources::default();
+    s.insert("shapes/defs.hd", SHAPES);
+    s.insert("boxes/all.hd", boxes);
+    s
+}
+
+#[test]
+fn an_impl_edit_reruns_coherence_only_for_its_trait() {
+    let executor = Executor::Serial(SerialOrder::Priority);
+    let store = MemoryStore::default();
+    let overlap = |r: &Output| {
+        (0..r.diags.len())
+            .filter(|i| r.diags.code[*i].as_str() == "overlapping-impl")
+            .count()
+    };
+
+    // Cold: every trait with an impl, std's included, is checked.
+    let cold = analyze_run(&store, &shapes_program(BOXES), executor);
+    assert_eq!(overlap(&cold), 1, "{}", cold.render());
+    let c = &cold.counters;
+    assert_eq!(c.coherence_traits_read, 0);
+    assert!(c.coherence_traits.len() > 2, "{:?}", c.coherence_traits);
+    let all = c.coherence_traits.len();
+
+    // An edit to one impl of `Label` in `boxes`: its interface changes,
+    // so `Coherence` runs, but checks `Label` alone.
+    let edited = BOXES.replace(
+        "impl Label for Box:\n    fn label(self) -> string:\n        \"box\"",
+        "impl[T] Label for Wrap[T]:\n    fn label(self) -> string:\n        \"wrap\"",
+    );
+    let r = analyze_run(&store, &shapes_program(&edited), executor);
+    let c = &r.counters;
+    assert_eq!(c.computed("Coherence"), 1);
+    assert_eq!(
+        c.coherence_traits,
+        vec!["shop/shapes.defs/Label".to_owned()]
+    );
+    assert_eq!(c.coherence_traits_read, all - 1);
+    // `Area`'s overlap is read from its row, as a fresh run reports it.
+    assert_eq!(overlap(&r), 1, "{}", r.render());
+    let fresh = analyze_run(&MemoryStore::default(), &shapes_program(&edited), executor);
+    assert_eq!(r.render(), fresh.render());
+
+    // An edit that adds an overlap to `Label` reruns `Label` alone and
+    // reports both overlaps.
+    let second = format!(
+        "{edited}\nimpl Label for Wrap[i32]:\n    fn label(self) -> string:\n        \"ints\"\n"
+    );
+    let r = analyze_run(&store, &shapes_program(&second), executor);
+    assert_eq!(
+        r.counters.coherence_traits,
+        vec!["shop/shapes.defs/Label".to_owned()]
+    );
+    assert_eq!(overlap(&r), 2, "{}", r.render());
+    let fresh = analyze_run(&MemoryStore::default(), &shapes_program(&second), executor);
+    assert_eq!(r.render(), fresh.render());
+
+    // Undoing the edits finds each state's rows: no trait is checked.
+    let back = analyze_run(&store, &shapes_program(&edited), executor);
+    assert!(
+        back.counters.coherence_traits.is_empty(),
+        "{:?}",
+        back.counters.coherence_traits
+    );
+    assert_eq!(overlap(&back), 1);
+
+    // A body edit in an impl changes no head: the interface keeps its
+    // hashes, and the package's `graph` entry still hits.
+    let body = edited.replace("        self.w", "        self.w + 1");
+    let r = analyze_run(&store, &shapes_program(&body), executor);
+    assert_eq!(r.counters.ran("Coherence"), 0);
+    assert!(r.counters.coherence_traits.is_empty());
+}

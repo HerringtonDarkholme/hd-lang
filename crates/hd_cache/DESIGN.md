@@ -28,7 +28,7 @@ says.
 | `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses; under `reads_key`, the folder's read list | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
-| `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish | output, `PackageResult`, D2 |
+| `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
 | `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
@@ -55,9 +55,16 @@ sections it needs.
   one entry. A hit runs neither task. On a miss it adds both tasks, and
   the last part to finish writes the entry, unless a part is blocked or
   reports an initialization cycle. So a change to one part reruns every
-  part: an interface change reruns each folder's init order too, which
-  #177 measured as cheaper than opening a per-folder entry. `Coherence`
-  runs after `PackageResult`, so the key can hold both kinds of part.
+  part: an interface change reruns each folder's init order too, and
+  `Coherence` then checks again only the traits whose `coh_key` changed
+  (§5.3). `Coherence` runs after `PackageResult`, so the key can hold
+  both kinds of part.
+- **Init order stays a part.** Measured on 2026-10-16 (#177; a generated
+  package of 24 folders with a two-module init cycle each, 28 init
+  parts, dev build, median of 20 warm runs): computing the parts' keys
+  and reading the runs costs about 4.5 µs per folder, and running
+  `InitOrder` instead about 8.4 µs. The earlier measurement, 7.1 µs
+  cached against 1.0 µs, was of one entry per folder, gone since #249.
 
 Planned, not built: a `reads` section for early cutoff (§5.3.1), fact
 records for a program database (#181), a `pkgres` entry for a warm fast
@@ -189,9 +196,32 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   ([crates/hd_check/DESIGN.md (trait solver) §5.3](../hd_check/DESIGN.md#53-why-no-global-index)).
   The report names the later impl of a pair by rank, so swapping two
   overlapping impls must miss; the item index, not a byte offset, keeps
-  the key across a body edit above an impl. Implementation differs: one
-  key over every built folder's deep hash, so any interface change
-  reruns all of coherence; worse, see #177.
+  the key across a body edit above an impl. As built:
+  - **When it runs.** The `graph` entry's key holds the coarse key over
+    every built interface, not the `coh_key`s: computing every `coh_key`
+    would cost a warm run more than the one entry it opens. On a miss,
+    `Coherence` computes each trait's `coh_key` and checks only the
+    traits the package's coherence rows lack.
+  - **The coherence rows** are one `graph` entry per package, keyed by
+    `H("coh-rows", toolchain_key, package key)` and rewritten when
+    `Coherence` hashes a folder or checks a trait. Per trait they hold
+    the findings under its `coh_key`, each naming the reported impl by
+    stable path. Each trait and folder keeps its newest row and one
+    older one, so undoing an edit checks nothing.
+  - **Head hashes per folder.** A head hash is
+    `hd_resolve::Universe::head_hash`: the interface encoding of the
+    impl records and the rank the check sorts them by, whose anchor
+    stands in for the item index. The rows keep each folder's head
+    hashes, one per trait it implements, under a key over its
+    `heads_hash`, its impls' anchors and its REPL input numbers. So
+    only an edited folder's impls are encoded again. One impl edit in
+    the 24-folder package of "Init order stays a part": `Coherence`
+    about 0.41 ms, against 0.90 ms checking every trait. A cold run
+    encodes every impl: about 2.3 ms in all.
+  - **Numeric families.** A trait's key also holds the head hashes of
+    each family bound its heads expand over
+    (`Universe::family_traits`), since the expansion reads that trait's
+    impls.
 - **The solver memo is never persisted** and is never part of a key. It
   lives for one run (crates/hd_check/DESIGN.md (trait solver) §7.1). A
   goal that reads the candidate directory holds its context's

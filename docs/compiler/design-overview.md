@@ -73,11 +73,11 @@ run with no edit from one key.
 | Package result | all of the above | sorted diagnostics, summary | package | no | |
 | Collect, Emit, Link | TIR, interfaces | Wasm | program, instance, program | `codepack` per folder group, `link` per program | `code_key`, `prog_key` |
 
-Implementation differs: one `Coherence` task checks every built
-folder's impl heads under one key over all deep hashes
-(`crates/hd_driver/src/lib.rs`, `fn coherence`). Any interface change
-reruns the whole overlap check, where the design reruns only the traits
-whose heads changed. Finer keys: #177.
+Implementation differs: one `Coherence` task, not one per trait
+(`crates/hd_driver/src/lib.rs`, `fn coherence`). It runs when any
+interface changes, and checks again only the traits whose `coh_key`
+changed, reading the rest from the package's coherence rows
+(`crates/hd_cache/DESIGN.md` §5.3).
 
 Implementation differs: under `hd test` and `hd check --tests` the
 package's modules are checked with their `tests:` blocks into `check`

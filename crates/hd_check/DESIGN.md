@@ -2306,13 +2306,14 @@ Cost: linear in the total head size plus the candidate pairs the tries
 return.
 
 Implementation differs: one `Coherence` task covers every trait
-(`hd_driver` `Run::coherence`), keyed by every built folder's deep hash
-(see #177), and `hd_resolve::Universe::overlaps` unifies each head with
+(`hd_driver` `Run::coherence`) and checks again only the traits whose
+`coh_key` changed (crates/hd_cache/DESIGN.md §5.3), and
+`hd_resolve::Universe::overlaps` unifies each head with
 every earlier head of its trait. Its answers, witnesses and content-order
 blame match steps 1, 2, 5 and 6, and a written tuple impl beside a tuple
 template is reported directly. The pairwise loop is quadratic in a
 trait's head count (300 `From` impls of one error type cost about 45,000
-unifications), and any interface edit reruns the whole check.
+unifications).
 
 ### 5.3 Why No Global Index
 

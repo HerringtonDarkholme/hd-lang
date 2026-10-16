@@ -4,7 +4,7 @@
 
 use hd_base::HashMap;
 
-use hd_base::DefId;
+use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 use crate::iface::{ImplKind, Item, ItemData, Names};
@@ -60,24 +60,126 @@ impl<'a> Universe<'a> {
         self.overlaps_counted(order).0
     }
 
-    /// [`Self::overlaps`], and how many head pairs it unified. A head is
-    /// compared only with the earlier heads whose target and first trait
-    /// argument can match its own by their outer constructors
-    /// (`head_key`), so many impls of one trait for distinct types cost
-    /// time near-linear in their count; the result is the pairwise one.
+    /// [`Self::overlaps`], and how many head pairs it unified: each
+    /// trait's [`Self::trait_overlaps`], in [`Self::traits`] order.
     #[must_use]
     pub fn overlaps_counted(
         &self,
         order: &dyn Fn(DefId) -> String,
     ) -> (Vec<(DefId, DefId, String)>, usize) {
+        let mut out = Vec::new();
+        let mut tried = 0_usize;
+        for tr in self.traits() {
+            let (found, n) = self.trait_overlaps(tr, order);
+            out.extend(found);
+            tried += n;
+        }
+        (out, tried)
+    }
+
+    /// The traits with an impl, in the order the overlap check reports
+    /// them: by stable path hash.
+    #[must_use]
+    pub fn traits(&self) -> Vec<DefId> {
+        let mut traits: Vec<DefId> = self.impls.keys().copied().collect();
+        traits.sort_by_key(|d| self.names.path_hash(*d));
+        traits
+    }
+
+    /// The traits whose impls trait `tr`'s check reads besides its own: the
+    /// bound of each numeric-family head ([`Self::family`]), sorted by
+    /// stable path hash.
+    #[must_use]
+    pub fn family_traits(&self, tr: DefId) -> Vec<DefId> {
+        let pool = self.pool();
+        let mut out: Vec<DefId> = self
+            .impls
+            .get(&tr)
+            .into_iter()
+            .flatten()
+            .filter_map(|imp| {
+                let ItemData::Impl { self_ty, .. } = &imp.data else {
+                    return None;
+                };
+                let TyData::Param(p) = pool.get(*self_ty) else {
+                    return None;
+                };
+                if p.owner != imp.def {
+                    return None;
+                }
+                imp.generics.get(usize::from(p.index))?.bound
+            })
+            .collect();
+        out.sort_by_key(|d| self.names.path_hash(*d));
+        out.dedup();
+        out
+    }
+
+    /// The head hash of a group of impls (`crates/hd_cache/DESIGN.md`
+    /// §5.3, `coh_key`): their whole records as an interface encodes them
+    /// (parameters and their bounds, target, trait arguments, kind, stable
+    /// path), each with its rank, the content order the check sorts it by.
+    /// One encoding for the group costs less than one per impl.
+    ///
+    /// # Errors
+    /// When a record holds a type no interface can encode.
+    pub fn head_hash(&self, impls: &[&Item], ranks: &[String]) -> StageResult<Hash128> {
+        let items: Vec<Item> = impls.iter().map(|i| (*i).clone()).collect();
+        let bytes = crate::iface::encode_items(&self.names, &items, &[])?;
+        let mut k = StableHasher::new("coh-head");
+        k.bytes(&bytes);
+        k.u32(u32::try_from(ranks.len()).unwrap_or(u32::MAX));
+        for r in ranks {
+            k.str(r);
+        }
+        Ok(k.finish())
+    }
+
+    /// `coh_key(T)` (`crates/hd_cache/DESIGN.md` §5.3): the stable path
+    /// of `tr` and the sorted hashes `part` gives for it, then, for each of
+    /// its [`Self::family_traits`], that trait's path and hashes. `part(t)`
+    /// must cover every impl of `t`: the [`Self::head_hash`] of each, or
+    /// of each group of them. These are every input
+    /// [`Self::trait_overlaps`] reads, so two runs with one key report the
+    /// same overlaps. `None` when `part` gives none.
+    #[must_use]
+    pub fn coh_key(
+        &self,
+        tr: DefId,
+        part: &dyn Fn(DefId) -> Option<Vec<Hash128>>,
+    ) -> Option<Hash128> {
+        let mut k = StableHasher::new("coh");
+        for t in std::iter::once(tr).chain(self.family_traits(tr)) {
+            k.hash(self.names.path_hash(t));
+            let mut hs = part(t)?;
+            hs.sort_unstable();
+            k.u32(u32::try_from(hs.len()).unwrap_or(u32::MAX));
+            for h in hs {
+                k.hash(h);
+            }
+        }
+        Some(k.finish())
+    }
+
+    /// The overlap check of trait `tr` alone (§4.12.3), and how many head
+    /// pairs it unified. A head is compared only with the earlier heads
+    /// whose target and first trait argument can match its own by their
+    /// outer constructors (`head_key`), so many impls of one trait for
+    /// distinct types cost time near-linear in their count; the result is
+    /// the pairwise one. It reads the impls of `tr` and of its
+    /// [`Self::family_traits`], nothing else.
+    #[must_use]
+    pub fn trait_overlaps(
+        &self,
+        tr: DefId,
+        order: &dyn Fn(DefId) -> String,
+    ) -> (Vec<(DefId, DefId, String)>, usize) {
         let pool = self.pool();
         let mut out = Vec::new();
         let mut tried = 0_usize;
-        let mut traits: Vec<&DefId> = self.impls.keys().collect();
-        traits.sort_by_key(|d| self.names.path_hash(**d));
-        for tr in traits {
+        if let Some(impls) = self.impls.get(&tr) {
             let mut heads: Vec<(DefId, Ty, TyList)> = Vec::new();
-            let mut list: Vec<&&Item> = self.impls[tr].iter().collect();
+            let mut list: Vec<&&Item> = impls.iter().collect();
             list.sort_by_cached_key(|i| order(i.def));
             let mut reported = hd_base::HashSet::default();
             // A tuple template implements the trait for every tuple type,

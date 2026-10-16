@@ -550,8 +550,10 @@ reported as `trait-resolution-depth`.
   The task's key is the trait's stable path plus the sorted head hashes,
   so it reruns only when a head of that trait changes. A head hash covers
   the head and its content rank, since the rank picks the reported impl.
-  Built as one `Coherence` task keyed by every built folder's deep hash;
-  per-trait keys are not built yet, see #177.
+  Built as one `Coherence` task that checks again only the traits whose
+  key changed, reading the others' findings from the package's
+  coherence rows (`Universe::trait_overlaps`, `Universe::coh_key`;
+  [crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
 - **Near-linear, not pairwise.** Numeric-family heads expand to their
   members first. All ground heads go into a hash set and a ground trie.
   Then each generic head, in content order, queries the generic trie (a

@@ -4120,9 +4120,11 @@ impl Run<'_> {
 
     /// The interfaces `Coherence` reads, every folder the run builds (a
     /// REPL input's program is its closure, [`Run::builds`]), and their
-    /// part key; `None` while one is not built. The result is a function
-    /// of every interface (`crates/hd_cache/DESIGN.md`, "Part keys"; this
-    /// key is coarser than the per-trait `coh_key`).
+    /// part key; `None` while one is not built. The key is coarser than
+    /// the per-trait `coh_key`s, which only `Coherence` computes: it
+    /// decides whether `Coherence` runs, and that run checks again only
+    /// the traits whose `coh_key` changed (`crates/hd_cache/DESIGN.md`,
+    /// "Coherence runs per changed trait").
     fn coherence_inputs(&self) -> Option<(Vec<Arc<FolderIface>>, Hash128)> {
         let built: Vec<FolderId> = (0..self.table.folders.len())
             .map(|f| FolderId::from_raw(u32_of(f)))
@@ -4143,8 +4145,10 @@ impl Run<'_> {
     }
 
     /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
-    /// every interface of the program graph, std's included. Its findings
-    /// are a part of the package's `graph` entry.
+    /// every interface of the program graph, std's included, per trait:
+    /// a trait whose `coh_key` the package's coherence rows hold reads its
+    /// findings there. The findings are a part of the package's `graph`
+    /// entry.
     fn coherence(&self) {
         let part = self.coherence_part();
         self.part_done(0, part);
@@ -4229,20 +4233,120 @@ impl Run<'_> {
                 names.path(d)
             )
         };
-        let (overlaps, tried) = u.overlaps_counted(&order);
-        lock(&self.counters).overlap_pairs += tried;
+        // Per trait, `coh_key` over the head hashes of its impls; a trait
+        // whose key the package's coherence rows hold reads its findings
+        // there (`crates/hd_cache/DESIGN.md`, "Coherence runs per changed
+        // trait"). The head hashes come per folder, read from the rows
+        // while the folder's impl records and their ranks are unchanged.
+        let old = self.coherence_rows();
+        let old_folders: HashMap<Hash128, &CohFolder> =
+            old.folders.iter().rev().map(|r| (r.key, r)).collect();
+        let old_traits: HashMap<Hash128, &CohRow> =
+            old.traits.iter().rev().map(|r| (r.key, r)).collect();
+        let trait_of: HashMap<Hash128, DefId> =
+            u.impls.keys().map(|t| (names.path_hash(*t), *t)).collect();
+        let mut parts: HashMap<DefId, Vec<Hash128>> = HashMap::default();
+        let (mut folders, mut hashed) = (Vec::new(), 0_usize);
+        let mut cacheable = true;
+        for iface in &all {
+            let impls: Vec<&Item> = iface
+                .items
+                .impls()
+                .filter(|it| {
+                    matches!(it.data, ItemData::Impl { trait_, kind, .. }
+                        if trait_ != DefId::NONE && kind.is_impl())
+                })
+                .collect();
+            if impls.is_empty() {
+                continue;
+            }
+            let key = coherence_folder_key(iface, &impls, &holders, &inputs, &order);
+            let row = if let Some(r) = old_folders.get(&key) {
+                (*r).clone()
+            } else {
+                hashed += 1;
+                let Some(row) = coherence_folder(&u, iface, &impls, key, &order) else {
+                    cacheable = false;
+                    break;
+                };
+                row
+            };
+            for (t, h) in &row.parts {
+                if let Some(t) = trait_of.get(t) {
+                    parts.entry(*t).or_default().push(*h);
+                }
+            }
+            folders.push(row);
+        }
+        let part_of = |t: DefId| Some(parts.get(&t).cloned().unwrap_or_default());
+        let (mut found, mut rows, mut ran) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut tried, mut read) = (0, 0);
+        for tr in u.traits() {
+            let key = if cacheable {
+                u.coh_key(tr, &part_of)
+            } else {
+                None
+            };
+            // The key holds each impl's stable path, so a stored path names
+            // the same impl of `tr`.
+            let reused = key.and_then(|k| old_traits.get(&k)).and_then(|row| {
+                row.found
+                    .iter()
+                    .map(|(path, msg)| {
+                        let at = u.impls[&tr].iter().find(|i| names.path(i.def) == *path)?;
+                        Some((at.def, msg.clone()))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            });
+            let part: Vec<(DefId, String)> = if let Some(part) = reused {
+                read += 1;
+                part
+            } else {
+                let (overlaps, n) = u.trait_overlaps(tr, &order);
+                tried += n;
+                ran.push(names.path(tr));
+                overlaps
+                    .into_iter()
+                    .map(|(a, b, witness)| {
+                        let msg = format!(
+                            "implementations {} and {} both apply to {witness}",
+                            names.path(a),
+                            names.path(b)
+                        );
+                        (b, msg)
+                    })
+                    .collect()
+            };
+            if let Some(key) = key {
+                rows.push(CohRow {
+                    key,
+                    trait_: names.path(tr),
+                    found: part
+                        .iter()
+                        .map(|(b, msg)| (names.path(*b), msg.clone()))
+                        .collect(),
+                });
+            }
+            found.extend(part);
+        }
+        if cacheable && (hashed > 0 || !ran.is_empty()) {
+            let rows = CohRows {
+                traits: keep_previous(rows, &old.traits, |r| (&r.trait_, r.key)),
+                folders: keep_previous(folders, &old.folders, |r| (&r.folder, r.key)),
+            };
+            self.put(
+                EntryKind::Graph,
+                self.coherence_rows_key(),
+                &[&encode_coh_rows(&rows)],
+            );
+        }
+        {
+            let mut c = lock(&self.counters);
+            c.overlap_pairs += tried;
+            c.coherence_traits.extend(ran);
+            c.coherence_traits_read += read;
+        }
         lock(&self.report).ok(Stage::Coherence);
-        let found: Vec<(DefId, String)> = overlaps
-            .into_iter()
-            .map(|(a, b, witness)| {
-                let msg = format!(
-                    "implementations {} and {} both apply to {witness}",
-                    names.path(a),
-                    names.path(b)
-                );
-                (b, msg)
-            })
-            .collect();
         let bytes = if found.is_empty() {
             Vec::new()
         } else {
@@ -4253,6 +4357,24 @@ impl Run<'_> {
             d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
         }
         Some(bytes)
+    }
+
+    /// The key of the package's coherence rows: one `graph` entry per
+    /// package, rewritten when `Coherence` hashes a folder or checks a
+    /// trait.
+    fn coherence_rows_key(&self) -> Hash128 {
+        let mut k = hd_base::StableHasher::new("coh-rows");
+        k.hash(self.toolchain);
+        k.hash(self.package_key);
+        k.finish()
+    }
+
+    /// The package's coherence rows, newest first; empty when there are
+    /// none.
+    fn coherence_rows(&self) -> CohRows {
+        self.lookup(EntryKind::Graph, self.coherence_rows_key())
+            .and_then(|s| decode_coh_rows(s.first()?))
+            .unwrap_or_default()
     }
 
     /// The slot of folder `fi`'s init order among the graph parts after
@@ -8618,6 +8740,180 @@ fn strongly_connected(edges: &[Vec<usize>], starts: &[usize]) -> (Vec<Vec<usize>
         }
     }
     (groups, comp)
+}
+
+/// The package's coherence rows (`crates/hd_cache/DESIGN.md`, "Coherence
+/// runs per changed trait"): per trait, its findings under its `coh_key`;
+/// per folder, the head hashes of its impls under
+/// [`coherence_folder_key`]. Each name keeps its newest row and one older
+/// one.
+#[derive(Default)]
+struct CohRows {
+    traits: Vec<CohRow>,
+    folders: Vec<CohFolder>,
+}
+
+/// One trait's row: its `coh_key`, its stable path, and its findings,
+/// each as the reported impl's stable path and the message.
+#[derive(Clone)]
+struct CohRow {
+    key: Hash128,
+    trait_: String,
+    found: Vec<(String, String)>,
+}
+
+/// One folder's row: its key, its path, and per trait it implements (by
+/// stable path hash) the hash of the head hashes of its impls of it.
+#[derive(Clone)]
+struct CohFolder {
+    key: Hash128,
+    folder: String,
+    parts: Vec<(Hash128, Hash128)>,
+}
+
+/// The key of a folder's [`CohFolder`] row: everything its head hashes
+/// read. The folder's `heads_hash` covers its impl records (§4.10),
+/// stable paths included. An impl's rank, which `order` builds, reads two
+/// things outside the blob: the impl's anchor and, in a REPL session, its
+/// input's number. An impl another interface also carries takes its rank
+/// from the first carrier, so its rank itself goes into the key.
+fn coherence_folder_key(
+    iface: &FolderIface,
+    impls: &[&Item],
+    holders: &HashMap<DefId, Vec<&FolderIface>>,
+    inputs: &HashMap<&str, u32>,
+    order: &dyn Fn(DefId) -> String,
+) -> Hash128 {
+    let mut k = hd_base::StableHasher::new("coh-folder");
+    k.str(&iface.folder);
+    k.hash(iface.heads_hash);
+    for it in impls {
+        if holders.get(&it.def).is_some_and(|h| h.len() == 1) {
+            let at = iface
+                .spans
+                .get(&(it.def, 0))
+                .map_or([u32::MAX; 3], |(_, a)| [a.decl, a.member, a.tok]);
+            for v in at {
+                k.u32(v);
+            }
+            if !inputs.is_empty() {
+                k.str(&order(it.def));
+            }
+        } else {
+            k.str(&order(it.def));
+        }
+    }
+    k.finish()
+}
+
+/// A folder's [`CohFolder`] row under `key`: per trait, the head hash of
+/// the folder's impls of it, from their records and their ranks `order`.
+/// `None` when an impl does not encode.
+fn coherence_folder(
+    u: &hd_resolve::Universe<'_>,
+    iface: &FolderIface,
+    impls: &[&Item],
+    key: Hash128,
+    order: &dyn Fn(DefId) -> String,
+) -> Option<CohFolder> {
+    let mut by_trait: BTreeMap<Hash128, Vec<&Item>> = BTreeMap::new();
+    for it in impls {
+        if let ItemData::Impl { trait_, .. } = it.data {
+            by_trait
+                .entry(u.names.path_hash(trait_))
+                .or_default()
+                .push(it);
+        }
+    }
+    let parts = by_trait
+        .into_iter()
+        .map(|(t, group)| {
+            let ranks: Vec<String> = group.iter().map(|i| order(i.def)).collect();
+            let mut k = hd_base::StableHasher::new("coh-folder-trait");
+            k.str(&iface.folder);
+            k.hash(u.head_hash(&group, &ranks).ok()?);
+            Some((t, k.finish()))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(CohFolder {
+        key,
+        folder: iface.folder.clone(),
+        parts,
+    })
+}
+
+/// `now`, then each name's newest row of `old` with another key, so
+/// undoing an edit finds the rows of the state before it. A name `now`
+/// lacks keeps no row.
+fn keep_previous<T: Clone>(
+    mut now: Vec<T>,
+    old: &[T],
+    name: impl Fn(&T) -> (&String, Hash128),
+) -> Vec<T> {
+    let current: HashMap<String, Hash128> = now
+        .iter()
+        .map(|r| {
+            let (n, k) = name(r);
+            (n.clone(), k)
+        })
+        .collect();
+    let mut kept: HashSet<&str> = HashSet::default();
+    let older: Vec<T> = old
+        .iter()
+        .filter(|r| {
+            let (n, k) = name(r);
+            current.get(n).is_some_and(|c| *c != k) && kept.insert(n.as_str())
+        })
+        .cloned()
+        .collect();
+    now.extend(older);
+    now
+}
+
+fn encode_coh_rows(rows: &CohRows) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(&rows.traits);
+    for r in &rows.traits {
+        w.hash(r.key);
+        w.str(&r.trait_);
+        w.len_of(&r.found);
+        for (path, msg) in &r.found {
+            w.str(path);
+            w.str(msg);
+        }
+    }
+    w.len_of(&rows.folders);
+    for r in &rows.folders {
+        w.hash(r.key);
+        w.str(&r.folder);
+        w.len_of(&r.parts);
+        for (t, h) in &r.parts {
+            w.hash(*t);
+            w.hash(*h);
+        }
+    }
+    w.bytes
+}
+
+fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
+    let mut r = Reader::new(b);
+    let traits = (0..r.count())
+        .map(|_| CohRow {
+            key: r.hash(),
+            trait_: r.str().to_owned(),
+            found: (0..r.count())
+                .map(|_| (r.str().to_owned(), r.str().to_owned()))
+                .collect(),
+        })
+        .collect();
+    let folders = (0..r.count())
+        .map(|_| CohFolder {
+            key: r.hash(),
+            folder: r.str().to_owned(),
+            parts: (0..r.count()).map(|_| (r.hash(), r.hash())).collect(),
+        })
+        .collect();
+    (r.ok() && r.at_end()).then_some(CohRows { traits, folders })
 }
 
 /// The overlaps of a coherence run, each reported impl as its folder's

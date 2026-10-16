@@ -103,6 +103,11 @@ pub struct Counters {
     pub iface_other_records: usize,
     /// Impl head pairs the coherence check unified (§4.12.3).
     pub overlap_pairs: usize,
+    /// The traits whose overlap check `Coherence` ran, by stable path:
+    /// the ones whose `coh_key` the package's coherence rows lack.
+    pub coherence_traits: Vec<String>,
+    /// How many traits `Coherence` read from the coherence rows instead.
+    pub coherence_traits_read: usize,
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,
@@ -141,5 +146,6 @@ impl Counters {
         self.parsed.sort();
         self.tir_decoded.sort();
         self.tir_decoded.dedup();
+        self.coherence_traits.sort();
     }
 }
