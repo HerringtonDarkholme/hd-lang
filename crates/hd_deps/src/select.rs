@@ -311,6 +311,7 @@ pub fn select_edited(
             edges,
         });
     }
+    let members_end = nodes.len();
     // The local packages that path requirements reach, in or outside the
     // workspace (`module.path-dep.any-package`). Their own workspace and
     // `hd.sum` are not read (`module.path-dep.root-selection`).
@@ -350,6 +351,25 @@ pub fn select_edited(
             message,
         });
     };
+    // A reached local package's minimum applies like a member's
+    // (`module.toolchain.graph-minimum`); a member's is reported by the
+    // command that works on it.
+    for node in &nodes[members_end..] {
+        for (line, code, message) in requirement_errors(&node.manifest, toolchain) {
+            if code == Code::ToolchainTooOld {
+                let at = Place {
+                    dir: node.dir.clone(),
+                    line: line.unwrap_or(0),
+                };
+                problem(
+                    &mut sel,
+                    Some(code),
+                    &at,
+                    format!("{}: {message}", node.manifest.name),
+                );
+            }
+        }
+    }
     let host_edges = |node: &Node| -> Vec<(HostPath, Version, Place)> {
         node.edges
             .iter()
@@ -975,5 +995,46 @@ mod tests {
         let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
         assert_eq!(codes(&sel), [(Some(Code::InvalidRequirement), 5)]);
         assert!(sel.problems[0].message.contains("no library"));
+    }
+
+    fn path_package(dir: &Path, name: &str, hd: &str, deps: &str) {
+        write(
+            dir,
+            &format!("{name}/hd.toml"),
+            &format!("[package]\nname = \"{name}\"\n{hd}\n[dependencies]\n{deps}"),
+        );
+    }
+
+    #[test]
+    fn a_path_dependency_needs_a_new_enough_toolchain() {
+        let dir = temp("path-minimum");
+        let root = root_package(&dir, "[dependencies]\nmoney = { path = \"../money\" }\n");
+        path_package(&dir, "money", "hd = \"999.0.0\"", "");
+        let mut fake = Fake::new(&dir);
+        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert_eq!(codes(&sel), [(Some(Code::ToolchainTooOld), 3)]);
+        assert!(sel.problems[0].message.starts_with("money: "));
+    }
+
+    #[test]
+    fn a_dependency_of_a_path_dependency_needs_a_new_enough_toolchain() {
+        let dir = temp("path-transitive");
+        let root = root_package(&dir, "[dependencies]\nmoney = { path = \"../money\" }\n");
+        path_package(&dir, "money", "", "tax = { path = \"../tax\" }\n");
+        path_package(&dir, "tax", "hd = \"999.0.0\"", "");
+        let mut fake = Fake::new(&dir);
+        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert_eq!(codes(&sel), [(Some(Code::ToolchainTooOld), 3)]);
+        assert!(sel.problems[0].message.starts_with("tax: "));
+    }
+
+    #[test]
+    fn a_path_dependency_with_a_met_minimum_is_clean() {
+        let dir = temp("path-met");
+        let root = root_package(&dir, "[dependencies]\nmoney = { path = \"../money\" }\n");
+        path_package(&dir, "money", "hd = \"1.0.0\"", "");
+        let mut fake = Fake::new(&dir);
+        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert_eq!(codes(&sel), []);
     }
 }
