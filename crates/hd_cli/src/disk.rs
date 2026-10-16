@@ -292,6 +292,7 @@ impl Program {
             target: hd_driver::EngineTarget::default(),
             level: hd_driver::OptLevel::Dev,
             doc_scopes: false,
+            check_roots: None,
             session: None,
         }
     }

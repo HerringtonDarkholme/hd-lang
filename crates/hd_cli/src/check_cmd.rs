@@ -245,7 +245,16 @@ fn check_role(
         clock: &clock,
         executor: o.jobs.map_or_else(executor, crate::executor_of),
     };
-    let out = build_packages(&host, &t.program.package, &t.program.packages(), goal);
+    // `hd check FILE` checks only FILE's module, its doc tests and what
+    // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
+    // keeps.
+    let mut packages = t.program.packages();
+    packages.check_roots = t.only.as_ref().map(|only| {
+        std::iter::once(only.clone())
+            .chain(docs.iter().map(|d| d.path.clone()))
+            .collect()
+    });
+    let out = build_packages(&host, &t.program.package, &packages, goal);
     let mut shown = shown(&out, t, docs);
     for x in &mut shown {
         if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {

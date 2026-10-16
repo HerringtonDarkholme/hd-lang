@@ -946,3 +946,33 @@ fn a_symlink_cycle_under_src_is_skipped() {
     assert_eq!(r.err, "check result: ok. errors: 0; warnings: 0\n");
     assert_eq!(r.out, "");
 }
+
+/// `hd check FILE` checks only FILE's module and the modules it uses,
+/// deeply (`crates/hd_cli/DESIGN.md` §7.2): a sibling it does not reach is
+/// not checked, and the output is as before.
+#[test]
+fn check_file_checks_only_the_modules_it_reaches() {
+    let dir = package(
+        "hd-check-file-reach",
+        "use pkg.util.{double}\n\npub fn main() -> void $ Console:\n    println(double(+2))\n",
+    );
+    std::fs::write(
+        dir.join("util.hd"),
+        "pub fn double(n: i32) -> i32:\n    n * 2\n",
+    )
+    .expect("write");
+    std::fs::write(dir.join("side.hd"), "pub fn sibling() -> i32:\n    +1\n").expect("write");
+    std::fs::create_dir_all(dir.join("extra")).expect("mkdir");
+    std::fs::write(
+        dir.join("extra/broken.hd"),
+        "pub fn broken() -> i32:\n    missing\n",
+    )
+    .expect("write");
+    let r = check(&dir, &["--format", "json", "main.hd"]);
+    assert_eq!(r.code, Some(0), "{}", r.out);
+    assert_eq!(modules_checked(&r.out), 2, "main and util only: {}", r.out);
+    let r = check(&dir, &["--format", "json", "extra/broken.hd"]);
+    assert_eq!(r.code, Some(101), "{}", r.out);
+    assert!(r.out.contains("\"code\":\"unknown-name\""), "{}", r.out);
+    assert_eq!(modules_checked(&r.out), 1, "{}", r.out);
+}

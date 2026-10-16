@@ -1120,6 +1120,12 @@ struct Run<'a> {
     /// the input reaches it ([`repl_texts`]); `None` for every other run,
     /// which reads them all.
     reached: Option<Vec<bool>>,
+    /// The files a check is narrowed to ([`Packages::check_roots`]).
+    check_roots: Option<Vec<String>>,
+    /// For a narrowed check, once the skims are in: per module whether a
+    /// check root reaches it, and the folders of those modules' closures
+    /// ([`Run::builds`], [`Run::builds_module`]).
+    check_scope: OnceLock<Option<(Vec<bool>, hd_project::FolderSet)>>,
     /// Per REPL input: its input interface's top-level bindings, read from
     /// its `check` entry (`cli.repl.declarations.bindings`).
     input_bindings: Vec<OnceLock<Vec<InputBinding>>>,
@@ -1198,6 +1204,11 @@ pub struct Packages<'a> {
     /// Whether the output holds each root-package module's scope
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
+    /// For `Goal::Analyze` and `Goal::CheckTests`: the files whose modules
+    /// are checked, with every module they use, deeply, and the folders of
+    /// those modules' closures (`hd check FILE`, `crates/hd_cli/DESIGN.md`
+    /// §7.2). `None` checks the whole package.
+    pub check_roots: Option<Vec<String>>,
     /// For a `Goal::Program`: build one more module of this session
     /// instead of a closed program (`f1c55020:future-work/compiler/repl-plan.md` §2.2). Collection stops at
     /// the instances earlier modules export and leaves out the inits they
@@ -1579,6 +1590,8 @@ fn build_packages_inner(
         session_scopes: (0..n).map(|_| OnceLock::new()).collect(),
         repl_inputs,
         reached,
+        check_roots: packages.check_roots.clone(),
+        check_scope: OnceLock::new(),
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
         check_task: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
@@ -2514,14 +2527,22 @@ impl Run<'_> {
             .collect();
         let graph = FolderGraph::build(&self.table, &uses);
         lock(&self.report).ok(Stage::FolderGraph);
+        // `hd check FILE` checks only what FILE reaches (`Run::check_scope`).
+        let _ = self.check_scope.set(self.check_scope(&graph));
+        let checked = self.check_scope.get().and_then(Option::as_ref);
         // A REPL input's build builds only its closure (`Run::builds`).
         let scope = self
             .repl_inputs
             .input
             .map(|m| graph.closure[self.table.modules[m].folder.idx()].clone());
-        let builds = |f: FolderId| scope.as_ref().is_none_or(|s| s.contains(f));
+        let builds = |f: FolderId| {
+            scope.as_ref().is_none_or(|s| s.contains(f))
+                && checked.is_none_or(|(_, folders)| folders.contains(f))
+        };
         let builds_module = |m: usize| {
-            builds(self.table.modules[m].folder) && self.reached.as_ref().is_none_or(|r| r[m])
+            builds(self.table.modules[m].folder)
+                && self.reached.as_ref().is_none_or(|r| r[m])
+                && checked.is_none_or(|(reach, _)| reach[m])
         };
         // `cli.exe.unselected-main`: a public `main` under the source root
         // of a module no executable names is an ordinary function.
@@ -3164,10 +3185,18 @@ impl Run<'_> {
     /// broken module it never reaches does not stop it; every other run
     /// builds them all.
     fn builds(&self, f: FolderId) -> bool {
-        match (self.repl_inputs.input, self.graph.get()) {
-            (Some(m), Some(g)) => g.graph.closure[self.table.modules[m].folder.idx()].contains(f),
-            _ => true,
-        }
+        let scoped = self
+            .check_scope
+            .get()
+            .and_then(Option::as_ref)
+            .is_none_or(|(_, folders)| folders.contains(f));
+        scoped
+            && match (self.repl_inputs.input, self.graph.get()) {
+                (Some(m), Some(g)) => {
+                    g.graph.closure[self.table.modules[m].folder.idx()].contains(f)
+                }
+                _ => true,
+            }
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
@@ -3175,7 +3204,44 @@ impl Run<'_> {
     /// of such a folder that the input does not reach is empty for the run,
     /// as are its items.
     fn builds_module(&self, m: usize) -> bool {
-        self.builds(self.table.modules[m].folder) && self.reached.as_ref().is_none_or(|r| r[m])
+        self.builds(self.table.modules[m].folder)
+            && self.reached.as_ref().is_none_or(|r| r[m])
+            && self
+                .check_scope
+                .get()
+                .and_then(Option::as_ref)
+                .is_none_or(|(reach, _)| reach[m])
+    }
+
+    /// A narrowed check's scope ([`Packages::check_roots`]): per module,
+    /// whether a root's module reaches it through `use`s, its `tests:`
+    /// block's included, as `hd check FILE` filters its output; and the
+    /// folders of the reached modules' closures. `None` when the run
+    /// checks the whole package.
+    fn check_scope(&self, g: &FolderGraph) -> Option<(Vec<bool>, hd_project::FolderSet)> {
+        let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
+        let n = self.table.modules.len();
+        let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
+        let mut reach = vec![false; n];
+        let mut stack: Vec<usize> = (0..n).filter(|&m| roots.contains(file_of(m))).collect();
+        while let Some(m) = stack.pop() {
+            if std::mem::replace(&mut reach[m], true) {
+                continue;
+            }
+            let s = self.skim_of(m);
+            stack.extend(
+                s.uses
+                    .iter()
+                    .chain(&s.test_uses)
+                    .filter_map(|u| self.table.module_of_use(u))
+                    .map(hd_base::ModuleId::idx),
+            );
+        }
+        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
+        for m in (0..n).filter(|&m| reach[m]) {
+            folders.union(&self.module_closure_in(g, m));
+        }
+        Some((reach, folders))
     }
 
     /// The inputs before REPL input `m`, in order; none for any other

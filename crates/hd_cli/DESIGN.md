@@ -59,11 +59,12 @@ after output (§5.4).
    ([`cli.package.no-root`](../../spec/cli/command-line.md#r-cli.package.no-root)):
    one module, std only, no manifest.
 
-Implementation differs: `check_cmd.rs` checks the whole package (with
-FILE's role added to the scope) and then keeps only the diagnostics of
-FILE's module, the modules it uses and its doc tests; there are no
-per-folder notes. That is worse: `hd check FILE` costs a whole-package
-check, though the output matches.
+Implementation differs: the driver checks the bodies of FILE's module,
+its doc tests and the modules they use, deeply (`Packages::check_roots`,
+`Run::check_scope`), and builds the interfaces of their closures'
+folders, all modules of each. Coherence runs over those interfaces, not
+only for the traits with an impl in FILE. `check_cmd.rs` still filters
+the output to the same modules, and there are no per-folder notes.
 
 ### 7.3 `hd test`
 
