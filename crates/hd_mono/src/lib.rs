@@ -825,6 +825,20 @@ fn declarations_hash(
     let read = |d: DefId, canons: &mut CanonMemo| {
         let mut h = StableHasher::new("declaration");
         h.hash(ph(d));
+        // The kind and shape: `declared_types` flattens an enum's payloads,
+        // so `data D: x: string` and `enum D: V(x: string)` would hash
+        // alike, though their layouts differ.
+        if env.data_fields(d).is_some() {
+            h.u8(1);
+        } else if let Some(vs) = env.enum_declared(d) {
+            h.u8(2);
+            h.u32(u32::try_from(vs.len()).expect("variants"));
+            for v in &vs {
+                h.u32(u32::try_from(v.len()).expect("fields"));
+            }
+        } else {
+            h.u8(3);
+        }
         let mut names = Vec::new();
         let mut seen = HashSet::default();
         let tys = declared_types(env, d);

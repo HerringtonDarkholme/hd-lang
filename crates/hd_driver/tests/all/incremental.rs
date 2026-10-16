@@ -1074,3 +1074,35 @@ tests:
         assert_eq!(test.tests.len(), 1, "{executor:?}");
     }
 }
+
+/// A path that changes from data to an enum of the same payload changes
+/// the layout of every instance that lays it out, though their TIR does
+/// not change: `keep` and `List.len` are re-emitted (#307).
+#[test]
+fn a_type_that_turns_from_data_to_enum_re_emits_its_users() {
+    let geo = |extra: &str, make: &str| {
+        format!(
+            "{GEO}\n{extra}\npub fn make_extra() -> Extra:\n    {make}\n\npub fn keep(xs: List[Extra]) -> usize:\n    xs.len()\n"
+        )
+    };
+    let main = DATA_MAIN
+        .replace(
+            "{Point, make, manhattan}",
+            "{Point, keep, make, make_extra, manhattan}",
+        )
+        .replace(
+            "    println(q.x + q.y)\n",
+            "    println(q.x + q.y)\n    println(keep([make_extra()]))\n",
+        );
+    let store = MemoryStore::default();
+    let ex = Executor::Serial(SerialOrder::Priority);
+    let as_data = geo("pub data Extra:\n    pub a: i32\n", "Extra { a: 1 }");
+    ok(&store, &program(&main, &as_data), ex);
+    let as_enum = geo("pub enum Extra:\n    Only(a: i32)\n", "Extra.Only(1)");
+    let r = ok(&store, &program(&main, &as_enum), ex);
+    assert!(
+        r.counters.emitted >= 3,
+        "make_extra, keep and List.len: {}",
+        r.counters.emitted
+    );
+}
