@@ -1,0 +1,24 @@
+# test: a function with a requirement row does not match the pattern fn(T) -> R, whose row is empty
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer.row.
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+trait Log:
+    fn line(self, text: string) -> void
+
+data Duration:
+    millis: i32
+
+@fn_fact
+fn ms(n: i32) -> Duration:
+    Duration { millis: n }
+
+@fn_fact  # diagnostic: type-mismatch
+fn logged(n: i32) -> Duration $ Log:
+    Duration { millis: n }

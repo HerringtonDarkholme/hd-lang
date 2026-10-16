@@ -1,0 +1,21 @@
+# test: member and parameter metadata are typed as List[dyn Any], so one list holds values of unrelated types
+# Spec 14 Member Metadata: annot.metadata.list-any.
+use std.structure.Structure
+
+data Label:
+    text: string
+
+data Weight:
+    grams: i32
+
+data Item:
+    name: string
+
+impl Item by Structure:
+    name = [Label { text: "name" }, Weight { grams: 5 }, "plain", true]
+
+fn label(text: string) -> Label:
+    Label { text: text }
+
+fn ship(@label("count") count: i32) -> i32:
+    count

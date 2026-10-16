@@ -1,0 +1,43 @@
+# test: a template claims no implementation, so a hand-written implementation of its trait does not overlap it
+# Spec 14 Templates: annot.template.not-impl.
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Named:
+    fn type_name() -> string
+
+data Count:
+    n: i32
+
+impl[S] Describer[S] for Count:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Named for T by Structure:
+    fn type_name() -> string:
+        let mut d = Count { n: 0 }
+        _ := T::describe(d)
+        T::name()
+
+data Manual:
+    x: i32
+
+impl Named for Manual:
+    fn type_name() -> string:
+        "hand-written"
+
+@derive(Named)
+data Derived:
+    x: i32
+
+tests:
+    use std.testing.assert_equal
+
+    it("each implementation answers for its own type"):
+        assert_equal(Manual::type_name(), "hand-written", reason="the hand-written one")
+        assert_equal(Derived::type_name(), "Derived", reason="the derived one")

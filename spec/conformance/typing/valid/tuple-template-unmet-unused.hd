@@ -1,0 +1,40 @@
+# test: a tuple type that fails the walker's bound is no error until a use needs the implementation
+# Spec 14 Tuple Templates: annot.template.tuple.unmet.
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+impl Encode for string:
+    fn encode(self) -> string:
+        "'$self'"
+
+data Encoder:
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.encode() + ";"
+        .Ok(())
+
+impl[T < Tuple] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Opaque:
+    id: i64
+
+fn keep(pair: (i64, Opaque)) -> i64:
+    pair._0

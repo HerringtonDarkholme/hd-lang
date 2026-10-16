@@ -1,0 +1,9 @@
+# test: a trait in a @derive list with no template is an error on the @derive line
+# Spec 14 Derivation: annot.derive.other.
+
+trait Plain:
+    fn plain(self) -> i32
+
+@derive(Plain)  # diagnostic: underivable-trait
+data Point:
+    x: i32

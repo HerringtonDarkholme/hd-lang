@@ -1,0 +1,6 @@
+# test: std.structure declares the Structure trait and its handle and helper types
+# Spec 14 The Structure Trait: annot.structure.module.
+use std.structure.{Structure, Facts, Member, VariantInfo, Field, Variant, Members, Key, Walker, Describer, Source}
+
+fn kinds(facts: Facts, info: VariantInfo) -> (Facts, VariantInfo):
+    (facts, info)
