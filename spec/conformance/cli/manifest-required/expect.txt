@@ -1,0 +1,7 @@
+# Spec 10 Package Manifest: module.manifest.file. A package has an hd.toml
+# manifest, so with none, src/ is no package and a package command fails.
+# The same file still runs as a single-file program.
+run: hd check
+exit: 101
+run: hd src/main.hd
+stdout: shop

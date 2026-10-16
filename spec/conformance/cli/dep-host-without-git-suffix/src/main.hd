@@ -1,0 +1,3 @@
+# Spec 10 Host Paths: module.repo.git-suffix, module.repo.no-discovery.
+pub fn main() -> void $ Console:
+    println("shop")

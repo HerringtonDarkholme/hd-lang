@@ -1,0 +1,7 @@
+# Spec 10 Host Paths: module.repo.git-suffix. On a host other than
+# github.com, a host path with no segment ending in .git names no
+# repository. module.repo.no-discovery: the toolchain fetches no web page to
+# find one, so the requirement is an error at once.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","file":"hd.toml","line":5},{"kind":"summary","errors":1,"status":101}]

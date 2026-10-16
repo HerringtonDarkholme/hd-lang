@@ -1,0 +1,11 @@
+# Spec 10 Path Requirements: module.workspace.path-version.fetched-version.
+# In the fetched app 1.0.0, path is ignored, and its ui requirement is a
+# dependency requirement on 0.4.2, so ui comes from the tag ui/v0.4.2, not
+# from the ui/ directory beside app at app/v1.0.0.
+# module.workspace.path-version.fetched-host: that requirement's host path,
+# github.com/acme/shop/ui, comes from the host path that fetched app, as
+# module.dep.no-self-path gives every fetched package its host path.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: ui 0.4.2

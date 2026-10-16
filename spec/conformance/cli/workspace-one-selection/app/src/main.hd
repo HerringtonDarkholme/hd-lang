@@ -1,0 +1,5 @@
+# Spec 10 Workspaces: module.workspace.selection, module.workspace.sum.
+use dep.json
+
+pub fn main() -> void $ Console:
+    println("app ${json.json_version()}")

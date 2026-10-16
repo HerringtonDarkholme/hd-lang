@@ -1,0 +1,7 @@
+# Spec 10 Path Requirements: module.workspace.path-version. A path
+# requirement may carry a version.
+# module.workspace.path-version.locally: built from local files, it names
+# the package at its path, and its version is not used, so no repository
+# is fetched.
+run: hd run
+stdout: local ui

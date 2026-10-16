@@ -1,0 +1,9 @@
+# Spec 10 Dependency Requirements: module.dep.identity. A package's identity
+# is its host path and compatibility line, so the root's json and util's
+# json, both in line 2, are one package, at the selected 2.3.0.
+# module.dep.two-lines: json_v1 is line 1 of the same host path, so it is a
+# second dependency with its own key and version.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: 2.3.0 1.0.0 2.3.0

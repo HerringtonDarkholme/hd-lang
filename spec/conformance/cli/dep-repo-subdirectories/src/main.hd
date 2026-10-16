@@ -1,0 +1,6 @@
+# Spec 10 Host Paths: module.repo.github, module.repo.subdirectory.
+use dep.lint
+use dep.fmt
+
+pub fn main() -> void $ Console:
+    println("${lint.name()} ${fmt.name()}")

@@ -1,0 +1,6 @@
+# Spec 10 Workspaces: module.workspace.no-host-path, module.workspace.fetched-member, module.workspace.fetched-member.two.
+use dep.money
+use dep.util
+
+pub fn main() -> void $ Console:
+    println("${money.origin()} ${util.util_money()}")

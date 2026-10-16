@@ -1,0 +1,5 @@
+# Spec 10 Package Manifest: module.manifest.targets. One package has both a
+# library, src/lib.hd, and an executable, src/main.hd, which uses it.
+run: hd check
+run: hd run
+stdout: from the library

@@ -1,0 +1,8 @@
+# Spec 10 Host Paths: module.repo.github. On github.com the first three
+# segments name the repository, here acme/tools.
+# module.repo.subdirectory: the segments after it name the package's
+# directory, so one repository holds the two packages lint and fmt.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: lint fmt

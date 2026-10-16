@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dependencies]
+ui = { path = "ui", version = "0.4.2" }

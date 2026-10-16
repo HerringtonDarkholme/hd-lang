@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dependencies]
+app = "github.com/acme/shop/app@1.0.0"

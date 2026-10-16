@@ -1,0 +1,5 @@
+# Spec 10 Path Requirements: module.workspace.path-version, module.workspace.path-version.locally.
+use dep.ui
+
+pub fn main() -> void $ Console:
+    println(ui.label())

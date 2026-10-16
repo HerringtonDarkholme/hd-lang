@@ -1,0 +1,5 @@
+# Spec 10 Host Paths: module.repo.git-suffix.
+use dep.billing
+
+pub fn main() -> void $ Console:
+    println(billing.name())

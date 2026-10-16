@@ -1,0 +1,5 @@
+# Spec 10 Path Requirements: module.workspace.path-version.fetched-version, module.workspace.path-version.fetched-host, with module.dep.no-self-path.
+use dep.app
+
+pub fn main() -> void $ Console:
+    println(app.shown())

@@ -1,0 +1,6 @@
+# Spec 10 Dependency Requirements: module.dep.no-major-suffix. A host path
+# carries no major-version suffix, so /v2 does not select acme/json's major
+# version 2, as Go's would: the requirement fails, though the repository's
+# root package is tagged v2.0.0. The diagnostic code is not judged.
+run: hd fetch
+exit: 101

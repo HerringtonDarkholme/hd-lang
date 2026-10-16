@@ -1,0 +1,6 @@
+# Spec 10 Package Manifest: module.manifest.no-registry. A dependency comes
+# only from the repository its host path names. The case serves no
+# repository acme/absent, and no registry stands in, so the fetch fails.
+run: hd fetch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed"},{"kind":"summary","errors":1,"status":101}]

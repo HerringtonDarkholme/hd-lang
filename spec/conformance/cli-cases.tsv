@@ -150,3 +150,15 @@ cap-path-missing-dot-dot	cli.cap.scope.path.resolved,cli.engine.same-behavior,cl
 run-type-error-no-output	cli.file.run,cli.exit.hd-failure
 check-numeric-widen-fix	cli.json.diagnostic.fixes,cli.exit.hd-failure
 release-arithmetic	cli.profile.release,cli.profile.test
+manifest-required	cli.mode.outside,cli.file.run,cli.exit.hd-failure
+manifest-lib-and-exe	cli.exe.default-main,cli.run.default.one,cli.exit.success
+dep-no-registry	cli.dep.fetch,cli.dep.repo-url,cli.exit.hd-failure
+dep-identity-lines	cli.dep.fetch,cli.dep.tag
+dep-repo-subdirectories	cli.dep.fetch,cli.dep.tag
+dep-git-suffix-host	cli.dep.fetch,cli.dep.repo-url
+dep-host-without-git-suffix	cli.exit.hd-failure
+dep-no-major-suffix	cli.dep.fetch,cli.dep.tag,cli.exit.hd-failure
+workspace-one-selection	cli.dep.workspace-fetch,cli.mode.workspace,cli.workspace.select.anywhere
+workspace-fetched-member	cli.dep.workspace-fetch,cli.mode.workspace,cli.workspace.select.anywhere
+dep-path-version-local	cli.dep.implicit-fetch,cli.run.default.one
+dep-path-version-fetched	cli.dep.fetch,cli.dep.tag

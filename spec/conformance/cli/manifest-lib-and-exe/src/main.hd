@@ -1,0 +1,5 @@
+# Spec 10 Package Manifest: module.manifest.targets.
+use pkg.{greet}
+
+pub fn main() -> void $ Console:
+    println(greet())

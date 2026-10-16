@@ -1,0 +1,4 @@
+use dep.json
+
+pub fn main() -> void $ Console:
+    println("tool ${json.json_version()}")

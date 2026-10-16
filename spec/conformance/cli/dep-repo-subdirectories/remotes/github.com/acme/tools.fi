@@ -1,0 +1,36 @@
+# Spec 10 Host Paths: module.repo.github, module.repo.subdirectory.
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+tools 1.0.0
+END
+M 644 inline lint/hd.toml
+data <<END
+[package]
+name = "lint"
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn name() -> string:
+    "lint"
+END
+M 644 inline fmt/hd.toml
+data <<END
+[package]
+name = "fmt"
+END
+M 644 inline fmt/src/lib.hd
+data <<END
+pub fn name() -> string:
+    "fmt"
+END
+
+reset refs/tags/lint/v1.0.0
+from :1
+
+reset refs/tags/fmt/v1.0.0
+from :1

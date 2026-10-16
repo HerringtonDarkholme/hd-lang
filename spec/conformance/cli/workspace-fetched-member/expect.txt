@@ -1,0 +1,10 @@
+# Spec 10 Workspaces: module.workspace.no-host-path. The member app requires
+# the member money by path, not by host path.
+# module.workspace.fetched-member: the fetched util requires money's host
+# path, github.com/acme/money, so selection fetches that version.
+# module.workspace.fetched-member.two: the build holds both packages, and
+# neither stands in for the other.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run -p app
+stdout: local fetched

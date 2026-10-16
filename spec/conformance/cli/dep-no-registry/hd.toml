@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dependencies]
+absent = "github.com/acme/absent@1.0.0"

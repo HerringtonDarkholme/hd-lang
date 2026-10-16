@@ -1,0 +1,7 @@
+# Spec 10 Dependency Requirements: module.dep.identity, module.dep.two-lines.
+use dep.json
+use dep.json_v1
+use dep.util
+
+pub fn main() -> void $ Console:
+    println("${json.json_version()} ${json_v1.json_version()} ${util.util_json()}")

@@ -1,0 +1,14 @@
+# Spec 10 Workspaces: module.workspace.selection. Selection runs once for
+# the workspace, so app, which requires json 2.1.0, uses the 2.3.0 that
+# tool requires.
+# module.workspace.sum: the workspace has one hd.sum, beside its workspace
+# manifest, and no member has its own.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+file: hd.sum
+no-file: app/hd.sum
+no-file: tool/hd.sum
+run: hd run -p app
+stdout: app 2.3.0
+run: hd run -p tool
+stdout: tool 2.3.0

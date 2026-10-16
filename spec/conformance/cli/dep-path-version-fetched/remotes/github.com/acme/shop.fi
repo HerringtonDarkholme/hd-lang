@@ -1,0 +1,54 @@
+# Spec 10 Path Requirements: module.workspace.path-version.fetched-version.
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+ui 0.4.2
+END
+M 644 inline ui/hd.toml
+data <<END
+[package]
+name = "ui"
+END
+M 644 inline ui/src/lib.hd
+data <<END
+pub fn label() -> string:
+    "ui 0.4.2"
+END
+
+reset refs/tags/ui/v0.4.2
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0000
+committer Fixture <fixture@example.com> 1790003600 +0000
+data <<END
+app 1.0.0
+END
+M 644 inline ui/src/lib.hd
+data <<END
+pub fn label() -> string:
+    "ui beside app"
+END
+M 644 inline app/hd.toml
+data <<END
+[package]
+name = "app"
+
+[dependencies]
+ui = { path = "../ui", version = "0.4.2" }
+END
+M 644 inline app/src/lib.hd
+data <<END
+use dep.ui
+
+pub fn shown() -> string:
+    ui.label()
+END
+
+reset refs/tags/app/v1.0.0
+from :2
