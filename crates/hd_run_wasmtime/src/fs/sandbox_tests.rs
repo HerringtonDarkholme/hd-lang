@@ -145,18 +145,24 @@ fn dot_dot_cannot_leave_a_granted_directory() {
     assert_eq!(fs::read(dir.0.join("outside/a.txt")).unwrap(), b"secret");
 }
 
-/// A `..` after a name that is not an existing directory fails under a
-/// grant as it does by name: the OS does not skip the missing name, so
-/// neither does the sandbox (`cli.engine.same-behavior`).
+/// A `..` after a name that is not an existing directory fails, under a
+/// grant and by name alike, on every OS: Windows would resolve the `..` as
+/// text and skip the missing name, so the sandbox checks it first
+/// (`cli.engine.same-behavior`, #277).
 #[test]
-fn dot_dot_after_a_missing_name_fails_as_the_os_does() {
+fn dot_dot_after_a_missing_name_is_not_found() {
     let (dir, g) = tree();
     let open = Grants { limits: vec![] };
-    for path in ["granted/missing/../sub/a.txt", "granted/sub/a.txt/../a.txt"] {
-        let by_name = call(&Sandbox::default(), &open, &dir.0, "read_text", path, None);
-        let under = call(&Sandbox::default(), &g, &dir.0, "read_text", path, None);
-        assert_ne!(by_name.done(), ok_text("inside").done(), "{path}");
-        assert_eq!(under.done(), by_name.done(), "{path}");
+    // NotFound (0) after a missing name, NotADirectory (4) after a file,
+    // with and without a grant limit, on every OS.
+    for (path, variant) in [
+        ("granted/missing/../sub/a.txt", 0),
+        ("granted/sub/a.txt/../a.txt", 4),
+    ] {
+        for grants in [&open, &g] {
+            let got = call(&Sandbox::default(), grants, &dir.0, "read_text", path, None);
+            assert_eq!(got.done(), error(path, variant).done(), "{path}");
+        }
     }
 }
 

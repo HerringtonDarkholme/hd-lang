@@ -127,6 +127,11 @@ impl Sandbox {
         follow: bool,
         create: bool,
     ) -> Option<Place> {
+        // `..` after a missing name is NotFound on every OS: Windows path
+        // APIs resolve `..` as text, so the check comes before any access.
+        if !create && let Some(error) = before_dot_dot(path) {
+            return Some(Place::Unreachable(error));
+        }
         let Some(Limit::Entries(entries)) = grants.limit(key) else {
             return Some(Place::Ambient(path.to_owned()));
         };
@@ -145,9 +150,6 @@ impl Sandbox {
             .filter(|e| target.starts_with(e))
             .max_by_key(|e| e.components().count())?;
         let rel = target.strip_prefix(entry).ok()?.to_owned();
-        if !create && let Some(error) = before_dot_dot(path) {
-            return Some(Place::Unreachable(error));
-        }
         let place = |dir: io::Result<Arc<Dir>>, rel: PathBuf, entry: bool| match dir {
             Ok(dir) => Place::Under {
                 dir,
@@ -198,10 +200,11 @@ impl Sandbox {
     }
 }
 
-/// The error the OS gives for `path` when a name before one of its `..` is
-/// not an existing directory, as in `data/missing/../a.txt`: resolving `..`
-/// as text would skip that name, and every engine fails as the OS does
-/// (`cli.engine.same-behavior`).
+/// The error for `path` when a name before one of its `..` is not an
+/// existing directory, as in `data/missing/../a.txt`: `NotFound`, or
+/// `NotADirectory` for a file. Unix fails such a path itself, but Windows
+/// resolves `..` as text and would skip the missing name, so every engine
+/// and OS checks it here (#277, `cli.engine.same-behavior`).
 fn before_dot_dot(path: &Path) -> Option<io::Error> {
     let mut prefix = PathBuf::new();
     for c in path.components() {

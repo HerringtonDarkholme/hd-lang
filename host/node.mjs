@@ -167,6 +167,29 @@ const opening = (path, open) => {
     throw err;
   }
 };
+// The `FsError` variant for `path` when a name before one of its `..` is
+// not an existing directory, as in `data/missing/../a.txt`: NotFound, or
+// NotADirectory for a file; `undefined` otherwise. Unix fails such a path
+// itself, but Windows resolves `..` as text and skips the missing name, so
+// the host checks it on every OS (cli.engine.same-behavior, #277). The
+// prefix is joined by hand: `path.join` would resolve the `..` away.
+const beforeDotDot = (path) => {
+  const parts = path.split(/[\\/]/);
+  let prefix = parts[0];
+  for (const part of parts.slice(1)) {
+    if (part === ".." && prefix !== "" && prefix !== ".") {
+      let st;
+      try {
+        st = statSync(prefix);
+      } catch {
+        return FS.NotFound;
+      }
+      if (!st.isDirectory()) return FS.NotADirectory;
+    }
+    prefix = `${prefix}/${part}`;
+  }
+  return undefined;
+};
 // An `Entry`: path, kind, size.
 const entry = (e, path, st) => {
   const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
@@ -568,13 +591,18 @@ function fsImports({ fsOp }) {
         opening(p, () => appendFileSync(p, d.bytes()));
         e.leb(0);
       }),
-      create_dir_all: fsOp("FsWrite", one, (e, [p]) => {
-        if (existsSync(p) && !statSync(p).isDirectory()) {
-          return fsErr(e, p, FS.NotADirectory);
-        }
-        mkdirSync(p, { recursive: true });
-        e.leb(0);
-      }),
+      create_dir_all: fsOp(
+        "FsWrite",
+        one,
+        (e, [p]) => {
+          if (existsSync(p) && !statSync(p).isDirectory()) {
+            return fsErr(e, p, FS.NotADirectory);
+          }
+          mkdirSync(p, { recursive: true });
+          e.leb(0);
+        },
+        { create: true },
+      ),
       remove: fsOp("FsWrite", one, (e, [p]) => {
         if (lstatSync(p).isDirectory()) rmdirSync(p);
         else unlinkSync(p);
@@ -717,13 +745,19 @@ const nodeLayer = {
     // arguments; `run(e, paths, d)` does it once the grant covers each path.
     // It can block, as a read of a FIFO with no writer does, so the output
     // is flushed first (std-console.host.visible).
-    const fsOp = (key, paths, run) => ({
+    const fsOp = (key, paths, run, { create = false } = {}) => ({
       start: (len) => {
         const d = argsOf(len);
         const ps = paths(d);
         const e = new Enc();
         const refused = ps.find((p) => !grant.coversPath(key, p));
         if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
+        // A path that creates its directories keeps the OS's own rule, as
+        // the Rust host's `create` does.
+        for (const p of create ? [] : ps) {
+          const missing = beforeDotDot(p);
+          if (missing !== undefined) return ready(fsErr(e, p, missing));
+        }
         flush();
         try {
           run(e, ps, d);
