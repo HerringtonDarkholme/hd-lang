@@ -90,17 +90,14 @@ already declares the `Cwasm` and `Clpack` entry kinds, unused.
 ### 18.4 The Browser Runner
 
 The playground's compiler worker (`website/playground/src/worker.ts`)
-builds the module and runs it in the same worker: `WebAssembly.compile`,
-`instantiate` with the JS host's imports (`host/web.mjs`), and the poll
-and wake loop on the worker's event loop. V8 starts every function in
-Liftoff, which suits short programs. **Stop** terminates the worker and
-starts a fresh one. A module that imports a trait the browser does not
-provide is refused before it starts.
+builds the module. The run worker (`run-worker.ts`) runs it:
+`WebAssembly.compile`, `instantiate` with the JS host's imports
+(`host/web.mjs`), and the poll and wake loop on that worker's event loop.
+V8 starts every function in Liftoff, which suits short programs.
 
-The design ran the program in a worker of its own, so Stop kept the
-compiler warm. Implementation differs: one worker runs both, so Stop also
-discards the loaded compiler. Not judged: the reload cost has not been
-measured.
+**Stop** terminates the run worker alone, so the compiler stays warm, and
+the next run loads a fresh run worker. A module that imports a trait the
+browser does not provide is refused before it starts.
 
 ### 18.5 The Reserved Hot-Reload Table
 

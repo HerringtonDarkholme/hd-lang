@@ -22,6 +22,8 @@ export function buildOptions(
     entryPoints: {
       main: join(playground, "src", "main.ts"),
       worker: join(playground, "src", "worker.ts"),
+      // Runs what the compiler worker builds (#254).
+      "run-worker": join(playground, "src", "run-worker.ts"),
     },
     outdir: outDir === undefined ? undefined : join(outDir, "assets"),
     bundle: true,

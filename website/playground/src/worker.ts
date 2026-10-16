@@ -1,5 +1,7 @@
-// The compiler worker: the compiler runs here so the page stays responsive,
-// and a runaway program can be stopped by terminating the worker.
+// The compiler worker: the compiler runs here so the page stays responsive.
+// It runs no program: Run and Test answer with what they built
+// (`compiled`), which the run worker (run-worker.ts) runs, so stopping a
+// runaway program leaves this worker and its warm store.
 //
 // Run, Check and Test go to the Rust compiler (rust-runner.ts), whose
 // wasm, hd_web.wasm, sits beside this script; the worker loads it once and
@@ -11,7 +13,7 @@
 import type { Project } from "./project.ts";
 import type { RunMode, RunResult, WatResult } from "./runner.ts";
 import { createReplHost, type ReplMessage, type ReplRequest } from "./repl-host.ts";
-import { createRustRunner } from "./rust-runner.ts";
+import { createRustRunner, type CompiledRun } from "./rust-runner.ts";
 
 export type WorkerRequest =
   | {
@@ -33,6 +35,8 @@ export type WorkerMessage =
       readonly debug?: boolean;
     }
   | { readonly kind: "result"; readonly id: number; readonly result: RunResult }
+  /** A project to run, for the run worker. */
+  | { readonly kind: "compiled"; readonly id: number; readonly run: CompiledRun }
   | { readonly kind: "wat"; readonly id: number; readonly result: WatResult }
   | ReplMessage;
 
@@ -58,10 +62,12 @@ scope.onmessage = async ({ data: request }) => {
     await repl.handle(request as ReplRequest);
   } else if (request.kind === "project") {
     const { id, mode, project } = request;
-    const onStdout = (line: string, debug?: boolean): void =>
-      scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) });
-    const result = await rust.runProject(project, mode, onStdout);
-    scope.postMessage({ kind: "result", id, result });
+    const built = await rust.compileProject(project, mode);
+    if ("mode" in built)
+      scope.postMessage({ kind: "compiled", id, run: built }, [
+        built.compiled.wasm.buffer as ArrayBuffer,
+      ]);
+    else scope.postMessage({ kind: "result", id, result: built });
   } else if (request.kind === "wat") {
     const result = await rust.watProject(request.project);
     scope.postMessage({ kind: "wat", id: request.id, result });

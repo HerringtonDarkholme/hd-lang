@@ -28,16 +28,37 @@ import type { RunDiagnostic, RunResult, WatResult } from "./runner.ts";
 /** The modes the Rust compiler serves. */
 export type RustMode = "run" | "check" | "test";
 
+/**
+ * A project the compiler built for Run or Test: what the run worker
+ * (run-worker.ts) needs to run it, so the compiler's worker never runs a
+ * program and a Stop leaves its warm store (crates/hd_cli/DESIGN.md §7.9).
+ */
+export interface CompiledRun {
+  readonly mode: "run" | "test";
+  readonly compiled: Compiled;
+  readonly diagnostics: readonly RunDiagnostic[];
+  /** `main` or `the program`, as the outcome names it. */
+  readonly who: string;
+  /** How long the compile took. */
+  readonly milliseconds: number;
+}
+
 export interface RustRunner {
   /** Settles once the compiler wasm is instantiated, or failed to be. */
   readonly ready: Promise<void>;
   /** The compiler wasm's exports, which the worker's REPL shares (repl-host.ts). */
   readonly compiler: Promise<CompilerExports>;
+  /** Compiles and runs: `compileProject`, then `runCompiled`. */
   runProject(
     project: Project,
     mode: RustMode,
     onStdout?: (line: string, debug?: boolean) => void,
   ): Promise<RunResult>;
+  /**
+   * Compiles `project`: the result when nothing is left to run (Check, a
+   * compile error, a refused request), else what `runCompiled` runs.
+   */
+  compileProject(project: Project, mode: RustMode): Promise<RunResult | CompiledRun>;
   /** The WebAssembly text of the module Run would build for `project`. */
   watProject(project: Project): Promise<WatResult>;
 }
@@ -265,25 +286,18 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     () => undefined,
   );
 
-  async function runProject(
+  async function compileProject(
     project: Project,
     mode: RustMode,
-    onStdout: (line: string, debug?: boolean) => void = () => undefined,
-  ): Promise<RunResult> {
+  ): Promise<RunResult | CompiledRun> {
     const started = performance.now();
-    const stdout: string[] = [];
-    const emit = (line: string, debug = false): void => {
-      stdout.push(line);
-      onStdout(line, debug);
-    };
     const finish: Finish = (status, diagnostics, summary) => ({
       status,
       diagnostics,
-      stdout,
+      stdout: [],
       summary,
       milliseconds: Math.round(performance.now() - started),
     });
-
     let exports: CompilerExports;
     try {
       exports = await compiler;
@@ -301,61 +315,24 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     if (compiled.status === STATUS.errors)
       return finish("compile-error", diagnostics, "compilation failed");
     if (mode === "check") return finish("ok", diagnostics, "no errors");
-    if (mode === "test") {
-      try {
-        return await runTests(compiled, diagnostics, emit, finish);
-      } catch (error) {
-        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-        return finish("failure", diagnostics, message);
-      }
-    }
-    if (compiled.wasm.length === 0) return finish("failure", diagnostics, "no program to run");
+    if (mode === "run" && compiled.wasm.length === 0)
+      return finish("failure", diagnostics, "no program to run");
+    return {
+      mode,
+      compiled,
+      diagnostics,
+      who: declaresMain(project.files[project.main] ?? "") ? "main" : "the program",
+      milliseconds: performance.now() - started,
+    };
+  }
 
-    const who = declaresMain(project.files[project.main] ?? "") ? "main" : "the program";
-    // Standard output streams line by line. Standard error carries `dbg`
-    // lines, shown marked as debug output (spec/cli/command-line.md#debug-output),
-    // and the report of a panic, which becomes the summary.
-    let report: string | undefined;
-    const out = lineStream((line) => emit(line));
-    const err = lineStream((line) => {
-      if (report !== undefined) report += `; ${line}`;
-      else if (/^(panic|internal error): /.test(line)) report = line.replace(/^panic: /, "");
-      else emit(line, true);
-    });
-    const host = createWebHost(
-      { out: (text) => out.write(text), err: (text) => err.write(text) },
-      { args: [], program: PROGRAM },
-    );
-    try {
-      const module = await WebAssembly.compile(compiled.wasm as BufferSource);
-      // A trait the browser cannot provide stops the run before it starts.
-      const missing = unboundTraits(module, host);
-      if (missing.length > 0)
-        return finish(
-          "failure",
-          diagnostics,
-          `${who} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd run`,
-        );
-      const instance = await WebAssembly.instantiate(module, host.imports);
-      const { status, trapped } = await host.run(instance, "hd.init", "hd.poll");
-      out.end();
-      err.end();
-      if (trapped) {
-        const summary = report ?? "the program trapped";
-        return finish(
-          summary.startsWith("internal error") ? "failure" : "panic",
-          diagnostics,
-          summary,
-        );
-      }
-      if (status !== 0) return finish("failure", diagnostics, `${who} exited with code ${status}`);
-      return finish("ok", diagnostics, "exited normally");
-    } catch (error) {
-      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-      return finish("failure", diagnostics, message);
-    } finally {
-      host.close();
-    }
+  async function runProject(
+    project: Project,
+    mode: RustMode,
+    onStdout: (line: string, debug?: boolean) => void = () => undefined,
+  ): Promise<RunResult> {
+    const built = await compileProject(project, mode);
+    return "mode" in built ? runCompiled(built, onStdout) : built;
   }
 
   async function watProject(project: Project): Promise<WatResult> {
@@ -392,5 +369,82 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     };
   }
 
-  return { ready, compiler, runProject, watProject };
+  return { ready, compiler, runProject, compileProject, watProject };
+}
+
+/**
+ * Runs what `compileProject` built: Run instantiates the program with the
+ * browser host, and Test runs its cases. It needs no compiler, so the run
+ * worker calls it.
+ */
+export async function runCompiled(
+  run: CompiledRun,
+  onStdout: (line: string, debug?: boolean) => void = () => undefined,
+): Promise<RunResult> {
+  const started = performance.now() - run.milliseconds;
+  const stdout: string[] = [];
+  const emit = (line: string, debug = false): void => {
+    stdout.push(line);
+    onStdout(line, debug);
+  };
+  const finish: Finish = (status, diagnostics, summary) => ({
+    status,
+    diagnostics,
+    stdout,
+    summary,
+    milliseconds: Math.round(performance.now() - started),
+  });
+  const { compiled, diagnostics, who } = run;
+  if (run.mode === "test") {
+    try {
+      return await runTests(compiled, diagnostics, emit, finish);
+    } catch (error) {
+      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      return finish("failure", diagnostics, message);
+    }
+  }
+  // Standard output streams line by line. Standard error carries `dbg`
+  // lines, shown marked as debug output (spec/cli/command-line.md#debug-output),
+  // and the report of a panic, which becomes the summary.
+  let report: string | undefined;
+  const out = lineStream((line) => emit(line));
+  const err = lineStream((line) => {
+    if (report !== undefined) report += `; ${line}`;
+    else if (/^(panic|internal error): /.test(line)) report = line.replace(/^panic: /, "");
+    else emit(line, true);
+  });
+  const host = createWebHost(
+    { out: (text) => out.write(text), err: (text) => err.write(text) },
+    { args: [], program: PROGRAM },
+  );
+  try {
+    const module = await WebAssembly.compile(compiled.wasm as BufferSource);
+    // A trait the browser cannot provide stops the run before it starts.
+    const missing = unboundTraits(module, host);
+    if (missing.length > 0)
+      return finish(
+        "failure",
+        diagnostics,
+        `${who} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd run`,
+      );
+    const instance = await WebAssembly.instantiate(module, host.imports);
+    const { status, trapped } = await host.run(instance, "hd.init", "hd.poll");
+    out.end();
+    err.end();
+    if (trapped) {
+      const summary = report ?? "the program trapped";
+      return finish(
+        summary.startsWith("internal error") ? "failure" : "panic",
+        diagnostics,
+        summary,
+      );
+    }
+    if (status !== 0) return finish("failure", diagnostics, `${who} exited with code ${status}`);
+    return finish("ok", diagnostics, "exited normally");
+  } catch (error) {
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    return finish("failure", diagnostics, message);
+  } finally {
+    host.close();
+  }
 }

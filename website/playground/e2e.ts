@@ -157,7 +157,12 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
   });
 
   await step("Stop ends an endless loop and the next run works", async () => {
+    // A program runs in the run worker, so a Stop leaves the compiler's
+    // worker, and its warm store, in place (#254).
+    const workers: string[] = [];
     const page = await openPage(code("pub fn main() -> void:\n    while true:\n        pass\n"));
+    page.on("worker", (worker) => workers.push(new URL(worker.url()).pathname.split("/").pop()!));
+    const before = workers.length;
     await page.click("#run");
     await page.locator("#stop").waitFor();
     await page.waitForTimeout(300);
@@ -171,6 +176,12 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.click("#run");
     await page.locator(".outcome.passed").waitFor();
     assert.equal(await page.locator(".stdout").textContent(), "again\n");
+    assert.deepEqual(
+      workers.slice(before).filter((name) => name === "worker.js"),
+      [],
+      "a Stop restarts no compiler worker",
+    );
+    assert.equal(workers.filter((name) => name === "run-worker.js").length, 2);
     await page.context().close();
   });
 

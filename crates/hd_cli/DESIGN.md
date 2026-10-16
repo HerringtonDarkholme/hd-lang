@@ -233,13 +233,15 @@ on wasmtime only.
 ### 7.9 The Playground
 
 ```text
- page (main thread)          compiler worker (hd_web.wasm + JS host)
- ──────────────────          ───────────────────────────────────────
+ page (main thread)          compiler worker (hd_web.wasm)    run worker (JS host)
+ ──────────────────          ─────────────────────────────    ────────────────────
  editor ─ "check" / "run" ─► Session::compile: one serial driver run
-                             ◄── diagnostics JSON
- "run" ─────────────────────► instantiate the built Wasm on V8 with host/web.mjs
- console, http ◄──────────── host calls
- "stop" / 15 s ─────────────► terminate the worker, start a fresh one
+                             ◄── diagnostics JSON, built Wasm
+ "run" ──────────────────────────────────────────────────────► instantiate on V8
+                                                                with host/web.mjs
+ console, http ◄────────────────────────────────────────────── host calls
+ "stop" / 15 s ──────────────────────────────────────────────► terminate the run
+                                                                worker only
 ```
 
 1. The compiler worker loads `hd_web`'s Wasm once; std is embedded
@@ -249,9 +251,10 @@ on wasmtime only.
 3. "Run" hands the built Wasm bytes to a separate program worker, which
    instantiates them with the JS host. Stopping or timing out a program
    terminates that worker only, so the compiler's warm state survives.
-   Implementation differs: the program runs in the compiler worker, and
-   a Stop terminates both, which is worse: the next compile after a Stop
-   is cold (#254).
+   The compiler worker answers Run and Test with what it built
+   (`compileProject`, website/playground/src/rust-runner.ts), and the
+   page's client hands that to `run-worker.ts`. A Stop or the run limit
+   during a compile still restarts the compiler worker.
 
 Planned, not built: filling the `MemoryStore` from IndexedDB when the
 worker starts and draining new entries back after each run (§5.8);
