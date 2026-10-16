@@ -1,0 +1,19 @@
+# fixture-package-role: root-application
+# test: a package and its dependency each declare User, and the two never clash
+# expect: test
+# Spec 10 Modules: module.kind.package.
+use dep.models.{User as ModelUser}
+
+data User:
+    count: i32
+
+fn describe() -> string:
+    own := User { count: +3 }
+    other := ModelUser { name: "Ada" }
+    "${other.name}${own.count}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("pkg and dep.models keep their own User"):
+        assert_equal(describe(), "Ada3", reason="one User per package")

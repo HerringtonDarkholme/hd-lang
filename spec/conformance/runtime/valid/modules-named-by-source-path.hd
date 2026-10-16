@@ -1,0 +1,17 @@
+# test: two files declare the same name, and each module keeps its own, named by its source path
+# expect: test
+# Spec 10 Modules: module.kind.module.
+# fixture-package-tree: same-name-items/src/report.hd
+use pkg.left
+use pkg.right
+
+fn describe() -> string:
+    named := left.Item { label: "a" }
+    counted := right.Item { count: +2 }
+    "${named.label}${counted.count}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("left.Item and right.Item are two declarations"):
+        assert_equal(describe(), "a2", reason="each module path selects its own Item")

@@ -1,0 +1,11 @@
+# test: with no source root in a manifest, src is the root, so src/label.hd is the module label
+# expect: test
+# Spec 10 Package Manifest: module.manifest.source-root.
+# fixture-package-tree: module-names/src/report.hd
+use pkg.label.{double}
+
+tests:
+    use std.testing.assert_equal
+
+    it("pkg.label names src/label.hd"):
+        assert_equal(double(+4), 8, reason="the module path leaves out src")

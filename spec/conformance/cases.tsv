@@ -2729,6 +2729,11 @@ runtime/valid/test-case-fresh-instance.hd	runtime	accept	lang/10-modules.md#r-mo
 runtime/valid/module-scope-before-initialization.hd	runtime	accept	lang/10-modules.md#r-module.init.declarations
 typing/invalid/child-module-not-in-parent.hd	type	reject:unknown-import	lang/10-modules.md#r-module.path.no-child-import
 runtime/valid/directory-module-and-child.hd	runtime	accept	lang/10-modules.md#r-module.path.directory
+runtime/valid/modules-named-by-source-path.hd	runtime	accept	lang/10-modules.md#r-module.kind.module
+runtime/valid/package-names-apart-from-dependency.hd	runtime	accept	lang/10-modules.md#r-module.kind.package
+runtime/valid/default-source-root.hd	runtime	accept	lang/10-modules.md#r-module.manifest.source-root
+runtime/valid/dependency-key-names-one-package.hd	runtime	accept	lang/10-modules.md#r-module.manifest.dependency
+typing/invalid/no-conditional-compilation-decorator.hd	type	reject:unknown-name	lang/10-modules.md#r-module.manifest.no-features
 typing/invalid/parent-declaration-not-in-child.hd	type	reject:unknown-name	lang/10-modules.md#r-module.path.no-parent-scope
 runtime/valid/integration-test-public-view.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.view
 typing/invalid/integration-test-private-name.hd	type	reject:private-import	lang/10-modules.md#r-module.test.integration.view

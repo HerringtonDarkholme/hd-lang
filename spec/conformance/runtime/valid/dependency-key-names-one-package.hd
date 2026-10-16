@@ -1,0 +1,14 @@
+# fixture-package-role: root-application
+# test: each dependency key names one package, and source reaches it only through dep.KEY
+# expect: test
+# Spec 10 Package Manifest: module.manifest.dependency; Dependency Requirements: module.dep.path-manifest-only.
+use dep.models.{User}
+use dep.members.{make_outer}
+
+tests:
+    use std.testing.assert_equal
+
+    it("two keys reach two packages"):
+        user := User { name: "Ada" }
+        assert_equal(user.name, "Ada", reason="dep.models is one package")
+        assert_equal(make_outer().note, "note", reason="dep.members is another")
