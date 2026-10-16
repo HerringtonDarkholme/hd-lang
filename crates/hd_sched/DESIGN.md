@@ -29,7 +29,7 @@ owns what each task does.
   `FolderIface` and a `HeaderCheck` per built folder, one `Coherence`,
   one `ModulePrep` per built module and a held `PackageResult`;
   `ModulePrep` adds `Body` and `ModuleFinish` on a cache miss;
-  `PackageResult` adds one `InitOrder` per folder and then `Collect`. `Collect` performs the code-entry lookups and adds a held
+  `PackageResult` adds one `InitOrder` per folder and then `Collect`. `Collect` performs the `codepack` lookups and adds a held
   `Link`; for each folder group with at least one miss it creates one
   `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
   The folder group is the folder of the instance's item, the `codepack`

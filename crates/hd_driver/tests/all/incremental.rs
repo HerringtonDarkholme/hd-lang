@@ -98,6 +98,14 @@ fn incremental(executor: Executor) {
     );
     let cold_wasm = cold.wasm.clone().expect("wasm");
 
+    // The cold build stores its code as one `codepack` per Emit group and
+    // one `packhint` for the package, never a file per instance.
+    let written = store.drain_new();
+    let count = |k: hd_cache::EntryKind| written.iter().filter(|(e, _)| *e == k).count();
+    assert_eq!(count(hd_cache::EntryKind::Codepack), emits);
+    assert_eq!(count(hd_cache::EntryKind::Packhint), 1);
+    assert_eq!(count(hd_cache::EntryKind::Code), 0);
+
     // Warm, no edit: every boundary hits.
     let warm = ok(&store, &base, executor);
     assert!(warm.counters.modules_checked.is_empty());
@@ -140,7 +148,10 @@ fn incremental(executor: Executor) {
     );
     assert!(c.hit("check") >= 1, "main's and std's check entries reused");
     assert_eq!(c.miss("link"), 1, "TIR changed, so the program relinks");
-    assert!(c.hit("code") >= 1, "unchanged instances reuse their code");
+    assert!(
+        c.hit("codepack") >= 1,
+        "unchanged instances reuse their code"
+    );
     assert_eq!(c.emitted, 1, "only the edited function is re-emitted");
     assert_eq!(c.ran("Emit"), 1, "the one miss is one folder group");
 

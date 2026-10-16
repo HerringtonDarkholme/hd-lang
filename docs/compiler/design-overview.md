@@ -71,7 +71,7 @@ run with no edit from one key.
 | Coherence | impl heads of the traits whose `coh_key` changed | `overlapping-impl` | one task per changed trait | `coh` part of `graph` | trait path plus sorted head hashes |
 | Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder | `init` part of `graph` | `init_key` |
 | Package result | all of the above | sorted diagnostics, summary | package | no | |
-| Collect, Emit, Link | TIR, interfaces | Wasm | program, instance, program | `code` per instance, `link` per program | `code_key`, `prog_key` |
+| Collect, Emit, Link | TIR, interfaces | Wasm | program, instance, program | `codepack` per folder group, `link` per program | `code_key`, `prog_key` |
 
 Implementation differs: one `Coherence` task checks every built
 folder's impl heads under one key over all deep hashes

@@ -17,7 +17,7 @@ pub use store::{
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 9;
+pub const LAYOUT_VERSION: u16 = 10;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
@@ -204,6 +204,33 @@ pub fn code_key(
     k.hash(instance);
     k.hash(tir);
     k.hash(callee_reps);
+    k.finish()
+}
+
+/// `codepack_key = H("codepack", the code keys of a folder group's
+/// instances, in content order)`: names one `codepack` entry, the code of
+/// every instance of the group (`docs/compiler/data-structures.md` §3.22).
+#[must_use]
+pub fn codepack_key(codes: &[Hash128]) -> Hash128 {
+    let mut k = StableHasher::new("codepack");
+    k.u32(u32::try_from(codes.len()).expect("codepack"));
+    for c in codes {
+        k.hash(*c);
+    }
+    k.finish()
+}
+
+/// `packhint_key = H("packhint", pipeline, profile, package key)`: names
+/// the package's `packhint` entry, which holds each folder group's last
+/// `codepack` keys, so a build whose group changed reuses the unchanged
+/// instances' code. A hint is the one entry a later run overwrites with
+/// other bytes; its reader checks each code key.
+#[must_use]
+pub fn packhint_key(pipeline: Hash128, profile: BuildProfile, package: Hash128) -> Hash128 {
+    let mut k = StableHasher::new("packhint");
+    k.hash(pipeline);
+    k.str(profile.name());
+    k.hash(package);
     k.finish()
 }
 

@@ -817,13 +817,14 @@ writes it.
 | `graph` | one part: a folder's header findings (`hdr`), the coherence result (`coh`) or a folder's init order (`init`) |
 | `depfiles` | a dependency package's file skims |
 | `parse` | empty: the source parses cleanly |
-| `code` | one instance's Wasm code (§3.22) |
+| `codepack` | one folder group's Wasm code (§3.22) |
+| `packhint` | each folder group's recent `codepack` keys, per package |
 | `link` | the linked module |
 
 Positions in `check` entries are relative to code lines (§3.7), so
 emission never needs the syntax tree. The kinds `check-test`, `pkgres`,
-`codepack`, `clpack`, `packhint` and `cwasm` are declared in
-`EntryKind` but not written.
+`clpack`, `cwasm` and `code` are declared in `EntryKind` but not
+written.
 
 ### 3.21 The Scheduler's Task Graph
 
@@ -875,16 +876,12 @@ bytes (locals and instructions, index immediates as 5-byte padded LEBs),
 relocations sorted by offset, line anchors, and a suspending instance's
 other functions.
 
-The design stored a relocation as 9 bytes whose target indexed a
-deduplicated per-entry table of instance keys, Wasm types and symbols,
-and packed code entries into per-folder `codepack` entries, never files
-of their own.
-
-Implementation differs: each relocation holds its full symbol
-(`Reloc::Func(Sym)` with a 16-byte key, `crates/hd_wasm/src/lib.rs:544`),
-and each instance's code is its own `code` entry
-(`crates/hd_driver/src/lib.rs:6634`). Entries are larger, and a cold
-build writes one cache file per instance.
+**Code packs.** A folder group's code entries are one `codepack`
+entry, never files of their own (crates/hd_cache/DESIGN.md §5.4). Its
+first section lists the code keys. Its second is `encode_codes`: one
+type table, one table of relocation targets, then the entries. A
+relocation is 8 bytes, its offset and its target's index. So a target
+that several functions of the group call is written once.
 
 ### 3.23 Wasm Emission Buffers
 

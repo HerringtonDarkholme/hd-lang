@@ -64,10 +64,8 @@ compiles and runs outside the task graph.
 | Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set; code-entry hits and folder groups with misses | program | serial per program; programs in parallel | inside `link` | none |
 | Emit | one folder group's missed instances: generic TIR, substitutions, and callees' TIR | Wasm body bytes, relocations, site and line records | folder group (`codepack`) | groups in parallel | `code` entries in `codepack` | §13.8 |
 
-Implementation differs: a folder group is the folder of an instance's
-item, and each instance's code is its own `code` entry, with no
-`codepack` grouping (#216). One cache lookup and file per instance; not
-judged.
+A folder group is the folder of an instance's item. Its code is one
+`codepack` entry (crates/hd_cache/DESIGN.md §5.4, "Code packs").
 | Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
 | Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
@@ -1198,8 +1196,9 @@ lines), so a dev build without it would compile slower.
 
 ### 13.8 Code Entries
 
-`Emit(inst)` lowers one instance to Wasm with `wasm-encoder` and stores a
-`code` entry, `hd_wasm::Code`:
+`Emit(inst)` lowers one instance to Wasm with `wasm-encoder` into a
+code entry, `hd_wasm::Code`, which its folder group's `codepack` stores
+(docs/compiler/data-structures.md §3.22):
 
 ```rust
 pub struct Code {
@@ -1391,8 +1390,11 @@ numbering, packs and filtered test programs are the largest for latency.
    only for keys no pack holds. It then writes a new pack for each group
    whose members changed. Reading 4,800 separate files would cost 0.3 to
    0.6 s on the Mac; about 30 mapped packs cost 2 to 4 ms.
-   Implementation differs: there are no packs; `Collect` looks up each
-   instance's `code` entry on its own. Planned, not built.
+   Implementation differs: `Collect`, not Link, reads the packs, and
+   the hint is the package's, not the program's. A group's pack is
+   keyed by its code keys, so an unchanged group is one exact lookup;
+   only a changed group reads the packs its folder's hint lists. Packs
+   are read whole, not mapped.
 1. **Drop and fold.** An instance that no relocation names, because every
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then

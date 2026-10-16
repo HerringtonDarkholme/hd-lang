@@ -30,11 +30,12 @@ says.
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings per folder (`hdr_key`); the package's overlap findings (one coherence key); one folder's init order (`init_key`) | `HeaderCheck`, `Coherence`, `InitOrder` | output, D2 |
 | `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
-| `code` | one instance's emitted code (§13.8) | `Emit` | `Collect` |
+| `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
+| `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
 
-`EntryKind` also names `check-test`, `pkgres`, `codepack`, `clpack`,
-`packhint` and `cwasm`; no code writes them.
+`EntryKind` also names `check-test`, `pkgres`, `clpack`, `cwasm` and
+`code`; no code writes them.
 
 **Sections, not files.** A file costs hundreds of µs to publish and tens
 to over a hundred to open on macOS, more than the work inside most small
@@ -260,10 +261,26 @@ obj/
 - A corrupt entry is a miss but is not deleted; eviction removes it like
   any old entry, which is equal and needs no delete on the read path.
 
-Planned, not built: code stored in packs per program and folder group
-(`codepack`, with a `packhint` per program), so a build reads and
-publishes tens of files instead of one per instance (see #49); compiled
-machine code cached across runs (`clpack`, `cwasm`), which wasmtime's
+**Code packs.** Code is stored in one `codepack` per folder group, so a
+build reads and publishes tens of files instead of one per instance.
+- **The key** is the group's code keys in content order
+  (`codepack_key`). Two programs that use the same instances of a
+  folder share its pack.
+- **An edit** changes one group's key. `Collect` then reads the packs
+  the package's `packhint` lists for that folder, newest first, and
+  takes the code of every instance whose code key they hold. Only the
+  rest is emitted, and the group gets a new pack.
+- **The hint** is the one entry a later run rewrites with other bytes
+  (`packhint_key`: pipeline, profile, package). Each code key is checked
+  on read, so a stale or lost hint only costs emission. It keeps four
+  packs per folder, so an edit that is undone and made again still
+  finds the undone state's code.
+- **Cost.** A program whose instances of a folder differ from every
+  cached pack's, such as a new package's first build, emits that
+  folder's instances again: packs share whole groups only.
+
+Planned, not built: compiled machine code cached across runs (`clpack`,
+`cwasm`), which wasmtime's
 `unsafe` deserialization rules out today (crates/hd_run_wasmtime/DESIGN.md
 §17.9).
 
@@ -352,9 +369,9 @@ On macOS a publish costs about 340 µs and an open and read 60 to 120 µs
 (under load), and a Linux runner is likely 5 to 20 times cheaper. With
 one file per entry, a warm one-function edit opens one `check` entry per
 module, publishes the edited module's `check`, and on a build opens one
-`code` entry per instance in the program. The planned packs (§5.4), stat
-manifest (§5.5) and early cutoff (§5.3.1) exist to cut those counts to
-a few files per edit.
+`codepack` per folder group (§5.4). The planned stat manifest (§5.5)
+and early cutoff (§5.3.1) exist to cut those counts to a few files per
+edit.
 
 The first release rechecks a whole module on a body edit
 (crates/hd_check/DESIGN.md (type checking) §1.7). Per-body reuse inside

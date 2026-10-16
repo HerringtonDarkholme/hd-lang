@@ -754,11 +754,62 @@ struct CollectOut {
     /// The missed slots by folder group, the folder of each instance's
     /// item (`crates/hd_sched/DESIGN.md` §6.1): one `Emit` task each.
     groups: Vec<Vec<usize>>,
+    /// Each emitted group's `codepack`, written once the group's code is
+    /// all in.
+    packs: Vec<CodePack>,
+    /// The package's `packhint` as this run read it, and the packs this
+    /// run wrote, which `Link` puts first in it.
+    hint: PackHint,
+    written: Mutex<Vec<(String, Hash128)>>,
     prog_key: Hash128,
     roots: Roots,
     /// Nominal types' layouts, shared by the program's emissions so each
     /// recursion group is laid out once.
     layouts: hd_wasm::layout::Layouts,
+}
+
+/// A folder group's `codepack` (`docs/compiler/data-structures.md`
+/// §3.22): its cached slots in content order, the pack's key, and the
+/// folder's path, its name in the package's `packhint`.
+struct CodePack {
+    slots: Vec<usize>,
+    key: Hash128,
+    folder: String,
+}
+
+/// How many of a folder's recent packs the package's `packhint` keeps.
+const HINTED_PACKS: usize = 4;
+
+/// A package's `packhint`: each folder's recent packs, newest first.
+type PackHint = BTreeMap<String, Vec<Hash128>>;
+
+/// Fills `codes` from a `codepack` entry's `sections`, its code keys and
+/// their code: each of `slots` without code whose code key it holds.
+fn fill_from(
+    sections: &[Vec<u8>],
+    slots: &[usize],
+    code_keys: &[Hash128],
+    codes: &[OnceLock<WasmCode>],
+) {
+    let [head, body] = sections else {
+        return;
+    };
+    let mut r = hd_base::wire::Reader::new(head);
+    let keys: Vec<Hash128> = (0..r.count()).map(|_| r.hash()).collect();
+    let Some(stored) = r.ok().then(|| hd_wasm::decode_codes(body)).flatten() else {
+        return;
+    };
+    if stored.len() != keys.len() {
+        return;
+    }
+    let mut at: hd_base::HashMap<Hash128, WasmCode> = keys.into_iter().zip(stored).collect();
+    for &s in slots {
+        if codes[s].get().is_none()
+            && let Some(c) = at.remove(&code_keys[s])
+        {
+            let _ = codes[s].set(c);
+        }
+    }
 }
 
 /// Module `m`'s skim: its text's skim `file`, with the module paths it
@@ -6933,9 +6984,8 @@ impl Run<'_> {
         let order = collected.table.content_order();
         let mut code_keys = Vec::new();
         let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
-        let mut misses = Vec::new();
         let held = self.scenario_hold(p);
-        for (slot, id) in order.iter().enumerate() {
+        for id in &order {
             let item = collected.table.item[id.idx()];
             let tir = self.body_of(p, item).map_or(Hash128(0), |b| b.1);
             // Emitted code embeds the layouts of the types it touches, and
@@ -6956,34 +7006,48 @@ impl Run<'_> {
                 reps.finish(),
             );
             code_keys.push(ck);
-            // A held call's stub is per build, never cached: it always
-            // emits, and no other build may read it.
-            if held.is_some_and(|(d, _)| d == item) {
-                misses.push(slot);
-                continue;
-            }
-            match self
-                .lookup(EntryKind::Code, ck)
-                .and_then(|s| s.first().and_then(|b| WasmCode::decode(b)))
-            {
-                Some(c) => {
-                    let _ = codes[slot].set(c);
-                }
-                None => misses.push(slot),
-            }
         }
         // A folder group is the folder of an instance's item; an item in no
         // folder of the table makes a group of its own.
         let mut by_folder: BTreeMap<Option<u32>, Vec<usize>> = BTreeMap::new();
-        for slot in misses {
-            let item = collected.table.item[order[slot].idx()];
+        for (slot, id) in order.iter().enumerate() {
+            let item = collected.table.item[id.idx()];
             let folder = self.table.folder_of_module(&names.module_of(item));
             by_folder
                 .entry(folder.map(FolderId::raw))
                 .or_default()
                 .push(slot);
         }
-        let groups: Vec<Vec<usize>> = by_folder.into_values().collect();
+        let mut groups = Vec::new();
+        let mut packs = Vec::new();
+        // Read only when a group misses its exact pack.
+        let recent = OnceLock::new();
+        let mut written = Vec::new();
+        for (folder, slots) in by_folder {
+            // A held call's stub is per build, never cached: it always
+            // emits, and no other build may read it.
+            let (held_slots, cached): (Vec<usize>, Vec<usize>) = slots.into_iter().partition(|s| {
+                held.is_some_and(|(d, _)| d == collected.table.item[order[*s].idx()])
+            });
+            let (pack, exact) = self.code_pack(folder, cached, &recent, &code_keys, &codes);
+            let mut misses: Vec<usize> = pack
+                .slots
+                .iter()
+                .copied()
+                .filter(|s| codes[*s].get().is_none())
+                .chain(held_slots)
+                .collect();
+            misses.sort_unstable();
+            if !misses.is_empty() {
+                groups.push(misses);
+                packs.push(pack);
+            } else if !exact {
+                // Filled from older packs: this set gets its own.
+                if self.write_pack(&pack, &codes, &code_keys) {
+                    written.push((pack.folder, pack.key));
+                }
+            }
+        }
         let emits = groups.len();
         let _ = self.collect.set(CollectOut {
             collected,
@@ -6991,6 +7055,9 @@ impl Run<'_> {
             codes,
             code_keys,
             groups,
+            packs,
+            hint: recent.into_inner().unwrap_or_default(),
+            written: Mutex::new(written),
             prog_key: pkey,
             roots: plan,
             layouts: hd_wasm::layout::Layouts::new(self.lowering),
@@ -7317,6 +7384,116 @@ impl Run<'_> {
 
     /// `Emit(g)`: the missed instances of folder group `g`, as one batch
     /// over one program view.
+    /// The `codepack` of a folder group (`folder`, its cached `slots`):
+    /// the pack of exactly these code keys, else the folder's recent packs
+    /// in the package's `hint`, whose matching instances it fills in
+    /// `codes`. Whether the exact pack was found.
+    fn code_pack(
+        &self,
+        folder: Option<u32>,
+        slots: Vec<usize>,
+        hint: &OnceLock<PackHint>,
+        code_keys: &[Hash128],
+        codes: &[OnceLock<WasmCode>],
+    ) -> (CodePack, bool) {
+        let keys: Vec<Hash128> = slots.iter().map(|s| code_keys[*s]).collect();
+        let key = hd_cache::codepack_key(&keys);
+        let folder =
+            folder.map_or_else(String::new, |f| self.table.folders[f as usize].path.clone());
+        let pack = CodePack { slots, key, folder };
+        if pack.slots.is_empty() {
+            return (pack, true);
+        }
+        if let Some(sections) = self.lookup(EntryKind::Codepack, key) {
+            fill_from(&sections, &pack.slots, code_keys, codes);
+            return (pack, true);
+        }
+        let hint = hint.get_or_init(|| self.pack_hint());
+        for old in hint.get(&pack.folder).into_iter().flatten() {
+            if pack.slots.iter().all(|s| codes[*s].get().is_some()) {
+                break;
+            }
+            if let Some(sections) = self.lookup(EntryKind::Codepack, *old) {
+                fill_from(&sections, &pack.slots, code_keys, codes);
+            }
+        }
+        (pack, false)
+    }
+
+    /// Writes `pack` once every slot of it has code; whether it did.
+    fn write_pack(
+        &self,
+        pack: &CodePack,
+        codes: &[OnceLock<WasmCode>],
+        code_keys: &[Hash128],
+    ) -> bool {
+        if pack.slots.is_empty() {
+            return false;
+        }
+        let Some(all) = pack
+            .slots
+            .iter()
+            .map(|s| codes[*s].get())
+            .collect::<Option<Vec<&WasmCode>>>()
+        else {
+            return false;
+        };
+        let mut head = hd_base::wire::Writer::default();
+        head.len_of(&pack.slots);
+        for s in &pack.slots {
+            head.hash(code_keys[*s]);
+        }
+        let body = hd_wasm::encode_codes(&all);
+        self.put(EntryKind::Codepack, pack.key, &[&head.bytes, &body]);
+        true
+    }
+
+    fn pack_hint_key(&self) -> Hash128 {
+        hd_cache::packhint_key(self.pipeline, self.build_profile, self.package_key)
+    }
+
+    /// The package's `packhint`; empty when there is none.
+    fn pack_hint(&self) -> PackHint {
+        let Some(s) = self.lookup(EntryKind::Packhint, self.pack_hint_key()) else {
+            return PackHint::new();
+        };
+        let mut r = hd_base::wire::Reader::new(s.first().map_or(&[][..], Vec::as_slice));
+        let mut hint = PackHint::new();
+        for _ in 0..r.count() {
+            let folder = r.str().to_owned();
+            let keys = (0..r.count()).map(|_| r.hash()).collect();
+            hint.insert(folder, keys);
+        }
+        if r.ok() { hint } else { PackHint::new() }
+    }
+
+    /// Puts the packs this run wrote first in the package's `packhint`,
+    /// which keeps each folder's last [`HINTED_PACKS`]: an edit undone and
+    /// then made again still finds the code of the undone state.
+    fn put_pack_hint(&self, c: &CollectOut) {
+        let written = std::mem::take(&mut *lock(&c.written));
+        if written.is_empty() {
+            return;
+        }
+        let mut hint = c.hint.clone();
+        for (folder, key) in written {
+            let keys = hint.entry(folder).or_default();
+            keys.retain(|k| *k != key);
+            keys.insert(0, key);
+            keys.truncate(HINTED_PACKS);
+        }
+        let mut w = hd_base::wire::Writer::default();
+        w.u32(u32_of(hint.len()));
+        for (folder, keys) in &hint {
+            w.str(folder);
+            w.len_of(keys);
+            for k in keys {
+                w.hash(*k);
+            }
+        }
+        self.put(EntryKind::Packhint, self.pack_hint_key(), &[&w.bytes]);
+    }
+
     fn emit(&self, group: usize) {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
@@ -7334,6 +7511,10 @@ impl Run<'_> {
         let scenario = self.scenario_hold(p);
         for &slot in &c.groups[group] {
             self.emit_slot(c, p, &env, &names, scenario, slot);
+        }
+        let pack = &c.packs[group];
+        if self.write_pack(pack, &c.codes, &c.code_keys) {
+            lock(&c.written).push((pack.folder.clone(), pack.key));
         }
     }
 
@@ -7423,9 +7604,6 @@ impl Run<'_> {
         let Some(code) = self.stage(Stage::Emit, r) else {
             return;
         };
-        if held.is_none() {
-            self.put(EntryKind::Code, c.code_keys[slot], &[&code.encode()]);
-        }
         lock(&self.counters).emitted += 1;
         let _ = c.codes[slot].set(code);
     }
@@ -7434,6 +7612,7 @@ impl Run<'_> {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
+        self.put_pack_hint(c);
         let mut codes = Vec::new();
         let mut fnames = Vec::new();
         for (slot, id) in c.order.iter().enumerate() {

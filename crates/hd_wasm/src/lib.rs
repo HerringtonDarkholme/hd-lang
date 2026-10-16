@@ -1130,22 +1130,71 @@ fn decode_grouped<T>(bytes: &[u8], body: impl FnOnce(&mut Reader<'_>) -> Option<
     r.ok().then_some(c?)
 }
 
+/// The relocation targets of the code being encoded: each distinct
+/// target once, by first use (`docs/compiler/data-structures.md` §3.22).
+#[derive(Default)]
+struct Targets<'c> {
+    w: Writer,
+    index: HashMap<&'c Reloc, u32>,
+}
+
+impl<'c> Targets<'c> {
+    fn of(&mut self, r: &'c Reloc) -> u32 {
+        let n = u32::try_from(self.index.len()).expect("relocation targets");
+        *self.index.entry(r).or_insert_with(|| {
+            encode_reloc(r, &mut self.w);
+            n
+        })
+    }
+}
+
+/// The bytes of a list of code entries, as one `codepack` section holds
+/// them (`docs/compiler/data-structures.md` §3.22): ID-free. First the
+/// table of their types (`Table`), then their relocation targets, then
+/// the entries, whose relocations index the targets.
+#[must_use]
+pub fn encode_codes(codes: &[&Code]) -> Vec<u8> {
+    encode_grouped(|w| {
+        let mut t = Targets::default();
+        let mut body = Writer::default();
+        body.len_of(codes);
+        for c in codes {
+            c.encode_into(&mut body, &mut t);
+        }
+        w.u32(u32::try_from(t.index.len()).expect("relocation targets"));
+        w.bytes.extend_from_slice(&t.w.bytes);
+        w.bytes.extend_from_slice(&body.bytes);
+    })
+}
+
+/// Reads what [`encode_codes`] wrote; `None` when malformed (a cache miss).
+#[must_use]
+pub fn decode_codes(bytes: &[u8]) -> Option<Vec<Code>> {
+    decode_grouped(bytes, |r| {
+        let targets = (0..r.count())
+            .map(|_| decode_reloc(r))
+            .collect::<Option<Vec<_>>>()?;
+        (0..r.count())
+            .map(|_| Code::decode_from(r, &targets, 0))
+            .collect()
+    })
+}
+
 impl Code {
-    /// The code entry's bytes (`crates/hd_mono/DESIGN.md` §13.8): ID-free. First the
-    /// table of its types (`Table`), then the entry.
+    /// The code entry's bytes: [`encode_codes`] of this one entry.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        encode_grouped(|w| self.encode_into(w))
+        encode_codes(&[self])
     }
 
-    fn encode_into(&self, w: &mut Writer) {
+    fn encode_into<'c>(&'c self, w: &mut Writer, t: &mut Targets<'c>) {
         encode_vts(&self.params, w);
         encode_vts(&self.results, w);
         w.blob(&self.body);
         w.len_of(&self.relocs);
         for (at, r) in &self.relocs {
             w.u32(*at);
-            encode_reloc(r, w);
+            w.u32(t.of(r));
         }
         w.len_of(&self.lines);
         for &(off, at) in &self.lines {
@@ -1155,17 +1204,18 @@ impl Code {
         w.len_of(&self.parts);
         for (p, c) in &self.parts {
             w.u8(p.tag());
-            c.encode_into(w);
+            c.encode_into(w, t);
         }
     }
 
     /// Decodes a code entry; `None` when malformed (a cache miss).
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Code> {
-        decode_grouped(bytes, |r| Self::decode_from(r, 0))
+        let mut codes = decode_codes(bytes)?;
+        (codes.len() == 1).then(|| codes.pop())?
     }
 
-    fn decode_from(r: &mut Reader<'_>, depth: u8) -> Option<Code> {
+    fn decode_from(r: &mut Reader<'_>, targets: &[Reloc], depth: u8) -> Option<Code> {
         let params = decode_vts(r)?;
         let results = decode_vts(r)?;
         let body = r.blob().to_vec();
@@ -1173,7 +1223,7 @@ impl Code {
         let mut relocs = Vec::new();
         for _ in 0..n {
             let at = r.u32();
-            let reloc = decode_reloc(r)?;
+            let reloc = targets.get(r.u32() as usize)?.clone();
             if (at as usize) + 5 > body.len() {
                 return None;
             }
@@ -1187,7 +1237,7 @@ impl Code {
         }
         for _ in 0..n {
             let p = Part::from_tag(r.u8())?;
-            parts.push((p, Self::decode_from(r, 1)?));
+            parts.push((p, Self::decode_from(r, targets, 1)?));
         }
         Some(Code {
             params,
@@ -2331,7 +2381,7 @@ fn witness_init(
 mod tests {
     use super::{
         Code, Externs, GSym, Group, Hash128, LinkMode, MEMORY_KEY, Reloc, SESSION_MODULE, Sym,
-        Types, VT, WTy, Writer, func_key, global_key, link, rt,
+        Types, VT, WTy, Writer, decode_codes, encode_codes, func_key, global_key, link, rt,
     };
     use crate::asm::Asm;
     use std::sync::Arc;
@@ -2435,18 +2485,43 @@ mod tests {
         let bytes = code.encode();
         let back = Code::decode(&bytes).expect("decodes");
         assert_eq!(back, code);
-        // A relocation is its offset, kind and place: 9 bytes, however
-        // large its type.
+        // A relocation is its offset and its target's index: 8 bytes,
+        // however large its target.
         let one = Code {
             relocs: code.relocs[..1].to_vec(),
             ..code.clone()
         };
-        assert_eq!(bytes.len() - one.encode().len(), 9 * (n - 1));
+        assert_eq!(bytes.len() - one.encode().len(), 8 * (n - 1));
         // Equal types decode to one shared descriptor.
         let (VT::Ref(a, _), VT::Ref(b, _)) = (&back.params[0], &back.params[1]) else {
             panic!("references")
         };
         assert!(Arc::ptr_eq(a, b));
+    }
+
+    #[test]
+    fn a_pack_writes_each_relocation_target_once() {
+        let call = |k: u8| Reloc::Func(Sym::Inst(Hash128(u128::from(k))));
+        let code = |k: u8| Code {
+            params: vec![],
+            results: vec![],
+            body: vec![0; 10],
+            relocs: vec![(0, call(1)), (5, call(k))],
+            lines: vec![],
+            parts: vec![],
+        };
+        let (a, b) = (code(2), code(3));
+        let pack = encode_codes(&[&a, &b]);
+        assert_eq!(decode_codes(&pack), Some(vec![a.clone(), b.clone()]));
+        // The shared target `call(1)` is written once: the pack is
+        // smaller than the two entries apart by more than its 18 bytes.
+        let apart = a.encode().len() + b.encode().len();
+        assert!(apart - pack.len() > 18, "{apart} vs {}", pack.len());
+        // A target index past the table is a miss.
+        let mut cut = encode_codes(&[&a]);
+        let at = cut.len() - 4 * 3 - 4;
+        cut[at] = 9;
+        assert_eq!(decode_codes(&cut), None);
     }
 
     #[test]
