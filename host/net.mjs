@@ -6,6 +6,13 @@
 // `Process.run!` does: `read!`, `accept!` and `receive!` hold the program
 // until a byte, a connection or a datagram arrives.
 //
+// A handle's timeout (std-net.timeout.set) bounds its `read!`, `accept!`
+// and `receive!` with a timer, cleared when the wait completes: a wait it
+// ends is `Timeout`, takes nothing, and leaves every arrival for the next
+// call (std-net.timeout.error). A zero or negative timeout returns what
+// already arrived and otherwise ends at once (std-net.timeout.negative).
+// `connect_timeout!` bounds a connect the same way.
+//
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,
 // or `{ disposed: true }` for an operation on a closed handle
 // (std-net.handles.closable). The program's thread checks the host's form
@@ -28,6 +35,10 @@ const open = (h) => {
 };
 
 const fail = (variant, text) => ({ error: [variant, text] });
+const timedOut = () => ({ error: ["Timeout"] });
+
+// What `Inbox.next` returns when its bound ends first.
+const TIMED_OUT = Symbol("timed out");
 
 // The `NetError` of a failed socket operation on `address`, or of a lookup
 // of `host` (std-net.error.*).
@@ -66,12 +77,28 @@ class Inbox {
     this.waiter = null;
     w?.();
   }
-  // The next arrival, or `null` once nothing more will come.
-  async next() {
-    while (!this.items.length && this.end === null) {
-      await new Promise((r) => {
-        this.waiter = r;
-      });
+  // The next arrival, or `null` once nothing more will come, or
+  // `TIMED_OUT` once `ms` milliseconds pass first (`null`: no bound).
+  async next(ms = null) {
+    const ready = () => this.items.length || this.end !== null;
+    if (ms !== null && ms <= 0 && !ready()) return TIMED_OUT;
+    let late = false;
+    const timer =
+      ms === null
+        ? null
+        : setTimeout(() => {
+            late = true;
+            this.wake();
+          }, ms);
+    try {
+      while (!ready()) {
+        if (late) return TIMED_OUT;
+        await new Promise((r) => {
+          this.waiter = r;
+        });
+      }
+    } finally {
+      clearTimeout(timer);
     }
     return this.items.length ? this.items.shift() : null;
   }
@@ -84,7 +111,7 @@ const stream = (socket) => {
   socket.on("end", () => inbox.finish({ end: true }));
   socket.on("error", (e) => inbox.finish({ error: e }));
   socket.on("close", () => inbox.finish({ end: true }));
-  return open({ kind: "stream", socket, inbox, closed: false, rest: null });
+  return open({ kind: "stream", socket, inbox, closed: false, rest: null, timeout: null });
 };
 
 const ops = {
@@ -96,11 +123,27 @@ const ops = {
       return failure(e, host, host);
     }
   },
-  connect: ({ host, port, address }) =>
+  // std-net.connect-timeout: `timeout` (milliseconds, or `null` for
+  // `connect!`) bounds the whole connect; past it, the socket closes.
+  connect: ({ host, port, address, timeout = null }) =>
     new Promise((done) => {
+      if (timeout !== null && timeout <= 0) return done(timedOut());
       const socket = net.connect({ host, port });
-      socket.once("error", (e) => done(failure(e, address, host)));
+      const timer =
+        timeout === null
+          ? null
+          : setTimeout(() => {
+              socket.removeAllListeners();
+              socket.on("error", () => {});
+              socket.destroy();
+              done(timedOut());
+            }, timeout);
+      socket.once("error", (e) => {
+        clearTimeout(timer);
+        done(failure(e, address, host));
+      });
       socket.once("connect", () => {
+        clearTimeout(timer);
         socket.removeAllListeners("error");
         done({ ok: stream(socket) });
       });
@@ -114,7 +157,7 @@ const ops = {
       server.listen(port, host, () => {
         server.removeAllListeners("error");
         server.on("error", (e) => inbox.finish({ error: e }));
-        done({ ok: open({ kind: "listener", server, inbox, closed: false }) });
+        done({ ok: open({ kind: "listener", server, inbox, closed: false, timeout: null }) });
       });
     }),
   bind_udp: ({ host, port, address }) =>
@@ -126,7 +169,7 @@ const ops = {
       socket.bind(port, host, () => {
         socket.removeAllListeners("error");
         socket.on("error", (e) => inbox.finish({ error: e }));
-        done({ ok: open({ kind: "udp", socket, inbox, closed: false }) });
+        done({ ok: open({ kind: "udp", socket, inbox, closed: false, timeout: null }) });
       });
     }),
   // std-net.read: at least one byte, at most `max`; empty at the end.
@@ -135,7 +178,8 @@ const ops = {
     let chunk = h.rest;
     h.rest = null;
     if (chunk === null) {
-      const got = await h.inbox.next();
+      const got = await h.inbox.next(h.timeout);
+      if (got === TIMED_OUT) return timedOut();
       if (got === null) {
         const why = h.inbox.end;
         return why?.error ? failure(why.error, "", "") : { ok: new Uint8Array(0) };
@@ -155,7 +199,8 @@ const ops = {
     }),
   // std-net.accept: the next connection's stream.
   accept: async ({ h }) => {
-    const socket = await h.inbox.next();
+    const socket = await h.inbox.next(h.timeout);
+    if (socket === TIMED_OUT) return timedOut();
     if (socket === null) return failure(h.inbox.end?.error ?? "the listener stopped", "", "");
     return { ok: stream(socket) };
   },
@@ -168,11 +213,17 @@ const ops = {
     }),
   // std-net.receive: one datagram, at most `max` of its bytes.
   receive: async ({ h, max }) => {
-    const got = await h.inbox.next();
+    const got = await h.inbox.next(h.timeout);
+    if (got === TIMED_OUT) return timedOut();
     if (got === null) return failure(h.inbox.end?.error ?? "the socket stopped", "", "");
     return {
       ok: { bytes: got.msg.subarray(0, max), host: got.rinfo.address, port: got.rinfo.port },
     };
+  },
+  // std-net.timeout.set: milliseconds, or `null` for no bound.
+  set_timeout: ({ h, timeout }) => {
+    h.timeout = timeout;
+    return { ok: null };
   },
   close: ({ h }) => {
     // std-net.close.release: a full close of both directions.

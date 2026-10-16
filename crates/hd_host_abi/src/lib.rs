@@ -233,6 +233,13 @@ pub static TABLE: &[HostTrait] = &[
                 Some(ResourceArg::Addr),
             ),
             m(
+                "connect_timeout",
+                &[B("string"), S(Scalar::I32), S(Scalar::I64)],
+                B("Result[TcpStream, NetError]"),
+                Wait::May,
+                Some(ResourceArg::Addr),
+            ),
+            m(
                 "listen",
                 &[B("string"), S(Scalar::I32)],
                 B("Result[TcpListener, NetError]"),
@@ -379,6 +386,13 @@ pub static HANDLES: &[HostTrait] = &[
                 None,
             ),
             m(
+                "TcpStream.set_timeout",
+                &[S(Scalar::I32), B("Duration?")],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+            m(
                 "TcpStream.close",
                 &[S(Scalar::I32)],
                 B("Result[void, ResourceError[NetError]]"),
@@ -396,6 +410,13 @@ pub static HANDLES: &[HostTrait] = &[
                 &[S(Scalar::I32)],
                 B("Result[TcpStream, ResourceError[NetError]]"),
                 Wait::May,
+                None,
+            ),
+            m(
+                "TcpListener.set_timeout",
+                &[S(Scalar::I32), B("Duration?")],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
                 None,
             ),
             m(
@@ -423,6 +444,13 @@ pub static HANDLES: &[HostTrait] = &[
                 &[S(Scalar::I32), S(Scalar::I32)],
                 B("Result[Datagram, ResourceError[NetError]]"),
                 Wait::May,
+                None,
+            ),
+            m(
+                "UdpSocket.set_timeout",
+                &[S(Scalar::I32), B("Duration?")],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
                 None,
             ),
             m(

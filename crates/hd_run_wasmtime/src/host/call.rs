@@ -315,15 +315,19 @@ fn host(
         }
         Id::NetLookup
         | Id::NetConnect
+        | Id::NetConnectTimeout
         | Id::NetListen
         | Id::NetBindUdp
         | Id::NetTcpStreamRead
         | Id::NetTcpStreamWrite
+        | Id::NetTcpStreamSetTimeout
         | Id::NetTcpStreamClose
         | Id::NetTcpListenerAccept
+        | Id::NetTcpListenerSetTimeout
         | Id::NetTcpListenerClose
         | Id::NetUdpSocketSendTo
         | Id::NetUdpSocketReceive
+        | Id::NetUdpSocketSetTimeout
         | Id::NetUdpSocketClose => {
             if finish {
                 let Done::Net(done) = finished(caller, params)? else {
@@ -331,8 +335,9 @@ fn host(
                 };
                 return Ok(Ret::encoded(caller.data_mut().net.finish(done)?));
             }
-            // `close` never waits: its reply is the call's result.
-            let close = method.wait == Wait::Never;
+            // `set_timeout` and `close` never wait: the reply is the
+            // call's result.
+            let at_once = method.wait == Wait::Never;
             let args = (0..params.len())
                 .map(|i| int_arg(params, i))
                 .collect::<wasmtime::Result<Vec<_>>>()?;
@@ -342,7 +347,7 @@ fn host(
             };
             let host = caller.data_mut();
             match host.net.start(method.name, &args, &b, &host.grants)? {
-                net::client::Start::Ready(e) if close => Ret::encoded(e),
+                net::client::Start::Ready(e) if at_once => Ret::encoded(e),
                 net::client::Start::Ready(e) => Ret::ready(e)?,
                 net::client::Start::Closed { reply, handle } => {
                     net::ops::dispose(&mut host.reactor, handle);

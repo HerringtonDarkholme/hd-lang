@@ -4,10 +4,21 @@
 //! from the socket until they complete, so aborting one leaves the bytes,
 //! the connection or the datagram in the kernel for the next call
 //! (`std-net.cancel.read`).
+//!
+//! A handle's timeout bounds its `read`, `accept` and `receive` with a
+//! tokio timer of host time (`std-net.timeout.host-time`). When the timer
+//! ends first, the wait is dropped, so it took nothing, and one
+//! non-blocking call on the socket itself returns what the kernel already
+//! holds, or `Timeout` (`std-net.timeout.error`). That call skips tokio's
+//! readiness, which may not have seen the bytes yet, so a zero timeout
+//! returns the buffered bytes, as on Node (`std-net.timeout.negative`).
 
-use std::io;
+use std::io::{self, Read};
 use std::net::{Ipv6Addr, Shutdown, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
+
+use socket2::SockRef;
 
 use super::CHUNK;
 use super::client::NetError;
@@ -21,6 +32,8 @@ pub(crate) enum Job {
     Connect {
         host: String,
         port: u16,
+        /// `connect_timeout!`'s bound, over every address it tries.
+        timeout: Option<Duration>,
     },
     Bind {
         udp: bool,
@@ -31,6 +44,7 @@ pub(crate) enum Job {
         stream: Arc<Stream>,
         handle: i64,
         max: usize,
+        bound: Option<Duration>,
     },
     Write {
         stream: Arc<Stream>,
@@ -40,6 +54,7 @@ pub(crate) enum Job {
     Accept {
         listener: Arc<tokio::net::TcpListener>,
         handle: i64,
+        bound: Option<Duration>,
     },
     Send {
         socket: Arc<Udp>,
@@ -52,6 +67,7 @@ pub(crate) enum Job {
         socket: Arc<Udp>,
         handle: i64,
         max: usize,
+        bound: Option<Duration>,
     },
 }
 
@@ -141,20 +157,31 @@ impl Job {
         let resource = self.resource();
         let result = match self {
             Job::Lookup(host) => lookup(&host).await,
-            Job::Connect { host, port } => connect(&host, port).await,
+            // Past its bound, the connect is dropped with the socket it
+            // was opening, which closes it (`std-net.connect-timeout`).
+            Job::Connect {
+                host,
+                port,
+                timeout,
+            } => match timeout {
+                None => connect(&host, port).await,
+                Some(timeout) => tokio::time::timeout(timeout, connect(&host, port))
+                    .await
+                    .unwrap_or(Err(NetError::Timeout)),
+            },
             Job::Bind { udp, host, port } => open(udp, &host, port).await,
             Job::Read {
                 stream,
                 handle,
                 max,
-            } => read(&stream, max)
+                bound,
+            } => within(bound, read(&stream, max), || read_now(&stream, max))
                 .await
                 .map(|bytes| Got::Bytes { handle, bytes }),
             Job::Write { stream, bytes, .. } => write(&stream, &bytes).await.map(|()| Got::None),
-            Job::Accept { listener, .. } => match listener.accept().await {
-                Ok((socket, _)) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
-                Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
-            },
+            Job::Accept {
+                listener, bound, ..
+            } => within(bound, accept(&listener), || accept_now(&listener)).await,
             Job::Send {
                 socket,
                 host,
@@ -166,12 +193,15 @@ impl Job {
                 socket,
                 handle,
                 max,
-            } => receive(&socket).await.map(|(bytes, peer)| Got::Datagram {
-                handle,
-                bytes,
-                max,
-                peer,
-            }),
+                bound,
+            } => within(bound, receive(&socket), || receive_now(&socket))
+                .await
+                .map(|(bytes, peer)| Got::Datagram {
+                    handle,
+                    bytes,
+                    max,
+                    peer,
+                }),
         };
         Done { resource, result }
     }
@@ -284,6 +314,73 @@ pub(crate) fn ended(end: End) -> Result<Vec<u8>, NetError> {
     }
 }
 
+/// `wait` bounded by `bound`: past it, `now` answers from what the socket
+/// already holds.
+async fn within<T>(
+    bound: Option<Duration>,
+    wait: impl Future<Output = Result<T, NetError>>,
+    now: impl FnOnce() -> Result<T, NetError>,
+) -> Result<T, NetError> {
+    match bound {
+        None => wait.await,
+        Some(bound) => match tokio::time::timeout(bound, wait).await {
+            Ok(result) => result,
+            Err(_) => now(),
+        },
+    }
+}
+
+/// Whether a non-blocking socket call found nothing there.
+fn would_block(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+    )
+}
+
+/// A bounded read whose bound ended: the bytes or the end the kernel
+/// already holds, or `Timeout`.
+fn read_now(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
+    if let Some(end) = stream.state().end.clone() {
+        return ended(end);
+    }
+    let mut bytes = vec![0; max.min(CHUNK)];
+    match (&*SockRef::from(&stream.socket)).read(&mut bytes) {
+        Ok(0) => {
+            let end = stream.state().end.get_or_insert(End::Eof).clone();
+            ended(end)
+        }
+        Ok(n) => {
+            bytes.truncate(n);
+            Ok(bytes)
+        }
+        Err(error) if would_block(&error) => Err(NetError::Timeout),
+        Err(error) => Err(stream_failed(stream, &error, "read")),
+    }
+}
+
+/// The next connection's stream.
+async fn accept(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
+    match listener.accept().await {
+        Ok((socket, _)) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
+        Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
+    }
+}
+
+/// A bounded accept whose bound ended: a connection already queued, or
+/// `Timeout`.
+fn accept_now(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
+    let accepted = SockRef::from(listener).accept().and_then(|(socket, _)| {
+        socket.set_nonblocking(true)?;
+        tokio::net::TcpStream::from_std(socket.into())
+    });
+    match accepted {
+        Ok(socket) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
+        Err(error) if would_block(&error) => Err(NetError::Timeout),
+        Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
+    }
+}
+
 /// A read's failure, which stays: every later read reports it.
 fn stream_failed(stream: &Stream, error: &io::Error, syscall: &str) -> NetError {
     let error = socket_error(error, syscall, None, "", 0);
@@ -363,6 +460,30 @@ async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
             Err(error) => return Err(socket_error(&error, "recvmsg", None, "", 0)),
         }
     }
+}
+
+/// A bounded receive whose bound ended: a datagram already queued, with
+/// its sender, or `Timeout`. The sender is peeked first, so the datagram
+/// stays queued until the read takes it whole.
+fn receive_now(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+    let raw = SockRef::from(&socket.socket);
+    let failed = |error: &io::Error| {
+        if would_block(error) {
+            NetError::Timeout
+        } else {
+            socket_error(error, "recvmsg", None, "", 0)
+        }
+    };
+    let peer = raw.peek_sender().map_err(|e| failed(&e))?;
+    let Some(peer) = peer.as_socket() else {
+        return Err(NetError::Other {
+            message: "a datagram from an address that is not IP".into(),
+        });
+    };
+    let mut bytes = vec![0; CHUNK];
+    let n = (&*raw).read(&mut bytes).map_err(|e| failed(&e))?;
+    bytes.truncate(n);
+    Ok((bytes, peer))
 }
 
 #[cfg(test)]

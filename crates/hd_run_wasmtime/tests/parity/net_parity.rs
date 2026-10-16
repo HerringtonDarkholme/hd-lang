@@ -13,6 +13,9 @@ use hd_run::{Engine, Grants, HostSetup, Instance, Limit, Limits, Outcome};
 use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine};
 use wasm_encoder::{Instruction as I, ValType};
 
+/// `NetError.Timeout`'s variant, which has no field.
+const TIMEOUT: u64 = 4;
+
 fn net_error(variant: u64, text: &str) -> Vec<u8> {
     Enc::default().leb(1).leb(variant).str(text).0
 }
@@ -37,9 +40,47 @@ fn handle(p: &mut Program, method: &str, args: &[i32], payload: Option<&[u8]>, e
         payload,
         !matches!(
             method,
-            "TcpStream.close" | "TcpListener.close" | "UdpSocket.close"
+            "TcpStream.close"
+                | "TcpListener.close"
+                | "UdpSocket.close"
+                | "TcpStream.set_timeout"
+                | "TcpListener.set_timeout"
+                | "UdpSocket.set_timeout"
         ),
         expected,
+    );
+}
+
+/// A `Duration?` of `millis` milliseconds, or `.None`.
+fn bound(millis: Option<i64>) -> Vec<u8> {
+    match millis {
+        // `Duration.millis` is a zigzag LEB128 `i64`.
+        Some(millis) => {
+            Enc::default()
+                .leb(1)
+                .leb(((millis << 1) ^ (millis >> 63)).cast_unsigned())
+                .0
+        }
+        None => Enc::default().leb(0).0,
+    }
+}
+fn set_timeout(p: &mut Program, kind: &str, h: i32, millis: Option<i64>) {
+    handle(
+        p,
+        &format!("{kind}.set_timeout"),
+        &[h],
+        Some(&bound(millis)),
+        vec![0],
+    );
+}
+fn connect_timeout(p: &mut Program, host: &str, port: u16, millis: i64, result: Vec<u8>) {
+    p.abi_call_with(
+        "hd:Net",
+        "connect_timeout",
+        &[Scalar::I32(i32::from(port)), Scalar::I64(millis)],
+        Some(&Enc::default().str(host).0),
+        true,
+        result,
     );
 }
 
@@ -208,6 +249,216 @@ fn tcp_listener_accept_write_close_and_disposed_accept() {
     for client in clients.into_inner().unwrap() {
         client.join().unwrap();
     }
+}
+
+#[test]
+fn tcp_timed_out_read_keeps_the_stream_and_zero_bound_returns_only_buffered_bytes() {
+    let scratch = Scratch::new();
+    // The peer writes only after the guest's "go", so the first bounded
+    // read has nothing to take. It then holds the stream open until the
+    // guest closes it, so a zero bound finds no end, only buffered bytes.
+    let server = TcpFixture::new(|mut peer| {
+        let mut go = [0; 2];
+        peer.read_exact(&mut go).unwrap();
+        assert_eq!(&go, b"go");
+        peer.write_all(b"abcdef").unwrap();
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).unwrap();
+        assert!(rest.is_empty(), "the guest writes nothing more");
+    });
+    let timed_out = Enc::default().leb(1).leb(0).leb(TIMEOUT).0;
+    let mut p = Program::new();
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        server.address.port(),
+        vec![0, 1],
+    );
+    set_timeout(&mut p, "TcpStream", 1, Some(50));
+    handle(&mut p, "TcpStream.read", &[1, 8], None, timed_out.clone());
+    handle(
+        &mut p,
+        "TcpStream.write",
+        &[1],
+        Some(&Enc::default().bytes(b"go").0),
+        vec![0],
+    );
+    set_timeout(&mut p, "TcpStream", 1, Some(10_000));
+    handle(
+        &mut p,
+        "TcpStream.read",
+        &[1, 2],
+        None,
+        vec![0, 2, b'a', b'b'],
+    );
+    set_timeout(&mut p, "TcpStream", 1, Some(0));
+    handle(
+        &mut p,
+        "TcpStream.read",
+        &[1, 8],
+        None,
+        vec![0, 4, b'c', b'd', b'e', b'f'],
+    );
+    handle(&mut p, "TcpStream.read", &[1, 8], None, timed_out.clone());
+    // A negative bound is a zero one.
+    set_timeout(&mut p, "TcpStream", 1, Some(-5));
+    handle(&mut p, "TcpStream.read", &[1, 8], None, timed_out);
+    set_timeout(&mut p, "TcpStream", 1, None);
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    handle(
+        &mut p,
+        "TcpStream.set_timeout",
+        &[1],
+        Some(&bound(None)),
+        vec![1, 1],
+    );
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Net",
+            Limit::Entries(vec![format!("127.0.0.1:{}", server.address.port())]),
+        )],
+        || {},
+    );
+}
+
+#[test]
+fn connect_timeout_checks_the_grant_first_and_ends_a_zero_bound_at_once() {
+    let scratch = Scratch::new();
+    let server = TcpFixture::new(|mut peer| {
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).unwrap();
+    });
+    let port = server.address.port();
+    let mut p = Program::new();
+    connect_timeout(
+        &mut p,
+        "bad host",
+        port,
+        1000,
+        net_error(1, &format!("bad host:{port}")),
+    );
+    connect_timeout(
+        &mut p,
+        "127.0.0.2",
+        port,
+        0,
+        net_error(0, &format!("127.0.0.2:{port}")),
+    );
+    connect_timeout(&mut p, "127.0.0.1", port, 0, net_error_unit(TIMEOUT));
+    connect_timeout(&mut p, "127.0.0.1", port, -1, net_error_unit(TIMEOUT));
+    connect_timeout(&mut p, "127.0.0.1", port, 10_000, vec![0, 1]);
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    assert_program(
+        &scratch,
+        p,
+        vec![("Net", Limit::Entries(vec![format!("127.0.0.1:{port}")]))],
+        || {},
+    );
+}
+
+fn net_error_unit(variant: u64) -> Vec<u8> {
+    Enc::default().leb(1).leb(variant).0
+}
+
+/// A loopback listener whose accept queue is full, so a new connect waits
+/// for an answer that never comes: the kernel drops its SYN. Windows
+/// refuses it instead, so the test that uses it is Unix-only.
+#[cfg(unix)]
+struct FullListener {
+    address: SocketAddr,
+    _listener: socket2::Socket,
+    _queued: Vec<TcpStream>,
+}
+
+#[cfg(unix)]
+impl FullListener {
+    fn new() -> Self {
+        use socket2::{Domain, Socket, Type};
+        let listener = Socket::new(Domain::IPV4, Type::STREAM, None).unwrap();
+        listener
+            .bind(&"127.0.0.1:0".parse::<SocketAddr>().unwrap().into())
+            .unwrap();
+        // A backlog of 1: Darwin reads 0 as its default of 128.
+        listener.listen(1).unwrap();
+        let address = listener.local_addr().unwrap().as_socket().unwrap();
+        // Connect until one waits: the queue is then full.
+        let mut queued = Vec::new();
+        loop {
+            assert!(queued.len() < 64, "the accept queue never fills");
+            match TcpStream::connect_timeout(&address, Duration::from_millis(200)) {
+                Ok(stream) => queued.push(stream),
+                Err(error) if error.kind() == std::io::ErrorKind::TimedOut => break,
+                Err(error) => panic!("filling the accept queue: {error}"),
+            }
+        }
+        Self {
+            address,
+            _listener: listener,
+            _queued: queued,
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn connect_timeout_ends_a_connect_that_gets_no_answer() {
+    let scratch = Scratch::new();
+    let full = FullListener::new();
+    let port = full.address.port();
+    let mut p = Program::new();
+    connect_timeout(&mut p, "127.0.0.1", port, 100, net_error_unit(TIMEOUT));
+    assert_program(
+        &scratch,
+        p,
+        vec![("Net", Limit::Entries(vec![format!("127.0.0.1:{port}")]))],
+        || {},
+    );
+}
+
+#[test]
+fn bounded_accept_and_receive_time_out_and_the_handles_stay_open() {
+    let scratch = Scratch::new();
+    let echo = UdpFixture::new();
+    let echo_port = echo.address.port();
+    let timed_out = Enc::default().leb(1).leb(0).leb(TIMEOUT).0;
+    let mut p = Program::new();
+    open(&mut p, "listen", "127.0.0.1", 0, vec![0, 1]);
+    set_timeout(&mut p, "TcpListener", 1, Some(0));
+    handle(&mut p, "TcpListener.accept", &[1], None, timed_out.clone());
+    set_timeout(&mut p, "TcpListener", 1, Some(50));
+    handle(&mut p, "TcpListener.accept", &[1], None, timed_out.clone());
+    handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
+    open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 2]);
+    set_timeout(&mut p, "UdpSocket", 2, Some(50));
+    handle(&mut p, "UdpSocket.receive", &[2, 8], None, timed_out);
+    handle(
+        &mut p,
+        "UdpSocket.send_to",
+        &[2, i32::from(echo_port)],
+        Some(&Enc::default().str("127.0.0.1").bytes(b"ping").0),
+        vec![0],
+    );
+    set_timeout(&mut p, "UdpSocket", 2, Some(10_000));
+    handle(
+        &mut p,
+        "UdpSocket.receive",
+        &[2, 8],
+        None,
+        datagram(b"ping", echo_port),
+    );
+    handle(&mut p, "UdpSocket.close", &[2], None, vec![0]);
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Net",
+            Limit::Entries(vec!["127.0.0.1:0".into(), format!("127.0.0.1:{echo_port}")]),
+        )],
+        || {},
+    );
 }
 
 struct UdpFixture {
@@ -582,7 +833,7 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
         "::1",
         9,
         b"x",
-        operation_error(4, &format!("send [::1]:9: {native}")),
+        operation_error(5, &format!("send [::1]:9: {native}")),
     );
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
     let (wasm, expected) = p.finish(7);

@@ -35,6 +35,7 @@
     { "key": "Net", "std": "std.net.Net", "methods": [
       { "name": "lookup", "wait": "may", "resource": "host", "params": ["string"], "result": "Result[List[string], NetError]" },
       { "name": "connect", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpStream, NetError]" },
+      { "name": "connect_timeout", "wait": "may", "resource": "addr", "params": ["string", "i32", "i64"], "result": "Result[TcpStream, NetError]" },
       { "name": "listen", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpListener, NetError]" },
       { "name": "bind_udp", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[UdpSocket, NetError]" }
     ]},
@@ -73,15 +74,18 @@
     { "key": "Net", "std": "std.net.TcpStream", "methods": [
       { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], ResourceError[NetError]]" },
       { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "TcpStream.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "TcpStream.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]},
     { "key": "Net", "std": "std.net.TcpListener", "methods": [
       { "name": "TcpListener.accept", "wait": "may", "resource": null, "params": ["i32"], "result": "Result[TcpStream, ResourceError[NetError]]" },
+      { "name": "TcpListener.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "TcpListener.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]},
     { "key": "Net", "std": "std.net.UdpSocket", "methods": [
       { "name": "UdpSocket.send_to", "wait": "may", "resource": "addr", "params": ["i32", "string", "i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "UdpSocket.receive", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[Datagram, ResourceError[NetError]]" },
+      { "name": "UdpSocket.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "UdpSocket.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]}
   ],
@@ -132,6 +136,7 @@
       { "name": "InvalidAddress", "fields": [{ "name": "address", "type": "string" }] },
       { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
       { "name": "Refused", "fields": [{ "name": "address", "type": "string" }] },
+      { "name": "Timeout", "fields": [] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },
     "Path": { "kind": "newtype", "module": "lib/std/path.hd", "of": "string" },

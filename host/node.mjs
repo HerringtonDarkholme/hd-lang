@@ -335,6 +335,10 @@ function netProvider({ grant, netClient }) {
   };
   const opened = (op) => (host, port) => netResult(netAt(op, host, port));
   const handleOp = (op) => (h, more) => handleResult(netClient.call({ op, handle: h, ...more }));
+  // std-net.timeout.set: the `Duration?` crosses to the client thread as
+  // milliseconds, or `null` for no bound.
+  const setBound = (h, timeout) =>
+    handleOp("set_timeout")(h, { timeout: timeout === null ? null : Number(timeout.millis) });
   // A second `close` is `Disposed` (std-net.handles.closable).
   const close = (h) => handleResult(netClient.call({ op: "close", handle: h }));
   return {
@@ -348,12 +352,17 @@ function netProvider({ grant, netClient }) {
             : { error: ["NotGranted", host] },
       ),
     connect: opened("connect"),
+    // std-net.connect-timeout: the `Duration` crosses as milliseconds.
+    connect_timeout: (host, port, timeout) =>
+      netResult(netAt("connect", host, port, { timeout: Number(timeout) })),
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
     "TcpStream.read": (h, max) => handleOp("read")(h, { max }),
     "TcpStream.write": (h, bytes) => handleOp("write")(h, { bytes }),
+    "TcpStream.set_timeout": setBound,
     "TcpStream.close": close,
     "TcpListener.accept": (h) => handleOp("accept")(h),
+    "TcpListener.set_timeout": setBound,
     "TcpListener.close": close,
     // std-net.send-to.grant: each datagram's own address.
     "UdpSocket.send_to": (h, host, port, bytes) => {
@@ -365,6 +374,7 @@ function netProvider({ grant, netClient }) {
       return handleResult(netAt("send_to", host, port, { handle: h, bytes }));
     },
     "UdpSocket.receive": (h, max) => handleOp("receive")(h, { max }),
+    "UdpSocket.set_timeout": setBound,
     "UdpSocket.close": close,
   };
 }

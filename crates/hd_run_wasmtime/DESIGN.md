@@ -328,7 +328,7 @@ The structured values of the ABI table, byte by byte:
 | `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name |
 | `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, its header pairs (a count, then each name and value), its body, and its timeout as a `Duration?` (a `Duration` is its milliseconds, zigzag) |
 | `Response` | its status, its header pairs, its body |
-| `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Other` 4), then its text |
+| `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Timeout` 4, `Other` 5), then its text, except `Timeout`, which has none |
 | `ResourceError[NetError]` | `0` (`Operation`) and the `NetError`, or `1` (`Disposed`) |
 | `Datagram` | its bytes, its host, its port |
 | `HttpError` | the variant index (`NotGranted` 0, `InvalidUrl` 1, `Dns` 2, `Connect` 3, `Tls` 4, `Timeout` 5, `TooManyRedirects` 6, `Other` 7), then its text, which `Timeout` lacks |

@@ -4,11 +4,12 @@
 use hd_base::HashMap;
 use std::net::{Shutdown, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
 
 use hd_run::Grants;
 
 pub(crate) use crate::abi::NetError;
-use crate::abi::{Datagram, ResourceError};
+use crate::abi::{self, Datagram, ResourceError};
 use crate::codec::{Dec, Enc, Handle, Wire, encode};
 use crate::host::Stop;
 
@@ -20,6 +21,9 @@ use super::validate::{at, covers_lookup, ip_literal, valid_host};
 #[derive(Default)]
 pub struct Client {
     handles: HashMap<i64, Entry>,
+    /// The timeout `set_timeout` gave each handle that has one
+    /// (`std-net.timeout.set`).
+    bounds: HashMap<i64, Duration>,
     next_handle: u64,
 }
 
@@ -69,6 +73,7 @@ impl Client {
             }
         }
         self.handles.clear();
+        self.bounds.clear();
     }
 
     /// The `.start` of `method`, or its `close`. Refusals, unknown and
@@ -92,10 +97,17 @@ impl Client {
         let ready = |outcome| reply(outcome, resource).map(Start::Ready);
         let refused = |error| reply(Outcome::Error(error), resource).map(Start::Ready);
         // Every argument decodes before any check, as on Node.
+        let mut bound = None;
         let (host, payload) = match method {
-            "connect" | "listen" | "bind_udp" => (String::dec(&mut d)?, Vec::new()),
+            "connect" | "connect_timeout" | "listen" | "bind_udp" => {
+                (String::dec(&mut d)?, Vec::new())
+            }
             "TcpStream.write" => (String::new(), Vec::<u8>::dec(&mut d)?),
             "UdpSocket.send_to" => (String::dec(&mut d)?, Vec::<u8>::dec(&mut d)?),
+            "TcpStream.set_timeout" | "TcpListener.set_timeout" | "UdpSocket.set_timeout" => {
+                bound = Option::<abi::Duration>::dec(&mut d)?.map(|t| millis(t.millis));
+                (String::new(), Vec::new())
+            }
             _ => (String::new(), Vec::new()),
         };
         // Closable Handles requires Disposed through every alias before any
@@ -125,13 +137,27 @@ impl Client {
                 }
                 Job::Lookup(host)
             }
-            ("connect" | "listen" | "bind_udp", _) => {
+            ("connect" | "connect_timeout" | "listen" | "bind_udp", _) => {
                 let port = port(scalar(0)?)?;
+                let timeout = if method == "connect_timeout" {
+                    Some(millis(scalar(1)?))
+                } else {
+                    None
+                };
                 if let Some(error) = at(grants, &host, port) {
                     return refused(error);
                 }
-                if method == "connect" {
-                    Job::Connect { host, port }
+                // A zero bound ends the connect before it starts
+                // (`std-net.timeout.negative`).
+                if timeout.is_some_and(|t| t.is_zero()) {
+                    return refused(NetError::Timeout);
+                }
+                if method.starts_with("connect") {
+                    Job::Connect {
+                        host,
+                        port,
+                        timeout,
+                    }
                 } else {
                     Job::Bind {
                         udp: method == "bind_udp",
@@ -161,6 +187,7 @@ impl Client {
                     stream: Arc::clone(stream),
                     handle: scalar(0)?,
                     max,
+                    bound: self.bound(scalar(0)?),
                 }
             }
             ("TcpStream.write", Some(Entry::Stream(stream))) => {
@@ -179,6 +206,7 @@ impl Client {
             ("TcpListener.accept", Some(Entry::Listener(listener))) => Job::Accept {
                 listener: Arc::clone(listener),
                 handle: scalar(0)?,
+                bound: self.bound(scalar(0)?),
             },
             ("UdpSocket.send_to", Some(entry)) => {
                 let bytes = payload;
@@ -208,7 +236,19 @@ impl Client {
                     socket: Arc::clone(socket),
                     handle: scalar(0)?,
                     max,
+                    bound: self.bound(scalar(0)?),
                 }
+            }
+            (
+                "TcpStream.set_timeout" | "TcpListener.set_timeout" | "UdpSocket.set_timeout",
+                Some(_),
+            ) => {
+                let handle = scalar(0)?;
+                match bound {
+                    Some(bound) => self.bounds.insert(handle, bound),
+                    None => self.bounds.remove(&handle),
+                };
+                return ready(Outcome::Ok(Value::None));
             }
             ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
                 let handle = scalar(0)?;
@@ -236,6 +276,12 @@ impl Client {
             stream.shutdown(Shutdown::Both);
         }
         self.handles.insert(handle, Entry::Closed);
+        self.bounds.remove(&handle);
+    }
+
+    /// The timeout of socket `handle`, if it has one.
+    fn bound(&self, handle: i64) -> Option<Duration> {
+        self.bounds.get(&handle).copied()
     }
 
     /// The `.finish` of a completed operation: a new socket gets its handle
@@ -314,6 +360,12 @@ pub(crate) fn not_run(error: &str, resource: bool) -> wasmtime::Result<Enc> {
 /// A `usize` count from the ABI's unsigned 32-bit value.
 fn unsigned(value: i64) -> usize {
     u32::from_le_bytes(value.to_le_bytes()[..4].try_into().unwrap_or([0; 4])) as usize
+}
+
+/// A timeout of `value` milliseconds; a negative one is zero
+/// (`std-net.timeout.negative`).
+fn millis(value: i64) -> Duration {
+    Duration::from_millis(u64::try_from(value).unwrap_or(0))
 }
 
 fn port(value: i64) -> wasmtime::Result<u16> {
@@ -856,7 +908,7 @@ mod tests {
         let mut decoded = Dec::new(first.done());
         assert_eq!(decoded.leb().unwrap(), 1);
         assert_eq!(decoded.leb().unwrap(), 0);
-        assert_eq!(decoded.leb().unwrap(), 4);
+        assert_eq!(decoded.leb().unwrap(), 5);
         assert!(decoded.str().unwrap().starts_with("read: "));
         let again = net
             .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
@@ -872,7 +924,7 @@ mod tests {
         expected
             .leb(1)
             .leb(0)
-            .leb(4)
+            .leb(5)
             .str("cannot write to a failed TCP stream");
         assert_eq!(
             net.call(

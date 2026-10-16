@@ -6,6 +6,7 @@
 use std.error.Error
 use std.format.DebugWriter
 use std.resource.ResourceError
+use std.time.Duration
 
 ## Every failure of a lookup or a socket, as one error enum.
 ## See [std-net.error.decl](../../spec/std/net.md#net-errors).
@@ -14,6 +15,7 @@ pub enum NetError:
     InvalidAddress(address: string)
     Dns(host: string)
     Refused(address: string)
+    Timeout
     Other(message: string)
 
 impl Eq for NetError:
@@ -23,6 +25,7 @@ impl Eq for NetError:
             (.InvalidAddress(left), .InvalidAddress(right)) => left == right
             (.Dns(left), .Dns(right)) => left == right
             (.Refused(left), .Refused(right)) => left == right
+            (.Timeout, .Timeout) => true
             (.Other(left), .Other(right)) => left == right
             _ => false
 
@@ -33,6 +36,7 @@ impl Debug for NetError:
             .InvalidAddress(address) => out.debug_tuple("NetError.InvalidAddress").named_field("address", address).finish()
             .Dns(host) => out.debug_tuple("NetError.Dns").named_field("host", host).finish()
             .Refused(address) => out.debug_tuple("NetError.Refused").named_field("address", address).finish()
+            .Timeout => out.write("NetError.Timeout")
             .Other(message) => out.debug_tuple("NetError.Other").named_field("message", message).finish()
 
 impl Display for NetError:
@@ -42,6 +46,7 @@ impl Display for NetError:
             .InvalidAddress(address) => "invalid net address: ${address}"
             .Dns(host) => "net lookup of ${host} failed"
             .Refused(address) => "net connection to ${address} refused"
+            .Timeout => "the net operation timed out"
             .Other(message) => message
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
@@ -56,6 +61,7 @@ impl Error for NetError
 pub trait Net:
     fn lookup!(mut self, host: string) -> Result[List[string], NetError]
     fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]
+    fn connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]
     fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]
     fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]
 
@@ -64,12 +70,14 @@ pub trait Net:
 pub trait TcpStream:
     fn read!(mut self, max: usize) -> Result[List[u8], ResourceError[NetError]]
     fn write!(mut self, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 ## A TCP listener: a closable handle.
 ## See [std-net.handles.decl](../../spec/std/net.md#r-std-net.handles.decl).
 pub trait TcpListener:
     fn accept!(mut self) -> Result[mut dyn TcpStream, ResourceError[NetError]]
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 ## One UDP datagram with its sender.
@@ -92,6 +100,7 @@ impl Debug for Datagram:
 pub trait UdpSocket:
     fn send_to!(mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
     fn receive!(mut self, max: usize) -> Result[Datagram, ResourceError[NetError]]
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 # The deterministic providers (spec/std/net.md#scripted-net). Every
@@ -110,23 +119,29 @@ pub data ScriptedStream:
     error: NetError?
     failed: bool
     bytes: mut List[u8]
+    bound: Duration?
     closed: bool
 
 impl ScriptedStream:
     ## Returns a stream that returns the chunks of `reads` in order, one per `read!`.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(reads: List[List[u8]]) -> mut ScriptedStream:
-        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], closed: false }
+        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], bound: .None, closed: false }
 
     ## Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
     ## See [std-net.scripted.failing](../../spec/std/net.md#r-std-net.scripted.failing).
     pub fn failing(reads: List[List[u8]], error: NetError) -> mut ScriptedStream:
-        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], closed: false }
+        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], bound: .None, closed: false }
 
     ## Every byte written to the stream, in order.
     ## See [std-net.scripted.write](../../spec/std/net.md#r-std-net.scripted.write).
     pub fn written(self) -> List[u8]:
         self.bytes
+
+    ## The timeout that `set_timeout` stored last, or `.None` before any call.
+    ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
+    pub fn timeout(self) -> Duration?:
+        self.bound
 
     ## Whether the stream is closed.
     ## See [std-net.scripted.closed](../../spec/std/net.md#r-std-net.scripted.closed).
@@ -171,6 +186,14 @@ impl TcpStream for ScriptedStream:
             self.bytes.push(byte)
         .Ok(())
 
+    # A scripted call never waits, so the bound is only stored
+    # (r-std-net.scripted.timeout).
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        self.bound = timeout
+        .Ok(())
+
     fn close(mut self) -> Result[void, ResourceError[NetError]]:
         if self.closed:
             return .Err(.Disposed)
@@ -182,13 +205,25 @@ impl TcpStream for ScriptedStream:
 pub data ScriptedListener:
     connections: List[mut ScriptedStream]
     next: usize
+    error: NetError?
+    bound: Duration?
     closed: bool
 
 impl ScriptedListener:
     ## Returns a listener that accepts the streams of `connections` in order.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(connections: List[mut ScriptedStream]) -> mut ScriptedListener:
-        ScriptedListener { connections: connections, next: 0, closed: false }
+        ScriptedListener { connections: connections, next: 0, error: .None, bound: .None, closed: false }
+
+    ## Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
+    ## A test scripts an `accept!` that times out with `NetError.Timeout`.
+    pub fn failing(connections: List[mut ScriptedStream], error: NetError) -> mut ScriptedListener:
+        ScriptedListener { connections: connections, next: 0, error: .Some(error), bound: .None, closed: false }
+
+    ## The timeout that `set_timeout` stored last, or `.None` before any call.
+    ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
+    pub fn timeout(self) -> Duration?:
+        self.bound
 
     ## Whether the listener is closed.
     ## See [std-net.scripted.closed](../../spec/std/net.md#r-std-net.scripted.closed).
@@ -200,10 +235,18 @@ impl TcpListener for ScriptedListener:
         if self.closed:
             return .Err(.Disposed)
         if self.next >= self.connections.len():
-            return .Err(.Operation(.Other("ScriptedListener has no more connections")))
+            return match self.error:
+                .Some(error) => .Err(.Operation(error))
+                .None => .Err(.Operation(.Other("ScriptedListener has no more connections")))
         let mut stream = self.connections[self.next]
         self.next = self.next + 1
         .Ok(stream)
+
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        self.bound = timeout
+        .Ok(())
 
     fn close(mut self) -> Result[void, ResourceError[NetError]]:
         if self.closed:
@@ -216,14 +259,26 @@ impl TcpListener for ScriptedListener:
 pub data ScriptedUdp:
     incoming: List[Datagram]
     next: usize
+    error: NetError?
     outgoing: mut List[Datagram]
+    bound: Duration?
     closed: bool
 
 impl ScriptedUdp:
     ## Returns a socket that receives the datagrams of `incoming` in order.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(incoming: List[Datagram]) -> mut ScriptedUdp:
-        ScriptedUdp { incoming: incoming, next: 0, outgoing: [], closed: false }
+        ScriptedUdp { incoming: incoming, next: 0, error: .None, outgoing: [], bound: .None, closed: false }
+
+    ## Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
+    ## A test scripts a `receive!` that times out with `NetError.Timeout`.
+    pub fn failing(incoming: List[Datagram], error: NetError) -> mut ScriptedUdp:
+        ScriptedUdp { incoming: incoming, next: 0, error: .Some(error), outgoing: [], bound: .None, closed: false }
+
+    ## The timeout that `set_timeout` stored last, or `.None` before any call.
+    ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
+    pub fn timeout(self) -> Duration?:
+        self.bound
 
     ## Every datagram sent, with its destination, in order.
     ## See [std-net.scripted.udp](../../spec/std/net.md#r-std-net.scripted.udp).
@@ -246,10 +301,18 @@ impl UdpSocket for ScriptedUdp:
         if self.closed:
             return .Err(.Disposed)
         if self.next >= self.incoming.len():
-            return .Err(.Operation(.Other("ScriptedUdp has no more datagrams")))
+            return match self.error:
+                .Some(error) => .Err(.Operation(error))
+                .None => .Err(.Operation(.Other("ScriptedUdp has no more datagrams")))
         datagram := self.incoming[self.next]
         self.next = self.next + 1
         .Ok(Datagram { bytes: datagram.bytes.take(max), host: datagram.host, port: datagram.port })
+
+    fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        self.bound = timeout
+        .Ok(())
 
     fn close(mut self) -> Result[void, ResourceError[NetError]]:
         if self.closed:
@@ -270,12 +333,13 @@ pub data ScriptedNet:
     listeners: mut Map[string, mut List[mut ScriptedListener]]
     sockets: mut Map[string, mut List[mut ScriptedUdp]]
     calls: mut List[string]
+    timeouts: mut List[Duration]
 
 impl ScriptedNet:
     ## Returns a provider with nothing scripted.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new() -> mut ScriptedNet:
-        ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [] }
+        ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [], timeouts: [] }
 
     ## Answers each `lookup!(host)` with `addresses`.
     ## See [std-net.scripted.setup](../../spec/std/net.md#r-std-net.scripted.setup).
@@ -311,6 +375,23 @@ impl ScriptedNet:
     pub fn requested(self) -> List[string]:
         self.calls
 
+    ## The timeout of each `connect_timeout!` call, in order.
+    ## See [std-net.scripted.connect-timeout](../../spec/std/net.md#r-std-net.scripted.connect-timeout).
+    pub fn connect_timeouts(self) -> List[Duration]:
+        self.timeouts
+
+    # One connect of `host:port`: it records the address and takes the next
+    # entry of the address's queue (r-std-net.scripted.queue).
+    fn take_connection(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]:
+        address := "${host}:${port}"
+        self.calls.push(address)
+        match self.connections.get(address):
+            .Some(queue) if !queue.is_empty() =>
+                match queue.remove_at(0):
+                    .Stream(stream) => .Ok(stream)
+                    .Failure(error) => .Err(error)
+            _ => .Err(.Refused(address))
+
     fn queue_connection(mut self, address: string, entry: ScriptedConnection) -> void:
         match self.connections.get(address):
             .Some(queue) => queue.push(entry)
@@ -324,14 +405,11 @@ impl Net for ScriptedNet:
             .None => .Err(.Dns(host))
 
     fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]:
-        address := "${host}:${port}"
-        self.calls.push(address)
-        match self.connections.get(address):
-            .Some(queue) if !queue.is_empty() =>
-                match queue.remove_at(0):
-                    .Stream(stream) => .Ok(stream)
-                    .Failure(error) => .Err(error)
-            _ => .Err(.Refused(address))
+        self.take_connection(host, port)
+
+    fn connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]:
+        self.timeouts.push(timeout)
+        self.take_connection(host, port)
 
     fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]:
         address := "${host}:${port}"

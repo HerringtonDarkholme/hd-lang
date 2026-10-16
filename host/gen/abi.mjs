@@ -78,6 +78,7 @@ export const NetError = variants({
   InvalidAddress: { address: str },
   Dns: { host: str },
   Refused: { address: str },
+  Timeout: {},
   Other: { message: str },
 });
 export const ProcessError = variants({
@@ -263,6 +264,12 @@ export const METHODS = {
       params: [str, "i32"],
       result: result(TcpStream, NetError),
     },
+    connect_timeout: {
+      wait: "may",
+      resource: "addr",
+      params: [str, "i32", "i64"],
+      result: result(TcpStream, NetError),
+    },
     listen: {
       wait: "may",
       resource: "addr",
@@ -287,6 +294,12 @@ export const METHODS = {
       params: ["i32", bytes],
       result: result(unit, ResourceError(NetError)),
     },
+    "TcpStream.set_timeout": {
+      wait: "never",
+      resource: null,
+      params: ["i32", option(Duration)],
+      result: result(unit, ResourceError(NetError)),
+    },
     "TcpStream.close": {
       wait: "never",
       resource: null,
@@ -298,6 +311,12 @@ export const METHODS = {
       resource: null,
       params: ["i32"],
       result: result(TcpStream, ResourceError(NetError)),
+    },
+    "TcpListener.set_timeout": {
+      wait: "never",
+      resource: null,
+      params: ["i32", option(Duration)],
+      result: result(unit, ResourceError(NetError)),
     },
     "TcpListener.close": {
       wait: "never",
@@ -316,6 +335,12 @@ export const METHODS = {
       resource: null,
       params: ["i32", "i32"],
       result: result(Datagram, ResourceError(NetError)),
+    },
+    "UdpSocket.set_timeout": {
+      wait: "never",
+      resource: null,
+      params: ["i32", option(Duration)],
+      result: result(unit, ResourceError(NetError)),
     },
     "UdpSocket.close": {
       wait: "never",

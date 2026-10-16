@@ -54,6 +54,13 @@ impl RefusedPort {
     }
 }
 
+/// A scalar argument of an ABI call.
+#[derive(Clone, Copy)]
+pub enum Scalar {
+    I32(i32),
+    I64(i64),
+}
+
 /// Exchange-buffer encoding, independent of the implementation's codec.
 #[derive(Default)]
 pub struct Enc(pub Vec<u8>);
@@ -286,12 +293,35 @@ impl Program {
         waits: bool,
         expected: Vec<u8>,
     ) {
+        let scalars = scalars.iter().copied().map(Scalar::I32).collect::<Vec<_>>();
+        self.abi_call_with(module, method, &scalars, payload, waits, expected);
+    }
+
+    /// `abi_call` with scalar arguments of either width.
+    pub fn abi_call_with(
+        &mut self,
+        module: &str,
+        method: &str,
+        scalars: &[Scalar],
+        payload: Option<&[u8]>,
+        waits: bool,
+        expected: Vec<u8>,
+    ) {
         let name = if waits {
             format!("{method}.start")
         } else {
             method.into()
         };
-        let params = vec![ValType::I32; scalars.len() + usize::from(payload.is_some())];
+        let mut params = scalars
+            .iter()
+            .map(|scalar| match scalar {
+                Scalar::I32(_) => ValType::I32,
+                Scalar::I64(_) => ValType::I64,
+            })
+            .collect::<Vec<_>>();
+        if payload.is_some() {
+            params.push(ValType::I32);
+        }
         let results = if waits {
             vec![ValType::I32, ValType::I32]
         } else {
@@ -302,7 +332,10 @@ impl Program {
             self.load_args(bytes);
         }
         for scalar in scalars {
-            self.instructions(&[I::I32Const(*scalar)]);
+            self.instructions(&[match *scalar {
+                Scalar::I32(value) => I::I32Const(value),
+                Scalar::I64(value) => I::I64Const(value),
+            }]);
         }
         if let Some(bytes) = payload {
             self.instructions(&[I::I32Const(i32::try_from(bytes.len()).unwrap())]);
