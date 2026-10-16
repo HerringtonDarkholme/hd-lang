@@ -2004,9 +2004,8 @@ fn describe_cycles(
             edges.entry((from, to)).or_insert((m, *lo, *hi));
         }
     }
-    // The folders on some loop: every folder of every reported cycle.
-    // (Depth-first finds every folder a directed loop reaches: a folder
-    // on a loop is on its stack when the loop closes.)
+    // The folders on some loop: every folder of every reported cycle, a
+    // strongly connected component of the folder graph.
     let mut looping = HashSet::new();
     for c in cycles {
         looping.extend(c.iter().map(|f| f.idx()));

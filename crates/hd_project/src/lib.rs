@@ -1102,7 +1102,8 @@ pub struct FolderGraph {
     pub uses: Vec<Vec<FolderId>>,
     /// Folders in dependency order: every folder after the folders it uses.
     pub order: Vec<FolderId>,
-    /// Each cycle, named from its first member in path order.
+    /// Each strongly connected component of more than one folder, its
+    /// members in path order (§4.8 rules 3 and 4).
     pub cycles: Vec<Vec<FolderId>>,
     /// `closure(F)`: F plus every folder its uses reach.
     pub closure: Vec<FolderSet>,
@@ -1139,13 +1140,19 @@ impl FolderGraph {
         }
         // Depth-first in path order (folders are already path-sorted).
         let mut state = vec![0u8; n]; // 0 new, 1 visiting, 2 done
-        let mut stack_path: Vec<FolderId> = Vec::new();
+        let mut t = Tarjan {
+            index: vec![u32::MAX; n],
+            low: vec![0; n],
+            on_stack: vec![false; n],
+            stack: Vec::new(),
+            next: 0,
+        };
         for f in 0..n {
-            g.visit(
-                FolderId::from_raw(u32::try_from(f).expect("f")),
-                &mut state,
-                &mut stack_path,
-            );
+            let f = FolderId::from_raw(u32::try_from(f).expect("f"));
+            g.visit(f, &mut state);
+            if t.index[f.idx()] == u32::MAX {
+                g.strong(f, &mut t);
+            }
         }
         g.closure = vec![FolderSet::with_capacity(n); n];
         g.height = vec![0; n];
@@ -1163,35 +1170,63 @@ impl FolderGraph {
         g
     }
 
-    fn visit(&mut self, f: FolderId, state: &mut [u8], path: &mut Vec<FolderId>) {
-        match state[f.idx()] {
-            2 => return,
-            1 => {
-                let start = path.iter().position(|&p| p == f).unwrap_or(0);
-                let mut cycle = path[start..].to_vec();
-                let min = cycle
-                    .iter()
-                    .enumerate()
-                    .min_by_key(|(_, c)| c.raw())
-                    .map_or(0, |(i, _)| i);
-                cycle.rotate_left(min);
-                if !self.cycles.contains(&cycle) {
-                    self.cycles.push(cycle);
-                }
-                return;
-            }
-            _ => {}
+    fn visit(&mut self, f: FolderId, state: &mut [u8]) {
+        if state[f.idx()] != 0 {
+            return;
         }
         state[f.idx()] = 1;
-        path.push(f);
         let next: Vec<FolderId> = self.uses[f.idx()].clone();
         for u in next {
-            self.visit(u, state, path);
+            self.visit(u, state);
         }
-        path.pop();
         state[f.idx()] = 2;
         self.order.push(f);
     }
+
+    /// Tarjan's algorithm from `f` (§4.8 rule 3): each strongly connected
+    /// component of more than one folder becomes one cycle, its members in
+    /// path order.
+    fn strong(&mut self, f: FolderId, t: &mut Tarjan) {
+        let v = f.idx();
+        t.index[v] = t.next;
+        t.low[v] = t.next;
+        t.next += 1;
+        t.stack.push(v);
+        t.on_stack[v] = true;
+        for i in 0..self.uses[v].len() {
+            let u = self.uses[v][i];
+            let w = u.idx();
+            if t.index[w] == u32::MAX {
+                self.strong(u, t);
+                t.low[v] = t.low[v].min(t.low[w]);
+            } else if t.on_stack[w] {
+                t.low[v] = t.low[v].min(t.index[w]);
+            }
+        }
+        if t.low[v] == t.index[v] {
+            let mut scc = Vec::new();
+            while let Some(w) = t.stack.pop() {
+                t.on_stack[w] = false;
+                scc.push(FolderId::from_raw(u32::try_from(w).expect("w")));
+                if w == v {
+                    break;
+                }
+            }
+            if scc.len() > 1 {
+                scc.sort_by_key(|g| g.raw());
+                self.cycles.push(scc);
+            }
+        }
+    }
+}
+
+/// The state of Tarjan's algorithm over the folder graph.
+struct Tarjan {
+    index: Vec<u32>,
+    low: Vec<u32>,
+    on_stack: Vec<bool>,
+    stack: Vec<usize>,
+    next: u32,
 }
 
 #[cfg(test)]

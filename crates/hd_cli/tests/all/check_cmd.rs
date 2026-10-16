@@ -630,6 +630,37 @@ fn a_folder_cycle_is_one_error_and_bodies_still_check() {
     );
 }
 
+/// `crates/hd_resolve/DESIGN.md` §4.8 rule 4: a tangle of three folders
+/// with two loops through it is one strongly connected component, so one
+/// `folder-cycle` error.
+#[test]
+fn a_three_folder_tangle_is_one_folder_cycle() {
+    let dir = scratch("hd-check-cycle-tangle");
+    for (file, text) in [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "src/a/x.hd",
+            "use pkg.b.y.{two}\n\npub fn one() -> i32:\n    1\n",
+        ),
+        (
+            "src/b/y.hd",
+            "use pkg.a.x.{one}\nuse pkg.c.z.{three}\n\npub fn two() -> i32:\n    one() + 1\n",
+        ),
+        (
+            "src/c/z.hd",
+            "use pkg.a.x.{one}\n\npub fn three() -> i32:\n    one() + 2\n",
+        ),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, &[]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert_eq!(r.err.matches("folder-cycle:").count(), 1, "{}", r.err);
+    assert!(r.err.contains("tangle of 3 folders"), "{}", r.err);
+}
+
 /// `module.cycle.test-code`: a test module may use a helper folder that
 /// uses its own folder; test code makes no folder edge, so no cycle.
 #[test]

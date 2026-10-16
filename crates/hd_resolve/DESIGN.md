@@ -76,12 +76,9 @@ deleted file is never served from the cache (Gleam #4320).
    cache keys and scheduling then see one ordinary folder.
 
 Implementation differs: `FolderGraph::build`
-(`crates/hd_project/src/lib.rs:1116`, `:1166`) runs a depth-first search
-in path order and records one cycle per back edge, not one per SCC. The
-edges come from written `use` lines only. This is worse: a tangle of
-three or more folders can yield several `folder-cycle` errors, where the
-spec wants one per tangle. Leaving out prelude edges matters only inside
-std; not judged.
+(`crates/hd_project/src/lib.rs:1117`) takes its edges from written `use`
+lines only. Leaving out prelude edges matters only inside std; not
+judged.
 
 `tests:` blocks make no edges: they and doc tests are checked in a
 **test overlay** after the folders they use
