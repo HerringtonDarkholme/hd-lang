@@ -1,7 +1,8 @@
 // allocations: heap allocation per iteration of user loops.
 //
-// Two loops of i64 work: a counted `for` over a range, and an iterator
-// chain, `(0..n).iter().map(...).filter(...).sum()`. Each is built at two
+// Four loops of i64 work: a counted `for` over a range, `for` loops over a
+// small list and a small map, n times, and an iterator chain,
+// `(0..n).iter().map(...).filter(...).sum()`. Each is built at two
 // sizes, SMALL and LARGE iterations, and run 3 times each. The allocated
 // bytes per iteration are the median of (bytes at LARGE - bytes at SMALL)
 // / (LARGE - SMALL), which cancels start-up.
@@ -13,8 +14,8 @@
 // A count needs an object size, so the bounds are in bytes: below 1 B per
 // iteration is no per-iteration allocation, and 32 B holds one small object
 // (this harness's bounds).
-// Targets (Pillar 3): counted loop 0 allocations (< 1 B/iter); chain ≤ 1
-// allocation (≤ 32 B/iter).
+// Targets (Pillar 3): counted loops, list and map loops among them, 0
+// allocations (< 1 B/iter); chain ≤ 1 allocation (≤ 32 B/iter).
 // n/a: when the program does not run on Node, so the V8 probe writes
 // nothing.
 
@@ -53,6 +54,40 @@ const LOOPS: readonly Loop[] = [
       ].join("\n"),
   },
   {
+    label: "list loop, bytes per iteration",
+    limit: 0.99,
+    target: "0 allocations (< 1 B/iter)",
+    source: (n) =>
+      [
+        "pub fn main() -> void $ Console:",
+        `    let n: i64 = ${n}`,
+        "    let items: List[i64] = [1, 2, 3, 4, 5, 6, 7, 8]",
+        "    let total: i64 = 0",
+        "    for i in 0..n:",
+        "        for x in items:",
+        "            total = total + x * i",
+        '    println("${total}")',
+        "",
+      ].join("\n"),
+  },
+  {
+    label: "map loop, bytes per iteration",
+    limit: 0.99,
+    target: "0 allocations (< 1 B/iter)",
+    source: (n) =>
+      [
+        "pub fn main() -> void $ Console:",
+        `    let n: i64 = ${n}`,
+        '    let table: Map[string, i64] = {"a": 1, "b": 2, "c": 3, "d": 4}',
+        "    let total: i64 = 0",
+        "    for i in 0..n:",
+        "        for (key, value) in table:",
+        "            total = total + value * i + i64(key.len())",
+        '    println("${total}")',
+        "",
+      ].join("\n"),
+  },
+  {
     label: "iterator chain, bytes per iteration",
     limit: 32,
     target: "≤ 1 allocation (≤ 32 B/iter)",
@@ -73,7 +108,7 @@ const errorText = (error: unknown): string =>
 export const allocations: Metric = {
   name: NAME,
   pillar: 3,
-  summary: "bytes allocated per iteration of a counted loop and an iterator chain (V8 heap stats)",
+  summary: "bytes allocated per iteration of counted, list and map loops and an iterator chain (V8 heap stats)",
   async run(context) {
     const probe = heapProbe();
     const results: TargetResult[] = [];

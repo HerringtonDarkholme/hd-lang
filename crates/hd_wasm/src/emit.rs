@@ -3184,6 +3184,15 @@ impl Em<'_> {
             | IntrinsicOp::MapRemove => self.map_op(i, op, &args, ty),
             IntrinsicOp::MapIter => self.map_iter(i, args[0], ty),
             IntrinsicOp::Item => unsupported("the intrinsic operation Item"),
+            IntrinsicOp::IterCheck => self.iter_check(args[0], args[1]),
+            IntrinsicOp::MapSlots => {
+                let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
+                self.comp(args[0], 0, &VT::r(mt.clone()))?;
+                self.a.struct_get(&mt, M_USED);
+                self.store(i)
+            }
+            IntrinsicOp::MapSlotNext => self.map_slot_next(i, &args),
+            IntrinsicOp::MapSlotEntry => self.map_slot_entry(i, args[0], args[1], ty),
         }
     }
 
@@ -3765,6 +3774,115 @@ impl Em<'_> {
         }
         self.a.end();
         Ok(())
+    }
+
+    /// A counted loop's check of its collection's captured length: the
+    /// `iterator-invalidated` panic of the cursor it replaces.
+    fn iter_check(&mut self, coll: u32, captured: u32) -> StageResult<()> {
+        let t = self.ty_of(coll);
+        let (lt, what, len) = match self.lay.shape(t)? {
+            Shape::List { ty, .. } => (ty, "list", 0),
+            Shape::Map { ty, .. } => (ty, "map", M_LIVE),
+            _ => return unsupported("an iteration check of a non-collection"),
+        };
+        self.comp(coll, 0, &VT::r(lt.clone()))?;
+        self.a.struct_get(&lt, len);
+        self.comp(captured, 0, &VT::I32)?;
+        self.a.s().i32_ne();
+        self.a.if_();
+        self.a.call(Sym::Helper(Helper::Panic(format!(
+            "iterator-invalidated: {what} changed during iteration"
+        ))));
+        self.a.s().unreachable();
+        self.a.end();
+        Ok(())
+    }
+
+    /// `(map, pos, end)`: the first live entry slot in `pos..end` that the
+    /// map has written, or `end`. Removals and insertions that restore the
+    /// live count go undetected, and a growth among them compacts the
+    /// entries, so the scan stops at what is written now.
+    fn map_slot_next(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
+        let m = self.a.local(VT::r(mt.clone()));
+        let (pos, end, lim) = (
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+        );
+        self.comp(args[0], 0, &VT::r(mt.clone()))?;
+        self.a.set(m);
+        self.comp(args[1], 0, &VT::I32)?;
+        self.a.set(pos);
+        self.comp(args[2], 0, &VT::I32)?;
+        self.a.set(end);
+        self.a.get(end);
+        self.a.set(lim);
+        self.a.get(m);
+        self.a.struct_get(&mt, M_USED);
+        self.a.get(lim);
+        self.a.s().i32_lt_u();
+        self.a.if_();
+        self.a.get(m);
+        self.a.struct_get(&mt, M_USED);
+        self.a.set(lim);
+        self.a.end();
+        self.a.block();
+        self.a.loop_();
+        self.a.get(pos);
+        self.a.get(lim);
+        self.a.s().i32_ge_u();
+        self.a.if_();
+        self.a.get(end);
+        self.a.set(pos);
+        self.a.br(2);
+        self.a.end();
+        self.a.get(m);
+        self.a.struct_get(&mt, M_HASHES);
+        self.a.get(pos);
+        self.a.array_get(&WTy::Array(VT::I32));
+        self.a.i32(0);
+        self.a.s().i32_ge_s();
+        self.a.br_if(1);
+        self.a.get(pos);
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.set(pos);
+        self.a.br(0);
+        self.a.end();
+        self.a.end();
+        self.a.get(pos);
+        self.store(i)
+    }
+
+    /// `(map, slot)`: the `(K, V)` entry in a live slot.
+    fn map_slot_entry(&mut self, i: u32, map: u32, slot: u32, ty: Ty) -> StageResult<()> {
+        let (key, val, mt, _) = self.map_parts(self.ty_of(map))?;
+        let Shape::Tuple { boxed, .. } = self.lay.shape(ty)? else {
+            return unsupported("a map entry that is not a tuple");
+        };
+        let m = self.a.local(VT::r(mt.clone()));
+        let ix = self.a.local(VT::I32);
+        self.comp(map, 0, &VT::r(mt.clone()))?;
+        self.a.set(m);
+        self.comp(slot, 0, &VT::I32)?;
+        self.a.set(ix);
+        let comps = [key, val].concat();
+        for (k, v) in comps.iter().enumerate() {
+            let st = storage(v).dflt();
+            self.a.get(m);
+            self.a.struct_get(&mt, M_KEYS + u32_of(k));
+            self.a.get(ix);
+            self.a.array_get(&WTy::Array(st.clone()));
+            self.a.conv(&st, v);
+        }
+        match boxed {
+            Some(b) => {
+                self.a.struct_new(&b);
+                self.store(i)
+            }
+            None => self.store_from(i, &comps),
+        }
     }
 
     /// `Map.iter()`: a cursor closure over the entries (`crates/hd_mono/DESIGN.md`

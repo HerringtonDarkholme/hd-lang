@@ -240,10 +240,22 @@ pub enum IntrinsicOp {
     StrEq,
     /// A call of an `@intrinsic` std function whose body is the compiler's.
     Item,
+    /// `(collection, captured)`: the `iterator-invalidated` panic of a
+    /// counted `for` over a list or a map when the collection's length is
+    /// no longer the captured one (`flow.for.invalidate.panic`).
+    IterCheck,
+    /// `(map) -> usize`: how many entry slots the map has written, removed
+    /// ones included.
+    MapSlots,
+    /// `(map, pos, end) -> usize`: the first live entry slot in
+    /// `pos..end`, or `end`.
+    MapSlotNext,
+    /// `(map, slot) -> (K, V)`: the entry in a live slot.
+    MapSlotEntry,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 15] = [
+    pub const ALL: [IntrinsicOp; 19] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIter,
@@ -259,6 +271,10 @@ impl IntrinsicOp {
         IntrinsicOp::StrConcat,
         IntrinsicOp::StrEq,
         IntrinsicOp::Item,
+        IntrinsicOp::IterCheck,
+        IntrinsicOp::MapSlots,
+        IntrinsicOp::MapSlotNext,
+        IntrinsicOp::MapSlotEntry,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

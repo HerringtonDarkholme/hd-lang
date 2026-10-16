@@ -2497,6 +2497,21 @@ impl Ck<'_, '_> {
                 return self.range_loop(pat, (sr, et), els, e, body);
             }
         }
+        if let TyData::Adt { def, args } = pool.get(st_i)
+            && (def == self.cx.names.known.list || def == self.cx.names.known.map)
+        {
+            let items = pool.list_items(args);
+            let map = def == self.cx.names.known.map;
+            let item = match items {
+                [t] if !map => *t,
+                [k, v] if map => pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&[*k, *v]),
+                    rest: None,
+                }),
+                _ => return unsupported("a collection type's arguments"),
+            };
+            return self.collection_loop(pat, (sr, st, item, map), els, e, body);
+        }
         let (it, item_ty) = match pool.get(st_i) {
             TyData::Adt { def, args } if def == iterator => {
                 // The loop advances the iterator itself (flow.for.iterator-mut).
@@ -2680,6 +2695,118 @@ impl Ck<'_, '_> {
         let rec = self.b.refs_record(&[iblk, fblk]);
         self.b.emit(Tag::If, more.0, rec, Ty::VOID, at);
         body(self)?;
+        self.scopes.pop();
+        self.loops.pop();
+        let then = self.b.close_block(tb, None, Ty::VOID, at);
+        let eb = self.b.open_block();
+        self.loop_exit(lp, loop_else, at)?;
+        let els = self.b.close_block(eb, None, Ty::VOID, at);
+        let rec = self.b.refs_record(&[then, els]);
+        self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
+        let lbody = self.b.close_block(lb, None, Ty::VOID, at);
+        let ty = result.unwrap_or(Ty::VOID);
+        Ok((self.b.close_loop(lp, lbody, ty, at), ty))
+    }
+
+    /// A `for` over a built-in `List` or `Map` as a counted loop
+    /// (lowering-catalog "Loops"): no iterator value. The length is
+    /// captured once (`flow.for.length`); each round checks it
+    /// (`flow.for.invalidate.panic`), then reads the next element, or the
+    /// next live entry of the slots written when the loop began, advances,
+    /// and binds it. The exhausted round checks too, as `next` would.
+    fn collection_loop(
+        &mut self,
+        pat: NodeRef<'_>,
+        (sr, st, item_ty, map): (Ref, Ty, Ty, bool),
+        loop_else: Option<(hd_base::NodeIdx, Ty)>,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        use hd_tir::ir::local_flags::ASSIGNED;
+        let result = loop_else.map(|(_, t)| t);
+        let at = e.index();
+        let us = Ty::prim(Prim::Usize);
+        let intr = |me: &mut Self, op: IntrinsicOp, args: &[Ref], t: Ty| {
+            let rec = me.b.refs_record(args);
+            me.b.emit(Tag::Intrinsic, op as u32, rec, t, at)
+        };
+        let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
+        let (src_s, len_s, pos_s, end_s) = (
+            sym(self, "$coll"),
+            sym(self, "$len"),
+            sym(self, "$pos"),
+            sym(self, "$end"),
+        );
+        let src_l = self.b.local(st, src_s, ASSIGNED, at);
+        self.b.set(src_l, sr, at);
+        let len_l = self.b.local(us, len_s, ASSIGNED, at);
+        let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
+        let end_l = self.b.local(us, end_s, ASSIGNED, at);
+        let c = self.b.get(src_l, st, at);
+        let (len_op, read_op) = if map {
+            (IntrinsicOp::MapLen, IntrinsicOp::MapSlotEntry)
+        } else {
+            (IntrinsicOp::ListLen, IntrinsicOp::ListIndex)
+        };
+        let n = intr(self, len_op, &[c], us);
+        self.b.set(len_l, n, at);
+        // A map's loop visits the slots written when it began; a list's,
+        // its captured length.
+        let end = if map {
+            let c = self.b.get(src_l, st, at);
+            intr(self, IntrinsicOp::MapSlots, &[c], us)
+        } else {
+            self.b.get(len_l, us, at)
+        };
+        self.b.set(end_l, end, at);
+        let zero = self.b.const_value(us, 0);
+        self.b.set(pos_l, zero, at);
+        let lp = self.b.open_loop();
+        let lb = self.b.open_block();
+        let (c, n) = (self.b.get(src_l, st, at), self.b.get(len_l, us, at));
+        intr(self, IntrinsicOp::IterCheck, &[c, n], Ty::VOID);
+        if map {
+            let (c, p, d) = (
+                self.b.get(src_l, st, at),
+                self.b.get(pos_l, us, at),
+                self.b.get(end_l, us, at),
+            );
+            let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
+            self.b.set(pos_l, next, at);
+        }
+        let (p, d) = (self.b.get(pos_l, us, at), self.b.get(end_l, us, at));
+        let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
+        // The round: read, advance, then bind and run the body.
+        let tb = self.b.open_block();
+        self.loops.push((lp, result));
+        self.scopes.push(HashMap::default());
+        let (c, p) = (self.b.get(src_l, st, at), self.b.get(pos_l, us, at));
+        let item = intr(self, read_op, &[c, p], item_ty);
+        let p = self.b.get(pos_l, us, at);
+        let one = self.b.const_value(us, 1);
+        let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
+        self.b.set(pos_l, next, at);
+        let mut binds = Vec::new();
+        let before = self.diags.len();
+        self.declare_pattern(pat, item_ty, &mut binds)?;
+        if self.diags.len() == before {
+            self.irrefutable_loop_pattern(pat, item_ty);
+        }
+        let ab = self.b.open_block();
+        body(self)?;
+        let arm = self.b.close_block(ab, None, Ty::VOID, at);
+        let rows = vec![crate::pat::Row {
+            pat: Some(pat),
+            wrap_some: false,
+            binds,
+            guard: None,
+            arm: 0,
+        }];
+        let db = self.b.open_block();
+        self.decide(&rows, 0, item, item_ty)?;
+        let dec = self.b.close_block(db, None, Ty::NEVER, at);
+        let rec = self.b.refs_record(&[dec, arm]);
+        self.b.emit(Tag::Match, item.0, rec, Ty::VOID, at);
         self.scopes.pop();
         self.loops.pop();
         let then = self.b.close_block(tb, None, Ty::VOID, at);

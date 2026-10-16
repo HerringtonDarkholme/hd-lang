@@ -178,7 +178,7 @@ Notes on the choices:
 | `unit-test-perf` | warm `hd test` of 100 and 1,000 generated unit tests, half in `tests:` blocks, half in `_test.hd` modules | 1,000 tests ≤ 1 s; ≤ 1 ms per test | never |
 | `integration-test-perf` | warm `hd test` with 0, 2 and 10 `tests/` programs that use `temp_dir()` and the real file system; 2 and 10 doc tests | ≤ 20 ms setup per program and per doc test; total sublinear in programs | never |
 | `runtime` | the bench/micro cases minus a no-work program, 7 runs after a warm-up, median, p10 and p90; Node runs each case's `main` self-timed | geomean ≤ 1.5x Node; each case ≤ 3x | never |
-| `allocations` | V8 bytes allocated per iteration of a counted loop and an iterator chain, from 1,000 to 1,000,000 iterations | 0 allocations (< 1 B/iter); ≤ 1 allocation (≤ 32 B/iter) | programs that do not run on Node |
+| `allocations` | V8 bytes allocated per iteration of a counted loop, a loop over a list and over a map, and an iterator chain, from 1,000 to 1,000,000 iterations | 0 allocations (< 1 B/iter); ≤ 1 allocation (≤ 32 B/iter) | programs that do not run on Node |
 | `size-startup-heap` | release Wasm size of a tiny program and of the micro cases; start to first output; peak RSS of two micro cases beyond a no-work program, against Node | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node | size: no `.wasm` written; heap: no `/usr/bin/time` |
 | `host-call-overhead` | a loop of `println`, `read_text!` or `FsRead.list_dir!` minus the same loop without the call | ≤ 1 µs; ≤ 10 µs; ≤ 5 µs | never |
 | `suspension-overhead` | a loop of `echo!(i)`, `all!` or `race!` of two ready tasks minus a loop of plain calls | ≤ 100 ns per await; ≥ 1M tasks/s | never |

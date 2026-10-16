@@ -904,11 +904,17 @@ it reads, which the code key lists (crates/hd_mono/DESIGN.md §13.8).
 A numeric range loop advances before the body runs, so `continue` needs
 no step of its own, and at an inclusive end it stops instead of adding,
 so `0..=255u8` cannot overflow (`hd_check::expr`, `range_loop`).
-Implementation differs: only a numeric `a..b` or `a..=b` bound to a plain
-name is a counted loop. A `for` over a list or a map calls its iterator: a
-cursor closure (`ListStep`, `MapStep`) allocated per loop and a
-`call_ref` plus an `Option` per element. Worse: the `allocations` target
-asks for no allocation in these loops.
+A `for` over a `List` or a `Map` is a counted loop too
+(`hd_check::expr`, `collection_loop`). It captures the length once and
+checks it at the top of every round, the exhausted round included, so it
+panics with `iterator-invalidated` exactly where the cursor's `next`
+would. A map loop scans the slots written when it began, skipping
+removed entries, and stops at the slots written now (`MapSlotNext`).
+Each entry is a `(K, V)` tuple value, which allocates only when the
+tuple's layout is boxed.
+Implementation differs: a numeric range is a counted loop only when it
+is bound to a plain name, and a `for` over any other iterable calls its
+iterator's `next`.
 
 ### `break` With A Value, `continue` And Loop `else`
 
