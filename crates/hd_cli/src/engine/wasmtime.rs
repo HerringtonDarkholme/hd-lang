@@ -25,10 +25,19 @@ impl TryFrom<Vec<(String, Vec<u8>, hd_run::Grants)>> for Programs {
     }
 }
 
+/// The code cache of this command's wasmtime engines
+/// (`docs/compiler/engines-and-test-runner.md` §18.2): compiled functions
+/// kept in the compiled cache, under its cap, while the value lives. An
+/// engine made after it reuses the functions an earlier run compiled.
+pub(crate) fn code_cache() -> Option<hd_run_wasmtime::CodeCache> {
+    hd_run_wasmtime::install_code_cache(crate::disk_store())
+}
+
 /// One engine and compiled child-program list for a package's test run.
 pub(crate) struct Session {
     engine: hd_run_wasmtime::TestEngine,
     children: Vec<hd_run_wasmtime::NamedProgram>,
+    _code: Option<hd_run_wasmtime::CodeCache>,
 }
 
 impl Session {
@@ -37,6 +46,7 @@ impl Session {
         jobs: usize,
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
+        let code = code_cache();
         let config = hd_run_wasmtime::EngineConfig::pipeline(level);
         let workers = u32::try_from(jobs).map_err(|_| "too many test workers")?;
         let engine = hd_run_wasmtime::TestEngine::new(
@@ -63,7 +73,11 @@ impl Session {
                 return Err("internal: Node child programs on Wasmtime".into());
             }
         };
-        Ok(Self { engine, children })
+        Ok(Self {
+            engine,
+            children,
+            _code: code,
+        })
     }
 
     pub(crate) fn prepare(&self, wasm: &[u8], integration: bool) -> Result<Prepared, String> {
@@ -164,6 +178,7 @@ pub(crate) fn run_program(
     wasm: &[u8],
     host: &HostSetup,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    let _code = code_cache();
     hd_run_wasmtime::run_traced(
         hd_run_wasmtime::EngineConfig::pipeline(level),
         wasm,

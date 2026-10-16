@@ -66,12 +66,44 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
   bodies hold no program-wide dense number besides call targets
   ([Numbering](lowering-catalog.md#numbering)).
 
-Implementation differs: neither cache is built. `hd_run_wasmtime::cache`
-keeps compiled modules in process only (a 128-entry LRU per engine, keyed
-by the module bytes), because deserializing needs `unsafe` and the crate
-forbids it. Worse: every `hd run` and `hd test` process compiles every
-function again, so warm latency pays full Cranelift time. `hd_cache`
-already declares the `Cwasm` and `Clpack` entry kinds, unused.
+Implementation differs: there is no `cwasm` cache, because deserializing
+needs `unsafe` and the crate forbids it; `hd_run_wasmtime::cache` keeps
+compiled modules in process only (a 128-entry LRU per engine, keyed by
+the module bytes). The per-function cache is built
+(`hd_run_wasmtime::code_cache`), with these differences:
+
+- **One pack per module, not per folder group.** wasmtime hands the
+  adapter one function at a time with no program context, so a `clpack`
+  holds every function of one module, keyed by the module's bytes and
+  `Engine::precompile_compatibility_hash` (target, Cranelift flags,
+  tunables, features, wasmtime version). Each function inside is found by
+  Cranelift's own key. A warm `hd run`, `hd test` or REPL session
+  compiles no function; a module that changed misses whole, so an edit
+  recompiles every function of its module (functions identical within a
+  module still compile once).
+- **Wasm is still translated.** Only Cranelift's code generation is
+  skipped; parsing, validation and the CLIF translation run every time.
+- **Private entries.** A pack is machine code wasmtime runs, so it is
+  published with mode 0600 and read only when the reader owns it, it has
+  one link and no group or other permission, and the path is no symbolic
+  link (`DiskStore::get_private`), the safe-code counterpart of the
+  private `native/` directory above. Platforms without Unix permissions
+  keep no packs.
+- **The inlining pipeline, inlining nothing.** Cranelift 0.136's key also
+  covers an exception table that a reused compiler context keeps from an
+  earlier trampoline, and a compile clears it while a cache hit does not.
+  So with wasmtime's default pipeline, which translates and compiles one
+  function after another in one context, a warm compile looks up other
+  keys than the cold compile wrote. With the cache on, the engines use
+  `Inlining::Intrinsics` (no Wasm function is inlined, so code and
+  backtraces stay the same), whose pipeline translates every function
+  before it compiles any. Compiles running at once on one engine still
+  share its context pool, so there a function can have a few keys; a
+  pack keeps each key a compile used within its last eight writes. A
+  process that compiles one module at a time (`hd run`, `hd test`, the
+  REPL) compiles no function on its second run; the wasmtime conformance
+  run (eight workers on shared engines) still compiled 2.4% of its
+  functions on its fourth.
 
 ### 18.3 Instantiation
 

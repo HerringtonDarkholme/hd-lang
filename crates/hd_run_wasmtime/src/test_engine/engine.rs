@@ -90,11 +90,12 @@ impl TestEngine {
             .memory_reservation_for_growth(0)
             .gc_heap_reservation_for_growth(0)
             .allocation_strategy(InstanceAllocationStrategy::Pooling(allocator));
+        let code = crate::code_cache::configure(&mut base);
         let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
         crate::deadline::register(&engine)?;
         Ok(Self(Arc::new(Inner {
+            cache: crate::cache::ModuleCache::new(&engine, code),
             engine,
-            cache: crate::cache::ModuleCache::new(),
         })))
     }
 

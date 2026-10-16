@@ -283,13 +283,22 @@ impl Drop for DiskStore {
     }
 }
 
-impl CacheStore for DiskStore {
-    /// A missing, vanished or unreadable entry is a miss.
-    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+impl DiskStore {
+    /// Reads an entry whose open file `accept`s, marking its use. A
+    /// missing, vanished, refused or unreadable entry is a miss.
+    fn read(
+        &self,
+        kind: EntryKind,
+        key: &Hash128,
+        accept: impl FnOnce(&Path, &std::fs::Metadata) -> bool,
+    ) -> Option<Arc<[u8]>> {
         self.used.store(true, Ordering::Relaxed);
         let path = self.path(kind, key);
         let mut file = File::open(&path).ok()?;
         let meta = file.metadata().ok()?;
+        if !accept(&path, &meta) {
+            return None;
+        }
         let mut bytes = Vec::with_capacity(usize::try_from(meta.len()).unwrap_or(0));
         file.read_to_end(&mut bytes).ok()?;
         if stale(&meta) {
@@ -298,20 +307,37 @@ impl CacheStore for DiskStore {
         Some(Arc::from(bytes))
     }
 
-    /// A failed publish is reported once and turns later puts off, so the
-    /// run continues uncached (§5.4).
-    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+    /// Publishes an entry by write-then-rename, the temporary file made by
+    /// `create`. A failed publish is reported once and turns later puts
+    /// off, so the run continues uncached (§5.4).
+    fn publish(
+        &self,
+        kind: EntryKind,
+        key: &Hash128,
+        bytes: &[u8],
+        create: impl FnOnce(&Path) -> std::io::Result<File>,
+    ) {
+        /// Tells apart the temporary files of one process's threads.
+        static NEXT_TMP: AtomicU64 = AtomicU64::new(0);
         self.used.store(true, Ordering::Relaxed);
         if self.write_failed.load(Ordering::Relaxed) {
             return;
         }
         let path = self.path(kind, key);
-        let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+        let tmp = path.with_extension(format!(
+            "tmp{}-{}",
+            std::process::id(),
+            NEXT_TMP.fetch_add(1, Ordering::Relaxed)
+        ));
         let publish = || {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir)?;
             }
-            std::fs::write(&tmp, bytes)?;
+            let written = create(&tmp).and_then(|mut file| file.write_all(bytes));
+            if let Err(e) = written {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(e);
+            }
             std::fs::rename(&tmp, &path).or_else(|e| {
                 let _ = std::fs::remove_file(&tmp);
                 // Another writer of the same key published first: a lost
@@ -332,6 +358,56 @@ impl CacheStore for DiskStore {
                 }
             }
         }
+    }
+
+    /// Reads a private entry: one that holds native code, such as a
+    /// `clpack` (docs/compiler/engines-and-test-runner.md §18.2). Only a
+    /// regular file at the entry's path, no symbolic link, owned by
+    /// `owner` (the reader's user ID), with one link and mode 0600 (no
+    /// permission for group or others), is read. No other user can plant or change one,
+    /// whoever can write the directories above it.
+    #[cfg(unix)]
+    pub fn get_private(&self, kind: EntryKind, key: &Hash128, owner: u32) -> Option<Arc<[u8]>> {
+        use std::os::unix::fs::MetadataExt;
+        self.read(kind, key, |path, meta| {
+            // The path names the opened file itself, not a link to it.
+            let named = std::fs::symlink_metadata(path).is_ok_and(|m| {
+                m.file_type().is_file() && m.dev() == meta.dev() && m.ino() == meta.ino()
+            });
+            named
+                && meta.file_type().is_file()
+                && meta.uid() == owner
+                && meta.nlink() == 1
+                && meta.mode() & 0o777 == 0o600
+        })
+    }
+
+    /// Publishes a private entry, readable and writable by its owner only
+    /// (mode 0600). The temporary file is created new, never opened
+    /// through a link.
+    #[cfg(unix)]
+    pub fn put_private(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        use std::os::unix::fs::OpenOptionsExt;
+        self.publish(kind, key, bytes, |tmp| {
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(tmp)
+        });
+    }
+}
+
+impl CacheStore for DiskStore {
+    /// A missing, vanished or unreadable entry is a miss.
+    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        self.read(kind, key, |_, _| true)
+    }
+
+    /// A failed publish is reported once and turns later puts off, so the
+    /// run continues uncached (§5.4).
+    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        self.publish(kind, key, bytes, |tmp| File::create(tmp));
     }
 
     fn touch(&self, kind: EntryKind, key: &Hash128) {
@@ -691,5 +767,81 @@ mod tests {
         assert!(parse_key("000000000000000000000000000000AB").is_none());
         assert!(parse_key("00ab").is_none());
         assert!(parse_key("00000000000000000000000000000001.tmp7").is_none());
+    }
+
+    #[test]
+    fn threads_writing_one_key_publish_whole_entries() {
+        let root = scratch("same-key");
+        let store = DiskStore::new(root.clone());
+        let k = key(4, 1);
+        let body: Vec<u8> = (0..64 * 1024_u32)
+            .map(|i| u8::try_from(i % 251).expect("byte"))
+            .collect();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for _ in 0..50 {
+                        store.put(EntryKind::Check, &k, &body);
+                    }
+                });
+            }
+        });
+        assert_eq!(store.get(EntryKind::Check, &k).as_deref(), Some(&body[..]));
+        let dir = store.path(EntryKind::Check, &k);
+        let left = std::fs::read_dir(dir.parent().expect("shard"))
+            .expect("shard")
+            .count();
+        assert_eq!(left, 1, "no temporary file is left behind");
+        drop(store);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_private_entry_is_read_only_when_its_owner_alone_can_use_it() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let root = scratch("private");
+        let store = DiskStore::new(root.clone());
+        let k = key(9, 1);
+        store.put_private(EntryKind::Clpack, &k, b"code");
+        let path = store.path(EntryKind::Clpack, &k);
+        let meta = std::fs::metadata(&path).expect("entry");
+        assert_eq!(meta.mode() & 0o777, 0o600);
+        let me = meta.uid();
+        assert_eq!(
+            store.get_private(EntryKind::Clpack, &k, me).as_deref(),
+            Some(&b"code"[..])
+        );
+        // Another owner, or a looser mode, is a miss.
+        assert!(
+            store
+                .get_private(EntryKind::Clpack, &k, me.wrapping_add(1))
+                .is_none()
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).expect("chmod");
+        assert!(store.get_private(EntryKind::Clpack, &k, me).is_none());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("chmod");
+        // A second link to the file is a miss.
+        let other = root.join("other");
+        std::fs::hard_link(&path, &other).expect("link");
+        assert!(store.get_private(EntryKind::Clpack, &k, me).is_none());
+        std::fs::remove_file(&other).expect("unlink");
+        assert!(store.get_private(EntryKind::Clpack, &k, me).is_some());
+        // A symbolic link at the entry's path is a miss, even to an entry
+        // the reader owns.
+        let k2 = key(9, 2);
+        store.put_private(EntryKind::Clpack, &k2, b"other code");
+        std::fs::remove_file(&path).expect("remove");
+        std::os::unix::fs::symlink(store.path(EntryKind::Clpack, &k2), &path).expect("symlink");
+        assert!(store.get_private(EntryKind::Clpack, &k, me).is_none());
+        // An ordinary entry, made with the default mode, is a miss too.
+        let k3 = key(9, 3);
+        store.put(EntryKind::Clpack, &k3, b"code");
+        let loose = std::fs::metadata(store.path(EntryKind::Clpack, &k3)).expect("entry");
+        if loose.mode() & 0o777 != 0o600 {
+            assert!(store.get_private(EntryKind::Clpack, &k3, me).is_none());
+        }
+        drop(store);
+        let _ = std::fs::remove_dir_all(root);
     }
 }

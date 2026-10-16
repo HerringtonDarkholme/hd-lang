@@ -329,11 +329,12 @@ Continuing §7.3 at step 4:
 5. Exit with the program's status: the entry's `ExitCode`, 1 for an
    `.Err`, or the profile's panic status.
 
-Implementation differs: there is no `cwasm` entry. wasmtime compiles the
-module in process (a per-process cache keyed by its bytes) on every run,
-because deserializing wasmtime's precompiled modules is `unsafe`. Not
-judged: it costs a Cranelift compile per run, but avoids `unsafe` code
-the project does not allow.
+Implementation differs: there is no `cwasm` entry, because deserializing
+wasmtime's precompiled modules is `unsafe`. wasmtime compiles the module
+in process on every run, but Cranelift takes each function's machine
+code from the module's `clpack` entry when an earlier run compiled it
+(docs/compiler/engines-and-test-runner.md §18.2), so a warm run
+translates the module and compiles no function.
 
 ### 20.3 `hd build`
 

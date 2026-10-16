@@ -26,6 +26,7 @@
 
 pub mod abi;
 mod cache;
+mod code_cache;
 mod codec;
 mod core;
 mod deadline;
@@ -61,6 +62,7 @@ mod testing_json;
 #[cfg(test)]
 mod tests;
 
+pub use code_cache::{CodeCache, CodeCacheStats, code_cache_stats, install_code_cache};
 pub use engine::{EngineConfig, Module, OptLevel, WasmtimeEngine, thread_stack};
 pub(crate) use engine::{new_store, wasmtime_config};
 pub use host::HostIo;

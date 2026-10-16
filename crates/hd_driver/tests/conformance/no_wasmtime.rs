@@ -38,3 +38,13 @@ pub fn drive_scenario(
 pub fn worker_stack() -> usize {
     0
 }
+
+/// No engine, so no code cache.
+pub fn code_cache() -> Option<()> {
+    None
+}
+
+/// No engine, so nothing to count.
+pub fn code_cache_line() -> String {
+    String::new()
+}

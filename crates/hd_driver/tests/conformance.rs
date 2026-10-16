@@ -967,6 +967,9 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
         workers(),
         diffs.len()
     );
+    if engine_mode() != EngineMode::Node {
+        println!("{}", wasmtime::code_cache_line());
+    }
     let stats = RUNTIME_STATS.lock().expect("runtime stats lock");
     for name in ["lang", "std"] {
         let selected: Vec<_> = cases
@@ -2082,7 +2085,13 @@ fn specification_conformance_passes_except_known_failures() {
     }
     let store = MemoryStore::default();
     let started = Instant::now();
-    let results = run_all(&cases, &store);
+    let results = {
+        // Installed for the run; its drop publishes the cache's sizes.
+        let _code = (mode != EngineMode::Node)
+            .then(wasmtime::code_cache)
+            .flatten();
+        run_all(&cases, &store)
+    };
     let elapsed = started.elapsed();
     finish_wasm_digests();
     if mode != EngineMode::Node || selected_tier.is_some() {

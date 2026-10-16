@@ -21,6 +21,8 @@ pub(crate) use crate::node::{CaseRun, HostCase, Panic, Snapshot};
 
 #[cfg_attr(not(feature = "wasmtime"), path = "engine/no_wasmtime.rs")]
 mod wasmtime;
+#[cfg(feature = "wasmtime")]
+pub(crate) use wasmtime::code_cache;
 
 /// Named test children stay typed on the native engine; only Node needs
 /// its private scratch-file configuration.

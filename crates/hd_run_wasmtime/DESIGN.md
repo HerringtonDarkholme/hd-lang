@@ -510,7 +510,9 @@ pub enum Outcome { Exit(u8), Panic(PanicReport), Internal(String) }
   `HostSetup::providers`; not judged, since no embedder exists yet.
 - wasmtime compiled modules are cached in process only, keyed by their
   bytes; wasmtime's serialized modules are `unsafe` to deserialize, so
-  there is no cross-run artifact cache (`cache.rs`).
+  there is no cross-run module cache (`cache.rs`). Their machine code is
+  kept across runs function by function, in `clpack` entries
+  (`code_cache.rs`, docs/compiler/engines-and-test-runner.md §18.2).
 
 ### 17.10 The Generated JS Glue
 

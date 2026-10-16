@@ -172,6 +172,25 @@ pub fn test_stdout(
         .join("\n"))
 }
 
+/// The code cache over `$HD_CACHE/obj` when `HD_CACHE` is set
+/// (`docs/compiler/engines-and-test-runner.md` §18.2): a later run with
+/// the same cache reuses this run's machine code.
+pub fn code_cache() -> Option<hd_run_wasmtime::CodeCache> {
+    let dir = std::env::var_os("HD_CACHE")?;
+    hd_run_wasmtime::install_code_cache(hd_cache::DiskStore::new(
+        std::path::PathBuf::from(dir).join("obj"),
+    ))
+}
+
+/// What the code cache did, for the runtime summary.
+pub fn code_cache_line() -> String {
+    let stats = hd_run_wasmtime::code_cache_stats();
+    format!(
+        "code cache: {} functions reused, {} compiled",
+        stats.hits, stats.compiled
+    )
+}
+
 /// The stack a conformance worker thread needs to host a guest.
 pub fn worker_stack() -> usize {
     hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::pipeline(level()))

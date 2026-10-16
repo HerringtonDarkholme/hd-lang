@@ -393,6 +393,8 @@ fn serve(
     done: &mpsc::Sender<()>,
 ) {
     let Streams { io, mut diags } = streams;
+    // Before the engine, so its inputs reuse earlier runs' functions.
+    let _code = crate::engine::code_cache();
     let session = WasmtimeEngine::new(config).and_then(|engine| {
         // `cli.repl.host.default-profile`, `.args` (no program name or
         // arguments) and `cli.cap.source.flags-only` (bare `hd` has no

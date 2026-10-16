@@ -594,3 +594,60 @@ fn a_suspending_generic_method_runs_through_dyn() {
     assert!(out.status.success(), "{}", text(&out.stderr));
     assert_eq!(text(&out.stdout), "3\n");
 }
+
+/// The `clpack` entries under `cache`: path, inode and modification time.
+#[cfg(unix)]
+fn code_packs(cache: &Path) -> Vec<(PathBuf, u64, std::time::SystemTime)> {
+    use std::os::unix::fs::MetadataExt;
+    let mut packs = Vec::new();
+    let Ok(shards) = std::fs::read_dir(cache.join("obj").join("clpack")) else {
+        return packs;
+    };
+    for shard in shards.flatten() {
+        for entry in std::fs::read_dir(shard.path()).expect("shard").flatten() {
+            let meta = entry.metadata().expect("entry");
+            assert_eq!(meta.mode() & 0o777, 0o600, "{}", entry.path().display());
+            packs.push((entry.path(), meta.ino(), meta.modified().expect("mtime")));
+        }
+    }
+    packs.sort();
+    packs
+}
+
+/// The code cache (docs/compiler/engines-and-test-runner.md §18.2): a cold
+/// `hd test` and `hd run` on wasmtime publish owner-only `clpack` entries,
+/// and a warm one compiles no function, so it publishes none.
+#[cfg(unix)]
+#[test]
+fn a_warm_run_compiles_no_function() {
+    let dir = program(
+        "code-cache",
+        "data Item:\n    name: string\n    cents: i32\n\nfn total(items: List[Item]) -> i32:\n    let sum = +0\n    for item in items:\n        sum = sum + item.cents\n    sum\n\npub fn main() -> void $ Console:\n    items := [Item { name: \"tea\", cents: 250 }, Item { name: \"cake\", cents: 425 }]\n    for item in items:\n        println(\"${item.name}: ${item.cents}\")\n    println(\"total ${total(items)}\")\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"totals two items\"):\n        assert_equal(total([Item { name: \"a\", cents: 1 }, Item { name: \"b\", cents: 2 }]), +3, reason=\"one and two\")\n",
+    );
+    // The cache `hd` gives this directory.
+    let name = dir.file_name().expect("name").to_string_lossy();
+    let cache = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("wasmtime-cache-{name}"));
+    let _ = std::fs::remove_dir_all(&cache);
+    let mut last = Vec::new();
+    for args in [&["test", "main.hd"][..], &["main.hd"][..]] {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", "wasmtime");
+        let cold = run(c, args, "");
+        assert!(cold.status.success(), "{args:?}: {}", text(&cold.stderr));
+        let packs = code_packs(&cache);
+        assert!(packs.len() > last.len(), "{args:?} published a pack");
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", "wasmtime");
+        let warm = run(c, args, "");
+        assert!(warm.status.success(), "{args:?}: {}", text(&warm.stderr));
+        if args == ["main.hd"] {
+            assert_eq!(text(&warm.stdout), "tea: 250\ncake: 425\ntotal 675\n");
+        }
+        assert_eq!(
+            code_packs(&cache),
+            packs,
+            "{args:?}: the warm run wrote no pack"
+        );
+        last = packs;
+    }
+}

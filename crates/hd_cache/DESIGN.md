@@ -33,9 +33,10 @@ says.
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
+| `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
 
-`EntryKind` also names `check-test`, `pkgres`, `clpack`, `cwasm` and
-`code`; no code writes them.
+`EntryKind` also names `check-test`, `pkgres`, `cwasm` and `code`; no
+code writes them.
 
 **Sections, not files.** A file costs hundreds of µs to publish and tens
 to over a hundred to open on macOS, more than the work inside most small
@@ -334,10 +335,11 @@ build reads and publishes tens of files instead of one per instance.
   cached pack's, such as a new package's first build, emits that
   folder's instances again: packs share whole groups only.
 
-Planned, not built: compiled machine code cached across runs (`clpack`,
-`cwasm`), which wasmtime's
-`unsafe` deserialization rules out today (crates/hd_run_wasmtime/DESIGN.md
-§17.9).
+Planned, not built: precompiled modules cached across runs (`cwasm`),
+which wasmtime's `unsafe` deserialization rules out today
+(crates/hd_run_wasmtime/DESIGN.md §17.9). Machine code is cached function
+by function instead, one `clpack` per module
+(docs/compiler/engines-and-test-runner.md §18.2).
 
 ### 5.5 The Stat Manifest And Change Detection
 

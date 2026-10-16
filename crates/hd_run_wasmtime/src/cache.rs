@@ -19,8 +19,10 @@
 //! merge independent capacity contracts. (The suite runs one process-wide
 //! `TestEngine`, so its repeats still compile once.)
 //!
-//! The caches are intentionally in-process only. wasmtime's serialized
-//! modules are `unsafe` to deserialize, so no cross-run artifact cache.
+//! The caches hold modules in process only: wasmtime's serialized modules
+//! are `unsafe` to deserialize, so no module outlives its process. Their
+//! machine code does, function by function, when the code cache
+//! (`code_cache.rs`) was installed as the engine was made.
 
 use hd_base::HashMap;
 use std::collections::VecDeque;
@@ -54,6 +56,8 @@ struct OnDemandKey {
 /// engine's own code memory is wasmtime's domain, not ours.
 pub(crate) struct ModuleCache {
     modules: Mutex<CacheState>,
+    /// The engine's salt when the code cache is on for it.
+    code: Option<hd_base::Hash128>,
 }
 
 /// Fits in the suite's noise: the suite compiles about a thousand
@@ -69,9 +73,12 @@ struct CacheState {
 }
 
 impl ModuleCache {
-    pub(crate) fn new() -> Self {
+    /// The cache of `engine`, which `code` says was made with the code
+    /// cache on (`code_cache::configure`).
+    pub(crate) fn new(engine: &wasmtime::Engine, code: bool) -> Self {
         Self {
             modules: Mutex::new(CacheState::default()),
+            code: code.then(|| crate::code_cache::salt(engine)),
         }
     }
 
@@ -87,7 +94,10 @@ impl ModuleCache {
                 return Ok(hit);
             }
         }
-        let compiled = wasmtime::Module::new(engine, wasm)?;
+        let compiled = match self.code {
+            Some(salt) => crate::code_cache::compile(engine, salt, wasm)?,
+            None => wasmtime::Module::new(engine, wasm)?,
+        };
         let compiled = Arc::new(compiled);
         let mut state = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(hit) = state.map.get(wasm).map(Arc::clone) {
@@ -141,9 +151,9 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
     {
         return Ok(Arc::clone(shared));
     }
-    let engine = Arc::new(
-        wasmtime::Engine::new(&crate::wasmtime_config(*config)).map_err(|e| e.to_string())?,
-    );
+    let mut wasmtime_config = crate::wasmtime_config(*config);
+    let code = crate::code_cache::configure(&mut wasmtime_config);
+    let engine = Arc::new(wasmtime::Engine::new(&wasmtime_config).map_err(|e| e.to_string())?);
     let mut engines = on_demand_engines()
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
@@ -151,8 +161,8 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
         return Ok(Arc::clone(shared));
     }
     let shared = Arc::new(Shared {
+        cache: ModuleCache::new(&engine, code),
         engine,
-        cache: ModuleCache::new(),
     });
     engines.insert(key, Arc::clone(&shared));
     Ok(shared)

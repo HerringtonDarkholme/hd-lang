@@ -836,11 +836,13 @@ writes it.
 | `codepack` | one folder group's Wasm code (§3.22) |
 | `packhint` | each folder group's recent `codepack` keys, per package |
 | `link` | the linked module |
+| `clpack` | one module's Cranelift machine code: per function, Cranelift's key and its serialized code |
 
 Positions in `check` entries are relative to code lines (§3.7), so
 emission never needs the syntax tree. The kinds `check-test`, `pkgres`,
-`clpack`, `cwasm` and `code` are declared in `EntryKind` but not
-written.
+`cwasm` and `code` are declared in `EntryKind` but not written; `clpack`
+holds one module's Cranelift machine code
+([engines §18.2](engines-and-test-runner.md#182-compile-caches)).
 
 ### 3.21 The Scheduler's Task Graph
 
