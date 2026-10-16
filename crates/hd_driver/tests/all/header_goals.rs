@@ -240,7 +240,7 @@ fn a_comment_edit_keeps_the_cached_findings_and_moves_their_positions() {
     assert_eq!(warm, cold);
     assert_eq!(misses, 0);
     assert!(hits >= 2, "{hits}");
-    let commented = format!("// note\n{WITHOUT}");
+    let commented = format!("# note\n{WITHOUT}");
     let files = [
         ("lib/defs.hd", LIB),
         ("without/main.hd", commented.as_str()),

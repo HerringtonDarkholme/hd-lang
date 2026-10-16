@@ -1137,3 +1137,48 @@ fn a_new_field_re_emits_only_the_instances_that_lay_out_its_type() {
     let r = ok(&store, &program(&main, &grown), ex);
     assert_eq!(r.counters.emitted, 1, "only extra_sum lays out Extra");
 }
+
+/// A top-level statement is no part of its folder's API text
+/// (`crates/hd_syntax/DESIGN.md` §4.5): editing one rechecks its module
+/// but rebuilds no interface, and neither does a line break inside a
+/// header's brackets. A signature edit still rebuilds the interface.
+#[test]
+fn a_top_level_statement_edit_rebuilds_no_interface() {
+    let geo = |init: &str, header: &str| {
+        format!("{GEO}\nlet scale: i32 = {init}\n\n{header}\n    return v * scale\n")
+    };
+    let main = "\
+use pkg.geo.shapes.{scaled}
+
+pub fn main() -> void $ Console:
+    println(scaled(2))
+";
+    let flat = "pub fn scaled(v: i32) -> i32:";
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let cold = ok(&store, &program(main, &geo("3", flat)), executor);
+        assert!(cold.counters.ifaces_built.contains(&"demo.geo".to_owned()));
+        for (init, header) in [("4", flat), ("4", "pub fn scaled(\n    v: i32\n) -> i32:")] {
+            let src = program(main, &geo(init, header));
+            let warm = ok(&store, &src, executor);
+            assert!(
+                !warm.counters.ifaces_built.contains(&"demo.geo".to_owned()),
+                "{header:?}: {:?}",
+                warm.counters.ifaces_built
+            );
+            let fresh = ok(&MemoryStore::default(), &src, executor);
+            assert_eq!(warm.wasm, fresh.wasm, "{header:?}");
+        }
+        let changed = ok(
+            &store,
+            &program(main, &geo("4", "pub fn scaled(v: i32) -> i32 $ Console:")),
+            executor,
+        );
+        assert!(
+            changed
+                .counters
+                .ifaces_built
+                .contains(&"demo.geo".to_owned())
+        );
+    }
+}

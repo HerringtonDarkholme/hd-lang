@@ -263,13 +263,17 @@ tokens (`Newline`, `Indent`, `Dedent`, `SuiteEnd`), in parse order. Since
 nothing. The test `api_hash_includes_kept_layout` checks two template
 bodies with equal tokens and different block structure.
 
-Implementation differs: `api_hash` (`src/skim.rs:271`) walks the raw
-`TokenBuf`, cuts only function bodies and `tests:` blocks, and adds a
-line marker plus indent or dedent markers from an indentation stack at
-every line-first token. This is worse: top-level statements stay in the
-hash, and so do line breaks inside brackets. Editing either rebuilds the
-folder's interface. The deep hash still cuts off dependents, so it is
-sound, only coarser.
+Implementation differs: `api_hash` (`src/skim.rs`) walks the raw
+`TokenBuf`, not the green tree.
+- **What it cuts.** It cuts function bodies, `tests:` blocks and
+  top-level statements. A top-level statement is a column-0 logical line
+  that starts no declaration, `use`, decorator or `tests:`.
+- **Local items.** A body or statement that declares a local item stays.
+- **Layout markers.** It adds a line marker, plus indent or dedent
+  markers from an indentation stack, at each logical line's first token.
+  So a line break inside brackets changes nothing.
+- **Body detection.** It also reads logical lines, so a header split
+  inside its brackets still has its body cut.
 
 Private items a template names are no exception. A private function that
 a template body names has a written result type, and its omitted `$`

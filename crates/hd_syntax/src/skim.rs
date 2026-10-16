@@ -48,9 +48,10 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
             ..HeaderSkeleton::default()
         };
     };
-    let bodies = body_ranges(text, &lexed.tokens);
+    let logical = logical_lines(&lexed.tokens);
+    let bodies = body_ranges(text, &lexed.tokens, &logical);
     let uses = use_ranges(&lexed.tokens);
-    let api_text_hash = api_hash(text, &lexed.tokens, &bodies);
+    let api_text_hash = api_hash(text, &lexed.tokens, &bodies, &logical);
     let lines = code_lines(&lexed.tokens);
     let mut content = Vec::with_capacity(source.len());
     for &(start, end) in &lines {
@@ -72,54 +73,81 @@ pub fn skim(source: &[u8]) -> HeaderSkeleton {
 /// Reference body extraction over the materialized token and line columns.
 #[must_use]
 pub fn skeleton_from_layout(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
-    body_ranges(source, tokens)
+    body_ranges(source, tokens, &logical_lines(tokens))
 }
 
-fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
-    let mut ranges = Vec::new();
-    let line_end = tokens.line_token_ends();
-    for (line, &next_line_token) in line_end.iter().enumerate() {
-        let Some(first) = tokens.line_tok[line].get() else {
-            continue;
-        };
-        let first_idx = first.idx();
-        if first_idx >= next_line_token {
-            continue;
+/// The logical lines (`lex.line.logical`): each line whose first token is
+/// outside brackets, as (physical line, first token, last token), the
+/// lines inside brackets that it continues included.
+fn logical_lines(tokens: &TokenBuf) -> Vec<(usize, usize, usize)> {
+    let mut out: Vec<(usize, usize, usize)> = Vec::new();
+    let mut depth = 0_u32;
+    let mut line = 0_usize;
+    for index in 0..tokens.len() {
+        let token = hd_base::TokenIdx::from_raw(u32::try_from(index).unwrap_or(u32::MAX - 1));
+        if depth == 0 && (index == 0 || tokens.is_line_first(token)) {
+            let start = tokens.start[index];
+            while tokens.line_start.get(line + 1).is_some_and(|&s| s <= start) {
+                line += 1;
+            }
+            out.push((line, index, index));
+        } else if let Some(last) = out.last_mut() {
+            last.2 = index;
         }
-        let colon = (first_idx..next_line_token)
-            .rev()
-            .find(|&index| tokens.kind[index] == TokenKind::Colon);
+        let kind = tokens.kind[index];
+        if kind.opens() {
+            depth += 1;
+        } else if kind.closes() {
+            depth = depth.saturating_sub(1);
+        }
+    }
+    out
+}
+
+fn body_ranges(
+    source: &str,
+    tokens: &TokenBuf,
+    logical: &[(usize, usize, usize)],
+) -> Vec<BodyRange> {
+    let mut ranges = Vec::new();
+    for (n, &(line, first_idx, last_idx)) in logical.iter().enumerate() {
+        // The suite's colon: the last one outside the line's brackets.
+        let mut depth = 0_u32;
+        let mut colon = None;
+        for index in first_idx..=last_idx {
+            let kind = tokens.kind[index];
+            if kind.opens() {
+                depth += 1;
+            } else if kind.closes() {
+                depth = depth.saturating_sub(1);
+            } else if kind == TokenKind::Colon && depth == 0 {
+                colon = Some(index);
+            }
+        }
         let Some(colon) = colon else { continue };
         if !can_open_suite(&tokens.kind[first_idx..=colon]) {
             continue;
         }
         let indent = tokens.line_indent[line];
         let header_start = tokens.line_start[line];
-        if colon + 1 < next_line_token {
-            let start = tokens.start[colon + 1];
-            let end = u32::try_from(line_content_end(
-                source.as_bytes(),
-                tokens.line_start[line] as usize,
-            ))
-            .unwrap_or(u32::MAX - 1);
+        let kind = header_kind(head_kind(&tokens.kind[first_idx..=colon]));
+        if colon < last_idx {
             ranges.push(BodyRange {
                 header_start,
-                body_start: start,
-                body_end: end,
+                body_start: tokens.start[colon + 1],
+                body_end: tokens.end[last_idx],
                 header_indent: indent,
-                kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
+                kind,
             });
             continue;
         }
-        let Some(body_line) = ((line + 1)..tokens.line_start.len())
-            .find(|&candidate| tokens.line_tok[candidate].get().is_some())
-        else {
+        let Some(&(body_line, _, _)) = logical.get(n + 1) else {
             ranges.push(BodyRange {
                 header_start,
                 body_start: tokens.end[colon],
                 body_end: tokens.end[colon],
                 header_indent: indent,
-                kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
+                kind,
             });
             continue;
         };
@@ -127,23 +155,19 @@ fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
             continue;
         }
         let body_start = tokens.line_start[body_line];
-        let end_line = ((body_line + 1)..tokens.line_start.len())
-            .find(|&candidate| {
-                tokens.line_tok[candidate].get().is_some()
-                    && tokens.line_indent[candidate] <= indent
-            })
-            .unwrap_or(tokens.line_start.len());
-        let body_end = if end_line == tokens.line_start.len() {
-            u32::try_from(source.len()).unwrap_or(u32::MAX - 1)
-        } else {
-            tokens.line_start[end_line]
-        };
+        let body_end = logical[n + 1..]
+            .iter()
+            .find(|&&(l, _, _)| tokens.line_indent[l] <= indent)
+            .map_or(
+                u32::try_from(source.len()).unwrap_or(u32::MAX - 1),
+                |&(l, _, _)| tokens.line_start[l],
+            );
         ranges.push(BodyRange {
             header_start,
             body_start,
             body_end,
             header_indent: indent,
-            kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
+            kind,
         });
     }
     ranges
@@ -268,7 +292,17 @@ fn decl_line_starts(tokens: &TokenBuf) -> Vec<u32> {
     out
 }
 
-fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
+/// The api text hash (`crates/hd_syntax/DESIGN.md` §4.5): every token,
+/// with a marker per logical line and per indentation change, except
+/// function bodies, `tests:` blocks and top-level statements. A body or
+/// statement that declares a local `data`, `enum`, `trait`, `impl` or
+/// `type` stays.
+fn api_hash(
+    source: &str,
+    tokens: &TokenBuf,
+    bodies: &[BodyRange],
+    logical: &[(usize, usize, usize)],
+) -> Hash128 {
     let mut bytes = Vec::new();
     let mut indents = vec![0_u16];
     // A function body that declares a local type, trait or impl stays in
@@ -276,36 +310,45 @@ fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
     // the folder interface (`crates/hd_tir/DESIGN.md` "Local items lift to
     // hidden module items").
     let decls = decl_line_starts(tokens);
-    let declares = |body: &BodyRange| {
-        let i = decls.partition_point(|s| *s < body.body_start);
-        decls.get(i).is_some_and(|s| *s < body.body_end)
+    let declares = |start: u32, end: u32| {
+        let i = decls.partition_point(|s| *s < start);
+        decls.get(i).is_some_and(|s| *s < end)
     };
-    let mut hidden_bodies = bodies
+    let mut hidden: Vec<(u32, u32)> = bodies
         .iter()
         .filter(|body| match body.kind {
-            HeaderKind::Function => !declares(body),
+            HeaderKind::Function => !declares(body.body_start, body.body_end),
             HeaderKind::Tests => true,
             _ => false,
         })
-        .peekable();
+        .map(|body| (body.body_start, body.body_end))
+        .collect();
+    hidden.extend(
+        top_level_statements(source, tokens, logical)
+            .into_iter()
+            .filter(|&(start, end)| !declares(start, end)),
+    );
+    hidden.sort_unstable();
+    let mut hidden = hidden.into_iter().peekable();
+    let mut lines = logical.iter().peekable();
     for index in 0..tokens.len() {
         let start = tokens.start[index];
-        while hidden_bodies
-            .peek()
-            .is_some_and(|body| start >= body.body_end)
-        {
-            hidden_bodies.next();
+        let kind = tokens.kind[index];
+        // A logical line: a line break inside brackets is not one.
+        let line = lines.next_if(|l| l.1 == index).map(|l| l.0);
+        while hidden.peek().is_some_and(|&(_, end)| start >= end) {
+            hidden.next();
         }
-        if hidden_bodies
+        if hidden
             .peek()
-            .is_some_and(|body| start >= body.body_start && start < body.body_end)
+            .is_some_and(|&(body_start, end)| start >= body_start && start < end)
         {
             continue;
         }
         let token = hd_base::TokenIdx::from_raw(u32::try_from(index).unwrap_or(u32::MAX - 1));
-        if tokens.is_line_first(token) {
+        if let Some(line) = line {
             bytes.push(0xf0);
-            let indent = tokens.line_indent[tokens.line_of(tokens.start[index])];
+            let indent = tokens.line_indent[line];
             if indent > *indents.last().expect("indent stack") {
                 indents.push(indent);
                 bytes.push(0xf1);
@@ -316,10 +359,52 @@ fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
                 }
             }
         }
-        bytes.push(tokens.kind[index] as u8);
+        bytes.push(kind as u8);
         bytes.extend_from_slice(tokens.text(token, source).as_bytes());
     }
     hash128(&bytes)
+}
+
+/// The byte ranges of the top-level statements: each logical line at
+/// column 0 that starts no declaration, `use` line, decorator or `tests:`
+/// block, through the lines it indents.
+fn top_level_statements(
+    source: &str,
+    tokens: &TokenBuf,
+    logical: &[(usize, usize, usize)],
+) -> Vec<(u32, u32)> {
+    let mut out = Vec::new();
+    let mut open: Option<u32> = None;
+    for &(line, first, _) in logical {
+        if tokens.line_indent[line] != 0 {
+            continue;
+        }
+        let start = tokens.start[first];
+        if let Some(from) = open.take() {
+            out.push((from, start));
+        }
+        let kind = tokens.kind[first];
+        let token = hd_base::TokenIdx::from_raw(u32::try_from(first).unwrap_or(u32::MAX - 1));
+        let head = matches!(
+            kind,
+            TokenKind::KwFn
+                | TokenKind::KwData
+                | TokenKind::KwEnum
+                | TokenKind::KwTrait
+                | TokenKind::KwImpl
+                | TokenKind::KwType
+                | TokenKind::KwPub
+                | TokenKind::KwTests
+                | TokenKind::At
+        ) || (kind == TokenKind::Ident && tokens.text(token, source) == "use");
+        if !head {
+            open = Some(start);
+        }
+    }
+    if let Some(from) = open {
+        out.push((from, u32::try_from(source.len()).unwrap_or(u32::MAX - 1)));
+    }
+    out
 }
 
 /// The declaration keyword of a header line, past a leading `pub`
@@ -330,13 +415,6 @@ fn head_kind(kinds: &[TokenKind]) -> TokenKind {
         .copied()
         .find(|kind| *kind != TokenKind::KwPub)
         .unwrap_or(TokenKind::Error)
-}
-
-fn line_content_end(source: &[u8], start: usize) -> usize {
-    source[start..]
-        .iter()
-        .position(|byte| matches!(byte, b'\n' | b'\r'))
-        .map_or(source.len(), |offset| start + offset)
 }
 
 #[cfg(test)]
@@ -366,6 +444,27 @@ mod tests {
             "fn f() -> i32:\n    x :=  1\n    return x\n",
             "fn f() -> i32:\n    x := 1\n\treturn x\n",
             "## doc\nfn f() -> i32:\n    x := 1\n    return x\n",
+        ] {
+            assert_ne!(hash(base), hash(changed), "{changed:?}");
+        }
+    }
+
+    #[test]
+    fn api_hash_leaves_out_top_level_statements_and_bracketed_breaks() {
+        let hash = |s: &str| skim(s.as_bytes()).api_text_hash;
+        let base = "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n";
+        for same in [
+            // A top-level statement edited, added or removed.
+            "use std.io\n\nlimit := 11\nif limit > 4:\n    println(\"bigger\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n",
+            "use std.io\n\nfn f(a: i32, b: i32) -> i32: a + b\nprintln(\"after\")\n",
+            // A line break inside a header's brackets.
+            "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(\n    a: i32,\n    b: i32\n) -> i32: a + b\n",
+        ] {
+            assert_eq!(hash(base), hash(same), "{same:?}");
+        }
+        for changed in [
+            "use std.fs\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n",
+            "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i64) -> i32: a + b\n",
         ] {
             assert_ne!(hash(base), hash(changed), "{changed:?}");
         }
