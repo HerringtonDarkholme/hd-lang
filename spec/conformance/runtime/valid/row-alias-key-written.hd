@@ -1,0 +1,24 @@
+# test: $.use and a $.with binding write the trait itself, even when a row alias names the key
+# expect: test
+# Spec 11 Row Aliases: req.row.alias.key-written.
+trait Store:
+    type Item
+    fn first(self) -> Self::Item
+
+data Names: pass
+
+impl Store for Names:
+    type Item = string
+    fn first(self) -> string: "ada"
+
+type NameRow = $ Store[Item = string]
+
+fn first_name() -> string $ NameRow:
+    $.use(Store[Item = string]).first()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the trait is written at the use and the binding"):
+        $.with(Store[Item = string]=Names {}):
+            assert_equal(first_name(), "ada", reason="the alias is only written in the row")

@@ -1,0 +1,15 @@
+# test: a written requirement clause must entail what the body uses, even on a private function
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.written.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+trait Log
+
+fn named() -> string $ Log:
+    $.use(Tag).name()  # diagnostic: missing-requirement

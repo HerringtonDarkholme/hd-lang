@@ -1,0 +1,23 @@
+# test: a closure without a requirement clause infers the least row its body uses
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.closure-row.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn run(job: fn() -> string $ Tag) -> string $ Tag:
+    job()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the closure's row is Tag"):
+        named := fn() -> string: $.use(Tag).name()
+        $.with(Tag=FixedTag { value: "c" }):
+            assert_equal(named(), "c", reason="the inferred row is Tag")
+            assert_equal(run(named), "c", reason="the closure fits a Tag row")

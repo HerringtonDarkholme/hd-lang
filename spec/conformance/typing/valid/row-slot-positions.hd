@@ -1,0 +1,15 @@
+# test: a context, an Fn row argument, an alias row argument and an explicit row type argument are row slots
+# Spec 11 Row Slots: req.row.slot.
+use std.function.Fn
+
+trait Db
+
+type Job[$R] = fn() -> void $ R
+
+fn run[$R](job: fn() -> void $ R) -> void $ R:
+    job()
+
+fn install(ctx: $.Context[$ Db], job: Job[$ Db], other: Fn[(), void, $ Db]) -> void:
+    $.with(ctx...):
+        run::[$ Db](job)
+        other()

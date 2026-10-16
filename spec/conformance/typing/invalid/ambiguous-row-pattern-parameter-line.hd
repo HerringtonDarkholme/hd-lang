@@ -1,0 +1,7 @@
+# test: an ambiguous row pattern is reported on the parameter whose type holds it
+# Spec 11 Least Row Solutions: req.row.least.ambiguous.reported.
+fn split[$R1, $R2](
+    label: string,
+    f: fn() -> void $ R1 + R2,  # diagnostic: ambiguous-row-pattern
+) -> void $ R1:
+    pass

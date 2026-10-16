@@ -1,0 +1,38 @@
+# test: a row alias expands before least-row solving, so a callee can remove one of its keys
+# expect: test
+# Spec 11 Row Aliases: req.row.alias.expand.first.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+trait Log:
+    fn prefix(self) -> string
+
+data FixedLog: pass
+
+impl Log for FixedLog:
+    fn prefix(self) -> string: "log:"
+
+type AppRow = $ Tag + Log
+
+fn provide_log[$R](job: fn() -> string $ R + Log) -> string $ R:
+    $.with(Log=FixedLog {}):
+        job()
+
+fn both() -> string $ AppRow:
+    $.use(Log).prefix() + $.use(Tag).name()
+
+fn only_tag() -> string $ Tag:
+    provide_log(both)
+
+tests:
+    use std.testing.assert_equal
+
+    it("R is Tag after AppRow expands"):
+        $.with(Tag=FixedTag { value: "t" }):
+            assert_equal(only_tag(), "log:t", reason="Log is removed from the expanded row")

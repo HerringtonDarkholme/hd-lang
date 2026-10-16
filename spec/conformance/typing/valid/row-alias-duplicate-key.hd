@@ -1,0 +1,15 @@
+# test: a key reached both directly and through an alias occurs once and is not an error
+# Spec 11 Row Aliases: req.row.alias.duplicate.
+trait Db
+
+trait Cache
+
+type AppRow = $ Db + Cache
+
+type Wide = $ AppRow + Db
+
+fn load() -> void $ AppRow + Db + Cache:
+    pass
+
+fn reload() -> void $ Wide:
+    load()

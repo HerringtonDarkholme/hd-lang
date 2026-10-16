@@ -1,0 +1,42 @@
+# test: a method, an implementation and a row alias declare row parameters that calls then solve
+# expect: test
+# Spec 11 Row Parameters: req.row.param.marked.owners.
+use std.function.Fn
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+type WithTag[$R] = $ R + Tag
+
+data Runner: pass
+
+impl Runner:
+    fn call[$R](self, job: fn() -> string $ R) -> string $ R:
+        job()
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[$R] Describe for Fn[(), string, $ R]:
+    fn describe(self) -> string: "job"
+
+fn named() -> string $ WithTag[$()]:
+    $.use(Tag).name()
+
+fn describe_named() -> string:
+    let job: Fn[(), string, $ Tag] = named
+    job.describe()
+
+tests:
+    use std.testing.assert_equal
+
+    it("each owner's row parameter is solved at its use"):
+        $.with(Tag=FixedTag { value: "m" }):
+            assert_equal(Runner {}.call(named), "m", reason="the method's R is Tag")
+            assert_equal(named(), "m", reason="the alias's R is the empty row")
+        assert_equal(describe_named(), "job", reason="the implementation's R is Tag")

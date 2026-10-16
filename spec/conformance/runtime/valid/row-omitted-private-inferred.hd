@@ -1,0 +1,24 @@
+# test: a private function without a requirement clause infers its row from its body
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.inferred-private.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn shout() -> string:
+    $.use(Tag).name() + "!"
+
+fn greeting() -> string $ Tag:
+    shout()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the inferred row is Tag"):
+        $.with(Tag=FixedTag { value: "hi" }):
+            assert_equal(greeting(), "hi!", reason="shout needs Tag, and the caller's row has it")

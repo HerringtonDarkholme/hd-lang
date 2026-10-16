@@ -1,0 +1,16 @@
+# test: a closure under a generic expected row does not get the empty row, so its key reaches the caller
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.not-empty.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn run[$R](job: fn() -> string $ R) -> string $ R:
+    job()
+
+pub fn through() -> string:
+    run(fn() -> string: $.use(Tag).name())  # diagnostic: missing-requirement

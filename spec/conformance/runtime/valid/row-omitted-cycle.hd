@@ -1,0 +1,28 @@
+# test: private functions that call each other in a cycle infer the least rows that satisfy both
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.cycle.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn even(n: i32) -> string:
+    if n == 0: $.use(Tag).name() else: odd(n - 1)
+
+fn odd(n: i32) -> string:
+    if n == 0: "odd" else: even(n - 1)
+
+fn parity(n: i32) -> string $ Tag:
+    even(n)
+
+tests:
+    use std.testing.assert_equal
+
+    it("both members of the cycle take Tag"):
+        $.with(Tag=FixedTag { value: "even" }):
+            assert_equal(parity(+4), "even", reason="even reaches Tag")
+            assert_equal(parity(+3), "odd", reason="odd reaches Tag through even")

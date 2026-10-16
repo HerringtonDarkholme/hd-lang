@@ -1,0 +1,7 @@
+# test: a key in a function type's row has no mut prefix either
+# Spec 11 Row Syntax: req.row.syntax.no-mut.
+trait Counter:
+    fn bump(mut self) -> void
+
+fn run(job: fn() -> void $ mut Counter) -> void $ Counter:  # diagnostic: syntax-error
+    job()

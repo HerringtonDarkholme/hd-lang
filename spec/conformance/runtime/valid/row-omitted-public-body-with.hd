@@ -1,0 +1,24 @@
+# test: a public function without a requirement clause may use a key that a $.with block in its body provides
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.empty.body.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn tag_name() -> string $ Tag:
+    $.use(Tag).name()
+
+pub fn labelled() -> string:
+    $.with(Tag=FixedTag { value: "inner" }):
+        tag_name()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the body's own provider satisfies the call"):
+        assert_equal(labelled(), "inner", reason="the empty row needs nothing from the caller")

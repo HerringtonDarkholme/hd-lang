@@ -1,0 +1,15 @@
+# test: the empty row in a row slot is $()
+# expect: test
+# Spec 11 Row Slots: req.row.slot.empty.
+use std.function.Fn
+
+type Job[$R] = fn() -> string $ R
+
+fn run_pure(job: Job[$()], other: Fn[(), string, $()]) -> string:
+    job() + other()
+
+tests:
+    use std.testing.assert_equal
+
+    it("jobs with the empty row run without providers"):
+        assert_equal(run_pure(fn() -> string: "a", fn() -> string: "b"), "ab", reason="no requirements")

@@ -1,0 +1,24 @@
+# test: a closure's inferred row unifies with a row parameter of the expected type
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.expected-parameter.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn run[$R](job: fn() -> string $ R) -> string $ R:
+    job()
+
+fn through() -> string $ Tag:
+    run(fn() -> string: $.use(Tag).name())
+
+tests:
+    use std.testing.assert_equal
+
+    it("R takes the closure's row"):
+        $.with(Tag=FixedTag { value: "r" }):
+            assert_equal(through(), "r", reason="R is Tag")

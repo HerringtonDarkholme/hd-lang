@@ -1,0 +1,33 @@
+# test: a row alias's right side is a row after $, of keys or of another alias
+# expect: test
+# Spec 11 Row Aliases: req.row.alias.dollar.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+trait Log:
+    fn prefix(self) -> string
+
+data QuietLog: pass
+
+impl Log for QuietLog:
+    fn prefix(self) -> string: ""
+
+type AppRow = $ Tag + Log
+
+type Web = $ AppRow
+
+fn page() -> string $ Web:
+    $.use(Tag).name()
+
+tests:
+    use std.testing.assert_equal
+
+    it("Web stands for Tag + Log"):
+        $.with(Tag=FixedTag { value: "w" }, Log=QuietLog {}):
+            assert_equal(page(), "w", reason="the alias of an alias expands to keys")

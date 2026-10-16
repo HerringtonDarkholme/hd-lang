@@ -1,0 +1,27 @@
+# test: a call through a function parameter adds that parameter's row to an inferred row
+# expect: test
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.parameter-calls.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn call_twice(job: fn() -> string $ Tag) -> string:
+    job() + job()
+
+fn named() -> string $ Tag:
+    $.use(Tag).name()
+
+fn doubled() -> string $ Tag:
+    call_twice(named)
+
+tests:
+    use std.testing.assert_equal
+
+    it("call_twice's inferred row is Tag"):
+        $.with(Tag=FixedTag { value: "a" }):
+            assert_equal(doubled(), "aa", reason="the parameter's row reaches the caller")

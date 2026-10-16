@@ -1,0 +1,32 @@
+# test: closures whose inferred rows are narrower than the expected row fit it
+# expect: test
+# Spec 11 Row Subsumption: req.row.subsume.closure.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+trait Log:
+    fn prefix(self) -> string
+
+data QuietLog: pass
+
+impl Log for QuietLog:
+    fn prefix(self) -> string: ""
+
+fn run_all(jobs: List[fn() -> string $ Tag + Log]) -> string $ Tag + Log:
+    let text = ""
+    for job in jobs:
+        text = text + job()
+    text
+
+tests:
+    use std.testing.assert_equal
+
+    it("an empty-row closure and a Tag closure share a Tag + Log list"):
+        $.with(Tag=FixedTag { value: "t" }, Log=QuietLog {}):
+            assert_equal(run_all([fn() -> string: "-", fn() -> string: $.use(Tag).name()]), "-t", reason="each closure keeps its own row")

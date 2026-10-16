@@ -1,0 +1,24 @@
+# test: a row parameter is written by its name inside a row, alone or beside a key
+# expect: test
+# Spec 11 Row Parameters: req.row.param.marked.use.
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn tagged[$R](job: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=FixedTag { value: "x" }):
+        job()
+
+fn plain() -> string:
+    tagged(fn() -> string: $.use(Tag).name())
+
+tests:
+    use std.testing.assert_equal
+
+    it("R + Tag less Tag leaves R empty"):
+        assert_equal(plain(), "x", reason="the callee provides Tag")
