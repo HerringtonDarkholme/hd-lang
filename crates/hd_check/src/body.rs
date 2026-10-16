@@ -2717,6 +2717,14 @@ impl Ck<'_, '_> {
                 self.defer_base = saved;
                 self.defer_subs = saved_subs;
                 let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
+                // Each of these was reported (`defer-control-flow`,
+                // `suspension-forbidden-context`); a poison keeps the
+                // suite within invariant 6.
+                let body = self.b.body_mut();
+                for i in hd_tir::ir::defer_suite_violations(body, suite.0) {
+                    body.tags[i as usize] = Tag::Poison;
+                    body.data[i as usize] = [NONE, NONE];
+                }
                 self.b.defer(suite, s.index());
             }
             SyntaxKind::DataDecl

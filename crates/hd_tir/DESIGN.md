@@ -928,9 +928,11 @@ The verifier checks each of these:
 17. A `CallDyn` has one evidence operand per method-level bound.
 
 Implementation differs: `verify` (`src/ir.rs:1011`) checks only
-invariants 1, 2, 5, 10 and 14 (`CHECKED_INVARIANTS`), and of 1 only
+invariants 1, 2, 5, 6, 10 and 14 (`CHECKED_INVARIANTS`), and of 1 only
 def-before-use, of 2 only block lists, of 5 only that labels exist and
-are written. It runs on every `finish`, not only in debug builds. This
+are written, of 6 only the `defer` suite half
+(`defer_suite_violations`, which the checker also uses to poison what
+it rejected). It runs on every `finish`, not only in debug builds. This
 is worse: type, provider and suspension errors in TIR reach codegen
 unchecked.
 

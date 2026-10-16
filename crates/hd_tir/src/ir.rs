@@ -1018,9 +1018,83 @@ pub struct VerifyError {
     pub what: String,
 }
 
-/// Invariants this verifier checks; the others (4, 6 to 9, 11 to 13, 15,
+/// Invariants this verifier checks; the others (4, 7 to 9, 11 to 13, 15,
 /// 17) need types and the item table and are not implemented yet.
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 5, 10, 14];
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 5, 6, 10, 14];
+
+/// The blocks instruction `i` owns through its operands: a block
+/// operand, a block list, a switch's two arms, or a `Defer`'s suite.
+fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {
+    let [a, w] = b.data[i];
+    let tag = b.tags[i];
+    let mut out = Vec::new();
+    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
+        match op {
+            Op::Block => out.push(word),
+            Op::Blocks => out.extend_from_slice(b.record(word)),
+            _ => {}
+        }
+    }
+    match tag {
+        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
+            out.extend(b.record(w).iter().skip(1).take(2));
+        }
+        Tag::Defer => out.push(a),
+        _ => {}
+    }
+    out.retain(|&x| b.tags.get(x as usize) == Some(&Tag::Block));
+    out
+}
+
+/// The instructions of a `defer` suite that invariant 6 forbids: a
+/// suspension point, a `Return`, or a `Break` or `Continue` whose loop
+/// is outside the suite. A closure inside the suite is its own body and
+/// is not searched: its root block, though listed in the suite, is a
+/// sub-body root.
+#[must_use]
+pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
+    let mut seen = vec![false; b.len()];
+    for &r in &b.sub_root {
+        if let Some(s) = seen.get_mut(r as usize) {
+            *s = true;
+        }
+    }
+    let mut inside = Vec::new();
+    let mut stack = vec![suite];
+    while let Some(i) = stack.pop() {
+        let Some(s) = seen.get_mut(i as usize) else {
+            continue;
+        };
+        if std::mem::replace(s, true) {
+            continue;
+        }
+        inside.push(i);
+        if b.tags[i as usize] == Tag::Block {
+            stack.extend(b.record(b.data[i as usize][0]));
+        }
+        stack.extend(owned_blocks(b, i as usize));
+    }
+    let mut in_suite = vec![false; b.len()];
+    for &i in &inside {
+        in_suite[i as usize] = true;
+    }
+    let within = |l: u32| {
+        b.label_inst
+            .get(l as usize)
+            .is_some_and(|&t| in_suite.get(t as usize) == Some(&true))
+    };
+    let mut out: Vec<u32> = inside
+        .iter()
+        .copied()
+        .filter(|&i| match b.tags[i as usize] {
+            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Return => true,
+            Tag::Break | Tag::Continue => !within(b.data[i as usize][0]),
+            _ => false,
+        })
+        .collect();
+    out.sort_unstable();
+    out
+}
 
 /// Verifies a body (§4.13.11 "Invariants").
 #[must_use]
@@ -1076,6 +1150,17 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                 } else {
                     owner[child as usize] = i;
                 }
+            }
+        }
+    }
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag == Tag::Defer {
+            for v in defer_suite_violations(b, b.data[i][0]) {
+                errs.push(VerifyError {
+                    invariant: 6,
+                    inst: v,
+                    what: format!("{} inside a defer suite", b.tags[v as usize].name()),
+                });
             }
         }
     }
@@ -1400,6 +1485,45 @@ mod tests {
         let first = b.extra[rec + 1];
         b.extra[rec + 2] = first;
         assert!(verify(&b).iter().any(|e| e.invariant == 2));
+    }
+
+    #[test]
+    fn verifier_rejects_leaving_a_defer_suite() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let outer = b.open_loop();
+        let ob = b.open_block();
+        let sm = b.open_scope();
+        let sb = b.open_block();
+        let su = b.open_block();
+        let inner = b.open_loop();
+        let ib = b.open_block();
+        b.emit(Tag::Break, inner.0.raw(), super::NONE, Ty::NEVER, n);
+        let ibody = b.close_block(ib, None, Ty::VOID, n);
+        b.close_loop(inner, ibody, Ty::VOID, n);
+        let out = b.emit(Tag::Break, outer.0.raw(), super::NONE, Ty::NEVER, n);
+        let cl = b.open_sub(&[]);
+        let cb = b.open_block();
+        b.emit(Tag::Return, Ref::konst(0).0, super::NONE, Ty::NEVER, n);
+        let croot = b.close_block(cb, None, Ty::NEVER, n);
+        b.close_sub(cl, croot, Ty::I32, n);
+        let ret = b.emit(Tag::Return, Ref::konst(0).0, super::NONE, Ty::NEVER, n);
+        let suite = b.close_block(su, None, Ty::VOID, n);
+        b.defer(suite, n);
+        let sbody = b.close_block(sb, None, Ty::VOID, n);
+        b.close_scope(sm, sbody, Ty::VOID, n);
+        let obody = b.close_block(ob, None, Ty::VOID, n);
+        b.close_loop(outer, obody, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let errs = b.finish(root, &[]).expect_err("leaves the suite");
+        let six: Vec<u32> = errs
+            .iter()
+            .filter(|e| e.invariant == 6)
+            .map(|e| e.inst)
+            .collect();
+        assert_eq!(six, [out.0, ret.0], "{errs:?}");
+        assert_eq!(errs.len(), 2, "{errs:?}");
     }
 
     #[test]
