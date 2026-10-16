@@ -1,0 +1,9 @@
+# Spec 10 Versions: module.version.tag-missing. acme/json has the tags v2.4.0
+# and v2.5.0 and a later untagged commit, but no tag v2.4.1, so the
+# requirement json@2.4.1 is an error.
+# module.version.no-fallback: hd uses neither 2.4.0, 2.5.0, nor the untagged
+# commit in its place, so it fetches nothing and writes no hd.sum.
+run: hd fetch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum

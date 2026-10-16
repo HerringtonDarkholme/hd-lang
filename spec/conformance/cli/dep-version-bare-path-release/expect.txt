@@ -1,0 +1,7 @@
+# Spec 10 Versions: module.version.no-bare-path-release. billing's tagged
+# version 1.0.0 holds the path requirement money = { path = "../money" },
+# which carries no version, so fetching billing 1.0.0 is an error.
+run: hd fetch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum

@@ -1,0 +1,8 @@
+[package]
+name = "shop"
+
+[dependencies]
+json = "github.com/acme/json@2.3.0"
+json_v1 = "github.com/acme/json@1.2.0"
+json_v04 = "github.com/acme/json@0.4.0"
+json_v03 = "github.com/acme/json@0.3.2"

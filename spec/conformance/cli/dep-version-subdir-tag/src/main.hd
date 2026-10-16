@@ -1,0 +1,6 @@
+use dep.lint.{lint_version}
+
+pub fn main() -> void $ Console:
+    println(lint_version())
+
+# Spec 10 Versions: module.version.tag-prefix.

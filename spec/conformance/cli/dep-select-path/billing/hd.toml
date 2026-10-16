@@ -1,0 +1,5 @@
+[package]
+name = "billing"
+
+[dependencies]
+json = "github.com/acme/json@2.3.0"

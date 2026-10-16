@@ -1,0 +1,7 @@
+# Spec 10 Versions: module.version.pseudo.release. billing's tagged version
+# 1.0.0 requires json@2.3.1-0.20260921151320-cb7e77231b8d,
+# a pseudo-version, and fetching and building it works.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: after 2.3.0

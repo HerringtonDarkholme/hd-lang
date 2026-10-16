@@ -1,0 +1,6 @@
+use dep.json.{json_version}
+
+pub fn main() -> void $ Console:
+    println(json_version())
+
+# Spec 10 Versions: module.version.tag-missing, module.version.no-fallback.

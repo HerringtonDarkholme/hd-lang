@@ -1,0 +1,29 @@
+# Spec 10 Versions. acme/json is tagged v2.3.0 at its first commit, followed by
+# two untagged commits.
+# - module.version.pseudo, module.version.pseudo.commit: the manifest
+#   requires 2.3.1-0.20260921151320-cb7e77231b8d, the pseudo-version of the second
+#   commit: its UTC committer time and the first 12 digits of its hash.
+# - module.version.pseudo-missing: a HASH that names no commit is an error.
+# - module.version.pseudo-missing.no-fallback: hd uses no other commit in its
+#   place and writes nothing.
+run: hd add --format json acme/json@2.3.1-0.20260921151320-000000000000
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum
+# The third commit's TIME with the second commit's HASH is an error too.
+run: hd add --format json acme/json@2.3.1-0.20260921161320-cb7e77231b8d
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+file: hd.sum
+run: hd run
+stdout: after 2.3.0
+# - module.version.order: the pseudo-version orders above 2.3.0, so
+#   requiring 2.3.0 lowers it.
+run: hd add acme/json@2.3.0
+stdout: json = "github.com/acme/json@2.3.0"
+stdout: lowered json 2.3.1-0.20260921151320-cb7e77231b8d -> 2.3.0
+run: hd run
+stdout: 2.3.0

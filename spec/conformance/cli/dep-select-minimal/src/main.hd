@@ -1,0 +1,7 @@
+use dep.json.{json_version}
+use dep.billing.{billing_json}
+
+pub fn main() -> void $ Console:
+    println("${json_version()} ${billing_json()}")
+
+# Spec 10 Versions: module.version.tag, module.version.tag-only, module.version.order; Version Selection: module.select.minimum, module.select.reach, module.select.largest, module.select.one-per-line, module.select.no-lock; Integrity: module.sum.file, module.sum.only.

@@ -1,0 +1,26 @@
+# Spec 10 Version Selection, minimal version selection. The root requires
+# json@2.9.0 and billing@1.4.2, and billing 1.4.2's manifest requires
+# json@2.10.0. json is tagged v2.1.0, v2.9.0, v2.10.0 and v2.11.0.
+# - module.version.tag: each tag vX.Y.Z is a version.
+# - module.version.tag-only: json's hd.toml states version 9.9.9, which no
+#   requirement or selection reads.
+# - module.select.reach: selection reads billing 1.4.2's manifest.
+# - module.select.minimum, module.select.largest: json@2.9.0 is a minimum,
+#   and the largest minimum, 2.10.0, is selected, never the newest 2.11.0.
+# - module.version.order: 2.10.0 is greater than 2.9.0 by SemVer precedence,
+#   not by text.
+# - module.select.one-per-line: the root and billing use the one json 2.10.0.
+# - module.sum.file: hd fetch writes hd.sum beside hd.toml.
+# - module.sum.only: the fetch reaches only the repository hosts.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+file: hd.sum
+run: hd run
+stdout: 2.10.0 2.10.0
+# - module.select.no-lock: lowering billing to 1.0.0, whose manifest requires
+#   json@2.1.0, selects json 2.9.0 again. No lockfile keeps 2.10.0.
+run: hd add acme/billing@1.0.0
+stdout: billing = "github.com/acme/billing@1.0.0"
+stdout: lowered billing 1.4.2 -> 1.0.0
+run: hd run
+stdout: 2.9.0 2.9.0

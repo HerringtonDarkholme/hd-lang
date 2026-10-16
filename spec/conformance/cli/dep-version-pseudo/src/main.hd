@@ -1,0 +1,6 @@
+use dep.json.{json_version}
+
+pub fn main() -> void $ Console:
+    println(json_version())
+
+# Spec 10 Versions: module.version.pseudo, module.version.pseudo.commit, module.version.pseudo-missing, module.version.pseudo-missing.no-fallback, module.version.order.

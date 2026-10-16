@@ -1,0 +1,8 @@
+# Spec 10 Version Selection: module.select.path. billing is a path
+# requirement, and its manifest requires json@2.3.0. That requirement joins
+# the selection, so json 2.3.0 is selected over the root's minimum 2.1.0, and
+# the newer tag v2.4.0 is not.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: 2.3.0 2.3.0

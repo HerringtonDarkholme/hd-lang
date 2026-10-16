@@ -1,0 +1,9 @@
+# Spec 10 Versions: module.version.line. The compatibility line of 2.3.0 is
+# 2, of 1.2.0 is 1, of 0.4.0 is 0.4, and of 0.3.2 is 0.3, so the four keys
+# name four packages of one host path.
+# Version Selection: module.select.one-per-line; two lines of one host path
+# coexist as two packages, each with its own selected version.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: 2.3.0 1.2.0 0.4.0 0.3.2

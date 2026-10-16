@@ -1,0 +1,12 @@
+# Spec 10 Integrity: module.sum.mismatch. hd.sum records a tree hash for
+# json 2.3.0 that differs from the hash of the tree its tag names, so the
+# fetched tree is an error, never only a warning. Its manifest line is right.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"sum-mismatch","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+# hd fetch reports the same error rather than replacing the entry.
+run: hd fetch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"sum-mismatch","severity":"error"},{"kind":"summary","errors":1,"status":101}]
+run: hd run
+exit: 101

@@ -1,0 +1,4 @@
+use dep.json.{json_version}
+
+pub fn billing_json() -> string:
+    json_version()

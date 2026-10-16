@@ -1,0 +1,7 @@
+# Spec 10 Versions: module.version.tag-prefix. lint lives in the directory
+# lint/ of acme/tools, so its version 1.2.0 is the tag lint/v1.2.0, and the
+# repository's own tag v1.2.0 names another commit.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: lint 1.2.0

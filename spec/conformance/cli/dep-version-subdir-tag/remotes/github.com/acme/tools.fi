@@ -1,0 +1,48 @@
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+tools
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "tools"
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn tools_name() -> string:
+    "tools"
+END
+M 644 inline lint/hd.toml
+data <<END
+[package]
+name = "lint"
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn lint_version() -> string:
+    "lint 1.2.0"
+END
+
+reset refs/tags/lint/v1.2.0
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0000
+committer Fixture <fixture@example.com> 1790003600 +0000
+data <<END
+tools 1.2.0
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn lint_version() -> string:
+    "lint at the root tag v1.2.0"
+END
+
+reset refs/tags/v1.2.0
+from :2

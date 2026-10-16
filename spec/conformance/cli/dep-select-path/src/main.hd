@@ -1,0 +1,7 @@
+use dep.json.{json_version}
+use dep.billing.{billing_json}
+
+pub fn main() -> void $ Console:
+    println("${json_version()} ${billing_json()}")
+
+# Spec 10 Version Selection: module.select.path, module.select.largest.

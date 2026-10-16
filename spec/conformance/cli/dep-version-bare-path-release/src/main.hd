@@ -1,0 +1,6 @@
+use dep.billing.{billing_name}
+
+pub fn main() -> void $ Console:
+    println(billing_name())
+
+# Spec 10 Versions: module.version.no-bare-path-release.
