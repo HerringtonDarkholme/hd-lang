@@ -1,0 +1,105 @@
+# test: an implementation reached through a trait value runs a row-polymorphic body as a direct call does
+# Spec 11 Requirement Polymorphism: req.poly.row-parameter, req.poly.extension, req.poly.body;
+# Spec 09 Dynamic Safety: trait.dyn.safe.row-parameter.
+
+trait Tag:
+    fn name(self) -> string
+
+data Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+fn invoke[$R](callback: fn() -> string $ R) -> string $ R:
+    callback()
+
+trait Runner:
+    fn run[$R](self, job: fn() -> string $ R) -> string $ R
+    fn provide[$R](self, job: fn() -> string $ R + Tag) -> string $ R
+    fn tagged[$R](self, job: fn() -> string $ R) -> string $ R + Tag
+    fn through[$R](self, job: fn() -> string $ R) -> string $ R
+    fn scoped[$R](self, job: fn() -> string $ R + Tag) -> string $ R
+    fn wrapped[$R](self, job: fn() -> string $ R) -> string $ R
+    fn apply[T, $R](self, x: T, f: fn(T) -> T $ R) -> T $ R
+    fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T
+    fn again[$R](self, other: dyn Runner, job: fn() -> string $ R) -> string $ R
+    fn fallback[$R](self, job: fn() -> string $ R) -> string $ R:
+        "default " + job()
+
+data Plain:
+    prefix: string
+
+impl Runner for Plain:
+    fn run[$R](self, job: fn() -> string $ R) -> string $ R:
+        self.prefix + job()
+
+    fn provide[$R](self, job: fn() -> string $ R + Tag) -> string $ R:
+        $.with(Tag=Named { label: "inner" }):
+            self.prefix + job()
+
+    fn tagged[$R](self, job: fn() -> string $ R) -> string $ R + Tag:
+        $.use(Tag).name() + job()
+
+    fn through[$R](self, job: fn() -> string $ R) -> string $ R:
+        self.prefix + invoke(job)
+
+    fn scoped[$R](self, job: fn() -> string $ R + Tag) -> string $ R:
+        $.with(Tag=Named { label: "scoped" }):
+            invoke(job)
+
+    fn wrapped[$R](self, job: fn() -> string $ R) -> string $ R:
+        f := fn() -> string: self.prefix + job()
+        f() + invoke(f)
+
+    fn apply[T, $R](self, x: T, f: fn(T) -> T $ R) -> T $ R:
+        f(x)
+
+    fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T:
+        a() + self.prefix + b()
+
+    fn again[$R](self, other: dyn Runner, job: fn() -> string $ R) -> string $ R:
+        self.prefix + other.run(job)
+
+fn read_tag() -> string $ Tag:
+    $.use(Tag).name()
+
+fn plain() -> string: "plain"
+
+fn double(x: i32) -> i32 $ Tag:
+    x * 2
+
+fn runner(prefix: string) -> dyn Runner:
+    Plain { prefix: prefix }
+
+tests:
+    use std.testing.assert_equal
+
+    it("the row parameter passes on to a function value"):
+        v := runner("<")
+        assert_equal(v.run(plain), "<plain", reason="an empty row")
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(v.run(read_tag), "<outer", reason="the caller's Tag")
+            assert_equal(v.apply(+21, double), 42, reason="beside a type parameter")
+            assert_equal(v.both(read_tag, plain), "outer<plain", reason="two row parameters")
+            assert_equal(v.fallback(read_tag), "default outer", reason="a trait's default body")
+
+    it("a key beside the row parameter is used"):
+        v := runner("<")
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(v.tagged(plain), "outerplain", reason="an empty row")
+            assert_equal(v.tagged(read_tag), "outerouter", reason="the row has the key too")
+
+    it("a local provider extends the row"):
+        v := runner("<")
+        assert_equal(v.provide(read_tag), "<inner", reason="the body's Tag")
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(v.provide(read_tag), "<inner", reason="R is the empty row")
+
+    it("the body calls row-polymorphic code"):
+        v := runner("<")
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(v.through(read_tag), "<outer", reason="a generic function")
+            assert_equal(v.scoped(read_tag), "scoped", reason="inside a local provider")
+            assert_equal(v.wrapped(read_tag), "<outer<outer", reason="a closure over the callback")
+            assert_equal(v.again(runner("["), read_tag), "<[outer", reason="another trait value")

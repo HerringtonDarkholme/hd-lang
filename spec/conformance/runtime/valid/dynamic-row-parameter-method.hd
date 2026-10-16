@@ -1,0 +1,25 @@
+# test: a method with a row parameter is called through a trait value, with an empty row and with a Console callback
+# expect-stdout: 5
+# expect-stdout: inside
+# expect-stdout: 7
+# Spec 09 Dynamic Safety: trait.dyn.safe.row-parameter.
+
+trait Runner:
+    fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R
+
+data Plain: pass
+
+impl Runner for Plain:
+    fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R:
+        job()
+
+fn loud() -> i32 $ Console:
+    println("inside")
+    +7
+
+fn go(v: dyn Runner) -> void $ Console:
+    println("${v.run(fn() -> i32: +5)}")
+    println("${v.run(loud)}")
+
+pub fn main() -> void $ Console:
+    go(Plain {})

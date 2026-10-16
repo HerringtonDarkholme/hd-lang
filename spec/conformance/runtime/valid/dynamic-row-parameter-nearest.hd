@@ -1,0 +1,57 @@
+# test: through a trait value, a body's local provider is nearer than the caller's for a key of the row parameter
+# Spec 11 Provider Scopes: req.with.nearest.row-parameter, req.with.nearest.forced.
+
+trait Tag:
+    fn name(self) -> string
+
+data Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+trait Runner:
+    fn with_tag[$R](self, callback: fn() -> string $ R + Tag) -> string $ R
+    fn twice[$R](self, callback: fn() -> string $ R) -> string $ R
+    fn twice_later![$R](self, callback: fn!() -> string $ R) -> string $ R
+
+data Plain: pass
+
+impl Runner for Plain:
+    fn with_tag[$R](self, callback: fn() -> string $ R + Tag) -> string $ R:
+        $.with(Tag=Named { label: "inner" }):
+            callback()
+
+    fn twice[$R](self, callback: fn() -> string $ R) -> string $ R:
+        first := callback()
+        $.with(Tag=Named { label: "inner" }):
+            first + " " + callback()
+
+    fn twice_later![$R](self, callback: fn!() -> string $ R) -> string $ R:
+        first := callback!()
+        $.with(Tag=Named { label: "inner" }):
+            first + " " + callback!()
+
+fn read_tag() -> string $ Tag:
+    $.use(Tag).name()
+
+fn read_tag_later!() -> string $ Tag:
+    $.use(Tag).name()
+
+fn runner() -> dyn Runner:
+    Plain {}
+
+fn later!() -> string $ Tag:
+    runner().twice_later!(read_tag_later)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the callee's provider is the nearer one"):
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(runner().with_tag::[$ Tag](read_tag), "inner", reason="R fixed to Tag")
+            assert_equal(runner().twice(read_tag), "outer inner", reason="R inferred as Tag")
+
+    it("a suspending method does the same"):
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(later!(), "outer inner", reason="the suspending body's Tag")

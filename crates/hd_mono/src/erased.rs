@@ -51,8 +51,94 @@ pub fn is_open(pool: &InternPool, t: Ty) -> bool {
             list(args) || bindings.iter().any(|(_, b)| is_open(pool, *b))
         }
         TyData::Assoc { self_ty, args, .. } => is_open(pool, self_ty) || list(args),
+        // A row argument that lists an open row parameter: a call at it
+        // is outlined, so its callee is instantiated at the caller's row.
+        TyData::Row(r) => row_is_open(pool, r),
         _ => false,
     }
+}
+
+/// Whether an item declares a row parameter of its own (`$R`): its
+/// erased body takes the context of those rows' keys
+/// (`crates/hd_mono/DESIGN.md` §13.5.1, "As built").
+#[must_use]
+pub fn has_row_params(env: &dyn ProgramEnv, def: DefId) -> bool {
+    env.generic_rows(def).into_iter().any(|r| r)
+}
+
+/// Whether a row lists an open parameter: in an erased body, the
+/// method's own row parameter, whose keys only the context names.
+#[must_use]
+pub fn row_is_open(pool: &InternPool, row: hd_types::RowId) -> bool {
+    pool.row_data(row)
+        .keys
+        .iter()
+        .any(|k| matches!(pool.get(*k), TyData::Canon(n) if (OPEN..OPEN + MAX_OPEN).contains(&n)))
+}
+
+/// The arguments of an item's own row parameters among `args`, and
+/// `args` with each of them the empty row.
+fn split_rows(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    def: DefId,
+    args: TyList,
+) -> (Vec<Ty>, TyList) {
+    let n = env.parent(env.generics_owner(def)).map_or(0, |p| p.1);
+    let empty = pool.intern_ty(&TyData::Row(hd_types::RowId::EMPTY));
+    let mut rows = Vec::new();
+    let mut emptied = pool.list_items(args).to_vec();
+    for (j, row) in env.generic_rows(def).into_iter().enumerate() {
+        if row && let Some(a) = emptied.get_mut(n + j) {
+            rows.push(*a);
+            *a = empty;
+        }
+    }
+    (rows, pool.list(&emptied))
+}
+
+/// The keys of an instance's row that come from the arguments of the
+/// item's own row parameters, in key order. An erased body gets their
+/// providers in one context, not one parameter per key (§13.5.1). A key
+/// the row also lists itself is one of them too.
+#[must_use]
+pub fn row_param_keys(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    def: DefId,
+    args: TyList,
+) -> Vec<Ty> {
+    let (rows, _) = split_rows(pool, env, def, args);
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    let mut from = Vec::new();
+    for r in rows {
+        if let TyData::Row(r) = pool.get(r) {
+            from.extend(pool.row_data(r).keys);
+        }
+    }
+    env.row_keys(def, args)
+        .into_iter()
+        .filter(|k| from.contains(k))
+        .collect()
+}
+
+/// The keys an instance's row lists itself, with its own row parameters'
+/// arguments left out, in key order: the providers an erased body and
+/// its thunks take one per key (§13.5.1).
+#[must_use]
+pub fn declared_row_keys(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    def: DefId,
+    args: TyList,
+) -> Vec<Ty> {
+    if !has_row_params(env, def) {
+        return env.row_keys(def, args);
+    }
+    let (_, emptied) = split_rows(pool, env, def, args);
+    env.row_keys(def, emptied)
 }
 
 /// How many type parameters an item declares itself.
@@ -372,9 +458,6 @@ impl Cx<'_> {
         let n = own_count(env, m);
         if n > usize::from(MAX_OPEN) {
             return err("a method with more type parameters than an erased body takes");
-        }
-        if env.generic_rows(m).into_iter().any(|r| r) {
-            return err("a method with a row parameter called through a trait value");
         }
         let opens: Vec<Ty> = (0..n).map(|k| open_param(pool, k)).collect();
         let (item, args) = match self.select(trait_, from, pool.list(targs), None)? {

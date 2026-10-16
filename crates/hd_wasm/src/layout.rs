@@ -25,7 +25,9 @@ use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, strip_newtype, value_enums};
-use hd_mono::{ProgramEnv, class_ref, is_class_ref, is_open, key_order, own_count, subst};
+use hd_mono::{
+    ProgramEnv, class_ref, has_row_params, is_class_ref, is_open, key_order, own_count, subst,
+};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 use crate::lowering::{ClosureCode, Lowering};
@@ -1930,7 +1932,8 @@ impl<'a> Lay<'a> {
     }
 
     /// A vtable slot's signature: `(eqref self, params..., providers...)
-    /// -> results`, a provider per key of the method's row (`slot_keys`);
+    /// -> results`, a provider per key of the method's row (`slot_keys`),
+    /// then the context of its own row parameters' keys when it has any;
     /// a suspending method's slot returns its cold `mut Suspend[T]`. A
     /// generic method's open parameters and result are `eqref`, and its
     /// witness comes after the parameters (`crates/hd_mono/DESIGN.md` §13.5.1). `key` is
@@ -1946,6 +1949,12 @@ impl<'a> Lay<'a> {
         for k in self.slot_keys(key, m) {
             ps.push(VT::Eq);
             ps.push(VT::r(self.key_vtable(k)?));
+        }
+        // A method's own row parameters cross as one context of their
+        // keys, as a function value's do (`crates/hd_mono/DESIGN.md` §13.5.1).
+        if has_row_params(self.env, m) {
+            ps.push(VT::rn(ctx_keys()));
+            ps.push(VT::rn(ctx_provs()));
         }
         let mut rs = self.slot_vts(key, m, self.env.ret(m).unwrap_or(Ty::VOID))?;
         if self.env.suspends(m) {

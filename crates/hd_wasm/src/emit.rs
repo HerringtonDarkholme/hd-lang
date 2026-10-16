@@ -10,7 +10,8 @@ use hd_base::HashMap;
 use hd_base::{BuildProfile, DefId, Hash128, NodeIdx, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
-    CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, erased_args, key_order, subst,
+    CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, class_ref, declared_row_keys,
+    erased_args, has_row_params, key_order, row_is_open, row_param_keys, subst,
     thunk_capture_locals, thunk_operands, witness_args, witness_family,
 };
 use hd_tir::ir::{
@@ -105,6 +106,16 @@ struct Em<'a> {
     /// its witness field, that field's struct type, and each open
     /// instruction's thunk type.
     ops: Option<(u32, WTy, Vec<WTy>)>,
+    /// The context of an erased body's own row parameters, or of the
+    /// erased body a thunk serves (`crates/hd_mono/DESIGN.md` §13.5.1): its
+    /// key ids and providers locals. A function value whose row lists
+    /// an open row parameter gets it, and a key no provider covers is
+    /// looked up in it.
+    open_ctx: Option<[u32; 2]>,
+    /// How many of `providers` the body had on entry: those after them
+    /// are a `$.with` scope's, which a key of the open context may name
+    /// too, so they go in front of it.
+    open_base: usize,
 }
 
 /// The locals a closure captures by shared cell, each with its first
@@ -2032,31 +2043,60 @@ impl Em<'_> {
     /// §13.18). Check covers every key, so a miss is internal.
     fn push_providers(&mut self, keys: &[Ty]) -> StageResult<()> {
         for k in keys {
-            let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == *k) else {
-                return unsupported(format!(
-                    "a provider of `{}`, which this function's row does not cover",
-                    self.pool().display(*k)
-                ));
-            };
-            let ls = *ls;
+            let ls = self.provider_locals(*k)?;
             self.a.get(ls[0]);
             self.a.get(ls[1]);
         }
         Ok(())
     }
 
+    /// The locals of the innermost provider of the whole key `k`. In a
+    /// thunk of an erased body with row parameters, a key no provider
+    /// covers is one of those rows' keys, read from the open context
+    /// (`crates/hd_mono/DESIGN.md` §13.5.1).
+    fn provider_locals(&mut self, k: Ty) -> StageResult<[u32; 2]> {
+        if let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == k) {
+            return Ok(*ls);
+        }
+        let Some([keys_at, provs_at]) = self.open_ctx else {
+            return unsupported(format!(
+                "a provider of `{}`, which this function's row does not cover",
+                self.pool().display(k)
+            ));
+        };
+        let vt = self.lay.key_vtable(k)?;
+        let (pool, env) = (self.lay.pool, self.lay.env);
+        Ok(ctx_provider(
+            &mut self.a,
+            pool,
+            env,
+            k,
+            &vt,
+            keys_at,
+            provs_at,
+        ))
+    }
+
     /// The keys of a function type's row, whole and in key order.
     fn fn_row_keys(&self, t: Ty) -> Vec<Ty> {
+        let Some(row) = self.fn_row(t) else {
+            return Vec::new();
+        };
+        let (pool, env) = (self.pool(), self.env());
+        key_order(pool, &|d| env.path_hash(d), pool.row_data(row).keys)
+    }
+
+    /// A function type's row.
+    fn fn_row(&self, t: Ty) -> Option<RowId> {
         let pool = self.pool();
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
         };
-        let TyData::Fn { row, .. } = pool.get(t) else {
-            return Vec::new();
-        };
-        let env = self.env();
-        key_order(pool, &|d| env.path_hash(d), pool.row_data(row).keys)
+        match pool.get(t) {
+            TyData::Fn { row, .. } => Some(row),
+            _ => None,
+        }
     }
 
     /// The keys of a context type's row, whole and in key order: the
@@ -2144,19 +2184,123 @@ impl Em<'_> {
     /// The context a call of a function value of type `callee` passes:
     /// the key ids and this body's providers of the callee type's row
     /// (`crates/hd_mono/DESIGN.md` §12.4), or two nulls for the empty row.
+    /// In an erased body, a row that lists the method's own row parameter
+    /// also passes the open context, which needs no copy when the row
+    /// has no other key (§13.5.1).
     fn push_ctx(&mut self, callee: Ty) -> StageResult<()> {
-        let keys = self.fn_row_keys(callee);
+        let mut keys = self.fn_row_keys(callee);
+        let open = self
+            .fn_row(callee)
+            .is_some_and(|r| row_is_open(self.pool(), r));
+        if open && self.open_ctx.is_some() {
+            // A `$.with` key in scope may be one of the open row's too,
+            // and the nearer provider wins (`req.with.nearest.row-parameter`).
+            for at in (self.open_base..self.providers.len()).rev() {
+                let k = self.providers[at].0;
+                if !keys.contains(&k) {
+                    keys.push(k);
+                }
+            }
+        }
+        self.push_ctx_of(&keys, open)
+    }
+
+    /// Marks parameters `at` and `at + 1` as the open context, after the
+    /// body's own providers (`crates/hd_mono/DESIGN.md` §13.5.1).
+    fn set_open_ctx(&mut self, at: u32) {
+        self.open_ctx = Some([at, at + 1]);
+        self.open_base = self.providers.len();
+    }
+
+    /// A context of `keys`, each with its innermost provider, in front of
+    /// the open context when `open` (`crates/hd_mono/DESIGN.md` §13.5.1),
+    /// so a key both name resolves to the nearer provider
+    /// (`req.with.nearest.row-parameter`); two nulls for no key.
+    fn push_ctx_of(&mut self, keys: &[Ty], open: bool) -> StageResult<()> {
+        let base = if open { self.open_ctx } else { None };
+        let Some([ok, op]) = base else {
+            if keys.is_empty() {
+                self.a.ref_null(&ctx_keys());
+                self.a.ref_null(&ctx_provs());
+                return Ok(());
+            }
+            for k in keys {
+                self.a.i64(key_id(self.pool(), self.env(), *k));
+            }
+            self.a.array_new_fixed(&ctx_keys(), u32_of(keys.len()));
+            self.push_providers(keys)?;
+            self.a.array_new_fixed(&ctx_provs(), u32_of(2 * keys.len()));
+            return Ok(());
+        };
         if keys.is_empty() {
-            self.a.ref_null(&ctx_keys());
-            self.a.ref_null(&ctx_provs());
+            self.a.raw_get(ok);
+            self.a.raw_get(op);
             return Ok(());
         }
-        for k in &keys {
-            self.a.i64(key_id(self.pool(), self.env(), *k));
+        let n = i32_of(keys.len());
+        let mut provs = Vec::new();
+        for k in keys {
+            provs.push(self.provider_locals(*k)?);
         }
-        self.a.array_new_fixed(&ctx_keys(), u32_of(keys.len()));
-        self.push_providers(&keys)?;
-        self.a.array_new_fixed(&ctx_provs(), u32_of(2 * keys.len()));
+        // The open context's length; a null one is empty.
+        let len = self.a.local(VT::I32);
+        self.a.i32(0);
+        self.a.set(len);
+        self.a.raw_get(ok);
+        self.a.s().ref_is_null().i32_eqz();
+        self.a.if_();
+        self.a.raw_get(ok);
+        self.a.array_len();
+        self.a.set(len);
+        self.a.end();
+        let nk = self.a.local(VT::r(ctx_keys()));
+        self.a.i32(n);
+        self.a.get(len);
+        self.a.s().i32_add();
+        self.a.array_new_default(&ctx_keys());
+        self.a.set(nk);
+        let np = self.a.local(VT::r(ctx_provs()));
+        self.a.i32(2 * n);
+        self.a.get(len);
+        self.a.i32(2);
+        self.a.s().i32_mul();
+        self.a.s().i32_add();
+        self.a.array_new_default(&ctx_provs());
+        self.a.set(np);
+        for (j, (k, [pl, vl])) in keys.iter().zip(provs).enumerate() {
+            let j = i32_of(j);
+            self.a.get(nk);
+            self.a.i32(j);
+            self.a.i64(key_id(self.pool(), self.env(), *k));
+            self.a.array_set(&ctx_keys());
+            self.a.get(np);
+            self.a.i32(2 * j);
+            self.a.get(pl);
+            self.a.array_set(&ctx_provs());
+            self.a.get(np);
+            self.a.i32(2 * j + 1);
+            self.a.get(vl);
+            self.a.array_set(&ctx_provs());
+        }
+        self.a.get(len);
+        self.a.if_();
+        self.a.get(nk);
+        self.a.i32(n);
+        self.a.raw_get(ok);
+        self.a.i32(0);
+        self.a.get(len);
+        self.a.array_copy(&ctx_keys(), &ctx_keys());
+        self.a.get(np);
+        self.a.i32(2 * n);
+        self.a.raw_get(op);
+        self.a.i32(0);
+        self.a.get(len);
+        self.a.i32(2);
+        self.a.s().i32_mul();
+        self.a.array_copy(&ctx_provs(), &ctx_provs());
+        self.a.end();
+        self.a.get(nk);
+        self.a.get(np);
         Ok(())
     }
 
@@ -2830,6 +2974,15 @@ impl Em<'_> {
                 .global_get(GSym::Witness(family, name, VT::r(witness_ty())));
         }
         self.push_providers(&keys)?;
+        // The method's own row parameters: one context of the keys their
+        // arguments add to its row (`crates/hd_mono/DESIGN.md` §13.5.1).
+        if has_row_params(self.env(), method) {
+            let mut all = vec![class_ref(self.pool())];
+            all.extend_from_slice(&targs);
+            let all = self.pool().list(&all);
+            let ctx = row_param_keys(self.pool(), self.env(), method, all);
+            self.push_ctx_of(&ctx, false)?;
+        }
         self.a.get(vl);
         self.a.struct_get(&vt, slot);
         self.a.call_ref(&sig);
@@ -2903,6 +3056,18 @@ impl Em<'_> {
         }
         let keys = self.env().row_keys(self.item, self.args);
         self.push_providers(&keys)?;
+        // With row parameters, the thunk also gets a context: each other
+        // key a provider covers here, in front of the open context, so
+        // its instruction finds every key it may need at concrete types.
+        if has_row_params(self.env(), self.item) {
+            let mut extra: Vec<Ty> = Vec::new();
+            for (key, _) in self.providers.iter().rev() {
+                if !keys.contains(key) && !extra.contains(key) {
+                    extra.push(*key);
+                }
+            }
+            self.push_ctx_of(&extra, true)?;
+        }
         self.a.get(ops);
         self.a.struct_get(&ops_ty, k);
         self.a.call_ref(&sig);
@@ -4134,6 +4299,8 @@ impl<'a> Em<'a> {
             defer_flags: HashMap::default(),
             susp: None,
             ops: None,
+            open_ctx: None,
+            open_base: 0,
         }
     }
 
@@ -4614,13 +4781,21 @@ impl<'a> Em<'a> {
                 };
                 provs.push(u32_of(at));
             }
+            // The context of the method's own row parameters is the
+            // slot's last two parameters, which the erased body takes last
+            // too: one more pair, passed on as it is.
+            let mut pairs = u32_of(keys.len());
+            if has_row_params(self.env(), *m) {
+                provs.push(pairs);
+                pairs += 1;
+            }
             self.a.ref_func(Sym::Helper(Helper::Adapter {
                 sig,
                 self_vts: fv.to_vec(),
                 target: Box::new(target),
                 params: ps,
                 results,
-                keys: u32_of(keys.len()),
+                keys: pairs,
                 provs,
             }));
         }
@@ -5145,6 +5320,10 @@ fn thunk_sig(lay: &Lay, b: &Body, erased: TyList, at: u32) -> StageResult<WTy> {
         ps.push(VT::Eq);
         ps.push(VT::r(lay.key_vtable(k)?));
     }
+    if has_row_params(env, b.item) {
+        ps.push(VT::rn(ctx_keys()));
+        ps.push(VT::rn(ctx_provs()));
+    }
     // A tag switch's thunk is its scrutinee's tag read.
     if b.tags[at as usize] == Tag::SwitchTag {
         return Ok(WTy::Func(ps, vec![VT::I32]));
@@ -5210,9 +5389,14 @@ pub fn emit_thunk(
         }
         em.locals[local as usize] = Some(ls);
     }
-    for k in env.row_keys(b.item, args) {
+    // The erased body's own providers, at concrete types; the keys of its
+    // row parameters' arguments are read from the context.
+    for k in declared_row_keys(pool, env, b.item, args) {
         em.providers.push((k, [next, next + 1]));
         next += 2;
+    }
+    if has_row_params(env, b.item) {
+        em.set_open_ctx(next);
     }
     em.ctrl.push(Ctl::Plain);
     if b.tags[at as usize] == Tag::SwitchTag {
@@ -5257,9 +5441,15 @@ fn emit_body(
         return emit_suspending(&lay, b, sub, args, ret, calls, key, erased, held);
     }
     let (mut params, results, plocals) = signature(&lay, b, sub, args, ret)?;
+    let row_ctx = erased.is_some() && has_row_params(env, b.item);
     if erased.is_some() {
         let at = params.len() - 2 * env.row_keys(b.item, args).len();
         params.insert(at, VT::r(witness_ty()));
+    }
+    // An erased body's own row parameters: their keys' context, last.
+    if row_ctx {
+        params.push(VT::rn(ctx_keys()));
+        params.push(VT::rn(ctx_provs()));
     }
     let mut em = Em::new(
         Lay::new(pool, env, path, layouts),
@@ -5301,6 +5491,9 @@ fn emit_body(
         for k in env.row_keys(b.item, args) {
             em.providers.push((k, [next, next + 1]));
             next += 2;
+        }
+        if row_ctx {
+            em.set_open_ctx(next);
         }
         if let Some(family) = erased {
             em.read_ops(witness, family)?;
@@ -5729,9 +5922,16 @@ fn emit_suspending(
     let (pool, env) = (lay.pool, lay.env);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
     let (mut cold_params, _, plocals) = signature(lay, b, sub, args, ret)?;
+    let row_ctx = erased.is_some() && has_row_params(env, b.item);
     if erased.is_some() {
         let at = cold_params.len() - 2 * env.row_keys(b.item, args).len();
         cold_params.insert(at, VT::r(witness_ty()));
+    }
+    // An erased body's own row parameters: their keys' context, last,
+    // saved in the frame as a parameter is.
+    if row_ctx {
+        cold_params.push(VT::rn(ctx_keys()));
+        cold_params.push(VT::rn(ctx_provs()));
     }
     // The body's own parameters: a function's cold parameters, or a
     // closure's parameters without its environment and context.
@@ -5815,6 +6015,9 @@ fn emit_suspending(
             for k in env.row_keys(b.item, args) {
                 em.providers.push((k, [next, next + 1]));
                 next += 2;
+            }
+            if row_ctx {
+                em.set_open_ctx(next);
             }
             None
         };

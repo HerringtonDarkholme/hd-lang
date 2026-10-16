@@ -1022,11 +1022,31 @@ into such a layout would break the identity of data values.
   crossing allocates (see #175).
 - A tag switch over an open value outlines its tag read; `Match` does
   not read its scrutinee and stays.
+- A method's own row parameter (`fn run[$R]`) is open too: the erased
+  body takes `Canon(0xE0 + k)` for `R`, so a row that lists `R` lists
+  that placeholder as a key. Its keys cross as one context in the
+  function-value form of §12.4 (`ctx_keys: array i64`, `ctx_provs:
+  array eqref`), after the slot's providers. The slot's providers stay
+  those of the keys the method's row lists itself
+  (`declared_row_keys`). The caller puts in the context the keys of
+  each row parameter's argument that the row has (`row_param_keys`).
+  So one ABI serves #176 later.
+- In the erased body, a function value whose row lists `R` gets the
+  context unchanged when no `$.with` scope is open and the row has no
+  other key, so forwarding is free. Otherwise its other keys and the
+  open `$.with` keys go in front of a copy, so the nearer provider wins
+  (`req.with.nearest.row-parameter`).
+- A call whose type arguments include a row that lists `R` is an open
+  instruction, so the callee is a monomorphized instance at the
+  caller's row, as for an open type. A thunk of a method with row
+  parameters takes, after the body's providers, a context of the other
+  keys in scope in front of the open one; a key no provider covers is
+  looked up there.
 - Planned, not built, each an `unsupported` stop: a closure in a body with
   open instructions (the escaping `fn(T) -> T` of the first test), a
   suspending generic method, a loop or a non-tag switch over an open
-  value, a method row parameter, and a function reference to a generic
-  method at a trait-value `Self`.
+  value, and a function reference to a generic method at a trait-value
+  `Self`.
 
 ### 13.6 Tuples, Arity And `all!`
 
