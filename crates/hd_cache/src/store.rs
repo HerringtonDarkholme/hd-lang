@@ -164,6 +164,58 @@ impl CacheStore for OverlayStore<'_> {
     }
 }
 
+/// A command's store that prints, then publishes (§5.4): writes wait in
+/// memory until [`DeferredStore::publish`] or the drop, so a command
+/// prints its diagnostics before any entry reaches the inner store.
+/// Reads see the waiting entries, so a run's hits never depend on when it
+/// publishes. A run killed before it publishes loses only those entries.
+pub struct DeferredStore<S: CacheStore> {
+    inner: S,
+    waiting: MemoryStore,
+}
+
+impl<S: CacheStore> DeferredStore<S> {
+    #[must_use]
+    pub fn new(inner: S) -> Self {
+        Self {
+            inner,
+            waiting: MemoryStore::default(),
+        }
+    }
+
+    /// Writes the waiting entries to the inner store, in write order.
+    pub fn publish(&self) {
+        for (kind, key) in self.waiting.drain_new() {
+            if let Some(bytes) = self.waiting.get(kind, &key) {
+                self.inner.put(kind, &key, &bytes);
+            }
+        }
+    }
+}
+
+impl<S: CacheStore> Drop for DeferredStore<S> {
+    /// Publishes what is left, before the inner store drops.
+    fn drop(&mut self) {
+        self.publish();
+    }
+}
+
+impl<S: CacheStore> CacheStore for DeferredStore<S> {
+    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        self.waiting
+            .get(kind, key)
+            .or_else(|| self.inner.get(kind, key))
+    }
+    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        self.waiting.put(kind, key, bytes);
+    }
+    fn touch(&self, kind: EntryKind, key: &Hash128) {
+        if self.waiting.get(kind, key).is_none() {
+            self.inner.touch(kind, key);
+        }
+    }
+}
+
 /// The 64-byte entry header (`docs/compiler/data-structures.md` §3.20), little-endian.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntryHeader {
@@ -379,10 +431,64 @@ pub fn verify_entry(stored: &[u8], recomputed: &[u8]) -> StageResult<bool> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CacheStore, EntryKind, EntryStat, MemoryStore, OverlayStore, decode_entry, encode_entry,
-        plan_eviction, shard_of,
+        CacheStore, DeferredStore, EntryKind, EntryStat, MemoryStore, OverlayStore, decode_entry,
+        encode_entry, plan_eviction, shard_of,
     };
     use hd_base::Hash128;
+    use std::sync::Arc;
+
+    /// A borrowed memory store, so a test still reads it after the
+    /// deferred store that owns this view drops.
+    struct Shared<'a>(&'a MemoryStore);
+
+    impl CacheStore for Shared<'_> {
+        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            self.0.get(kind, key)
+        }
+        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+            self.0.put(kind, key, bytes);
+        }
+        fn touch(&self, kind: EntryKind, key: &Hash128) {
+            self.0.touch(kind, key);
+        }
+    }
+
+    #[test]
+    fn deferred_store_reads_waiting_entries_and_publishes_them_in_order() {
+        let inner = MemoryStore::default();
+        inner.put(EntryKind::Iface, &Hash128(1), b"disk");
+        inner.drain_new();
+        let d = DeferredStore::new(Shared(&inner));
+        d.put(EntryKind::Check, &Hash128(2), b"two");
+        d.put(EntryKind::Parse, &Hash128(3), b"three");
+        assert!(
+            inner.drain_new().is_empty(),
+            "nothing published before publish"
+        );
+        assert_eq!(
+            d.get(EntryKind::Check, &Hash128(2)).as_deref(),
+            Some(&b"two"[..])
+        );
+        assert_eq!(
+            d.get(EntryKind::Iface, &Hash128(1)).as_deref(),
+            Some(&b"disk"[..])
+        );
+        d.publish();
+        assert_eq!(
+            inner.drain_new(),
+            [
+                (EntryKind::Check, Hash128(2)),
+                (EntryKind::Parse, Hash128(3))
+            ]
+        );
+        d.put(EntryKind::Link, &Hash128(4), b"four");
+        drop(d);
+        assert_eq!(inner.drain_new(), [(EntryKind::Link, Hash128(4))]);
+        assert_eq!(
+            inner.get(EntryKind::Link, &Hash128(4)).as_deref(),
+            Some(&b"four"[..])
+        );
+    }
 
     #[test]
     fn entry_round_trip_and_corruption_is_a_miss() {

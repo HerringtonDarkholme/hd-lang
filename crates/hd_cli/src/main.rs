@@ -484,7 +484,9 @@ pub(crate) fn build_goal_in(
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
-    let store = disk_store();
+    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
+    // reach the disk when the store drops, after the diagnostics.
+    let store = hd_cache::DeferredStore::new(disk_store());
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],

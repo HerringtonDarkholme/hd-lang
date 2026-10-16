@@ -976,3 +976,63 @@ fn check_file_checks_only_the_modules_it_reaches() {
     assert!(r.out.contains("\"code\":\"unknown-name\""), "{}", r.out);
     assert_eq!(modules_checked(&r.out), 1, "{}", r.out);
 }
+
+/// The entry files under a cache's `obj` tree, without the size ledger.
+fn entries(cache: &Path) -> usize {
+    fn walk(dir: &Path, n: &mut usize) {
+        for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                walk(&path, n);
+            } else if path.file_name().is_some_and(|f| f != "stats") {
+                *n += 1;
+            }
+        }
+    }
+    let mut n = 0;
+    walk(&cache.join("obj"), &mut n);
+    n
+}
+
+/// Print, then publish (`crates/hd_cache/DESIGN.md` §5.4, #250): after a
+/// warm edit, `hd check` writes its report before any new cache entry. The
+/// report is larger than a pipe holds, so `hd` stays blocked in it until
+/// the test reads the rest, and the entries the test sees meanwhile are
+/// the ones from before.
+#[test]
+fn a_warm_check_prints_before_it_publishes() {
+    use std::fmt::Write as _;
+    use std::io::Read as _;
+    let dir = scratch("hd-check-print-then-publish");
+    std::fs::create_dir_all(dir.join("src")).expect("src");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(dir.join("src/main.hd"), CLEAN).expect("write");
+    let mut noisy = String::new();
+    for i in 0..3000 {
+        let _ = writeln!(noisy, "fn f{i}() -> i32: missing{i}");
+    }
+    std::fs::write(dir.join("src/noisy.hd"), noisy).expect("write");
+    assert_eq!(check(&dir, &["--format", "json"]).code, Some(101));
+    let before = entries(&dir.cache());
+    assert!(before > 0, "the first check publishes");
+    let edited = CLEAN.replace("\"ok\"", "\"edited\"");
+    std::fs::write(dir.join("src/main.hd"), edited).expect("write");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.cache())
+        .current_dir(&*dir)
+        .args(["check", "--format", "json"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("run hd");
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut first = [0; 4096];
+    let n = stdout.read(&mut first).expect("read");
+    assert!(n > 0, "the report starts");
+    assert_eq!(entries(&dir.cache()), before, "no entry before the report");
+    let mut rest = Vec::new();
+    stdout.read_to_end(&mut rest).expect("read");
+    assert!(rest.len() > 100_000, "the report outgrows the pipe");
+    assert_eq!(child.wait().expect("wait").code(), Some(101));
+    assert!(entries(&dir.cache()) > before, "the edit's entries follow");
+}

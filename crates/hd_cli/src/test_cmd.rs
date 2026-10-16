@@ -623,7 +623,7 @@ fn test_one(
             (t, doc)
         })
         .collect();
-    let store = crate::disk_store();
+    let store = hd_cache::DeferredStore::new(crate::disk_store());
     let clock = Wall(Instant::now());
     let executor = if o.jobs == 1 {
         Executor::Serial(hd_sched::SerialOrder::Priority)
@@ -842,6 +842,9 @@ fn test_one(
     if rep.diags(&diags) {
         return Err(rep.finish(HD_FAILURE));
     }
+    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4), before the
+    // tests run.
+    store.publish();
     if let Some(f) = &o.file
         && selected.is_empty()
     {

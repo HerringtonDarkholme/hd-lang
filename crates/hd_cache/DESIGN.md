@@ -240,9 +240,11 @@ obj/
 - **Print, then publish.** Diagnostics are printed as soon as the last
   task that can add one finishes. Publishing runs on one I/O thread that
   drains a queue of finished entries, so output never waits for a
-  publish. Implementation differs: each task publishes its entry inline,
-  which is worse: on macOS each publish adds hundreds of µs to the
-  task's critical path.
+  publish. Implementation differs: there is no I/O thread. `hd check`,
+  `hd build`, `hd run` and `hd test` hold a run's entries in memory
+  (`DeferredStore`) and publish them on the main thread after the
+  report, so the report never waits for a publish, but the process exit
+  still does.
 - The layout version lives in every entry header and in
   `toolchain_key`, not in an `obj/LAYOUT` file; a layout change misses
   instead of misreading, with nothing extra to read.

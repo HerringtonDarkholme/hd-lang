@@ -9,6 +9,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::Instant;
 
+use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
@@ -178,7 +179,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
 
 /// Checks one target: its manifest's diagnostics and, unless one is an
 /// error, the compiler's; and the count of modules whose bodies it checked.
-fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
+fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, usize) {
     if t.program.problems.iter().any(Diag::is_error) {
         return (t.program.problems, 0);
     }
@@ -205,12 +206,12 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, o, lib_sources, &Goal::Analyze, &[]);
+    let (mut shown, mut checked) = check_role(&t, o, store, lib_sources, &Goal::Analyze, &[]);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
-        let (more, names) = check_role(&t, o, &t.program.sources, &Goal::CheckTests, &docs);
+        let (more, names) = check_role(&t, o, store, &t.program.sources, &Goal::CheckTests, &docs);
         for x in more {
             if !shown.contains(&x) {
                 shown.push(x);
@@ -232,16 +233,16 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
 fn check_role(
     t: &Target,
     o: &Options,
+    store: &dyn CacheStore,
     sources: &disk::DiskSources,
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
 ) -> (Vec<Diag>, Vec<String>) {
-    let store = crate::disk_store();
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
         sources,
-        store: &store,
+        store,
         clock: &clock,
         executor: o.jobs.map_or_else(executor, crate::executor_of),
     };
@@ -277,7 +278,7 @@ pub(crate) fn check_package(program: disk::Program, jobs: Option<usize>) -> Vec<
         jobs,
         ..Options::default()
     };
-    check_one(t, &o).0
+    check_one(t, &o, &DeferredStore::new(crate::disk_store())).0
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
@@ -286,6 +287,9 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let (mut diags, mut modules_checked) = (Vec::new(), 0);
+    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
+    // reach the disk when the store drops, after the report.
+    let store = DeferredStore::new(crate::disk_store());
     if o.file.is_some() && !o.packages.is_empty() {
         return fail("`hd check` takes a FILE or `-p NAME`, not both");
     }
@@ -293,7 +297,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(ts) => {
             for t in ts {
                 let member = t.member.clone();
-                let (mut ds, n) = check_one(t, &o);
+                let (mut ds, n) = check_one(t, &o, &store);
                 if let Some(m) = member {
                     for d in &mut ds {
                         if let Some(f) = &mut d.file {

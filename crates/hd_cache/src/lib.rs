@@ -11,7 +11,9 @@ pub mod disk;
 pub mod store;
 #[cfg(feature = "disk")]
 pub use disk::DiskStore;
-pub use store::{CacheStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry};
+pub use store::{
+    CacheStore, DeferredStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry,
+};
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
