@@ -338,7 +338,6 @@ fn stage_description(stage: Stage) -> &'static str {
         Stage::ModulePrep => "preparing modules",
         Stage::Body => "checking bodies",
         Stage::ModuleFinish => "finishing modules",
-        Stage::TestOverlay => "checking test overlays",
         Stage::Coherence => "checking coherence",
         Stage::InitOrder => "ordering initializers",
         Stage::PackageResult => "assembling package results",

@@ -26,7 +26,6 @@ pub enum TaskKind {
     /// All of a module's bodies, as one task (the granularity rule).
     Body(u32),
     ModuleFinish(u32),
-    TestOverlay(u32),
     /// One task over the traits whose key changed.
     Coherence,
     InitOrder(u32),
@@ -56,7 +55,6 @@ impl TaskKind {
             TaskKind::ModulePrep(_) => "ModulePrep",
             TaskKind::Body(_) => "Body",
             TaskKind::ModuleFinish(_) => "ModuleFinish",
-            TaskKind::TestOverlay(_) => "TestOverlay",
             TaskKind::Coherence => "Coherence",
             TaskKind::InitOrder(_) => "InitOrder",
             TaskKind::PackageResult => "PackageResult",

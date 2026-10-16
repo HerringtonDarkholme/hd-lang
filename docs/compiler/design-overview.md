@@ -87,7 +87,6 @@ entries of role `test`; no `check-test` entry is written; not judged.
 
 ```text
 Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) ──► Body(m) ──► ModuleFinish(m) ──┐
-                │              │    │              └──► TestOverlay(m) ──────────────────────────┤
                 │              │    └──► HeaderCheck(F) ─────────────────────────────────────────┤
                 │              └──► Coherence ───────────────────────────────────────────────────┤
                 └── FolderIface(G) for each folder G that F uses                                 ▼
@@ -100,16 +99,15 @@ Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) �
 - A `HeaderCheck(F)` task waits for the interfaces of F's closure. No
   check waits for it; `PackageResult` does.
 - A `ModulePrep(m)` task waits for the interfaces of its folder's
-  closure, then creates `Body(m)`, `ModuleFinish(m)` and
-  `TestOverlay(m)`.
+  closure, then creates `Body(m)` and `ModuleFinish(m)`.
 - The driver interns one `ImplUniverseId` per solving context: the
   module's bodies, its test overlay, each `HeaderCheck(F)` and each
   derive instance ([crates/hd_sched/DESIGN.md §6.1](../../crates/hd_sched/DESIGN.md)).
   It adds no edge to the graph.
 - Bodies never wait on each other, with one exception: a private
   function with an omitted result type, which `ModulePrep` infers first.
-- `PackageResult` waits for every header check, `Coherence`, module
-  finish and test overlay. It creates one `InitOrder(F)` per built
+- `PackageResult` waits for every header check, `Coherence` and module
+  finish. It creates one `InitOrder(F)` per built
   folder, and, for a program with no error, `Collect` after them.
   `Collect` creates one `Emit` per code-entry miss and a `Link` after
   them.

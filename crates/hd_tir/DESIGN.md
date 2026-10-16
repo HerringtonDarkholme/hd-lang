@@ -366,9 +366,12 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   computed at run time, on first read, by a lazily initialized global
   ([crates/hd_mono/DESIGN.md §12.3](../hd_mono/DESIGN.md#123-facts-defaults-derives-and-tests)).
 - **Test overlay.** The `tests:` block and the doc tests of module `m` are
-  checked by a `TestOverlay(m)` task under `hd check --tests` and
-  `hd test`. Their uses make no folder edge, so the task waits for the
-  interfaces they use, and is cached as `check-test`. Doc tests are
+  checked under `hd check --tests` and `hd test` by the module's
+  test-role `ModulePrep(m)`, `Body(m)` and `ModuleFinish(m)` tasks
+  ([crates/hd_sched/DESIGN.md §6.1](../hd_sched/DESIGN.md#61-tasks)).
+  Their uses make no folder edge, so the test role's `ModulePrep(m)`
+  waits for the interfaces they use; the result is cached as
+  `check-test`. Doc tests are
   extracted from `##` blocks into synthetic files whose spans map back to
   their lines.
 - **Registration declarations are plain hd.** `lib/std/testing.hd`

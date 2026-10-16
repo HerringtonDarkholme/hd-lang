@@ -1,28 +1,12 @@
 //! The design's checking stages beyond bodies (`crates/hd_tir/DESIGN.md`
-//! §4.13.1, §4.13.9, §4.13.10; `crates/hd_check/DESIGN.md` (trait solver) §5; `crates/hd_sched/DESIGN.md` §6.1):
-//! test overlay and init order; overlap is `hd_resolve::Universe`. Each
-//! returns its result or a structured "not implemented".
+//! §4.13.1, §4.13.10; `crates/hd_check/DESIGN.md` (trait solver) §5; `crates/hd_sched/DESIGN.md` §6.1):
+//! init order; overlap is `hd_resolve::Universe`.
 
 use std::collections::{BTreeSet, HashMap};
 
-use hd_base::{DefId, StageResult};
+use hd_base::DefId;
 
 use crate::init::InitSummary;
-
-/// Facts a module exposes to these stages, read from its source skim.
-#[derive(Clone, Debug, Default)]
-pub struct ModuleFacts {
-    pub path: String,
-    pub has_tests_block: bool,
-}
-
-/// `TestOverlay(m)` (§4.13.9). A build that runs no test checks no
-/// `tests:` block; `hd test` checks them with the module's bodies, in its
-/// own `check` entry (`crate::tests`). Doc tests are not checked yet.
-pub fn test_overlay(m: &ModuleFacts) -> StageResult<Option<String>> {
-    let _ = m;
-    Ok(None)
-}
 
 /// One step of a module cycle's initialization: a module of the cycle,
 /// by its index in identity order, and one of its statements.
@@ -177,7 +161,7 @@ pub fn runs(steps: &[Step]) -> Vec<(usize, std::ops::Range<usize>)> {
 mod tests {
     use hd_base::DefId;
 
-    use super::{CycleOrder, ModuleFacts, cycle_order, runs, test_overlay};
+    use super::{CycleOrder, cycle_order, runs};
     use crate::init::{InitFacts, InitSummary, StmtSummary};
 
     fn d(n: u32) -> DefId {
@@ -218,15 +202,6 @@ mod tests {
                 })
                 .collect(),
         }
-    }
-
-    #[test]
-    fn test_overlay_checks_nothing_yet() {
-        let a = ModuleFacts {
-            path: "p.a".into(),
-            has_tests_block: true,
-        };
-        assert!(test_overlay(&a).expect("checked by hd test").is_none());
     }
 
     #[test]

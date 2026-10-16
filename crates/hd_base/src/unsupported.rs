@@ -20,7 +20,6 @@ pub enum Stage {
     ModulePrep,
     Body,
     ModuleFinish,
-    TestOverlay,
     Coherence,
     InitOrder,
     PackageResult,
@@ -32,7 +31,7 @@ pub enum Stage {
 }
 
 impl Stage {
-    pub const ALL: [Stage; 18] = [
+    pub const ALL: [Stage; 17] = [
         Stage::Discover,
         Stage::Skim,
         Stage::Parse,
@@ -42,7 +41,6 @@ impl Stage {
         Stage::ModulePrep,
         Stage::Body,
         Stage::ModuleFinish,
-        Stage::TestOverlay,
         Stage::Coherence,
         Stage::InitOrder,
         Stage::PackageResult,
@@ -65,7 +63,6 @@ impl Stage {
             Stage::ModulePrep => "ModulePrep",
             Stage::Body => "Body",
             Stage::ModuleFinish => "ModuleFinish",
-            Stage::TestOverlay => "TestOverlay",
             Stage::Coherence => "Coherence",
             Stage::InitOrder => "InitOrder",
             Stage::PackageResult => "PackageResult",

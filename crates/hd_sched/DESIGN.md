@@ -12,7 +12,7 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 pub enum TaskKind {                         // payloads: dense run IDs (file, folder, module, slot)
     Skim(u32), Parse(u32), FolderGraph,
     FolderIface(u32), HeaderCheck(u32),
-    ModulePrep(u32), Body(u32), ModuleFinish(u32), TestOverlay(u32),
+    ModulePrep(u32), Body(u32), ModuleFinish(u32),
     Coherence, InitOrder(u32), PackageResult,
     Ext(ExtTask),                           // Collect, Emit(slot), Link, Precompile, RunCase(case)
 }
@@ -28,9 +28,8 @@ owns what each task does.
   skims. A running task may add tasks and edges: `FolderGraph` adds a
   `FolderIface` and a `HeaderCheck` per built folder, one `Coherence`,
   one `ModulePrep` per built module and a held `PackageResult`;
-  `ModulePrep` adds `Body`, `ModuleFinish` and `TestOverlay` on a cache
-  miss; `PackageResult` adds one `InitOrder` per folder and then
-  `Collect`. `Collect` performs the code-entry lookups and adds a held
+  `ModulePrep` adds `Body` and `ModuleFinish` on a cache miss;
+  `PackageResult` adds one `InitOrder` per folder and then `Collect`. `Collect` performs the code-entry lookups and adds a held
   `Link`; for each folder group with at least one miss it creates one
   `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
   The folder group is the `codepack` cache unit
@@ -77,8 +76,6 @@ owns what each task does.
   holds the `tests:` block's items; there is no `TestOverlay` task.
   A `tests:` block's uses make no folder edge, so the test role's
   `ModulePrep(m)` waits for the interfaces of `test_closure(m)`.
-  - Implementation differs: a `TestOverlay(m)` task is still created per
-    module and checks nothing, which is worse: a dead task per module.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
   is the first step of each `FolderIface`, `HeaderCheck` and

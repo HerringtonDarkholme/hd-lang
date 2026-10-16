@@ -28,7 +28,6 @@ use hd_cache::{
 };
 use hd_check::BodyCx;
 use hd_check::init::InputBinding;
-use hd_check::stages::{ModuleFacts, test_overlay};
 use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
@@ -598,7 +597,6 @@ struct SkimOut {
     /// edge (`module.cycle.test-code`) and widen only the test role's
     /// closure ([`Run::module_closure`]).
     test_uses: Vec<String>,
-    facts: ModuleFacts,
 }
 
 struct GraphOut {
@@ -794,15 +792,10 @@ fn skim_module(
     if module != "std.core" {
         uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
     }
-    let facts = ModuleFacts {
-        path: table.modules[m].path.clone(),
-        has_tests_block: file.has_tests_block,
-    };
     SkimOut {
         file,
         uses,
         test_uses,
-        facts,
     }
 }
 
@@ -2239,7 +2232,6 @@ impl Run<'_> {
             TaskKind::ModulePrep(_) => Stage::ModulePrep,
             TaskKind::Body(_) => Stage::Body,
             TaskKind::ModuleFinish(_) => Stage::ModuleFinish,
-            TaskKind::TestOverlay(_) => Stage::TestOverlay,
             TaskKind::Coherence => Stage::Coherence,
             TaskKind::InitOrder(_) => Stage::InitOrder,
             TaskKind::PackageResult => Stage::PackageResult,
@@ -2261,10 +2253,6 @@ impl Run<'_> {
             TaskKind::ModulePrep(m) => self.module_prep(id, m, sp),
             TaskKind::Body(m) => self.body(m as usize),
             TaskKind::ModuleFinish(m) => self.module_finish(m as usize),
-            TaskKind::TestOverlay(m) => {
-                let r = test_overlay(&self.skim_of(m as usize).facts);
-                self.stage(Stage::TestOverlay, r);
-            }
             TaskKind::PackageResult => self.package_result(sp),
             TaskKind::Ext(ExtTask::Collect) => self.collect(sp),
             TaskKind::Ext(ExtTask::Emit(i)) => self.emit(i as usize),
@@ -4071,8 +4059,8 @@ impl Run<'_> {
     }
 
     /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
-    /// it lower headers and create `Body(m)`, `ModuleFinish(m)` and
-    /// `TestOverlay(m)` (`crates/hd_sched/DESIGN.md` §6.1).
+    /// it lower headers and create `Body(m)` and `ModuleFinish(m)`
+    /// (`crates/hd_sched/DESIGN.md` §6.1).
     fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
         let mi = m as usize;
         let body = self.module_prep_now(id, mi, sp);
@@ -4144,9 +4132,7 @@ impl Run<'_> {
             .collect();
         let body = sp.add(TaskKind::Body(m), &deps);
         let finish = sp.add(TaskKind::ModuleFinish(m), &[body]);
-        let overlay = sp.add(TaskKind::TestOverlay(m), &[id]);
         sp.edge(finish, pr);
-        sp.edge(overlay, pr);
         Some(finish)
     }
 
