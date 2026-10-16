@@ -6416,7 +6416,7 @@ impl Run<'_> {
     }
 
     /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
-    /// meta (the module's TIR content hash, which `prog_key` reads); the
+    /// meta (the module's content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads; the `dbg`
     /// references; and each body's frame name (`positions`).
@@ -6522,8 +6522,6 @@ impl Run<'_> {
         let mut sh = hd_base::StableHasher::new("init-summary");
         sh.bytes(&summary);
         content.hash(sh.finish());
-        let mut meta = Writer::default();
-        meta.hash(content.finish());
         // A test run's case items join the module's items, and its
         // registrations are a fifth section.
         let (case_items, regs) = match self.tests[m].get() {
@@ -6559,6 +6557,16 @@ impl Run<'_> {
                 return;
             }
         };
+        // The link reads the declarations as well as the bodies: a trait's
+        // methods are a handle's imports and a data type's fields its
+        // boundary codec, and a test run's registrations pick its cases.
+        // An edit to them can leave every body's TIR as it was (#316).
+        let mut ih = hd_base::StableHasher::new("items");
+        ih.bytes(&items);
+        content.hash(ih.finish());
+        content.hash(regs_hash(regs));
+        let mut meta = Writer::default();
+        meta.hash(content.finish());
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -8319,6 +8327,29 @@ fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer, lines: &Lines<
         opt(w, &r.unsupported);
         lines.write(w, r.at);
     }
+}
+
+/// The registrations as a test run's link reads them: everything but
+/// their positions, which the runner reads from the `check` entry.
+fn regs_hash(regs: &[hd_check::tests::TestReg]) -> Hash128 {
+    let mut h = hd_base::StableHasher::new("test-regs");
+    let opt = |h: &mut hd_base::StableHasher, s: &Option<String>| match s {
+        Some(s) => {
+            h.u8(1);
+            h.str(s);
+        }
+        None => h.u8(0),
+    };
+    h.u32(u32_of(regs.len()));
+    for r in regs {
+        h.str(&r.name);
+        h.str(&r.kind);
+        opt(&mut h, &r.body);
+        opt(&mut h, &r.ignore);
+        opt(&mut h, &r.expect_panic);
+        opt(&mut h, &r.unsupported);
+    }
+    h.finish()
 }
 
 fn decode_regs(r: &mut Reader<'_>, lines: &Lines<'_>) -> Vec<hd_check::tests::TestReg> {

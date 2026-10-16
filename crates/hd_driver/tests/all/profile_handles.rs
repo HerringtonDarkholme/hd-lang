@@ -5,6 +5,7 @@
 //! `hd:<Trait>` by name with the number first. A handle trait that one
 //! of its own methods returns does not cross.
 
+use hd_cache::{CacheStore, MemoryStore};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -33,13 +34,17 @@ pub fn main!() -> void $ Files:
 /// Builds `main.hd` with `text` under a profile of the traits `traits`
 /// that it declares.
 fn build(text: &str, traits: &[&str]) -> Output {
+    build_in(&crate::warm_store(), text, traits)
+}
+
+/// [`build`] on `store`.
+fn build_in(store: &dyn CacheStore, text: &str, traits: &[&str]) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", text);
-    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,
-        store: &store,
+        store,
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
@@ -104,5 +109,42 @@ fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
         out.render().contains("which a method of its own returns"),
         "{}",
         out.render()
+    );
+}
+
+/// The trait method's edit leaves every body's TIR as it was, so only
+/// the module's declarations tell the two builds' links apart.
+#[test]
+fn a_self_returning_handle_method_stops_at_link_after_the_handle_free_build() {
+    let store = crate::warm_store();
+    let traits = ["Files", "FileHandle"];
+    let free = build_in(&store, &format!("{FILES}{MAIN}"), &traits);
+    assert!(free.wasm.is_some(), "{}", free.render());
+    let text = format!("{FILES}    fn again(self) -> mut dyn FileHandle\n{MAIN}");
+    let out = build_in(&store, &text, &traits);
+    assert!(out.wasm.is_none());
+    assert!(
+        out.render().contains("which a method of its own returns"),
+        "{}",
+        out.render()
+    );
+}
+
+/// A handle trait's new method is a new import, though no body changed.
+#[test]
+fn a_handle_trait_edit_relinks() {
+    let store = MemoryStore::default();
+    let traits = ["Files", "FileHandle"];
+    let cold = build_in(&store, &format!("{FILES}{MAIN}"), &traits);
+    assert!(cold.wasm.is_some(), "{}", cold.render());
+    let text = format!("{FILES}    fn name(self) -> string\n{MAIN}");
+    let edited = build_in(&store, &text, &traits);
+    let wasm = edited.wasm.as_deref().expect("the program links");
+    assert_eq!(edited.counters.hit("link"), 0);
+    assert_eq!(edited.counters.miss("link"), 1);
+    let imports = profile_imports(wasm);
+    assert!(
+        imports.contains(&"hd:FileHandle name".to_owned()),
+        "{imports:?}"
     );
 }

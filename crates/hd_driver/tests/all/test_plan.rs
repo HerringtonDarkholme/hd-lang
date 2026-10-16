@@ -155,3 +155,31 @@ fn a_second_run_is_warm_and_executors_agree() {
     assert_eq!(pool.wasm, cold.wasm);
     assert_eq!(pool.tests, cold.tests);
 }
+
+/// Dropping a case's `ignore` changes no body's TIR, but the case now
+/// runs: the program links again with an export for it (#316).
+#[test]
+fn an_ignore_edit_relinks() {
+    let store = MemoryStore::default();
+    let cold = run(&store, SERIAL, None);
+    assert_eq!(cold.tests[1].run, None);
+    let mut src = sources();
+    src.insert(
+        "math.hd",
+        &MATH.replace("it(\"skips\", ignore=\"slow\")", "it(\"skips\")"),
+    );
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: SERIAL,
+    };
+    let goal = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    let warm = build(&host, "app", &goal);
+    assert_eq!(warm.counters.miss("link"), 1);
+    assert_eq!(warm.tests[1].run, Some((1, 0)));
+}

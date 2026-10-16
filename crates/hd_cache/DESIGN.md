@@ -26,7 +26,7 @@ says.
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses; under `reads_key`, the folder's read list | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
-| `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the TIR content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
+| `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish | output, `PackageResult`, D2 |
 | `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
@@ -87,11 +87,17 @@ hdr_key(F)    = H("hdr", toolchain_key, package key, folder path,
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, [(module path, init summary hash)])
 depfiles_key  = H("depfiles", toolchain_key, "std")
-prog_key      = H("prog", toolchain_key, pipeline, profile, entry, [(module, TIR content hash)])
+prog_key      = H("prog", toolchain_key, pipeline, profile, entry, [(module, content hash)])
 code_key      = H("code", pipeline, profile, instance key, item TIR hash,
                   H(toolchain_key, the program's data layouts, callee representation summaries))
 ```
 
+- **A module's content hash.** `prog_key` holds, per module, a hash of
+  everything in its `check` entry that linking reads: each body's TIR
+  hash, the init summary, the encoded items, and the test registrations
+  without their positions. The items are there because the link reads
+  declarations a body edit need not touch: a profile handle trait's
+  methods, a boundary type's fields (#316).
 - **Roles.** The role is `lib`, or `test` for the root package's modules
   in a test run; an entry module's role gets `+entry`, since its entry
   holds the entry-point findings. A module whose top level runs as its

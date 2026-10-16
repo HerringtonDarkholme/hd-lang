@@ -105,6 +105,14 @@ pub enum ExtTask {   // hd_sched
                           of m's items, m's literal list (§13.8))
   ```
 
+  Built: each module's content hash is its bodies' TIR hashes, its init
+  summary, its encoded items, and its test registrations without their
+  positions. Linking reads all four. A trait's methods are a profile
+  handle's imports, a data type's fields its boundary codec, and a
+  registration's `ignore` drops a case, and an edit to any of them can
+  leave every TIR hash as it was (#316). The runtime profile's trait
+  list is not in it: only checks read the list, under their own keys.
+
   A hit names the `link` entry directly. Collection, emission and
   linking are skipped, and a warm `hd run` or `hd test` reads one entry
   per program. Module-level reachability is coarser than item-level, so a

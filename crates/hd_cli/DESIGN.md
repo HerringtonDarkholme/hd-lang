@@ -104,9 +104,10 @@ group_fp(g) = H("affected", toolchain_key, pipeline_hash, profile, test options,
 ```
 
 That is the `prog_key` (§11.3) that a program of g's cases alone would
-have. It covers, through TIR content hashes, every source change that
-can change what g's cases run. A comment edit changes no content hash,
-so it selects nothing.
+have. It covers, through the modules' content hashes (TIR, items, init
+summary and registrations; crates/hd_cache/DESIGN.md §5.3), every
+source change that can change what g's cases run. A comment edit
+changes no content hash, so it selects nothing.
 
 1. Check with test code as `hd test` does. This also computes every
    module's TIR content hash.

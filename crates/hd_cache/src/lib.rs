@@ -17,7 +17,7 @@ pub use store::{
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 11;
+pub const LAYOUT_VERSION: u16 = 12;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
@@ -183,7 +183,7 @@ pub fn init_key(toolchain: Hash128, folder: &str, modules: &[(&str, Hash128)]) -
 }
 
 /// `prog_key = H("prog", toolchain, pipeline, profile, entry, [(module,
-/// TIR content hash)])` (`crates/hd_mono/DESIGN.md` §11.3).
+/// content hash)])` (`crates/hd_mono/DESIGN.md` §11.3).
 #[must_use]
 pub fn prog_key(
     toolchain: Hash128,
