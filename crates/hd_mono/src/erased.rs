@@ -22,6 +22,12 @@ use crate::{CallTarget, Cx, Picked, ProgramEnv, TargetKind, err, subst};
 /// in a concrete instance otherwise.
 const OPEN: u8 = 0xE0;
 
+/// The open row: the one argument every instance takes for each of its
+/// item's own row parameters, so rows never become instance keys and a
+/// row-polymorphic body is compiled once (`req.poly.one-body`,
+/// `crates/hd_mono/DESIGN.md` §12.4). Its keys arrive in the context.
+const ROW: u8 = 0xF1;
+
 /// How many own type parameters an erased body may have.
 pub const MAX_OPEN: u8 = 16;
 
@@ -30,6 +36,26 @@ pub const MAX_OPEN: u8 = 16;
 pub fn open_param(pool: &InternPool, k: usize) -> Ty {
     let k = u8::try_from(k).map_or(MAX_OPEN - 1, |k| k.min(MAX_OPEN - 1));
     pool.intern_ty(&TyData::Canon(OPEN + k))
+}
+
+/// The open row (see [`ROW`]).
+#[must_use]
+pub fn open_row(pool: &InternPool) -> Ty {
+    pool.intern_ty(&TyData::Canon(ROW))
+}
+
+/// Whether a row key is a placeholder whose keys only a context names:
+/// the open row, or an erased body's open row parameter.
+fn is_open_key(pool: &InternPool, k: Ty) -> bool {
+    matches!(pool.get(k), TyData::Canon(n) if n == ROW || (OPEN..OPEN + MAX_OPEN).contains(&n))
+}
+
+/// Whether a row argument lists an open row (see [`row_is_open`]).
+fn arg_is_open(pool: &InternPool, t: Ty) -> bool {
+    match pool.get(t) {
+        TyData::Row(r) => row_is_open(pool, r),
+        _ => is_open_key(pool, t),
+    }
 }
 
 /// Whether `t` mentions an open parameter (a projection of one
@@ -51,9 +77,9 @@ pub fn is_open(pool: &InternPool, t: Ty) -> bool {
             list(args) || bindings.iter().any(|(_, b)| is_open(pool, *b))
         }
         TyData::Assoc { self_ty, args, .. } => is_open(pool, self_ty) || list(args),
-        // A row argument that lists an open row parameter: a call at it
-        // is outlined, so its callee is instantiated at the caller's row.
-        TyData::Row(r) => row_is_open(pool, r),
+        // A row argument that lists an erased body's open row parameter:
+        // a call at it is outlined, so its callee gets the caller's row.
+        TyData::Row(r) => pool.row_data(r).keys.iter().any(|k| is_open(pool, *k)),
         _ => false,
     }
 }
@@ -66,14 +92,41 @@ pub fn has_row_params(env: &dyn ProgramEnv, def: DefId) -> bool {
     env.generic_rows(def).into_iter().any(|r| r)
 }
 
-/// Whether a row lists an open parameter: in an erased body, the
-/// method's own row parameter, whose keys only the context names.
+/// Whether a row lists an open row: the open row of a row-polymorphic
+/// instance, or an erased body's open row parameter, whose keys only the
+/// context names.
 #[must_use]
 pub fn row_is_open(pool: &InternPool, row: hd_types::RowId) -> bool {
     pool.row_data(row)
         .keys
         .iter()
-        .any(|k| matches!(pool.get(*k), TyData::Canon(n) if (OPEN..OPEN + MAX_OPEN).contains(&n)))
+        .any(|k| is_open_key(pool, *k))
+}
+
+/// An instance's arguments with each of its item's own row parameters'
+/// arguments the open row: the arguments it is keyed and compiled at.
+#[must_use]
+pub fn rowless(pool: &InternPool, env: &dyn ProgramEnv, def: DefId, args: TyList) -> TyList {
+    if !has_row_params(env, def) {
+        return args;
+    }
+    let n = env.parent(env.generics_owner(def)).map_or(0, |p| p.1);
+    let open = open_row(pool);
+    let mut all = pool.list_items(args).to_vec();
+    for (j, row) in env.generic_rows(def).into_iter().enumerate() {
+        if row && let Some(a) = all.get_mut(n + j) {
+            *a = open;
+        }
+    }
+    pool.list(&all)
+}
+
+/// Whether the argument of one of the item's own row parameters lists an
+/// open row: a call at it passes the caller's open context on.
+#[must_use]
+pub fn row_args_open(pool: &InternPool, env: &dyn ProgramEnv, def: DefId, args: TyList) -> bool {
+    let (rows, _) = split_rows(pool, env, def, args);
+    rows.into_iter().any(|r| arg_is_open(pool, r))
 }
 
 /// The arguments of an item's own row parameters among `args`, and

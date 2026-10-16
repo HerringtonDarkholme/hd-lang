@@ -365,8 +365,8 @@ impl Collected {
 
 pub use erased::{
     Witnesses, declared_row_keys, erased_args, has_row_params, is_open, open_insts, open_param,
-    own_count, row_is_open, row_param_keys, thunk_capture_locals, thunk_operands, witness_args,
-    witness_family,
+    open_row, own_count, row_args_open, row_is_open, row_param_keys, rowless, thunk_capture_locals,
+    thunk_operands, witness_args, witness_family,
 };
 pub use layout::InstanceTable;
 
@@ -1404,7 +1404,18 @@ impl Cx<'_> {
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let raw = args;
         let args = self.classify(def, self.pool.list_items(args), own_from)?;
-        let key = self.push(def, Sub::Body(0), args, raw, parent)?;
+        // One instance serves every row of the item's own row parameters
+        // (`req.poly.one-body`, §12.4): it is keyed at the open row, and
+        // the target keeps the call's rows, whose keys the caller passes
+        // in the context.
+        let (pool, env) = (self.pool, self.env);
+        let key = self.push(
+            def,
+            Sub::Body(0),
+            rowless(pool, env, def, args),
+            rowless(pool, env, def, raw),
+            parent,
+        )?;
         Ok(CallTarget {
             key,
             item: def,
@@ -1945,14 +1956,16 @@ impl Cx<'_> {
             || (self
                 .out
                 .table
-                .get_known(def, Sub::Body(0), cargs, &known)
+                .get_known(def, Sub::Body(0), rowless(pool, env, def, cargs), &known)
                 .is_none()
                 && self.copy_depth(id) >= self.planner.spec_depth())
         {
             return Ok(Specialize::Plain);
         }
-        let key = self.push_known(def, Sub::Body(0), cargs, cargs, &known, id)?;
+        let inst = rowless(pool, env, def, cargs);
+        let key = self.push_known(def, Sub::Body(0), inst, inst, &known, id)?;
         let ret = env.ret(def).unwrap_or(Ty::VOID);
+        // As in `target`: keyed at the open row, called at the call's rows.
         Ok(Specialize::Copy(CallTarget {
             key,
             item: def,
@@ -2003,6 +2016,8 @@ impl Cx<'_> {
             ));
         }
         reps.u8(u8::from(env.suspends(item)));
+        // A row parameter's context is a parameter too.
+        reps.u8(u8::from(has_row_params(env, item)));
         let ph = |d: DefId| env.path_hash(d);
         for k in env.row_keys(item, args) {
             reps.hash(canon(pool, &ph, &mut self.canons, k));

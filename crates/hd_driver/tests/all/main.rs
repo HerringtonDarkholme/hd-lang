@@ -144,6 +144,7 @@ mod release_profile_run;
 mod repl_input;
 mod row_aliases;
 mod row_invariant_nested;
+mod row_one_body;
 mod row_param_nested;
 mod row_union_run;
 mod rows_determinism;

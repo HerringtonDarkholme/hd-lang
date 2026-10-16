@@ -997,9 +997,11 @@ with `else` produces a value.
   of the caller's row (`layout::ctx_keys`, `ctx_provs`), so a value of any
   narrower row looks its own keys up and row subsumption is no
   instruction.
-- **Row-polymorphic bodies.** One body per row parameter, taking one
-  context parameter. Not built yet; see #176: today a row-polymorphic body
-  is compiled once per row instantiation.
+- **Row-polymorphic bodies.** One body for every row of an item's own
+  row parameters, which takes their keys as one context of the same two
+  arrays, after its own providers. A caller passes the row argument's
+  keys there, and a body forwards its context to a callback of row `R`
+  with no allocation.
 - **Type-only:** yes. Key ids are the low bits of `H(canon(K))`, which
   covers the trait's arguments, so a new key elsewhere in the program
   changes no body.

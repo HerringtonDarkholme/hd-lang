@@ -380,6 +380,26 @@ Requirement rows never become type arguments
   are pushed left to right and lookup takes the innermost, so a later
   entry wins. Building costs one allocation of `2n` slots; installing
   costs `2n` reads and casts, and no allocation.
+- **As built.** The context of a row parameter is the function-value
+  context, two arrays (`ctx_keys: array i64`, `ctx_provs: array
+  eqref`), not a linked list. Every instance of an item takes the
+  placeholder `Canon(0xF1)`, the open row, as the argument of each of
+  its own row parameters (`hd_mono::rowless`), so one instance serves
+  every row (`req.poly.one-body`). The instance takes one provider per
+  key its row lists itself (`declared_row_keys`), then the context
+  last. A row parameter of an implementation stays a key of its
+  instances.
+- A caller passes, in the context, the keys of the row arguments that
+  the callee's row has (`row_param_keys`). When an argument lists the
+  caller's own open row, those keys go in front of the caller's
+  context, and with no key and no open `$.with` scope the caller passes
+  its context unchanged, so forwarding `R` allocates nothing. A `$.with`
+  key goes in front too, so the nearer provider wins
+  (`req.with.nearest.row-parameter`). Extending a context copies both
+  arrays, one allocation each.
+- A closure whose row lists the open row reads those keys from its own
+  call's context, which a suspending closure keeps in its frame. A
+  function reference's adapter passes its context on to the instance.
 
 ### 12.5 Counted Loops And Checks
 
@@ -1030,15 +1050,16 @@ into such a layout would break the identity of data values.
   those of the keys the method's row lists itself
   (`declared_row_keys`). The caller puts in the context the keys of
   each row parameter's argument that the row has (`row_param_keys`).
-  So one ABI serves #176 later.
+  Every row-polymorphic instance uses the same ABI (§12.4, "As built").
 - In the erased body, a function value whose row lists `R` gets the
   context unchanged when no `$.with` scope is open and the row has no
   other key, so forwarding is free. Otherwise its other keys and the
   open `$.with` keys go in front of a copy, so the nearer provider wins
   (`req.with.nearest.row-parameter`).
 - A call whose type arguments include a row that lists `R` is an open
-  instruction, so the callee is a monomorphized instance at the
-  caller's row, as for an open type. A thunk of a method with row
+  instruction, as for an open type: its thunk, at the caller's row,
+  calls the callee's one instance with that row's keys in the context.
+  A thunk of a method with row
   parameters takes, after the body's providers, a context of the other
   keys in scope in front of the open one; a key no provider covers is
   looked up there.
