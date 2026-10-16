@@ -238,13 +238,12 @@ a binary marker. (2) Add affine/owned handle types with borrow checking. (3)
 Add a scoped callback protocol whose handle cannot escape. (4) Keep unrestricted
 aliasing and rely on checked `ResourceError.Disposed` results.
 
-**Direction.** Option 1 is chosen, with `defer` as the cleanup mechanism.
-A suspension frame may hold a `NonEscapable` value across a suspension point;
-the frame is then itself non-escapable (shape B in
-[the NonEscapable design](NONESCAPE_LIFETIME_DESIGN.md#appendix-a-why-a-category-and-lifetimes)).
-Still open: the propagation rules, dependent-return provenance, whether
-provider values can be `NonEscapable`, and asynchronous or fallible cleanup.
-Retain checked disposal errors.
+**Direction.** Option 2 is chosen (owner, 2026-10-16), with `defer` as the
+cleanup mechanism: Rust's ownership model, `own` written at the usage site,
+and `^` borrows with lifetimes named by variables. The NonEscapable category
+of option 1 is dropped. The design and its open points are in
+[Ownership And Borrows](OWNERSHIP_DESIGN.md). Still open beyond it:
+asynchronous or fallible cleanup. Retain checked disposal errors.
 
 **Unblocks.** Leak-resistant files/sockets, safe cancellation, fallible cleanup
 design, stronger sandbox guarantees, and possibly complete per-tool authority

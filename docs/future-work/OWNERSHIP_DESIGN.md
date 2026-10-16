@@ -2,9 +2,8 @@
 
 This is a design study for issue #163. Nothing in it is accepted
 behavior, and the spec is frozen. Every spelling and diagnostic name is
-a placeholder. The study replaces the direction of
-[NonEscapable Types And Lifetimes: Design](NONESCAPE_LIFETIME_DESIGN.md),
-which stays as written.
+a placeholder. The study replaces the NonEscapable design of
+#163, which is deleted; git history keeps it.
 
 - [Decisions So Far](#decisions-so-far)
 - [1. Motivation](#1-motivation)
