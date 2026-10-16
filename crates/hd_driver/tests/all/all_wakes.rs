@@ -15,18 +15,13 @@ const WIDE: usize = 30;
 
 /// An `all!` of `WIDE` children, child `j` sleeping `5 * j` milliseconds,
 /// so their wakes arrive apart.
-fn program() -> String {
+fn wide() -> String {
     let children: Vec<String> = (1..=WIDE).map(|j| format!("nap({j})")).collect();
     let mut names = vec!["first"];
     names.extend(vec!["_"; WIDE - 2]);
     names.push("last");
     format!(
-        "use std.time.{{Clock, Duration, sleep}}\n\
-         use std.task.all\n\n\
-         fn nap!(j: i64) -> i64 $ Clock:\n    \
-         sleep!(Duration::milliseconds(5 * j))\n    \
-         j\n\n\
-         pub fn main!() -> void $ Console + Clock:\n    \
+        "{NAP}pub fn main!() -> void $ Console + Clock:\n    \
          let ({}) = all!({})\n    \
          println(\"${{first}} ${{last}}\")\n",
         names.join(", "),
@@ -34,10 +29,18 @@ fn program() -> String {
     )
 }
 
-/// How many `all!` children the run polled, and its standard output.
-fn polls() -> (usize, String) {
+/// The child every program here waits on.
+const NAP: &str = "use std.time.{Clock, Duration, sleep}\n\
+                   use std.task.all\n\n\
+                   fn nap!(j: i64) -> i64 $ Clock:\n    \
+                   sleep!(Duration::milliseconds(5 * j))\n    \
+                   j\n\n";
+
+/// How many `all!` children the run of `main` polled, and its standard
+/// output.
+fn polls(main: &str) -> (usize, String) {
     let mut src = MemorySources::default();
-    src.insert("main.hd", &program());
+    src.insert("main.hd", main);
     let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
@@ -73,8 +76,31 @@ fn polls() -> (usize, String) {
 }
 
 #[test]
-fn every_child_is_polled_once_more_after_its_wake_at_least() {
-    let (count, out) = polls();
+fn one_wake_polls_only_the_woken_child() {
+    // Each child is polled on the first poll, then once when its own
+    // timer wakes it, however the wakes group into reactor turns.
+    let (count, out) = polls(&wide());
     assert_eq!(out, "1 30\n");
-    assert!(count >= 2 * WIDE, "{count}");
+    assert_eq!(count, 2 * WIDE);
+}
+
+#[test]
+fn a_wake_inside_a_nested_all_reaches_the_outer_one() {
+    // `pair`'s `all!` runs as the outer `all!`'s child 0: a wake of
+    // `nap(9)` sets its bit in the inner node and child 0's bit in the
+    // outer one, so both are polled again and the program ends.
+    let main = format!(
+        "{NAP}fn pair!() -> (i64, i64) $ Clock:\n    \
+         all!(nap(1), nap(9))\n\n\
+         pub fn main!() -> void $ Console + Clock:\n    \
+         let (p, c) = all!(pair(), nap(5))\n    \
+         let (a, b) = p\n    \
+         println(\"${{a}} ${{b}} ${{c}}\")\n"
+    );
+    let (count, out) = polls(&main);
+    assert_eq!(out, "1 9 5\n");
+    // The first poll polls the outer two children and the inner two; a
+    // wake of an inner nap polls `pair` and that nap, and the wake of
+    // `nap(5)` polls it alone.
+    assert_eq!(count, 4 + 2 + 1 + 2);
 }

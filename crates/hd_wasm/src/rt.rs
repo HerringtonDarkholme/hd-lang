@@ -421,6 +421,9 @@ pub enum Helper {
     /// `(h)`: host handle `h` went Pending under the current waker node
     /// and slot (§14.4).
     WakeRegister,
+    /// `(node, slot)`: wakes child `slot` of waker node `node` and its
+    /// ancestors (§14.4).
+    WakeUp,
     /// `race!`'s frame (std's `task_race_frame` intrinsic): `(list) -> frame`.
     RaceCold {
         list: WTy,
@@ -738,6 +741,7 @@ impl Helper {
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
             Helper::WakeRegister => w.u8(39),
+            Helper::WakeUp => w.u8(40),
             Helper::RaceCold {
                 list,
                 base,
@@ -948,6 +952,7 @@ impl Helper {
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
             39 => Helper::WakeRegister,
+            40 => Helper::WakeUp,
             t @ 15..=17 => {
                 let (list, base, poll, result) =
                     (dec_wty(r)?, dec_wty(r)?, dec_wty(r)?, decode_vts(r)?);
@@ -1600,6 +1605,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         Helper::WakeMark => wake_mark(),
         Helper::WakeTake => wake_take(),
         Helper::WakeRegister => wake_register(),
+        Helper::WakeUp => wake_up(),
         Helper::RaceCold {
             list,
             base,
@@ -2406,19 +2412,13 @@ fn wake_mark() -> Code {
     a.finish(vec![])
 }
 
-/// Sets the wake bits of completed handle `h` (a local): its
-/// registration's slot in its node's mask, then each node's slot in its
-/// parent's, up to the top (`crates/hd_wasm/DESIGN.md` §14.4). A stale
-/// registration, of an earlier handle in the same slot, is ignored.
+/// Sets the wake bits of completed handle `h` (a local) through its
+/// registration (`crates/hd_wasm/DESIGN.md` §14.4). A stale registration,
+/// of an earlier handle in the same slot, is ignored.
 fn wake_walk(a: &mut Asm, h: u32) {
     let node = wake_node();
     let tab = WTy::Array(VT::Eq);
-    let (t, reg, cur, bit) = (
-        a.local(VT::rn(tab.clone())),
-        a.local(VT::rn(node.clone())),
-        a.local(VT::Eq),
-        a.local(VT::I32),
-    );
+    let (t, reg) = (a.local(VT::rn(tab.clone())), a.local(VT::rn(node.clone())));
     a.global_get(wakers_global());
     a.set(t);
     a.block();
@@ -2452,38 +2452,49 @@ fn wake_walk(a: &mut Asm, h: u32) {
     a.raw_get(reg);
     a.s().ref_as_non_null();
     a.struct_get(&node, 1);
-    a.set(cur);
     a.raw_get(reg);
     a.s().ref_as_non_null();
     a.struct_get(&node, 2);
-    a.set(bit);
+    a.call(Sym::Helper(Helper::WakeUp));
+    a.end();
+}
+
+/// `(node, slot)`: wakes child `slot` of waker node `node` (null: none):
+/// sets its bit, then each node's slot in its parent's mask, up to the
+/// top (`crates/hd_wasm/DESIGN.md` §14.4).
+fn wake_up() -> Code {
+    let node = wake_node();
+    let mut a = Asm::new(vec![VT::Eq, VT::I32]);
+    let n = a.local(VT::rn(node.clone()));
+    a.block();
     a.loop_();
-    a.raw_get(cur);
+    a.raw_get(0);
     a.s().ref_is_null();
     a.br_if(1);
-    a.raw_get(cur);
+    a.raw_get(0);
     a.ref_cast(&node, false);
-    a.set(reg);
-    a.raw_get(reg);
+    a.set(n);
+    a.raw_get(n);
     a.s().ref_as_non_null();
-    a.raw_get(reg);
+    a.raw_get(n);
     a.s().ref_as_non_null();
     a.struct_get(&node, 0);
     a.i32(1);
-    a.get(bit);
+    a.raw_get(1);
     a.s().i32_shl().i32_or();
     a.struct_set(&node, 0);
-    a.raw_get(reg);
+    a.raw_get(n);
     a.s().ref_as_non_null();
     a.struct_get(&node, 2);
-    a.set(bit);
-    a.raw_get(reg);
+    a.s().local_set(1);
+    a.raw_get(n);
     a.s().ref_as_non_null();
     a.struct_get(&node, 1);
-    a.set(cur);
+    a.s().local_set(0);
     a.br(0);
     a.end();
     a.end();
+    a.finish(vec![])
 }
 
 /// `(h)`: host handle `h` went Pending under the current waker node and
@@ -2669,6 +2680,7 @@ impl Helper {
             Helper::WakeMark => "wake_mark".into(),
             Helper::WakeTake => "wake_take".into(),
             Helper::WakeRegister => "wake_register".into(),
+            Helper::WakeUp => "wake_up".into(),
             Helper::RaceCold { .. } => "race_cold".into(),
             Helper::RacePoll { .. } => "race_poll".into(),
             Helper::RaceCancel { .. } => "race_cancel".into(),

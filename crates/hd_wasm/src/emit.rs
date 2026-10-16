@@ -5160,11 +5160,30 @@ impl<'a> Em<'a> {
         let Shape::Tuple { elems, boxed } = self.lay.shape(ty)? else {
             return unsupported("an `all!` result that is not a tuple");
         };
+        // The `all!`'s waker node (`crates/hd_wasm/DESIGN.md` §14.4): made on
+        // the first poll with every bit set, so each child is polled
+        // once; later polls visit only the children whose bit a wake set.
+        let waker = crate::rt::wake_node();
+        let wn = self.a.local(VT::rn(waker.clone()));
+        let (outer, outer_slot, regs) = (
+            self.a.local(VT::Eq),
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+        );
         self.fresh_only(|em| {
             em.a.i32(0);
             em.a.set(done);
+            em.a.i32(-1);
+            em.a.global_get(crate::rt::wake_cur_node());
+            em.a.global_get(crate::rt::wake_cur_slot());
+            em.a.struct_new(&waker);
+            em.a.set(wn);
             Ok(())
         })?;
+        self.a.global_get(crate::rt::wake_cur_node());
+        self.a.set(outer);
+        self.a.global_get(crate::rt::wake_cur_slot());
+        self.a.set(outer_slot);
         let mut keep = Vec::new();
         for (j, (ch, rv)) in children.iter().zip(&elems).enumerate() {
             let (base, poll) = suspend_base(rv);
@@ -5172,10 +5191,27 @@ impl<'a> Em<'a> {
             let tmp: Vec<u32> = rv.iter().map(|v| self.a.local(v.dflt())).collect();
             let s = self.a.local(VT::r(base.clone()));
             let bit = 1i32 << j;
+            // Unfinished and woken: clear the bit, then poll under it.
             self.a.get(done);
             self.a.i32(bit);
             self.a.s().i32_and().i32_eqz();
+            self.a.get(wn);
+            self.a.struct_get(&waker, 0);
+            self.a.i32(bit);
+            self.a.s().i32_and().i32_const(0).i32_ne().i32_and();
             self.a.if_();
+            self.a.get(wn);
+            self.a.get(wn);
+            self.a.struct_get(&waker, 0);
+            self.a.i32(!bit);
+            self.a.s().i32_and();
+            self.a.struct_set(&waker, 0);
+            self.a.get(wn);
+            self.a.global_set(crate::rt::wake_cur_node());
+            self.a.i32(i32::try_from(j).expect("slot"));
+            self.a.global_set(crate::rt::wake_cur_slot());
+            self.a.global_get(crate::rt::wake_regs());
+            self.a.set(regs);
             self.comp(*ch, 0, &VT::r(base.clone()))?;
             self.a.set(s);
             self.a.global_get(crate::rt::all_polls());
@@ -5189,6 +5225,10 @@ impl<'a> Em<'a> {
             for l in tmp.iter().rev() {
                 self.a.set(*l);
             }
+            self.a.raw_get(outer);
+            self.a.global_set(crate::rt::wake_cur_node());
+            self.a.get(outer_slot);
+            self.a.global_set(crate::rt::wake_cur_slot());
             self.a.if_();
             self.a.get(done);
             self.a.i32(bit);
@@ -5198,6 +5238,18 @@ impl<'a> Em<'a> {
                 self.a.raw_get(*t);
                 self.a.set(*d);
             }
+            self.a.else_();
+            // A Pending child that registered no host leaf has nothing
+            // that would wake it: it stays woken, and so does this
+            // `all!` in its parents.
+            self.a.global_get(crate::rt::wake_regs());
+            self.a.get(regs);
+            self.a.s().i32_eq();
+            self.a.if_();
+            self.a.get(wn);
+            self.a.i32(i32::try_from(j).expect("slot"));
+            self.a.call(Sym::Helper(Helper::WakeUp));
+            self.a.end();
             self.a.end();
             self.a.end();
             keep.push(ls);
@@ -5208,6 +5260,22 @@ impl<'a> Em<'a> {
         self.a.i32(all);
         self.a.s().i32_ne();
         self.a.if_();
+        // Pending with every unfinished child waiting on a wake: to its
+        // parent, this `all!` waits on a registered wake too, even when
+        // this poll polled none of those children.
+        self.a.get(wn);
+        self.a.struct_get(&waker, 0);
+        self.a.get(done);
+        self.a.i32(-1);
+        self.a.s().i32_xor().i32_and();
+        self.a.i32(all);
+        self.a.s().i32_and().i32_eqz();
+        self.a.if_();
+        self.a.global_get(crate::rt::wake_regs());
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.global_set(crate::rt::wake_regs());
+        self.a.end();
         self.suspend(k, none)?;
         self.a.end();
         self.a.i32(0);

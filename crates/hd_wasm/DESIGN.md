@@ -836,12 +836,22 @@ burst of completions costs one crossing. The driver returns to the host
 whenever the root is Pending
 ([`req.entry.busy-poll`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll)).
 
-Implementation differs: there are no waker structs, wake masks or
-"woken" global. The wake table (`rt::wake_table`) is an `i32` array of
-completed host handles by slot; `hd.wake(n)` records the `n` handles
-there (`wake_mark`), and each `hd.poll` re-polls the frame tree from the
-root, where each host leaf checks the table for its handle. So one wake
-costs a walk of every pending frame, not O(woken).
+Implementation differs: there is no "woken" global, and the root is
+re-polled after every wake.
+- **Wakers.** An `all!` has a waker node (`rt::wake_node`): a mask, its
+  parent node and its slot there. While it polls child `j`, the runtime
+  globals `wnode` and `wslot` name the node and `j`.
+- **Leaves.** A host leaf that goes Pending registers its handle under
+  them (`wake_register`, in the `wakers` table by handle slot).
+- **Wakes.** `hd.wake(n)` records each completed handle in the wake table
+  (`rt::wake_table`, an `i32` array by slot), where the leaf finds it.
+  It also wakes the handle's registration, if the generation-tagged
+  handle matches: `wake_up` sets the slot's bit and each node's bit in
+  its parent, up to the top.
+- **`block_on`.** It clears `wnode` for the subtree it polls and restores
+  it after.
+- **Cost.** Frames outside any `all!` are still walked on each poll, but
+  an `all!` visits only its woken children (§14.5).
 
 ### 14.5 `all!` And `race!`
 
@@ -858,10 +868,18 @@ result types:
 - **Later polls** visit the unfinished children in argument order. A
   child whose wake bit is clear is skipped. Polling it would only return
   Pending with no effect, so skipping is not observable, and it makes a
-  wake O(woken children) instead of O(children). Implementation differs:
-  `Em::await_all` polls every unfinished child on each poll, since there
-  are no wake bits (§14.4), and an `all!` takes at most 31 children (its
-  done mask is one `i32`).
+  wake O(woken children) instead of O(children).
+  - A Pending child that registered no host leaf has nothing that would
+    wake it, so `Em::await_all` wakes it at once (`wake_up`) and polls it
+    again next time.
+  - An `all!` whose unfinished children all wait on wakes counts as
+    registered for its own parent.
+  - Implementation differs: the node is made on the first poll, with
+    every bit set, and kept in a frame local. An `all!` takes at most 31
+    children, since its masks are one `i32`.
+  - The runtime counts `all!` child polls in `allpolls`, which the module
+    exports as `hd.all_polls` for tests
+    (crates/hd_driver/tests/all/all_wakes.rs).
 - **Cancellation** cancels the unfinished children in argument order.
 
 `race!(tasks...)` takes a `List[mut Suspend[T]]`:
