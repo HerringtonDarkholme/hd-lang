@@ -6,7 +6,7 @@
 //! `hd_types` types, folder interfaces and their blobs, impl tables for
 //! the solver, and the overlap check.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, ModuleId, Symbol};
 

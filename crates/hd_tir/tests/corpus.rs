@@ -1,4 +1,5 @@
-use std::collections::{BTreeSet, HashSet};
+use hd_base::HashSet;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -39,8 +40,8 @@ fn text_corpus_round_trips_and_verifies() {
     paths.sort();
     assert!(!paths.is_empty(), "empty TIR corpus");
 
-    let mut valid_tags = HashSet::new();
-    let mut rejected_tags = HashSet::new();
+    let mut valid_tags = HashSet::default();
+    let mut rejected_tags = HashSet::default();
     let mut rejected_invariants = BTreeSet::new();
     for path in paths {
         let text = fs::read_to_string(&path)

@@ -18,8 +18,9 @@
 //! walk here is deeper than tuples, optionals and functions nest, however
 //! long a chain of types is.
 
+use hd_base::HashMap;
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
@@ -693,7 +694,7 @@ impl<'a> Lay<'a> {
     fn reached_assocs(&self, trait_: DefId) -> Vec<DefId> {
         let mut out = Vec::new();
         let mut todo = vec![trait_];
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = hd_base::HashSet::default();
         while let Some(t) = todo.pop() {
             if !seen.insert(t) {
                 continue;
@@ -1490,9 +1491,9 @@ impl<'a> Lay<'a> {
     fn find_expansive(&self, head: DefId) -> bool {
         let pool = self.pool;
         // Nodes: (item, parameter). Edges: (from, to, expanding).
-        let mut ids: HashMap<(DefId, u16), usize> = HashMap::new();
+        let mut ids: HashMap<(DefId, u16), usize> = HashMap::default();
         let mut edges: Vec<(usize, usize, bool)> = Vec::new();
-        let mut seen = std::collections::HashSet::from([head]);
+        let mut seen = hd_base::HashSet::from_iter([head]);
         let mut todo = vec![head];
         let mut projection = false;
         while let Some(item) = todo.pop() {

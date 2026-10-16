@@ -5,8 +5,8 @@
 //! from there. A name the scope does not bind is broken, as is a private
 //! item of a run without `--private`.
 
+use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use hd_base::{DefId, Symbol};
@@ -95,9 +95,9 @@ impl<'a> Links<'a> {
                 (m.as_str(), map)
             })
             .collect();
-        let mut decls = HashMap::new();
-        let mut anchors = HashMap::new();
-        let mut modules = HashSet::new();
+        let mut decls = HashMap::default();
+        let mut anchors = HashMap::default();
+        let mut modules = HashSet::default();
         for m in p.modules {
             let parse = hd_syntax::parse(m.text.as_bytes());
             let path = module_path(p, m.path);
@@ -118,8 +118,8 @@ impl<'a> Links<'a> {
             scopes,
             decls,
             anchors,
-            dep_items: HashSet::new(),
-            exports: HashMap::new(),
+            dep_items: HashSet::default(),
+            exports: HashMap::default(),
             modules,
             broken: RefCell::default(),
         };

@@ -11,7 +11,7 @@
 //! exempts. The private `sealed` array is covered through the four
 //! fields it shares.
 
-use std::collections::HashSet;
+use hd_base::HashSet;
 
 use hd_base::DefId;
 use hd_cache::MemoryStore;
@@ -59,8 +59,8 @@ fn every_known_item_is_declared() {
         syms: &syms,
         known: &known,
     };
-    let mut defs = HashSet::new();
-    let mut modules = HashSet::new();
+    let mut defs = HashSet::default();
+    let mut modules = HashSet::default();
     for (folder, blob) in &out.ifaces {
         let (items, exports) = hd_resolve::decode_items(&names, blob)
             .unwrap_or_else(|| panic!("undecodable interface for folder {folder}"));

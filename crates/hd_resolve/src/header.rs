@@ -2,7 +2,7 @@
 //! the impl heads of frozen interfaces. The header checks that need goals
 //! are `hd_check::header`'s, asked through the solver.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::DefId;
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
@@ -18,7 +18,7 @@ pub struct Universe<'a> {
 impl<'a> Universe<'a> {
     #[must_use]
     pub fn new(names: Names<'a>, all: impl Iterator<Item = &'a Item>) -> Self {
-        let mut impls: HashMap<DefId, Vec<&Item>> = HashMap::new();
+        let mut impls: HashMap<DefId, Vec<&Item>> = HashMap::default();
         for it in all {
             if let ItemData::Impl { trait_, kind, .. } = it.data
                 && trait_ != DefId::NONE
@@ -54,7 +54,7 @@ impl<'a> Universe<'a> {
             let mut heads: Vec<(DefId, Ty, TyList)> = Vec::new();
             let mut list: Vec<&&Item> = self.impls[tr].iter().collect();
             list.sort_by_cached_key(|i| order(i.def));
-            let mut reported = std::collections::HashSet::new();
+            let mut reported = hd_base::HashSet::default();
             // A tuple template implements the trait for every tuple type,
             // so an implementation written for a tuple overlaps it
             // (`annot.template.tuple.overlap`).
@@ -103,7 +103,7 @@ impl<'a> Universe<'a> {
                     if a.0 == b.0 || reported.contains(&b.0) {
                         continue;
                     }
-                    let mut sub = HashMap::new();
+                    let mut sub = HashMap::default();
                     if self.unify(a.1, b.1, a.0, b.0, &mut sub)
                         && self.unify_list(a.2, b.2, a.0, b.0, &mut sub)
                     {

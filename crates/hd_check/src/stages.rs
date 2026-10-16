@@ -2,7 +2,8 @@
 //! §4.13.1, §4.13.10; `crates/hd_check/DESIGN.md` (trait solver) §5; `crates/hd_sched/DESIGN.md` §6.1):
 //! init order; overlap is `hd_resolve::Universe`.
 
-use std::collections::{BTreeSet, HashMap};
+use hd_base::HashMap;
+use std::collections::BTreeSet;
 
 use hd_base::DefId;
 
@@ -42,7 +43,7 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     }
     // Each binding of the cycle: its index, then the statement that
     // initializes it.
-    let mut binding: HashMap<DefId, usize> = HashMap::new();
+    let mut binding: HashMap<DefId, usize> = HashMap::default();
     let mut owner: Vec<(usize, DefId)> = Vec::new();
     for (m, sum) in modules.iter().enumerate() {
         for (d, s) in &sum.globals {
@@ -52,8 +53,8 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     }
     // The bindings each body reaches, through its calls: each body's set
     // pushed to its callers until nothing grows.
-    let mut reach: HashMap<DefId, BTreeSet<usize>> = HashMap::new();
-    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::new();
+    let mut reach: HashMap<DefId, BTreeSet<usize>> = HashMap::default();
+    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
     for sum in modules {
         for (d, f) in &sum.fns {
             let set: BTreeSet<usize> = f

@@ -3,7 +3,7 @@
 //! trait methods, static members, conversions, function values, bang calls
 //! and the row check of a callee's requirements.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
@@ -1113,7 +1113,7 @@ impl Ck<'_, '_> {
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
         // The first argument type seen for each inferred generic: later
         // arguments for the same generic must meet it by the join.
-        let mut join_first: HashMap<usize, Ty> = HashMap::new();
+        let mut join_first: HashMap<usize, Ty> = HashMap::default();
         let join_mark = self.diags.mark();
         // A trailing block supplies the final parameter, so positional
         // arguments fill the ones before it (`fn.trailing.arguments`).

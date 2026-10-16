@@ -13,7 +13,7 @@
 //! `no-common-type`, or `no-least-common-type` when the values do have a
 //! common type that these rules cannot reach.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, StageResult};
 use hd_diag::Code;

@@ -7,7 +7,7 @@
 //! by exactly one instruction. Exhaustiveness is Maranget's usefulness
 //! test over the arm patterns.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, Severity};
@@ -934,7 +934,7 @@ impl Ck<'_, '_> {
                 let Some(pat) = arm.children().next() else {
                     return unsupported("an arm without a pattern");
                 };
-                this.scopes.push(HashMap::new());
+                this.scopes.push(HashMap::default());
                 let mut binds = Vec::new();
                 let outer_rejected = std::mem::replace(&mut this.pattern_rejected, false);
                 this.declare_pattern(pat, st, &mut binds)?;

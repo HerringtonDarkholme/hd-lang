@@ -9,7 +9,8 @@
 //! (`cli.dep.verify.manifest`), and each selected tree against its tree
 //! line (`cli.dep.verify`).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use hd_diag::{Code, Severity};
@@ -290,7 +291,7 @@ pub fn select_edited(
 ) -> Selection {
     let mut sel = Selection::default();
     let mut nodes: Vec<Node> = Vec::new();
-    let mut local_index: HashMap<PathBuf, usize> = HashMap::new();
+    let mut local_index: HashMap<PathBuf, usize> = HashMap::default();
     for dir in members {
         let Ok(dir) = hd_base::path::canonicalize(dir) else {
             continue;
@@ -376,9 +377,9 @@ pub fn select_edited(
         }
     }
     let mut selected: Vec<(String, HostPath, Version, Place)> = Vec::new();
-    let mut reached: HashMap<String, usize> = HashMap::new();
+    let mut reached: HashMap<String, usize> = HashMap::default();
     if sel.problems.is_empty() {
-        let mut failed: HashSet<String> = HashSet::new();
+        let mut failed: HashSet<String> = HashSet::default();
         let mut queue = start;
         let mut at_queue = 0;
         while at_queue < queue.len() {
@@ -503,7 +504,7 @@ pub fn select_edited(
     }
     // Each selected version's tree line: kept, recorded, or an error
     // (`cli.dep.verify`, `cli.dep.missing-sum`, `cli.sum.keep`).
-    let mut chosen: HashMap<String, usize> = HashMap::new();
+    let mut chosen: HashMap<String, usize> = HashMap::default();
     if sel.problems.is_empty() {
         for (line, host, version, at) in &selected {
             let key = tree_key(&host.path, version);
@@ -556,7 +557,7 @@ pub fn select_edited(
     };
     // A package that another depends on has a library
     // (`cli.dep.no-library`); a local one is checked where it is built.
-    let mut checked: HashSet<usize> = HashSet::new();
+    let mut checked: HashSet<usize> = HashSet::default();
     for &i in &order {
         for e in &nodes[i].edges {
             let Some(t) = target_of(&e.target) else {

@@ -3,7 +3,7 @@
 //! §5.4, §5.5, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
 //! `disk.rs`.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::sync::{Arc, Mutex};
 
 use hd_base::{Hash128, NotImplemented, Stage, StageResult};

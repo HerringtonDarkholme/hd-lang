@@ -15,7 +15,8 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -688,7 +689,7 @@ struct ProgramTables {
     test_impls: hd_types::solver::ImplTable,
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
-    recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
+    recursive_enums: OnceLock<hd_base::HashSet<DefId>>,
 }
 
 /// The program's TIR bodies ([`Run::body_of`]), by item. Each is decoded
@@ -1969,7 +1970,7 @@ fn describe_cycles(
     // The folder adjacency the graph built, restricted to this package,
     // with the first `use` line making each edge.
     let mut adj = vec![Vec::new(); n];
-    let mut edges: HashMap<(usize, usize), (usize, u32, u32)> = HashMap::new();
+    let mut edges: HashMap<(usize, usize), (usize, u32, u32)> = HashMap::default();
     for (m, paths) in module_uses.iter().enumerate() {
         if table.modules[m].package != 0 {
             continue;
@@ -1999,7 +2000,7 @@ fn describe_cycles(
     }
     // The folders on some loop: every folder of every reported cycle, a
     // strongly connected component of the folder graph.
-    let mut looping = HashSet::new();
+    let mut looping = HashSet::default();
     for c in cycles {
         looping.extend(c.iter().map(|f| f.idx()));
     }
@@ -3772,7 +3773,7 @@ impl Run<'_> {
             .collect();
         // The interfaces that carry each impl, in folder order, so a key
         // reads those instead of every interface of the program.
-        let mut holders: HashMap<DefId, Vec<&FolderIface>> = HashMap::new();
+        let mut holders: HashMap<DefId, Vec<&FolderIface>> = HashMap::default();
         for i in &all {
             for it in &i.items {
                 if matches!(it.data, ItemData::Impl { .. }) {
@@ -4855,7 +4856,7 @@ impl Run<'_> {
     /// any other module.
     fn earlier_bindings(&self, m: usize) -> HashMap<hd_base::Symbol, InputBinding> {
         let names = self.names();
-        let mut out = HashMap::new();
+        let mut out = HashMap::default();
         for &(_, k) in self.earlier_inputs(m) {
             for b in self.input_bindings[k].get().into_iter().flatten() {
                 let name = names
@@ -5056,7 +5057,7 @@ impl Run<'_> {
         let mut groups: std::collections::BTreeMap<usize, Vec<OptInEntry>> =
             std::collections::BTreeMap::new();
         // Per data type or enum, its declaration facts bodies, built once.
-        let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::new();
+        let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::default();
         let mut derived = Derived::default();
         for (i, it) in cx.lookup.own.iter().enumerate() {
             let ItemData::Impl { trait_, kind, .. } = &it.data else {
@@ -5660,7 +5661,7 @@ impl Run<'_> {
         }
         let mut steps = sink.into_inner();
         // Two calls through one walker ask the same of each member.
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = hd_base::HashSet::default();
         steps.retain(|s| seen.insert(s.clone()));
         Some(Arc::from(steps))
     }
@@ -6102,8 +6103,8 @@ impl Run<'_> {
             return Some(p);
         }
         let names = self.names();
-        let mut items = HashMap::new();
-        let mut bodies: HashMap<Hash128, LazyBody> = HashMap::new();
+        let mut items = HashMap::default();
+        let mut bodies: HashMap<Hash128, LazyBody> = HashMap::default();
         let mut test_role_impls = Vec::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
@@ -6144,7 +6145,7 @@ impl Run<'_> {
                 }
             }
         }
-        let mut impl_rows = HashMap::new();
+        let mut impl_rows = HashMap::default();
         let mut members = Vec::new();
         for f in 0..self.table.folders.len() {
             let fid = FolderId::from_raw(u32_of(f));

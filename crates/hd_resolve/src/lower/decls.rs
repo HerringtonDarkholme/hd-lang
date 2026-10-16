@@ -6,8 +6,8 @@
 //! folder's items are lowered, over every module of the folder; a type
 //! or trait from another folder is read from its frozen interface.
 
+use hd_base::{HashMap, HashSet};
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
 
 use hd_base::{DefId, Span, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -40,7 +40,7 @@ pub(super) fn check(
     out: &[ModOut],
     diags: &mut DiagBuf,
 ) {
-    let mut own = HashMap::new();
+    let mut own = HashMap::default();
     for it in out.iter().flat_map(|m| &m.items) {
         own.entry(it.def).or_insert(it);
     }
@@ -70,7 +70,7 @@ impl Folder<'_, '_> {
     /// builder's (`test_scope_of`).
     fn module_names(&self, diags: &mut DiagBuf) {
         for (m, heads) in self.mods.iter().zip(self.heads) {
-            let mut seen = HashSet::new();
+            let mut seen = HashSet::default();
             for h in heads
                 .iter()
                 .filter(|h| h.kind != HeadKind::Impl && h.local.is_none() && h.test.is_none())
@@ -187,8 +187,8 @@ impl Folder<'_, '_> {
         supers: &[hd_types::Ty],
     ) -> HashMap<Symbol, bool> {
         let pool = self.names.pool;
-        let mut inherited: HashMap<Symbol, bool> = HashMap::new();
-        let mut visited = HashSet::from([owner]);
+        let mut inherited: HashMap<Symbol, bool> = HashMap::default();
+        let mut visited = HashSet::from_iter([owner]);
         let mut todo = supers.to_vec();
         while let Some(s) = todo.pop() {
             let TyData::TraitValue { def, .. } = pool.get(s) else {
@@ -269,7 +269,7 @@ impl Folder<'_, '_> {
     /// included. The later member is reported.
     fn inherent_members(&self, diags: &mut DiagBuf) {
         // By member name: each declaration's implementation, target and place.
-        let mut by_name: HashMap<String, Vec<(DefId, hd_types::Ty, Span)>> = HashMap::new();
+        let mut by_name: HashMap<String, Vec<(DefId, hd_types::Ty, Span)>> = HashMap::default();
         let mut order = Vec::new();
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
@@ -310,13 +310,13 @@ impl Folder<'_, '_> {
         }
         let u = Universe {
             names: self.names,
-            impls: HashMap::new(),
+            impls: HashMap::default(),
         };
         for name in order {
             let decls = &by_name[&name];
             for (j, (def, ty, span)) in decls.iter().enumerate() {
                 let clash = decls[..j].iter().any(|(d, t, _)| {
-                    let mut sub = HashMap::new();
+                    let mut sub = HashMap::default();
                     u.unify(*t, *ty, *d, *def, &mut sub)
                 });
                 if clash {
@@ -401,7 +401,7 @@ impl Folder<'_, '_> {
         };
         let reaches = |from: DefId, to: DefId| -> Option<Vec<DefId>> {
             // A path of embedded types from `from` to `to`, if any.
-            let mut seen = HashSet::new();
+            let mut seen = HashSet::default();
             let mut stack = vec![vec![from]];
             while let Some(path) = stack.pop() {
                 let last = path[path.len() - 1];

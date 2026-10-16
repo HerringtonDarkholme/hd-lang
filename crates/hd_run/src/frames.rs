@@ -13,7 +13,7 @@
 //! and printed function name, resolved when it was written, so `hd
 //! FILE.wasm` prints a panic's frames without the compiler's cache.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use crate::imports::{Bytes, all_sections, import_kinds};
 

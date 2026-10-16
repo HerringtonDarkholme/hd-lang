@@ -4,7 +4,7 @@
 //! trait.binding.name-reach). Header lowering and the body checker both
 //! read traits through these, each with its own view of the declarations.
 
-use std::collections::HashSet;
+use hd_base::HashSet;
 
 use hd_base::DefId;
 use hd_diag::Code;
@@ -26,7 +26,7 @@ pub trait TraitView {
 #[must_use]
 pub fn reached_assocs(pool: Types<'_>, view: &dyn TraitView, trait_: DefId) -> Vec<DefId> {
     let mut out = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let mut todo = vec![trait_];
     while let Some(t) = todo.pop() {
         if !seen.insert(t) {
@@ -58,7 +58,7 @@ pub fn assoc_decls(
     name: &str,
 ) -> Vec<(DefId, TyList, DefId)> {
     let mut out: Vec<(DefId, TyList, DefId)> = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let mut todo = vec![(trait_, args)];
     while let Some((t, a)) = todo.pop() {
         if !seen.insert((t, a)) {
@@ -183,7 +183,7 @@ fn super_fixed(
     (trait_, args, self_ty): (DefId, TyList, Option<Ty>),
 ) -> Vec<Fixed> {
     let mut out: Vec<Fixed> = Vec::new();
-    let mut seen: HashSet<(DefId, TyList)> = HashSet::new();
+    let mut seen: HashSet<(DefId, TyList)> = HashSet::default();
     let mut todo = vec![(trait_, args)];
     while let Some((tr, a)) = todo.pop() {
         if !seen.insert((tr, a)) {

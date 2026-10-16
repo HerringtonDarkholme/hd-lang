@@ -5,7 +5,7 @@
 //! (the top-level bindings it reads, the same-module functions it calls);
 //! definite initialization combines them bottom-up over the call graph.
 
-use std::collections::{HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -19,7 +19,7 @@ use hd_types::{RowData, RowId, Ty};
 
 use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, new_ck, unsupported};
 
-type Set = std::collections::HashSet<hd_base::LocalId>;
+type Set = hd_base::HashSet<hd_base::LocalId>;
 
 /// A top-level binding: its item, type and the statement that initializes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,8 +115,8 @@ pub fn earlier_binding_clashes(
 #[derive(Clone, Debug)]
 pub(crate) struct CondFlow {
     pub node: NodeIdx,
-    pub on_true: std::collections::HashSet<hd_base::LocalId>,
-    pub on_false: std::collections::HashSet<hd_base::LocalId>,
+    pub on_true: hd_base::HashSet<hd_base::LocalId>,
+    pub on_false: hd_base::HashSet<hd_base::LocalId>,
 }
 
 /// What one body or top-level statement reaches directly.
@@ -808,7 +808,7 @@ impl Ck<'_, '_> {
                 self.err(Code::MissingRequiredField, at, &msg);
                 return Ok(Vec::new());
             };
-            self.scopes.push(HashMap::new());
+            self.scopes.push(HashMap::default());
             for (k, r) in out.iter().enumerate() {
                 // A shared constructor parameter is a field, not a local.
                 self.check_local_name(params[k].0, e);
@@ -1021,7 +1021,7 @@ impl Ck<'_, '_> {
         let cx = self.cx;
         let mut init = cx.init.borrow_mut();
         let by_trait = init.impl_methods.get_or_insert_with(|| {
-            let mut by_trait: HashMap<DefId, Vec<(Symbol, DefId)>> = HashMap::new();
+            let mut by_trait: HashMap<DefId, Vec<(Symbol, DefId)>> = HashMap::default();
             for it in cx.lookup.own {
                 let ItemData::Method { owner, .. } = &it.data else {
                     continue;
@@ -1095,8 +1095,8 @@ pub fn definite_init(
     // The latest statement among the bindings each function reads,
     // through its calls: its callees' values pushed to the callers, so a
     // statement is tested without walking the graph again.
-    let mut latest: HashMap<DefId, usize> = HashMap::new();
-    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::new();
+    let mut latest: HashMap<DefId, usize> = HashMap::default();
+    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
     let mut work = Vec::new();
     for (d, f) in &init.facts {
         if let Some(m) = f.reads.iter().filter_map(|g| at.get(g)).max() {
@@ -1127,7 +1127,7 @@ pub fn definite_init(
             continue;
         }
         // Only an error names the binding: the earliest one, by statement.
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         let mut reads = f.reads.clone();
         let mut work: Vec<DefId> = f.calls.iter().copied().collect();
         while let Some(d) = work.pop() {

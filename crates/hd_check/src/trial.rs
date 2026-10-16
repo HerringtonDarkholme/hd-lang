@@ -42,7 +42,7 @@ pub(crate) struct Checkpoint {
     /// The flags of the locals older than the trial (a read marks them).
     flags: Vec<u8>,
     facts: crate::init::InitFacts,
-    uninit: std::collections::HashSet<hd_base::LocalId>,
+    uninit: hd_base::HashSet<hd_base::LocalId>,
     bound: usize,
     /// A closure frame's used keys grow when an argument uses a key.
     rows: Vec<RowFrame>,

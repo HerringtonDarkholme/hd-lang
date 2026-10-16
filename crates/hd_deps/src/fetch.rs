@@ -2,7 +2,7 @@
 //! (`cli.dep.implicit-fetch`, `cli.dep.fetch`). A version the cache holds
 //! needs no git and no network (`cli.dep.offline`).
 
-use std::collections::{HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use hd_diag::Code;
@@ -96,10 +96,10 @@ impl<'a> Remote<'a> {
         Remote {
             cache,
             git: Git::new(),
-            refs: HashMap::new(),
-            full: HashMap::new(),
-            answered: HashMap::new(),
-            ssh_hosts: HashSet::new(),
+            refs: HashMap::default(),
+            full: HashMap::default(),
+            answered: HashMap::default(),
+            ssh_hosts: HashSet::default(),
             progress,
         }
     }

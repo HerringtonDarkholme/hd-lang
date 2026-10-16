@@ -150,6 +150,15 @@ fn row_polymorphic_programs_build_identically_in_every_order() {
         assert_eq!(out.wasm, base_out.wasm, "pool {n}");
         same_entries(&e, &base_entries, &format!("pool {n}"));
     }
+    // Another hash-table seed: no table's order reaches the output
+    // (docs/compiler/data-structures.md §3.2).
+    for seed in [1, 0x5eed] {
+        hd_base::set_hash_seed(seed);
+        let (out, e) = build_in(&base(), Executor::Pool(2));
+        hd_base::set_hash_seed(0);
+        assert_eq!(out.wasm, base_out.wasm, "seed {seed}");
+        same_entries(&e, &base_entries, &format!("seed {seed}"));
+    }
     // File insertion order changes which type and trait is interned first.
     let flipped = sources(&[("geo/keys.hd", KEYS), ("app/main.hd", MAIN)]);
     let (out, e) = build_in(&flipped, Executor::Serial(SerialOrder::Shuffled(3)));

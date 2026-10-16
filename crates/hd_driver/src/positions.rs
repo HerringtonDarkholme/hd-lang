@@ -14,7 +14,7 @@
 //! `test "NAME"`. The module carries its printed path, so the line table
 //! keeps stable paths and a release build's `hd.names` names the same.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
@@ -209,7 +209,7 @@ impl ModuleSource {
             ShardedInterner::default(),
         );
         let mut names = read_frame_names(sections.get(7)?)?;
-        let mut bodies = HashMap::new();
+        let mut bodies = HashMap::default();
         let mut r = Reader::new(sections.get(3)?);
         for _ in 0..r.count() {
             // The item's path hash, then the body.
@@ -291,7 +291,7 @@ pub(crate) fn write_frame_names(
 /// The frame names [`write_frame_names`] wrote, by body path.
 fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, String>> {
     let mut r = Reader::new(bytes);
-    let mut names = HashMap::new();
+    let mut names = HashMap::default();
     for _ in 0..r.count() {
         let path = r.str().to_owned();
         let segs: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();

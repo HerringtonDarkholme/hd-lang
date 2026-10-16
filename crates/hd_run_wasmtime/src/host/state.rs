@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use hd_base::HashSet;
 use std::io::{BufRead, Write};
 use std::time::{Duration, Instant};
 
@@ -106,7 +106,7 @@ impl Host {
             program,
             grants,
             sandbox: crate::fs::Sandbox::default(),
-            noticed: HashSet::new(),
+            noticed: HashSet::default(),
             net: net::Client::default(),
             heap: crate::limits::HeapBudget::new(crate::limits::Ledger::new(memory_bytes)),
             deadline,

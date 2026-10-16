@@ -402,7 +402,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
         });
     };
     // The root's part of the graph, the root first.
-    let mut index: std::collections::HashMap<usize, u16> = [(0, 0)].into();
+    let mut index: hd_base::HashMap<usize, u16> = [(0, 0)].into_iter().collect();
     let mut order = vec![0];
     let mut next = 0;
     while next < order.len() {

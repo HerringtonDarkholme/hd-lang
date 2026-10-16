@@ -184,7 +184,7 @@ fn rebuild_from(repl: &mut Repl<'_>, journal: &[u8]) -> crate::Rebuilt {
         built: &mut repl.built,
         store: &repl.store,
         texts: &repl.texts,
-        added: std::collections::HashMap::new(),
+        added: hd_base::HashMap::default(),
         building: std::time::Duration::ZERO,
     };
     repl.session

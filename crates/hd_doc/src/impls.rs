@@ -3,7 +3,7 @@
 //! whichever module, with derived ones marked. The blobs decode into
 //! fresh run tables, so this needs nothing of the run but the bytes.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::sync::Arc;
 
 use hd_base::DefId;
@@ -30,7 +30,7 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
         known: &known,
     };
     let below = format!("{root}.");
-    let mut out = ImplLines::new();
+    let mut out = ImplLines::default();
     for (folder, blob) in ifaces {
         if folder != root && !folder.starts_with(&below) {
             continue;

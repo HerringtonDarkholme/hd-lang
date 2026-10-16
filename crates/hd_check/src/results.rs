@@ -18,7 +18,7 @@
 //! and the rows of the recursive group are the least solution of its edges
 //! once no member is being checked (`req.row.omitted.cycle`).
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -107,7 +107,7 @@ pub struct Results {
     template_named: Vec<DefId>,
     /// The templates with a method that calls `walk`, `describe` or
     /// `build` of `Structure` (`annot.template.body`).
-    structure_reads: std::collections::HashSet<DefId>,
+    structure_reads: hd_base::HashSet<DefId>,
     /// Whether a body with an inferred result or a cycle reported an error.
     errors: bool,
 }
@@ -287,7 +287,7 @@ impl Results {
             return;
         }
         let pool = cx.names.pool.types();
-        let mut cur: HashMap<DefId, RowData> = HashMap::new();
+        let mut cur: HashMap<DefId, RowData> = HashMap::default();
         let mut edges: Vec<(DefId, RowEdge)> = Vec::new();
         for d in &group {
             if let Some(RowState::Waiting { used, edges: es }) = self.rows.get(d) {
@@ -530,7 +530,7 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
             })
             .collect()
     };
-    let mut by_name: HashMap<&str, Vec<usize>> = HashMap::new();
+    let mut by_name: HashMap<&str, Vec<usize>> = HashMap::default();
     for (i, (d, _)) in defs.iter().enumerate() {
         if let Some(it) = cx.lookup.item(*d) {
             by_name.entry(cx.names.text(it.name)).or_default().push(i);

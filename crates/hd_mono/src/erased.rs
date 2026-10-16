@@ -304,11 +304,11 @@ pub(crate) struct WitnessCx {
     /// Per family, its erased bodies.
     pub bodies: BTreeMap<Hash128, Vec<ErasedBody>>,
     /// Per erased body's key, its family.
-    pub family_of: std::collections::HashMap<Hash128, Hash128>,
+    pub family_of: hd_base::HashMap<Hash128, Hash128>,
     /// Per family, the method type arguments `dyn` calls pass, by name.
     pub pairs: BTreeMap<Hash128, BTreeMap<Hash128, Vec<Ty>>>,
     /// Per `(family, arguments, erased body)`, its thunks in order.
-    pub thunks: std::collections::HashMap<(Hash128, Hash128, Hash128), Vec<Hash128>>,
+    pub thunks: hd_base::HashMap<(Hash128, Hash128, Hash128), Vec<Hash128>>,
 }
 
 /// The program's witnesses (§13.5.1), which link writes as constant

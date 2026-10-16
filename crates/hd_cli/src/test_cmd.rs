@@ -243,7 +243,7 @@ pub fn command(args: &[OsString]) -> ExitCode {
     };
     let mut report = Report {
         rep: Reporter::stdout(o.json),
-        inputs: std::collections::HashMap::new(),
+        inputs: hd_base::HashMap::default(),
         text: String::new(),
         passed: 0,
         failed: 0,
@@ -1392,7 +1392,7 @@ fn category_of(category: &str, message: &str) -> (String, String) {
 struct Report {
     rep: Reporter,
     /// A failed property case's shrunk input (`std-testing.prop.report`).
-    inputs: std::collections::HashMap<CaseKey, String>,
+    inputs: hd_base::HashMap<CaseKey, String>,
     text: String,
     passed: usize,
     failed: usize,

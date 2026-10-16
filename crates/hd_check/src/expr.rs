@@ -2,7 +2,7 @@
 //! interpolation, names, operators, fields, indexing, collection and data
 //! literals, `if`, loops, closures, `?`, ranges and providers.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::DefId;
 use hd_base::StageResult;
@@ -2583,7 +2583,7 @@ impl Ck<'_, '_> {
         let opt = pool.intern_ty(&TyData::Option(item_ty));
         let result = els.map(|(_, t)| t);
         self.loops.push((lp, result));
-        self.scopes.push(HashMap::new());
+        self.scopes.push(HashMap::default());
         let mut binds = Vec::new();
         let before = self.diags.len();
         self.declare_pattern(pat, item_ty, &mut binds)?;
@@ -2658,7 +2658,7 @@ impl Ck<'_, '_> {
         // The round: bind, advance, then the body.
         let tb = self.b.open_block();
         self.loops.push((lp, result));
-        self.scopes.push(HashMap::new());
+        self.scopes.push(HashMap::default());
         let item = self.b.get(cur_l, et, at);
         let mut binds = Vec::new();
         self.declare_pattern(pat, et, &mut binds)?;
@@ -2846,7 +2846,7 @@ impl Ck<'_, '_> {
         let tag = if is_map { Tag::NewMap } else { Tag::NewList };
         let fresh = self.b.emit(tag, NONE, empty, mt, n.index());
         self.b.set(acc, fresh, n.index());
-        self.scopes.push(HashMap::new());
+        self.scopes.push(HashMap::default());
         let r = self.clauses(clauses, *element, (acc, mt), &args, n);
         self.scopes.pop();
         r?;
@@ -3057,7 +3057,7 @@ impl Ck<'_, '_> {
         let suspends = parts.suspends;
         let mut params = Vec::new();
         let mut ptys = Vec::new();
-        self.scopes.push(HashMap::new());
+        self.scopes.push(HashMap::default());
         if let Some(pl) = parts.params {
             let upto = parts.upto.unwrap_or(usize::MAX);
             for (i, p) in pl

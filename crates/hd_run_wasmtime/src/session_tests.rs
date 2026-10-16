@@ -124,7 +124,7 @@ struct Again<'r> {
     store: &'r hd_cache::MemoryStore,
     texts: &'r BTreeMap<u32, String>,
     /// What each input built adds to the session once it is replayed.
-    added: std::collections::HashMap<u32, hd_driver::Session>,
+    added: hd_base::HashMap<u32, hd_driver::Session>,
     /// The time spent building.
     building: std::time::Duration,
 }
@@ -271,7 +271,7 @@ impl Repl<'_> {
             built: &mut self.built,
             store: &self.store,
             texts: &self.texts,
-            added: std::collections::HashMap::new(),
+            added: hd_base::HashMap::default(),
             building: std::time::Duration::ZERO,
         };
         let rebuilt = self

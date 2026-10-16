@@ -6,7 +6,7 @@
 //! node. Each node's 128-bit stable hash is computed once, at intern time:
 //! `hash(node) = H(hash(parent) ‖ kind ‖ segment bytes)`.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::fmt::Write as _;
 use std::sync::Mutex;
 
@@ -76,8 +76,8 @@ impl Default for PathTable {
             hash: AppendVec::new(),
             def_module: AppendVec::new(),
             append: Mutex::new(()),
-            param_names: Mutex::new(HashMap::new()),
-            index: std::array::from_fn(|_| Mutex::new(HashMap::new())),
+            param_names: Mutex::new(HashMap::default()),
+            index: std::array::from_fn(|_| Mutex::new(HashMap::default())),
         }
     }
 }
@@ -222,7 +222,7 @@ impl Default for ShardedInterner {
         Self {
             text: AppendVec::new(),
             append: Mutex::new(()),
-            index: std::array::from_fn(|_| Mutex::new(HashMap::new())),
+            index: std::array::from_fn(|_| Mutex::new(HashMap::default())),
         }
     }
 }

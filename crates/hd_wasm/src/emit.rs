@@ -5,7 +5,7 @@
 //! to collection's recorded targets; nothing is selected here. A tag or
 //! form this walk does not lower yet answers the structured `unsupported`.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{BuildProfile, DefId, Hash128, NodeIdx, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
@@ -110,7 +110,7 @@ struct Em<'a> {
 /// The locals a closure captures by shared cell, each with its first
 /// `LocalSet` (the declaration, which makes a fresh cell).
 fn cell_locals(b: &Body) -> HashMap<u32, u32> {
-    let mut cells = HashMap::new();
+    let mut cells = HashMap::default();
     for (c, l) in b.cap_local.iter().enumerate() {
         if b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared) {
             cells.insert(l.raw(), u32::MAX);
@@ -3981,7 +3981,7 @@ fn plan(b: &Body, root: u32) -> StageResult<Plan> {
         }
         Ok(r)
     }
-    let mut p = (HashMap::new(), HashMap::new());
+    let mut p = (HashMap::default(), HashMap::default());
     let mut next = 0;
     block(b, root, &mut p, &mut next)?;
     Ok(p)
@@ -4006,15 +4006,15 @@ impl<'a> Em<'a> {
             a,
             locals: vec![None; b.local_ty.len()],
             cells: cell_locals(b),
-            vals: HashMap::new(),
+            vals: HashMap::default(),
             ctrl: Vec::new(),
             deciding: Vec::new(),
             providers: Vec::new(),
             key,
             results,
             ret: None,
-            scopes: HashMap::new(),
-            defer_flags: HashMap::new(),
+            scopes: HashMap::default(),
+            defer_flags: HashMap::default(),
             susp: None,
             ops: None,
         }
@@ -4364,9 +4364,9 @@ impl<'a> Em<'a> {
     /// reached twice, as `Display` is through two paths of a diamond, is
     /// built once.
     fn vtable_value(&mut self, table: &VTable, key: Ty, fv: &[VT]) -> StageResult<()> {
-        let mut uses: HashMap<Ty, u32> = HashMap::new();
+        let mut uses: HashMap<Ty, u32> = HashMap::default();
         self.count_tables(table, key, &mut uses)?;
-        let mut built = HashMap::new();
+        let mut built = HashMap::default();
         self.push_table(table, key, fv, &uses, &mut built)
     }
 
@@ -5429,7 +5429,7 @@ fn emit_call_adapter(
     b.data.push([callee_at, args_at]);
     b.ty.push(ret);
     b.syn.push(NodeIdx::NONE);
-    let calls = HashMap::from([(n, target)]);
+    let calls = HashMap::from_iter([(n, target)]);
     let mut em = Em::new(
         Lay::new(pool, env, lay.path, lay.shared),
         &b,

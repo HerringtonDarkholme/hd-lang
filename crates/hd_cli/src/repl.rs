@@ -24,7 +24,8 @@
 //! that still build and replay are kept; the REPL reports each stopped
 //! input the rebuild skipped and the first input it dropped.
 
-use std::collections::{BTreeMap, HashMap};
+use hd_base::HashMap;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -616,7 +617,7 @@ impl Repl {
             built: &mut self.built,
             store: &self.store,
             texts: &self.texts,
-            added: HashMap::new(),
+            added: HashMap::default(),
             diagnostics: Vec::new(),
         };
         let rebuilt = self.session.rebuild(&mut again);

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::Symbol;
 

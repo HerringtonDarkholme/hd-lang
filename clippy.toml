@@ -1,0 +1,8 @@
+# In-run hash tables use `hd_base`'s fixed-seed `HashMap` and `HashSet`,
+# so no randomly seeded table's order can reach output
+# (docs/compiler/data-structures.md §3.2).
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "use hd_base::HashMap, which has a fixed seed" },
+  { path = "std::collections::HashSet", reason = "use hd_base::HashSet, which has a fixed seed" },
+  { path = "std::hash::RandomState", reason = "in-run tables use hd_base::FixedState" },
+]

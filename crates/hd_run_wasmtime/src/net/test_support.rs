@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use hd_base::HashSet;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -60,7 +60,7 @@ impl Net {
             client: Client::default(),
             reactor: Reactor::new(None),
             ledger: Ledger::new(u64::MAX),
-            completed: HashSet::new(),
+            completed: HashSet::default(),
         }
     }
 

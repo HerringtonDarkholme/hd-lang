@@ -87,10 +87,14 @@ The design used fixed-seed tables and forbade iterating one outside
 `hd_base` (a clippy `disallowed_methods` entry), so no table order can
 reach output; the determinism matrix would vary the seed (§8.1).
 
-Implementation differs: in-run tables are `std` `HashMap`s with a
-per-process random seed, and no lint forbids iterating them (for example
-`crates/hd_intern/src/paths.rs:53`). An order leak is found only if a
-test happens to hit it.
+In-run tables are `hd_base::HashMap` and `HashSet`: `std`'s tables with
+a fixed seed (`hd_base/src/hash.rs`). `clippy.toml` bans `std`'s randomly
+seeded `HashMap`, `HashSet` and `RandomState` outside that module. The
+determinism tests (`hd_driver/tests/all/*_determinism.rs`) also build at
+two other seeds and compare the bytes. Implementation differs: iterating
+a fixed-seed table is not banned (about 35 `iter`, `keys`, `values` and
+`drain` calls, plus `for` loops), so a leak is found only when the second
+seed changes a tested output.
 
 **Wire form.** None: blobs and entries carry their own path rows of
 `(parent, kind, segment)`, written from the trie and re-interned on read

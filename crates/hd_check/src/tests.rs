@@ -9,7 +9,7 @@
 //! the std body that drives the rows or the property's cases through the
 //! runner (`case_runner`).
 
-use std::collections::HashSet;
+use hd_base::HashSet;
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -214,9 +214,9 @@ pub fn check_tests(
     diags: &mut DiagBuf,
 ) -> StageResult<TestsOut> {
     let mut out = TestsOut::default();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     // The names of the module's `it_each` calls.
-    let mut tables: HashSet<String> = HashSet::new();
+    let mut tables: HashSet<String> = HashSet::default();
     let src = &cx.src;
     for s in stmts.iter().copied() {
         let Some((call, kind, block)) = registration(cx, s) else {

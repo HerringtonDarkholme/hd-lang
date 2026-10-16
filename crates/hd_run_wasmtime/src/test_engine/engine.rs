@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 

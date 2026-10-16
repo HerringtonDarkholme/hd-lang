@@ -14,7 +14,7 @@ mod links;
 mod lookup;
 mod stdref;
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -305,7 +305,7 @@ fn module_page(
     }
     let name = shown_name(m.path);
     let base = format!("doc {name}");
-    let mut counts = HashMap::new();
+    let mut counts = HashMap::default();
     let stem = page_stem(m.path);
     let mut cx = Cx {
         counts: &mut counts,

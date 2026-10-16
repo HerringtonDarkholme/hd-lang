@@ -7,7 +7,8 @@
 //! fuel charged per proof node); the projection goal is still not
 //! implemented (the checker normalizes).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 

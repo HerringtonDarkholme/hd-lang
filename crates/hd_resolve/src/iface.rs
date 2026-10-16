@@ -3,7 +3,7 @@
 //! `crates/hd_check/DESIGN.md` (trait solver) §3.3). Types are `hd_types` types in the run's pool; a
 //! blob carries them through entry-local tables.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::sync::Arc;
 
 use crate::known::KnownItems;
@@ -665,13 +665,13 @@ pub struct FolderIface {
     /// top-level declaration without `pub`, as (module path, name). A
     /// failed export lookup that finds a row is `private-import`. Outside
     /// every hash; diagnostics only.
-    pub private_names: std::collections::HashSet<(String, Symbol)>,
+    pub private_names: hd_base::HashSet<(String, Symbol)>,
     /// Names no use can reach through this folder: each public name whose
     /// `pub use` chain loops (`module.pub-use.chain.loop`), as (module
     /// path, name). A failed export lookup that finds a row is
     /// `re-export-loop`, reported where the loop was built, quietly
     /// through other folders. Outside every hash; diagnostics only.
-    pub loop_names: std::collections::HashSet<(String, Symbol)>,
+    pub loop_names: hd_base::HashSet<(String, Symbol)>,
     /// The modules a REPL input's `use`s name, as (input module path,
     /// local name, module path): what the input leaves in the session
     /// besides its exports (`cli.repl.uses.other`). Empty for any other
@@ -1200,7 +1200,7 @@ pub fn interface_items(items: &[Item]) -> Vec<Item> {
 #[must_use]
 pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> Vec<DefId> {
     let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = hd_base::HashSet::default();
     let mut push = |d: DefId, out: &mut Vec<DefId>| {
         if d != DefId::NONE && seen.insert(d) {
             out.push(d);
@@ -1256,7 +1256,7 @@ pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> 
         push(e.def, &mut out);
     }
     let mut stack = tys;
-    let mut seen_ty = std::collections::HashSet::new();
+    let mut seen_ty = hd_base::HashSet::default();
     while let Some(t) = stack.pop() {
         if !seen_ty.insert(t) {
             continue;
@@ -1345,9 +1345,9 @@ pub fn folder_iface(
         blob,
         api_hash,
         deep_hash,
-        spans: HashMap::new(),
-        private_names: std::collections::HashSet::new(),
-        loop_names: std::collections::HashSet::new(),
+        spans: HashMap::default(),
+        private_names: hd_base::HashSet::default(),
+        loop_names: hd_base::HashSet::default(),
         module_uses,
     }
 }

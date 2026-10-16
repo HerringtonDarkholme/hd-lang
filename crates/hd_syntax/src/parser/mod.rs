@@ -11,7 +11,7 @@ mod patterns;
 mod stmts;
 mod types;
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{FileId, ItemIdx, NodeIdx, Span, Symbol, TokenIdx};
 use hd_diag::{Code, Diagnostic};

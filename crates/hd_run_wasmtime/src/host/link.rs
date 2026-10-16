@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use hd_base::HashSet;
 
 use hd_run::journal::{self, Recorder};
 use wasmtime::{Caller, FuncType, Linker, Val, ValType};
@@ -35,7 +35,7 @@ pub fn define(
     define_with(
         linker,
         module.imports(),
-        &mut HashSet::new(),
+        &mut HashSet::default(),
         |module, name| Kind::with_profile(module, name, profile),
     )
 }
@@ -66,7 +66,7 @@ pub(crate) fn define_test(
     define_with(
         linker,
         module.imports(),
-        &mut HashSet::new(),
+        &mut HashSet::default(),
         |module, name| Kind::with_test(module, name, kind),
     )
 }

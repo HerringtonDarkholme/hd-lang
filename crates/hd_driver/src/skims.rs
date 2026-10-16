@@ -3,7 +3,7 @@
 //! ([`StdSkims`], `crates/hd_cache/DESIGN.md` §5.5 rule 7). Std is about 500 KB of text: on a
 //! warm run its skims were most of the run's time (#49).
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use hd_base::Hash128;
@@ -179,7 +179,7 @@ impl<'a> StdSkims<'a> {
         }
         let mut r = Reader::new(sections.first()?.1);
         let n = r.count();
-        let mut table = HashMap::with_capacity(n);
+        let mut table = HashMap::with_capacity_and_hasher(n, hd_base::FixedState::default());
         for _ in 0..n {
             let path = r.str().to_owned();
             table.insert(path, Arc::new(FileSkim::read(&mut r)));

@@ -22,7 +22,8 @@
 //! The caches are intentionally in-process only. wasmtime's serialized
 //! modules are `unsafe` to deserialize, so no cross-run artifact cache.
 
-use std::collections::{HashMap, VecDeque};
+use hd_base::HashMap;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use crate::{EngineConfig, OptLevel};
@@ -123,7 +124,7 @@ pub(crate) struct Shared {
 static ON_DEMAND: OnceLock<Mutex<HashMap<OnDemandKey, Arc<Shared>>>> = OnceLock::new();
 
 fn on_demand_engines() -> &'static Mutex<HashMap<OnDemandKey, Arc<Shared>>> {
-    ON_DEMAND.get_or_init(|| Mutex::new(HashMap::new()))
+    ON_DEMAND.get_or_init(|| Mutex::new(HashMap::default()))
 }
 
 /// The shared on-demand engine for `config`, creating it on first use.

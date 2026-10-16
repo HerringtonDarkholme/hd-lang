@@ -13,7 +13,7 @@
 //! error is the one reported. Places with fewer than two facts are never
 //! typed here.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::DefId;
 use hd_diag::{Code, DiagBuf};
@@ -68,7 +68,7 @@ fn report_repeats(
         (Ty::VOID, RowId::EMPTY),
         &mut scratch,
     );
-    let mut seen: HashMap<Ty, u32> = HashMap::new();
+    let mut seen: HashMap<Ty, u32> = HashMap::default();
     for ty in prior.unwrap_or_default() {
         *seen.entry(*ty).or_insert(0) += 1;
     }

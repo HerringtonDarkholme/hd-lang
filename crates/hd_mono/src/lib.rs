@@ -11,7 +11,8 @@ pub mod erased;
 pub mod layout;
 pub mod plan;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use hd_base::{
@@ -790,7 +791,7 @@ fn layout_hash(
     let mut h = StableHasher::new("layout-hash");
     h.hash(canon(pool, &ph, canons, t));
     let mut items = Vec::new();
-    items_in(pool, t, &mut items, &mut HashSet::new());
+    items_in(pool, t, &mut items, &mut HashSet::default());
     let mut hashes: Vec<Hash128> = items
         .into_iter()
         .map(|d| declarations_hash(pool, env, d, canons, memo))
@@ -825,7 +826,7 @@ fn declarations_hash(
         let mut h = StableHasher::new("declaration");
         h.hash(ph(d));
         let mut names = Vec::new();
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         let tys = declared_types(env, d);
         h.u32(u32::try_from(tys.len()).expect("types"));
         for t in tys {
@@ -839,7 +840,7 @@ fn declarations_hash(
     // Per visited item, by visit number: the item, its own hash, the items
     // it names, its low link and whether it is on `stack`.
     let (own, names) = read(root, canons);
-    let mut index: HashMap<DefId, usize> = HashMap::from([(root, 0)]);
+    let mut index: HashMap<DefId, usize> = HashMap::from_iter([(root, 0)]);
     let mut nodes = vec![(root, own, names)];
     let (mut low, mut on, mut stack) = (vec![0], vec![true], vec![0]);
     let mut call: Vec<(usize, usize)> = vec![(0, 0)];
@@ -874,8 +875,7 @@ fn declarations_hash(
         }
         let at = stack.iter().rposition(|&x| x == v).expect("on the stack");
         let members = stack.split_off(at);
-        let inside: std::collections::HashSet<DefId> =
-            members.iter().map(|&m| nodes[m].0).collect();
+        let inside: hd_base::HashSet<DefId> = members.iter().map(|&m| nodes[m].0).collect();
         let mut owns: Vec<Hash128> = Vec::new();
         let mut outside: Vec<Hash128> = Vec::new();
         for &m in &members {
@@ -1507,7 +1507,7 @@ impl Cx<'_> {
     /// unwrap. Checking already reports a missing trait at the signature;
     /// selection here keeps the codec instances reachable for emission.
     fn note_boundary_codecs(&mut self, roots: &[(DefId, TyList)]) -> StageResult<()> {
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::default();
         for (def, args) in roots {
             for key in self.env.row_keys(*def, *args) {
                 let TyData::TraitValue {
@@ -1543,7 +1543,7 @@ impl Cx<'_> {
     /// codecs of the private types inside it.
     fn note_boundary_value(&mut self, ty: Ty, out: bool) -> StageResult<()> {
         let mut todo = vec![ty];
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         while let Some(ty) = todo.pop() {
             let mut ty = ty;
             while let TyData::Mut(inner) = self.pool.get(ty) {
@@ -2043,10 +2043,10 @@ impl Cx<'_> {
         }
         Sub::Adapter.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
-            self.out.calls.resize_with(id.idx() + 1, HashMap::new);
+            self.out.calls.resize_with(id.idx() + 1, HashMap::default);
             self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
         }
-        self.out.calls[id.idx()] = HashMap::from([(0, t)]);
+        self.out.calls[id.idx()] = HashMap::from_iter([(0, t)]);
         self.out.callee_reps[id.idx()] = reps.finish();
         Ok(())
     }
@@ -2115,13 +2115,13 @@ impl Cx<'_> {
         let Some(body) = supplied.as_ref().map(|s| &*s.1).or(env.body(item)) else {
             return err("an instance whose item has no TIR");
         };
-        let mut calls = HashMap::new();
+        let mut calls = HashMap::default();
         let mut reps = StableHasher::new("callee-reps");
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = hd_base::HashSet::default();
         let s = |t: Ty| subst(pool, env, item, args, t);
         // An erased body outlines its open instructions, and a thunk is
         // one of them at concrete arguments (`crates/hd_mono/DESIGN.md` §13.5.1).
-        let mut open: HashMap<u32, u32> = HashMap::new();
+        let mut open: HashMap<u32, u32> = HashMap::default();
         let mut only = None;
         match sub {
             Sub::Erased => {
@@ -2469,7 +2469,7 @@ impl Cx<'_> {
         }
         sub.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
-            self.out.calls.resize_with(id.idx() + 1, HashMap::new);
+            self.out.calls.resize_with(id.idx() + 1, HashMap::default);
             self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
         }
         self.out.calls[id.idx()] = calls;
@@ -2723,20 +2723,20 @@ pub fn collect(
         solver,
         penv: ParamEnv::default(),
         memo: BodyMemo::default(),
-        selected: HashMap::new(),
-        exact: HashMap::new(),
+        selected: HashMap::default(),
+        exact: HashMap::default(),
         canons: CanonMemo::default(),
-        layouts: HashMap::new(),
-        depths: HashMap::new(),
+        layouts: HashMap::default(),
+        depths: HashMap::default(),
         at: None,
         too_deep: None,
         out: Collected::default(),
         work: Vec::new(),
         witness: erased::WitnessCx::default(),
         session,
-        externs: HashMap::new(),
+        externs: HashMap::default(),
         planner,
-        plans: HashMap::new(),
+        plans: HashMap::default(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
@@ -2746,7 +2746,7 @@ pub fn collect(
     }
     let mut out = cx.out;
     out.witnesses = cx.witness.finish();
-    out.calls.resize_with(out.table.len(), HashMap::new);
+    out.calls.resize_with(out.table.len(), HashMap::default);
     out.callee_reps.resize(out.table.len(), Hash128(0));
     Ok(Ok(out))
 }

@@ -3,7 +3,7 @@
 //! `docs/compiler/data-structures.md` §3.22).
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
-use std::collections::{HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
 
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -99,7 +99,7 @@ pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
     let mut t = t;
     // A newtype cycle has no values, so collection never lays one out;
     // the guard keeps a pathological declaration from hanging layout.
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     while let TyData::Adt { def, args } = pool.get(t) {
         if !seen.insert(def) {
             break;
@@ -144,7 +144,7 @@ pub trait LayoutEnv {
 /// is only as deep as tuples and optionals nest.
 pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
     let t = strip_newtype(pool, env, t);
-    let mut memo: HashMap<Ty, Layout> = HashMap::new();
+    let mut memo: HashMap<Ty, Layout> = HashMap::default();
     for e in value_enums(pool, env, t) {
         let l = layout_in(pool, env, e, &memo)?;
         memo.insert(e, l);
@@ -158,7 +158,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
 #[must_use]
 pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
     let mut out = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let mut stack = vec![(strip_newtype(pool, env, t), false)];
     while let Some((t, finished)) = stack.pop() {
         if finished {
@@ -383,7 +383,7 @@ pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) 
         })
         .collect();
     let comp = sccs(&succ);
-    let mut size: HashMap<usize, usize> = HashMap::new();
+    let mut size: HashMap<usize, usize> = HashMap::default();
     for c in &comp {
         *size.entry(*c).or_default() += 1;
     }
@@ -819,7 +819,7 @@ pub struct InstanceTable {
     /// is breadth-first, so the parents spell a shortest chain from a root.
     pub parent: Vec<InstId>,
     pub key: Vec<Hash128>,
-    index: std::collections::HashMap<(DefId, Sub, TyList, Hash128), InstId>,
+    index: hd_base::HashMap<(DefId, Sub, TyList, Hash128), InstId>,
 }
 
 /// The instantiation limits (§13.4): the nesting depth of an instance's

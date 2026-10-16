@@ -1,7 +1,7 @@
 //! The instance's side of `Net`: the socket handle table, and each
 //! operation's `.start` and `.finish` on the program thread.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 use std::net::{Shutdown, SocketAddr};
 use std::sync::Arc;
 

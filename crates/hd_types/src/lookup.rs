@@ -4,7 +4,7 @@
 //! through a trait argument. The last two are merged per impl universe, so
 //! a context sees only the folders of its own closure.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, FolderId, ModuleId, PathId};
 use hd_intern::{PathKind, PathTable};
@@ -144,7 +144,7 @@ pub struct RefTable {
 impl RefTable {
     fn build(mut rows: Vec<(u32, u64, ImplRef)>) -> Self {
         rows.sort_unstable_by_key(|(t, k, r)| (*t, *k, r.module.raw(), r.row));
-        let mut by_trait: HashMap<u32, (u32, u32)> = HashMap::new();
+        let mut by_trait: HashMap<u32, (u32, u32)> = HashMap::default();
         for (i, (t, _, _)) in rows.iter().enumerate() {
             let i = u32::try_from(i).expect("rows");
             by_trait

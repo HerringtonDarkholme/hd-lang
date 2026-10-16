@@ -5,7 +5,7 @@
 //! `@annotate(...)` line is declaration metadata. Neither needs a body, so
 //! the check runs once the folder's items are lowered, with no checker run.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, Span};
 use hd_diag::{Code, DiagMark, Severity};

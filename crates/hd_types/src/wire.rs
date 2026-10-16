@@ -3,7 +3,7 @@
 //! symbols one blob mentions and gives each a row; the reader re-interns
 //! the rows into this run's tables. Rows refer only to earlier rows.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
@@ -59,13 +59,13 @@ impl<'a> TableWriter<'a> {
             paths,
             syms,
             path_rows: Vec::new(),
-            path_index: HashMap::new(),
+            path_index: HashMap::default(),
             ty_rows: Vec::new(),
-            ty_index: HashMap::new(),
-            list_index: HashMap::new(),
-            row_index: HashMap::new(),
+            ty_index: HashMap::default(),
+            list_index: HashMap::default(),
+            row_index: HashMap::default(),
             sym_rows: Vec::new(),
-            sym_index: HashMap::new(),
+            sym_index: HashMap::default(),
         }
     }
 

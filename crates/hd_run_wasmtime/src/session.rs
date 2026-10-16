@@ -34,7 +34,7 @@
 //! `hd_run::journal::SESSION_CAP` recording stops; the REPL then says once
 //! that the session can no longer be rebuilt (`take_journal_notice`).
 
-use std::collections::HashSet;
+use hd_base::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -131,7 +131,7 @@ impl WasmtimeEngine {
         Ok(WasmtimeSession {
             run,
             linker: Linker::new(&self.engine),
-            hosts: HashSet::new(),
+            hosts: HashSet::default(),
             memory: false,
             runtime: Vec::new(),
             config: self.config,

@@ -206,7 +206,7 @@ pub(crate) fn data(root: &Path, sources: &disk::DiskSources, single_file: bool) 
     let package = if single_file {
         unit
     } else {
-        let listed: std::collections::HashSet<String> = sources
+        let listed: hd_base::HashSet<String> = sources
             .list()
             .into_iter()
             .map(|e| sources.display(&e.path))
@@ -277,8 +277,7 @@ pub(crate) struct Build<'a> {
 
 impl<'a> Build<'a> {
     pub(crate) fn new(out: &'a Output, sources: &disk::DiskSources) -> Build<'a> {
-        let listed: std::collections::HashSet<String> =
-            sources.list().into_iter().map(|e| e.path).collect();
+        let listed: hd_base::HashSet<String> = sources.list().into_iter().map(|e| e.path).collect();
         let own: Vec<bool> = out.files.iter().map(|f| listed.contains(f)).collect();
         let mut texts = MemorySources::default();
         let mut h = StableHasher::new("hd-test-outside");

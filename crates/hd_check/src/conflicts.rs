@@ -9,7 +9,7 @@
 //! with the name of a promoted member is a conflict reported on that
 //! member.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, Symbol};
 use hd_resolve::{ImplKind, Item, ItemData, Lookup, Names};
@@ -57,7 +57,7 @@ enum Own {
 #[must_use]
 pub fn inherent_methods(names: &Names<'_>, lookup: &Lookup<'_>) -> Inherent {
     let pool = names.pool;
-    let mut out = Inherent::new();
+    let mut out = Inherent::default();
     let all = lookup
         .own
         .iter()
@@ -93,7 +93,7 @@ pub fn promotion_conflicts(
     };
     let pool = names.pool;
     let root = names.text(it.name).to_owned();
-    let mut table: HashMap<(Ns, Symbol), Vec<Member>> = HashMap::new();
+    let mut table: HashMap<(Ns, Symbol), Vec<Member>> = HashMap::default();
     // Parts at the current depth: (type, field indices, shown path).
     let mut level: Vec<(DefId, Vec<usize>, String)> = vec![(it.def, Vec::new(), root.clone())];
     for depth in 0..=MAX_DEPTH {

@@ -21,7 +21,7 @@
 //! The method's parameter is never bound to a name, so `$self` in a
 //! message names nothing (`annot.error.message.no-self`).
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, LocalId, StageResult, Symbol};
 use hd_diag::DiagBuf;
@@ -263,7 +263,7 @@ impl Target<'_, '_> {
                 // The members and shared fields the message names, bound by
                 // name (`annot.error.message.scope`).
                 let used = interpolated(&cx.src, msg);
-                let mut scope = HashMap::new();
+                let mut scope = HashMap::default();
                 for (j, f) in fs.iter().enumerate() {
                     let name = label(names, f);
                     if !used.contains(&name) {

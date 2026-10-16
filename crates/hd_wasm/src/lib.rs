@@ -22,7 +22,8 @@ pub mod pow;
 pub mod rem;
 pub mod rt;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use hd_base::wire::{Reader, Writer};
@@ -939,7 +940,7 @@ fn groups_after_parts(
     roots: Vec<Arc<Group>>,
     known: &dyn Fn(&Arc<Group>) -> bool,
 ) -> Vec<Arc<Group>> {
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let mut out = Vec::new();
     let mut stack: Vec<(Arc<Group>, bool)> = roots.into_iter().rev().map(|g| (g, false)).collect();
     while let Some((g, finished)) = stack.pop() {
@@ -2014,7 +2015,7 @@ pub fn link(
     }
     // A name that two helpers share (or any literal, panic stub or codec)
     // takes its index among the helpers as a suffix.
-    let mut seen: HashMap<String, u32> = HashMap::new();
+    let mut seen: HashMap<String, u32> = HashMap::default();
     for h in &helper_list {
         *seen.entry(helper_base(h)).or_default() += 1;
     }

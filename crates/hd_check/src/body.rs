@@ -8,7 +8,7 @@
 //! Expressions are in `expr`, calls and member lookup in `call`, patterns
 //! and `match` in `pat`, annotations in `ty`.
 
-use std::collections::{HashMap, HashSet};
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -230,7 +230,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub default_row: Option<bool>,
     /// The `:=` bindings that a path to this point may have skipped
     /// (`names.definite.skipped`).
-    pub uninit: std::collections::HashSet<LocalId>,
+    pub uninit: hd_base::HashSet<LocalId>,
     /// The `:=` bindings declared so far, with their scope's depth.
     pub bound: Vec<(LocalId, usize)>,
     /// The statement-form `:=` binding being checked: the one `ExprStmt`
@@ -260,7 +260,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// The simple bindings the module's top-level statements declare, by
     /// the first statement that does: a read of one from an earlier
     /// statement is a read before initialization.
-    pub later_names: std::collections::HashMap<hd_base::Symbol, usize>,
+    pub later_names: hd_base::HashMap<hd_base::Symbol, usize>,
     /// A REPL input that is one expression: that statement, then its
     /// value and type once checked (`cli.repl.value`).
     pub shown: Option<(hd_base::NodeIdx, Option<(Ref, Ty)>)>,
@@ -430,7 +430,7 @@ pub(crate) fn new_ck<'a, 'c>(
         local,
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
-        scopes: vec![HashMap::new()],
+        scopes: vec![HashMap::default()],
         env: ParamEnv::default(),
         loops: Vec::new(),
         diags,
@@ -450,16 +450,16 @@ pub(crate) fn new_ck<'a, 'c>(
         subs: Vec::new(),
         pending: Vec::new(),
         never_args: Vec::new(),
-        fell_back: HashSet::new(),
+        fell_back: HashSet::default(),
         method_targs: Vec::new(),
         in_explicit_targs: false,
         default_owner: None,
         local_defaults: None,
-        local_forms: HashMap::new(),
+        local_forms: HashMap::default(),
         suspends: vec![false],
         defer_base: None,
         defer_subs: 0,
-        uninit: std::collections::HashSet::new(),
+        uninit: hd_base::HashSet::default(),
         bound: Vec::new(),
         stmt_binding: None,
         cond_flow: None,
@@ -474,7 +474,7 @@ pub(crate) fn new_ck<'a, 'c>(
         lit_arg: None,
         module_init: None,
         init_stmt: 0,
-        later_names: std::collections::HashMap::new(),
+        later_names: hd_base::HashMap::default(),
         shown: None,
         facts: crate::init::InitFacts::default(),
         placeholder: None,
@@ -505,7 +505,7 @@ pub(crate) fn new_ck<'a, 'c>(
         module: cx.names.module_node(item),
         registering: false,
         row_waits: Vec::new(),
-        local_generics: HashMap::new(),
+        local_generics: HashMap::default(),
         gen_owner: env,
         next_gen: 0,
         generic_recheck: Vec::new(),
@@ -1004,7 +1004,7 @@ impl Ck<'_, '_> {
     /// binds and never reads; a name beginning with `_` is exempt.
     fn unused_locals(&mut self) {
         // One warning per line: a `let` pattern's unread names share it.
-        let mut lines = std::collections::HashSet::new();
+        let mut lines = hd_base::HashSet::default();
         for l in std::mem::take(&mut self.user_locals) {
             let body = self.b.body_mut();
             let (flags, name, at) = (
@@ -1997,7 +1997,7 @@ impl Ck<'_, '_> {
         block: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Option<Ref>, Ty)> {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(HashMap::default());
         // The suite's local declarations end with it: the rest of the
         // enclosing statement is back where it started.
         let at = self.at;
@@ -3459,7 +3459,7 @@ impl Ck<'_, '_> {
         // (`sub_flags::GENERIC`).
         {
             let body = self.b.body_mut();
-            let mut caps = HashMap::new();
+            let mut caps = HashMap::default();
             for i in 0..n {
                 if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
                     let r = body.record(body.data[i][1]);

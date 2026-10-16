@@ -13,7 +13,7 @@
 //! stage B checks them (parameters then result, or fields in order); a
 //! newtype's slot 1 is its base type and an alias's its target.
 
-use std::collections::HashMap;
+use hd_base::HashMap;
 
 use hd_base::{DefId, Span};
 use hd_intern::PathKind;

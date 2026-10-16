@@ -8,8 +8,8 @@
 //! interface is frozen, `ModulePrep` and `Body` resolve them through its
 //! export index instead.
 
+use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use hd_base::{DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
@@ -391,7 +391,7 @@ fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
 #[must_use]
 pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) -> Vec<Head<'t>> {
     let mut out = Vec::new();
-    let mut impl_names: HashMap<String, u32> = HashMap::new();
+    let mut impl_names: HashMap<String, u32> = HashMap::default();
     let top = src.root().children().map(|n| (n, None));
     let in_tests = src
         .root()
@@ -778,7 +778,7 @@ impl Resolver<'_, '_> {
     /// from.
     fn export_cycle(&self, key: &(String, Symbol)) -> Option<Vec<(String, Symbol)>> {
         let mut at = key.clone();
-        let mut seen: HashMap<(String, Symbol), usize> = HashMap::new();
+        let mut seen: HashMap<(String, Symbol), usize> = HashMap::default();
         let mut chain: Vec<(String, Symbol)> = Vec::new();
         while chain.len() <= self.pub_uses.len() {
             if let Some(&start) = seen.get(&at) {
@@ -997,7 +997,7 @@ fn scope_of(
     diags: &mut DiagBuf,
 ) -> (ModuleScope, Kinds) {
     let mut scope = ModuleScope::default();
-    let mut kinds = Kinds::new();
+    let mut kinds = Kinds::default();
     for h in heads {
         // A local declaration's name is in no module scope
         // (`names.local-type.static`); lowering finds it by position. Only
@@ -2665,7 +2665,7 @@ impl Lower<'_, '_, '_> {
     /// (`data.field.unique`, `data.embed.unique`), and a type embeds at
     /// most three fields (`data.embed.width`).
     fn data_fields(&mut self, holder: Option<NodeRef<'_>>, fields: &[Field]) {
-        let mut first: HashMap<Symbol, usize> = HashMap::new();
+        let mut first: HashMap<Symbol, usize> = HashMap::default();
         let mut embedded = 0;
         for (i, (node, f)) in Self::field_nodes(holder).zip(fields).enumerate() {
             let span = self.src.span(node);
@@ -2706,7 +2706,7 @@ impl Lower<'_, '_, '_> {
             .filter(|(n, _)| n.name(&self.src.parse.tokens).is_some())
             .map(|(_, f)| f.name)
             .collect();
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         for v in block
             .iter()
             .flat_map(|b| b.children())
@@ -2961,7 +2961,7 @@ impl Lower<'_, '_, '_> {
         if self.r.frozen.is_some() {
             return;
         }
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         let mut bad = Vec::new();
         for f in block.iter().flat_map(|b| b.children()) {
             if !matches!(
@@ -3366,7 +3366,7 @@ impl Lower<'_, '_, '_> {
             );
             return;
         }
-        let mut constrained: HashSet<u16> = HashSet::new();
+        let mut constrained: HashSet<u16> = HashSet::default();
         let note = |t: Ty, set: &mut HashSet<u16>| {
             ty_any(pool, t, &mut |d| {
                 if let TyData::Param(p) = d
@@ -4089,7 +4089,7 @@ fn lower_aliases(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
-                kind_reported: HashSet::new(),
+                kind_reported: HashSet::default(),
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
@@ -4150,7 +4150,7 @@ fn lower_aliases(
                 kinds: &*kinds,
                 diags: if alias { diags } else { &mut dropped },
                 unsupported: None,
-                kind_reported: HashSet::new(),
+                kind_reported: HashSet::default(),
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
@@ -4449,8 +4449,9 @@ pub(crate) struct ItemIndex {
 
 impl ItemIndex {
     pub(crate) fn new(names: &Names<'_>, items: &[Item]) -> Self {
-        let mut by_def = HashMap::with_capacity(items.len());
-        let mut by_target: HashMap<DefId, Vec<usize>> = HashMap::new();
+        let mut by_def =
+            HashMap::with_capacity_and_hasher(items.len(), hd_base::FixedState::default());
+        let mut by_target: HashMap<DefId, Vec<usize>> = HashMap::default();
         for (i, it) in items.iter().enumerate() {
             by_def.entry(it.def).or_insert(i);
             if let ItemData::Impl { self_ty, .. } = &it.data
@@ -4951,7 +4952,7 @@ fn session_targets(
 /// `cli.repl.redefine.impl`). Empty for any other module.
 fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     let names = &r.cx.names;
-    let mut out = HashSet::new();
+    let mut out = HashSet::default();
     for m in r.session_modules.get(module).into_iter().flatten() {
         let Some(iface) =
             r.cx.world
@@ -5001,19 +5002,19 @@ pub fn build_folder(
     let mut r = Resolver {
         cx,
         frozen,
-        own: HashMap::new(),
-        pub_uses: HashMap::new(),
-        memo: RefCell::new(HashMap::new()),
-        visiting: RefCell::new(HashSet::new()),
-        loops_reported: RefCell::new(HashSet::new()),
-        trait_assoc: HashMap::new(),
-        variances: HashMap::new(),
-        row_params: HashMap::new(),
-        aliases: RefCell::new(HashMap::new()),
-        seeds: HashMap::new(),
-        own_traits: HashMap::new(),
-        own_types: RefCell::new(HashMap::new()),
-        own_supers: HashMap::new(),
+        own: HashMap::default(),
+        pub_uses: HashMap::default(),
+        memo: RefCell::new(HashMap::default()),
+        visiting: RefCell::new(HashSet::default()),
+        loops_reported: RefCell::new(HashSet::default()),
+        trait_assoc: HashMap::default(),
+        variances: HashMap::default(),
+        row_params: HashMap::default(),
+        aliases: RefCell::new(HashMap::default()),
+        seeds: HashMap::default(),
+        own_traits: HashMap::default(),
+        own_types: RefCell::new(HashMap::default()),
+        own_supers: HashMap::default(),
         inputs: mods
             .iter()
             .filter(|m| m.session.is_some())
@@ -5155,7 +5156,7 @@ pub fn build_folder(
                     kinds: &kinds,
                     diags,
                     unsupported: None,
-                    kind_reported: HashSet::new(),
+                    kind_reported: HashSet::default(),
                     locals: &locals,
                     at: 0,
                     outer: Vec::new(),
@@ -5255,7 +5256,7 @@ pub fn build_folder(
                 kinds: &o.kinds,
                 diags,
                 unsupported: None,
-                kind_reported: HashSet::new(),
+                kind_reported: HashSet::default(),
                 locals: &[],
                 at: 0,
                 outer: Vec::new(),
@@ -5263,7 +5264,7 @@ pub fn build_folder(
             low.check_module_decorators(&items, &o.blocks);
         }
         decls::check(&r, mods, &all_heads, &out.modules, diags);
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         for (m, us) in mods.iter().zip(&all_uses) {
             let mut publics: Vec<Symbol> = r
                 .own
@@ -5355,7 +5356,7 @@ fn own_trait_generics(
     all_heads: &[Vec<Head<'_>>],
     scopes: &[ModScopes],
 ) -> HashMap<DefId, Vec<Generic>> {
-    let mut out = HashMap::new();
+    let mut out = HashMap::default();
     let mut scratch = DiagBuf::default();
     for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
         let locals = local_items(hs);
@@ -5373,7 +5374,7 @@ fn own_trait_generics(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
-                kind_reported: HashSet::new(),
+                kind_reported: HashSet::default(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
@@ -5620,7 +5621,7 @@ fn own_trait_supers(
     all_heads: &[Vec<Head<'_>>],
     scopes: &[ModScopes],
 ) -> HashMap<DefId, Vec<Ty>> {
-    let mut out = HashMap::new();
+    let mut out = HashMap::default();
     let mut scratch = DiagBuf::default();
     for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
         let locals = local_items(hs);
@@ -5638,7 +5639,7 @@ fn own_trait_supers(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
-                kind_reported: HashSet::new(),
+                kind_reported: HashSet::default(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
