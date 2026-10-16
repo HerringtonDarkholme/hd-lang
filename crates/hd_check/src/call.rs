@@ -769,6 +769,19 @@ impl Ck<'_, '_> {
         Ok((Ref(NONE), Ty::POISON))
     }
 
+    /// Whether `t` is a type the numeric cast table lists: an integer or
+    /// floating-point type, a numeric literal, or a numeric type parameter.
+    /// `char` and `bool` are not in the table.
+    fn cast_numeric(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.infer.shallow(pool, t);
+        match pool.get(t) {
+            TyData::Prim(p) => p.is_integer() || p.is_float(),
+            TyData::Mut(i) => self.cast_numeric(i),
+            _ => self.numeric(t),
+        }
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         plain_args(args, "a conversion")?;
@@ -781,14 +794,22 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         if let Some(inner) = self.newtype_base(t)
-            && self.numeric(inner)
+            && self.cast_numeric(inner)
+            && self.cast_numeric(to)
         {
             let v = self.b.emit(Tag::Field, r.0, 0, inner, n.index());
             return Ok((self.b.prim(PrimOp::Conv as u32, &[v], to, n.index()), to));
         }
-        if !self.numeric(t) && self.infer.shallow(self.pool(), t) != Ty::BOOL {
-            let msg = format!("in conversion: {} is not a number", self.show(t));
-            self.err(Code::TypeMismatch, *e, &msg);
+        // Only a numeric-to-numeric call is a cast (`types.cast.nonnumeric`);
+        // any other constructor-style call of a primitive type is a call of
+        // something that is not a function.
+        if !self.cast_numeric(t) || !self.cast_numeric(to) {
+            let msg = format!(
+                "`{}` is not a function: only numeric types convert by a constructor-style call",
+                self.show(to)
+            );
+            self.err(Code::NotCallable, n, &msg);
+            return Ok((Ref(NONE), Ty::POISON));
         }
         // A literal argument takes the target's type directly.
         if self.b.const_of(r).is_some()

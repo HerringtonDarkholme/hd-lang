@@ -120,6 +120,7 @@ mod named_argument_errors;
 mod nested_interpolation_run;
 mod nested_optional_run;
 mod newtype_derive_run;
+mod nonnumeric_cast;
 mod numeric_widen_fix;
 mod operator_fn_left_exact;
 mod operator_left_primitive_run;

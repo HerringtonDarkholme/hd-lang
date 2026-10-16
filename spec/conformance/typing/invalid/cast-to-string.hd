@@ -1,0 +1,4 @@
+# test: a constructor-style call of a nonnumeric primitive type is not a cast and resolves to nothing
+# Spec 04 Numeric Casts: types.cast.nonnumeric.
+fn invalid(c: char) -> string:
+    string(c)  # diagnostic: not-callable

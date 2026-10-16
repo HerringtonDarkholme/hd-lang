@@ -3216,3 +3216,4 @@ runtime/valid/field-and-method-share-name.hd	runtime	accept	lang/03-names-and-sc
 typing/invalid/members-same-for-every-module.hd	type	reject:private-member	lang/03-names-and-scopes.md#r-names.members.uniform
 runtime/valid/generic-trait-method-instantiation.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.method-lookup.generic-trait
 typing/invalid/private-method-other-module.hd	type	reject:private-member	lang/03-names-and-scopes.md#r-names.method-lookup.private
+typing/invalid/cast-to-string.hd	type	reject:not-callable	lang/04-type-system.md#r-types.cast.nonnumeric
