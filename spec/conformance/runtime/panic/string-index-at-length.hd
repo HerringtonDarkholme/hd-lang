@@ -1,0 +1,8 @@
+# test: a string index equal to the length in bytes is out of range
+# Spec 05 String Indexing: expr.index.string.range.
+fn at(text: string, index: usize) -> u8:
+    text[index]  # panic: index-out-of-bounds
+
+tests:
+    it("index 2 of a two-byte string"):
+        _ := at("é", 2)

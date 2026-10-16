@@ -1,0 +1,18 @@
+# test: receiver[index] evaluates the receiver, then the index, then reads
+# Spec 05 Indexing: expr.index.order.
+let log = ""
+
+fn scores() -> Map[string, i32]:
+    log = log + "r"
+    {"a": +7}
+
+fn key() -> string:
+    log = log + "k"
+    "a"
+
+tests:
+    use std.testing.assert_equal
+
+    it("the receiver runs before the key"):
+        assert_equal(scores()[key()], +7, reason="the map read")
+        assert_equal(log, "rk", reason="receiver, then index")

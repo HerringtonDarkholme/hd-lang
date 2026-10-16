@@ -1,0 +1,4 @@
+# test: a map index must have the key type K
+# Spec 05 Map Indexing: expr.index.map.type.
+fn lookup(scores: Map[string, i32]) -> i32:
+    scores[+1]  # diagnostic: type-mismatch

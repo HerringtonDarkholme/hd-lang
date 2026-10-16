@@ -1,0 +1,12 @@
+# test: a readonly Map[string, mut List[i32]] reads a value as mut List[i32]
+# Spec 05 Map Indexing: expr.index.map.value-type.
+fn grow(groups: Map[string, mut List[i32]]) -> void:
+    groups["a"].push(+2)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the value keeps its mut type through a readonly map"):
+        let group: mut List[i32] = [+1]
+        grow({"a": group})
+        assert_equal(group, [+1, +2], reason="push reached the value")

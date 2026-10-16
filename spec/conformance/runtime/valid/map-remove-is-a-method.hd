@@ -1,0 +1,10 @@
+# test: map removal is the method remove, not special syntax
+# Spec 05 Map Indexing: expr.index.map.library.
+tests:
+    use std.testing.assert_equal
+
+    it("remove deletes an entry and returns its value"):
+        let scores: mut Map[string, i32] = {"ada": +1}
+        let removed: i32? = +1
+        assert_equal(scores.remove("ada"), removed, reason="the removed value")
+        assert_equal(scores.len(), 0, reason="no entry is left")

@@ -1,1 +1,2 @@
 path	issue	engine	reason
+typing/valid/index-trait-literal-key-default.hd	#0		placeholder for a new bug: with Index[usize] and Index[string], table[0] leaves Table::Out unresolved instead of selecting Index[usize] for the usize literal

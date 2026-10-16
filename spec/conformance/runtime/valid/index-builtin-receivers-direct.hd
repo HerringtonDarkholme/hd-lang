@@ -1,0 +1,17 @@
+# test: List, Map, and string keep built-in indexing beside their Index implementations
+# Spec 05 Index Traits: expr.index.trait.builtin-direct.
+use std.ops.Index
+
+fn through[C < Index[usize]](items: C) -> C::Out:
+    items[1]
+
+tests:
+    use std.testing.assert_equal
+
+    it("built-in reads agree with the trait reads"):
+        items := [+3, +4]
+        text := "ab"
+        scores := {"a": +5}
+        assert_equal(items[1], through(items), reason="a list read")
+        assert_equal(text[1], through(text), reason="a string read")
+        assert_equal(scores["a"], +5, reason="a map read")

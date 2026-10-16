@@ -1,0 +1,13 @@
+# test: r[k] and r[k] = v call Index and IndexSet in a module that never uses either trait
+# Spec 05 Index Traits: expr.index.trait.no-use. The tree's src/cell.hd imports std.ops.Index
+# and std.ops.IndexSet and implements both for Cell.
+# fixture-package-tree: index-cell/src/store.hd
+use pkg.cell.{Cell}
+
+tests:
+    use std.testing.assert_equal
+
+    it("indexes with no use of Index or IndexSet"):
+        let cell: mut Cell = Cell { value: [+1] }
+        cell[0] = +4
+        assert_equal(cell[0], +4, reason="stored, then read")

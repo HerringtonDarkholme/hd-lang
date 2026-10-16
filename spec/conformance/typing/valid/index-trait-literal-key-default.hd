@@ -1,0 +1,19 @@
+# test: with Index[usize] and Index[string], the literal key 0 takes its default type usize and selects Index[usize]
+# Spec 05 Index Traits: expr.index.trait.choice, chosen as trait.resolve.literal-arg chooses.
+use std.ops.Index
+
+data Table:
+    size: i32
+
+impl Index[usize] for Table:
+    type Out = i32
+    fn index(self, key: usize) -> i32:
+        self.size
+
+impl Index[string] for Table:
+    type Out = string
+    fn index(self, key: string) -> string:
+        key
+
+fn first(table: Table) -> i32:
+    table[0]

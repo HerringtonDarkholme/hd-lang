@@ -1,0 +1,25 @@
+# test: std.ops declares Index[K] with an associated Out, and IndexSet[K, V]
+# Spec 05 Index Traits: expr.index.trait.std.
+use std.ops.{Index, IndexSet}
+
+data Names:
+    items: mut List[string]
+
+impl Index[usize] for Names:
+    type Out = string
+    fn index(self, key: usize) -> string:
+        self.items[key]
+
+impl IndexSet[usize, string] for Names:
+    fn index_set(mut self, key: usize, value: string) -> void:
+        self.items[key] = value
+
+fn first[C < Index[usize]](items: C) -> C::Out:
+    items.index(0)
+
+fn reset[C < mut IndexSet[usize, string]](items: C) -> void:
+    items.index_set(0, "")
+
+fn demo(names: mut Names) -> string:
+    reset(names)
+    first(names)

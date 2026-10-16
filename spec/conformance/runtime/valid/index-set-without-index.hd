@@ -1,0 +1,18 @@
+# test: a type may implement IndexSet alone, so r[k] = v works with no Index
+# Spec 05 Index Traits: expr.index.trait.independent.
+use std.ops.IndexSet
+
+data Sink:
+    seen: mut List[i32]
+
+impl IndexSet[usize, i32] for Sink:
+    fn index_set(mut self, key: usize, value: i32) -> void:
+        self.seen.push(value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("stores through IndexSet alone"):
+        let sink: mut Sink = Sink { seen: [] }
+        sink[0] = +7
+        assert_equal(sink.seen, [+7], reason="index_set ran")

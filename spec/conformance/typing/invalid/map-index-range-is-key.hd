@@ -1,0 +1,4 @@
+# test: a map has no slicing, so a range index must be the key type
+# Spec 05 Slicing: expr.index.slice.no-map.
+fn part(scores: Map[usize, i32]) -> i32:
+    scores[0..2]  # diagnostic: type-mismatch

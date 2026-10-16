@@ -1,0 +1,15 @@
+# test: entries[key] = value on a mut Map inserts a new entry or replaces one
+# Spec 05 Map Indexing: expr.index.map.assign.
+fn put(scores: mut Map[string, i32], name: string, score: i32) -> void:
+    scores[name] = score
+
+tests:
+    use std.testing.assert_equal
+
+    it("inserts, then replaces"):
+        let scores: mut Map[string, i32] = {}
+        put(scores, "ada", +1)
+        assert_equal(scores.len(), 1, reason="one entry inserted")
+        put(scores, "ada", +2)
+        assert_equal(scores.len(), 1, reason="the entry was replaced")
+        assert_equal(scores["ada"], +2, reason="the new value")

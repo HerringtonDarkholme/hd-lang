@@ -1,0 +1,8 @@
+# test: a string index counts bytes, so "é"[0] is 0xC3
+# Spec 05 String Indexing: expr.index.string.offset.
+tests:
+    use std.testing.assert_equal
+
+    it("reads the bytes of one scalar"):
+        assert_equal("é"[0], u8(0xC3), reason="the first byte of é")
+        assert_equal("é"[1], u8(0xA9), reason="the second byte of é")

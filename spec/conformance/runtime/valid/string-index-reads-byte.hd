@@ -1,0 +1,10 @@
+# test: text[index] reads the byte at that offset as a u8
+# Spec 05 String Indexing: expr.index.string.byte.
+fn second(text: string) -> u8:
+    text[1]
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads one byte"):
+        assert_equal(second("abc"), u8(98), reason="the byte of b")

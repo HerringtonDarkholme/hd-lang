@@ -1,0 +1,38 @@
+# test: r[k] picks the Index impl by key type, and r[k] = v the IndexSet impl by key and value
+# Spec 05 Index Traits: expr.index.trait.choice.
+use std.ops.{Index, IndexSet}
+
+data Table:
+    log: mut List[string]
+
+impl Index[usize] for Table:
+    type Out = i32
+    fn index(self, key: usize) -> i32:
+        +1
+
+impl Index[string] for Table:
+    type Out = string
+    fn index(self, key: string) -> string:
+        "by name"
+
+impl IndexSet[usize, i32] for Table:
+    fn index_set(mut self, key: usize, value: i32) -> void:
+        self.log.push("number")
+
+impl IndexSet[usize, string] for Table:
+    fn index_set(mut self, key: usize, value: string) -> void:
+        self.log.push("text")
+
+tests:
+    use std.testing.assert_equal
+
+    it("the key chooses the read"):
+        table := Table { log: [] }
+        assert_equal(table[usize(0)], +1, reason="the usize key")
+        assert_equal(table["a"], "by name", reason="the string key")
+
+    it("the value chooses the store"):
+        let table: mut Table = Table { log: [] }
+        table[usize(0)] = +5
+        table[usize(0)] = "five"
+        assert_equal(table.log, ["number", "text"], reason="one impl per value type")
