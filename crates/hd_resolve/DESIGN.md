@@ -92,7 +92,9 @@ and `package-cycle` is found the same way.
 ### 4.9 Name Resolution
 
 Resolution runs inside the `FolderIface` task for headers, and inside
-`ModulePrep` for the module's private signatures and bodies.
+`ModulePrep` for the module's private signatures and bodies. What a use
+reports when it names nothing is reported by `HeaderCheck(F)`
+(`use_diags`, §4.10.1), which builds the same module scopes again.
 
 **Module scope.** The prelude, the module's uses, and its own top-level
 declarations, with the shadowing and duplicate rules of
@@ -140,7 +142,11 @@ of every top-level declaration without `pub` (`private_names`), as its
 own cache-entry section outside every hash. A failed export lookup
 checks it: a matching row reports `private-import`; no row reports
 `unknown-import`. Dependents never see private items, and a private
-header edit does not invalidate them.
+header edit does not invalidate their checks. It does rebuild the
+interface of a folder whose header lowering opened this one, and rerun
+the `HeaderCheck` of a folder whose closure holds it: their keys take the
+names hash, since a failed lookup reads these names
+([crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
 
 **Paths in types and expressions** resolve through the module scope:
 module aliases, qualified names, `Self`, type parameters, and the names
@@ -183,7 +189,16 @@ exists twice in memory.
 are frozen (`build_folder`, `src/lower.rs`):
 
 1. Collect the items of `F`'s modules.
-2. Resolve uses (§4.9).
+2. Resolve uses (§4.9). The run records each module path asked about
+   and each other folder whose interface is opened (`Recorded`), from
+   here to step 5, and keys the interface by those reads
+   ([crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
+   A use's own reads are held while it binds. The scope notes each name
+   looked up, and once the headers are lowered, each use that binds a
+   looked-up name is resolved again with its reads recorded
+   (`reread_uses`). So a use only bodies need adds nothing to the key.
+   A use that names nothing binds poison here and is reported in
+   `HeaderCheck(F)` (§4.10.1).
 3. Lower every header to interface types: generics with bounds, variance
    and defaults; parameters with default presence; results; rows,
    normalized after alias expansion; `!`; fields; variants with payloads;
@@ -335,7 +350,8 @@ Every header rule runs in exactly one of three stages:
 
 - **Why stage B is a task of its own.** Its goals need the impl tables of
   F and of every dependency. Its answers never change what a dependent's
-  check reports, so dependents do not wait for it. A run with a stage-B
+  check reports, so dependents do not wait for it, nor do F's own body
+  tasks. A run with a stage-B
   error fails as any run with an error does, and codegen waits for every
   `HeaderCheck` task of the program graph.
 - **Dependencies are checked too.** Stages A and B run for every folder
@@ -351,9 +367,22 @@ Every header rule runs in exactly one of three stages:
   one of the two places.
 - **Caching.** Stage A's diagnostics are their own section of the
   interface entry, outside every hash. Stage B's are the `HeaderCheck(F)`
-  task's result; its key is F's interface key plus the deep hashes of the
-  folders in F's dependency closure
+  task's result; its key is F's interface hashes plus the deep hashes of
+  the folders in F's dependency closure
   ([crates/hd_cache/DESIGN.md](../hd_cache/DESIGN.md)).
+- **Use diagnostics.** `unknown-import`, `private-import`,
+  `unknown-module`, `ambiguous-import`, `test-only-use` and
+  `cyclic-test-dependency` at a `use` are no stage-A rule: they read every
+  folder F's uses reach, and F's interface key holds only the folders its
+  headers read. `HeaderCheck(F)` reports them (`use_diags`, `src/lower.rs`):
+  it builds F's module scopes as `build_folder` does and keeps those
+  codes, which `build_folder` leaves out. Its key adds F's own API text
+  and use roots, so a body-only use edit still reports. A module's
+  `ModulePrep` builds its scope too and notes whether a use reported an
+  error, so its `Body` and `ModuleFinish` know the file has one without
+  waiting for `HeaderCheck`.
+  `re-export-loop` stays in stage A: it reads only F's own source. The
+  same codes at a path in a header, such as `p.T`, are stage A's.
 - **Fuel.** Each item's stage-B goals share one fuel budget, as a body's
   do, so one pathological header fails only itself.
 - **The hidden-helper rule.** A private function that a template body

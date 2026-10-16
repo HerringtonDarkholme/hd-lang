@@ -49,13 +49,16 @@ owns what each task does.
   One per built folder. It depends on the `FolderIface` of every folder
   in F's closure. It checks written header types against their bounds,
   impl supertraits and supertrait bindings, derived newtype bases and
-  delegation targets. Nothing in body checking waits for it.
+  delegation targets, and reports F's use diagnostics (#248). Nothing in
+  body checking waits for it: a module's `ModulePrep` notes whether a
+  use of the module reports an error, which is what its `Body` and
+  `ModuleFinish` ask.
   `PackageResult` waits for it, and `Collect` is created only after
   `PackageResult`, so no program is built over an unchecked header. (The
   design had each `Collect` wait for the `HeaderCheck`s of the folders its
   program reaches; one program per run makes the two equal, and the
   built form needs no per-program edge list.) Its
-  findings are a `graph` entry keyed by `hdr_key`
+  findings and use diagnostics are a `graph` entry keyed by `hdr_key`
   (crates/hd_cache/DESIGN.md §5.2), looked up before it runs.
 - **Closures and impl universes.** `FolderGraph` computes each folder's
   closure as a bit set over the program graph's folders. Each solving

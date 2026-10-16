@@ -25,7 +25,7 @@ pub use hd_base::{BuildProfile, EngineTarget, OptLevel};
 use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
-    parse_key, prog_key, toolchain_key,
+    parse_key, prog_key, reads_key, toolchain_key,
 };
 use hd_check::BodyCx;
 use hd_check::init::InputBinding;
@@ -621,6 +621,10 @@ struct GraphOut {
 struct PrepOut {
     items: Vec<Item>,
     diags: DiagBuf,
+    /// A use of the module names nothing: `HeaderCheck` reports it, so it
+    /// may not be in the run's diagnostics yet when a body asks
+    /// ([`Run::file_has_errors`]) or the module finishes.
+    use_errors: bool,
 }
 
 /// A folder's stage-A diagnostics, with the module each belongs to, the
@@ -2950,7 +2954,13 @@ impl Run<'_> {
         }
     }
 
-    /// `FolderIface(F)` (`crates/hd_resolve/DESIGN.md` §4.10).
+    /// `FolderIface(F)` (`crates/hd_resolve/DESIGN.md` §4.10). Its key
+    /// is F's own source and what F's header lowering read last time
+    /// (`crates/hd_cache/DESIGN.md` §5.3): the read list, an entry under
+    /// `reads_key`, names the modules it asked about and the folders whose
+    /// interfaces it opened, and `iface_key` adds the run's answer for
+    /// each. A folder it never read, such as one a dependency uses
+    /// privately, stays out of the key.
     fn folder_iface(&self, fi: usize) {
         let folder = &self.table.folders[fi];
         let fid = folder.id;
@@ -2969,22 +2979,7 @@ impl Run<'_> {
                 return;
             }
         }
-        let apis: Vec<FileApi<'_>> = folder
-            .modules
-            .iter()
-            .map(|m| FileApi {
-                module: &self.table.modules[m.idx()].path,
-                role: ROLE,
-                api_text_hash: self.skim_of(m.idx()).file.api_text_hash,
-            })
-            .collect();
-        let key = iface_key(
-            self.toolchain,
-            self.package_key_of(folder.package),
-            &folder.path,
-            &apis,
-            &reach_hashes,
-        );
+        let own = self.reads_key(fi);
         // A module that does not parse blocks the interface, cached or
         // not, so a warm run reports what a clean one does: no header
         // finding past a parse error (#310). An unchanged module's clean
@@ -2996,8 +2991,35 @@ impl Run<'_> {
                 return;
             }
         }
+        // A REPL input's interface carries every item it declares, for
+        // later inputs, which see them whatever their `pub`. Its session
+        // scope reads the earlier inputs outside the world, so its key
+        // keeps every folder of its closure.
+        let input = folder
+            .modules
+            .iter()
+            .any(|m| self.repl_number(m.idx()).is_some());
+        let stored = if input {
+            None
+        } else {
+            self.lookup(EntryKind::Iface, own)
+                .and_then(|s| s.into_iter().next())
+        };
+        let key_of = |reads: &[(String, bool)]| {
+            if input {
+                iface_key(own, &reach_hashes)
+            } else {
+                let answers = self.read_answers(fid, reads);
+                let rows: Vec<(&str, Hash128)> =
+                    answers.iter().map(|(m, h)| (m.as_str(), *h)).collect();
+                iface_key(own, &rows)
+            }
+        };
+        let last = stored.as_deref().and_then(decode_reads);
         let names = self.names();
-        if let Some(sections) = self.lookup(EntryKind::Iface, key)
+        if (input || last.is_some())
+            && let Some(sections) =
+                self.lookup(EntryKind::Iface, key_of(last.as_deref().unwrap_or(&[])))
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
             let m = folder.modules[0].idx();
@@ -3010,10 +3032,11 @@ impl Run<'_> {
             .iter()
             .map(|m| self.mod_in(m.idx()))
             .collect();
+        let world = hd_resolve::Recorded::new(self);
         let cx = hd_resolve::Cx {
             names,
             folder: fid.raw(),
-            world: self,
+            world: &world,
         };
         let mut diags = DiagBuf::default();
         let out = match hd_resolve::build_folder(&cx, &mods, None, Stage::FolderIface, &mut diags) {
@@ -3024,6 +3047,14 @@ impl Run<'_> {
                 return;
             }
         };
+        let reads = self.read_list(fid, &world.reads());
+        let key = key_of(&reads);
+        if !input {
+            let bytes = encode_reads(&reads);
+            if stored.as_deref() != Some(bytes.as_slice()) {
+                self.put(EntryKind::Iface, own, &[&bytes]);
+            }
+        }
         let mut anchored = Vec::new();
         for (mi, m) in out.modules.iter().enumerate() {
             for (def, slot, a) in &m.anchors {
@@ -3048,12 +3079,6 @@ impl Run<'_> {
                 diags.error(Code::Unsupported, span, &msg);
             }
         }
-        // A REPL input's interface carries every item it declares, for
-        // later inputs, which see them whatever their `pub`.
-        let input = folder
-            .modules
-            .iter()
-            .any(|m| self.repl_number(m.idx()).is_some());
         let hidden = if input {
             hd_base::HashSet::default()
         } else {
@@ -3092,41 +3117,7 @@ impl Run<'_> {
             }
         };
         let hsec = api_blob.map_or_else(Vec::new, |h| h.0.to_le_bytes().to_vec());
-        let module_of = |file: FileId| folder.modules.iter().position(|x| x.raw() == file.raw());
-        let idiags: IfaceDiags = (0..diags.len())
-            .map(|i| {
-                let sp = diags.primary[i];
-                let m = module_of(sp.file).unwrap_or(0);
-                let fixes = diags.fixes[i];
-                let fixes = (fixes.start..fixes.start + fixes.len)
-                    .filter_map(|f| {
-                        let f = f as usize;
-                        let edits = diags.edits[diags.fix_edits[f].range()]
-                            .iter()
-                            .map(|e| {
-                                let m = module_of(e.span.file)?;
-                                let src = self.src(folder.modules[m].idx());
-                                let (anchor, lo, hi) = edit_anchor(&src, e.span);
-                                Some((m, anchor, lo, hi, diags.get_text(e.text).to_owned()))
-                            })
-                            .collect::<Option<Vec<_>>>()?;
-                        Some(IfaceFix {
-                            title: diags.get_text(diags.fix_title[f]).to_owned(),
-                            exact: diags.fix_safety[f] == hd_diag::FixSafety::Exact,
-                            edits,
-                        })
-                    })
-                    .collect();
-                (
-                    m,
-                    diags.code[i],
-                    diags.severity[i],
-                    hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
-                    diags.get_text(diags.message[i]).to_owned(),
-                    fixes,
-                )
-            })
-            .collect();
+        let idiags = self.anchored_diags(fi, &diags);
         let dsec = encode_iface_diags(&idiags);
         let by_def: HashMap<DefId, u32> = items
             .iter()
@@ -3141,6 +3132,7 @@ impl Run<'_> {
         let psec = hd_resolve::encode_private_names(&names, &out.private_names);
         let lsec = hd_resolve::encode_private_names(&names, &out.loop_names);
         let usec = hd_resolve::encode_module_uses(&out.module_uses);
+        let nhash = names_hash(&psec, &lsec);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
@@ -3187,10 +3179,166 @@ impl Run<'_> {
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = out.private_names.into_iter().collect();
         iface.loop_names = out.loop_names.into_iter().collect();
+        iface.names_hash = nhash;
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
+    }
+
+    /// `diags`, reported in folder `fi`'s files, with each span as a
+    /// declaration-relative anchor, as an entry stores them.
+    fn anchored_diags(&self, fi: usize, diags: &DiagBuf) -> IfaceDiags {
+        let folder = &self.table.folders[fi];
+        let module_of = |file: FileId| folder.modules.iter().position(|x| x.raw() == file.raw());
+        (0..diags.len())
+            .map(|i| {
+                let sp = diags.primary[i];
+                let m = module_of(sp.file).unwrap_or(0);
+                let fixes = diags.fixes[i];
+                let fixes = (fixes.start..fixes.start + fixes.len)
+                    .filter_map(|f| {
+                        let f = f as usize;
+                        let edits = diags.edits[diags.fix_edits[f].range()]
+                            .iter()
+                            .map(|e| {
+                                let m = module_of(e.span.file)?;
+                                let src = self.src(folder.modules[m].idx());
+                                let (anchor, lo, hi) = edit_anchor(&src, e.span);
+                                Some((m, anchor, lo, hi, diags.get_text(e.text).to_owned()))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some(IfaceFix {
+                            title: diags.get_text(diags.fix_title[f]).to_owned(),
+                            exact: diags.fix_safety[f] == hd_diag::FixSafety::Exact,
+                            edits,
+                        })
+                    })
+                    .collect();
+                (
+                    m,
+                    diags.code[i],
+                    diags.severity[i],
+                    hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
+                    diags.get_text(diags.message[i]).to_owned(),
+                    fixes,
+                )
+            })
+            .collect()
+    }
+
+    /// The modules and folders a header lowering of folder `fid` read, as
+    /// its read list: each module path it asked about, and whether it
+    /// opened the interface of that module's folder. A folder opened
+    /// through no module it asked about is listed by its first module.
+    fn read_list(&self, fid: FolderId, reads: &hd_resolve::Reads) -> Vec<(String, bool)> {
+        // `reads.modules` is sorted, so `out` is, by path.
+        let mut out: Vec<(String, bool)> = Vec::new();
+        let mut covered = Vec::new();
+        for m in &reads.modules {
+            let f = self.table.folder_of_module(m).map(FolderId::raw);
+            let opened = f.is_some_and(|f| f != fid.raw() && reads.folders.contains(&f));
+            if opened {
+                covered.extend(f);
+            }
+            out.push((m.clone(), opened));
+        }
+        for f in reads.folders.iter().filter(|f| !covered.contains(*f)) {
+            let first = self
+                .table
+                .folders
+                .get(*f as usize)
+                .and_then(|g| g.modules.first());
+            if let Some(m) = first {
+                let path = &self.table.modules[m.idx()].path;
+                match out.binary_search_by(|(p, _)| p.cmp(path)) {
+                    Ok(at) => out[at].1 = true,
+                    Err(at) => out.insert(at, (path.clone(), true)),
+                }
+            }
+        }
+        out
+    }
+
+    /// The run's answer for each read of a read list, for `iface_key`:
+    /// the module's folder, whether a use may name it and whether it is
+    /// test-only code, and, when the lowering opened its folder's
+    /// interface, that interface's deep hash and names hash.
+    fn read_answers(&self, fid: FolderId, reads: &[(String, bool)]) -> Vec<(String, Hash128)> {
+        use hd_resolve::World as _;
+        reads
+            .iter()
+            .map(|(m, opened)| {
+                let mut k = hd_base::StableHasher::new("iface-read");
+                match self.table.folder_of_module(m) {
+                    Some(f) => {
+                        k.u8(1);
+                        k.str(&self.table.folders[f.idx()].path);
+                        if *opened {
+                            match self.iface_of(f).filter(|_| f != fid) {
+                                Some(i) => {
+                                    k.u8(1);
+                                    k.hash(i.deep_hash);
+                                    k.hash(i.names_hash);
+                                }
+                                None => k.u8(0),
+                            }
+                        }
+                    }
+                    None => k.u8(0),
+                }
+                k.u8(u8::from(self.usable(m)));
+                k.u8(u8::from(self.test_only(m)));
+                (m.clone(), k.finish())
+            })
+            .collect()
+    }
+
+    /// `reads_key(F)` (`crates/hd_cache/DESIGN.md` §5.3): what folder
+    /// `fi`'s own source decides of its interface and its uses.
+    fn reads_key(&self, fi: usize) -> Hash128 {
+        let folder = &self.table.folders[fi];
+        let apis: Vec<FileApi<'_>> = folder
+            .modules
+            .iter()
+            .map(|m| FileApi {
+                module: &self.table.modules[m.idx()].path,
+                role: ROLE,
+                api_text_hash: self.skim_of(m.idx()).file.api_text_hash,
+            })
+            .collect();
+        reads_key(
+            self.toolchain,
+            self.package_key_of(folder.package),
+            &folder.path,
+            &apis,
+            self.roots_hash(fi),
+        )
+    }
+
+    /// The hash of the use roots of folder `fi`'s modules (`UseRoots`):
+    /// what a use's root names, which no read records.
+    fn roots_hash(&self, fi: usize) -> Hash128 {
+        let mut k = hd_base::StableHasher::new("use-roots");
+        for m in &self.table.folders[fi].modules {
+            let r = self.table.use_roots(*m);
+            k.str(&r.pkg);
+            k.str(&r.base);
+            k.str(&r.floor);
+            k.u32(u32_of(r.deps.len()));
+            for (name, root) in &r.deps {
+                k.str(name);
+                k.str(root);
+            }
+            k.u32(u32_of(r.dev.len()));
+            for (name, root, back) in &r.dev {
+                k.str(name);
+                k.str(root);
+                k.u8(u8::from(*back));
+            }
+            k.u8(r.access as u8);
+        }
+        k.finish()
     }
 
     /// Sets folder `fi`'s interface from the sections of its `iface`
@@ -3248,6 +3396,7 @@ impl Run<'_> {
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = private.into_iter().collect();
         iface.loop_names = looped.into_iter().collect();
+        iface.names_hash = names_hash(sections.get(3)?, sections.get(4)?);
         self.emit_iface_diags(fi, &diags);
         self.note_iface(&folder.path, &iface, false);
         lock(&self.report).ok(Stage::FolderIface);
@@ -3263,10 +3412,14 @@ impl Run<'_> {
         let Some(kept) = self.kept_folder(fi) else {
             return false;
         };
-        let (Some(iface), Some(mentions), Some(header), Some(check)) = (
+        let (Some(iface), Some(mentions), Some(header), Some(uses), Some(check)) = (
             kept.iface.as_deref(),
             kept.mentions.as_deref(),
             kept.header.as_ref().and_then(|h| h.first()),
+            kept.header
+                .as_ref()
+                .and_then(|h| h.get(1))
+                .and_then(|b| decode_iface_diags(b)),
             kept.check.as_deref(),
         ) else {
             return false;
@@ -3282,6 +3435,7 @@ impl Run<'_> {
             return false;
         };
         lock(&self.report).ok(Stage::HeaderCheck);
+        self.emit_iface_diags(fi, &uses);
         self.emit_findings(&found);
         let _ = self.init_runs[fi].set(Vec::new());
         lock(&self.report).ok(Stage::InitOrder);
@@ -3585,8 +3739,9 @@ impl Run<'_> {
     }
 
     /// One module's items (private ones included), scope and kinds,
-    /// against its folder's frozen interface. Use and header diagnostics
-    /// are the folder interface's, so `diags` here is the caller's to drop.
+    /// against its folder's frozen interface. Header diagnostics are the
+    /// folder interface's and use diagnostics its `HeaderCheck`'s, so
+    /// `diags` here is the caller's to drop.
     fn lower_module(
         &self,
         m: usize,
@@ -3703,10 +3858,17 @@ impl Run<'_> {
             .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
             .collect();
         // The folder's own impls of private types are in its findings.
+        // Its uses' diagnostics read its own uses, which a body-only use
+        // edit changes and no interface hash sees (`reads_key`), and the
+        // private names of the folders they reach.
         let own_hash = {
             let mut k = hd_base::StableHasher::new("hdr-own");
             k.hash(own.deep_hash);
             k.hash(own.heads_hash);
+            k.hash(self.reads_key(fi));
+            for i in &all {
+                k.hash(i.names_hash);
+            }
             k.finish()
         };
         let key = hdr_key(
@@ -3720,14 +3882,31 @@ impl Run<'_> {
             && let Some(found) = sections
                 .first()
                 .and_then(|b| decode_header_findings(b, &own.items))
+            && let Some(uses) = sections.get(1).and_then(|b| decode_iface_diags(b))
         {
             lock(&self.report).ok(Stage::HeaderCheck);
+            self.emit_iface_diags(fi, &uses);
             self.emit_findings(&found);
             self.keep_input(folder.modules[0].idx(), |e| &mut e.header, || sections);
             return;
         }
         self.computed(Stage::HeaderCheck);
         let names = self.names();
+        // The uses' diagnostics (#248), reported whatever stage B finds.
+        let mods: Vec<hd_resolve::ModIn<'_>> = folder
+            .modules
+            .iter()
+            .map(|m| self.mod_in(m.idx()))
+            .collect();
+        let cx = hd_resolve::Cx {
+            names,
+            folder: fid.raw(),
+            world: self,
+        };
+        let mut found_uses = DiagBuf::default();
+        hd_resolve::use_diags(&cx, &mods, &mut found_uses);
+        let uses = encode_iface_diags(&self.anchored_diags(fi, &found_uses));
+        lock(&self.diags).append(&found_uses);
         let lookup = Lookup::new(&[], all.iter().map(AsRef::as_ref).collect());
         let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
@@ -3759,8 +3938,12 @@ impl Run<'_> {
             return;
         };
         let bytes = encode_header_findings(&findings, &own.items);
-        self.put(EntryKind::Graph, key, &[&bytes]);
-        self.keep_input(folder.modules[0].idx(), |e| &mut e.header, || vec![bytes]);
+        self.put(EntryKind::Graph, key, &[&bytes, &uses]);
+        self.keep_input(
+            folder.modules[0].idx(),
+            |e| &mut e.header,
+            || vec![bytes, uses],
+        );
         self.emit_findings(&findings);
     }
 
@@ -4495,9 +4678,16 @@ impl Run<'_> {
             let _ = self.check[mi].set(None);
             return None;
         };
+        // The scratch holds what the module's uses report, which the
+        // folder's `HeaderCheck` reports to the user.
+        let use_errors = (0..scratch.len()).any(|i| {
+            scratch.severity[i] == Severity::Error
+                && hd_resolve::USE_CODES.contains(&scratch.code[i])
+        });
         let _ = self.prep[mi].set(Some(PrepOut {
             items,
             diags: DiagBuf::default(),
+            use_errors,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
         // A REPL input's bodies read the earlier inputs' bindings.
@@ -4589,7 +4779,9 @@ impl Run<'_> {
     }
 
     /// Whether a module's file already has an error: its header errors are
-    /// reported by the folder interface, before any body of it.
+    /// reported by the folder interface, before any body of it. Its uses'
+    /// errors come from `HeaderCheck`, which no body waits for: a body
+    /// reads them from its `ModulePrep` ([`PrepOut::use_errors`]).
     fn file_has_errors(&self, m: usize) -> bool {
         let d = lock(&self.diags);
         let file = FileId::from_raw(u32_of(m));
@@ -4873,7 +5065,7 @@ impl Run<'_> {
             // A method whose impl header was rejected has no item
             // (`unknown-trait`): that error is the answer, there is no
             // signature to check the body against.
-            if lookup.item(def).is_none() && self.file_has_errors(m) {
+            if lookup.item(def).is_none() && (prep.use_errors || self.file_has_errors(m)) {
                 continue;
             }
             slots.push((def, node, hd_check::results::take(&cx, def)));
@@ -6271,10 +6463,13 @@ impl Run<'_> {
             }
         }
         // Invariant 3 (`crates/hd_tir/DESIGN.md` §4.13.11): `Hole` and
-        // `Poison` only where something reported an error. An import's
+        // `Poison` only where something reported an error. A header's
         // error is the folder's, reported before its modules finish, so
-        // the run's errors so far stand in for the module's.
+        // the run's errors so far stand in for the module's. An import's
+        // is the folder's `HeaderCheck`'s, which may finish later: its
+        // `ModulePrep` saw it.
         if !diags.has_errors()
+            && !prep.use_errors
             && !lock(&self.diags).has_errors()
             && let Some(b) = bodies
                 .iter()
@@ -8192,6 +8387,35 @@ fn decode_graph(sections: &[Vec<u8>], n: usize) -> Option<Vec<Vec<u8>>> {
         })
         .collect::<Option<Vec<_>>>()?;
     r.ok().then_some(parts)
+}
+
+/// [`FolderIface::names_hash`] over the encoded private-name and loop-name
+/// sections of an interface entry.
+fn names_hash(private: &[u8], looped: &[u8]) -> Hash128 {
+    let mut k = hd_base::StableHasher::new("iface-names");
+    k.bytes(private);
+    k.bytes(looped);
+    k.finish()
+}
+
+/// A header lowering's read list ([`Run::read_list`]), as its entry
+/// stores it: sorted rows of (module path, opened).
+fn encode_reads(reads: &[(String, bool)]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(reads);
+    for (m, opened) in reads {
+        w.str(m);
+        w.u8(u8::from(*opened));
+    }
+    w.bytes
+}
+
+fn decode_reads(b: &[u8]) -> Option<Vec<(String, bool)>> {
+    let mut r = Reader::new(b);
+    let reads = (0..r.count())
+        .map(|_| (r.str().to_owned(), r.u8() != 0))
+        .collect();
+    (r.ok() && r.at_end()).then_some(reads)
 }
 
 /// `InitOrder`'s runs for one folder: one list per module cycle.

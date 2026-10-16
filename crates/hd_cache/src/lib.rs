@@ -17,7 +17,7 @@ pub use store::{
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 10;
+pub const LAYOUT_VERSION: u16 = 11;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
@@ -47,17 +47,19 @@ pub fn package_key(name: &str) -> Hash128 {
     k.finish()
 }
 
-/// `iface_key(F) = H("iface", toolchain, package, F, [(module, role,
-/// api_text_hash)], [(folder, deep_hash) for every folder F's uses reach])`.
+/// `reads_key(F) = H("iface-reads", toolchain, package, F, [(module, role,
+/// api_text_hash)], roots)`: what F's own source decides, `roots` being
+/// the hash of its modules' use roots. It keys the entry that lists what
+/// F's header lowering last read, and starts [`iface_key`].
 #[must_use]
-pub fn iface_key(
+pub fn reads_key(
     toolchain: Hash128,
     package: Hash128,
     folder: &str,
     files: &[FileApi<'_>],
-    reach: &[(&str, Hash128)],
+    roots: Hash128,
 ) -> Hash128 {
-    let mut k = StableHasher::new("iface");
+    let mut k = StableHasher::new("iface-reads");
     k.hash(toolchain);
     k.hash(package);
     k.str(folder);
@@ -66,7 +68,19 @@ pub fn iface_key(
         k.str(f.role);
         k.hash(f.api_text_hash);
     }
-    for (d, h) in reach {
+    k.hash(roots);
+    k.finish()
+}
+
+/// `iface_key(F) = H("iface", reads_key(F), [(read, answer) for each
+/// read of F's header lowering])`: each module path it asked about, with
+/// what the run answers for it now, the deep hash of its folder's
+/// interface included when the lowering opened that interface.
+#[must_use]
+pub fn iface_key(reads_key: Hash128, reads: &[(&str, Hash128)]) -> Hash128 {
+    let mut k = StableHasher::new("iface");
+    k.hash(reads_key);
+    for (d, h) in reads {
         k.str(d);
         k.hash(*h);
     }
@@ -124,9 +138,11 @@ pub fn depfiles_key(toolchain: Hash128, identity: &str) -> Hash128 {
     k.finish()
 }
 
-/// `hdr_key(F) = H("hdr", toolchain, package, F, own deep_hash,
+/// `hdr_key(F) = H("hdr", toolchain, package, F, own,
 /// [(folder, deep_hash) for every folder of closure(F)])`: a part key of
-/// the `graph` entry (stage-B header findings, one entry per folder here).
+/// the `graph` entry (stage-B header findings and F's use diagnostics,
+/// one entry per folder here). `own` is the driver's hash of F's deep and
+/// heads hashes, its `reads_key` and its closure's private names.
 /// The deep hashes cover the interfaces, impl heads and `arg_impls`, which
 /// fix the impl universe of the solving context. The driver adds the
 /// source hash of each user tuple-template module as a closure entry, as
@@ -279,6 +295,18 @@ mod tests {
             )
         );
         assert_ne!(package_key("a"), package_key("b"));
+        let files = [FileApi {
+            module: "pkg.main",
+            role: "lib",
+            api_text_hash: Hash128(1),
+        }];
+        let r = reads_key(tc, Hash128(9), "pkg", &files, Hash128(2));
+        assert_ne!(r, reads_key(tc, Hash128(9), "pkg", &files, Hash128(3)));
+        assert_ne!(r, reads_key(tc, Hash128(9), "app", &files, Hash128(2)));
+        let f = iface_key(r, &[("pkg.util", Hash128(4))]);
+        assert_ne!(f, iface_key(r, &[("pkg.util", Hash128(5))]));
+        assert_ne!(f, iface_key(r, &[]));
+        assert_ne!(f, r);
         let i = init_key(tc, "pkg", &[("pkg.a", Hash128(1))]);
         assert_ne!(i, init_key(tc, "pkg", &[("pkg.a", Hash128(2))]));
         assert_ne!(i, init_key(tc, "pkg", &[("pkg.b", Hash128(1))]));

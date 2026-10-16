@@ -99,6 +99,97 @@ pub trait World {
     /// (`module.test.non-test-use.test-module`).
     fn test_only(&self, module: &str) -> bool;
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>>;
+    /// Holds (`true`) or resumes the recording of the reads that follow,
+    /// in a world that records them ([`Recorded`]): binding a use reads
+    /// quietly, since its reads count only once a lookup consults a name
+    /// it binds (#248).
+    fn hold_reads(&self, _held: bool) {}
+}
+
+/// A [`World`] that records what one folder's header lowering reads of
+/// it (#248): each module path it asks about, found or not, and each
+/// folder whose interface it opens. A use's own reads are held while it
+/// binds, and count once a lookup consults a name it binds
+/// ([`build_folder`] reads them again then). `FolderIface(F)` keys F's
+/// interface by these reads, not by every folder F's uses reach
+/// (`crates/hd_cache/DESIGN.md` §5.3).
+pub struct Recorded<'a> {
+    world: &'a dyn World,
+    reads: std::sync::Mutex<Reads>,
+    held: std::sync::atomic::AtomicBool,
+}
+
+/// What a [`Recorded`] world was asked, sorted, without repeats.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Reads {
+    /// Each module path asked for its folder, its use, or its test role.
+    pub modules: Vec<String>,
+    /// Each folder whose interface was opened, by folder ID.
+    pub folders: Vec<u32>,
+}
+
+impl<'a> Recorded<'a> {
+    #[must_use]
+    pub fn new(world: &'a dyn World) -> Self {
+        Self {
+            world,
+            reads: std::sync::Mutex::default(),
+            held: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    fn held(&self) -> bool {
+        self.held.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// The reads so far.
+    #[must_use]
+    pub fn reads(&self) -> Reads {
+        self.lock().clone()
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Reads> {
+        self.reads
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn module(&self, module: &str) {
+        if self.held() {
+            return;
+        }
+        let mut r = self.lock();
+        if let Err(at) = r.modules.binary_search_by(|m| m.as_str().cmp(module)) {
+            r.modules.insert(at, module.to_owned());
+        }
+    }
+}
+
+impl World for Recorded<'_> {
+    fn module_folder(&self, module: &str) -> Option<u32> {
+        self.module(module);
+        self.world.module_folder(module)
+    }
+    fn usable(&self, module: &str) -> bool {
+        self.module(module);
+        self.world.usable(module)
+    }
+    fn test_only(&self, module: &str) -> bool {
+        self.module(module);
+        self.world.test_only(module)
+    }
+    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
+        if !self.held() {
+            let mut r = self.lock();
+            if let Err(at) = r.folders.binary_search(&folder) {
+                r.folders.insert(at, folder);
+            }
+        }
+        self.world.iface(folder)
+    }
+    fn hold_reads(&self, held: bool) {
+        self.held.store(held, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 /// One name of a use: the declaration, its local name, where it is.
@@ -1015,9 +1106,16 @@ fn scope_of(
             kinds.insert(s.def, k);
         }
     }
+    // An interface build notes the names its lowering looks up, which
+    // decide the uses whose reads key it (`reread_uses`).
+    if r.frozen.is_none() {
+        scope.track();
+    }
     bind_uses(r, &mut scope, &mut kinds, uses, diags);
     if let Some(outer) = &m.session {
+        let seen = scope.looked_up.take();
         scope = outer.scope.overlay(&scope);
+        scope.looked_up = seen;
         for (d, k) in &outer.kinds {
             kinds.entry(*d).or_insert(*k);
         }
@@ -1086,6 +1184,7 @@ fn bind_uses(
     diags: &mut DiagBuf,
 ) {
     let names = &r.cx.names;
+    r.cx.world.hold_reads(true);
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
@@ -1215,6 +1314,39 @@ fn bind_uses(
                     }
                     bind_poison(scope, local, use_origin(u), row);
                 }
+            }
+        }
+    }
+    r.cx.world.hold_reads(false);
+}
+
+/// Asks the world again what [`bind_uses`] asked it for each use of
+/// `uses` that binds a name of `seen`, so a recording world
+/// ([`Recorded`]) counts those reads.
+fn reread_uses(r: &Resolver<'_, '_>, uses: &[UseDecl], seen: &HashSet<Symbol>) {
+    let names = &r.cx.names;
+    let local = |name: &str, alias: &Option<String>| {
+        seen.contains(&names.syms.intern(alias.as_deref().unwrap_or(name)))
+    };
+    for u in uses.iter().filter(|u| u.root_error.is_none()) {
+        let module = u.module();
+        if let Some(group) = &u.group {
+            let mut asked = false;
+            for g in group.iter().filter(|g| local(&g.name, &g.alias)) {
+                if !asked {
+                    asked = true;
+                    let _ = r.module_exists(&module);
+                }
+                let _ = r.export(&module, names.syms.intern(&g.name));
+            }
+        } else if let Some((last, parent)) = u.path.split_last()
+            && local(last, &u.alias)
+        {
+            let _ = r.module_exists(&module);
+            if !parent.is_empty() {
+                let parent = parent.join(".");
+                let _ = r.export(&parent, names.syms.intern(last));
+                let _ = r.module_exists(&parent);
             }
         }
     }
@@ -5004,24 +5136,53 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     out
 }
 
-/// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
-/// Without `frozen`, `mods` must be every module of the folder: sibling
-/// uses resolve through their heads, and the folder's exports are
-/// computed. With `frozen`, sibling uses read its export index, and `mods`
-/// may be any subset.
-pub fn build_folder(
-    cx: &Cx<'_>,
-    mods: &[ModIn<'_>],
-    frozen: Option<Arc<FolderIface>>,
-    stage: Stage,
-    diags: &mut DiagBuf,
-) -> StageResult<FolderOut> {
+/// The diagnostics a use of the folder's modules reports when it names
+/// nothing (`USE_CODES`), in the order [`build_folder`] meets them:
+/// `HeaderCheck(F)` reports them (#248), so the interface entry, keyed
+/// by the folders F's headers read, holds none. They depend on every
+/// folder F's uses reach, and on F's own uses.
+pub fn use_diags(cx: &Cx<'_>, mods: &[ModIn<'_>], diags: &mut DiagBuf) {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
         .map(|m| heads(names, &m.src, &m.path, m.tests))
         .collect();
     let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
+    let r = resolver(cx, mods, &all_heads, &all_uses, None);
+    for ((m, hs), us) in mods.iter().zip(&all_heads).zip(&all_uses) {
+        let mut scoping = DiagBuf::default();
+        let _ = scope_of(&r, m, hs, us, &mut scoping);
+        diags.append_if(&scoping, &is_use_code);
+    }
+}
+
+/// The codes a `use` that names nothing reports while module scopes are
+/// built: [`use_diags`]' codes, which `build_folder` leaves out.
+/// `re-export-loop` is not one: it depends only on the folder's own
+/// source, and its interface reports it once per loop.
+pub const USE_CODES: [Code; 6] = [
+    Code::UnknownImport,
+    Code::PrivateImport,
+    Code::UnknownModule,
+    Code::AmbiguousImport,
+    Code::TestOnlyUse,
+    Code::CyclicTestDependency,
+];
+
+fn is_use_code(code: Code) -> bool {
+    USE_CODES.contains(&code)
+}
+
+/// The resolver of one folder's lowering: its own heads and `pub use`
+/// links, over `frozen` once its interface is built.
+fn resolver<'a, 'b>(
+    cx: &'b Cx<'a>,
+    mods: &[ModIn<'_>],
+    all_heads: &[Vec<Head<'_>>],
+    all_uses: &[Vec<UseDecl>],
+    frozen: Option<Arc<FolderIface>>,
+) -> Resolver<'a, 'b> {
+    let names = &cx.names;
     let mut r = Resolver {
         cx,
         frozen,
@@ -5048,7 +5209,7 @@ pub fn build_folder(
             .filter_map(|m| Some((m.path.clone(), m.session.as_ref()?.modules.clone())))
             .collect(),
     };
-    for (m, hs) in mods.iter().zip(&all_heads) {
+    for (m, hs) in mods.iter().zip(all_heads) {
         for h in hs {
             if h.kind == HeadKind::Impl {
                 continue;
@@ -5113,13 +5274,35 @@ pub fn build_folder(
             }
         }
     }
-    for (m, us) in mods.iter().zip(&all_uses) {
+    for (m, us) in mods.iter().zip(all_uses) {
         for u in us {
             for (local, module, name) in reexports(&r, m, u) {
                 r.pub_uses.insert((m.path.clone(), local), (module, name));
             }
         }
     }
+    r
+}
+
+/// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
+/// Without `frozen`, `mods` must be every module of the folder: sibling
+/// uses resolve through their heads, and the folder's exports are
+/// computed. With `frozen`, sibling uses read its export index, and `mods`
+/// may be any subset.
+pub fn build_folder(
+    cx: &Cx<'_>,
+    mods: &[ModIn<'_>],
+    frozen: Option<Arc<FolderIface>>,
+    stage: Stage,
+    diags: &mut DiagBuf,
+) -> StageResult<FolderOut> {
+    let names = &cx.names;
+    let all_heads: Vec<Vec<Head<'_>>> = mods
+        .iter()
+        .map(|m| heads(names, &m.src, &m.path, m.tests))
+        .collect();
+    let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
+    let mut r = resolver(cx, mods, &all_heads, &all_uses, frozen);
     let mut out = FolderOut {
         modules: Vec::new(),
         exports: Vec::new(),
@@ -5132,7 +5315,11 @@ pub fn build_folder(
         .zip(&all_heads)
         .zip(&all_uses)
         .map(|((m, hs), us)| {
-            let (scope, mut kinds) = scope_of(&r, m, hs, us, diags);
+            // An interface leaves the use diagnostics to `HeaderCheck`
+            // ([`use_diags`]).
+            let mut scoping = DiagBuf::default();
+            let (scope, mut kinds) = scope_of(&r, m, hs, us, &mut scoping);
+            diags.append_if(&scoping, &|c| r.frozen.is_some() || !is_use_code(c));
             let mut test_diags = DiagBuf::default();
             let tests = m.tests.then(|| {
                 let uses = test_use_decls(&m.src, &m.roots);
@@ -5146,6 +5333,10 @@ pub fn build_folder(
             }
         })
         .collect();
+    // A use bound above may have filled the memo of this folder's own
+    // `pub use` chains while its reads were held: they are read again,
+    // recorded, when a lookup needs them.
+    r.memo.borrow_mut().clear();
     r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
     // Twice: the first round finds each supertrait; the second resolves
     // the bindings that name a supertrait's supertrait's associated type.
@@ -5363,6 +5554,16 @@ pub fn build_folder(
             .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
         out.loop_names
             .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
+        // A use read quietly while it bound (`bind_uses`); what the
+        // lowering made of a name it binds depends on those reads, so
+        // they count for each name a lookup consulted.
+        for ((m, us), o) in mods.iter().zip(&all_uses).zip(&out.modules) {
+            let seen = o.scope.looked_up();
+            reread_uses(&r, us, &seen);
+            if m.tests {
+                reread_uses(&r, &test_use_decls(&m.src, &m.roots), &seen);
+            }
+        }
     }
     match unsupported {
         Some(what) => Err(NotImplemented::new(stage, what)),

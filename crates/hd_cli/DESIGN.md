@@ -18,8 +18,9 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
    Wasm engine.
 3. Read and skim every source file; build the folder graph from the
    skims' use lists.
-4. Bottom-up over folders: compute `iface_key`, look it up, and on a miss
-   parse the folder's files and run `FolderIface`.
+4. Bottom-up over folders: read the folder's read list, compute
+   `iface_key` from it, look it up, and on a miss parse the folder's
+   files and run `FolderIface`.
 5. For each module, compute `check_key`; on a hit take its result, on a
    miss parse it and run M1 to M3.
 6. Run `HeaderCheck` per folder, `Coherence` once and `InitOrder` per

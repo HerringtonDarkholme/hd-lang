@@ -677,6 +677,11 @@ pub struct FolderIface {
     /// `re-export-loop`, reported where the loop was built, quietly
     /// through other folders. Outside every hash; diagnostics only.
     pub loop_names: hd_base::HashSet<(String, Symbol)>,
+    /// The hash of `private_names` and `loop_names` as their entry
+    /// sections encode them: what a failed lookup reads besides the
+    /// exports, so a key over the reads of a folder's header lowering
+    /// takes it with the deep hash (#248). Zero until the driver sets it.
+    pub names_hash: Hash128,
     /// The modules a REPL input's `use`s name, as (input module path,
     /// local name, module path): what the input leaves in the session
     /// besides its exports (`cli.repl.uses.other`). Empty for any other
@@ -1638,6 +1643,7 @@ pub fn folder_iface(
         spans: HashMap::default(),
         private_names: hd_base::HashSet::default(),
         loop_names: hd_base::HashSet::default(),
+        names_hash: Hash128::default(),
         module_uses,
     }
 }

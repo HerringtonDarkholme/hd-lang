@@ -25,10 +25,10 @@ says.
 
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
-| `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
+| `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses; under `reads_key`, the folder's read list | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the TIR content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
-| `graph` | stage-B header findings per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish | output, `PackageResult`, D2 |
+| `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish | output, `PackageResult`, D2 |
 | `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
@@ -74,14 +74,15 @@ toolchain_key = H("tc", compiler id, target ("wasm32-gc"), layout version, "xxh3
 package key   = root: H("pkg", name), plus the traits of a non-default runtime profile;
                 a dependency: H("pkg", its identity); a dependency's module check
                 hashes both the root's key and its own
-iface_key(F)  = H("iface", toolchain_key, package key, folder path,
-                  [(module path, role, api_text_hash) for each file of F],
-                  [(folder path, deep_hash) for each other folder in closure(F)])
+reads_key(F)  = H("iface-reads", toolchain_key, package key, folder path,
+                  [(module path, role, api_text_hash) for each file of F], use roots hash)
+iface_key(F)  = H("iface", reads_key(F), [(module path, answer) for each read of F's lowering])
 check_key(m)  = H("check", toolchain_key, package key, module path, role, token_hash(m),
                   [(folder path, deep_hash) for each folder in closure(m)],
                   template text hashes, REPL library and earlier inputs)
 parse_key(f)  = H("parse", toolchain_key, source_hash(f))
-hdr_key(F)    = H("hdr", toolchain_key, package key, folder path, own deep_hash,
+hdr_key(F)    = H("hdr", toolchain_key, package key, folder path,
+                  H(own deep_hash, own heads_hash, reads_key(F), closure(F)'s names hashes),
                   [(folder path, deep_hash) for each folder in closure(F)], tuple-template text hashes)
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, [(module path, init summary hash)])
@@ -115,13 +116,40 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   every folder whose impls its check can see. A `tests:` block's uses,
   of the same package or another, make no folder edge
   (`module.cycle.test-code`), so they never widen `closure(m)`.
-- **Interface reach, not import reach.** A folder's `deep_hash` folds its
-  own `api_hash` and the deep hashes of the folders its interface
-  mentions (§4.11.3), and `iface_key(F)` should name the same set:
-  folders named by F's public interface, not every folder F's uses
-  reach. Implementation differs: `iface_key` lists every other folder in
-  F's closure, which is worse: an API edit in a folder F only uses
-  privately rebuilds F's interface.
+- **Interface keys hold what the headers read.** A folder's `deep_hash`
+  folds its own `api_hash` and the deep hashes of the folders its
+  interface mentions (§4.11.3). The design keyed `iface_key(F)` by that
+  same set. That set is known only after the build, and it misses what F's
+  lowering read without naming: a `pub use` chain's middle folder, a row
+  alias's folder, a lookup that failed. So the built key holds the
+  lowering's recorded reads (#248). `hd_resolve::Recorded` wraps the
+  run's `World` and notes each module path asked about and each folder
+  whose interface was opened. Binding F's uses reads quietly: a use's
+  reads count only when a lookup during the lowering consults a name it
+  binds, and are then read again, recorded. That read list is an `iface`
+  entry keyed by `reads_key(F)`. On a run, `FolderIface(F)` reads the list, answers each
+  read now, and looks up `iface_key(F)` over those answers. A miss builds
+  F and rewrites the list when it changed.
+- **A read's answer.** For a module path: its folder, whether a use may
+  name it, whether it is test-only code, and, when its folder's
+  interface was opened, that interface's deep hash and names hash (the
+  hash of its private-name and loop-name sections). The names hash is
+  there because a failed lookup reads those names: `private-import` and
+  `re-export-loop` come from them. A folder that F's uses reach but its
+  headers never consult, such as one F or a dependency imports only for
+  bodies, is in no read. So an API edit there rebuilds no interface of
+  F's, and a name removed there is still reported, by `HeaderCheck(F)`.
+- **The use roots.** A use whose root fails (`dep.NAME` with no such
+  dependency) reads nothing, so `reads_key` holds the hash of each
+  module's `UseRoots`: the package root, the relative bases and the
+  dependency names.
+- **A REPL input keeps its closure.** Its session scope reads the
+  earlier inputs outside the `World`, so its `iface_key` lists every
+  other folder of its closure with its deep hash, as before #248, and it
+  writes no read list.
+- **What a recorded read costs.** A warm `FolderIface` opens two entries,
+  the read list and the interface, where a closure key needs one. The
+  list is written only when it changes.
 - **Argument-owned impls need no extra hash.** A goal with an open trait
   argument reads impls owned only through a trait argument, from any
   folder in the asking context's closure
@@ -168,6 +196,18 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   module is added: its API text, its template method bodies, and every
   body whose signature a caller infers. A check that read other private items would have to widen the
   key.
+- **Use diagnostics.** `HeaderCheck(F)` also reports what F's uses
+  report when they name nothing: `unknown-import`, `private-import`,
+  `unknown-module`, `ambiguous-import`, `test-only-use` and
+  `cyclic-test-dependency` (`hd_resolve::use_diags`). They read every
+  folder F's uses reach, which `iface_key` no longer lists, and F's own
+  uses, which a body-only use edit changes without changing F's
+  interface. So `hdr_key`'s own part adds `reads_key(F)` and the names
+  hash of every closure folder. They are a second section of the `graph`
+  entry, as anchors. No body waits for them: a module's `ModulePrep`
+  notes whether a use of the module reported an error, which is what its
+  `Body` and `ModuleFinish` ask. `re-export-loop` stays in the interface entry: it reads only F's
+  own source, and is reported once per loop.
 - **Template text hashes.** No interface carries a template body yet
   ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)),
   so a `check` key takes the template text hash of each user template
@@ -222,6 +262,10 @@ including ones that found nothing, the impl tables it probed). On a
 the run compares every read with the current interfaces and reuses the
 previous entry when all are equal. Verify mode (§5.6) would recheck
 every reuse.
+
+Interfaces already key on a coarser read list (§5.3, "Interface keys
+hold what the headers read"): per folder opened, not per item, and as
+part of the key, not as a check after a miss.
 
 ### 5.4 Entry Format And Atomic Publish
 

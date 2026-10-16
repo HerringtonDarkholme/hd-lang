@@ -136,7 +136,16 @@ impl DiagBuf {
     /// Appends another buffer's diagnostics, fix-its included (labels
     /// stay behind: this run's stages attach no labels after parsing).
     pub fn append(&mut self, other: &DiagBuf) {
+        self.append_if(other, &|_| true);
+    }
+
+    /// [`Self::append`] of only the diagnostics whose code `keep` takes,
+    /// in their order.
+    pub fn append_if(&mut self, other: &DiagBuf, keep: &dyn Fn(Code) -> bool) {
         for i in 0..other.len() {
+            if !keep(other.code[i]) {
+                continue;
+            }
             self.push(
                 other.code[i],
                 other.severity[i],

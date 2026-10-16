@@ -592,15 +592,24 @@ every file of a folder whose interface misses
 (`crates/hd_syntax/src/skim.rs:44`). An interface rebuild costs a full
 parse of the folder.
 
-That full parse is not wasted today (#214). The interface key and every
-check key of the folder's modules hold the deep hashes of the folder's
-closure, and a check key also holds the module's token hash. So a
-folder whose interface misses also rechecks its modules in the same
-run, and the check needs the full parse anyway. A header-only build
-would add a pass: on the 200-function file of bench/profile-signature,
-the header pass takes 0.52 ms and the full parse 0.92 ms (release, best
-of 30). It pays only once a check key can hit while its folder's
-interface misses.
+That full parse is rarely wasted today (#214). The interface key holds
+the folder's API text and what its headers read: each read folder's
+deep hash and names hash (#248). Every check key of the folder's
+modules holds the module's token hash and the deep hashes of the whole
+closure. A read folder is in the closure, so an API text edit or a
+read folder's deep hash change misses both keys. So a folder whose
+interface misses almost always rechecks its modules in the same run,
+and the check needs the full parse anyway.
+
+Two cases rebuild the interface while the checks hit. A read folder
+changes only its private names, which `names_hash` covers and no check
+key holds. Or the manifest changes the folder's use roots, say a new
+dependency no module uses yet. Both are rare edits.
+
+A header-only build would add a pass: on the 200-function file of
+bench/profile-signature, the header pass takes 0.52 ms and the full
+parse 0.92 ms (release, best of 30). It pays only once a check key
+often hits while its folder's interface misses.
 
 ### 3.15 Name-Resolution Tables
 
@@ -613,7 +622,9 @@ visible at module level, with `name`, `binding` (an 8-byte `Binding`:
 `Item | Module | Prelude | Ambiguous | Poison` plus a value), `origin`
 (`Own | Use | PubUse | Prelude`) and `use_row`; an `index` from name to
 row; `def`, the module's items as `DefId`s; and the module paths that
-`Module` bindings name.
+`Module` bindings name. While a folder's interface is built, the scope
+also notes each name looked up (`looked_up`): only the uses that bind
+one of those names count among the reads that key the interface (#248).
 
 - **Body scopes are not here.** Local names live in the checker's scope
   stack (§3.19).
@@ -643,7 +654,12 @@ entry-local tables (§3.20.2), then the items, then the exports sorted by
 - `private_names` lets cross-folder lookup tell `private-import` from
   `unknown-import` without exposing a private item. Anchors keep
   positions out of the interface; no record stores a file offset. Both
-  are outside `api_hash` and `deep_hash`.
+  are outside `api_hash` and `deep_hash`. The hash of the private-name
+  and loop-name sections (`names_hash`) is in the keys of the interfaces
+  and header checks that read them
+  ([crates/hd_cache/DESIGN.md §5.3](../../crates/hd_cache/DESIGN.md#53-key-composition)).
+- The header diagnostics leave out what a use reports when it names
+  nothing; `HeaderCheck` reports those (#248).
 - **Canonical bytes.** Rows are written in content order: table rows in
   first-use order of a walk over items in source order, exports sorted
   by bytes. Never by run IDs or hash-map order.

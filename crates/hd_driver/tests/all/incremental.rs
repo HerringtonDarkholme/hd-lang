@@ -845,9 +845,11 @@ fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel)
 /// the edited body: in the optimized pipeline a callee body that stops
 /// calling its closure parameter turns off `closure_spec` at every
 /// caller, so those callers re-emit too. A signature edit in
-/// `core.util` rebuilds its importers' interfaces and rechecks them,
-/// plus `app.main`, whose key lists its whole use closure because it can
-/// see the impls of every folder there (`crates/hd_cache/DESIGN.md` §5.3). Every
+/// `core.util` rebuilds core's interface alone: its importers read core
+/// only in bodies, so theirs, keyed by what their headers read, stay. It
+/// rechecks those importers, plus `app.main`, whose check key lists its
+/// whole use closure because it can see the impls of every folder there
+/// (`crates/hd_cache/DESIGN.md` §5.3). Every
 /// incremental build's Wasm equals a clean build's, and its relink
 /// decodes only the TIR bodies collection reaches.
 #[test]
@@ -909,17 +911,15 @@ fn a_body_edit_rechecks_one_module_and_a_signature_edit_its_importers() {
             OptLevel::Dev => assert_eq!(closure.emitted, 1),
             OptLevel::Optimized => assert!(closure.emitted > 1 + N, "{}", closure.emitted),
         }
-        // (c): core's interface changes; the leaves rebuild theirs, which
-        // name nothing of core, so their deep hashes stay.
-        assert!(sig.ifaces_built.contains(&"fan.core".to_owned()));
+        // (c): core's interface changes. The leaves use core only in
+        // bodies, so their headers read nothing of it, and every other
+        // interface stays a cache hit, though core is in each use
+        // closure (#248).
+        assert_eq!(sig.ifaces_built, vec!["fan.core".to_owned()], "{level:?}");
         assert_ne!(
             sig.deep_hashes["fan.core"],
             cold.counters.deep_hashes["fan.core"]
         );
-        for i in 0..N {
-            let f = format!("fan.f{i}");
-            assert_eq!(sig.deep_hashes[&f], cold.counters.deep_hashes[&f], "{f}");
-        }
         let mut expected: Vec<String> = (0..N).map(|i| format!("fan.f{i}.leaf")).collect();
         expected.extend(["fan.app.main".to_owned(), "fan.core.util".to_owned()]);
         expected.sort();
@@ -1382,5 +1382,137 @@ pub fn main() -> void $ Console:
         );
         let fresh = ok(&MemoryStore::default(), &src, executor);
         assert_eq!(warm.wasm, fresh.wasm);
+    }
+}
+
+/// A name imported for a body alone, then removed from the folder that
+/// declared it (#248): the next run reports the `use`, as a cold run
+/// does, and restoring the name clears the error. `app`'s headers read
+/// nothing of `util`, so its interface stays a cache hit throughout: the
+/// use's diagnostics come from `app`'s header check.
+#[test]
+fn removing_a_name_a_body_imports_reports_the_import() {
+    const MAIN: &str = "\
+use pkg.util.helpers.{helper}
+
+pub fn main() -> void $ Console:
+    println(helper())
+";
+    const UTIL: &str = "\
+pub fn helper() -> i32:
+    1
+
+pub fn other() -> i32:
+    2
+";
+    let sources = |util: &str| {
+        let mut s = MemorySources::default();
+        s.insert("app/main.hd", MAIN);
+        s.insert("util/helpers.hd", util);
+        s
+    };
+    let removed = UTIL.replace("pub fn helper() -> i32:\n    1\n\n", "");
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        ok(&store, &sources(UTIL), executor);
+        let warm = run(&store, &sources(&removed), executor);
+        let clean = run(&MemoryStore::default(), &sources(&removed), executor);
+        assert_eq!(warm.render(), clean.render(), "{executor:?}");
+        let app_kept = |r: &Output| {
+            assert!(
+                !r.counters.ifaces_built.contains(&"demo.app".to_owned()),
+                "{executor:?}: {:?}",
+                r.counters.ifaces_built
+            );
+        };
+        assert_eq!(
+            warm.counters.ifaces_built,
+            vec!["demo.util".to_owned()],
+            "{executor:?}"
+        );
+        app_kept(&warm);
+        // At `helper` in the `use` line.
+        let text = warm.render();
+        assert!(
+            text.contains("app/main.hd:22..28: unknown-import"),
+            "{executor:?}: {text}"
+        );
+        // A private `helper` changes only `util`'s private names, which
+        // no deep hash covers: the use now reports `private-import`.
+        let private = format!("{removed}\nfn helper() -> i32:\n    1\n");
+        let warm = run(&store, &sources(&private), executor);
+        let clean = run(&MemoryStore::default(), &sources(&private), executor);
+        assert_eq!(warm.render(), clean.render(), "{executor:?}");
+        app_kept(&warm);
+        let text = warm.render();
+        assert!(
+            text.contains("app/main.hd:22..28: private-import"),
+            "{executor:?}: {text}"
+        );
+        app_kept(&ok(&store, &sources(UTIL), executor));
+    }
+}
+
+/// `p` imports `util` for a body and re-exports `Q` from `q`; `app`
+/// imports `Q` and `count` from `p`.
+fn reads_program(util: &str, p: &str) -> MemorySources {
+    const Q: &str = "pub data Q:\n    pub n: i32\n";
+    const APP: &str = "\
+use pkg.p.api.{Q, count}
+
+pub fn make() -> Q:
+    return Q { n: count() }
+
+pub fn main() -> void $ Console:
+    println(make().n)
+";
+    let mut s = MemorySources::default();
+    s.insert("app/main.hd", APP);
+    s.insert("p/api.hd", p);
+    s.insert("q/types.hd", Q);
+    s.insert("r/types.hd", Q);
+    s.insert("util/helpers.hd", util);
+    s
+}
+
+/// An interface is keyed by what its folder's headers read (#248), not
+/// by every folder its uses reach. An API edit in `util`, which `p` uses
+/// only in a body, rebuilds neither `p`'s interface nor `app`'s, though
+/// `util` is in both use closures. When `p` changes which folder it
+/// re-exports `Q` from, `app`, which reads `Q` through `p`, rebuilds its
+/// interface. Each program equals a clean build's.
+#[test]
+fn an_interface_rebuilds_only_when_a_folder_its_headers_read_changes() {
+    const UTIL: &str = "pub fn helper() -> i32:\n    1\n";
+    const P: &str = "\
+use pkg.util.helpers.{helper}
+pub use pkg.q.types.{Q}
+
+pub fn count() -> i32:
+    return helper()
+";
+    let util_more = format!("{UTIL}\npub fn other() -> i32:\n    2\n");
+    let p_from_r = P.replace("pkg.q.types", "pkg.r.types");
+    let built = |r: &Output, f: &str| r.counters.ifaces_built.contains(&f.to_owned());
+    for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
+        let store = MemoryStore::default();
+        let cold = ok(&store, &reads_program(UTIL, P), executor);
+        assert!(built(&cold, "demo.app"), "{executor:?}");
+        let src = reads_program(&util_more, P);
+        let warm = ok(&store, &src, executor);
+        assert_eq!(
+            warm.counters.ifaces_built,
+            vec!["demo.util".to_owned()],
+            "{executor:?}"
+        );
+        assert_eq!(warm.wasm, ok(&MemoryStore::default(), &src, executor).wasm);
+        let src = reads_program(&util_more, &p_from_r);
+        let moved = ok(&store, &src, executor);
+        assert!(
+            built(&moved, "demo.app"),
+            "{executor:?}: {:?}",
+            moved.counters.ifaces_built
+        );
+        assert_eq!(moved.wasm, ok(&MemoryStore::default(), &src, executor).wasm);
     }
 }

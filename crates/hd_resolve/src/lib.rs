@@ -6,7 +6,9 @@
 //! `hd_types` types, folder interfaces and their blobs, impl tables for
 //! the solver, and the overlap check.
 
-use hd_base::HashMap;
+use std::sync::{Arc, Mutex};
+
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, ModuleId, Symbol};
 
@@ -32,10 +34,10 @@ pub use iface::{
 };
 pub use known::KnownItems;
 pub use lower::{
-    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, SessionScope,
-    UseDecl, World, body_nodes, build_folder, head_name_span, heads, is_prelude_name,
-    is_test_prelude_name, local_at, local_items, prelude_modules, test_prelude_item,
-    test_use_decls, tests_items, traitless_block, use_decls,
+    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, Reads, Recorded,
+    SessionScope, USE_CODES, UseDecl, World, body_nodes, build_folder, head_name_span, heads,
+    is_prelude_name, is_test_prelude_name, local_at, local_items, prelude_modules,
+    test_prelude_item, test_use_decls, tests_items, traitless_block, use_decls, use_diags,
 };
 pub use view::Src;
 
@@ -80,6 +82,10 @@ pub struct ModuleScope {
     pub def: Vec<DefId>,
     /// Module paths that `Module` bindings name, by binding value.
     pub modules: Vec<String>,
+    /// The names looked up so far, while a folder's interface is built
+    /// ([`ModuleScope::track`]): only a use whose name a lookup consulted
+    /// counts among the reads that key the interface (#248).
+    pub looked_up: Option<Arc<Mutex<HashSet<Symbol>>>>,
 }
 
 impl ModuleScope {
@@ -122,7 +128,30 @@ impl ModuleScope {
 
     #[must_use]
     pub fn lookup(&self, name: Symbol) -> Option<Binding> {
+        if let Some(seen) = &self.looked_up {
+            seen.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(name);
+        }
         self.index.get(&name).map(|&r| self.binding[r as usize])
+    }
+
+    /// Starts noting each name [`ModuleScope::lookup`] is asked for, in
+    /// this scope and every copy of it.
+    pub fn track(&mut self) {
+        self.looked_up = Some(Arc::default());
+    }
+
+    /// The names looked up since [`ModuleScope::track`].
+    #[must_use]
+    pub fn looked_up(&self) -> HashSet<Symbol> {
+        self.looked_up
+            .as_ref()
+            .map_or_else(HashSet::default, |seen| {
+                seen.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone()
+            })
     }
 
     /// This scope with `inner` nested in it: each name `inner` binds
