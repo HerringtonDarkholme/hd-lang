@@ -1,0 +1,15 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+fn show!(path: string) -> string $ FsRead:
+    match read_text!(Path(path)):
+        .Ok(text) => text
+        .Err(.NotFound(_)) => "not found"
+        .Err(.NotGranted(_)) => "not granted"
+        .Err(_) => "unreadable"
+
+pub fn main!() -> void $ Console + FsRead:
+    inside := show!("data/a.txt")
+    missing := show!("data/missing/../a.txt")
+    println("data/a.txt: ${inside}")
+    println("data/missing/../a.txt: ${missing}")

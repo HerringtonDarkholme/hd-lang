@@ -145,6 +145,9 @@ impl Sandbox {
             .filter(|e| target.starts_with(e))
             .max_by_key(|e| e.components().count())?;
         let rel = target.strip_prefix(entry).ok()?.to_owned();
+        if !create && let Some(error) = before_dot_dot(path) {
+            return Some(Place::Unreachable(error));
+        }
         let place = |dir: io::Result<Arc<Dir>>, rel: PathBuf, entry: bool| match dir {
             Ok(dir) => Place::Under {
                 dir,
@@ -193,6 +196,25 @@ impl Sandbox {
                 .retain(|(path, _)| !path.starts_with(target));
         }
     }
+}
+
+/// The error the OS gives for `path` when a name before one of its `..` is
+/// not an existing directory, as in `data/missing/../a.txt`: resolving `..`
+/// as text would skip that name, and every engine fails as the OS does
+/// (`cli.engine.same-behavior`).
+fn before_dot_dot(path: &Path) -> Option<io::Error> {
+    let mut prefix = PathBuf::new();
+    for c in path.components() {
+        if c == Component::ParentDir && !prefix.as_os_str().is_empty() {
+            match std::fs::metadata(&prefix) {
+                Err(error) => return Some(error),
+                Ok(st) if !st.is_dir() => return Some(ErrorKind::NotADirectory.into()),
+                Ok(_) => {}
+            }
+        }
+        prefix.push(c);
+    }
+    None
 }
 
 /// Opens the directory at the resolved path `path` from the file system

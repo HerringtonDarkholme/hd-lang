@@ -1,0 +1,10 @@
+# data/missing does not exist, so data/missing/../a.txt names no file, as
+# the OS resolves it, although `..` resolved as text would give data/a.txt.
+# The read is NotFound under the table's grant of data/ and with no limit,
+# on every engine.
+run: hd run
+stdout: data/a.txt: from data
+stdout: data/missing/../a.txt: not found
+run: hd run --cap FsRead=true
+stdout: data/a.txt: from data
+stdout: data/missing/../a.txt: not found

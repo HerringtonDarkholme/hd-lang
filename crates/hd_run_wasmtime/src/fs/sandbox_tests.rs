@@ -145,6 +145,21 @@ fn dot_dot_cannot_leave_a_granted_directory() {
     assert_eq!(fs::read(dir.0.join("outside/a.txt")).unwrap(), b"secret");
 }
 
+/// A `..` after a name that is not an existing directory fails under a
+/// grant as it does by name: the OS does not skip the missing name, so
+/// neither does the sandbox (`cli.engine.same-behavior`).
+#[test]
+fn dot_dot_after_a_missing_name_fails_as_the_os_does() {
+    let (dir, g) = tree();
+    let open = Grants { limits: vec![] };
+    for path in ["granted/missing/../sub/a.txt", "granted/sub/a.txt/../a.txt"] {
+        let by_name = call(&Sandbox::default(), &open, &dir.0, "read_text", path, None);
+        let under = call(&Sandbox::default(), &g, &dir.0, "read_text", path, None);
+        assert_ne!(by_name.done(), ok_text("inside").done(), "{path}");
+        assert_eq!(under.done(), by_name.done(), "{path}");
+    }
+}
+
 /// A granted directory removed and made again is opened afresh: the
 /// handle of the removed one is forgotten.
 #[test]
