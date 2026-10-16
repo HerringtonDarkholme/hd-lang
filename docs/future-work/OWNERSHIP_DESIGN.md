@@ -21,7 +21,7 @@ The owner chose Rust's model: ownership, moves, borrows with lifetimes,
 including borrows inside types, and destructors. An owned value runs
 its type's `drop` when its owner's scope ends without moving it; the
 compiler knows that point exactly. The trait is `DropOwn`, since only
-owned values run it, and only a `OwnOnly` type may implement it. `defer` stays as sugar for a std guard whose `drop` runs a
+owned values run it, and only an `OwnOnly` type may implement it. `defer` stays as sugar for a std guard whose `drop` runs a
 closure. NonEscapable is dropped.
 
 Plain `T` and `mut T` keep today's garbage-collected object semantics,
@@ -44,12 +44,13 @@ it, and dropping it runs its destructor. No type is marked as a
 resource, and there is no `close` protocol. A fresh value may start
 owned, as `let own user = User {...}`, if its plain fields are fresh
 too; borrowed fields and immutable values such as numbers and strings
-are exempt. Only a `OwnOnly` type may have a field written `own T`
+are exempt. Only an `OwnOnly` type may have a field written `own T`
 or `^mut T`, so no plain object can hand out an untracked read of an
-owned value. A generic data type keeps a plain header, `data Box[T]`;
-a conditional impl, `impl[T < OwnOnly] OwnOnly for Box[T]`,
-lets it hold an owned `T`, and that instance is then `OwnOnly`
-while `Box[i32]` stays plain. std's containers do the same. A generic
+owned value. A generic data type keeps a plain header, `data Box[T]`,
+and derives ownership from its structure: with
+`impl OwnOnly for Box[T] by Structure`, an instance is `OwnOnly`
+exactly when some field's type is, so `Box[File]` is owned while
+`Box[i32]` stays plain. std's containers do the same. A generic
 function that accepts owned values says `T < own Any`; a plain type
 parameter never takes one.
 
@@ -183,7 +184,7 @@ anything can see the value, and `drop` runs exactly there.
 **How a handle stays owned.** It implements `OwnOnly`, so every use
 of it is `own File` or `^File`, and a bare `File` is `own-type-plain`,
 with a fix-it to either. No producer can hand out a plain handle, and
-only a `OwnOnly` type may implement `DropOwn`.
+only an `OwnOnly` type may implement `DropOwn`.
 
 Rust, Swift (`~Copyable`), and Mojo put copyability on the type and the
 passing convention on the parameter; none of them is garbage-collected.
@@ -573,9 +574,8 @@ A plain type parameter never takes an owned type, since its body may
 copy a `T`. A generic that accepts owned values says so with a bound,
 `T < own Any` or `T < own Trait`, as Swift's `~Copyable`; its body moves
 `T` values and never copies them. A data type such as `List` keeps a
-plain header and gets owned elements from a conditional impl,
-`impl[T < OwnOnly] OwnOnly for List[T]`, so `List[own Conn]`
-works. A generic must not write `own T` itself.
+plain header and derives ownership from its structure,
+`impl OwnOnly for List[T] by Structure`, so `List[own Conn]` works. A generic must not write `own T` itself.
 
 This inverts Rust's default on purpose. In Rust an unbounded `T` is
 move-only, so `fn dup<T>(v: T) -> (T, T) { (v, v) }` is an error unless
@@ -737,18 +737,18 @@ This section states each rule from the tour once, grouped by topic.
     owned. The impl is written in the type's own module. Every use of a
     `OwnOnly` type is `own T` or `^T`; a plain position of it is
     `own-type-plain`.
-11. Only a `OwnOnly` type may have a field written `own T` or
+11. Only an `OwnOnly` type may have a field written `own T` or
     `^mut T`; otherwise it is `own-field-plain-type`.
 12. A generic data type keeps a plain header, `data Box[T]`. Its argument
-    may be owned only where a conditional impl covers it, as
-    `impl[T < OwnOnly] OwnOnly for Box[T]`; that instance is
-    then `OwnOnly`. An `own U` argument counts as `OwnOnly`.
-    Otherwise `Box[own Conn]` is `own-in-plain-type`.
-13. `OwnOnly` has no members, so its impls may overlap; the overlap check
-    skips it, as Rust's marker traits allow. A type owned when either of
-    two arguments is writes one impl per argument:
-    `impl[A < OwnOnly, B] OwnOnly for Outcome[A, B]` and
-    `impl[A, B < OwnOnly] OwnOnly for Outcome[A, B]`.
+    may be owned only if the type derives ownership from its structure,
+    `impl OwnOnly for Box[T] by Structure` (or `@derive(OwnOnly)`); an
+    instance is then `OwnOnly` exactly when some field's type is, after
+    substitution. An `own U` argument counts as `OwnOnly`. Otherwise
+    `Box[own Conn]` is `own-in-plain-type`.
+13. `OwnOnly` by `Structure` is a compiler-known rule, not a std
+    template: `OwnOnly` has no members to generate. A type owned when
+    either of two arguments is, as `Outcome[A, B]`, needs only the one
+    derivation.
 14. `DropOwn` extends `OwnOnly`, so only an `OwnOnly` type has a
     destructor. Its `drop(^mut self)` runs when an owned value of the
     type is dropped.
@@ -860,8 +860,8 @@ This section states each rule from the tour once, grouped by topic.
    wherever its instance is `OwnOnly`, and plain otherwise. Concrete
    code writes `own` explicitly.
 5. A generic must not write `own T` itself.
-6. A std container keeps a plain header and has the conditional impl of
-   4.1, so `List[own Conn]` is `OwnOnly`. Its methods that work on
+6. A std container keeps a plain header and derives `OwnOnly` by
+   `Structure` (4.1), so `List[own Conn]` is `OwnOnly`. Its methods that work on
    owned elements live in an `impl[T < own Any]`; those that copy an
    element live in an `impl` for plain `T` only.
 7. `own U` converts to `own dyn K`. A value holding a borrow converts
@@ -951,7 +951,8 @@ more thought on generics and ownership before the design settles:
 
 The holes found so far are closed by the owner's rules: B7 by allowing
 `own` and `^mut` fields only in `OwnOnly` types, with conditional
-impls for generic holders; B8 by `T < own Any`; and the second review's
+ownership derived by `Structure` for generic holders; B8 by
+`T < own Any`; and the second review's
 U4 to U8 by no partial moves, drop counting as a use of held borrows,
 `OwnOnly` for holders of `^mut`, plain-only providers, and
 immovable borrowed globals. A plain alias or a plain closure capture
