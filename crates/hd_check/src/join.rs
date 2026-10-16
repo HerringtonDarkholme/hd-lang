@@ -170,6 +170,7 @@ impl Ck<'_, '_> {
         let at = self.widen.iter().position(|(v, _)| *v == result);
         self.restarts.pop();
         let Some(at) = at else {
+            self.commit(cp);
             return out;
         };
         let wide = self.widen[at].1;

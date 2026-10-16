@@ -4,7 +4,7 @@
 //! choice of a method call among the candidates of an `Instantiations`
 //! goal, and call inference through a bound.
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, HashSet, LocalId, StageResult};
 use hd_diag::{Code, DiagMark};
 use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
@@ -18,10 +18,35 @@ use hd_types::{ParamRef, Ty, TyData, VarKind};
 use crate::body::{Ck, ExpectPosition, RowFrame, unsupported};
 use crate::call::{Args, TraitTarget, subst_owner};
 
-/// Everything a trial may change, as lengths and the few values that are
-/// rewritten in place (rule TC-5): append-only columns are truncated, the
-/// inference table is unwound and loses the trial's variables, and the
-/// stacks must be as deep as they were.
+/// One change to body state that is written in place, logged while a
+/// checkpoint is open so that rollback undoes it (rule TC-5): the old
+/// value, or what was added.
+pub(crate) enum BodyUndo {
+    /// A local's flags before bits were set in them.
+    Flags(LocalId, u8),
+    /// A global read added to the init facts.
+    Read(DefId),
+    /// A function call added to the init facts.
+    Call(DefId),
+    /// A binding added to the possibly-uninitialized set.
+    UninitAdded(LocalId),
+    /// A binding removed from the possibly-uninitialized set.
+    UninitRemoved(LocalId),
+    /// The possibly-uninitialized set before it was replaced.
+    Uninit(HashSet<LocalId>),
+    /// A key pushed to the used keys of the row frame at this index.
+    RowKey(usize),
+    /// A row parameter pushed to the used row of the frame at this index.
+    RowParam(usize),
+    /// An edge pushed to the inferred row frame at this index.
+    RowEdge(usize),
+}
+
+/// Everything a trial may change, as lengths and a mark in the undo log
+/// (rule TC-5): append-only columns are truncated, the inference table is
+/// unwound and loses the trial's variables, the in-place changes are
+/// undone from the log, and the stacks must be as deep as they were. No
+/// body state is copied, so a checkpoint costs the same in any body.
 pub(crate) struct Checkpoint {
     tir: TirCheckpoint,
     infer: TrialMark,
@@ -39,29 +64,152 @@ pub(crate) struct Checkpoint {
     restarts: usize,
     widen: usize,
     row_waits: usize,
-    /// The flags of the locals older than the trial (a read marks them).
-    flags: Vec<u8>,
-    facts: crate::init::InitFacts,
-    uninit: hd_base::HashSet<hd_base::LocalId>,
+    undo: usize,
     bound: usize,
-    /// A closure frame's used keys grow when an argument uses a key.
-    rows: Vec<RowFrame>,
-    depths: [usize; 5],
+    depths: [usize; 6],
 }
 
 impl Ck<'_, '_> {
-    fn depths(&self) -> [usize; 5] {
+    fn depths(&self) -> [usize; 6] {
         [
             self.scopes.len(),
             self.loops.len(),
             self.subs.len(),
             self.suspends.len(),
             self.rets.len(),
+            self.rows.len(),
         ]
+    }
+
+    /// Logs an in-place change for the open checkpoints; nothing when
+    /// none is open.
+    pub(crate) fn log_undo(&mut self, u: BodyUndo) {
+        if self.open_trials > 0 {
+            self.undo.push(u);
+        }
+    }
+
+    /// Sets `bits` in a local's flags.
+    pub(crate) fn add_flags(&mut self, l: LocalId, bits: u8) {
+        let old = self.b.body_mut().local_flags[l.idx()];
+        if old | bits != old {
+            self.b.body_mut().local_flags[l.idx()] = old | bits;
+            self.log_undo(BodyUndo::Flags(l, old));
+        }
+    }
+
+    /// Records that the body reads the global `d` (module initialization).
+    pub(crate) fn fact_read(&mut self, d: DefId) {
+        if self.facts.reads.insert(d) {
+            self.log_undo(BodyUndo::Read(d));
+        }
+    }
+
+    /// Records that the body calls or references the function `d`.
+    pub(crate) fn fact_call(&mut self, d: DefId) {
+        if self.facts.calls.insert(d) {
+            self.log_undo(BodyUndo::Call(d));
+        }
+    }
+
+    /// Replaces the possibly-uninitialized set.
+    pub(crate) fn set_uninit(&mut self, s: HashSet<LocalId>) {
+        let old = std::mem::replace(&mut self.uninit, s);
+        self.log_undo(BodyUndo::Uninit(old));
+    }
+
+    /// Replaces the possibly-uninitialized set and returns the old one.
+    /// Inside a trial the log keeps a copy of it, as large as the set.
+    pub(crate) fn replace_uninit(&mut self, s: HashSet<LocalId>) -> HashSet<LocalId> {
+        let old = std::mem::replace(&mut self.uninit, s);
+        if self.open_trials > 0 {
+            self.undo.push(BodyUndo::Uninit(old.clone()));
+        }
+        old
+    }
+
+    /// Adds a binding to the possibly-uninitialized set.
+    pub(crate) fn uninit_insert(&mut self, l: LocalId) {
+        if self.uninit.insert(l) {
+            self.log_undo(BodyUndo::UninitAdded(l));
+        }
+    }
+
+    /// Removes a binding from the possibly-uninitialized set: whether it
+    /// was there.
+    pub(crate) fn uninit_remove(&mut self, l: LocalId) -> bool {
+        let was = self.uninit.remove(&l);
+        if was {
+            self.log_undo(BodyUndo::UninitRemoved(l));
+        }
+        was
+    }
+
+    /// Undoes the logged changes after `mark`, newest first. A change to
+    /// a local or a row frame made after the checkpoint is gone with it.
+    fn undo_to(&mut self, mark: usize) {
+        while self.undo.len() > mark {
+            let Some(u) = self.undo.pop() else { break };
+            match u {
+                BodyUndo::Flags(l, f) => {
+                    if let Some(x) = self.b.body_mut().local_flags.get_mut(l.idx()) {
+                        *x = f;
+                    }
+                }
+                BodyUndo::Read(d) => {
+                    self.facts.reads.remove(&d);
+                }
+                BodyUndo::Call(d) => {
+                    self.facts.calls.remove(&d);
+                }
+                BodyUndo::UninitAdded(l) => {
+                    self.uninit.remove(&l);
+                }
+                BodyUndo::UninitRemoved(l) => {
+                    self.uninit.insert(l);
+                }
+                BodyUndo::Uninit(s) => self.uninit = s,
+                BodyUndo::RowKey(i) | BodyUndo::RowParam(i) | BodyUndo::RowEdge(i) => {
+                    let Some(frame) = self.rows.get_mut(i) else {
+                        continue;
+                    };
+                    match (u, frame) {
+                        (
+                            BodyUndo::RowKey(_),
+                            RowFrame::Closure { used, .. }
+                            | RowFrame::Inferred { used, .. }
+                            | RowFrame::Profile { used, .. },
+                        ) => {
+                            used.keys.pop();
+                        }
+                        (
+                            BodyUndo::RowParam(_),
+                            RowFrame::Closure { used, .. } | RowFrame::Inferred { used, .. },
+                        ) => {
+                            used.params.pop();
+                        }
+                        (BodyUndo::RowEdge(_), RowFrame::Inferred { edges, .. }) => {
+                            edges.pop();
+                        }
+                        _ => debug_assert!(false, "a row undo for a frame of another kind"),
+                    }
+                }
+            }
+        }
+    }
+
+    /// Closes a checkpoint; with none left open, nothing can roll back
+    /// and the log is emptied.
+    fn close_checkpoint(&mut self, _: Checkpoint) {
+        self.open_trials = self.open_trials.saturating_sub(1);
+        if self.open_trials == 0 {
+            self.undo.clear();
+        }
     }
 
     pub(crate) fn checkpoint(&mut self) -> Checkpoint {
         let tir = self.b.checkpoint();
+        self.open_trials += 1;
         Checkpoint {
             tir,
             infer: self.infer.trial_mark(),
@@ -79,13 +227,16 @@ impl Ck<'_, '_> {
             restarts: self.restarts.len(),
             widen: self.widen.len(),
             row_waits: self.row_waits.len(),
-            flags: self.b.body_mut().local_flags[..tir.locals as usize].to_vec(),
-            facts: self.facts.clone(),
-            uninit: self.uninit.clone(),
+            undo: self.undo.len(),
             bound: self.bound.len(),
-            rows: self.rows.clone(),
             depths: self.depths(),
         }
+    }
+
+    /// Keeps everything done since the checkpoint. An enclosing
+    /// checkpoint can still roll it back.
+    pub(crate) fn commit(&mut self, c: Checkpoint) {
+        self.close_checkpoint(c);
     }
 
     pub(crate) fn rollback(&mut self, c: Checkpoint) {
@@ -96,7 +247,10 @@ impl Ck<'_, '_> {
         self.local_generics.retain(|l, _| l.idx() < locals);
         self.local_forms.retain(|l, _| l.idx() < locals);
         self.generic_recheck.retain(|l| l.idx() < locals);
-        self.b.body_mut().local_flags[..c.flags.len()].copy_from_slice(&c.flags);
+        // A check that stopped with "not implemented" may leave frames
+        // open; the body is abandoned then, so only shrink.
+        self.rows.truncate(c.depths[5]);
+        self.undo_to(c.undo);
         self.infer.rollback_trial(c.infer);
         self.diags.truncate(c.diags);
         self.pending.truncate(c.pending);
@@ -112,11 +266,8 @@ impl Ck<'_, '_> {
         self.restarts.truncate(c.restarts);
         self.widen.truncate(c.widen);
         self.row_waits.truncate(c.row_waits);
-        self.facts = c.facts;
-        self.uninit = c.uninit;
         self.bound.truncate(c.bound);
         self.cond_flow = None;
-        self.rows = c.rows;
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.
         self.scopes.truncate(c.depths[0]);
@@ -124,6 +275,7 @@ impl Ck<'_, '_> {
         self.subs.truncate(c.depths[2]);
         self.suspends.truncate(c.depths[3]);
         self.rets.truncate(c.depths[4]);
+        self.close_checkpoint(c);
     }
 
     /// Runs `f` and rolls everything it did back. `Ok(true)` when it

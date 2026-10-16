@@ -807,7 +807,7 @@ impl Ck<'_, '_> {
         let mark = self.b.open_sub(&locals);
         if let Some((rl, _)) = captured {
             self.b.capture(mark, rl);
-            self.b.body_mut().local_flags[rl.idx()] |= local_flags::READ | local_flags::CAPTURED;
+            self.add_flags(rl, local_flags::READ | local_flags::CAPTURED);
         }
         let blk = self.b.open_block();
         let mut refs = Vec::new();
@@ -915,7 +915,7 @@ impl Ck<'_, '_> {
             .collect();
         let mark = self.b.open_sub(&locals);
         self.b.capture(mark, rl);
-        self.b.body_mut().local_flags[rl.idx()] |= local_flags::READ | local_flags::CAPTURED;
+        self.add_flags(rl, local_flags::READ | local_flags::CAPTURED);
         let blk = self.b.open_block();
         let mut refs = vec![self.b.get(rl, rt, syn)];
         for (l, t) in locals.iter().zip(&ptys) {

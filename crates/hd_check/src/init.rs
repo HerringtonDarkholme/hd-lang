@@ -438,7 +438,7 @@ impl Ck<'_, '_> {
         check_rhs: impl FnOnce(&mut Self) -> StageResult<()>,
     ) -> StageResult<()> {
         let (lt, lf) = self.take_cond_flow(l);
-        self.uninit = if and { lt.clone() } else { lf.clone() };
+        self.set_uninit(if and { lt.clone() } else { lf.clone() });
         let (mark, depth) = (self.bound.len(), self.scopes.len());
         check_rhs(self)?;
         let (rt, rf) = self.take_cond_flow(r);
@@ -453,7 +453,7 @@ impl Ck<'_, '_> {
         } else {
             (union([&lt, &skipped, &rt]), rf)
         };
-        self.uninit = on_true.union(&on_false).copied().collect();
+        self.set_uninit(on_true.union(&on_false).copied().collect());
         self.cond_flow = Some(CondFlow {
             node: n.index(),
             on_true,
@@ -991,7 +991,7 @@ impl Ck<'_, '_> {
             self.err(Code::CannotInferType, n, &msg);
             return Some(self.poison_value(n));
         }
-        self.facts.reads.insert(g.def);
+        self.fact_read(g.def);
         let a = self.b.refs_record(&[Ref(g.def.raw())]);
         Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty))
     }
@@ -1000,7 +1000,7 @@ impl Ck<'_, '_> {
     /// trait method reaches every implementation of it in the module
     /// (`module.init.definite.dispatch`).
     pub(crate) fn note_call(&mut self, def: DefId) {
-        self.facts.calls.insert(def);
+        self.fact_call(def);
         let lookup = self.cx.lookup;
         let Some(item) = lookup.item(def) else { return };
         let ItemData::Method { owner, .. } = &item.data else {
@@ -1036,7 +1036,7 @@ impl Ck<'_, '_> {
         });
         for (n, d) in by_trait.get(&trait_).into_iter().flatten() {
             if name.is_none_or(|x| x == *n) {
-                self.facts.calls.insert(*d);
+                self.fact_call(*d);
             }
         }
     }
@@ -1054,7 +1054,8 @@ impl Ck<'_, '_> {
             }
             return;
         };
-        let Some(table) = self.cx.impl_table(row.module) else {
+        let cx = self.cx;
+        let Some(table) = cx.impl_table(row.module) else {
             return self.note_dispatch(trait_, None);
         };
         let at = row.row as usize;
@@ -1063,9 +1064,11 @@ impl Ck<'_, '_> {
                 kind: ImplKind::Written | ImplKind::Error,
                 methods,
                 ..
-            }) = self.cx.lookup.item(table.def[at]).map(|i| &i.data)
+            }) = cx.lookup.item(table.def[at]).map(|i| &i.data)
         {
-            self.facts.calls.extend(methods.iter().map(|m| m.1));
+            for m in methods {
+                self.fact_call(m.1);
+            }
             return;
         }
         // An impl of another module has no body here. It reaches this

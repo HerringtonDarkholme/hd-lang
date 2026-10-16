@@ -309,7 +309,7 @@ impl Ck<'_, '_> {
                 // and the expression's value is the initializer's.
                 match name.and_then(|name| self.find_local(name)) {
                     Some((l, _)) => {
-                        self.b.body_mut().local_flags[l.idx()] |= local_flags::SHORT;
+                        self.add_flags(l, local_flags::SHORT);
                         if want == Some(Ty::VOID) {
                             (Ref(NONE), Ty::VOID)
                         } else {
@@ -2294,10 +2294,10 @@ impl Ck<'_, '_> {
             // A restart rechecks the branches from the same paths: each
             // run starts from the condition's `when_true` and `when_false`.
             let tb = this.b.open_block();
-            this.uninit.clone_from(&when_true);
+            this.set_uninit(when_true.clone());
             let (tt, tty) = this.block_value(then_node, Some(result))?;
             let then = this.b.close_block(tb, tt, tty, then_node.index());
-            let after_then = std::mem::replace(&mut this.uninit, when_false.clone());
+            let after_then = this.replace_uninit(when_false.clone());
             let (els, ety) = if let Some(clause) = clause {
                 let eb = this.b.open_block();
                 let (tail, ty) = if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
@@ -2333,12 +2333,12 @@ impl Ck<'_, '_> {
             let both_never = tty == Ty::NEVER && ety == Ty::NEVER;
             // `names.definite.merge`, `names.definite.diverging`: a branch
             // that diverges is not an incoming path.
-            let after_else = std::mem::take(&mut this.uninit);
-            this.uninit = [(tty, after_then), (ety, after_else)]
+            let merged = [(tty, &after_then), (ety, &this.uninit)]
                 .into_iter()
                 .filter(|(t, _)| *t != Ty::NEVER)
-                .flat_map(|(_, s)| s)
+                .flat_map(|(_, s)| s.iter().copied())
                 .collect();
+            this.set_uninit(merged);
             let ty = if both_never { Ty::NEVER } else { result };
             let rec = this.b.refs_record(&[then, els]);
             Ok((this.b.emit(Tag::If, c.0, rec, ty, e.index()), ty))
@@ -2362,9 +2362,11 @@ impl Ck<'_, '_> {
         let (when_true, when_false) = self.take_cond_flow(cond);
         self.loops.push((lp, result));
         let tb = self.b.open_block();
-        self.uninit = when_true;
+        self.set_uninit(when_true);
         self.block_value(body, Some(Ty::VOID))?;
-        self.uninit.extend(when_false);
+        for l in when_false {
+            self.uninit_insert(l);
+        }
         let then = self.b.close_block(tb, None, Ty::VOID, body.index());
         self.loops.pop();
         let eb = self.b.open_block();
@@ -3340,7 +3342,7 @@ impl Ck<'_, '_> {
                 );
             }
             self.b.set(l, Ref(NONE), n.index());
-            self.b.body_mut().local_flags[l.idx()] |= local_flags::CAPTURED_ASSIGNED;
+            self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }

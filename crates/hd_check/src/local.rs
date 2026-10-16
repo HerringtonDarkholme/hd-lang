@@ -364,6 +364,8 @@ impl Ck<'_, '_> {
                 g.caps = Some(caps);
             }
             (r, ft, own) = self.closure_with(n, parts, None)?;
+        } else {
+            self.commit(cp);
         }
         let Some(l) = own else {
             return unsupported("a local function without its name");
@@ -627,10 +629,9 @@ impl Ck<'_, '_> {
                 captured = true;
             }
         }
-        let flags = &mut self.b.body_mut().local_flags[l.idx()];
-        *flags |= local_flags::READ;
+        self.add_flags(l, local_flags::READ);
         if captured {
-            *flags |= local_flags::CAPTURED;
+            self.add_flags(l, local_flags::CAPTURED);
         }
     }
 }

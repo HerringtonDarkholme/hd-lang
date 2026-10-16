@@ -266,6 +266,12 @@ pub(crate) struct Ck<'a, 'c> {
     pub shown: Option<(hd_base::NodeIdx, Option<(Ref, Ty)>)>,
     /// What this body reads and calls (module initialization).
     pub facts: crate::init::InitFacts,
+    /// The undo log of the body state a trial changes in place: local
+    /// flags, init facts, the possibly-uninitialized set and the row
+    /// frames (rule TC-5). Written only while a checkpoint is open.
+    pub undo: Vec<crate::trial::BodyUndo>,
+    /// The checkpoints taken and not yet rolled back or committed.
+    pub open_trials: u32,
     /// A pipe's value while its step is checked (`_`).
     pub placeholder: Option<(Ref, Ty)>,
     /// A bare pipe step's piped value, which stands for the argument node
@@ -477,6 +483,8 @@ pub(crate) fn new_ck<'a, 'c>(
         later_names: hd_base::HashMap::default(),
         shown: None,
         facts: crate::init::InitFacts::default(),
+        undo: Vec::new(),
+        open_trials: 0,
         placeholder: None,
         pipe_arg: None,
         bare_step: false,
@@ -1216,7 +1224,7 @@ impl Ck<'_, '_> {
             return self.poison_value(n);
         }
         // `names.definite.reject`: reported once per binding.
-        if self.uninit.remove(&l) {
+        if self.uninit_remove(l) {
             self.err(
                 Code::PossiblyUninitializedBinding,
                 n,
@@ -1230,10 +1238,9 @@ impl Ck<'_, '_> {
                 captured = true;
             }
         }
-        let flags = &mut self.b.body_mut().local_flags[l.idx()];
-        *flags |= local_flags::READ;
+        self.add_flags(l, local_flags::READ);
         if captured {
-            *flags |= local_flags::CAPTURED;
+            self.add_flags(l, local_flags::CAPTURED);
         }
         let t = self.b.local_ty(l);
         if self.pool().has_poison(t) {
@@ -1251,13 +1258,13 @@ impl Ck<'_, '_> {
                 captured = true;
             }
         }
-        let flags = &mut self.b.body_mut().local_flags[l.idx()];
+        let flags = self.b.body_mut().local_flags[l.idx()];
         if captured {
-            *flags |= local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED;
-        } else if *flags & local_flags::ASSIGNED != 0 {
-            *flags |= local_flags::MUTATED;
+            self.add_flags(l, local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED);
+        } else if flags & local_flags::ASSIGNED != 0 {
+            self.add_flags(l, local_flags::MUTATED);
         }
-        *flags |= local_flags::ASSIGNED;
+        self.add_flags(l, local_flags::ASSIGNED);
     }
 
     pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {

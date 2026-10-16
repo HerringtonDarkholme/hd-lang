@@ -106,3 +106,21 @@ fn a_failed_trial_leaves_no_trace() {
     assert!(ta.contains("captures [$1 Copy]"), "{ta}");
     assert_eq!(ta, tb, "the trial of the bool candidate left a trace");
 }
+
+/// A trial that reads a skipped binding takes it out of the
+/// possibly-uninitialized set; rollback puts it back, so a later read
+/// still reports `possibly-uninitialized-binding`
+/// (`names.definite.reject`, `names.definite.skipped`).
+#[test]
+fn a_failed_trial_gives_back_a_skipped_binding() {
+    let main = "fn f(flag: bool, item: Item) -> i32:\n    if flag && (n := 3) > 0:\n        pass\n    a := item.apply(fn(v):\n        m := n\n        v + m\n    )\n    a + n\n";
+    let src = format!("{ITEM}{BOOL_IMPL}{I32_IMPL}{main}");
+    let out = analyze(&src, &[]);
+    let codes: Vec<Code> = errors(&out).into_iter().map(|(c, _)| c).collect();
+    assert_eq!(
+        codes,
+        [Code::TypeMismatch, Code::PossiblyUninitializedBinding],
+        "{}",
+        out.render()
+    );
+}

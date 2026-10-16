@@ -9,6 +9,7 @@ use hd_types::{RowData, RowId, RowParamRef, Ty, TyData};
 
 use crate::body::{Ck, RowFrame};
 use crate::results::{RowEdge, RowFacts};
+use crate::trial::BodyUndo;
 
 /// Whether the listed key `have` supplies the needed key `want`: the same
 /// key, or a key whose trait has `want`'s trait as a supertrait.
@@ -376,6 +377,7 @@ impl Ck<'_, '_> {
                     };
                     if let (Some(h), RowFrame::Profile { used, .. }) = (have, &mut self.rows[i]) {
                         used.keys.push(h);
+                        self.log_undo(BodyUndo::RowKey(i));
                     }
                     have.is_some()
                 }
@@ -387,10 +389,17 @@ impl Ck<'_, '_> {
                     if let RowFrame::Closure { used, .. } | RowFrame::Inferred { used, .. } =
                         &mut self.rows[i]
                     {
-                        match need {
-                            Need::Key(k) => used.keys.push(k),
-                            Need::Param(p) => used.params.push(p),
-                        }
+                        let undo = match need {
+                            Need::Key(k) => {
+                                used.keys.push(k);
+                                BodyUndo::RowKey(i)
+                            }
+                            Need::Param(p) => {
+                                used.params.push(p);
+                                BodyUndo::RowParam(i)
+                            }
+                        };
+                        self.log_undo(undo);
                     }
                     true
                 }
@@ -770,6 +779,7 @@ impl Ck<'_, '_> {
                         minus,
                         at: n.index(),
                     });
+                    self.log_undo(BodyUndo::RowEdge(i));
                     return Ok(());
                 }
                 RowFrame::Declared(r) => {

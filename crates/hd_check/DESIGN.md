@@ -711,20 +711,19 @@ argument `mutable-upgrade`
 | --- | --- | --- |
 | **append-only column** | truncated to its length | the builder's columns (`TirCheckpoint`: instructions, locals, sub-bodies, the local pool); diagnostics; pending goals; literal nodes, overflow literals, negations; user locals; pre-inferred arguments; open, reference and call parameters; `:=` bindings; join restarts and widenings; row waits |
 | **trailed** | the inference trail is unwound and the trial's variables dropped (`InferTable::rollback_trial`) | parent, rank, kind, binding |
-| **undo log** | `Joins::rollback` | join sites and their values |
-| **copied** | restored from the copy | the flags of locals older than the trial; init facts; the possibly-uninitialized set; the row frames |
-| **balanced stack** | equal depth asserted | scopes, loops, open closures, suspension flags, result types |
+| **undo log** | `Joins::rollback`; the body undo log (`BodyUndo`), newest first | join sites and their values; the flags of locals older than the trial; init facts; the possibly-uninitialized set; the keys, row parameters and edges added to row frames |
+| **balanced stack** | equal depth asserted | scopes, loops, open closures, suspension flags, result types, row frames |
 | **kept on purpose** | never rolled back | fuel; the solver's body memo and its `met` set (rule TS-5); an M1 body checked during a trial, which is final (TC-4) |
 
 Users of trials: the expected-result attempt (section 2.4), the
 instantiation choice (section 2.5), join-site restarts (section 4.3) and
 generic key collision checks (section 5.2). Trials nest, within fuel.
 
-Implementation differs: the design kept every field in an append-only or
-trailed class, so no checker state is ever copied; the code copies the
-local flags, init facts, the uninitialized set and the row frames at each
-checkpoint, so a trial costs time linear in the body's locals and facts
-so far. Many trials in a large body make that quadratic.
+No checker state is copied at a checkpoint, so a checkpoint costs the
+same in any body. The body undo log is written only while a checkpoint
+is open (`commit` closes one that is kept) and emptied when none is.
+Replacing the possibly-uninitialized set inside a trial logs the old set,
+whose size the `if` that replaces it already pays.
 
 ### 3.6 Literal Widths
 
