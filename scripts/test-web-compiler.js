@@ -48,8 +48,12 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // newtype erasure (#50) and fix-its kept in cached interfaces (#23) took
 // the build to 4.748 MB raw and 1.50003 MB gzip, so the gates are 4.9 MB
 // raw and 1.55 MB gzip; shrinking hd_web is tracked with the size work (#49).
-const RAW_LIMIT = 4.9e6;
-const GZIP_LIMIT = 1.55e6;
+// On 2026-10-16 the checker, mono and wasm fixes of that day (#176, #212,
+// #222, #267, #272, #274, #297 and others) took it to 4.8996 MB raw and
+// 1.5469 MB gzip, so the gates are 5.0 MB raw and 1.6 MB gzip (owner
+// approval, #49).
+const RAW_LIMIT = 5.0e6;
+const GZIP_LIMIT = 1.6e6;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
