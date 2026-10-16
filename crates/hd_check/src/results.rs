@@ -8,8 +8,9 @@
 //! written without a `$` clause takes the least row its body needs
 //! (`req.row.omitted.inferred-private`).
 //!
-//! Such a body is checked before its callers: in source order, and depth
-//! first when a body reads the signature of one that is not done. A callee
+//! Such a body is checked before its callers: those that reach no cycle
+//! callees first, then the rest in source order, depth first when a body
+//! reads the signature of one that is not done. A callee
 //! whose omitted result is still being checked closes a cycle
 //! (`fn.decl.omitted-cycle`), reported once at the cycle's member that
 //! comes first in source order (`fn.decl.omitted-cycle.report`). A callee
@@ -497,12 +498,136 @@ pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
     }
 }
 
-/// M1's sweep: checks every registered callable in source order.
+/// M1's sweep: checks every registered callable in source order. The
+/// callables whose omitted results reach no cycle go first, callees
+/// before callers, so each call finds its callee done and a long chain
+/// checks without native recursion (`crates/hd_check/DESIGN.md` (type
+/// checking) §9.2).
 pub fn infer_results(cx: &BodyCx<'_>) {
+    for def in acyclic_callees_first(cx) {
+        seen(cx, def, true);
+    }
     let order = cx.results.borrow().order.clone();
     for def in order {
         seen(cx, def, true);
     }
+}
+
+/// The pending callables with an omitted result whose bodies reach no
+/// cycle, callees before callers. A body refers to each such callable
+/// whose name is one of its identifier tokens. That over-approximates its
+/// calls, so a callable left out may still reach no cycle; it keeps its
+/// place in the source-order sweep, and so does every cycle's entry.
+fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
+    let defs: Vec<(DefId, NodeIdx)> = {
+        let r = cx.results.borrow();
+        r.order
+            .iter()
+            .filter_map(|d| {
+                let o = r.omits.get(d)?;
+                let pending = matches!(r.state.get(d), Some(State::Pending(_)));
+                (o.ret && pending).then_some((*d, o.at))
+            })
+            .collect()
+    };
+    let mut by_name: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, (d, _)) in defs.iter().enumerate() {
+        if let Some(it) = cx.lookup.item(*d) {
+            by_name.entry(cx.names.text(it.name)).or_default().push(i);
+        }
+    }
+    let edges: Vec<Vec<usize>> = defs
+        .iter()
+        .map(|&(_, at)| {
+            let node = cx.src.parse.tree.node(at);
+            let Some(body) = Src::child(node, SyntaxKind::Block) else {
+                return Vec::new();
+            };
+            let mut out: Vec<usize> = cx
+                .src
+                .tokens(body)
+                .filter(|&t| {
+                    matches!(
+                        cx.src.tkind(t),
+                        Some(TokenKind::Ident | TokenKind::RawIdent)
+                    )
+                })
+                .filter_map(|t| by_name.get(cx.src.text(t)))
+                .flatten()
+                .copied()
+                .collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        })
+        .collect();
+    // Tarjan's strongly connected components with an explicit stack: each
+    // component comes out after every component it reaches.
+    let n = defs.len();
+    let mut index = vec![usize::MAX; n];
+    let mut low = vec![0; n];
+    let mut on_stack = vec![false; n];
+    let mut stack = Vec::new();
+    let mut cyclic = vec![false; n];
+    let mut next = 0;
+    let mut out = Vec::new();
+    for root in 0..n {
+        if index[root] != usize::MAX {
+            continue;
+        }
+        index[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root);
+        on_stack[root] = true;
+        let mut work = vec![(root, 0)];
+        while let Some(&(v, i)) = work.last() {
+            if let Some(&w) = edges[v].get(i) {
+                if let Some(top) = work.last_mut() {
+                    top.1 += 1;
+                }
+                if index[w] == usize::MAX {
+                    index[w] = next;
+                    low[w] = next;
+                    next += 1;
+                    stack.push(w);
+                    on_stack[w] = true;
+                    work.push((w, 0));
+                } else if on_stack[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(u, _)) = work.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] != index[v] {
+                continue;
+            }
+            let mut component = Vec::new();
+            while let Some(w) = stack.pop() {
+                on_stack[w] = false;
+                component.push(w);
+                if w == v {
+                    break;
+                }
+            }
+            // A component reaches a cycle when it is one, or when a
+            // component it calls does (those came out before it).
+            let reaches = component.len() > 1
+                || component
+                    .iter()
+                    .any(|&c| edges[c].iter().any(|&w| w == c || cyclic[w]));
+            for &c in &component {
+                cyclic[c] = reaches;
+            }
+            if !reaches {
+                out.push(defs[v].0);
+            }
+        }
+    }
+    out
 }
 
 /// What callers see of `def` when it is a registered callable. Its body

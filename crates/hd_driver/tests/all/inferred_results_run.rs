@@ -289,3 +289,32 @@ pub fn main() -> void $ Console:
     let out = built(main);
     assert_eq!(out.diags.code, vec![Code::UnknownName], "{}", out.render());
 }
+
+/// A chain of private functions with omitted results checks without
+/// native recursion through each callee's body (`crates/hd_check/DESIGN.md`
+/// (type checking) §9.2): each callee is checked before its caller.
+#[test]
+fn a_long_chain_of_omitted_results_checks() {
+    const LEN: usize = 10_000;
+    let main: String = (0..LEN)
+        .map(|i| {
+            if i + 1 < LEN {
+                format!("fn step{i}(): step{}()\n\n", i + 1)
+            } else {
+                format!("fn step{i}(): +1\n\n")
+            }
+        })
+        .collect();
+    let mut src = MemorySources::default();
+    src.insert("main.hd", &main);
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "app", &Goal::Analyze);
+    assert!(out.diags.is_empty(), "{}", out.render());
+}

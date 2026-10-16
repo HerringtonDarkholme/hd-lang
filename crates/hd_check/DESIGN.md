@@ -1247,9 +1247,14 @@ seen(f):
   parallel.
 - The design keeps an explicit stack of open bodies, so a chain of
   10,000 private functions cannot overflow the native stack.
-  Implementation differs: `seen` reaches the next body through
-  `check_fn_body`, which is native recursion, so a long enough chain of
-  omitted results overflows the stack.
+  Implementation differs: before the sweep, `acyclic_callees_first`
+  orders the callables whose bodies reach no cycle callees first, with
+  an explicit stack, and checks them in that order, so each call finds
+  its callee done. A body's references are its identifier tokens that
+  name a registered callable. A callable that reaches a cycle keeps its
+  source-order place, and `seen` still reaches its callees through
+  `check_fn_body`, so a long chain that ends in a cycle, or one the
+  top-level statements enter, still recurses natively.
 
 ### 9.3 Cost
 
