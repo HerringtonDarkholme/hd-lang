@@ -3255,6 +3255,7 @@ impl Ck<'_, '_> {
                     }
                 };
                 let sym = self.cx.names.syms.intern(&name);
+                self.check_local_name(sym, p);
                 self.check_prelude_shadow(sym, p);
                 let l = self
                     .b

@@ -367,6 +367,94 @@ impl[T] Box[T]:
     );
 }
 
+/// `names.type-param.no-redeclare`: no parameter reuses a type parameter's
+/// name; a parameter of another function may.
+#[test]
+fn a_value_parameter_does_not_reuse_a_type_parameter() {
+    rule(
+        "fn keep[T](T: i32) -> i32:
+    T
+",
+        Code::DuplicateBinding,
+        "fn keep[T](value: T) -> T:
+    value
+
+fn other(T: i32) -> i32:
+    T
+",
+    );
+}
+
+#[test]
+fn a_method_parameter_does_not_reuse_the_implementation_s_type_parameter() {
+    rule(
+        "data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn get(self, T: i32) -> i32:
+        T
+",
+        Code::DuplicateBinding,
+        "data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn get(self, n: i32) -> i32:
+        n
+
+impl Box[i32]:
+    pub fn other(self, T: i32) -> i32:
+        T
+",
+    );
+}
+
+#[test]
+fn a_trait_method_parameter_does_not_reuse_the_trait_s_type_parameter() {
+    rule(
+        "trait Tr[U]:
+    fn m(self, U: i32) -> i32
+",
+        Code::DuplicateBinding,
+        "trait Tr[U]:
+    fn m(self, n: i32) -> i32
+",
+    );
+}
+
+#[test]
+fn a_local_function_parameter_does_not_reuse_a_type_parameter() {
+    rule(
+        "fn work[T](value: T) -> i32:
+    fn inner(T: i32) -> i32:
+        T
+    inner(1)
+",
+        Code::DuplicateBinding,
+        "fn work[T](value: T) -> i32:
+    fn inner(n: i32) -> i32:
+        n
+    inner(1)
+",
+    );
+}
+
+#[test]
+fn a_closure_parameter_does_not_reuse_a_type_parameter() {
+    rule(
+        "fn work[T](value: T) -> i32:
+    f := fn(T: i32) -> i32: T
+    f(1)
+",
+        Code::DuplicateBinding,
+        "fn work[T](value: T) -> i32:
+    f := fn(n: i32) -> i32: n
+    f(1)
+",
+    );
+}
+
 // ---- Embedding shape (group 13) ----
 
 #[test]

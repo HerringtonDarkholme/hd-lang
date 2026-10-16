@@ -2691,6 +2691,17 @@ impl Lower<'_, '_, '_> {
                     .map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
                 if self.r.frozen.is_none() {
                     self.prelude_shadow(p, &name);
+                    // `names.type-param.no-redeclare`: no parameter reuses
+                    // the name of a type parameter in scope, the
+                    // function's own or an enclosing one's.
+                    let sym = self.sym(&name);
+                    if gn.tys.iter().any(|(s, _, _)| *s == sym)
+                        || gn.rows.iter().any(|(s, _)| *s == sym)
+                    {
+                        let msg = format!("`{name}` is a type parameter in scope");
+                        self.diags
+                            .error(Code::DuplicateBinding, self.src.span(p), &msg);
+                    }
                 }
                 let ty = self.ty(Src::type_child(p), &gn);
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
