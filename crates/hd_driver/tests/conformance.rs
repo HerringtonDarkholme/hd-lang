@@ -536,8 +536,24 @@ fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option
 
 /// `check FILE`, which the runner always gives `--tests`, so it checks
 /// the fixture's test code too (README "Command Contract").
+///
+/// A package-tree fixture also checks the doc tests of its primary file,
+/// each as an integration-view module at `tests/$docN.hd`, but for the
+/// compile-fail ones, as `hd check --tests` does (README "Package Trees").
 fn check_fixture(fixture: &Fixture, store: &MemoryStore) -> Output {
-    build_fixture(fixture, store, &Goal::CheckTests)
+    if !fixture.tree {
+        return build_fixture(fixture, store, &Goal::CheckTests);
+    }
+    let mut sources = fixture.sources.clone();
+    for (index, doc) in hd_project::doc_tests(&fixture.primary, &fixture.text)
+        .into_iter()
+        .enumerate()
+    {
+        if doc.compile_fail.is_none() {
+            sources.insert(&format!("tests/$doc{index}.hd"), &doc.program);
+        }
+    }
+    build_sources(fixture, &sources, store, &Goal::CheckTests)
 }
 
 fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {
