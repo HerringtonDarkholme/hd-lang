@@ -127,7 +127,7 @@ impl Ck<'_, '_> {
                 let mut ex = Vec::new();
                 if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
-                        ex.push(self.explicit_targ(t)?);
+                        ex.push(self.explicit_targ(t, false)?);
                     }
                 }
                 (inner, ex)

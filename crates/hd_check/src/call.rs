@@ -404,8 +404,10 @@ impl Ck<'_, '_> {
         };
         let mut explicit = Vec::new();
         if let Some(tl) = Src::child(n, SyntaxKind::TypeArgumentList) {
-            for t in tl.children().filter(|c| c.kind().is_type()) {
-                explicit.push(self.explicit_targ(t)?);
+            let rows = self.explicit_row_slots(inner);
+            for (i, t) in tl.children().filter(|c| c.kind().is_type()).enumerate() {
+                let row_slot = rows.get(i).copied().unwrap_or(false);
+                explicit.push(self.explicit_targ(t, row_slot)?);
             }
         }
         if inner.kind() == SyntaxKind::PathExpr {
@@ -428,6 +430,20 @@ impl Ck<'_, '_> {
             return self.item_value(def, &sig, &explicit, want, n);
         }
         unsupported("a type with arguments used as a value")
+    }
+
+    /// Which slots of the function a type-argument callee names by path
+    /// are row parameters, so a bare key written there is a kind error
+    /// (`fn.generic.explicit.row-dollar`); empty for any other callee.
+    fn explicit_row_slots(&self, callee: NodeRef<'_>) -> Vec<bool> {
+        if self.local_generic_named(callee).is_some() {
+            return vec![];
+        }
+        self.resolve_path(&self.segments_expr(callee))
+            .and_then(|d| self.cx.lookup.item(d))
+            .and_then(hd_resolve::Item::sig)
+            .map(|s| s.generics.iter().map(|g| g.row).collect())
+            .unwrap_or_default()
     }
 
     /// The generic local function a name expression names, if it does.
@@ -627,8 +643,10 @@ impl Ck<'_, '_> {
                 };
                 let mut explicit = Vec::new();
                 if let Some(tl) = Src::child(callee, SyntaxKind::TypeArgumentList) {
-                    for t in tl.children().filter(|c| c.kind().is_type()) {
-                        explicit.push(self.explicit_targ(t)?);
+                    let rows = self.explicit_row_slots(inner);
+                    for (i, t) in tl.children().filter(|c| c.kind().is_type()).enumerate() {
+                        let row_slot = rows.get(i).copied().unwrap_or(false);
+                        explicit.push(self.explicit_targ(t, row_slot)?);
                     }
                 }
                 // `f::[T](..)` of a generic local function.
@@ -2440,7 +2458,7 @@ impl Ck<'_, '_> {
                 let mut ex = Vec::new();
                 if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
-                        ex.push(self.explicit_targ(t)?);
+                        ex.push(self.explicit_targ(t, false)?);
                     }
                 }
                 (inner, ex)

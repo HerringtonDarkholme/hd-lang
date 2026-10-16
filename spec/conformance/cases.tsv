@@ -2853,3 +2853,5 @@ typing/invalid/trailing-block-ineligible.hd	type	reject:trailing-block-ineligibl
 typing/invalid/binding-name-not-reached-through-supertrait.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.binding.name-reach
 typing/invalid/duplicate-associated-binding-same-type.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.once.error
 typing/invalid/duplicate-associated-binding-repeated-trait.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.once.error
+typing/invalid/row-slot-bare-explicit-key.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
+typing/invalid/row-slot-bare-explicit-alias.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar

@@ -1,0 +1,9 @@
+# test: a bare key in the slot of a function's row parameter is a kind mismatch
+# Spec 07 Explicit Type Arguments: fn.generic.explicit.row-dollar.
+trait Log
+
+fn run[$R]() -> void $ R:
+    pass
+
+fn caller() -> void $ Log:
+    run::[Log]()  # diagnostic: generic-kind-mismatch

@@ -568,8 +568,39 @@ impl Ck<'_, '_> {
     }
 
     /// A type written in an explicit type-argument list of an expression:
-    /// the expression infers the arguments it leaves out.
-    pub(crate) fn explicit_targ(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+    /// the expression infers the arguments it leaves out. In the slot of a
+    /// row parameter (`row_slot`), a bare key is a kind error whose fix
+    /// adds `$` (`fn.generic.explicit.row-dollar`).
+    pub(crate) fn explicit_targ(&mut self, n: NodeRef<'_>, row_slot: bool) -> StageResult<Ty> {
+        if row_slot
+            && n.kind() == SyntaxKind::NamedType
+            && Src::child(n, SyntaxKind::TypeArgumentList).is_none()
+        {
+            let segs = self.segments(n);
+            let param = matches!(segs.as_slice(), [s] if self.type_param(s).is_some());
+            if !param
+                && self
+                    .resolve_path(&segs)
+                    .is_some_and(|d| self.kind_of_item(d) == Some(HeadKind::Trait))
+            {
+                let name = segs.join(".");
+                let msg = format!(
+                    "`{name}` is one key, but this slot takes a row: write it after `$`, as in `$ {name}`"
+                );
+                self.err(Code::GenericKindMismatch, n, &msg);
+                let span = self.cx.src.span(n);
+                let at = Span {
+                    hi: span.lo,
+                    ..span
+                };
+                self.diags.add_fix(
+                    "insert `$` before the key",
+                    hd_diag::FixSafety::Exact,
+                    &[(at, "$ ")],
+                );
+                return Ok(Ty::POISON);
+            }
+        }
         let outer = std::mem::replace(&mut self.in_explicit_targs, true);
         let t = self.ty_node(n);
         self.in_explicit_targs = outer;
