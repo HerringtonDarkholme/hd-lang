@@ -67,7 +67,9 @@ pub struct Sum {
 impl Sum {
     /// Reads `hd.sum`. A line that is no tree line or manifest line, a line
     /// out of `cli.sum.order`, a repeated key, or a last line without a
-    /// newline is an error, since no command writes one.
+    /// newline is an error, since no command writes one. A line may end
+    /// with CRLF as well as LF, as source and `hd.toml` lines may, so a
+    /// Windows checkout that converts line endings still reads.
     pub fn parse(text: &str) -> Result<Sum, SumError> {
         const REPAIR: &str =
             "restore hd.sum from version control, or delete the line and run `hd fetch`";
@@ -89,6 +91,7 @@ impl Sum {
                 ));
             };
             rest = after;
+            let line = line.strip_suffix('\r').unwrap_or(line);
             let parsed = line
                 .split_once(' ')
                 .filter(|(key, hash)| split_key(key).is_some() && is_hash(hash));
@@ -297,5 +300,22 @@ mod tests {
             1
         );
         assert_eq!(Sum::parse("").expect("empty").entries.len(), 0);
+    }
+
+    /// A checkout that converts line endings to CRLF, as Git on Windows
+    /// does, gives the same entries; `hd` writes LF.
+    #[test]
+    fn sum_reads_crlf_lines() {
+        let h = |c: char| format!("h1:{}=", c.to_string().repeat(43));
+        let text = format!(
+            "github.com/acme/json@2.1.0 {}\ngithub.com/acme/json@2.1.0/hd.toml {}\n",
+            h('a'),
+            h('b'),
+        );
+        let crlf = text.replace('\n', "\r\n");
+        let sum = Sum::parse(&crlf).expect("crlf sum");
+        assert_eq!(sum, Sum::parse(&text).expect("lf sum"));
+        assert_eq!(sum.text(), text);
+        assert_eq!(Sum::parse(crlf.trim_end_matches('\n')).unwrap_err().line, 2);
     }
 }
