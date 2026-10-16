@@ -859,6 +859,11 @@ re-polled after every wake.
   it after.
 - **Cost.** Frames outside any `all!` are still walked on each poll, but
   an `all!` visits only its woken children (§14.5).
+- **Only with `all!`.** Link gives `wake_register` and `wake_mark` their
+  node bookkeeping only when some code polls an `all!` (it names the
+  `allpolls` global), or a later session module may. Elsewhere every
+  leaf sits under no node, so `wake_register` is empty and `wake_mark`
+  walks no registration: hello pays for no node runtime.
 
 ### 14.5 `all!` And `race!`
 

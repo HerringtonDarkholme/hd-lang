@@ -1788,33 +1788,49 @@ pub fn link(
         wakes = true;
         todo.push(Helper::EntryWake);
     }
-    // `block_on`'s indirect ban checks the forbidden-context counter only
-    // when some code of the program raises it, or a later session module
-    // may (`crates/hd_wasm/DESIGN.md` §14.9).
-    if helpers.contains_key(&Helper::ForbidCheck) {
-        let raises = |c: &Code| {
+    // Some runtime helpers link light unless the program needs them whole
+    // (`crates/hd_wasm/DESIGN.md` §14.4, §14.9): whether some code of the
+    // program names global `g`, other than the `light` helpers, or a later
+    // session module may.
+    let names = |g: &GSym, light: &[Helper], helpers: &BTreeMap<Helper, Code>| {
+        let names = |c: &Code| {
             c.relocs
                 .iter()
-                .any(|(_, r)| matches!(r, Reloc::Global(g) if *g == rt::forbid_global()))
+                .any(|(_, r)| matches!(r, Reloc::Global(x) if x == g))
         };
-        let forbids = ext.is_some()
-            || all.iter().any(|(_, c, _)| raises(c))
-            || helpers
-                .iter()
-                .any(|(h, c)| *h != Helper::ForbidCheck && raises(c));
-        if forbids {
-            let c = rt::forbid_check(true);
-            scan(&c, &mut todo);
-            helpers.insert(Helper::ForbidCheck, c);
-            while let Some(h) = todo.pop() {
-                if helpers.contains_key(&h) {
-                    continue;
-                }
-                let c = rt::helper_code(&h, facts)?;
-                scan(&c, &mut todo);
-                helpers.insert(h, c);
+        ext.is_some()
+            || all.iter().any(|(_, c, _)| names(c))
+            || helpers.iter().any(|(h, c)| !light.contains(h) && names(c))
+    };
+    // `block_on`'s indirect ban checks the forbidden-context counter only
+    // when some code raises it. A host leaf records the `all!` waker node
+    // it sits under, and a completion walks those records, only when some
+    // code polls an `all!`.
+    let mut full = Vec::new();
+    if helpers.contains_key(&Helper::ForbidCheck)
+        && names(&rt::forbid_global(), &[Helper::ForbidCheck], &helpers)
+    {
+        full.push((Helper::ForbidCheck, rt::forbid_check(true)));
+    }
+    if names(&rt::all_polls(), &[], &helpers) {
+        for h in [Helper::WakeMark, Helper::WakeRegister] {
+            if helpers.contains_key(&h) {
+                let c = rt::wake_nodes(&h, true);
+                full.push((h, c));
             }
         }
+    }
+    for (h, c) in full {
+        scan(&c, &mut todo);
+        helpers.insert(h, c);
+    }
+    while let Some(h) = todo.pop() {
+        if helpers.contains_key(&h) {
+            continue;
+        }
+        let c = rt::helper_code(&h, facts)?;
+        scan(&c, &mut todo);
+        helpers.insert(h, c);
     }
     let exports: Vec<&(String, Helper)> = exports
         .into_iter()

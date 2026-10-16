@@ -205,6 +205,7 @@ mod variant_value_run;
 mod void_final;
 mod void_unit_run;
 mod waiting_impl_run;
+mod wake_nodes_link;
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.

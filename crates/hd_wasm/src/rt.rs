@@ -1627,11 +1627,12 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             push_type_id(&mut a, ty, name, shown);
             a.finish(results.clone())
         }
-        Helper::WakeMark => wake_mark(),
+        // Light until link finds an `all!` (`wake_nodes`).
+        Helper::WakeMark => wake_mark(false),
         Helper::WakeTake => wake_take(),
         // Empty until link finds a forbidden context (`forbid_check`).
         Helper::ForbidCheck => forbid_check(false),
-        Helper::WakeRegister => wake_register(),
+        Helper::WakeRegister => wake_register(false),
         Helper::WakeUp => wake_up(),
         Helper::RaceCold {
             list,
@@ -2362,7 +2363,7 @@ fn host_poll(
 /// `(n)`: reads `n` handles (`i32`, little-endian) from the exchange
 /// buffer and records each in the wake table under its slot (`crates/hd_wasm/DESIGN.md`
 /// §14.4). The table grows to fit.
-fn wake_mark() -> Code {
+fn wake_mark(nodes: bool) -> Code {
     let arr = WTy::Array(VT::I32);
     let mut a = Asm::new(vec![VT::I32]);
     let (i, h, t, fresh) = (
@@ -2428,7 +2429,9 @@ fn wake_mark() -> Code {
     a.array_set(&arr);
     a.raw_get(t);
     a.global_set(wake_table());
-    wake_walk(&mut a, h);
+    if nodes {
+        wake_walk(&mut a, h);
+    }
     a.get(i);
     a.i32(1);
     a.s().i32_add();
@@ -2524,13 +2527,30 @@ fn wake_up() -> Code {
     a.finish(vec![])
 }
 
+/// The code of [`Helper::WakeMark`] or [`Helper::WakeRegister`]: with
+/// `nodes`, the `all!` waker-node bookkeeping (`crates/hd_wasm/DESIGN.md`
+/// §14.4); else without it, for a program that polls no `all!`, where
+/// every host leaf sits under no node.
+#[must_use]
+pub fn wake_nodes(h: &Helper, nodes: bool) -> Code {
+    if *h == Helper::WakeMark {
+        wake_mark(nodes)
+    } else {
+        wake_register(nodes)
+    }
+}
+
 /// `(h)`: host handle `h` went Pending under the current waker node and
 /// slot (`crates/hd_wasm/DESIGN.md` §14.4): counts the registration, and
-/// records `(h, node, slot)` under `h`'s slot when there is a node.
-fn wake_register() -> Code {
+/// records `(h, node, slot)` under `h`'s slot when there is a node. Without
+/// `nodes`, nothing.
+fn wake_register(nodes: bool) -> Code {
     let node = wake_node();
     let tab = WTy::Array(VT::Eq);
     let mut a = Asm::new(vec![VT::I32]);
+    if !nodes {
+        return a.finish(vec![]);
+    }
     let (t, fresh, s, v) = (
         a.local(VT::rn(tab.clone())),
         a.local(VT::r(tab.clone())),
