@@ -29,9 +29,10 @@ name := "Ada"
 println("hello, $name")
 ```
 
-`hd FILE` runs it. Today `hd check FILE` can wrongly report
-`missing-requirement` on a script's `println`, so give a file you check a
-`main`.
+`hd FILE` runs it, and `hd check FILE` checks it the same way. A test
+run runs no script body, so `hd test` and `hd check --tests` report
+`missing-requirement` on a top-level `println`: a file with a `tests:`
+block keeps its work in `main`.
 
 A program's entry point is a public `main`. It names every capability it
 uses in its requirement row after `$`; `println` needs `$ Console`.

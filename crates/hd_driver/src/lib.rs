@@ -2482,6 +2482,44 @@ impl Run<'_> {
         module.package == 0 && (module.entry || single_file)
     }
 
+    /// Whether module `m`'s top-level statements are its program's entry
+    /// behavior in this run (`module.init.script-body`), and so may use
+    /// the script's inferred row (`module.init.script-row`), rather than
+    /// requirement-free module initialization
+    /// (`module.init.requirement-free`). Every REPL input runs as one. A
+    /// program runs its entry module's. `hd check` checks each entry module
+    /// as running it does: a single-file program as `hd FILE` runs it
+    /// (`cli.package.no-root`, `cli.file.check-test`), and the executables
+    /// and tasks as `hd run` does (`cli.check.default`, `cli.check.all`).
+    /// A test run runs no entry behavior (`module.init.tests.no-entry`),
+    /// so neither a test build nor `hd check --tests` on a module with a
+    /// `tests:` block, which it checks as a test run does, gives one.
+    ///
+    /// The answer depends on the goal, and the module's `check` entry
+    /// holds what it decided, so `check_key` hashes it: one command's
+    /// entry never answers another's.
+    fn runs_entry_behavior(&self, m: usize) -> bool {
+        if self.repl_number(m).is_some() {
+            return true;
+        }
+        let module = &self.table.modules[m];
+        if module.package != 0 {
+            return false;
+        }
+        match &self.goal {
+            Goal::Program { entry } | Goal::Scenario { entry, .. } => {
+                module.path == format!("{}.{entry}", hd_project::package_ident(&self.package))
+            }
+            Goal::Tests { .. } | Goal::ReplInput { .. } => false,
+            Goal::Analyze => self.entry_module(m) && module.role != Role::Test,
+            Goal::CheckTests => {
+                self.entry_module(m)
+                    && module.role != Role::Test
+                    && !self.skim_of(m).file.has_tests_block
+            }
+        }
+    }
+
     fn folder_graph(&self, sp: &dyn Spawn) {
         let uses: Vec<Vec<String>> = (0..self.table.modules.len())
             .map(|m| self.skim_of(m).uses.clone())
@@ -3856,12 +3894,16 @@ impl Run<'_> {
             k.hash(self.package_key_of(module.package));
             k.finish()
         };
-        // An entry module's check holds its entry-point findings.
-        let role = if self.entry_module(m) {
-            format!("{}+entry", self.role(m))
-        } else {
-            self.role(m).to_owned()
-        };
+        // An entry module's check holds its entry-point findings, and a
+        // module's check holds whether its top level ran as entry
+        // behavior, which the goal decides.
+        let mut role = self.role(m).to_owned();
+        if self.entry_module(m) {
+            role.push_str("+entry");
+        }
+        if self.runs_entry_behavior(m) {
+            role.push_str("+entry-behavior");
+        }
         Some(check_key(
             self.toolchain,
             package,
@@ -4254,38 +4296,13 @@ impl Run<'_> {
                 .partition(|s| hd_check::tests::is_registration(&cx, *s));
         }
         let mut init_facts = Vec::new();
-        // A test program has no entry module: every top level is
-        // requirement-free. Every REPL input is an entry, whichever input
-        // the run builds: its top level runs as the input does.
-        let entry_name = match &self.goal {
-            Goal::Program { entry } | Goal::Scenario { entry, .. } => Some(entry.as_str()),
-            Goal::Tests { .. } | Goal::ReplInput { .. } => None,
-            Goal::Analyze | Goal::CheckTests => Some("main"),
-        };
-        // A test run runs no entry behavior, so a module under test is
-        // not an entry module in it, even when it is a script
-        // (`module.init.tests.no-entry`): under `CheckTests`, which
-        // checks as a test run checks, a module with a `tests:` block
-        // has requirement-free top-level initialization.
-        let under_test = matches!(self.goal, Goal::CheckTests)
-            && src
-                .root()
-                .children()
-                .any(|c| c.kind() == hd_syntax::SyntaxKind::TestsBlock);
-        let entry = input
-            || (!under_test
-                && module.package == 0
-                && entry_name.is_some_and(|e| {
-                    module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
-                }));
-        // `module.init.script-empty`: a program's entry module with no
-        // public `main` is a script even with no statements, and its empty
-        // init is the whole program. A REPL input is always one.
-        let empty_script = stmts.is_empty()
-            && (input
-                || (entry
-                    && matches!(self.goal, Goal::Program { .. })
-                    && self.skim_of(m).file.public_main.is_none()));
+        let entry = self.runs_entry_behavior(m);
+        // `module.init.script-empty`: an entry module with no public
+        // `main` is a script even with no statements, and its empty init
+        // is the whole program. A REPL input is always one. Every goal
+        // gives it the same init, so a check's entry serves a run's.
+        let empty_script =
+            stmts.is_empty() && (input || (entry && self.skim_of(m).file.public_main.is_none()));
         if !stmts.is_empty() || empty_script {
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             let top = if input {

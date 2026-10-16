@@ -1,0 +1,18 @@
+# Outside a package, `hd check FILE` checks a script as `hd FILE` runs it:
+# its top level may print. Each command answers the same whichever ran
+# first.
+run: hd check greet.hd
+run: hd greet.hd
+stdout: hello, Ada
+run: hd tested.hd
+stdout: hello, Ada
+run: hd check tested.hd
+# A test run runs no entry behavior, so the top level must be
+# requirement-free there (`module.init.tests.requirement-free`).
+run: hd check --tests --format json tested.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","file":"tested.hd","line":2},{"kind":"summary","errors":1,"status":101}]
+run: hd test tested.hd
+exit: 101
+run: hd greet.hd
+stdout: hello, Ada

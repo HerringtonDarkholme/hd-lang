@@ -965,3 +965,55 @@ fn a_tests_block_use_widens_only_the_test_role_closure() {
         );
     }
 }
+
+/// A `check` entry answers only a goal that checks its module the same
+/// way (#282). A script's top level is entry behavior for a program and
+/// for `hd check`, but requirement-free initialization for a test run and
+/// for `hd check --tests` of a module with a `tests:` block. For each
+/// pair of goals, the second build over the first one's store reports
+/// what it reports on a cold store.
+#[test]
+fn a_goal_reads_only_the_check_entries_it_would_write() {
+    const SCRIPT: &str = "name := \"Ada\"\nprintln(\"hello, $name\")\n";
+    let tested = format!("{SCRIPT}\ntests:\n    it(\"runs\"):\n        pass\n");
+    let goals = [
+        Goal::Program {
+            entry: "s".to_owned(),
+        },
+        Goal::Analyze,
+        Goal::CheckTests,
+        Goal::Tests {
+            module: None,
+            filter: None,
+        },
+    ];
+    for text in [SCRIPT, tested.as_str(), ""] {
+        let mut src = MemorySources::default();
+        src.insert("s.hd", text);
+        let report = |store: &MemoryStore, goal: &Goal| {
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            build(&host, "shop", goal).render_located()
+        };
+        let cold: Vec<String> = goals
+            .iter()
+            .map(|g| report(&MemoryStore::default(), g))
+            .collect();
+        for first in &goals {
+            for (second, alone) in goals.iter().zip(&cold) {
+                let store = MemoryStore::default();
+                report(&store, first);
+                assert_eq!(
+                    &report(&store, second),
+                    alone,
+                    "{text:?}: {first:?}, then {second:?}"
+                );
+            }
+        }
+    }
+}

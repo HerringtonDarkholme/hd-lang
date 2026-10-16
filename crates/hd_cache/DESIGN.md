@@ -87,7 +87,11 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
 
 - **Roles.** The role is `lib`, or `test` for the root package's modules
   in a test run; an entry module's role gets `+entry`, since its entry
-  holds the entry-point findings.
+  holds the entry-point findings. A module whose top level runs as its
+  program's entry behavior in this run gets `+entry-behavior`: the goal
+  decides it (`hd FILE` and `hd check FILE` run a script's body, a test
+  run runs none), and the entry holds the init checked either way, so
+  one command's entry never answers another's (#282).
 - **Token hash and positions.** `check_key` hashes the module's token
   hash (each code line from its first to its last token, plus `##`
   comment lines; plain comments, blank lines and trailing whitespace

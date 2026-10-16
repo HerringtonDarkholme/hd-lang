@@ -132,3 +132,4 @@ panic-fallback-note	cli.file.run,cli.exit.program,cli.engine.same-behavior
 cache-gc-outside-package	cli.cache.gc,cli.cache.gc.anywhere
 cache-gc-package	cli.cache.gc,cli.cache.gc.anywhere
 cap-path-dot-dot	cli.cap.scope.path.resolved,cli.cap.scope.path,cli.cap.partial.refuse,cli.cap.table,cli.cap.value.list
+check-script	cli.file.check-test,cli.file.run

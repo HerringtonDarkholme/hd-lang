@@ -654,3 +654,157 @@ fn test_code_makes_no_folder_cycle() {
     let r = check(&dir, &["--tests"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
+
+/// `hd WORDS` in `dir`, with the build cache of `dir`.
+fn hd(dir: &Scratch, words: &[&str]) -> Ran {
+    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.cache())
+        .current_dir(dir)
+        .args(words)
+        .output()
+        .expect("run hd");
+    Ran {
+        code: output.status.code(),
+        out: String::from_utf8_lossy(&output.stdout).into_owned(),
+        err: String::from_utf8_lossy(&output.stderr).into_owned(),
+    }
+}
+
+const SCRIPT: &str = "name := \"Ada\"\nprintln(\"hello, $name\")\n";
+
+/// Runs the steps of `orders`, each order on a fresh directory holding
+/// `files` and a cold cache, and has `judge` judge each step's result,
+/// so whichever command runs first, every command answers the same.
+fn in_each_order(
+    name: &str,
+    files: &[(&str, &str)],
+    orders: &[&[&[&str]]],
+    judge: &dyn Fn(&[&str], &Ran),
+) {
+    for (i, order) in orders.iter().enumerate() {
+        let dir = scratch(&format!("{name}-{i}"));
+        for (file, text) in files {
+            let path = dir.join(file);
+            std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+            std::fs::write(path, text).expect("write");
+        }
+        for words in *order {
+            judge(words, &hd(&dir, words));
+        }
+    }
+}
+
+/// `cli.file.check-test`, `module.init.script-body`,
+/// `module.console.println-script`: `hd check FILE` checks a script as
+/// `hd FILE` runs it, so its top level may print, and neither command's
+/// cache entry changes the other's answer (#282).
+#[test]
+fn a_script_checks_as_it_runs_whichever_runs_first() {
+    let check: &[&str] = &["check", "s.hd"];
+    let run: &[&str] = &["s.hd"];
+    in_each_order(
+        "hd-check-script",
+        &[("s.hd", SCRIPT)],
+        &[&[check, run], &[run, check]],
+        &|words, r| {
+            assert_eq!(r.code, Some(0), "{words:?}: {}", r.err);
+            if words == run {
+                assert_eq!(r.out, "hello, Ada\n", "{}", r.err);
+            }
+        },
+    );
+}
+
+/// `module.init.script-empty`: an empty script checks and runs, doing
+/// nothing, whichever command runs first.
+#[test]
+fn an_empty_script_checks_and_runs_whichever_runs_first() {
+    let check: &[&str] = &["check", "z.hd"];
+    let run: &[&str] = &["z.hd"];
+    in_each_order(
+        "hd-check-empty-script",
+        &[("z.hd", "")],
+        &[&[check, run], &[run, check]],
+        &|words, r| {
+            assert_eq!(r.code, Some(0), "{words:?}: {}", r.err);
+            assert_eq!(r.out, "", "{words:?}");
+        },
+    );
+}
+
+/// `module.init.tests.no-entry`, `module.init.tests.requirement-free`: a
+/// test run runs no entry behavior, so `hd test` and `hd check --tests`
+/// reject a tested script's printing top level, while `hd check` and
+/// `hd FILE` accept it, in every order.
+#[test]
+fn a_tested_script_prints_only_when_it_runs_whichever_runs_first() {
+    let tested = format!("{SCRIPT}\ntests:\n    it(\"runs\"):\n        pass\n");
+    let check: &[&str] = &["check", "t.hd"];
+    let check_tests: &[&str] = &["check", "--tests", "t.hd"];
+    let run: &[&str] = &["t.hd"];
+    let test: &[&str] = &["test", "t.hd"];
+    in_each_order(
+        "hd-check-tested-script",
+        &[("t.hd", &tested)],
+        &[
+            &[check, run, test, check_tests],
+            &[test, check_tests, run, check],
+            &[run, check_tests, check, test],
+        ],
+        &|words, r| {
+            if words == test || words == check_tests {
+                assert_eq!(r.code, Some(101), "{words:?}");
+                assert!(r.err.contains("t.hd:2:1: missing-requirement"), "{}", r.err);
+            } else {
+                assert_eq!(r.code, Some(0), "{words:?}: {}", r.err);
+            }
+            if words == run {
+                assert_eq!(r.out, "hello, Ada\n", "{}", r.err);
+            }
+        },
+    );
+}
+
+/// `cli.package.no-root`, `cli.check.all`: in a package, a file under no
+/// root checks as the single-file program `hd FILE` runs, and a task's
+/// script top level checks as `hd run` runs it, in every order.
+#[test]
+fn package_scripts_check_as_they_run_whichever_runs_first() {
+    let files = [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("src/main.hd", CLEAN),
+        ("tool.hd", SCRIPT),
+    ];
+    let check: &[&str] = &["check", "tool.hd"];
+    let run: &[&str] = &["tool.hd"];
+    in_each_order(
+        "hd-check-no-root-script",
+        &files,
+        &[&[check, run], &[run, check]],
+        &|words, r| {
+            assert_eq!(r.code, Some(0), "{words:?}: {}", r.err);
+            if words == run {
+                assert_eq!(r.out, "hello, Ada\n", "{}", r.err);
+            }
+        },
+    );
+    let files = [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("src/main.hd", CLEAN),
+        ("tasks/greet.hd", SCRIPT),
+    ];
+    let all: &[&str] = &["check", "--all"];
+    let task: &[&str] = &["check", "tasks/greet.hd"];
+    let run: &[&str] = &["run", "greet"];
+    in_each_order(
+        "hd-check-task-script",
+        &files,
+        &[&[all, task, run], &[run, task, all]],
+        &|words, r| {
+            assert_eq!(r.code, Some(0), "{words:?}: {}", r.err);
+            if words == run {
+                assert_eq!(r.out, "hello, Ada\n", "{}", r.err);
+            }
+        },
+    );
+}

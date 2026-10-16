@@ -1,0 +1,6 @@
+name := "Ada"
+println("hello, $name")
+
+tests:
+    it("runs"):
+        pass
