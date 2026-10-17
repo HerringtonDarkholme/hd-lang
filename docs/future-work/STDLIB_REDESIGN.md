@@ -4,7 +4,10 @@ This is a proposal, not a decision. It reviews the public surface of
 `lib/std` against the owner's bar for #350, after the owner rejected the
 first audit's shortcuts (`get_text!`, `post_json!`, `process.output!`) as
 neither composable nor small. Job 1 covers I/O and the host; jobs 2 and 3
-add their groups below, following the same convention.
+add their groups below, following the same convention. The I/O sections
+were revised against principle 8 after the owner rejected the first
+`std.cli` as untyped: "it is impossible to parse the result into a data
+type, so everything is checked."
 
 ## The Bar And The Shared Convention
 
@@ -48,6 +51,13 @@ Every module in this document follows one shape:
   method exists only when it computes (`response.text()`). `to_x` builds
   a new value, `as_x` reads one cheaply, and `Type::parse(text)` reads
   text. hd has no `into_x`.
+- **Typed by default.** Data that comes from outside the program reads
+  into the program's own type: `response.json::[T]()`,
+  `Options::parse_args()`, `env_as::[T](name)`. A value going out is
+  taken as a typed value through `Serialize`: `request.json(value)`,
+  `request.form(value)`. The string-keyed form stays public beneath the
+  typed one, for shapes known only at run time: `Parsed.value(name)`,
+  `response.header(name)`, `env(name)`.
 - **Free functions.** One per host-trait method that starts work, named
   as the method (`read_text!`, `connect!`), so a program need not write
   `$.use`. None fixes a combination of options.
@@ -97,10 +107,10 @@ impl Request:
     pub fn post(url: string) -> mut Request
     pub fn new(method: Method, url: string) -> mut Request
     pub fn header(mut self, name: string, value: string) -> mut Request
-    pub fn query(mut self, name: string, value: string) -> mut Request
+    pub fn query[T < Display](mut self, name: string, value: T) -> mut Request
     pub fn body(mut self, bytes: List[u8]) -> mut Request
     pub fn json[T < Serialize](mut self, value: T) -> mut Request
-    pub fn form(mut self, fields: List[(string, string)]) -> mut Request
+    pub fn form[T < Serialize](mut self, value: T) -> mut Request
     pub fn timeout(mut self, limit: Duration) -> mut Request
     pub fn redirects(mut self, max: usize) -> mut Request
     pub fn send!(self) -> Result[Response, HttpError] $ Http
@@ -118,7 +128,7 @@ impl Client:
     pub fn header(mut self, name: string, value: string) -> mut Client
     pub fn timeout(mut self, limit: Duration) -> mut Client
     pub fn send!(mut self, request: Request) -> Result[Response, HttpError] $ Http
-    pub fn cookie(self, name: string) -> string?
+    pub fn cookie(self, url: string, name: string) -> string?
 
 impl HttpError:
     pub fn is_transient(self) -> bool         # Timeout, Connect, or Status 408, 429, 500, 502, 503, 504
@@ -135,9 +145,15 @@ impl ScriptedHttp:
   Response)`, so an API's error body stays readable. The `Http` trait is
   unchanged: one raw, status-neutral round trip.
 - `query` pairs are percent-encoded (RFC 3986 unreserved characters kept)
-  and added to the URL once, at send time. `json` encodes the body and
-  sets `Content-Type: application/json` unless a header names it. `form`
-  writes `application/x-www-form-urlencoded`.
+  and added to the URL once, at send time. The value is any `Display`, so
+  a page number needs no `"$page"`. `json` encodes the body and sets
+  `Content-Type: application/json` unless a header names it.
+- `form` writes `application/x-www-form-urlencoded` from a `Serialize`
+  value, as reqwest's `form(&T)` does through serde. Each member is one
+  field. `.None` is left out, and a list repeats the name, as Go's
+  `url.Values` does. A `Map[string, string]` literal is the untyped form.
+  A member that is a nested data type or map panics, since the type is
+  fixed in source and the first run finds it.
 - `Client.send!` resolves a URL that starts with `/` against `base_url`.
   It adds each default header that the request does not name, and the
   default timeout when the request has none. Default headers go to every
@@ -146,19 +162,31 @@ impl ScriptedHttp:
   a cookie set during a redirect, the client follows redirects itself, as
   Go's `Client` does over its `Transport`. It asks the provider for
   `redirects: 0`, then follows up to the request's limit. A 303, and a
-  301 or 302 after a `Post`, becomes a `Get`.
+  301 or 302 after a `Post`, becomes a `Get`. `redirects(0)` follows
+  none, as reqwest's `Policy::limited(0)` does.
+- `cookie(url, name)` reads the cookie that the client would send to
+  `url`, resolved against `base_url`, as Go's `Jar.Cookies(url)` does. A
+  name alone does not pick a cookie once two hosts each set one.
 - Security: cookies are host-only (the `Domain` attribute is ignored,
   since std has no public-suffix list), a `Secure` cookie goes only over
   `https`, and `Max-Age=0` deletes. A redirect to another host drops
   `Authorization` and `Cookie`, as Go and reqwest do.
 - Basic and bearer auth are one `header` call each; no helper.
+- Typed by default: bodies go out through `json` and `form` and come back
+  through `json::[T]()`. `Method` is a closed enum whose `Other(name)` is
+  the escape hatch. The status stays a plain `u16`, as the owner ruled
+  for `StatusCode`. Header names stay strings, compared without ASCII
+  case, as Go, reqwest and `fetch` accept them; a set of name constants
+  would add names and remove no invalid state. The URL stays text, and
+  `send!` reports `InvalidUrl`, as reqwest's `get(&str)` and `fetch` do.
 - Removed: `get!`, `get_text!`, `post_json!`, the free `send!`, and
   `Response.ok()`.
 - Host change: `Request.redirects` reaches the provider. Status checks,
   query encoding, forms, JSON and cookies are plain hd.
 
 **Cost.** Each setter appends to one list in place. The query is encoded
-once, into one `StringBuilder`. `json` encodes once; the copy from text
+once, into one `StringBuilder`. `form` is one walk of the value into one
+`StringBuilder`. `json` encodes once; the copy from text
 to bytes stays hidden behind the setter until a bytes view exists.
 `text()` checks and copies the body once per call, as Go's
 `string(body)` does, and `json::[T]()` decodes from that text with
@@ -191,6 +219,12 @@ attempt := timeout!(3s):              # replaces connect_timeout!(host, 25, 3s)
 - `set_timeout` stays on handles. A read loop with `timeout!` around each
   `read!` would pay one race and one timer per read; Rust and Go keep the
   setting for the same reason.
+- Addresses stay a `host: string` and a `port: u16`, as Rust's
+  `connect((host, port))` takes them. The `u16` already rules out a bad
+  port. A typed `SocketAddr` is not proposed: Rust's holds only an IP, so
+  a host name would still need the pair, and Go passes `"host:port"`
+  text. `lookup!` returns IP text, as Go's `LookupHost` does, because
+  every consumer is a call that takes a host string.
 
 **Cost.** `read!(max)` returns a new list on every call. A later
 `read_into!(buffer)` beside it can remove that allocation without
@@ -211,6 +245,9 @@ with its free `copy!`, and the field `Entry.modified: Timestamp? = .None`.
   reason to stat a file.
 - Not proposed: temporary directories, and `OpenOptions`-style flags.
   Reading a large file line by line is the streaming question.
+- Typed already: `Entry.kind` is the closed `EntryKind` enum, `size` is
+  bytes as a `u64`, and `modified` is a `Timestamp`. A typed file is
+  `decode::[T](read_text!(path)?)`; no `read_json!` fixes that pair.
 
 **Cost.** `read_text!` takes its string from the host with one copy.
 `walk!` lists each directory once. Today it builds two strings per sort
@@ -227,7 +264,13 @@ and `pathlib`'s `stem` and `with_suffix` do:
 impl Path:
     pub fn file_stem(self) -> string?                  # "a.tar.gz" gives "a.tar"
     pub fn with_extension(self, extension: string) -> Path
+
+impl Parse for Path:                                   # type Error = never
 ```
+
+`Path` implements `Parse`, which never fails, so a path is a typed
+command-line field, an `env_as::[Path]` read, or a regex group with no
+conversion by hand. An impl adds no name.
 
 **Cost.** Each method copies the text once. `join` concatenates twice
 today, which one concatenation fixes.
@@ -279,6 +322,11 @@ impl ScriptedProcess:
   `""`, `""` and 0, so a test writes only what matters.
 - A timeout is `timeout!(limit): command.run!()`. Cancelling `run!`
   already kills the child's process group.
+- Arguments as `List[string]` and the environment as name and value
+  pairs are Rust's `Command` and Go's `Cmd`. Each argument is passed as
+  one item with no shell, so there is no quoting to get wrong. `status`
+  stays an `i32`, with 128 plus the signal number for a signal, as the
+  spec and the shell already have it.
 - Removed: the free `run!` and `output!`.
 - The trait change is language tier and changes the host ABI
   (question 3).
@@ -307,7 +355,9 @@ pub fn print[T < Display](value: T) -> void $ Console
 ```
 
 The default body means no provider has to change. The host overrides
-`read_all!` with one read, as Go's `io.ReadAll(os.Stdin)` does.
+`read_all!` with one read, as Go's `io.ReadAll(os.Stdin)` does. A typed
+read composes: `read_line!()?` then `parse::[T]()`, or `decode::[T]` over
+`read_all!()?`.
 
 **Cost.** The host's `read_all!` copies the input once; the default body
 joins lines with one `StringBuilder`. `println` builds `"$value"` even
@@ -322,31 +372,250 @@ and `env_as` composes the `Parse` trait. Proposal: move `Sys`,
 beside `os.Getenv` and Rust keeps `env::consts::OS` in `std::env`. No
 name changes, and `Sys` keeps no free helpers, since its reads are rare.
 
+`env_as::[T]` is the typed read of one variable. A service configured
+only from the environment derives `Cli` and marks each field with
+`@from_env`, as clap's `env` setting serves both. That needs no second
+derive. `args()` stays the untyped list beneath `parse_args`.
+
 **Cost.** Each read is one host call with no copy in std.
 
 ## std.cli
 
-**Verdict: the shape is right; the builder and `Parsed` are not.** Each
-declaration copies both lists, so declaring n options costs O(n²).
-`Parsed` offers public fields and accessors for the same data, and a
-repeated option keeps only its last value, so `-x a -x b` loses `a`.
+**Verdict: fails the bar.** It breaks principle 8. A program declares its
+arguments by name and reads them back by name as text.
+`parsed.value("out")` is a `string?`, so a misspelled name is a silent
+`.None`, a required option looks like an optional one, and every number
+is parsed and checked by hand. Nothing turns the result into the
+program's own type. The builder also copies both lists per declaration,
+O(n²) for n options, and a repeated option keeps only its last value.
+
+The proposal is clap's derive, which argh's `FromArgs`, Swift's
+ArgumentParser and Python's typer share: a data type describes the
+command line, and parsing returns a value of that type or an error. The
+derive is library code over typed derivation, as `Serialize` is. The
+string-keyed builder stays public as the escape hatch for command lines
+defined at run time, and the derive is built on it, as clap's derive
+sits on its `Command` builder.
+
+### The Typed Layer
 
 ```text
-impl Cli:                       # new, flag, option, positional now take and return mut
-    pub fn flag(mut self, name: string, short: char?, help: string) -> mut Cli
-    ...                         # parse, parse_args, usage unchanged
+## Pack files into a release archive.
+@derive(Cli)
+data Pack:
+    ## Print each file as it is added.
+    @short('v')
+    verbose: bool
+    ## The compression level.
+    level: u8 = 6
+    ## Skip paths that contain this text.
+    @short('x')
+    exclude: List[string]
+    ## The archive to write.
+    @positional
+    archive: Path
 
-impl Parsed:                    # fields become private; flag, value, value_as unchanged
-    pub fn values(self, name: string) -> List[string]      # new: every value, in order
-    pub fn positionals(self) -> List[string]               # new
+pack := Pack::parse_args()?          # a Pack, or a CliError
 ```
 
-Subcommands need no new name: the program reads the first argument and
-parses the rest with a second `Cli`, as Go's `flag.NewFlagSet` does
-(scenario 4).
+Each field's type decides how it reads:
 
-**Cost.** Setters append in place. `parse` finds an option through a
-map instead of a scan, and `usage` writes one `StringBuilder`.
+| Field | On the command line | When absent |
+| --- | --- | --- |
+| `verbose: bool` | the flag `--verbose` | `false` |
+| `level: u8 = 6` | the option `--level <level>`, read by `u8`'s `Parse` | the default |
+| `name: string`, no default | a required option | `MissingArgument("--name")` |
+| `exclude: List[string]` | a repeatable option; every value, in order | `[]` |
+| `limit: u32?` | an option | `.None` |
+| `format: Format`, an enum with no payloads | an option whose values are the variant names, listed in the help | the default, or required |
+| `command: Command`, an enum whose variants carry data | subcommands: the first non-option argument names a variant, and the rest is read by its payload | required, unless `Command?` |
+| `@positional archive: Path` | a positional, in field order; a `List[T]` positional takes the rest | as the rows above |
+
+- Names are kebab case: the field `dry_run` is `--dry-run`, and the
+  variant `DryRun` is `dry-run`.
+- A field's `##` doc comment is its help. The type's doc comment is the
+  about line, and a variant's is its command's or value's help.
+- `-h` and `--help` are always declared. Either one stops parsing with
+  `CliError.Help(usage)`, which holds the help text of the command it
+  appeared under.
+- Three facts configure a field: `@short(letter)`, `@from_env(name)` and
+  `@positional`. Each is a typed fact over `F < Cli`, so a fact on a
+  field the derive cannot read is a compile error.
+- Every field type must implement `Cli`, which the derived bounds check
+  at the `@derive` line. std implements it for `bool`, `string`, `char`,
+  the integers and floats, `Path`, `Duration`, and for `T?` and
+  `List[T]` over any `T < Cli`. An enum derives it, and a newtype derives
+  it through its base type, as in `@derive(Cli) type Port(u16)`. Any
+  other type with `Parse` implements it in two short methods (scenario
+  6).
+
+Invalid states do not reach the program. A parsed value has every
+required field, each of its type. A value outside an enum is an
+`InvalidValue` that lists the choices. A subcommand's options exist only
+inside its variant, so `notes clean -x tmp` is an `UnknownOption`, not an
+ignored flag.
+
+```text
+pub trait Cli:
+    fn declare(parser: mut ArgParser, arg: Arg) -> void
+    fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]
+    fn parser() -> mut ArgParser: ...                              # the type's declaration, built once per call
+    fn parse(arguments: List[string]) -> Result[Self, CliError]: ...   # parser().parse, then read
+    fn parse_args() -> Result[Self, CliError] $ Args + Env: ...        # the host's arguments and @from_env variables
+
+@annotate::[F](.Field)
+pub data Short[F < Cli]:
+    pub letter: char
+pub fn short[F < Cli](letter: char) -> Short[F]
+...                                       # FromEnv with from_env(name), Positional with positional()
+```
+
+`parse` is the pure call that tests use. `parse_args` takes the program
+name from `Args` and reads only the variables that `@from_env` facts
+name, never `Env.names()`. Its row names `Env` even for a type with no
+`@from_env` field, because the row is fixed per call, not per type.
+
+### How The Derive Is Built
+
+The template is plain hd over `std.structure`, in the shape of
+`Serialize` and `Deserialize`. Its `declare` describes the type into the
+untyped builder, and its `read` builds the value from `Parsed`:
+
+```text
+impl[T] Cli for T by Structure:
+    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, commands: [], choices: [] }
+        _ := T::describe(describer)
+        describer.finish()        # a value set becomes one Arg with choices
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
+        let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0 }
+        T::build(source)
+
+impl[S] Describer[S] for CliDescriber[S]:
+    type Error = never
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.start(v.info)        # a data type: its about line; an enum: a choice, or a command's parser
+        .Ok(())
+    fn member[F < Cli](mut self, h: Field[S, F]) -> Result[void, never]:
+        F::declare(self.current(), arg_for(h))     # name, doc, facts, and required = !h.has_default()
+        .Ok(())
+
+impl[S] Source[S] for CliSource[S]:
+    type Error = CliError
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], CliError]:
+        self.choose(choices)      # by the value's name, or by parsed.command()
+    fn next(mut self, members: Members[S]) -> Result[Key[S], CliError]:
+        self.next_in_order(members)
+    fn member[F < Cli](mut self, h: Field[S, F], previous: F?) -> Result[F, CliError]:
+        arg := arg_for(h)
+        if h.has_default() && !self.parsed.has(arg.name):
+            return .Ok(h.default().expect("a declared default"))
+        F::read(self.parsed, arg)
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, CliError]:
+        panic("std.cli: the source names every member")
+
+impl[T < Cli] Cli for List[T]:
+    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+        T::declare(parser, Arg { ...arg, repeated: true, required: false })
+    fn read(parsed: Parsed, arg: Arg) -> Result[List[T], CliError]:
+        let found: mut List[T] = []
+        for index in 0..parsed.values(arg.name).len():
+            found.push(T::read(parsed.nth(arg.name, index), arg)?)
+        .Ok(found)
+```
+
+`arg_for`, `has` and `nth` are private to `std.cli`. A data type is a
+command whose members declare into one parser. An enum with no payloads
+is a value set. An enum with payloads is a set of commands, each with its
+own parser, and a unit variant there is a command with no arguments. The
+compiler supplies only the traversals it already supplies for serde.
+
+### The Untyped Layer
+
+The builder is renamed `ArgParser`, Dart's and Python's name for it,
+because the derive takes the name `Cli`. It becomes a `mut` builder, and
+one declaration record, `Arg`, replaces `flag`, `option` and
+`positional`, as clap's `Arg` does:
+
+```text
+pub data Arg:
+    pub name: string
+    pub kind: ArgKind = ArgKind.Option        # Flag, Option, Positional
+    pub short: char? = .None
+    pub help: string = ""
+    pub env: string? = .None                  # the variable read when the argument is absent
+    pub choices: List[string] = []            # the only values allowed, when not empty
+    pub repeated: bool = false
+    pub required: bool = false
+
+impl ArgParser:
+    pub fn new(program: string, about: string = "") -> mut ArgParser
+    pub fn arg(mut self, arg: Arg) -> mut ArgParser
+    pub fn command(mut self, name: string, parser: ArgParser) -> mut ArgParser
+    pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]
+    pub fn parse_args(self) -> Result[Parsed, CliError] $ Args + Env
+    pub fn usage(self) -> string
+
+impl Parsed:                                  # fields become private
+    pub fn flag(self, name: string) -> bool
+    pub fn value(self, name: string) -> string?                # the last value
+    pub fn values(self, name: string) -> List[string]          # new: every value, in order
+    pub fn value_as[T < Parse[Error = E], E < Display](self, name: string) -> Result[T?, CliError]
+    pub fn command(self) -> (string, Parsed)?                  # new: the command and what it read
+
+pub enum CliError:
+    Help(usage: string)                       # new: -h or --help
+    UnknownOption(text: string)
+    UnknownCommand(text: string)              # new
+    MissingValue(name: string)
+    MissingArgument(name: string)             # was MissingPositional; also a required option
+    MissingCommand                            # new
+    UnexpectedValue(name: string)
+    InvalidValue(name: string, reason: string)   # a refused Parse, or a value outside choices
+```
+
+- A parser with commands takes no positionals. The first argument that is
+  not an option names the command, and the rest goes to its parser, as
+  Go's `flag.NewFlagSet` pattern and git do.
+- `MissingArgument` names the argument as the usage writes it: `--out`
+  or `<file>`.
+- Help text lists choices and commands. For the scenario 4 program,
+  `notes --help` prints:
+
+```text
+usage: notes [options] <command>
+
+Build a static site from Markdown notes.
+
+commands:
+  build  Convert the notes to HTML.
+  clean  Remove the output directory.
+
+options:
+  -v, --verbose  Print each file as it is converted.
+  -h, --help     Print this help.
+```
+
+A command line known only at run time uses the builder directly. Here a
+task runner reads its tasks from a file:
+
+```text
+fn task_parser(task: Task) -> mut ArgParser:
+    let mut parser = ArgParser::new("run ${task.name}", about=task.description)
+    for param in task.params:
+        parser.arg(Arg { name: param.name, help: param.help, required: param.default.is_none() })
+    parser
+```
+
+**Cost.** `parser()` runs one describe, O(fields), and a fact lookup
+scans that member's few facts. `parse` reads each argument once and finds
+its option in a map by long and short name, O(arguments + declarations).
+Today every argument scans every option, and every flag scans the flags
+already seen. `read` is one `build` with one map lookup per member, and a
+`List[T]` element reads through a one-value view in O(1). `usage` writes
+one `StringBuilder`, where today it joins with `+`, quadratic in the
+entries. `parse_args` makes one host call per `@from_env` name.
 
 ## std.time
 
@@ -358,6 +627,24 @@ duplicates:
   the literal.
 - `ParseDurationError` merges into `TimeParseError`: both are a variant
   and a byte position, and one parse error type serves all time text.
+
+Principle 8 adds three changes. Units are already in every name
+(`as_milliseconds`, `from_unix_milliseconds`), and `5s` is a typed
+literal.
+
+```text
+impl Parse for Duration          # Go's duration text, "1h30m"; replaces Duration::parse
+impl Parse for Timestamp         # RFC 3339, the text Display writes; replaces parse_rfc3339
+```
+
+- With `Parse`, a duration or a time is a typed command-line field, an
+  `env_as::[Duration]` read, or a regex group. Today each is an inherent
+  function that none of those can call. Rust's `FromStr` for chrono's
+  `DateTime` reads RFC 3339 the same way.
+- `Deserialize for Duration` also reads duration text where the format
+  holds text, so a JSON config writes `"timeout": "30s"`, not a bare
+  `30` whose unit the reader must guess. Writing stays whole
+  milliseconds, which the host boundary reads.
 
 **Cost.** `Duration`, `Timestamp` and `Instant` are one-field data over an
 `i64`. As newtypes over `i64` they need no heap object, with no API
@@ -401,7 +688,7 @@ fn open_issues!(api: mut Client, repo: string) -> Result[List[Issue], HttpError]
     let found: mut List[Issue] = []
     let page: u32 = 1
     while true:
-        request := Request::get("/repos/$repo/issues").query("state", "open").query("page", "$page")
+        request := Request::get("/repos/$repo/issues").query("state", "open").query("page", page)
         result := retry_with!(policy, when=transient):
             api.send!(request)
         batch := result?.json::[List[Issue]]()?
@@ -452,14 +739,20 @@ use std.time.s
 use std.error.{Error, message}
 
 @derive(Serialize)
+data Login:
+    username: string
+    password: string
+    csrfmiddlewaretoken: string
+
+@derive(Serialize)
 data Profile:
     display_name: string
 
 fn rename!(user: string, password: string, name: string) -> Result[void, dyn Error] $ Http:
     let mut site = Client::new().base_url("https://shop.example").timeout(15s)
     _ := site.send!(Request::get("/login"))?
-    csrf := site.cookie("csrftoken").context("the login page set no CSRF cookie")?
-    login := Request::post("/login").form([("username", user), ("password", password), ("csrfmiddlewaretoken", csrf)])
+    csrf := site.cookie("/login", "csrftoken").context("the login page set no CSRF cookie")?
+    login := Request::post("/login").form(Login { username: user, password: password, csrfmiddlewaretoken: csrf })
     match site.send!(login):
         .Ok(_) => pass
         .Err(.Status(response)) if response.status == 401 => return .Err(message("wrong password for $user"))
@@ -514,45 +807,90 @@ tests:
         assert_equal(ran[0].current_dir, .Some(Path("crates/app")), reason="the directory")
 ```
 
-**4. A file converter** with a subcommand, a repeated option, a glob,
-and output paths derived from input paths.
+**4. A site builder with subcommands**, a global flag, a repeated
+option, a glob, and output paths derived from input paths. Its tests
+show what the types rule out.
 
 ```text
-use std.cli.Cli
-use std.fs.{FsRead, FsWrite, create_dir_all, glob, read_text, write_text}
-use std.host.{Args, args}
+use std.cli.{Cli, CliError, positional, short}
+use std.fs.{FsError, FsRead, FsWrite, create_dir_all, glob, read_text, remove, write_text}
+use std.host.{Args, Env}
 use std.path.Path
-use std.error.{Error, message}
+use std.error.Error
 
-fn build!(arguments: List[string]) -> Result[usize, dyn Error] $ Console + FsRead + FsWrite:
-    let mut cli = Cli::new("notes build").flag("help", .Some('h'), "show this help")
-    cli.option("exclude", .Some('x'), "skip paths that contain this text; repeatable")
-    cli.option("out", .Some('o'), "the output directory, site by default")
-    cli.positional("pattern", "the files to convert, such as docs/**/*.md")
-    parsed := cli.parse(arguments)?
-    if parsed.flag("help"):
-        println(cli.usage())
-        return .Ok(0)
-    out := Path(parsed.value("out").unwrap_or("site"))
-    create_dir_all!(out)?
-    excluded := parsed.values("exclude")
+## Build a static site from Markdown notes.
+@derive(Cli)
+data Notes:
+    ## Print each file as it is converted.
+    @short('v')
+    verbose: bool
+    command: NotesCommand
+
+@derive(Cli)
+enum NotesCommand:
+    ## Convert the notes to HTML.
+    Build(BuildOptions)
+    ## Remove the output directory.
+    Clean(CleanOptions)
+
+@derive(Cli)
+data BuildOptions:
+    ## Skip paths that contain this text; repeatable.
+    @short('x')
+    exclude: List[string]
+    ## The output directory.
+    @short('o')
+    out: Path = Path("site")
+    ## The files to convert, such as docs/**/*.md.
+    @positional
+    pattern: string
+
+@derive(Cli)
+data CleanOptions:
+    ## The output directory.
+    @short('o')
+    out: Path = Path("site")
+
+fn build!(options: BuildOptions, verbose: bool) -> Result[usize, FsError] $ Console + FsRead + FsWrite:
+    create_dir_all!(options.out)?
     let count: usize = 0
-    for source in glob!(parsed.positionals()[0])?:
-        if excluded.iter().any(fn(text: string) -> bool: "$source".contains(text)):
+    for source in glob!(options.pattern)?:
+        if options.exclude.iter().any(fn(text: string) -> bool: "$source".contains(text)):
             continue
         name := source.with_extension("html").file_name().unwrap_or("index.html")
-        write_text!(out.join(name), "<pre>${read_text!(source)?}</pre>")?
+        write_text!(options.out.join(name), "<pre>${read_text!(source)?}</pre>")?
+        if verbose:
+            println("converted $source")
         count = count + 1
     .Ok(count)
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Args + FsRead + FsWrite:
-    all := args()
-    let rest: List[string] = all.iter().skip(1).collect()
-    if all.get(0) == .Some("build"):
-        count := build!(rest)?
-        println("converted $count files")
-        return .Ok(())
-    .Err(message("usage: notes build [options] <pattern>"))
+pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + FsRead + FsWrite:
+    notes := Notes::parse_args()?
+    match notes.command:
+        .Build(options) =>
+            count := build!(options, notes.verbose)?
+            println("converted $count files into ${options.out}")
+        .Clean(options) => remove!(options.out)?
+    .Ok(())
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the global flag, the subcommand and its options"):
+        match Notes::parse(["-v", "build", "-x", "drafts", "-x", "tmp", "docs/**/*.md"]):
+            .Ok(notes) =>
+                assert_equal(notes.verbose, true, reason="the flag before the command")
+                match notes.command:
+                    .Build(options) =>
+                        assert_equal(options.exclude, ["drafts", "tmp"], reason="every value, in order")
+                        assert_equal(options.out, Path("site"), reason="the default")
+                    .Clean(_) => panic("expected build")
+            .Err(error) => panic("unexpected $error")
+
+    it("rejects what the types rule out"):
+        assert_equal(Notes::parse(["build"]).err(), .Some(CliError.MissingArgument("<pattern>")), reason="a required positional")
+        assert_equal(Notes::parse(["publish"]).err(), .Some(CliError.UnknownCommand("publish")), reason="a closed set of commands")
+        assert_equal(Notes::parse(["clean", "-x", "tmp"]).err(), .Some(CliError.UnknownOption("-x")), reason="build's option is not clean's")
 ```
 
 **5. A pipe filter** that reads all of stdin, as `cat orders.json | total`.
@@ -575,6 +913,200 @@ pub fn main!() -> Result[void, dyn Error] $ Console + ConsoleInput:
     .Ok(())
 ```
 
+**6. A deploy tool** with repeated options, an option that falls back
+to an environment variable, a `Duration` option with a default, and a
+field of the program's own type with `Parse`; its test supplies the
+arguments and the environment through scripted providers.
+
+```text
+use std.cli.{Arg, ArgParser, Cli, CliError, Parsed, from_env, positional, short}
+use std.http.{Client, Http, Request}
+use std.host.{Args, Env}
+use std.serde.Serialize
+use std.text.Parse
+use std.time.{Duration, min}
+use std.error.Error
+
+## A label as key=value.
+data Label:
+    key: string
+    value: string
+
+impl Parse for Label:
+    type Error = string
+    fn parse(text: string) -> Result[Label, string]:
+        match text.split_once("="):
+            .Some((key, value)) if key != "" => .Ok(Label { key: key, value: value })
+            _ => .Err("expected key=value, got $text")
+
+# A type with its own Parse reads as one value, through the untyped layer.
+impl Cli for Label:
+    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+        parser.arg(arg)
+    fn read(parsed: Parsed, arg: Arg) -> Result[Label, CliError]:
+        match parsed.value_as::[Label](arg.name)?:
+            .Some(label) => .Ok(label)
+            .None => .Err(CliError.MissingArgument("--${arg.name}"))
+
+## Deploy one service to one or more regions.
+@derive(Cli)
+data Deploy:
+    ## The API token; DEPLOY_TOKEN when the option is absent.
+    @from_env("DEPLOY_TOKEN")
+    token: string
+    ## A region to deploy to; repeatable; every region when absent.
+    @short('r')
+    region: List[string]
+    ## A label sent with the release; repeatable.
+    @short('l')
+    label: List[Label]
+    ## How long to wait for each region.
+    timeout: Duration = 10min
+    ## Print the requests instead of sending them.
+    dry_run: bool
+    ## The service to deploy.
+    @positional
+    service: string
+
+@derive(Serialize)
+data Release:
+    service: string
+    region: string
+    labels: Map[string, string]
+
+pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + Http:
+    deploy := Deploy::parse_args()?
+    let mut api = Client::new().base_url("https://deploy.example").timeout(deploy.timeout)
+    api.header("Authorization", "Bearer ${deploy.token}")
+    let labels: mut Map[string, string] = {}
+    for label in deploy.label:
+        labels[label.key] = label.value
+    regions := if deploy.region.is_empty(): ["eu-west", "us-east"] else: deploy.region
+    for region in regions:
+        release := Release { service: deploy.service, region: region, labels: labels }
+        if deploy.dry_run:
+            println("would POST /releases for $region")
+            continue
+        _ := api.send!(Request::post("/releases").json(release))?
+        println("deployed ${deploy.service} to $region")
+    .Ok(())
+
+tests:
+    use std.host.{ScriptedArgs, ScriptedEnv}
+    use std.testing.assert_equal
+
+    it("takes the token from the environment and keeps every repeated value"):
+        args := ScriptedArgs::new("deploy", ["-r", "eu-west", "-r", "us-east", "-l", "team=pay", "--dry-run", "billing"])
+        env := ScriptedEnv::new({"DEPLOY_TOKEN": "t0k"})
+        $.with(Args=args, Env=env):
+            match Deploy::parse_args():
+                .Ok(deploy) =>
+                    assert_equal(deploy.token, "t0k", reason="the environment fallback")
+                    assert_equal(deploy.region, ["eu-west", "us-east"], reason="every value, in order")
+                    assert_equal(deploy.label[0].value, "pay", reason="a typed label")
+                    assert_equal(deploy.timeout, 10min, reason="the default")
+                .Err(error) => panic("unexpected $error")
+
+    it("names the option whose value does not parse"):
+        bad := Deploy::parse(["--token", "t", "--label", "team", "billing"])
+        assert_equal(bad.err(), .Some(CliError.InvalidValue("label", "expected key=value, got team")), reason="the Parse error")
+```
+
+**7. A report generator** with two enum options, an optional number,
+and two required positionals.
+
+```text
+use std.cli.{Cli, CliError, positional, short}
+use std.fs.{FsRead, FsWrite, read_text, write_text}
+use std.host.{Args, Env}
+use std.json.encode
+use std.path.Path
+use std.serde.Serialize
+use std.text.StringBuilder
+use std.error.{Error, message}
+
+@derive(Cli)
+enum Format:
+    ## A JSON array.
+    Json
+    ## A Markdown table.
+    Markdown
+
+@derive(Cli)
+enum SortKey:
+    ## Newest first.
+    Date
+    ## Largest first.
+    Total
+
+## Turn an orders CSV into a sorted report.
+@derive(Cli)
+data Report:
+    ## The output format.
+    @short('f')
+    format: Format
+    ## The order of the rows.
+    @short('s')
+    sort: SortKey = SortKey.Date
+    ## Keep only orders of at least this many cents.
+    min_cents: i64?
+    ## The orders CSV, one date,customer,cents line per order.
+    @positional
+    input: Path
+    ## The report to write.
+    @positional
+    output: Path
+
+@derive(Serialize)
+data Order:
+    date: string
+    customer: string
+    cents: i64
+
+fn read_orders(text: string) -> Result[List[Order], dyn Error]:
+    let orders: mut List[Order] = []
+    for (index, line) in text.lines().iter().enumerate():
+        fields := line.split(",")
+        if fields.len() != 3:
+            return .Err(message("line ${index + 1}: expected date,customer,cents"))
+        cents := fields[2].parse::[i64]().context("line ${index + 1}: bad cents")?
+        orders.push(Order { date: fields[0], customer: fields[1], cents: cents })
+    .Ok(orders)
+
+fn render(orders: List[Order], format: Format) -> string:
+    match format:
+        .Json => encode(orders)
+        .Markdown =>
+            let out: mut StringBuilder = StringBuilder::new()
+            out.push("| date | customer | cents |\n| --- | --- | ---: |\n")
+            for order in orders:
+                out.push("| ${order.date} | ${order.customer} | ${order.cents} |\n")
+            out.build()
+
+pub fn main!() -> Result[void, dyn Error] $ Args + Env + FsRead + FsWrite:
+    report := Report::parse_args()?
+    let orders = read_orders(read_text!(report.input)?)?
+    match report.min_cents:
+        .Some(floor) => orders = orders.iter().filter(fn(order: Order) -> bool: order.cents >= floor).collect()
+        .None => pass
+    sorted := match report.sort:
+        .Date => orders.sorted_by(fn(a: Order, b: Order) -> Ordering: b.date.cmp(a.date))
+        .Total => orders.sorted_by(fn(a: Order, b: Order) -> Ordering: b.cents.cmp(a.cents))
+    write_text!(report.output, render(sorted, report.format))?
+    .Ok(())
+
+tests:
+    use std.testing.assert_equal
+
+    it("checks the enum and the positionals before the program runs"):
+        html := Report::parse(["-f", "html", "orders.csv", "report.md"])
+        assert_equal(html.err(), .Some(CliError.InvalidValue("format", "expected json or markdown, got html")), reason="a closed set")
+        one := Report::parse(["-f", "json", "orders.csv"])
+        assert_equal(one.err(), .Some(CliError.MissingArgument("<output>")), reason="both positionals are required")
+        bare := Report::parse(["orders.csv", "report.md"])
+        assert_equal(bare.err(), .Some(CliError.MissingArgument("--format")), reason="no default, so required")
+```
+
 ## Public Names
 
 A name is a public type, trait, or function, or a public method of one,
@@ -590,21 +1122,25 @@ trait methods included. Fields and variants are not counted. "Before" is
 | `std.process` | 11 | 19 | free `run!`, `output!` | `Command` and its 7 methods; `reply`, `received` |
 | `std.console` | 15 | 19 | none | `read_all!` (method and free), `write!`, `print` |
 | `std.host` with `std.sys` | 22 | 22 | the module `std.sys` | none |
-| `std.cli` | 13 | 15 | none | `values`, `positionals` |
-| `std.time` | 35 | 32 | `Duration::milliseconds`, `seconds`, `ParseDurationError` | none |
-| **Total** | **204** | **235** | **15** | **46** |
+| `std.cli` | 13 | 28 | the builder `Cli` and its `new`, `flag`, `option`, `positional`, `parse`, `parse_args`, `usage` | the trait `Cli` and its `declare`, `read`, `parser`, `parse`, `parse_args`; `Short`, `short`, `FromEnv`, `from_env`, `Positional`, `positional`; `ArgParser` and its `new`, `arg`, `command`, `parse`, `parse_args`, `usage`; `Arg`, `ArgKind`; `Parsed.values`, `command` |
+| `std.time` | 35 | 30 | `Duration::milliseconds`, `seconds`, `parse`, `ParseDurationError`, `Timestamp::parse_rfc3339` | none (the `Parse` impls are not names) |
+| **Total** | **204** | **246** | **25** | **67** |
 
-The growth is in HTTP and processes, where today's surface could not
-express auth, cookies, queries, forms, a working directory or an
-environment. Most added names appear in a scenario above; the rest
-(`body`, `redirects`, the free net helpers, `copy!`, `file_stem`,
-`print`) each close a gap the bar names. Each removed name is a fixed
-combination or a duplicate.
+The growth is in HTTP, processes and the CLI. Today's HTTP and process
+surface could not express auth, cookies, queries, forms, a working
+directory or an environment. In `std.cli`, 12 names are the typed layer
+(the trait, its methods and the three facts), and 16 are the untyped
+layer it is built on, which also gains subcommands, choices, required
+options and environment fallbacks. Most added names appear in a
+scenario above; the rest (`body`, `redirects`, the free net helpers,
+`copy!`, `file_stem`, `print`) each close a gap the bar names. Each
+removed name is a fixed combination, a duplicate, an inherent parse
+that a `Parse` impl replaces, or a builder method that `Arg` replaces.
 
 ## Questions For The Owner
 
 1. **Constructor spelling.** `Request::get(url)` keeps one rule for every
-   builder (`Command::new`, `Cli::new`, `Client::new`), while free
+   builder (`Command::new`, `ArgParser::new`, `Client::new`), while free
    `get(url)` and `post(url)` read like ky and `reqwest::get`.
    Recommendation: `Request::get`, `Request::post`, `Request::new`.
 2. **Status as an error by default.** ky, Python's `urllib`, and Go's
@@ -622,6 +1158,20 @@ combination or a duplicate.
    the `read!(max)` of `TcpStream`, added later as a second terminal
    (`send_streaming!`, `spawn!`, `open!`) beside the buffered ones, which
    stay unchanged.
+6. **`std.cli` as a typed derive.** `@derive(Cli)` reads the command
+   line into the program's own type, built on the untyped `ArgParser`,
+   `Arg` and `Parsed`. Taking the name `Cli` for the derive renames the
+   builder to `ArgParser`. The other choice keeps the builder as `Cli`
+   and names the derive `FromArgs`, as argh does. Recommendation: the
+   derive as proposed, with the short name on the common path.
+7. **How `--help` ends a program.** `parse_args()?` returns
+   `CliError.Help(usage)`, so the host prints the help on standard error
+   and exits 1. clap, Python's `argparse` and Go's `flag` print it and
+   exit 0. A program that cares matches `.Help`, prints it, and returns
+   `.Ok(())`. A fix in the language tier would let an error choose its
+   exit status, for example an `Error` method with default 1 that
+   `Termination` reads. Recommendation: accept exit 1 now, and take the
+   exit status question with the next language-tier batch.
 
 ## Data Modules
 
