@@ -80,8 +80,9 @@ fn commit!() -> Result[string, ProcessError] $ Process:
 
 1. r[std-process.helper.run] `std.process` declares `pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process`, which calls `run!(program, args, stdin)` on the covering `Process` provider.
 2. r[std-process.helper.stdin-default] A call that gives no `stdin` passes the empty string.
-3. r[std-process.helper.row] The helper's row is exactly `Process`.
-4. r[std-process.helper.suspends] `run!` is a bang function, as the method it calls is.
+3. r[std-process.stdin.unread] When the child exits or closes its standard input before reading all of `stdin`, the rest is dropped. The call still returns `.Ok` with the child's output and status.
+4. r[std-process.helper.row] The helper's row is exactly `Process`.
+5. r[std-process.helper.suspends] `run!` is a bang function, as the method it calls is.
 
 > **Why.** Go's `exec.Command(...).Output()` and Python's `subprocess.run`
 > take no stdin by default. A non-zero status stays `.Ok`, as

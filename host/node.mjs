@@ -587,7 +587,13 @@ function processProvider({ grant, env, left }) {
         return Err({ tag: "Other", message: String(error.message) });
       }
     }
-    if (r.error) {
+    // std-process.stdin.unread: a child that exited without reading all of
+    // its stdin breaks the pipe; the rest is dropped and the run is `.Ok`.
+    // A child that never started has neither a status nor a signal.
+    const stdinClosed =
+      (r.error?.code === "EPIPE" || r.error?.code === "ECONNRESET") &&
+      (r.status !== null || r.signal !== null);
+    if (r.error && !stdinClosed) {
       const code = r.error.code;
       if (code === "ETIMEDOUT") throw new TimeLimit();
       if (code === "ENOENT") return Err({ tag: "NotFound", program: name });

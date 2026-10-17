@@ -705,6 +705,49 @@ fn process_child_closing_stdin_retains_output_and_status() {
     assert_native_program(p);
 }
 
+// std-process.stdin.unread: a child that stops reading its stdin drops the
+// rest, and the call still returns `.Ok` on both hosts.
+#[cfg(unix)]
+#[test]
+fn process_unread_stdin_is_dropped_and_returns_ok() {
+    let scratch = Scratch::new();
+    let mut p = Program::new();
+    // The child reads one line and exits while most of the input is unsent.
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_args("head", &["-n", "1"], "line\n".repeat(200_000).as_bytes()),
+        Enc::default().leb(0).str("line\n").str("").leb(0).0,
+    );
+    // The child closes its stdin, keeps running, and prints afterwards.
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_args(
+            "/bin/sh",
+            &["-c", "exec 0<&-; sleep 0.2; printf late; exit 3"],
+            &vec![42; 1_000_000],
+        ),
+        Enc::default().leb(0).str("late").str("").leb(6).0,
+    );
+    // A missing program is still NotFound, with input given.
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_args(
+            "hd-missing-program-parity-778811",
+            &[],
+            &vec![42; 1_000_000],
+        ),
+        Enc::default()
+            .leb(1)
+            .leb(0)
+            .str("hd-missing-program-parity-778811")
+            .0,
+    );
+    assert_program(&scratch, p, vec![], || {});
+}
+
 #[cfg(unix)]
 #[test]
 fn filesystem_sparse_file_size_bound_matches_node() {

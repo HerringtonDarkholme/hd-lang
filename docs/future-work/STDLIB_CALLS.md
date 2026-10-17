@@ -734,6 +734,9 @@ its own issue.
   already means missing; the error is for a failed check, as Rust's
   `try_exists` and Go's `os.Stat` keep it. `create_dir_all!`, `remove!`,
   `rename!` and `write_bytes!` also got helpers.
+  A child that exits or closes its stdin before reading all of `stdin`
+  drops the rest and the call still returns `.Ok` (`std-process.stdin.unread`,
+  #401; Go's `exec` does the same).
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
   `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`. Applied
