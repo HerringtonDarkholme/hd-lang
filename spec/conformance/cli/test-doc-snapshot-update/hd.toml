@@ -1,0 +1,5 @@
+[package]
+name = "snap"
+
+[test.capabilities]
+FsRead = true

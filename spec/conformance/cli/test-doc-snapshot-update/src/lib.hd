@@ -1,0 +1,23 @@
+## Greets by name.
+##
+## ```hd
+## use pkg.{greeting}
+## use std.testing.snapshot
+##
+## snapshot(greeting("Ada"),
+##     expect="""
+##     hello
+##     """)
+## snapshot(greeting("Grace"))
+## snapshot(greeting("Lin"), expect="hello,\u{20}Lin")
+## ```
+pub fn greeting(name: string) -> string: "hello, " + name
+
+data Box:
+    ## ```hd
+    ## use pkg.{greeting}
+    ## use std.testing.snapshot
+    ##
+    ## snapshot(greeting("Box"), expect="")
+    ## ```
+    label: string

@@ -367,13 +367,11 @@ impl Frames {
 impl Frames {
     /// The listed file and 1-based line of the call that a failed
     /// `std.testing.snapshot` frame stands in: the frame after it that is
-    /// in a package file (`cli.test.snapshot.update`). `None` for a doc
-    /// test, which has no file of its own, and for a call from the
-    /// standard library.
+    /// in a package file (`cli.test.snapshot.update`). For a doc test's
+    /// own frame, that is the `##` line of its source file
+    /// (`cli.test.doc.update`). `None` for a call from the standard
+    /// library.
     fn snapshot_site(&self, wasm: &[u8], raw: &[(u32, u32)]) -> Option<(String, u32)> {
-        if self.doc.is_some() {
-            return None;
-        }
         let table = self
             .table
             .get_or_init(|| hd_run::frames::LineTable::parse(wasm).ok())
@@ -385,7 +383,16 @@ impl Frames {
         let (file, line) = anchors[at + 1..]
             .iter()
             .find_map(|a| self.positions.line(&a.item, a.inst))?;
-        (!file.starts_with("<std>")).then(|| (file.to_owned(), line))
+        match &self.doc {
+            Some((path, source, lines)) if path == file => {
+                let line = line
+                    .checked_sub(1)
+                    .and_then(|i| lines.get(i as usize))
+                    .copied()?;
+                Some((source.clone(), line))
+            }
+            _ => (!file.starts_with("<std>")).then(|| (file.to_owned(), line)),
+        }
     }
 }
 
@@ -1329,7 +1336,7 @@ fn run(
                         if let (Some(actual), CaseResult::Passed { .. }) = (lost, &r) {
                             r = CaseResult::Failed {
                                 message: format!(
-                                    "an update run cannot rewrite a snapshot here (a doc test, or a call from a library); the text is {actual}"
+                                    "an update run cannot rewrite a snapshot here (a call from a library); the text is {actual}"
                                 ),
                             };
                         }

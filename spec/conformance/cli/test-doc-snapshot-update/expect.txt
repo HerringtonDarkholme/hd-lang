@@ -1,0 +1,8 @@
+# One update run rewrites the failing doc-test snapshots inside their `##`
+# lines, keeping each prefix and indentation, and exits 0. The next plain run
+# passes.
+run: hd test src/lib.hd
+exit: 1
+run: hd test --update src/lib.hd
+run: hd test src/lib.hd
+run: hd test tests/source.hd

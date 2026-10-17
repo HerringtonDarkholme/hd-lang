@@ -1,6 +1,7 @@
 //! `hd test --update` for in-code snapshots (`cli.test.snapshot.update`):
 //! a failing `snapshot(text, expect="...")` call has its `expect` literal
-//! rewritten in the source file to the text the call saw.
+//! rewritten in the source file to the text the call saw. A call in a doc
+//! test (`cli.test.doc.update`) is rewritten inside its `##` lines.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -159,6 +160,60 @@ fn write(path: &std::path::Path, before: &str, text: &str) -> Result<(), String>
 /// `None` when no such call is there, or its `expect` is no single string
 /// literal.
 fn locate(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
+    // A line that no compiled code has is a `##` line: a doc test's call.
+    let at_line = text.lines().nth((line as usize).checked_sub(1)?)?;
+    if at_line.trim_start().starts_with("##") {
+        return locate_doc(text, line, literal);
+    }
+    locate_code(text, line, literal)
+}
+
+/// [`locate`] for a call in the `##` block that covers `line`: the block's
+/// lines with their `##` prefix cut are the code, and the edit maps back
+/// to the file. A literal that spans lines is replaced with its `##`
+/// prefixes inside the span.
+fn locate_doc(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let indent_of = |l: &str| l.len() - l.trim_start().len();
+    let is_doc = |i: usize| lines[i].trim_start().starts_with("##");
+    let at = line as usize - 1;
+    let indent = indent_of(lines[at]);
+    let (mut first, mut last) = (at, at);
+    while first > 0 && is_doc(first - 1) && indent_of(lines[first - 1]) == indent {
+        first -= 1;
+    }
+    while last + 1 < lines.len() && is_doc(last + 1) && indent_of(lines[last + 1]) == indent {
+        last += 1;
+    }
+    // The code text keeps every line number: lines outside the block are
+    // empty. `starts` holds, per line, its offset in `text` and the length
+    // of the prefix that was cut.
+    let mut code = String::new();
+    let mut starts: Vec<(usize, usize)> = Vec::new();
+    let mut offset = 0;
+    for (i, l) in lines.iter().enumerate() {
+        let cut = if (first..=last).contains(&i) {
+            let rest = &l[indent + 2..];
+            indent + 2 + usize::from(rest.starts_with(' '))
+        } else {
+            l.len()
+        };
+        starts.push((offset, cut));
+        code.push_str(&l[cut..]);
+        code.push('\n');
+        offset += l.len() + 1;
+    }
+    let (lo, hi, new) = locate_code(&code, line, literal)?;
+    // Code offsets to text offsets: by the line each falls in.
+    let back = |pos: usize| {
+        let row = code[..pos].matches('\n').count();
+        let col = pos - code[..pos].rfind('\n').map_or(0, |n| n + 1);
+        starts[row].0 + starts[row].1 + col
+    };
+    Some((back(lo), back(hi), new))
+}
+
+fn locate_code(text: &str, line: u32, literal: &str) -> Option<(usize, usize, String)> {
     let lexed = hd_syntax::lex(text.as_bytes());
     let t = &lexed.tokens;
     let line_of = |at: u32| 1 + text[..at as usize].matches('\n').count();
@@ -275,6 +330,21 @@ mod tests {
         assert_eq!(
             rewrite(many, 1, "\"x\\n\"").as_deref(),
             Some("snapshot(g(\n    1), \n  expect=\"x\\n\")\n")
+        );
+    }
+
+    #[test]
+    fn a_doc_test_literal_is_replaced_inside_its_comment_lines() {
+        let text = "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"\"\"\n##     a\n##     \"\"\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n";
+        assert_eq!(
+            rewrite(text, 4, "\"new\"").as_deref(),
+            Some(
+                "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"new\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n"
+            )
+        );
+        assert_eq!(
+            rewrite(text, 10, "\"x\"").as_deref(),
+            Some(&*text.replace("snapshot(g())", "snapshot(g(), expect=\"x\")"))
         );
     }
 
