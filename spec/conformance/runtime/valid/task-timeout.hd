@@ -1,0 +1,60 @@
+# expect-stdout: timed out after 20ms
+# expect-stdout: cleanup
+# expect-stdout: gave up
+# expect-stdout: done
+# test: timeout! returns .Ok when the work finishes first and .Err(TimedOut) when the limit passes first
+# Spec std/task Timeout: std-task.timeout.type, .decl, .race, .ok, .err, .tie, and .cancel-loser (issue #369).
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
+
+fn lookup!() -> string $ Clock:
+    sleep!(5s)
+    "value"
+
+fn lookup_in_time!() -> Result[string, TimedOut] $ Clock:
+    timeout!(1s):
+        lookup!()
+
+data Trace:
+    lines: mut List[string]
+
+fn guarded!(trace: mut Trace) -> string $ Clock:
+    defer:
+        trace.lines.push("cleanup")
+    sleep!(5s)
+    trace.lines.push("finished")
+    "late"
+
+pub fn main!() -> void $ Console + Clock:
+    result := timeout!(ms(20)):
+        lookup!()
+    match result:
+        .Ok(value) => println(value)
+        .Err(error) => println(error.to_string())
+    let trace: mut Trace = Trace { lines: [] }
+    late := timeout!(ms(20)):
+        guarded!(trace)
+    println(trace.lines.join(","))
+    println(if late.is_ok(): "ok" else: "gave up")
+    println("done")
+
+tests:
+    use std.testing.assert_equal
+
+    it("returns .Ok when the work finishes first"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=clock):
+            assert_equal(lookup_in_time!(), .Ok("value"), reason="a manual clock never waits")
+        assert_equal(clock.now().unix_milliseconds(), 5000, reason="the work's sleep ran")
+
+    it("a zero limit still lets work that never suspends win"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=clock):
+            result := timeout!(0ms):
+                7
+            assert_equal(result, .Ok(7), reason="the work is polled first")
+
+    it("TimedOut has an Eq and a Display text"):
+        error := TimedOut { limit: 1500ms }
+        assert_equal(error, TimedOut { limit: 1500ms }, reason="equal limits")
+        assert_equal(error.to_string(), "timed out after 1.5s", reason="the limit is shown")

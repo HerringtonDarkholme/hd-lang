@@ -704,12 +704,13 @@ pub fn main!() -> Result[void, AppError] $ Console + FsRead:
 ### Concurrency
 
 **26. Run N tasks.** Sleeps of 100, 200 and 300 ms finished in 0.38 s.
-The list needs a typed closure per item, with no limit. Proposed:
-`map_all!([1, 2, 3], limit=8, f=job)`, Effect's `forEach` with
-`concurrency`, Go's `errgroup.SetLimit`. Python: `asyncio.gather`.
+`std.task.map_all!` takes the items, a limit and the function, and keeps
+the results in input order (Effect's `forEach` with `concurrency`, Go's
+`errgroup.SetLimit`). Rewritten with it, the program checks and prints the
+same three lines in 0.39 s.
 
 ```hd
-use std.task.all_list
+use std.task.map_all
 use std.time.{Clock, ms, sleep}
 
 fn job!(id: i64) -> string $ Clock:
@@ -717,65 +718,55 @@ fn job!(id: i64) -> string $ Clock:
     "job $id done"
 
 pub fn main!() -> void $ Console + Clock:
-    let jobs: mut List[fn!() -> string $ Clock] = []
-    for id in [1, 2, 3]:
-        jobs.push(fn!() -> string $ Clock: job!(id))
-    for line in all_list!(jobs):
+    for line in map_all!([1, 2, 3], 8, job):
         println(line)
 ```
 
-**27. Time out one task.** `race!` against a sleeper works, but the
-sleeper must return the task's type, so each result type needs its own.
-`timeout!` is plain hd over `race!`, already listed for the final
-`std.task`. Go: `context.WithTimeout`. Python: `asyncio.wait_for`.
+**27. Time out one task.** `std.task.timeout!` races the task against a
+sleeper and returns `Result[T, TimedOut]`, so the task's own result type
+needs no sleeper of its own. Go: `context.WithTimeout`. Python:
+`asyncio.wait_for`. Rewritten with it, the program checks and prints
+`timed out after 200ms`.
 
 ```hd
-use std.task.race
-use std.time.{Clock, Duration, ms, s, sleep}
+use std.task.timeout
+use std.time.{Clock, ms, s, sleep}
 
 fn slow_lookup!() -> Result[string, string] $ Clock:
     sleep!(s(5))
     .Ok("value")
 
-fn timeout!(after: Duration) -> Result[string, string] $ Clock:
-    sleep!(after)
-    .Err("timed out after $after")
-
 pub fn main!() -> void $ Console + Clock:
-    match race!(slow_lookup(), timeout(ms(200))):
-        .Ok(value) => println(value)
-        .Err(why) => println(why)
+    match timeout!(ms(200), slow_lookup):
+        .Ok(.Ok(value)) => println(value)
+        .Ok(.Err(why)) => println(why)
+        .Err(timed_out) => println(timed_out.to_string())
 ```
 
-```hd
-# proposed: timeout![T](after: Duration, task: mut Suspend[T]) -> Result[T, TimedOut] $ Clock
-    match timeout!(ms(200), slow_lookup()):
-        .Ok(result) => println(debug(result))
-        .Err(_) => println("timed out")
-```
-
-**28. Retry with backoff.** It retries every `.Err`: an invalid URL four
-times, a 503 never (it is `.Ok`). A `when` predicate is Effect's
-`Schedule.whileInput`; `HttpError.is_transient()` would cover `Timeout`,
-`Connect`, `Dns` and a 429 or 5xx. Go and Python: a hand loop.
+**28. Retry with backoff.** `retry_with!` takes a `when` predicate, as
+Effect's `Schedule.whileInput` does, so only transient errors are retried.
+The predicate is a plain function in the program, since `HttpError` has no
+`is_transient` method. Rewritten with it, the program checks.
 
 ```hd
 use std.task.{Backoff, retry_with}
 use std.time.{Clock, ms, s}
 use std.http.{Http, HttpError, get}
 
+fn is_transient(error: HttpError) -> bool:
+    match error:
+        .Timeout => true
+        .Connect(_) => true
+        .Dns(_) => true
+        .Status(status, _) => status == 429 || status >= 500
+        _ => false
+
 pub fn main!() -> Result[void, HttpError] $ Console + Clock + Http:
     policy := Backoff { attempts: 4, initial: ms(100), factor: 2, max: s(2) }
-    response := retry_with!(policy):
+    response := retry_with!(policy, when=is_transient):
         get!("https://api.example.com/health")
     println("status ${response?.status}")
     .Ok(())
-```
-
-```hd
-# proposed
-    response := retry_with!(policy, when=fn(e: HttpError): e.is_transient()):
-        get!("https://api.example.com/health")?.ok()
 ```
 
 ### Randomness, hashing, encoding

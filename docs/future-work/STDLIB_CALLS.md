@@ -773,6 +773,8 @@ its own issue.
   - `rsplit_once`, named in the audit's change 6, is not part of #368.
 - **Concurrency helpers.** `std.task.timeout!`, `map_all!` with a
   concurrency limit, and a `when` predicate on `retry!`/`retry_with!`.
+  Applied in #369 (`limit = 0` runs one at a time, as `retry!`'s
+  `times = 0`).
 - **Time helpers** that need no host change: free `monotonic()` and
   `elapsed()`, `Duration::parse`, `Date.to_iso8601()`, `Timestamp.format`.
 - **JSON.** Decoding uses a member's declared default for a missing key,

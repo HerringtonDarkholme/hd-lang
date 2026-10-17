@@ -4,7 +4,9 @@
 # compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
 # written signature (r-req.combinator.all-typing).
 use std.task.all
-use std.time.{Clock, Duration}
+use std.error.Error
+use std.format.DebugWriter
+use std.time.{Clock, Duration, sleep}
 
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers). Its plain signature types every call
@@ -75,18 +77,26 @@ fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: mut
     let (value, _) = all!(task(), all_list_from(tasks, start + 1, results))
     results.push(value)
 
-# Calls `attempt` one call after another until it returns `.Ok`, at most
-# `times` times, and returns the last result. A `times` below 1 counts as 1
-# (spec/std/task.md#retry). The attempt's row `R` is the call's row.
-## Calls `attempt` until it succeeds or runs out of tries, and returns the last outcome.
+# Calls `attempt` one call after another until it returns `.Ok` or an
+# `.Err` that `when` rejects, at most `times` times, and returns the last
+# result. A `times` below 1 counts as 1 (spec/std/task.md#retry). The
+# attempt's row `R` is the call's row. `when` defaults to retrying every
+# error (r-std-task.combinator.retry.when-default).
+## Calls `attempt` until it succeeds, hits an error `when` rejects, or runs out of tries, and returns the last outcome.
 ## See [std-task.combinator.retry.loop](../../spec/std/task.md#r-std-task.combinator.retry.loop).
-pub fn retry![T, E, $R](times: usize, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
+pub fn retry![T, E, $R](times: usize, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
     let result = attempt!()
     let tries: usize = 1
-    while tries < times && !result.is_ok():
+    while tries < times && should_retry(result, when):
         result = attempt!()
         tries = tries + 1
     result
+
+# Whether `result` is an `.Err` that `when` accepts.
+fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:
+    match result:
+        .Ok(_) => false
+        .Err(error) => when(error)
 
 # The retry policy of `retry_with!` (spec/std/task.md#retry-with-backoff):
 # how many calls, the first delay, the multiplier, and the cap.
@@ -106,12 +116,12 @@ impl Eq for Backoff:
 # growing delay (spec/std/task.md#retry-with-backoff). The attempt's row
 # `R` is the call's row; the `Clock` row is the sleep's.
 ## Retries with growing delays, and returns the last outcome.
-## See [std-task.retry-with.decl](../../spec/std/task.md#r-std-task.retry-with.decl).
-pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+## See [std-task.retry-with.decl-when](../../spec/std/task.md#r-std-task.retry-with.decl-when).
+pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
     let result = attempt!()
     let tries: usize = 1
     let delay = backoff.initial
-    while tries < backoff.attempts && !result.is_ok():
+    while tries < backoff.attempts && should_retry(result, when):
         let mut clock = $.use(Clock)
         clock.sleep!(delay)
         result = attempt!()
@@ -119,3 +129,76 @@ pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ 
         grown := Duration::milliseconds(delay.as_milliseconds() * i64(backoff.factor))
         delay = if grown > backoff.max: backoff.max else: grown
     result
+
+# The error of `timeout!` when the limit passes first
+# (spec/std/task.md#timeout).
+## The error of `timeout!`: the work did not finish within `limit`.
+## See [std-task.timeout.type](../../spec/std/task.md#r-std-task.timeout.type).
+pub data TimedOut:
+    pub limit: Duration
+
+impl Display for TimedOut:
+    fn to_string(self) -> string:
+        "timed out after ${self.limit}"
+
+impl Eq for TimedOut:
+    fn eq(self, other: TimedOut) -> bool:
+        self.limit == other.limit
+
+impl Debug for TimedOut:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("TimedOut").field("limit", self.limit).finish()
+
+impl Error for TimedOut
+
+# Races `work` against a sleep of `limit` on the covering `Clock`, work
+# first, so work that finishes on its first poll wins a tie. `race!` cancels
+# the loser (spec/std/task.md#timeout).
+## Runs `work` and returns its value, or `.Err(TimedOut)` when `limit` passes first.
+## See [std-task.timeout.decl](../../spec/std/task.md#r-std-task.timeout.decl).
+pub fn timeout![T, $R](limit: Duration, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock:
+    race!(timeout_work(work), timeout_expire(limit))
+
+fn timeout_work![T, $R](work: fn!() -> T $ R) -> Result[T, TimedOut] $ R:
+    .Ok(work!())
+
+fn timeout_expire![T](limit: Duration) -> Result[T, TimedOut] $ Clock:
+    sleep!(limit)
+    .Err(TimedOut { limit: limit })
+
+# Runs `work` on every item with at most `limit` calls in flight and
+# returns the values in item order (spec/std/task.md#map-all). It starts
+# `limit` workers, as one `all_list!`; each takes the next unstarted index
+# when its previous item completes, which is a sliding window. A bang
+# call is the only yield point (r-req.schedule.yield-points), so the
+# shared counter needs no lock.
+## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
+## See [std-task.map-all.decl](../../spec/std/task.md#r-std-task.map-all.decl).
+pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R:
+    let slots: mut List[U?] = []
+    for _ in items:
+        slots.push(.None)
+    let cursor: mut Cursor = Cursor { next: 0 }
+    let workers: mut List[fn!() -> void $ R] = []
+    width := if limit < 1: 1 else: limit
+    let count: usize = 0
+    while count < width && count < items.len():
+        workers.push(fn!() -> void $ R: map_all_worker!(items, work, slots, cursor))
+        count = count + 1
+    all_list!(workers)
+    let values: mut List[U] = []
+    for slot in slots:
+        match slot:
+            .Some(value) => values.push(value)
+            .None => panic("map_all!: an item finished without a value")
+    values
+
+# The next index no worker has taken.
+data Cursor:
+    next: usize
+
+fn map_all_worker![T, U, $R](items: List[T], work: fn!(T) -> U $ R, slots: mut List[U?], cursor: mut Cursor) -> void $ R:
+    while cursor.next < items.len():
+        index := cursor.next
+        cursor.next = index + 1
+        slots[index] = .Some(work!(items[index]))

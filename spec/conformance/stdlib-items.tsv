@@ -32,6 +32,9 @@ std.hash.DefaultHasher	std/hash.md#default-hasher
 std.hash.hash_of	std/hash.md#default-hasher
 std.task.Backoff	std/task.md#retry-with-backoff
 std.task.retry_with	std/task.md#retry-with-backoff
+std.task.timeout	std/task.md#timeout
+std.task.TimedOut	std/task.md#timeout
+std.task.map_all	std/task.md#map-all
 std.cmp.clamp	std/cmp.md#clamp
 std.console.eprintln	std/console.md#standard-error
 std.console.ConsoleInput	std/console.md#console-input
