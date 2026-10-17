@@ -118,6 +118,16 @@ pub(crate) fn strip_piece(t: &str, kind: TokenKind) -> &str {
     }
 }
 
+/// Whether an explicit field of a copy-update may run code when it is
+/// evaluated: anything but shorthand, a plain name or a scalar literal.
+fn may_run_code(field: NodeRef<'_>) -> bool {
+    field.kind() != SyntaxKind::SpreadExpr
+        && field
+            .children()
+            .next()
+            .is_some_and(|e| !matches!(e.kind(), SyntaxKind::NameExpr | SyntaxKind::LiteralExpr))
+}
+
 /// A bare step: identifiers joined by `.`, or a path (`expr.pipe.bare.form`).
 fn is_bare_path(n: NodeRef<'_>) -> bool {
     match n.kind() {
@@ -2282,6 +2292,12 @@ impl Ck<'_, '_> {
                 // any explicit field expression runs.
                 if !self.copy_parts((sr, st), &replaced, &mut vals, *a) {
                     fresh_mut = false;
+                }
+                // `expr.update.copy-time`: the copied fields are read now
+                // too, when an explicit field expression could change the
+                // source before construction.
+                if kids[1..].iter().any(|f| may_run_code(*f)) {
+                    self.copy_fields_now((sr, st), &replaced, &mut vals, *a);
                 }
                 source = Some((sr, st));
                 continue;

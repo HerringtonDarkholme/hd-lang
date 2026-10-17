@@ -783,7 +783,7 @@ is a run ID.
 | `Variant(pos, named=…)` mixed construction | checked by call conventions (positionals first), then `NewVariant` with payloads in order (`data.enum.construct.call`) |
 | `(1, 2, 3, 4)` against `(usize, usize, List[i32]...)` | `NewTuple` with fixed elements plus the rest list as its rest operand, checked against the rest type (`types.tuple.rest.*`) |
 | `x.E ...= e` | `CopyData`, then `FieldSet` |
-| `T { ...base, f: e, ... }` | `base` evaluated first, then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` (copy-update; one spread max, first) |
+| `T { ...base, f: e, ... }` | `base` evaluated first, then a `Field` read of each copied field when an explicit field expression may run code (`expr.update.copy-time`), then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` with those reads among the replacements (copy-update; one spread max, first) |
 | `[a, xs..., b]` | `NewList` whose first operand records the spread positions; each element evaluated once, in order |
 | `(a, xs...)` | `NewTuple` with fixed elements `[a]` and the `xs` operand (a `List[T]`) as rest |
 | `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |

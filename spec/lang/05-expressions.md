@@ -659,14 +659,15 @@ renamed := User {
 1. r[expr.update.form] Copy-update syntax begins with one spread followed by explicit replacements.
 2. r[expr.update.one-spread] A data expression permits at most one data spread, and it must precede every explicit field.
 3. r[expr.update.spread-first] The spread expression is evaluated first.
-4. r[expr.update.exact-type] The spread expression must have the exact data type being constructed.
-5. r[expr.update.access-view] For each field not explicitly replaced, the copied value is type-checked as a read through the spread source's access view.
-6. r[expr.update.readonly-source] A readonly source reads a direct `mut U` field as `U`.
-7. r[expr.update.readonly-fill] That `U` value can fill the same field in a readonly result, but not in a `mut` result without an explicit `mut U` replacement.
-8. r[expr.update.generic] Generic fields retain their substituted type, even when it is `mut U`.
-9. r[expr.update.mutable-source] A mutable source retains direct fields' declared permissions.
-10. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
-11. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
+4. r[expr.update.copy-time] Each field not explicitly replaced is read from the spread value when the spread is evaluated, before any explicit field expression runs.
+5. r[expr.update.exact-type] The spread expression must have the exact data type being constructed.
+6. r[expr.update.access-view] For each field not explicitly replaced, the copied value is type-checked as a read through the spread source's access view.
+7. r[expr.update.readonly-source] A readonly source reads a direct `mut U` field as `U`.
+8. r[expr.update.readonly-fill] That `U` value can fill the same field in a readonly result, but not in a `mut` result without an explicit `mut U` replacement.
+9. r[expr.update.generic] Generic fields retain their substituted type, even when it is `mut U`.
+10. r[expr.update.mutable-source] A mutable source retains direct fields' declared permissions.
+11. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
+12. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
 
 > **Note.** Embedded parts are the exception to a shallow copy. Each part
 > that is not replaced is copied as a copy-update of its own, as

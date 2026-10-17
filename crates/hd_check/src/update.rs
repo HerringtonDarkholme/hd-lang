@@ -3,7 +3,9 @@
 //! `CopyData`). A copy reads every field the literal does not replace
 //! through the source's access view. An embedded part is copied as a
 //! copy-update of its own, made when the spread is evaluated
-//! (`data.part.copy-time`), so the `CopyData` replacements carry it.
+//! (`data.part.copy-time`), so the `CopyData` replacements carry it. The
+//! other copied fields are read then too when an explicit field
+//! expression may run code (`expr.update.copy-time`).
 
 use hd_base::DefId;
 use hd_diag::Code;
@@ -86,6 +88,39 @@ impl Ck<'_, '_> {
             vals[i] = r;
         }
         fresh
+    }
+
+    /// Reads the ordinary fields of `src` that `skip` does not replace,
+    /// now, into `vals` (`expr.update.copy-time`), so an explicit field
+    /// expression that changes the source does not show in the copy.
+    pub(crate) fn copy_fields_now(
+        &mut self,
+        src: (Ref, Ty),
+        skip: &[bool],
+        vals: &mut [Ref],
+        at: NodeRef<'_>,
+    ) {
+        let pool = self.pool();
+        let (sr, st) = src;
+        let TyData::Adt { def, .. } = pool.get(self.strip_mut(self.infer.resolve(pool, st))) else {
+            return;
+        };
+        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+            return;
+        };
+        let names: Vec<(usize, String)> = fields
+            .iter()
+            .enumerate()
+            .filter(|(i, f)| !f.embedded && !skip.get(*i).copied().unwrap_or(true))
+            .map(|(i, f)| (i, self.cx.names.text(f.name).to_owned()))
+            .collect();
+        for (i, name) in names {
+            let Some((idx, ft)) = self.field_of(st, &name) else {
+                continue;
+            };
+            let ft = self.field_access(st, &name, ft);
+            vals[i] = self.b.emit(Tag::Field, sr.0, idx, ft, at.index());
+        }
     }
 
     /// A `CopyData` replacement record: a `(field, value)` pair for each
