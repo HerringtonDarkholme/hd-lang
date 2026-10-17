@@ -7,7 +7,9 @@
 
 use hd_base::HashMap;
 
-use hd_base::{BuildProfile, DefId, Hash128, NodeIdx, StableHasher, StageResult};
+use hd_base::{
+    BuildProfile, DefId, Hash128, NodeIdx, NotImplemented, StableHasher, Stage, StageResult,
+};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
     CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, class_ref, declared_row_keys,
@@ -2405,7 +2407,10 @@ impl Em<'_> {
         let rec = self.rec(args_at);
         let args = &rec[..rec.len().saturating_sub(3)];
         let Some(c) = Callee::from_words(self.b.record(callee_at)) else {
-            return unsupported("a malformed callee record");
+            return Err(NotImplemented::bug(
+                Stage::Emit,
+                "a malformed callee record",
+            ));
         };
         let target = self.calls.get(&i).cloned();
         // A member the compiler lowers at each call goes there at any
@@ -5222,7 +5227,10 @@ impl<'a> Em<'a> {
             }),
             _ => {
                 let Some(c) = Callee::from_words(self.b.record(a)) else {
-                    return unsupported("a malformed callee record");
+                    return Err(NotImplemented::bug(
+                        Stage::Emit,
+                        "a malformed callee record",
+                    ));
                 };
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();

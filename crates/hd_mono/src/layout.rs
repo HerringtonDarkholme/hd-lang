@@ -340,7 +340,7 @@ fn layout_in(
         | TyData::Infer(_)
         | TyData::Canon(_)
         | TyData::Poison => {
-            return Err(NotImplemented::new(
+            return Err(NotImplemented::bug(
                 Stage::Emit,
                 "layout of a non-concrete type (substitution missing)",
             ));

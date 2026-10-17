@@ -422,9 +422,9 @@ pub fn plan_eviction(entries: &[EntryStat], budget: u64) -> Vec<EntryStat> {
 /// Verify mode (§5.6): recompute an entry and compare it with the stored one.
 pub fn verify_entry(stored: &[u8], recomputed: &[u8]) -> StageResult<bool> {
     let (a, sa) = decode_entry(stored)
-        .map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
+        .map_err(|e| NotImplemented::bug(Stage::PackageResult, format!("verify: {e:?}")))?;
     let (b, sb) = decode_entry(recomputed)
-        .map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
+        .map_err(|e| NotImplemented::bug(Stage::PackageResult, format!("verify: {e:?}")))?;
     Ok(a.key == b.key && sa.len() == sb.len() && sa.iter().zip(&sb).all(|(x, y)| x.1 == y.1))
 }
 

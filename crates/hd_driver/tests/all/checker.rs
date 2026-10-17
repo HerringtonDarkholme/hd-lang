@@ -320,6 +320,18 @@ fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
 
+/// A binding that a least-common-type site initialized is an ordinary
+/// binding once the site closes: a later assignment converts into its
+/// type, here by optional injection, instead of joining the closed site
+/// with a conversion slot that nothing fills.
+#[test]
+fn a_closed_join_site_takes_a_later_value_as_any_type_does() {
+    let out = program(
+        "fn first(xs: List[i32]) -> Option[i32]:\n    xs.get(0)\n\nfn pick(xs: List[i32]) -> Option[i32]:\n    let x = if xs.len() > 0: first(xs) else: first(xs)\n    x = +3\n    x\n\npub fn main() -> void $ Console:\n    println(pick([+1]).unwrap_or(+0))\n",
+    );
+    assert!(out.diags.is_empty(), "{}", out.render());
+}
+
 #[test]
 fn a_missing_requirement_is_an_error() {
     let out = program("pub fn main():\n    println(42)\n");

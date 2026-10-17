@@ -2150,3 +2150,46 @@ fn specification_conformance_passes_except_known_failures() {
         errors.join("\n")
     );
 }
+
+/// Every `typing/invalid` fixture, checked: none reaches an internal error
+/// (`hd_diag::DiagBuf::internal_error`), such as a body that fails the TIR
+/// verifier. Error recovery must leave a body the verifier accepts, so a
+/// rejected program reports its diagnostic and never a compiler bug. The
+/// suite's judging leaves stopped stages out of a case's errors, so a case
+/// can pass with an internal error beside its diagnostic; this test does
+/// not let it.
+#[test]
+fn no_typing_invalid_fixture_reaches_an_internal_error() {
+    let cases: Vec<Case> = cases()
+        .into_iter()
+        .filter(|case| case.phase == Phase::Type && case.path.starts_with("typing/invalid/"))
+        .collect();
+    assert!(!cases.is_empty(), "no typing/invalid cases");
+    let store = MemoryStore::default();
+    let next = AtomicUsize::new(0);
+    let found = Mutex::new(Vec::new());
+    std::thread::scope(|scope| {
+        for _ in 0..workers().min(cases.len()) {
+            scope.spawn(|| {
+                while let Some(case) = cases.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    let fixture = fixture(case).expect("fixture");
+                    let output = check_fixture(&fixture, &store);
+                    for index in 0..output.diags.len() {
+                        if output.diags.is_internal(index) {
+                            let message = output.diags.get_text(output.diags.message[index]);
+                            let line = format!("{}: {message}", case.path);
+                            found.lock().expect("found lock").push(line);
+                        }
+                    }
+                }
+            });
+        }
+    });
+    let mut found = found.into_inner().expect("found lock");
+    found.sort();
+    assert!(
+        found.is_empty(),
+        "typing/invalid fixtures reach an internal error:\n{}",
+        found.join("\n")
+    );
+}

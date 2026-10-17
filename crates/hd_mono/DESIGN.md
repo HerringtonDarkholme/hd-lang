@@ -549,7 +549,8 @@ The linked module is then validated by `wasmparser`
 
 Implementation differs: the emitter trusts verified TIR and runs none of
 these assertions; an unexpected shape stops with a structured
-not-implemented (`unsupported`), not an internal error. Not judged.
+not-implemented (`unsupported`), and only a malformed callee record or
+the layout of a non-concrete type stops as an internal error. Not judged.
 
 ### 12.8 Size Versus Speed Policy
 

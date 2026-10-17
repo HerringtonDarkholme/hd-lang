@@ -77,12 +77,20 @@ impl Stage {
 
 /// A stage, or a component inside one, that is not implemented for this
 /// input. `what` names the construct or component in plain words.
+///
+/// A stage also stops this way when a check of the compiler's own work
+/// fails, such as the TIR verifier ([`NotImplemented::bug`]): `bug` is
+/// set, and the driver reports a compiler bug rather than a construct
+/// this build lacks.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NotImplemented {
     pub stage: Stage,
     pub what: String,
     /// Where the construct is, when the stage knows it.
     pub span: Option<Span>,
+    /// An internal check failed: the input is not unsupported, the
+    /// compiler has a bug.
+    pub bug: bool,
 }
 
 impl NotImplemented {
@@ -92,6 +100,17 @@ impl NotImplemented {
             stage,
             what: what.into(),
             span: None,
+            bug: false,
+        }
+    }
+
+    /// A failed internal check of `stage`: `check` names the check and
+    /// what it found, such as `TIR verifier: ...`.
+    #[must_use]
+    pub fn bug(stage: Stage, check: impl Into<String>) -> Self {
+        Self {
+            bug: true,
+            ..Self::new(stage, check)
         }
     }
 
@@ -106,12 +125,16 @@ impl NotImplemented {
 
 impl fmt::Display for NotImplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "stage {} not implemented: {}",
-            self.stage.name(),
-            self.what
-        )
+        if self.bug {
+            write!(f, "stage {} hit a bug: {}", self.stage.name(), self.what)
+        } else {
+            write!(
+                f,
+                "stage {} not implemented: {}",
+                self.stage.name(),
+                self.what
+            )
+        }
     }
 }
 

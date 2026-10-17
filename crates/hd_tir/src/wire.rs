@@ -134,7 +134,7 @@ fn id_words_call(b: &Body, at: usize) -> StageResult<Vec<IdWord>> {
             v
         }
         _ => {
-            return Err(NotImplemented::new(
+            return Err(NotImplemented::bug(
                 Stage::ModuleFinish,
                 "wire form of a malformed callee record",
             ));

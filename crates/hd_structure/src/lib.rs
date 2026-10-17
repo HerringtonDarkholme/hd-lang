@@ -52,7 +52,7 @@ use hd_resolve::{FnSig, Generic, Item, ItemData, Lookup, Names};
 use hd_tir::Body;
 use hd_tir::ir::{
     BodyKind, Callee, ChoiceKind, Coercion, NONE, Providers, Ref, Tag, TirBuilder, TirSink,
-    local_flags,
+    VerifyError, local_flags,
 };
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
@@ -1006,9 +1006,10 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn finish(self, root: Ref) -> StageResult<(Body, Vec<Handle>)> {
         let wanted = self.wanted;
         let stage = self.cx.stage;
-        let body = self.b.finish(root, &[]).map_err(|e| {
-            NotImplemented::new(stage, format!("generated structure TIR verifier: {e:?}"))
-        })?;
+        let body = self
+            .b
+            .finish(root, &[])
+            .map_err(|e| VerifyError::bug(stage, "generated structure TIR verifier", &e))?;
         Ok((body, wanted))
     }
 

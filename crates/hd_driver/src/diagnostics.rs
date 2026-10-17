@@ -7,8 +7,8 @@
 
 use std::fmt::Write as _;
 
-use hd_base::Span;
-use hd_diag::{Code, Severity};
+use hd_base::{FileId, NotImplemented, Span, Stage};
+use hd_diag::{Code, DiagBuf, Severity};
 
 use crate::Output;
 
@@ -176,11 +176,12 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
     d.content_order()
         .into_iter()
         .map(|i| {
-            let code = d.code[i];
+            // An internal error has no code: its message names it.
+            let code = d.shown_code(i);
             let raw = d.get_text(d.message[i]);
             // A message that repeats its code drops it; the record holds it.
-            let message = raw
-                .strip_prefix(code.as_str())
+            let message = code
+                .and_then(|c| raw.strip_prefix(c.as_str()))
                 .and_then(|rest| rest.strip_prefix(": "))
                 .unwrap_or(raw);
             let span = d.primary[i];
@@ -207,7 +208,7 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
                 })
                 .collect();
             Diag {
-                code: Some(code),
+                code,
                 severity: d.severity[i],
                 message: out.user_text(message),
                 file,
@@ -219,6 +220,31 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
             }
         })
         .collect()
+}
+
+/// Reports a stage's stop at the construct, or at the sentinel span when
+/// the stage has no position: a construct this build does not support, as
+/// an `unsupported` error, or a failed internal check
+/// ([`NotImplemented::bug`]), as an internal error that asks for a report.
+pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
+    let span = e.span.unwrap_or(Span {
+        file: FileId::from_raw(u32::MAX),
+        lo: 0,
+        hi: 0,
+    });
+    let (name, what) = (s.name(), &e.what);
+    if e.bug {
+        diags.internal_error(
+            span,
+            &format!("the compiler hit a bug in stage {name} ({what}); please report it"),
+        );
+    } else {
+        diags.error(
+            Code::Unsupported,
+            span,
+            &format!("stage {name}: {what} is not supported"),
+        );
+    }
 }
 
 /// A JSON string literal.
@@ -240,4 +266,46 @@ pub fn quote(s: &str) -> String {
     }
     out.push('"');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use hd_base::{DefId, NodeIdx, NotImplemented, Stage};
+    use hd_diag::DiagBuf;
+    use hd_tir::ir::{BodyKind, TirBuilder, TirSink, VerifyError};
+    use hd_types::Ty;
+
+    use super::{Diag, report_stop};
+
+    /// A body whose reserved slot stays empty fails the TIR verifier; the
+    /// stop reads as a compiler bug with no code, never as `unsupported`.
+    #[test]
+    fn a_verifier_failure_reports_an_internal_error() {
+        let mut b = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
+        let blk = b.open_block();
+        let slot = b.reserve();
+        let root = b.close_block(blk, Some(slot.as_ref()), Ty::VOID, NodeIdx::NONE);
+        let errs = b.finish(root, &[]).expect_err("an unfilled slot");
+        assert!(errs.iter().any(|e| e.invariant == 14), "{errs:?}");
+        let mut diags = DiagBuf::default();
+        let stop = VerifyError::bug(Stage::Body, "TIR verifier", &errs);
+        report_stop(&mut diags, Stage::Body, &stop);
+        assert!(diags.is_internal(0));
+        let text = Diag::error(diags.shown_code(0), diags.get_text(diags.message[0])).text();
+        assert!(
+            text.starts_with(
+                "error: internal-error: the compiler hit a bug in stage Body (TIR verifier: invariant 14 at %"
+            ),
+            "{text}"
+        );
+        assert!(text.ends_with("); please report it"), "{text}");
+        assert!(!text.contains("unsupported"), "{text}");
+        // A construct this build lacks still reads as `unsupported`.
+        report_stop(
+            &mut diags,
+            Stage::Emit,
+            &NotImplemented::new(Stage::Emit, "x"),
+        );
+        assert!(!diags.is_internal(1));
+    }
 }

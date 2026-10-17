@@ -1734,11 +1734,14 @@ pub fn build_packages(
             #[cfg(feature = "threads")]
             Executor::Pool(threads) => hd_sched::pool::run_pool(g, threads, &exec).1,
         };
+        // A task graph that leaves tasks behind is a scheduling bug.
         if left > 0 {
             run.stop(
                 Stage::PackageResult,
-                &format!("{left} tasks never became ready"),
-                None,
+                &NotImplemented::bug(
+                    Stage::PackageResult,
+                    format!("{left} tasks never became ready"),
+                ),
             );
         }
     }
@@ -2354,6 +2357,8 @@ impl Run<'_> {
     /// Records a stage's answer. A "not implemented" answer is counted and
     /// reported as an internal `unsupported` diagnostic, in analysis too: a
     /// package whose checking stops at a construct is not a checked package.
+    /// A failed internal check is counted the same way and reported as an
+    /// internal error.
     fn stage<T>(&self, s: Stage, r: StageResult<T>) -> Option<T> {
         match r {
             Ok(v) => {
@@ -2362,25 +2367,17 @@ impl Run<'_> {
             }
             Err(e) => {
                 lock(&self.report).not_implemented(s, &e.what);
-                self.stop(s, &e.what, e.span);
+                self.stop(s, &e);
                 None
             }
         }
     }
 
-    /// Reports a stop; `at` is where the stage found the construct, or the
-    /// sentinel span when the stage has no position.
-    fn stop(&self, s: Stage, what: &str, at: Option<Span>) {
-        let span = at.unwrap_or(Span {
-            file: FileId::from_raw(u32::MAX),
-            lo: 0,
-            hi: 0,
-        });
-        lock(&self.diags).error(
-            Code::Unsupported,
-            span,
-            &format!("stage {}: {what} is not supported", s.name()),
-        );
+    /// Reports a stop at the construct, or at the sentinel span when the
+    /// stage has no position: a construct this build does not support, or
+    /// a compiler bug ([`NotImplemented::bug`]).
+    fn stop(&self, s: Stage, e: &NotImplemented) {
+        diagnostics::report_stop(&mut lock(&self.diags), s, e);
     }
 
     /// Reports collection's stop at an instantiation limit
@@ -3990,7 +3987,7 @@ impl Run<'_> {
                 let Some(sum) = decode_summary(b, &names, &self.lines(*m)) else {
                     self.stage::<()>(
                         Stage::InitOrder,
-                        Err(NotImplemented::new(
+                        Err(NotImplemented::bug(
                             Stage::InitOrder,
                             "a module's init summary did not decode",
                         )),
@@ -6569,7 +6566,7 @@ impl Run<'_> {
         {
             self.stage::<()>(
                 Stage::ModuleFinish,
-                Err(NotImplemented::new(
+                Err(NotImplemented::bug(
                     Stage::ModuleFinish,
                     format!(
                         "TIR verifier: invariant 3: poison in `{}`, in a module without errors",
@@ -7214,7 +7211,7 @@ impl Run<'_> {
         let Some(p) = self.program() else {
             self.stage::<()>(
                 Stage::Collect,
-                Err(NotImplemented::new(
+                Err(NotImplemented::bug(
                     Stage::Collect,
                     "a module's check entry did not decode",
                 )),
@@ -7372,7 +7369,7 @@ impl Run<'_> {
         // Bodies decode as collection reaches them: a body whose bytes did
         // not decode fails the stage as a whole entry would.
         let collected = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
-            Err(NotImplemented::new(
+            Err(NotImplemented::bug(
                 Stage::Collect,
                 "a module's check entry did not decode",
             ))

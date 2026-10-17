@@ -7,6 +7,11 @@ use hd_base::{DefId, Range32, Span};
 
 use crate::{Code, Severity};
 
+/// What an internal error's message starts with
+/// ([`DiagBuf::internal_error`]). It names no diagnostic code: the
+/// specification's table has none for a compiler bug.
+pub const INTERNAL_ERROR: &str = "internal-error: ";
+
 /// Exact is safe to apply, so `hd fix` tries it; `hd fix` keeps it only if
 /// the check after it adds no diagnostic (`crates/hd_cli/src/fix_cmd.rs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,6 +138,29 @@ impl DiagBuf {
         self.push(code, Severity::Error, primary, message, None);
     }
 
+    /// Reports a failed check of the compiler's own work, a compiler bug:
+    /// an error with no diagnostic code, its message led by
+    /// [`INTERNAL_ERROR`]. The row keeps the internal `unsupported` code,
+    /// which marks a stage that stopped, so every count of stopped
+    /// stages still sees it; it renders with no code ([`Self::shown_code`]).
+    pub fn internal_error(&mut self, primary: Span, message: &str) {
+        let text = format!("{INTERNAL_ERROR}{message}");
+        self.push(Code::Unsupported, Severity::Error, primary, &text, None);
+    }
+
+    /// Whether row `i` is an internal error ([`Self::internal_error`]).
+    #[must_use]
+    pub fn is_internal(&self, i: usize) -> bool {
+        self.code[i] == Code::Unsupported
+            && self.get_text(self.message[i]).starts_with(INTERNAL_ERROR)
+    }
+
+    /// The code row `i` shows: its own, or none for an internal error.
+    #[must_use]
+    pub fn shown_code(&self, i: usize) -> Option<Code> {
+        (!self.is_internal(i)).then_some(self.code[i])
+    }
+
     /// Appends another buffer's diagnostics, fix-its included (labels
     /// stay behind: this run's stages attach no labels after parsing).
     pub fn append(&mut self, other: &DiagBuf) {
@@ -250,8 +278,11 @@ impl DiagBuf {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             };
-            let code = self.code[i].as_str();
             let text = self.get_text(self.message[i]);
+            let Some(code) = self.shown_code(i).map(Code::as_str) else {
+                let _ = writeln!(out, "{sev}: {}: {text}", location(p));
+                continue;
+            };
             let message = text
                 .strip_prefix(code)
                 .and_then(|rest| rest.strip_prefix(": "))
@@ -272,8 +303,9 @@ impl DiagBuf {
             let p = self.primary[i];
             let _ = write!(
                 out,
-                "{{\"code\":\"{}\",\"file\":{},\"lo\":{},\"hi\":{},\"message\":\"{}\"}}",
-                self.code[i].as_str(),
+                "{{\"code\":{},\"file\":{},\"lo\":{},\"hi\":{},\"message\":\"{}\"}}",
+                self.shown_code(i)
+                    .map_or_else(|| "null".to_owned(), |c| format!("\"{}\"", c.as_str())),
                 p.file.raw(),
                 p.lo,
                 p.hi,
@@ -312,5 +344,32 @@ mod tests {
         let text = b.render_compact(&|_| "a.hd:1:1".into());
         assert!(text.find("early").expect("early") < text.find("late").expect("late"));
         assert!(b.render_json().starts_with("[{\"code\":\"syntax-error\""));
+    }
+
+    #[test]
+    fn an_internal_error_renders_with_no_code() {
+        let mut b = DiagBuf::default();
+        let at = Span {
+            file: FileId::from_raw(0),
+            lo: 0,
+            hi: 0,
+        };
+        b.internal_error(
+            at,
+            "the compiler hit a bug in stage Body (x); please report it",
+        );
+        b.error(Code::Unsupported, at, "stage Body: y is not supported");
+        assert!(b.is_internal(0) && !b.is_internal(1));
+        assert_eq!(b.shown_code(0), None);
+        let text = b.render_compact(&|_| "a.hd:1:1".into());
+        assert!(
+            text.contains("error: a.hd:1:1: internal-error: the compiler hit a bug"),
+            "{text}"
+        );
+        assert!(
+            text.contains("a.hd:1:1: unsupported: stage Body: y"),
+            "{text}"
+        );
+        assert!(b.render_json().contains("{\"code\":null,"));
     }
 }

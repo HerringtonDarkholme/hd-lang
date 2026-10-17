@@ -3224,3 +3224,4 @@ runtime/valid/generic-trait-method-instantiation.hd	runtime	accept	lang/03-names
 typing/invalid/private-method-other-module.hd	type	reject:private-member	lang/03-names-and-scopes.md#r-names.method-lookup.private
 typing/invalid/cast-to-string.hd	type	reject:not-callable	lang/04-type-system.md#r-types.cast.nonnumeric
 typing/valid/index-trait-tuple-key.hd	type	accept	lang/05-expressions.md#r-expr.index.trait.read-other
+typing/invalid/unknown-method-before-diverging-matches.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#r-names.method-lookup.unknown

@@ -17,7 +17,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
     BodyKind, Callee, Coercion, IntrinsicOp, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder,
-    TirSink, local_flags,
+    TirSink, VerifyError, local_flags,
 };
 use hd_types::solver::{
     Answer, BodyMemo, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx,
@@ -147,7 +147,7 @@ pub(crate) fn too_complex(
     let p = b.emit(Tag::Poison, NONE, NONE, Ty::POISON, at.index());
     let root = b.close_block(blk, Some(p), Ty::POISON, at.index());
     b.finish(root, &[])
-        .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))
+        .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))
 }
 
 /// An open closure: its builder mark, the scope depth at its start, its
@@ -3764,7 +3764,7 @@ impl Ck<'_, '_> {
         let body = self
             .b
             .finish_in(root, &modes, tolerated, &known)
-            .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
+            .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
         Ok((body, ret, facts))
     }
 }

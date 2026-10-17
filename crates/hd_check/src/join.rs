@@ -64,6 +64,7 @@ enum Undo {
     Open(Ty),
     Value(Ty),
     Failed(Ty),
+    Closed(Ty, Site),
 }
 
 impl Joins {
@@ -75,6 +76,16 @@ impl Joins {
     fn open(&mut self, var: Ty) {
         self.sites.insert(var, Site::default());
         self.log.push(Undo::Open(var));
+    }
+
+    /// Closes `var`'s site once its slots are filled: its variable is an
+    /// ordinary type from here on, so a later value of that type, such as
+    /// one assigned to a binding the site initialized, converts as into
+    /// any other type instead of reserving a slot nothing fills.
+    fn close(&mut self, var: Ty) {
+        if let Some(site) = self.sites.remove(&var) {
+            self.log.push(Undo::Closed(var, site));
+        }
     }
 
     fn push(&mut self, var: Ty, ty: Ty, to: Conv) {
@@ -122,6 +133,9 @@ impl Joins {
                     if let Some(site) = self.sites.get_mut(&v) {
                         site.failed = false;
                     }
+                }
+                Some(Undo::Closed(v, site)) => {
+                    self.sites.insert(v, site);
                 }
                 None => break,
             }
@@ -186,6 +200,7 @@ impl Ck<'_, '_> {
         }
         let out = run(self, result)?;
         self.fill_join(result)?;
+        self.joins.close(result);
         Ok(out)
     }
 

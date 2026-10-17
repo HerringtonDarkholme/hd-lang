@@ -872,6 +872,10 @@ its values are checked in order:
    contextual variant before the widening value stays without a type
    (`types.lct.contextual`). A list spread passes its list unchanged, so
    its elements take only a conversion with no run-time meaning.
+7. **Close.** Once its slots are filled, the site closes: its variable
+   is an ordinary type from then on, so a later value of that type, such
+   as one assigned to a binding the site initialized, takes the
+   conversion any other type gives it and reserves no slot.
 
 The site's variable takes a first value whose type is still a variable,
 such as a literal's, as an alias (`Unifier::alias`), not a union, so

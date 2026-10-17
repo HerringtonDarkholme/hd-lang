@@ -8,7 +8,9 @@
 
 use std::fmt::Write as _;
 
-use hd_base::{CaptureId, DefId, LabelId, LocalId, NodeIdx, Range32, SubId, Symbol};
+use hd_base::{
+    CaptureId, DefId, LabelId, LocalId, NodeIdx, NotImplemented, Range32, Stage, SubId, Symbol,
+};
 use hd_types::{Ty, TyList};
 
 pub const NONE: u32 = u32::MAX;
@@ -1065,6 +1067,25 @@ pub struct VerifyError {
     pub invariant: u8,
     pub inst: u32,
     pub what: String,
+}
+
+impl VerifyError {
+    /// The stop of a body that failed the verifier: a compiler bug, since
+    /// the checker builds only bodies that hold every invariant.
+    /// `check` names the verifier's caller, such as `TIR verifier`.
+    #[must_use]
+    pub fn bug(stage: Stage, check: &str, errs: &[VerifyError]) -> NotImplemented {
+        let mut what = format!("{check}:");
+        for (n, e) in errs.iter().enumerate() {
+            let sep = if n == 0 { " " } else { "; " };
+            let _ = write!(
+                what,
+                "{sep}invariant {} at %{}: {}",
+                e.invariant, e.inst, e.what
+            );
+        }
+        NotImplemented::bug(stage, what)
+    }
 }
 
 /// Invariants this verifier checks, some in part (`crates/hd_tir/DESIGN.md`

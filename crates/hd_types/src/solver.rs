@@ -2008,9 +2008,9 @@ impl<'s, 'a> Search<'s, 'a> {
             }
         }
         if reads.seen.dir && key.universe.is_none() {
-            return Err(NotImplemented::new(
+            return Err(NotImplemented::bug(
                 Stage::Body,
-                "internal error: a solver frame read the candidate directory, but its memo key has no impl universe",
+                "a solver frame read the candidate directory, but its memo key has no impl universe",
             ));
         }
         self.read(&reads);
@@ -2389,9 +2389,9 @@ impl Search<'_, '_> {
             matched.push((at, t, Some(fixed)));
         }
         if reads.seen.dir && key.universe.is_none() {
-            return Err(NotImplemented::new(
+            return Err(NotImplemented::bug(
                 Stage::Body,
-                "internal error: an Instantiations frame read the directory without a universe",
+                "an Instantiations frame read the directory without a universe",
             ));
         }
         self.read(&reads);
@@ -3443,7 +3443,7 @@ mod tests {
         let err = TableSolver
             .solve(&mut cx, &goal, &mut Fuel::new(100))
             .expect_err("internal error");
-        assert!(err.what.starts_with("internal error"), "{}", err.what);
+        assert!(err.bug, "{}", err.what);
     }
 
     /// Solves `tref` over one table (module 0), with no environment.
