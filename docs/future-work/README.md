@@ -22,6 +22,9 @@ action at a distance.
   Rust-model design for #163: `own` at the use site, `^` borrows, lifetimes
   named by variables, `DropOwn`. Fully decided by the owner (2026-10-17);
   not yet in the spec.
+- [Unified Deserialize Stress Test](UNIFIED_DESERIALIZE_STRESS_TEST.md): one
+  `Deserialize` model for CLI, env, JSON, HTTP, TOML/YAML and SQL rows,
+  tried on 23 cases; 14 ranked questions for the owner.
 - [Ownership Prototype Plan](OWNERSHIP_PROTOTYPE.md): 23 hour-sized
   slices to prototype the design behind an opt-in.
 - [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md): twelve cases
