@@ -754,8 +754,11 @@ and the cancellation record that serve `defer` serve drops too. A move is
 a `LocalGet` or `Field` of an owned place that no `Lend` wraps; the
 ownership pass lists them in the `moves` column and decides each
 `DropLocal`'s `drop_mode` (always, by flag, or never), both written at
-`finish`; until it runs, every mode is `Always`. Emission runs nothing
-for these forms yet.
+`finish`. The pass (`hd_check/src/moves.rs`) runs on a body with marks
+and no errors; any other body keeps `Always` for every mode. A `defer`
+moves the owned locals its suite reads where it registers, so the
+suite's own non-lent reads are listed as moves too. Emission runs
+nothing for these forms yet.
 
 An exit (`Break`, `Continue`, `Return`, or falling off a scope) runs the
 registered suites of every `Scope` it leaves, innermost first. Which

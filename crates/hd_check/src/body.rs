@@ -224,6 +224,17 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the body met a form the ownership prototype rejects
     /// (`own.limit.*`), which then stands for every later form's gap.
     pub prototype_limit: bool,
+    /// The diagnostics before this body's, so move checking runs only
+    /// over a body without errors of its own.
+    pub diag_start: hd_diag::DiagMark,
+    /// Owned values met in a plain field or payload of a construction,
+    /// which move there when the construction becomes owned
+    /// (`own.move.part`); decided when the body is finished.
+    pub part_moves: Vec<(Ref, hd_base::NodeIdx, String)>,
+    /// Whether the value being coerced fills a part: a field or payload
+    /// of a construction (`Some(false)`), or a store into a plain field
+    /// of an owned value (`Some(true)`).
+    pub own_part: Option<bool>,
     /// The type variables of generic calls: one that a moded type solves
     /// waits for owned type arguments (13-ownership.md).
     pub generic_vars: Vec<(Ty, hd_base::NodeIdx)>,
@@ -481,6 +492,7 @@ pub(crate) fn new_ck<'a, 'c>(
     diags: &'c mut DiagBuf,
 ) -> Ck<'a, 'c> {
     let pool = cx.names.pool;
+    let diag_start = diags.mark();
     let mut ck = Ck {
         cx,
         local,
@@ -497,6 +509,9 @@ pub(crate) fn new_ck<'a, 'c>(
         own_params: Vec::new(),
         mode_gap: None,
         prototype_limit: false,
+        diag_start,
+        part_moves: Vec::new(),
+        own_part: None,
         generic_vars: Vec::new(),
         let_own: false,
         structure: crate::own::StructureMemo::default(),
@@ -1522,8 +1537,17 @@ impl Ck<'_, '_> {
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
         // 13-ownership.md Modes In Bodies: owned and borrowed values.
-        if !joined && let Some(r) = self.coerce_mode(r, g, w, n) {
-            return r;
+        if !joined {
+            let part = match what {
+                "field" | "payload" => Some(false),
+                _ => self.own_part,
+            };
+            let outer = std::mem::replace(&mut self.own_part, part);
+            let moded = self.coerce_mode(r, g, w, n);
+            self.own_part = outer;
+            if let Some(r) = moded {
+                return r;
+            }
         }
         if !joined && self.check_upgrade(got, want, n, what) {
             return r;
@@ -3130,7 +3154,12 @@ impl Ck<'_, '_> {
                     }
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;
+                        // `own.move.part`: an owned value moves into a
+                        // plain field of an owned value.
+                        let into_owner = self.owned_base(owner)?.then_some(true);
+                        let outer = std::mem::replace(&mut self.own_part, into_owner);
                         let v = self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General);
+                        self.own_part = outer;
                         self.store_fresh(owner, ft, v, *rhs)?;
                         v
                     }
@@ -3578,8 +3607,8 @@ impl Ck<'_, '_> {
     /// The forms of a body that later sections of 13-ownership.md check
     /// stay `unsupported`: a value of a type parameter with an `own`
     /// bound, a generic call that a moded type argument solves, a closure
-    /// that captures a moded local, a moded value in a body that defers
-    /// or suspends, and a moded value meeting a form no section checks yet.
+    /// that captures a moded local, a moded value in a body that
+    /// suspends, and a moded value meeting a form no section checks yet.
     /// A body that met a form the prototype rejects (`own.limit.*`) reports
     /// that instead.
     fn mode_gate(&mut self, n: usize) -> StageResult<()> {
@@ -3602,7 +3631,7 @@ impl Ck<'_, '_> {
         let waits = |t: Tag| {
             matches!(
                 t,
-                Tag::Defer | Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
             )
         };
         let cleanup = moded.and_then(|_| (0..n).find(|&i| waits(body.tags[i])));
@@ -3801,6 +3830,12 @@ impl Ck<'_, '_> {
         }
         self.fallback_rows(&open);
         self.mode_gate(n)?;
+        if !self.prototype_limit && (0..n).any(|i| pool.has_mode(self.b.body_mut().ty[i])) {
+            self.settle_part_moves();
+            if self.diags.errors_since(self.diag_start) == 0 {
+                self.check_moves(root)?;
+            }
+        }
         let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];

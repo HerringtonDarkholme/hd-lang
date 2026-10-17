@@ -1,0 +1,16 @@
+# test: a move inside a loop body reaches the next pass of the loop
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+fn drain(more: bool) -> void:
+    f := open("app.log")
+    while more:
+        archive(f)  # diagnostic: use-after-move

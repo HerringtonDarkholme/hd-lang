@@ -1,0 +1,17 @@
+# test: a move on one branch reaches the code after the if
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+fn report(done: bool) -> i32:
+    f := open("app.log")
+    if done:
+        archive(f)
+    size(f)  # diagnostic: use-after-move

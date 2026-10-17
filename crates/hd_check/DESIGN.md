@@ -1223,6 +1223,24 @@ Across a module cycle, `InitOrder(F)` orders statements from the
 summaries (`stages::cycle_order`;
 [§4.13.10](../hd_tir/DESIGN.md#41310-module-initialization)).
 
+### 8.5 Move Checking
+
+**Owned locals: over TIR, after types resolve.** A body with marks gets
+the ownership pass's first half once its types are final
+(`moves.rs`, [Moves](../../spec/lang/13-ownership.md#moves)); a body
+without marks skips it, so for it checking still never reads TIR. A
+local is owned when a `DropLocal` registers it. One forward walk over
+the structured flow keeps two bits per owned local, may hold and may
+have moved, plus the earliest move. Branches join, a loop repeats its
+body until its head state stops growing, `break` and `continue` carry
+their state to their target, and leaving a `Scope` (falling off it,
+`return`, `break`, `continue`) is a drop point that ends its locals.
+A `LocalGet` moves unless a `Lend` or a field access reads it. The
+results are `use-after-move` (deduplicated by instruction),
+`partial-move`, the `moves` column, and one `drop_mode` per `DropLocal`:
+`Always` when no drop point finds it moved, `Never` when none finds it
+holding, `Flag` otherwise. Each visited instruction charges body fuel.
+
 ## 9. Omitted Result Types (M1)
 
 ### 9.1 Who Can Omit

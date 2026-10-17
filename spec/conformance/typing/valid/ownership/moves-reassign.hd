@@ -1,0 +1,27 @@
+# test: assigning an owned local after a move gives it its value again
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+fn reopen() -> i32:
+    let f = open("app.log")
+    archive(f)
+    f = open("app.log")
+    size(f)
+
+fn rotate(more: bool) -> void:
+    let f = open("0.log")
+    while more:
+        archive(f)
+        f = open("1.log")
+    archive(f)
+
+pub fn main() -> void:
+    pass

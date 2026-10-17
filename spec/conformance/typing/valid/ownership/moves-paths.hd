@@ -1,0 +1,75 @@
+# test: a move reaches only the code its paths reach: branches, return, break, continue, nested loops, and ?
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+fn step() -> Result[i32, string]: .Ok(1)
+
+fn one_branch(done: bool) -> i32:
+    f := open("a")
+    if done:
+        archive(f)
+    0
+
+fn both_branches(done: bool) -> void:
+    f := open("a")
+    if done:
+        archive(f)
+    else:
+        f.fd = 0
+        archive(f)
+
+fn returns(done: bool) -> i32:
+    f := open("a")
+    if done:
+        archive(f)
+        return 0
+    size(f)
+
+fn breaks(more: bool) -> void:
+    f := open("a")
+    while more:
+        archive(f)
+        break
+
+fn nested_return(more: bool) -> void:
+    f := open("a")
+    while more:
+        while more:
+            archive(f)
+            return
+
+fn continues(more: bool, skip: bool) -> void:
+    while more:
+        f := open("a")
+        if skip:
+            archive(f)
+            continue
+        _ := size(f)
+
+fn fresh_each_pass(more: bool) -> void:
+    while more:
+        f := open("a")
+        archive(f)
+
+fn tries(f: own File) -> Result[i32, string]:
+    n := step()?
+    archive(f)
+    .Ok(n)
+
+fn after_never(done: bool) -> i32:
+    f := open("a")
+    if done:
+        archive(f)
+        panic("stop")
+    size(f)
+
+pub fn main() -> void:
+    pass

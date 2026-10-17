@@ -12,13 +12,13 @@ owned, or borrowed.
 > [Specification Status](../README.md#specification-status) requires.
 >
 > So far the chapter checks marks in declarations, ownership by structure,
-> the modes values meet in bodies, the prototype's limits, and providers
-> and boundaries. Moves, drops, and loans are not specified yet.
+> the modes values meet in bodies, moves, the prototype's limits, and
+> providers and boundaries. Drops and loans are not specified yet.
 >
 > A body is diagnosed when it holds a value of a type parameter with an
 > `own` bound, passes a moded type argument, or names a lifetime. So is a
 > moded value that a closure captures, that a pattern, `for`, or a
-> built-in method reads, or that a deferring or suspending body holds. A
+> built-in method reads, or that a suspending body holds. A
 > borrow in a plain position and a lifetime named by a requirement key are
 > diagnosed too.
 
@@ -530,7 +530,7 @@ fn buffers() -> string:
 1. r[own.body.source] An owned value comes from a fresh value, an `own` result, parameter or local, or an `own` field.
 2. r[own.body.fresh] A **fresh** value is a data literal, a variant construction, a list, map or tuple literal, or a closure, whose every part is fresh or exempt. A primitive, an owned or borrowed value, and an optional or tuple of these are exempt.
 3. r[own.body.upgrade] A plain value where `own T` is expected must be fresh, and becomes owned there; any other plain value is an error, and so is a borrow. Error: `own-upgrade`.
-4. r[own.body.to-plain] An owned value where a plain type is expected is an error, a plain field of a fresh value included. Error: `own-to-plain`.
+4. r[own.body.owned-to-plain] An owned value where a plain type is expected is an error, a plain field of a fresh value included, unless it moves into a part of an owned value ([own.move.part](#r-own.move.part)). Error: `own-to-plain`.
 5. r[own.body.let-own] `let own x = value` binds an owned local, so the value is owned or fresh, and `let own x: T = value` is `let x: own T = value`. Error: `own-on-value` for a primitive.
 6. r[own.body.infer] `:=`, and `let` without a type, keep an owned initializer owned; a fresh initializer stays plain.
 7. r[own.body.store-fresh] A store into a plain field of an owned value takes a fresh or exempt value. The base is owned when its type is `own T`, or a `^mut` borrow of a type that owns. Error: `own-upgrade`.
@@ -579,6 +579,118 @@ fn helper(): open()                         # error: missing-result-type
 > call site, so a call reads the same whether it borrows or not.
 
 See also: [Ownership By Structure](#ownership-by-structure).
+
+## Moves
+
+An owned local holds its value until a use gives it away. A use that some
+path through the body reaches after such a move is an error, so an owned
+value is never used once its owner has given it up.
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+fn size(f: ^File) -> i32: f.fd
+fn archive(f: own File) -> void: pass
+
+fn report(again: bool) -> i32:
+    let f = open("app.log")
+    n := size(f)                      # lends `f`, which keeps its value
+    archive(f)                        # moves `f`
+    if again:
+        f = open("app.log")           # gives `f` a value again
+        return n + size(f)
+    n
+
+fn rotate(keep: bool) -> void:
+    f := open("tmp.log")
+    if keep:
+        archive(f)                    # moves `f` on this path only
+```
+
+1. r[own.move.local] An **owned local** is a local or a parameter whose type holds an owned value outside any borrow: an `own` type, or an optional, tuple, or type argument that holds one.
+2. r[own.move.use] A use of an owned local moves it, except where it is lent to a borrowed position ([own.body.lend](#r-own.body.lend)) or a field of it is read, assigned, or lent. So passing it to an owned position, returning it, storing it, and binding it move it.
+3. r[own.move.after] A use of an owned local that a path from a move of it reaches, with no assignment to it in between, is an error. Error: `use-after-move`.
+4. r[own.move.paths] The paths follow the body's control flow, into each branch of an `if` and each arm of a `match`. The end of a loop body and a `continue` lead to the loop's next pass, and a `break` to the code after its loop. A `?` that succeeds leads to the code after it. A `return`, `break`, `continue`, or failing `?` leaves the code after it, and so does a value of type `never`.
+5. r[own.move.reinit] An assignment to an owned local gives it a value again, so a use after the assignment is not a use after a move.
+6. r[own.move.partial] A field or tuple element of an owned value does not move out on its own when its type holds an owned value. Using such a part as a value is an error; lending it or reading a field of it is not. Error: `partial-move`.
+7. r[own.move.borrow] A value read through a borrow is borrowed ([own.body.field-read](#r-own.body.field-read)), so it never moves, and giving it to an owned position is an error. Error: `own-upgrade`.
+8. r[own.move.defer] A `defer` moves every owned local its suite reads when the `defer` is reached, whether the suite lends the local or moves it. A later use of the local, the same `defer` reached again by a loop included, is a use after a move. Error: `use-after-move`.
+9. r[own.move.part] An owned value given to a plain field or payload of a construction moves there when that construction, or one that holds it through plain fields and payloads, becomes owned ([own.body.upgrade](#r-own.body.upgrade)). An owned value stored into a plain field of an owned value ([own.body.store-fresh](#r-own.body.store-fresh)) moves there too. Otherwise it is an error. Error: `own-to-plain`.
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+data Holder:
+    file: own File
+    count: i32
+
+impl OwnOnly for Holder
+
+fn open(path: string) -> own File: File { fd: 3 }
+fn size(f: ^File) -> i32: f.fd
+fn archive(f: own File) -> void: pass
+
+fn twice() -> void:
+    f := open("a.log")
+    archive(f)
+    archive(f)                        # error: use-after-move
+
+fn each(more: bool) -> void:
+    f := open("b.log")
+    while more:
+        archive(f)                    # error: use-after-move
+
+fn cleanup() -> void:
+    file := open("c.log")
+    defer: size(file)
+    _ := size(file)                   # error: use-after-move
+
+fn release(h: own Holder) -> void:
+    archive(h.file)                   # error: partial-move
+
+fn steal(h: ^Holder) -> void:
+    archive(h.file)                   # error: own-upgrade
+```
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+data Buffer:
+    bytes: List[u8]
+    label: string
+
+fn open(path: string) -> own File: File { fd: 3 }
+fn size(f: ^File) -> i32: f.fd
+fn read_bytes() -> own List[u8]: [1, 2]
+
+fn borrowed_cleanup() -> i32:
+    file := open("input")
+    let view: ^File = file
+    defer: size(view)                 # the suite reads a borrow, not the owner
+    size(file)
+
+fn load() -> own Buffer:
+    xs := read_bytes()
+    Buffer { bytes: xs, label: "owned" }   # `xs` moves into the owned buffer
+```
+
+> **Why.** An owned value has one owner, so after a move the old name holds
+> nothing. Following every path, rather than reading the body top to bottom,
+> accepts a move on one branch and rejects only the uses a move can reach. A
+> `defer` runs later, so it holds what its suite reads from the moment it is
+> reached; a `^` local lends the value to it instead.
+
+See also: [Modes In Bodies](#modes-in-bodies).
 
 ## Prototype Limits
 

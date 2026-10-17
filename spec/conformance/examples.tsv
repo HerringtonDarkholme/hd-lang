@@ -652,9 +652,12 @@ lang/13-ownership.md	15	accept	typing/valid/ownership/own-only-structure-cutoffs
 lang/13-ownership.md	16	mixed	typing/invalid/ownership/structure-mutable-borrow-field.hd|typing/invalid/ownership/structure-drop-own.hd|typing/invalid/ownership/own-field-tuple.hd|typing/invalid/ownership/own-in-plain-type.hd|typing/invalid/ownership/own-in-plain-type-map-key.hd|typing/invalid/ownership/own-type-plain-structure.hd|typing/invalid/ownership/own-type-plain-list.hd
 lang/13-ownership.md	17	accept	typing/valid/ownership/body-modes.hd
 lang/13-ownership.md	18	mixed	typing/invalid/ownership/own-upgrade-argument.hd|typing/invalid/ownership/own-upgrade-borrow.hd|typing/invalid/ownership/own-upgrade-fresh-part.hd|typing/invalid/ownership/own-upgrade-store.hd|typing/invalid/ownership/own-upgrade-receiver.hd|typing/invalid/ownership/mutable-upgrade-readonly.hd|typing/invalid/ownership/mutable-upgrade-shared-borrow.hd|typing/invalid/ownership/own-to-plain-argument.hd|typing/invalid/ownership/own-to-plain-receiver.hd|typing/invalid/ownership/own-on-value-let.hd|typing/invalid/ownership/owned-result-not-written.hd
-lang/13-ownership.md	19	mixed	typing/invalid/ownership/limit-top-level-owned.hd|typing/invalid/ownership/limit-top-level-borrowed.hd|typing/invalid/ownership/limit-top-level-borrow.hd|typing/invalid/ownership/limit-cold-call-owned-argument.hd|typing/invalid/ownership/limit-all-owned-child.hd|typing/invalid/ownership/limit-race-owned-child.hd
-lang/13-ownership.md	20	accept	typing/valid/ownership/prototype-limits-plain.hd
-lang/13-ownership.md	21	mixed	typing/invalid/ownership/not-boundary-safe-owned.hd|typing/invalid/ownership/not-boundary-safe-borrowed.hd|typing/invalid/ownership/provider-not-plain-borrowed.hd
+lang/13-ownership.md	19	accept	typing/valid/ownership/moves-reassign.hd|typing/valid/ownership/moves-paths.hd
+lang/13-ownership.md	20	mixed	typing/invalid/ownership/use-after-move.hd|typing/invalid/ownership/use-after-move-loop.hd|typing/invalid/ownership/use-after-move-defer.hd|typing/invalid/ownership/partial-move.hd|typing/invalid/ownership/move-through-borrow.hd
+lang/13-ownership.md	21	accept	typing/valid/ownership/moves-defer-borrow.hd|typing/valid/ownership/moves-parts.hd
+lang/13-ownership.md	22	mixed	typing/invalid/ownership/limit-top-level-owned.hd|typing/invalid/ownership/limit-top-level-borrowed.hd|typing/invalid/ownership/limit-top-level-borrow.hd|typing/invalid/ownership/limit-cold-call-owned-argument.hd|typing/invalid/ownership/limit-all-owned-child.hd|typing/invalid/ownership/limit-race-owned-child.hd
+lang/13-ownership.md	23	accept	typing/valid/ownership/prototype-limits-plain.hd
+lang/13-ownership.md	24	mixed	typing/invalid/ownership/not-boundary-safe-owned.hd|typing/invalid/ownership/not-boundary-safe-borrowed.hd|typing/invalid/ownership/provider-not-plain-borrowed.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

@@ -137,21 +137,14 @@ fn std_bodies_match_golden_tir() {
     }
 }
 
-/// The golden TIR of a small owned body (ownership prototype slice 8):
-/// an owned parameter and an owned local each register a `DropLocal` in
-/// the `Scope` around their statements, and each lending is a `Lend`
-/// coercion. No move pass runs yet, so each drop mode is `Always`.
-/// `HD_UPDATE_GOLDEN=1` rewrites the file.
-#[test]
-fn owned_body_matches_golden_tir() {
+/// The golden TIR of one owned body: `item` of `main` checked alone,
+/// against `tests/tir/{golden}`. `HD_UPDATE_GOLDEN=1` rewrites the file.
+fn owned_golden(main: &str, item: &str, golden: &str) {
     let mut src = MemorySources::default();
-    src.insert(
-        "main.hd",
-        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn report(keep: own File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    archive(f)\n    n + keep.size()\n\npub fn main() -> void:\n    pass\n",
-    );
+    src.insert("main.hd", main);
     let store = MemoryStore::default();
     let host = Host {
-        render_tir: &["app/main/report"],
+        render_tir: &[item],
         sources: &src,
         store: &store,
         clock: &NoClock,
@@ -161,15 +154,43 @@ fn owned_body_matches_golden_tir() {
     assert!(out.diags.is_empty(), "{}", out.render());
     let got = out
         .tir_text
-        .get("app/main/report")
+        .get(item)
         .unwrap_or_else(|| panic!("no body; have {:?}", out.tir_text.keys()));
-    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tir/owned_body.tir");
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/tir")
+        .join(golden);
     if std::env::var_os("HD_UPDATE_GOLDEN").is_some() {
         std::fs::write(&golden, got).expect("write golden");
         return;
     }
     let want = std::fs::read_to_string(&golden).unwrap_or_default();
     assert_eq!(got, &want, "TIR differs from {}", golden.display());
+}
+
+/// The golden TIR of a small owned body (ownership prototype slices 8
+/// and 9): an owned parameter and an owned local each register a
+/// `DropLocal` in the `Scope` around their statements, and each lending
+/// is a `Lend` coercion. The give-away is the one move, so the local
+/// never drops and the parameter always does.
+#[test]
+fn owned_body_matches_golden_tir() {
+    owned_golden(
+        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn report(keep: own File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    archive(f)\n    n + keep.size()\n\npub fn main() -> void:\n    pass\n",
+        "app/main/report",
+        "owned_body.tir",
+    );
+}
+
+/// The drop modes the move pass decides (ownership prototype slice 9):
+/// a local moved on one branch drops by flag, one moved before a `break`
+/// inside a loop by flag too, and one moved on every path never.
+#[test]
+fn owned_moves_match_golden_tir() {
+    owned_golden(
+        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn flags(done: bool, more: bool) -> void:\n    branch := open(\"a\")\n    if done:\n        archive(branch)\n    looped := open(\"b\")\n    while more:\n        archive(looped)\n        break\n    given := open(\"c\")\n    archive(given)\n\npub fn main() -> void:\n    pass\n",
+        "app/main/flags",
+        "owned_moves.tir",
+    );
 }
 
 /// `use a.b as c` and `use a.{b as c}` (grammar.use) reach the checker:

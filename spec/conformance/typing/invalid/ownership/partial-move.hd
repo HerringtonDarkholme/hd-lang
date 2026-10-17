@@ -1,0 +1,20 @@
+# test: a field that owns cannot move out of an owned value on its own
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+data Holder:
+    file: own File
+    count: i32
+
+impl OwnOnly for Holder
+
+fn release(h: own Holder) -> void:
+    archive(h.file)  # diagnostic: partial-move

@@ -1,0 +1,16 @@
+# test: a defer that registers again in a loop finds the owned value moved
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+fn close_each(more: bool) -> void:
+    f := open("app.log")
+    while more:
+        defer: archive(f)  # diagnostic: use-after-move

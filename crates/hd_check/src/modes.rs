@@ -226,13 +226,25 @@ impl Ck<'_, '_> {
             }
             // An optional wraps its payload, which converts on its own.
             (_, TyData::Option(_)) => None,
-            (TyData::Own(_), _) => {
+            (TyData::Own(gt), _) => {
                 let msg = format!(
                     "{} cannot be used as a plain {}: a plain copy would be a second path",
                     self.show(g),
                     self.show(w)
                 );
-                self.err(Code::OwnToPlain, n, &msg);
+                // `own.move.part`: an owned value moves into a plain part
+                // of a value that is or becomes owned.
+                match self.own_part {
+                    Some(store) => {
+                        let ws = self.strip_mut(w);
+                        if !self.expect(gt, ws, n, what, crate::body::ExpectPosition::General)
+                            && !store
+                        {
+                            self.part_moves.push((r, n.index(), msg));
+                        }
+                    }
+                    None => self.err(Code::OwnToPlain, n, &msg),
+                }
                 Some(r)
             }
             // A borrow in a plain position needs the lifetime checks of a
@@ -294,9 +306,23 @@ impl Ck<'_, '_> {
         self.coerce_mode(recv, rt, want, n).unwrap_or(recv)
     }
 
+    /// Whether a store through a base of type `base` stores into an owned
+    /// value: `own T`, or a `^mut` borrow of a type that owns
+    /// (`own.body.store-fresh`).
+    pub(crate) fn owned_base(&mut self, base: Ty) -> StageResult<bool> {
+        let pool = self.pool();
+        let base = self.infer.resolve(pool, base);
+        Ok(match pool.get(base) {
+            TyData::Own(_) => true,
+            TyData::Borrow {
+                ty, mutable: true, ..
+            } => self.owns(ty)?,
+            _ => false,
+        })
+    }
+
     /// `own.body.store-fresh`: a store into a plain field of an owned
-    /// value takes a fresh value or an owned one. The base is owned when
-    /// its type is `own T`, or a `^mut` borrow of a type that owns.
+    /// value takes a fresh value or an owned one.
     pub(crate) fn store_fresh(
         &mut self,
         base: Ty,
@@ -304,15 +330,7 @@ impl Ck<'_, '_> {
         v: Ref,
         n: NodeRef<'_>,
     ) -> StageResult<()> {
-        let pool = self.pool();
-        let base = self.infer.resolve(pool, base);
-        let owned = match pool.get(base) {
-            TyData::Own(_) => true,
-            TyData::Borrow {
-                ty, mutable: true, ..
-            } => self.owns(ty)?,
-            _ => false,
-        };
+        let owned = self.owned_base(base)?;
         if !owned || self.exempt_part(ft) || self.exempt_part(self.b.ty_of(v)) || self.fresh(v) {
             return Ok(());
         }
@@ -322,6 +340,75 @@ impl Ck<'_, '_> {
         );
         self.err(Code::OwnUpgrade, n, &msg);
         Ok(())
+    }
+
+    /// The owned values met in a plain field or payload of a construction
+    /// (`own.move.part`): each moves there when a construction that holds
+    /// it, through plain parts, became owned (`own.body.upgrade`), and is
+    /// `own-to-plain` otherwise.
+    pub(crate) fn settle_part_moves(&mut self) {
+        let parts = std::mem::take(&mut self.part_moves);
+        if parts.is_empty() {
+            return;
+        }
+        let pool = self.pool();
+        let body = self.b.body_mut();
+        let n = body.len();
+        let construction = |t: Tag| {
+            matches!(
+                t,
+                Tag::NewData | Tag::NewVariant | Tag::NewTuple | Tag::NewList | Tag::NewMap
+            )
+        };
+        let keeps = [Coercion::WrapSome, Coercion::Weaken, Coercion::Variance].map(|c| c as u32);
+        let mut user = vec![NONE; n];
+        for i in 0..n {
+            let ops = match body.tags[i] {
+                t if construction(t) => body.value_operands(i).unwrap_or_default(),
+                Tag::Coerce
+                    if body
+                        .record(body.data[i][1])
+                        .first()
+                        .is_some_and(|k| keeps.contains(k)) =>
+                {
+                    vec![body.data[i][0]]
+                }
+                _ => continue,
+            };
+            for o in ops {
+                if let Some(u) = user.get_mut(o as usize) {
+                    *u = u32::try_from(i).expect("insts");
+                }
+            }
+        }
+        let owned = |t: Ty| match pool.get(t) {
+            TyData::Own(_) => true,
+            TyData::Mut(i) => matches!(pool.get(i), TyData::Own(_)),
+            _ => false,
+        };
+        let mut wrong = Vec::new();
+        for (r, at, msg) in parts {
+            let mut cur = r.0;
+            let mut moves = false;
+            while let Some(&u) = user.get(cur as usize) {
+                if u == NONE {
+                    break;
+                }
+                let u_us = u as usize;
+                if construction(body.tags[u_us]) && owned(body.ty[u_us]) {
+                    moves = true;
+                    break;
+                }
+                cur = u;
+            }
+            if !moves {
+                wrong.push((at, msg));
+            }
+        }
+        for (at, msg) in wrong {
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::OwnToPlain, node, &msg);
+        }
     }
 
     /// Whether a value of type `t` owns (`own.structure.owns`).

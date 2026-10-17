@@ -22,4 +22,5 @@ app/main/report (Fn)
   %17 = Block [%0 %15 %16] %16 : i32
   %18 = Scope %17 [drop %0] : i32
   %19 = Block [%17 %18] %18 : i32
-  drop modes Always Always
+  moves %8
+  drop modes Always Never

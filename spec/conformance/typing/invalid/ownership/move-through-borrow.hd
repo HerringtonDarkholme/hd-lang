@@ -1,0 +1,19 @@
+# test: a field read through a borrow is borrowed, so it cannot move
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn open(path: string) -> own File: File { fd: 3 }
+
+fn size(f: ^File) -> i32: f.fd
+
+fn archive(f: own File) -> void: pass
+
+data Holder:
+    file: own File
+
+impl OwnOnly for Holder
+
+fn release(h: ^Holder) -> void:
+    archive(h.file)  # diagnostic: own-upgrade
