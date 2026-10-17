@@ -88,6 +88,35 @@ impl CaseRun {
                 })
                 .collect::<Result<_, _>>()?,
         };
+        // The snapshots an update run recorded: a line for each, the call's
+        // frames as `function:offset` pairs, a tab, and the text as a JSON
+        // string (`host/cases.mjs`).
+        let snapshots = match object.get("updates") {
+            None => Vec::new(),
+            Some(v) => v
+                .as_str()
+                .ok_or("test result updates must be a string")?
+                .split('\n')
+                .map(|line| {
+                    let bad = || "a test result update is malformed".to_owned();
+                    let (frames, quoted) = line.split_once('\t').ok_or_else(bad)?;
+                    let frames = frames
+                        .split(',')
+                        .filter(|f| !f.is_empty())
+                        .map(|f| {
+                            let (func, at) = f.split_once(':')?;
+                            Some((func.parse().ok()?, at.parse().ok()?))
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(bad)?;
+                    let actual = serde_json::from_str(quoted).map_err(|_| bad())?;
+                    Ok(crate::testing::Recorded {
+                        text: actual,
+                        frames,
+                    })
+                })
+                .collect::<Result<_, String>>()?,
+        };
         Ok(Self {
             test,
             status,
@@ -99,6 +128,7 @@ impl CaseRun {
             input,
             panic,
             frames,
+            snapshots,
         })
     }
 
@@ -142,6 +172,27 @@ impl CaseRun {
                 .collect();
             write!(line, ",\"frames\":[{}]", frames.join(",")).expect("write string");
         }
+        if !self.snapshots.is_empty() {
+            let records: Vec<String> = self
+                .snapshots
+                .iter()
+                .map(|r| {
+                    let frames: Vec<String> = r
+                        .frames
+                        .iter()
+                        .map(|(f, off)| format!("{f}:{off}"))
+                        .collect();
+                    let text = serde_json::to_string(&r.text).expect("serialize string");
+                    format!("{}\t{text}", frames.join(","))
+                })
+                .collect();
+            write!(
+                line,
+                ",\"updates\":{}",
+                serde_json::to_string(&records.join("\n")).expect("serialize string")
+            )
+            .expect("write string");
+        }
         line.push('}');
         line
     }
@@ -163,6 +214,11 @@ impl CaseRun {
             && self.stderr == other.stderr
             && self.row == other.row
             && self.input == other.input
+            && self
+                .snapshots
+                .iter()
+                .map(|r| &r.text)
+                .eq(other.snapshots.iter().map(|r| &r.text))
     }
 }
 
@@ -187,6 +243,10 @@ mod tests {
                 frames: Vec::new(),
             }),
             frames: vec![(4, 120), (9, 77)],
+            snapshots: vec![crate::testing::Recorded {
+                text: "a\tb\n\"".into(),
+                frames: vec![(3, 40), (8, 9)],
+            }],
         };
         assert_eq!(
             CaseRun::from_json_line(&result.to_json_line()).expect("round trip"),

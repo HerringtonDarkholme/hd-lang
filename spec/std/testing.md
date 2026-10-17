@@ -411,8 +411,9 @@ pub fn snapshot_file(text: string) -> void $ TestRunner:
 4. r[std-testing.snapshot-file.path] `snapshot_file` keeps its file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, whose parts the table below defines.
 5. r[std-testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
 6. r[std-testing.snapshot.mismatch] When `text` differs from the expected text, `snapshot` or `snapshot_file` fails as a failed assertion does. Panic: `assertion-failed`.
-7. r[std-testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
-8. r[std-testing.snapshot-file.runner] `snapshot_file` has the requirement row `$ TestRunner`. It calls [`snapshot_check`](#r-std-testing.runner.snapshot-check) on the `TestRunner` provider that covers the call, and fails as above when the result is not empty, showing it.
+7. r[std-testing.snapshot.update] In an update run, as `hd test --update` makes, of an `it` test case, a `snapshot` call whose `text` differs from the expected text records `text` and the place of the call with the test runner, and returns instead of failing. The runner then rewrites the call's `expect` by [`cli.test.snapshot.update`](../cli/command-line.md#r-cli.test.snapshot.update).
+8. r[std-testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
+9. r[std-testing.snapshot-file.runner] `snapshot_file` has the requirement row `$ TestRunner`. It calls [`snapshot_check`](#r-std-testing.runner.snapshot-check) on the `TestRunner` provider that covers the call, and fails as above when the result is not empty, showing it.
 
 | Rule | Part | Value |
 | --- | --- | --- |

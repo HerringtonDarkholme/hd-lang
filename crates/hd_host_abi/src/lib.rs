@@ -574,6 +574,10 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("string_upper", Lowering::HostPrimitive("string_upper")),
     ("parse_f64", Lowering::HostPrimitive("parse_f64")),
     (
+        "snapshot_update",
+        Lowering::HostPrimitive("snapshot_update"),
+    ),
+    (
         "format_f64_fixed",
         Lowering::HostPrimitive("format_f64_fixed"),
     ),

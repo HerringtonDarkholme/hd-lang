@@ -33,7 +33,8 @@
 // panic as the host recorded them, which a runner judges instead of the
 // report on standard error. A row's record also has `row` and `rows`;
 // an empty table is one record with `rows: 0` and no result. A property's
-// record adds the shrunk input's text as `input` when it fails.
+// record adds the shrunk input's text as `input` when it fails. An update
+// run's record adds `updates`, its recorded snapshots (`encodeUpdates`).
 //
 // `judge` and `panicOf` are what a result comes to for a runner that
 // reads these records itself (the playground; `hd test` judges them in
@@ -91,6 +92,9 @@ class Runner {
     let stdout = "";
     let stderr = "";
     const dir = c.tempDir && k > 0 ? this.files.join(c.tempDir, String(k)) : c.tempDir;
+    // An update run of an `it` case records its snapshots instead of
+    // failing at them (cli.test.snapshot.update); `updates` is the list.
+    const updates = c.snapshot?.update && c.kind === "it" ? [] : null;
     const host = this.createHost(
       {
         out: (text) => {
@@ -110,6 +114,7 @@ class Runner {
         tempDir: dir,
         seed: c.seed,
         snapshot: c.snapshot ?? null,
+        updates,
         runner,
         deadline: this.deadline,
       },
@@ -125,7 +130,7 @@ class Runner {
     host.close();
     if (dir) this.files.remove(dir);
     const us = Math.round((performance.now() - t0) * 1000);
-    return { status, trapped, ended, stdout, stderr, us, frames, panic: panic ?? null };
+    return { status, trapped, ended, stdout, stderr, us, frames, panic: panic ?? null, updates };
   }
 }
 
@@ -141,7 +146,16 @@ const result = (c, r, extra = {}) => ({
   us: r.us,
   ...(r.trapped && r.panic ? { category: r.panic.category, message: r.panic.message } : {}),
   ...(r.trapped && r.frames?.length ? { frames: r.frames } : {}),
+  ...(r.updates?.length ? { updates: encodeUpdates(r.updates) } : {}),
 });
+
+// The snapshots an update run recorded, as one string: a record per line,
+// the call's frames as `function:offset` pairs, a tab, and the text as a
+// JSON string.
+const encodeUpdates = (updates) =>
+  updates
+    .map((u) => `${u.frames.map((f) => f.join(":")).join(",")}\t${JSON.stringify(u.text)}`)
+    .join("\n");
 
 // What one run of a property case did: the draws it recorded, its input's
 // text once shown, and what it was asked to run.

@@ -17,6 +17,6 @@ pub(crate) mod state;
 #[cfg(test)]
 mod tests;
 
-pub use case::{BodyResult, CaseRun, PanicFrame, PanicInfo, Snapshot, TestCase};
+pub use case::{BodyResult, CaseRun, PanicFrame, PanicInfo, Recorded, Snapshot, TestCase};
 pub use runner::{BodyRunner, execute_case};
 pub use state::State;

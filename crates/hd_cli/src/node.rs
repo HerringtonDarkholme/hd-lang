@@ -228,6 +228,18 @@ pub struct CaseRun {
     /// A trapped run's panic as the host recorded it, which the runner
     /// judges instead of the report on standard error.
     pub panic: Option<Panic>,
+    /// The snapshots an update run recorded in this case, in call order
+    /// (`cli.test.snapshot.update`).
+    pub snapshots: Vec<Recorded>,
+}
+
+/// A failing `snapshot` call that an update run recorded instead of
+/// failing at: the text it compared and the Wasm frames of the call,
+/// innermost first, as a trap's are.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Recorded {
+    pub text: String,
+    pub frames: Vec<(u32, u32)>,
 }
 
 /// A panic's category and message as the host recorded them: its report,
@@ -532,6 +544,7 @@ fn parse_case(line: &str) -> Option<CaseRun> {
                 "stdout" => r.stdout = v,
                 "stderr" => r.stderr = v,
                 "input" => r.input = Some(v),
+                "updates" => r.snapshots = parse_updates(&v)?,
                 "category" => r.panic.get_or_insert_with(Panic::default).category = v,
                 "message" => r.panic.get_or_insert_with(Panic::default).message = v,
                 _ => {}
@@ -557,6 +570,27 @@ fn parse_case(line: &str) -> Option<CaseRun> {
             .unwrap_or(rest.trim_start());
     }
     Some(r)
+}
+
+/// The `updates` of a case record: a line for each recorded snapshot, the
+/// call's frames as `function:offset` pairs joined by commas, a tab, and
+/// the text as a JSON string (`host/cases.mjs`).
+fn parse_updates(s: &str) -> Option<Vec<Recorded>> {
+    s.split('\n')
+        .map(|line| {
+            let (frames, text) = line.split_once('\t')?;
+            let frames = frames
+                .split(',')
+                .filter(|f| !f.is_empty())
+                .map(|f| {
+                    let (func, at) = f.split_once(':')?;
+                    Some((func.parse().ok()?, at.parse().ok()?))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let (text, rest) = json_str(text)?;
+            rest.is_empty().then_some(Recorded { text, frames })
+        })
+        .collect()
 }
 
 /// A JSON array of number pairs at the start of `s`, `[[1,2],[3,4]]`, and

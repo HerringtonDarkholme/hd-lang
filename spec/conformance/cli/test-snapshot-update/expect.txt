@@ -1,12 +1,9 @@
-# An update run rewrites the failing literal and fills the omitted one,
-# leaves the passing one and a call in an it_each case. A case stops at
-# its first failing snapshot, so the second update run rewrites the next.
+# One update run rewrites the failing literal, fills the omitted one, and
+# rewrites both snapshots of a test that has two, and exits 0. It leaves the
+# passing literal and a call in an it_each case, which still fails.
 run: hd test src/greet.hd
 exit: 1
 run: hd test --update src/greet.hd
-exit: 1
-run: hd test --update src/greet.hd
-exit: 1
 run: hd test src/greet.hd
 run: hd test --update src/rows.hd
 exit: 1

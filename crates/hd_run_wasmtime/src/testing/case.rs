@@ -78,6 +78,18 @@ pub struct CaseRun {
     /// A Wasm trap's frames, innermost first: function index and module
     /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
+    /// The snapshots an update run recorded, in call order
+    /// (`cli.test.snapshot.update`).
+    pub snapshots: Vec<Recorded>,
+}
+
+/// A failing `snapshot` call that an update run recorded instead of
+/// failing at: the text it compared and the Wasm frames of the call,
+/// innermost first, as a trap's are.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Recorded {
+    pub text: String,
+    pub frames: Vec<(u32, u32)>,
 }
 
 impl CaseRun {
@@ -98,6 +110,7 @@ impl CaseRun {
             input: None,
             panic: body.panic,
             frames: body.frames,
+            snapshots: Vec::new(),
         }
     }
 }

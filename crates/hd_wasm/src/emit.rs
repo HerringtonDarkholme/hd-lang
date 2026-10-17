@@ -2969,7 +2969,7 @@ impl Em<'_> {
             // in as parameters and the string comes back in the exchange
             // buffer.
             "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper"
-            | "parse_f64" => self.host_primitive(i, key, args, ty),
+            | "parse_f64" | "snapshot_update" => self.host_primitive(i, key, args, ty),
             other => unsupported(format!("the intrinsic `{other}`")),
         }
     }

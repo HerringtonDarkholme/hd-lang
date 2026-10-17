@@ -3,49 +3,42 @@
 //! rewritten in the source file to the text the call saw.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use hd_syntax::TokenKind as T;
 
-/// How `std.testing.snapshot` words its failure, up to the expected text's
-/// `debug` literal (`lib/std/testing.hd`).
-const PREFIX: &str = "the text differs from the snapshot's expectation: expected ";
-
-/// The `debug` string literal of the text a failed `snapshot` saw, from
-/// the panic message `message`. It is a string literal in source form
-/// (`std-format.debug.source.string`), so it is written back as it is.
-/// `None` for any other message, or a message that is not exactly the
-/// snapshot's.
-pub(crate) fn actual_literal(message: &str) -> Option<&str> {
-    let rest = message.strip_prefix(PREFIX)?;
-    let after = literal_end(rest)?;
-    let actual = rest[after..].strip_prefix(", actual ")?;
-    (literal_end(actual)? == actual.len()).then_some(actual)
-}
-
-/// The byte index after the string literal that starts `s`.
-fn literal_end(s: &str) -> Option<usize> {
-    let mut chars = s.char_indices();
-    if chars.next()?.1 != '"' {
-        return None;
-    }
-    while let Some((i, c)) = chars.next() {
+/// `text` as a string literal in source form, the one `debug` writes
+/// (`std-format.debug.source.string`): `\`, `"` and `$` escaped, line feed,
+/// carriage return, tab and NUL as `\n`, `\r`, `\t` and `\0`, and any
+/// other ASCII control character as `\u{HEX}`.
+pub(crate) fn debug_literal(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
         match c {
-            '\\' => {
-                chars.next()?;
+            '\\' | '"' | '$' => {
+                out.push('\\');
+                out.push(c);
             }
-            '"' => return Some(i + 1),
-            _ => {}
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\0' => out.push_str("\\0"),
+            c if c.is_ascii_control() => {
+                let _ = write!(out, "\\u{{{:x}}}", u32::from(c));
+            }
+            c => out.push(c),
         }
     }
-    None
+    out.push('"');
+    out
 }
 
-/// What the failing runs want at one call site.
-enum Want {
-    Literal(String),
-    /// Runs that want different texts leave the literal as it is.
-    Conflict,
+/// What the failing runs want at one call site: the literal, or `None`
+/// when they want different texts, and how many runs recorded it.
+struct Want {
+    literal: Option<String>,
+    runs: usize,
 }
 
 /// The rewrites of one `hd test --update` run: each call site, by its
@@ -55,49 +48,66 @@ pub(crate) struct Updates {
     sites: BTreeMap<(String, u32), Want>,
 }
 
+/// What [`Updates::apply`] did: a note for each literal written, and each
+/// call it left as it was, with the message and the count of runs that
+/// recorded it. Those runs passed, but their snapshots are not recorded,
+/// so the caller counts them as failures.
+#[derive(Default)]
+pub(crate) struct Applied {
+    pub(crate) notes: Vec<String>,
+    pub(crate) unwritten: Vec<(String, usize)>,
+}
+
 impl Updates {
     /// Notes that a run of the call at `file:line` failed and saw
     /// `literal`.
     pub(crate) fn record(&mut self, file: &str, line: u32, literal: &str) {
-        match self.sites.entry((file.to_owned(), line)) {
-            std::collections::btree_map::Entry::Vacant(e) => {
-                e.insert(Want::Literal(literal.to_owned()));
-            }
-            std::collections::btree_map::Entry::Occupied(mut e) => {
-                if !matches!(e.get(), Want::Literal(l) if l == literal) {
-                    e.insert(Want::Conflict);
-                }
-            }
+        let want = self
+            .sites
+            .entry((file.to_owned(), line))
+            .or_insert_with(|| Want {
+                literal: Some(literal.to_owned()),
+                runs: 0,
+            });
+        want.runs += 1;
+        if want.literal.as_deref() != Some(literal) {
+            want.literal = None;
         }
     }
 
     /// Rewrites the files. `read` gives a file's text as the run compiled
     /// it, and `path` where the file is on disk; a file that changed on
-    /// disk since the run is left as it is. Returns one `FILE:LINE` note
-    /// for each literal written, and one message for each file that could
-    /// not be written.
+    /// disk since the run is left as it is.
     pub(crate) fn apply(
         self,
         read: impl Fn(&str) -> Option<String>,
         path: impl Fn(&str) -> PathBuf,
-    ) -> (Vec<String>, Vec<String>) {
-        let mut by_file: BTreeMap<&str, Vec<(u32, &str)>> = BTreeMap::new();
+    ) -> Applied {
+        let mut done = Applied::default();
+        let mut by_file: BTreeMap<&str, Vec<(u32, &Want)>> = BTreeMap::new();
         for ((file, line), want) in &self.sites {
-            if let Want::Literal(l) = want {
-                by_file.entry(file).or_default().push((*line, l));
-            }
+            by_file.entry(file).or_default().push((*line, want));
         }
-        let (mut notes, mut errors) = (Vec::new(), Vec::new());
         for (file, sites) in by_file {
-            let Some(text) = read(file) else {
-                continue;
-            };
-            let mut edits: Vec<(usize, usize, String, u32)> = Vec::new();
-            for (line, literal) in sites {
-                if let Some((lo, hi, new)) = locate(&text, line, literal) {
-                    edits.push((lo, hi, new, line));
+            let text = read(file);
+            // The edit of each site: (start, end, new text, line, runs).
+            let mut edits: Vec<(usize, usize, String, u32, usize)> = Vec::new();
+            for (line, want) in sites {
+                let edit = match (&want.literal, &text) {
+                    (None, _) => Err("failing cases want different texts"),
+                    (Some(l), Some(t)) => locate(t, line, l).ok_or("its call was not found"),
+                    (Some(_), None) => Err("its file was not found"),
+                };
+                match edit {
+                    Ok((lo, hi, new)) => edits.push((lo, hi, new, line, want.runs)),
+                    Err(why) => done
+                        .unwritten
+                        .push((format!("not updated {file}:{line}: {why}"), want.runs)),
                 }
             }
+            let Some(text) = text else {
+                continue;
+            };
             edits.sort_by_key(|e| std::cmp::Reverse(e.0));
             // Two sites never share a span, but a call that two lines both
             // name would; the later edit is dropped.
@@ -106,20 +116,25 @@ impl Updates {
                 continue;
             }
             let mut out = text.clone();
-            for (lo, hi, new, _) in &edits {
+            for (lo, hi, new, ..) in &edits {
                 out.replace_range(*lo..*hi, new);
             }
-            let disk = path(file);
-            match write(&disk, &text, &out) {
+            match write(&path(file), &text, &out) {
                 Ok(()) => {
                     let mut lines: Vec<u32> = edits.iter().map(|e| e.3).collect();
                     lines.sort_unstable();
-                    notes.extend(lines.iter().map(|l| format!("updated {file}:{l}")));
+                    done.notes
+                        .extend(lines.iter().map(|l| format!("updated {file}:{l}")));
                 }
-                Err(e) => errors.push(format!("{file}: {e}")),
+                Err(e) => {
+                    for (_, _, _, line, runs) in &edits {
+                        done.unwritten
+                            .push((format!("not updated {file}:{line}: {e}"), *runs));
+                    }
+                }
             }
         }
-        (notes, errors)
+        done
     }
 }
 
@@ -242,15 +257,10 @@ mod tests {
     }
 
     #[test]
-    fn the_actual_text_is_the_last_literal() {
-        let m = r#"the text differs from the snapshot's expectation: expected "a, actual \"x\"", actual "b\n""#;
-        assert_eq!(actual_literal(m), Some(r#""b\n""#));
-        assert_eq!(actual_literal("other"), None);
+    fn a_text_is_written_as_debug_writes_it() {
         assert_eq!(
-            actual_literal(
-                r#"the text differs from the snapshot's expectation: expected "a", actual "b" tail"#
-            ),
-            None
+            debug_literal("a\"$\\\n\t\0\u{1}\u{7f}é"),
+            "\"a\\\"\\$\\\\\\n\\t\\0\\u{1}\\u{7f}é\""
         );
     }
 

@@ -615,7 +615,18 @@ fn panic_with(category: string, message: string) -> void:
 ## See [std-testing.snapshot](../../spec/std/testing.md#r-std-testing.snapshot).
 pub fn snapshot(text: string, expect: string = "") -> void:
     if text != expect:
+        # An update run records the text and the call's place, and the
+        # case goes on (std-testing.snapshot.update).
+        if snapshot_update(text):
+            return
         panic_with("assertion-failed", "the text differs from the snapshot's expectation: expected ${debug(expect)}, actual ${debug(text)}")
+
+# The host's side of `hd test --update` for `snapshot`: in an update run of
+# an `it` case it records `text` and the frames of the call, and answers
+# true; in any other run it answers false. Private to this module.
+@intrinsic("snapshot_update")
+fn snapshot_update(text: string) -> bool:
+    panic("intrinsic")
 
 # `snapshot_file(text)` (spec/std/testing.md#snapshot-files) compares `text` with
 # the file the runner names from the running test case,

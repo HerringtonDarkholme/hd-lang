@@ -41,6 +41,7 @@ pub(crate) enum Prim {
     Lower,
     Upper,
     ParseF64,
+    SnapshotUpdate,
 }
 
 /// Which journal row a call of an import writes (`docs/future-work/live-execution.md` §4.2).
@@ -86,7 +87,9 @@ impl Kind {
                 (scalars < method.params.len()).then_some(scalars)
             }
             Self::Rt(Rt::Stderr | Rt::Stdout)
-            | Self::Prim(Prim::Lower | Prim::Upper | Prim::ParseF64) => Some(0),
+            | Self::Prim(Prim::Lower | Prim::Upper | Prim::ParseF64 | Prim::SnapshotUpdate) => {
+                Some(0)
+            }
             _ => None,
         }
     }
@@ -196,6 +199,7 @@ impl Kind {
             ("hd:prim", "string_lower") => Kind::Prim(Prim::Lower),
             ("hd:prim", "string_upper") => Kind::Prim(Prim::Upper),
             ("hd:prim", "parse_f64") => Kind::Prim(Prim::ParseF64),
+            ("hd:prim", "snapshot_update") => Kind::Prim(Prim::SnapshotUpdate),
             _ => return None,
         })
     }

@@ -1301,20 +1301,23 @@ fn run(
                         if let Some(input) = &c.input {
                             report.inputs.insert(k.clone(), input.clone());
                         }
-                        // One literal is no expectation for several rows or
-                        // generated inputs, so only an `it` case rewrites.
-                        if env.update
-                            && cases[i].kind == "it"
-                            && let Some(p) = c
-                                .panic
-                                .as_ref()
-                                .filter(|p| p.category == "assertion-failed")
-                            && let Some(literal) =
-                                crate::snapshot_update::actual_literal(&p.message)
-                            && let (Some(f), Some(wasm)) = (&prog.frames, &prog.wasm)
-                            && let Some((file, line)) = f.snapshot_site(wasm, &c.frames)
-                        {
-                            updates.record(&file, line, literal);
+                        // The snapshots an update run recorded
+                        // (`cli.test.snapshot.update`); one that cannot be
+                        // rewritten fails its case, since the host let it
+                        // pass.
+                        let mut lost = None;
+                        for r in &c.snapshots {
+                            let site = match (&prog.frames, &prog.wasm) {
+                                (Some(f), Some(wasm)) => f.snapshot_site(wasm, &r.frames),
+                                _ => None,
+                            };
+                            let literal = crate::snapshot_update::debug_literal(&r.text);
+                            match site {
+                                Some((file, line)) => updates.record(&file, line, &literal),
+                                None => {
+                                    lost.get_or_insert(literal);
+                                }
+                            }
                         }
                         let frames = match (&prog.frames, &prog.wasm) {
                             (Some(f), Some(wasm)) if c.trapped => {
@@ -1322,7 +1325,14 @@ fn run(
                             }
                             _ => Vec::new(),
                         };
-                        let r = judge(&cases[i], &c, frames);
+                        let mut r = judge(&cases[i], &c, frames);
+                        if let (Some(actual), CaseResult::Passed { .. }) = (lost, &r) {
+                            r = CaseResult::Failed {
+                                message: format!(
+                                    "an update run cannot rewrite a snapshot here (a doc test, or a call from a library); the text is {actual}"
+                                ),
+                            };
+                        }
                         report.release(&cases, &seeds, cursor.finish(k, r));
                     }
                     Err(e) => {
@@ -1337,7 +1347,7 @@ fn run(
         }
     }
     // `cli.test.snapshot.update`: the literals the failed snapshots want.
-    let (notes, errors) = updates.apply(
+    let done = updates.apply(
         |file| {
             env.sources
                 .read(file)
@@ -1345,11 +1355,15 @@ fn run(
         },
         |file| env.sources.disk_path(file),
     );
-    for line in notes {
+    for line in done.notes {
         eprintln!("{line}");
     }
-    for line in errors {
-        eprintln!("error: {line}");
+    // A run that passed at a snapshot that stayed as it was is a failure.
+    for (message, runs) in done.unwritten {
+        eprintln!("error: {message}");
+        let moved = runs.min(report.passed);
+        report.passed -= moved;
+        report.failed += runs;
     }
     Ok(())
 }

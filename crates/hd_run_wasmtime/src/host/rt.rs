@@ -94,6 +94,26 @@ pub(super) fn prim(
             };
             Ret::value(&s)
         }
+        // `std.testing.snapshot`'s hook: the failing call's text and
+        // frames go to the case's state in an update run.
+        Prim::SnapshotUpdate => {
+            let t = text(caller, int_arg(params, 0)?)?;
+            let recorded = match caller.data().testing.clone() {
+                Some(state) => {
+                    let trace = wasmtime::WasmBacktrace::force_capture(&mut *caller);
+                    let frames = trace
+                        .frames()
+                        .iter()
+                        .filter_map(|f| {
+                            Some((f.func_index(), u32::try_from(f.module_offset()?).ok()?))
+                        })
+                        .collect();
+                    state.record_snapshot(t, frames)
+                }
+                None => false,
+            };
+            Ret::int(i64::from(recorded))
+        }
         Prim::ParseF64 => {
             let t = text(caller, int_arg(params, 0)?)?;
             match prim::parse(&t) {

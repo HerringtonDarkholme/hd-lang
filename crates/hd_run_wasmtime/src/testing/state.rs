@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use super::case::TestCase;
+use super::case::{Recorded, TestCase};
 use crate::abi::PropertyCase;
 use crate::testing::files::{Files, load_regression};
 use crate::testing::property::{Plan, Property};
@@ -10,6 +10,8 @@ pub(crate) struct BodyState {
     pub(crate) draws: Vec<i64>,
     pub(crate) shown: Option<String>,
     pub(crate) plan: Option<Plan>,
+    /// The snapshots an update run recorded in this body.
+    pub(crate) snapshots: Vec<Recorded>,
 }
 
 pub(crate) struct Inner {
@@ -86,6 +88,18 @@ impl State {
     }
     pub fn snapshot_check(&self, actual: &str) -> Result<String, String> {
         self.lock().files.snapshot_check(actual)
+    }
+    /// `std.testing.snapshot`'s hook (`cli.test.snapshot.update`): in an
+    /// update run of an `it` case it records the failing call and answers
+    /// true, so the case goes on; otherwise it answers false.
+    #[must_use]
+    pub fn record_snapshot(&self, text: String, frames: Vec<(u32, u32)>) -> bool {
+        let mut state = self.lock();
+        let on = state.case.kind == "it" && state.case.snapshot.as_ref().is_some_and(|s| s.update);
+        if on {
+            state.body.snapshots.push(Recorded { text, frames });
+        }
+        on
     }
     pub(crate) fn set_io_deadline(&self, deadline: Option<std::time::Instant>) {
         self.lock().files.deadline = deadline;

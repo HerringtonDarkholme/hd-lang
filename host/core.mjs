@@ -267,7 +267,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
 // The host primitives of std (spec/std/README.md#standard-library-
 // primitives): a float arrives as its value, and the text goes back
 // in the exchange buffer as a string.
-function primImports({ put, text }) {
+function primImports({ put, text, env }) {
   return {
     format_f64: (value) => put(new Enc().str(shortest(value, 64))),
     format_f32: (value) => put(new Enc().str(shortest(value, 32))),
@@ -275,6 +275,16 @@ function primImports({ put, text }) {
     string_lower: (len) => put(new Enc().str(lower(text(len)))),
     string_upper: (len) => put(new Enc().str(upper(text(len)))),
     parse_f64: (len) => parse(text(len)),
+    // `std.testing.snapshot`'s hook (cli.test.snapshot.update): in an
+    // update run of an `it` case (`env.updates` is a list) it records the
+    // text with the Wasm frames of the call and answers 1, so the case goes
+    // on; otherwise it answers 0 and the snapshot fails.
+    snapshot_update: (len) => {
+      const actual = text(len);
+      if (!env.updates) return 0;
+      env.updates.push({ text: actual, frames: wasmFrames(new Error()) });
+      return 1;
+    },
   };
 }
 
@@ -605,7 +615,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   }
   const imports = {
     "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
-    "hd:prim": primImports({ put, text }),
+    "hd:prim": primImports({ put, text, env }),
   };
   const io = { view, text, put, pending, finished };
   for (const [module, provider] of Object.entries(providers)) {

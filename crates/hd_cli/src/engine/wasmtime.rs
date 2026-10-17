@@ -169,6 +169,14 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
         row: case.row,
         input: case.input,
         frames: case.frames,
+        snapshots: case
+            .snapshots
+            .into_iter()
+            .map(|r| crate::node::Recorded {
+                text: r.text,
+                frames: r.frames,
+            })
+            .collect(),
     }
 }
 

@@ -13,6 +13,6 @@ tests:
     it("keeps a passing literal"):
         snapshot(greeting("Lin"), expect="hello,\u{20}Lin")
 
-    it("rewrites one literal per run"):
+    it("rewrites every literal of the case"):
         snapshot("one", expect="")
         snapshot("two", expect="")

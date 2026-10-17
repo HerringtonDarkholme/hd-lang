@@ -96,7 +96,9 @@ fn execute_case_inner(
     if state.lock().property.is_some() {
         execute_property(case, &state, runner, first, emit)
     } else {
-        emit(CaseRun::from_body(case.test, first.result));
+        let mut result = CaseRun::from_body(case.test, first.result);
+        result.snapshots = first.draws.snapshots;
+        emit(result);
         Ok(())
     }
 }

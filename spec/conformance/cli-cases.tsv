@@ -174,4 +174,4 @@ entry-err-exit-code	cli.file.run,cli.exit.program
 entry-err-exit-zero	cli.file.run,cli.exit.program
 entry-err-exit-default	cli.file.run,cli.exit.program
 result-expect-error-text	cli.exit.test-failure,cli.json.test.result.fields
-test-snapshot-update	cli.test.snapshot.update,cli.test.snapshot.update.passing,cli.test.snapshot.update.form,cli.test.snapshot.update.omitted,cli.test.snapshot.update.rows,cli.test.snapshot.update.first,cli.test.snapshot.update.report
+test-snapshot-update	cli.test.snapshot.update,cli.test.snapshot.update.passing,cli.test.snapshot.update.form,cli.test.snapshot.update.omitted,cli.test.snapshot.update.rows,cli.test.snapshot.update.continue,cli.test.snapshot.update.accepted
