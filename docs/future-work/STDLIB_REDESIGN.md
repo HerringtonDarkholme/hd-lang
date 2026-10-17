@@ -8,7 +8,7 @@ add their groups below, following the same convention.
 
 ## The Bar And The Shared Convention
 
-The bar is the owner's seven principles for #350. The library has the
+The bar is the owner's eight principles for #350. The library has the
 batteries a common program needs (1). It follows the designs that Go,
 Effect and Rust prove (2). It uses hd's own features: capabilities in
 requirement rows, `!` only where a call can suspend, `Result` and `?`,
@@ -19,6 +19,15 @@ composable atoms, never a function that fixes one combination of options
 are fast, with no naive algorithm and no cost that an implementation
 cannot remove later (7). Correctness, ergonomics and usability come first
 in the order of work; tuning waits, but no design here forces a cost.
+
+The owner added an eighth principle on 2026-10-17: "8. Strongly typed
+interfaces by default; untyped APIs may provide an escape hatch". It
+mirrors principles 4 and 5. The default path returns typed values,
+reads text into the program's own types through derive, and makes
+invalid states unrepresentable: enums for closed sets, required against
+defaulted fields, newtypes for units and IDs. An untyped, string-keyed
+layer, such as a dynamic `Json` or regex groups read by name, stays
+public as the escape hatch, and the typed layer is built on it.
 
 Every module in this document follows one shape:
 
@@ -613,3 +622,572 @@ combination or a duplicate.
    the `read!(max)` of `TcpStream`, added later as a second terminal
    (`send_streaming!`, `spawn!`, `open!`) beside the buffered ones, which
    stay unchanged.
+
+## Data Modules
+
+Job 2 covers the modules that do no I/O: `std.json`, `std.serde`,
+`std.text`, `std.format`, `std.regex`, `std.encoding`, `std.digest`,
+`std.hash`, `std.random`, `std.num` and `std.cmp`. They follow the shape
+above where it applies, with three readings for pure code:
+
+- **No terminal.** A pure call returns its value; a builder exists only
+  where input arrives in pieces (`StringBuilder`, `Sha256`). Text becomes
+  a value through a typed call: `text.parse::[T]()`, `decode::[T](text)`,
+  `regex.decode::[T](text)`.
+- **Typed by default, untyped underneath.** The typed call is built on
+  the untyped layer and both stay public: `decode::[T]` reads a `Json`,
+  and `Regex.decode::[T]` reads `Captures`. The untyped layer is the
+  escape hatch for data whose shape is known only at run time.
+- **Errors.** One enum per module. A text error carries `position: usize`,
+  a byte offset, in each variant that has one; a decode error carries the
+  path or group it failed at, as `JsonError.WrongType(path, expected)`.
+  `NotGranted` and `Other` are host-module variants and do not apply.
+
+## std.json
+
+**Verdict: meets the bar, with one cut and one addition.** The typed
+path, `decode::[T](text)` and `encode(value)`, is the default and is one
+call each; `Json` is the escape hatch, and `to_json` and `from_json`
+join the two, as serde_json's `to_value` and `from_value` do. A missing
+key takes the member's default. The real gap is naming: real APIs write
+`createdAt`, which a derived type cannot match today (question 1).
+
+```text
+impl JsonObject:
+    pub fn remove(mut self, key: string) -> Json?     # new; the other members keep their order
+```
+
+- Removed: `Json.as_number()`. `as_i64`, `as_u64` and `as_f64` read a
+  number in one step, and `match value: .Number(n) => ...` still gives
+  the `Number`.
+- Added: `JsonObject.remove`, for editing a parsed config, as serde_json's
+  `Map::remove`.
+
+**Cost.** `parse` is one pass, and a string without escapes shares the
+input's bytes. `decode` builds the whole `Json` tree and then walks it,
+which allocates every value twice. The API does not force that: a reader
+from text straight to `T`, as serde_json's `from_str`, can replace it
+behind `decode`. `encode` writes text in one walk, but an irregular walk
+serializes twice. Each number in `Display` makes its own string.
+
+## std.serde
+
+**Verdict: the protocol meets the bar; the derive misses the real 80%.**
+The data model is serde's, cut to 14 writer calls, and the derive is the
+typed path that every format reads. Two gaps stop real programs:
+
+- Member names cannot differ from field names, and `.None` always writes
+  `null`, so a camelCase API needs a `Json` walk instead of a derived
+  type (question 1). The planned facts in
+  [Serialization Formats](OPEN_ISSUES.md#serialization-formats) cover
+  `rename` and `skip`; serde's `rename_all` and `skip_serializing_if`
+  are the two they lack.
+- `Set[T]` and tuples have no implementation. serde writes both as
+  lists; the tuple template makes tuples plain hd.
+
+```text
+@serde(rename_all="camelCase")           # hypothetical syntax: the planned facts
+@derive(Serialize, Deserialize)
+data Order:
+    order_id: string                     # "orderId"
+    @serde(rename="total")               # hypothetical syntax
+    total_cents: i64
+    @serde(skip_none)                    # hypothetical syntax
+    coupon: string?
+```
+
+No public name changes.
+
+**Cost.** A fact is read through the `Member` handle, which the derive
+builds once per type, so a rename costs nothing per value. Today a
+derived `deserialize` builds a list of variant facts on every value it
+reads.
+
+## std.text
+
+**Verdict: meets the bar, with one cut and two fixes.** Strings stay
+Go's: immutable UTF-8, sliced without copying, built with
+`StringBuilder`. `Parse` with `text.parse::[T]()` is the typed path, as
+Rust's `FromStr` is.
+
+```text
+impl StringBuilder:
+    pub fn push_char(mut self, c: char) -> void        # new
+
+pub enum Utf8Error:
+    InvalidSequence(position: usize)
+    Truncated(position: usize)                         # was Truncated, with no position
+```
+
+- Removed: the free `join(parts, separator)`. `parts.join(separator)` is
+  the same call, and the free one was kept only for old imports.
+- `push_char` exists for cost: today a character goes in as `"$c"`,
+  which builds a list and a string for one scalar. Go's `WriteRune` and
+  Rust's `String::push` are the same atom.
+- `Truncated(position)` gives every `Utf8Error` a position, as the
+  error rule above asks.
+
+**Cost.** `trim`, `split_once`, `strip_prefix` and the pieces of `split`
+and `lines` share the string's bytes. `split` and `lines` allocate one
+list; `lines` today builds two. `StringBuilder` keeps its pieces and
+copies once in `build`. `to_utf8` copies byte by byte, and `pad_start`
+copies the result twice.
+
+## std.format
+
+**Verdict: meets the bar.** The `Debug` builders are Rust's `Formatter`
+builders, and `debug` and `dbg` are one call each. hd has no format-spec
+strings, and none are proposed: a number is formatted by typed methods
+that compose with padding, as Go's `strconv` does beside `fmt`, so
+`id.to_radix(16).pad_start(8, '0')` and `price.to_fixed(2).pad_start(9)`
+replace `{:08x}` and `{:>9.2}`. No public name changes.
+
+**Cost.** `Display.to_string` returns a new string per value, so a
+`Display` that interpolates its parts copies each part's text once per
+level of nesting (question 2). An integer's text is built by prepending
+one digit at a time, which the owner's `format_int` decision fixes. The
+pretty `Debug` layout rebuilds its indentation with `+` on every field.
+
+## std.regex
+
+**Verdict: the engine meets the bar; the results are untyped.** The
+shape is RE2's, Go's and Rust's, every search is linear, and named
+groups exist. But the 80% use of a named group is to read a record out
+of a line, and today each field is `caps.name("status")`, then an
+option, then a parse, then an error by hand.
+
+The proposal reads the groups into a derived type, as Rust's `recap`
+crate does over serde and Python's `parse` library does over a format.
+`Captures` stays as the escape hatch, and `decode` is built on it.
+
+```text
+impl Regex:
+    pub fn decode[T < Deserialize](self, text: string) -> Result[T, RegexError]   # new
+impl Captures:
+    pub fn decode[T < Deserialize](self) -> Result[T, RegexError]                 # new
+
+pub enum RegexError:                                     # replaces RegexError and RegexErrorKind
+    MissingParen(position: usize)
+    ...                                                  # the other ten kinds, each with a position
+    NoMatch
+    MissingGroup(name: string)
+    WrongType(group: string, expected: string)
+```
+
+- `decode` reads each member from the group of the same name. A
+  `string` member is a slice of the text; an integer, float, `bool` or
+  `char` member parses the group as `text.parse::[T]()` does; a `T?`
+  member is `.None` when the group took no part; an enum with no
+  payloads reads a variant by its name. Anything else is `WrongType`.
+- `Regex.decode` is `captures`, then `Captures.decode`, with `NoMatch`
+  when nothing matches; `captures_all` with `Captures.decode` reads every
+  record in a text. This mirrors `decode` and `from_json` in `std.json`.
+- `RegexErrorKind` is removed: one enum, with a position in each pattern
+  variant, is the shape `JsonError` and `DecodeError` already have.
+- Still missing: `(?i)` and `\b`, deferred by an earlier stdlib call.
+  They hurt log searches most, and they add syntax, not names.
+
+**Cost.** `decode` runs one search, then finds each member's group by
+name among the g groups, so O(g) per member. String members copy
+nothing, and numbers parse from the slice. Each search allocates the
+VM's tables, which one allocation per `Regex` could serve. `replace`
+joins three pieces, and expanding `$name` references concatenates once
+per reference, which is quadratic in their number.
+
+## std.encoding
+
+**Verdict: hex meets the bar; base64 does not.** Base64 has only the
+standard padded alphabet, so a JWT, a WebAuthn ID or a URL token cannot
+be read. Adding `base64url_encode` and its kin would be four fixed
+combinations of alphabet and padding. The proposal is Go's
+`base64.Encoding` values, which Rust's `base64` engines also follow: the
+set is closed, so it is an enum.
+
+```text
+pub enum Base64:
+    Standard                  # RFC 4648 section 4, padded: MIME, Basic auth
+    StandardNoPad
+    Url                       # section 5, padded
+    UrlNoPad                  # JWT, tokens
+
+impl Base64:
+    pub fn encode(self, bytes: List[u8]) -> string
+    pub fn decode(self, text: string) -> Result[List[u8], DecodeError]
+
+pub fn hex_encode(bytes: List[u8]) -> string            # unchanged
+pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]
+```
+
+- Removed: `base64_encode` and `base64_decode`, now
+  `Base64.Standard.encode` and `Base64.Standard.decode`.
+- Decoding stays strict for every variant. A `NoPad` variant rejects
+  `=`, and a padded one requires it, as Go's `Strict` mode does.
+
+**Cost.** The output length is known from the input, so each call can
+fill one buffer of exactly that size. Today encoding builds a list and
+then copies it into a string, and decoding first copies the text into a
+list of `i32`.
+
+## std.digest
+
+**Verdict: fails the bar.** `sha256_hex` fixes one combination of
+`sha256` and hex. The one-shot `sha256` needs the whole message in
+memory. There is no HMAC, which webhooks and signed tokens need. The
+result is a bare `List[u8]`, whose `==` returns at the first differing
+byte and so leaks timing to a forged signature.
+
+The proposal is Go's `hash.Hash` (`Write`, then `Sum`) and Rust's
+`Digest` (`new`, `update`, `finalize`). The key goes in the constructor,
+as BLAKE3's `Hasher::new_keyed` does. A digest compares in constant
+time, as Go's `hmac.Equal` does.
+
+```text
+pub data Digest:
+    pub bytes: List[u8]
+
+impl Digest:
+    pub fn to_hex(self) -> string
+impl Eq for Digest                       # constant time over the bytes
+
+pub data Sha256: ...                     # private: state, the partial block, length
+
+impl Sha256:
+    pub fn new() -> mut Sha256
+    pub fn hmac(key: List[u8]) -> mut Sha256        # finish gives HMAC-SHA256 under key
+    pub fn update(mut self, bytes: List[u8]) -> mut Sha256
+    pub fn finish(self) -> Digest
+
+pub fn sha256(bytes: List[u8]) -> Digest
+```
+
+- Removed: `sha256_hex`, now `sha256(bytes).to_hex()`.
+- A received signature is `Digest { bytes: hex_decode(text)? }`, so the
+  check is `expected == sent`, in constant time, with no new name.
+
+**Cost.** `update` fills a 64-byte block and compresses each full block
+in place, so the message is never copied. Today `sha256` copies the
+whole message to pad it, and each of its about 450 word additions per
+block runs `wrapping_add` as a loop over carry bits.
+
+## std.hash
+
+**Verdict: meets the bar.** `Hash` derives, `DefaultHasher` is a fixed
+FNV-1a, and `hash_of` is the one-call path. No public name changes.
+
+**Cost.** The `Hasher` trait has only `write(bytes: List[u8])`, so
+hashing an integer allocates a list for its bytes and hashing a string
+copies its bytes first (question 3). Each write is also an indirect call
+through `dyn Hasher`.
+
+## std.random
+
+**Verdict: meets the bar, with one cut.** `Rng` is Go's `math/rand/v2`
+generator value, and `rng()` seeds it with one host draw. `token_hex`
+fixes one combination of `fill` and hex. `fill` has no free helper,
+which the shared convention asks of every host-trait method.
+
+```text
+pub fn fill(count: usize) -> List[u8] $ Random       # new; replaces token_hex
+```
+
+- Removed: `token_hex(count)`, now `hex_encode(fill(count))`, or
+  `Base64.UrlNoPad.encode(fill(count))` for a shorter token.
+- `rng()` stands in for a free `next_u64`, since a program that wants
+  many draws should hold one generator.
+- `int` takes only a `Range[i64]` and returns an `i64`, so picking an
+  index or a `u8` needs a cast (question 4).
+
+**Cost.** Every `Rng` method is arithmetic on four words, with no
+allocation. `sample` copies the whole list even to pick 3 of a million.
+`SeededRandom.fill` spends one 32-bit draw per byte.
+
+## std.num
+
+**Verdict: the arithmetic meets the bar; parsing is duplicated.** The
+method names are Rust's. Since `Parse` exists, `parse_i32`, `parse_i64`,
+`parse_u32`, `parse_u64`, `parse_usize` and `parse_f64` are the same
+calls as `text.parse::[i32]()` and its kin, and Rust keeps only
+`FromStr`. Four atoms are missing.
+
+```text
+impl[N < Integer] N:
+    pub fn wrapping_mul(self, other: N) -> N                   # new
+    pub fn to_radix(self, radix: u32) -> string                # new: "ff" for 255 and 16
+    pub fn parse_radix(text: string, radix: u32) -> Result[N, ParseNumberError]   # new
+
+impl f64:                                                       # and f32
+    pub fn total_cmp(self, other: f64) -> Ordering             # new
+    pub fn sqrt(self) -> f64                                   # the owner's intrinsic decision
+```
+
+- Removed: the six `parse_` functions. `ParseNumberError` stays as the
+  `Error` of every number's `Parse`.
+- `wrapping_mul` serves hashes and generators. `to_radix` and
+  `parse_radix` serve hex IDs, colors and file modes, as Go's
+  `FormatInt` and `ParseInt` do; a radix outside 2 to 36 panics, as
+  `to_digit` does. `total_cmp` sorts floats, which are not `Ord`.
+- `is_nan` and `is_finite` gain `f32` impls, with no new name.
+
+**Cost.** `wrapping_add`, `count_ones`, `leading_zeros` and the
+rotations loop over bits, where Wasm has one instruction for each.
+`checked_mul` divides twice.
+
+## std.cmp
+
+**Verdict: meets the bar, with one addition.** `min`, `max`, `clamp`
+and `Reverse` are Rust's. A comparator over two keys today nests a
+`match`; Rust's `Ordering::then` chains it.
+
+```text
+impl Ordering:
+    pub fn then(self, other: Ordering) -> Ordering    # self unless .Equal, then other
+```
+
+**Cost.** String comparison reads one byte at a time with a bounds
+check on each, where one memory compare would do.
+
+## Data Scenarios
+
+Each program uses only the proposed surface and parses with
+`scripts/hd-conformance.sh parse`. None checks today.
+
+**1. A signed webhook.** Check an HMAC signature from a header in
+constant time, then decode a camelCase payload into a type.
+
+```text
+use std.digest.{Digest, Sha256}
+use std.encoding.hex_decode
+use std.json.decode
+use std.serde.Deserialize
+use std.time.Timestamp
+use std.error.{Error, message}
+
+@serde(rename_all="camelCase")              # hypothetical syntax: question 1
+@derive(Deserialize)
+data OrderPaid:
+    order_id: string
+    total_cents: i64
+    currency: string
+    coupon: string?
+    created_at: Timestamp
+
+fn verify(secret: string, body: string, header: string) -> Result[void, dyn Error]:
+    hex := header.strip_prefix("sha256=").context("the signature has no sha256= prefix")?
+    sent := Digest { bytes: hex_decode(hex)? }
+    expected := Sha256::hmac(secret.to_utf8()).update(body.to_utf8()).finish()
+    if expected != sent:
+        return .Err(message("the signature does not match"))
+    .Ok(())
+
+pub fn on_order_paid(secret: string, body: string, header: string) -> Result[OrderPaid, dyn Error]:
+    verify(secret, body, header)?
+    .Ok(decode::[OrderPaid](body)?)
+
+tests:
+    use std.testing.assert_equal
+
+    it("accepts a signed body and rejects a changed one"):
+        body := "{\"orderId\":\"o-7\",\"totalCents\":1299,\"currency\":\"EUR\",\"createdAt\":\"2026-10-17T09:00:00Z\"}"
+        header := "sha256=${Sha256::hmac("k".to_utf8()).update(body.to_utf8()).finish().to_hex()}"
+        match on_order_paid("k", body, header):
+            .Ok(order) => assert_equal(order.total_cents, 1299, reason="decoded")
+            .Err(error) => panic("unexpected $error")
+        changed := body.replace("1299", "1")
+        assert_equal(on_order_paid("k", changed, header).is_err(), true, reason="tampered")
+```
+
+**2. An access-log report**: typed records from a regex, malformed lines
+counted, the busiest paths sorted by two keys, and a p95 latency.
+
+```text
+use std.regex.Regex
+use std.serde.Deserialize
+use std.collections.counts
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.text.r
+use std.error.{Error, message}
+
+@derive(Deserialize)
+data Hit:
+    ip: string
+    method: string
+    path: string
+    status: u16
+    bytes: u64
+    seconds: f64
+    referrer: string?
+
+fn pattern() -> string:
+    r"^(?P<ip>\S+) \S+ \S+ \[[^\]]+\] \"(?P<method>[A-Z]+) (?P<path>\S+) [^\"]*\" (?P<status>\d{3}) (?P<bytes>\d+) (?P<seconds>\d+\.\d+)(?: \"(?P<referrer>[^\"]*)\")?$"
+
+fn read_hits(log: string) -> Result[(List[Hit], usize), dyn Error]:
+    line := Regex::new(pattern())?
+    let hits: mut List[Hit] = []
+    let skipped: usize = 0
+    for (index, text) in log.lines().iter().enumerate():
+        match line.decode::[Hit](text):
+            .Ok(hit) => hits.push(hit)
+            .Err(.NoMatch) => skipped = skipped + 1
+            .Err(error) => return .Err(message("line ${index + 1}: $error"))
+    .Ok((hits, skipped))
+
+fn by_count(a: (string, usize), b: (string, usize)) -> Ordering:
+    b._1.cmp(a._1).then(a._0.cmp(b._0))
+
+pub fn main!() -> Result[void, dyn Error] $ Console + FsRead:
+    let (hits, skipped) = read_hits(read_text!(Path("access.log"))?)?
+    failed := hits.iter().filter(fn(hit: Hit) -> bool: hit.status >= 500).count()
+    paths := counts(hits.map(fn(hit: Hit) -> string: hit.path))
+    for (path, count) in paths.entries().sorted_by(by_count).take(5):
+        println("${"$count".pad_start(7)}  $path")
+    times := hits.map(fn(hit: Hit) -> f64: hit.seconds).sorted_by(fn(a: f64, b: f64) -> Ordering: a.total_cmp(b))
+    if !times.is_empty():
+        println("p95 ${times[times.len() * 95 / 100].to_fixed(3)}s, $failed failed, $skipped skipped")
+    .Ok(())
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads a line into a Hit"):
+        log := "1.2.3.4 - - [17/Oct/2026:09:00:00 +0000] \"GET /api/items HTTP/1.1\" 503 120 0.250\nnoise\n"
+        match read_hits(log):
+            .Ok((hits, skipped)) =>
+                assert_equal(hits[0].status, 503, reason="a typed status")
+                assert_equal(hits[0].referrer, .None, reason="the group took no part")
+                assert_equal(skipped, 1, reason="one malformed line")
+            .Err(error) => panic("unexpected $error")
+```
+
+**3. Experiments and secrets**: stable bucketing by hash, a seeded audit
+sample that repeats everywhere, and a session token from the host.
+
+```text
+use std.hash.hash_of
+use std.random.{Random, Rng, fill, rng}
+use std.encoding.Base64
+
+pub fn arm(experiment: string, user: string, arms: u64) -> u64:
+    hash_of((experiment, user)) % arms
+
+pub fn audit_sample(seed: u64, orders: List[string]) -> List[string]:
+    let mut gen = Rng::new(seed)
+    gen.sample(orders, 3)
+
+pub fn session_token() -> string $ Random:
+    Base64.UrlNoPad.encode(fill(32))
+
+pub fn roll_out(share: f64) -> bool $ Random:
+    let mut gen = rng()
+    gen.float() < share
+
+tests:
+    use std.random.SeededRandom
+    use std.testing.assert_equal
+
+    it("buckets stably and samples reproducibly"):
+        assert_equal(arm("checkout-v2", "u-81", 2), arm("checkout-v2", "u-81", 2), reason="stable")
+        orders := ["o1", "o2", "o3", "o4", "o5", "o6"]
+        assert_equal(audit_sample(7, orders), audit_sample(7, orders), reason="one seed, one sample")
+        let mut source = SeededRandom::new(1)
+        $.with(Random=source):
+            assert_equal(session_token().len(), 43, reason="32 bytes, unpadded")
+```
+
+**4. An invoice export**: typed parsing of input rows with error context,
+hex IDs, money with two decimals, and CSV quoting with a builder.
+
+```text
+use std.text.StringBuilder
+use std.error.{Error, message}
+
+data Line:
+    sku: u32
+    name: string
+    quantity: u32
+    cents: i64
+
+fn read_line(row: string) -> Result[Line, dyn Error]:
+    fields := row.split(",")
+    if fields.len() != 4:
+        return .Err(message("expected sku,name,quantity,cents: $row"))
+    sku := u32::parse_radix(fields[0], 16).context("bad sku ${fields[0]}")?
+    quantity := fields[2].parse::[u32]().context("bad quantity in $row")?
+    cents := fields[3].parse::[i64]().context("bad price in $row")?
+    .Ok(Line { sku: sku, name: fields[1], quantity: quantity, cents: cents })
+
+fn quoted(text: string) -> string:
+    if !text.contains(",") && !text.contains("\"") && !text.contains("\n"):
+        return text
+    let out: mut StringBuilder = StringBuilder::new()
+    out.push_char('"')
+    for c in text.chars():
+        if c == '"':
+            out.push_char('"')
+        out.push_char(c)
+    out.push_char('"')
+    out.build()
+
+pub fn export(rows: List[string]) -> Result[string, dyn Error]:
+    let out: mut StringBuilder = StringBuilder::new()
+    out.push("sku,name,quantity,total\n")
+    for row in rows:
+        line := read_line(row)?
+        total := f64(line.cents * i64(line.quantity)) / 100.0
+        out.push("${line.sku.to_radix(16).pad_start(8, '0')},${quoted(line.name)},${line.quantity},${total.to_fixed(2)}\n")
+    .Ok(out.build())
+```
+
+## Data Public Names
+
+Counted as above, with one more rule: a method declared for every
+numeric width counts once. "Before" is `lib/std` at `293b78417`.
+
+| Module | Before | After | Removed | Added |
+| --- | --- | --- | --- | --- |
+| `std.json` | 34 | 34 | `Json.as_number` | `JsonObject.remove` |
+| `std.serde` | 37 | 37 | none | none (facts and impls are not names) |
+| `std.text` | 51 | 51 | free `join` | `StringBuilder.push_char` |
+| `std.format` | 25 | 25 | none | none |
+| `std.regex` | 18 | 19 | `RegexErrorKind` | `Regex.decode`, `Captures.decode` |
+| `std.encoding` | 5 | 6 | `base64_encode`, `base64_decode` | `Base64` and its `encode`, `decode` |
+| `std.digest` | 2 | 8 | `sha256_hex` | `Digest`, `to_hex`; `Sha256` and its `new`, `hmac`, `update`, `finish` |
+| `std.hash` | 8 | 8 | none | none |
+| `std.random` | 16 | 16 | `token_hex` | free `fill` |
+| `std.num` | 32 | 31 | `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`, `parse_usize`, `parse_f64` | `wrapping_mul`, `to_radix`, `parse_radix`, `total_cmp`, `sqrt` |
+| `std.cmp` | 11 | 12 | none | `Ordering.then` |
+| **Total** | **239** | **247** | **13** | **21** |
+
+The growth is in `std.digest`, where today's two names could not stream,
+key a hash, or compare a signature safely. The typed regex path adds
+two names over the untyped one it is built on. Each removal is a
+duplicate (`join`, the `parse_` functions, `as_number`), a fixed
+combination (`sha256_hex`, `token_hex`), or a type folded into another
+(`RegexErrorKind`, the `base64_` pair).
+
+## Data Questions For The Owner
+
+1. **Serde naming facts.** Apply the planned `@serde(rename=...)` and
+   `@serde(skip)`, and add serde's type-level `rename_all` and a
+   `skip_none`, so a derived type reads a camelCase API. They are
+   language-tier annotation facts. Recommendation: approve all four; they
+   are the largest gap left in the typed JSON path.
+2. **`Display` writes into a builder.** `to_string` makes a new string
+   per value, so nested `Display` copies text once per level. Rust's
+   `Display` writes into a `Formatter`; Go's `String()` returns a string
+   and accepts the copy. Recommendation: add `write(self, out: mut
+   StringBuilder) -> void` with a default body that pushes `to_string()`,
+   and have interpolation call `write`. No existing impl changes.
+3. **`Hasher` width methods.** Add `write_u64(value)` and
+   `write_str(text)` to the language-tier `Hasher`, with default bodies
+   over `write`, as Rust's `Hasher` has. Recommendation: approve; it
+   removes a list allocation from every integer key and a copy from
+   every string key.
+4. **A generic `Rng.int`.** `int[N < Integer](range: Range[N]) -> N`
+   needs the sealed `Integer` trait to convert to and from `u64`.
+   Recommendation: add those two conversions to `Integer`, so
+   `gen.int(0..items.len())` returns a `usize`.
+5. **Regex decode through `Deserialize`.** Reading groups through the
+   serde derive means a type that decodes JSON also decodes a regex
+   match, with the same facts. A separate derive would keep the two
+   apart. Recommendation: reuse `Deserialize`, as `recap` does.
