@@ -3300,3 +3300,4 @@ runtime/valid/lct-tuple-permission-weakening.hd	runtime	accept	lang/04-type-syst
 typing/invalid/poll-context-construction.hd	type	reject:private-member	lang/11-requirements-and-suspension.md#r-req.poll-context.construction
 runtime/valid/facts-of-compiler-decorators.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result
 runtime/valid/lct-unsolved-parameter-joins-first.hd	runtime	accept	lang/04-type-system.md#r-types.lct.sites
+runtime/valid/process-output.hd	runtime	accept	std/process.md#r-std-process.helper.output

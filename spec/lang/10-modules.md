@@ -1091,6 +1091,7 @@ pub enum ProcessError:
     PermissionDenied(program: string)
     NotGranted
     Other(message: string)
+    Exited(status: i32, stderr: string)
 
 pub trait Process:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
@@ -1135,7 +1136,10 @@ fn version!() -> string $ Process:
 > The run-time grant that `NotGranted` reports is CLI tier
 > ([Capability Grants](../cli/command-line.md#capability-grants)).
 
-> **Note.** The `Display` text of each `ProcessError` variant and the
+> **Note.** `Exited` is the only variant that no provider returns from
+> `run!`: `std.process.output!` produces it
+> ([`std-process.helper.output`](../std/process.md#r-std-process.helper.output)).
+> The `Display` text of each `ProcessError` variant and the
 > stdlib provider `ScriptedProcess` are stdlib tier:
 > [Process](../std/process.md) in `std.process`.
 

@@ -1,0 +1,37 @@
+# test: process.output! returns stdout on status 0, ProcessError.Exited on a non-zero status, and the start error unchanged
+# Spec std/process Output Helper: std-process.helper.output, std-process.helper.output-exited,
+# std-process.helper.output-start, std-process.helper.output-row, std-process.error.display.exited,
+# std-process.error.debug-fields, and std-process.error.equal.
+# expect: test
+use std.process.{Process, ProcessError, ProcessOutput, ScriptedProcess, output}
+
+fn read!(program: string) -> Result[string, ProcessError] $ Process:
+    output!(program, ["x"])
+
+tests:
+    use std.testing.assert_equal
+
+    it("output! returns stdout on status 0"):
+        let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "main\n", stderr: "", status: 0 }})
+        $.with(Process=process):
+            assert_equal(read!("git"), .Ok("main\n"), reason="stdout on success")
+
+    it("output! reports a non-zero status with its stderr"):
+        let mut process = ScriptedProcess::new({"make": ProcessOutput { stdout: "partial", stderr: "boom", status: 2 }})
+        $.with(Process=process):
+            result := read!("make")
+            assert_equal(result, .Err(ProcessError.Exited(status=2, stderr="boom")), reason="Exited")
+            match result:
+                .Err(error) => assert_equal(error.to_string(), "program exited with status 2: boom", reason="Display")
+                .Ok(_) => assert_equal(true, false, reason="a failed status is an error")
+
+    it("output! passes a start error through"):
+        let mut process = ScriptedProcess::new({})
+        $.with(Process=process):
+            assert_equal(read!("nope"), .Err(ProcessError.NotFound(program="nope")), reason="NotFound")
+
+    it("Exited compares by status and stderr and prints its fields"):
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=1, stderr="a"), true, reason="same")
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=2, stderr="a"), false, reason="other status")
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=1, stderr="b"), false, reason="other stderr")
+        assert_equal(debug(ProcessError.Exited(status=2, stderr="boom")), "ProcessError.Exited(status=2, stderr=\"boom\")", reason="Debug")

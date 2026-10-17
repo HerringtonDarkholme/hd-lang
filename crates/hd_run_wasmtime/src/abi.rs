@@ -538,6 +538,7 @@ pub enum ProcessError {
     PermissionDenied { program: String },
     NotGranted,
     Other { message: String },
+    Exited { status: i32, stderr: String },
 }
 
 impl Wire for ProcessError {
@@ -558,10 +559,15 @@ impl Wire for ProcessError {
                 e.leb(3);
                 message.enc(e);
             }
+            Self::Exited { status, stderr } => {
+                e.leb(4);
+                status.enc(e);
+                stderr.enc(e);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(4)? {
+        Ok(match d.tag(5)? {
             0 => Self::NotFound {
                 program: Wire::dec(d)?,
             },
@@ -569,8 +575,12 @@ impl Wire for ProcessError {
                 program: Wire::dec(d)?,
             },
             2 => Self::NotGranted,
-            _ => Self::Other {
+            3 => Self::Other {
                 message: Wire::dec(d)?,
+            },
+            _ => Self::Exited {
+                status: Wire::dec(d)?,
+                stderr: Wire::dec(d)?,
             },
         })
     }
