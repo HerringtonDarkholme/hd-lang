@@ -12,7 +12,7 @@ an earlier draft is in [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md).
 - [3. A Guided Tour](#3-a-guided-tour)
 - [4. The Rules](#4-the-rules)
 - [5. What Changes From NonEscapable](#5-what-changes-from-nonescapable)
-- [6. Still To Think Through](#6-still-to-think-through)
+- [6. Still To Decide](#6-still-to-decide)
 - [Appendix: Limits And Holes](#appendix-limits-and-holes)
 
 ## Decisions So Far
@@ -976,30 +976,351 @@ adds a few of its own. Each rejects code the old design accepted:
 - **Mutating a plain local** while a `^` view of it lives, by the
   owner's decision to check every `^`.
 
-## 6. Still To Think Through
+## 6. Still To Decide
 
-Every open point of the earlier drafts is decided. The owner asked for
-more thought on generics and ownership before the design settles:
+The owner asked for an options study of six more points before a
+prototype. Each item below shows the problem, the options, what Rust,
+Swift, Mojo and OxCaml do, and the cost, then gives one recommendation
+and one question. Every rule above stays as decided. Where a decided rule already answers part of an
+item, the item says so and asks only about the rest.
 
-1. **Iteration.** How `for x in xs` reads a list of owned values: by
-   borrow, by consuming the list, or both, and which form is the default.
-   A lazy adapter that keeps an owned value across calls (the review's
-   U9) needs a named producer with a `^mut self` step, since a closure
-   that captures an owned value runs once.
-2. **Traits over owned values.** How `Eq`, `Hash`, `Ord`, and `Display`
-   take their receiver (`^self`), and how a `Map` keyed by owned values
-   looks keys up by borrow.
-3. **Copying an owned value.** Whether a `Clone`-style trait gives
-   `own T` from `^T`, and whether derivation can provide it.
-4. **Drop and generics.** How a generic body's drop of a `T` finds the
-   instantiation's `drop`, through monomorphization or `dyn`, and the
-   cost of drop flags in generic code.
-5. **Higher-order functions.** The shapes of `map`, `filter`, and
-   `fold` over owned elements, and how an `own fn` callback composes
-   with them.
-6. **Migration.** The order of std's `^self` marks and its
-   `[T < own Any]` declarations, the lint that proposes them, and the
-   spec chapters each decision touches.
+### 6.1 Iteration Over Owned Lists
+
+A pool pings every connection, and a shutdown hands each one off:
+
+```text
+fn ping_all!(pool: ^Pool) -> void:                   # hypothetical syntax
+    for c in pool.idle:
+        c.send!([1])
+
+fn shutdown(conns: own List[own Conn]) -> void:      # hypothetical syntax
+    for c in conns.into_iter():
+        retire(c)
+```
+
+The decided rules settle the first loop. `for` calls `iter()`, a std
+read-only method, so `iter` takes `^self` and lends the list without a
+mark. A borrowed list yields its owned elements as borrows, so `c` is a
+`^Conn`. Two points stay open: whether a loop over an owned list should
+consume it instead, and what `into_iter()` returns.
+
+**Option A: lend by default, consume through `into_iter()`.** Both loops
+mean what they say. `into_iter(own self)` returns std's owned cursor
+`IntoIter[T]`, which `for` accepts beside `Iterator[T]`. A `break` drops
+the cursor and the elements not yet visited, as 3.5 already states.
+
+**Option B: consume by default.** `for c in conns` moves an owned list,
+as Rust's `for x in v` does; lending writes `conns.iter()`. hd has no
+borrow expression, so the loop picks `into_iter` because the iterable is
+an owned place: a new rule, unlike every plain loop.
+
+**Option C: lend only.** There is no consuming loop. A drain matches
+`conns.pop()` inside `while true` and breaks at `.None`.
+
+**Elsewhere.** Rust's `Vec` implements `IntoIterator` by value, which
+consumes, and for `&Vec` and `&mut Vec`, which yield references
+([Vec](https://doc.rust-lang.org/std/vec/struct.Vec.html),
+[loop expressions](https://doc.rust-lang.org/reference/expressions/loop-expr.html)).
+Mojo's collection iterators return references, and `for ref` makes them
+mutable ([control flow](https://docs.modular.com/mojo/manual/control-flow/)).
+Swift's `for in` needs `Sequence`, which needs copyable elements;
+borrowing iteration is future work
+([SE-0437](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0437-noncopyable-stdlib-primitives.md)).
+OxCaml's `borrow_` lends a unique value as aliased and local for one
+region ([borrowing](https://oxcaml.org/documentation/uniqueness/borrow/)).
+
+**Cost.** The lending cursor's closure captures `^self`, so `Iterator`
+gains a lifetime parameter under every option, as Rust's
+`slice::Iter<'a, T>` has. A adds one std type and one case to what `for`
+accepts. B adds a loop rule. C adds nothing, but drains from the back.
+
+A user's named producer with a `^mut self` step, the review's U9, is
+driven by `while` under every option, not by `for`.
+
+**Recommendation: A.** It is what the decided `^self` rule and 3.5
+already imply, and the consuming loop shows `into_iter()` at the site.
+
+**Question.** Does `for x in xs` lend an owned list, with
+`xs.into_iter()` as the one consuming loop?
+
+### 6.2 Traits Over Owned Values
+
+```text
+fn same_peer(a: ^Conn, b: ^Conn) -> bool:            # hypothetical syntax
+    a == b
+
+fn route(table: ^Map[string, own Conn], host: string) -> Option[^Conn]:   # hypothetical syntax
+    table.get(host)
+```
+
+The receivers are already answered. `Eq`, `Hash`, `Ord`, `Display` and
+`Debug` are std read-only methods, so the decided rule gives them
+`^self`. The second operand follows for the same reason, as
+`fn eq(^self, other: ^Self) -> bool`, so `a == b` lends both sides. What
+stays open is whether a `Map` key may be owned.
+
+**Option A: keys stay plain; values may be owned.** `route` above works:
+a connection table keyed by host is the common case. An owned key fails
+the plain bound `K < Eq & Hash`, as an owned type fails any plain type
+parameter.
+
+**Option B: owned keys, looked up by a borrow.** `get(^self, key: ^K)`
+lends the probe key. Inserting moves a key in, and dropping the map
+drops its keys.
+
+**Option C: lookup by a borrowed form.** As in Rust, a
+`Map[own Token, V]` is probed by a type the key can lend, through a new
+std trait.
+
+**Elsewhere.** Rust's `PartialEq::eq`, `Hash::hash` and `Display::fmt`
+all take `&self`, and `HashMap::get` takes any `&Q` where `K: Borrow<Q>`
+([PartialEq](https://doc.rust-lang.org/std/cmp/trait.PartialEq.html),
+[HashMap](https://doc.rust-lang.org/std/collections/struct.HashMap.html)).
+Swift's
+[SE-0499](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0499-support-non-copyable-simple-protocols.md)
+lets `Equatable`, `Comparable`, `Hashable` and `CustomStringConvertible`
+take noncopyable types, with `borrowing` operands. Mojo's default
+argument convention is an immutable reference, so plain parameters
+already borrow ([ownership](https://docs.modular.com/mojo/manual/values/ownership/)).
+In OxCaml, a borrowed value is aliased and local, so it reaches any
+function that takes a local argument
+([borrowing](https://oxcaml.org/documentation/uniqueness/borrow/)).
+
+**Cost.** The answered part adds no rule. It rewrites the derive
+templates and about 250 hand-written impls in std: 109 `Debug`, 59
+`Eq`, 45 `Display`, 17 `Hash` and 22 orderings. A adds nothing more. B moves
+`Map` into an `[K < own Any]` impl. C adds a trait and a generic lookup.
+
+**Recommendation: A.** No program in std or the six reviews keys a map
+by an owned value. B can follow later without breaking A.
+
+**Question.** Do `Map` keys stay plain, with only values allowed to be
+owned?
+
+### 6.3 Copying An Owned Value
+
+A request draft owns its body buffer, and a retry needs a second copy:
+
+```text
+data Draft:
+    url: string
+    body: own Buffer                                 # hypothetical syntax
+
+impl OwnOnly for Draft                               # hypothetical syntax
+
+impl Draft:
+    fn duplicate(^self) -> own Draft:                # hypothetical syntax
+        Draft { url: self.url, body: self.body.duplicate() }
+
+fn send_twice!(d: own Draft) -> void:               # hypothetical syntax
+    post!(d.duplicate())
+    post!(d)
+```
+
+**Option A: no trait.** A type that can be copied writes an ordinary
+method returning `own Self`, as above. An owned value may already come
+from an `own` result, so nothing is added. Generic code under
+`T < own Any` cannot copy a `T`, which is what the bound says.
+
+**Option B: a std `Clone` trait.** `fn clone(^self) -> own Self`, with a
+derivation that clones each field. Two costs follow. `own` on a
+primitive is `own-on-value`, so the trait cannot cover `i32` or
+`string`. A fresh owned value needs fresh plain composite fields, so a
+derived clone must deep-copy plain lists and maps too.
+
+**Option C: `Clone` for every type.** As Rust's, plain values included.
+It adds a deep copy beside aliasing to all of std.
+
+**Elsewhere.** Rust's `Clone::clone` takes `&self` and returns `Self`,
+and `derive` implements it when every field is `Clone`
+([Clone](https://doc.rust-lang.org/std/clone/trait.Clone.html)). Mojo's
+`Copyable` provides `copy()`, and its manual prefers that explicit call
+to implicit copies ([life](https://docs.modular.com/mojo/manual/lifecycle/life/)).
+Swift's explicit `copy x`
+([SE-0377](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0377-parameter-ownership-modifiers.md))
+works on copyable values; a noncopyable type is never copied
+([SE-0390](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0390-noncopyable-structs-and-enums.md)).
+In OxCaml an aliased value never becomes unique again
+([uniqueness](https://oxcaml.org/documentation/uniqueness/intro/)).
+
+**Cost.** A: no rule and no std change. B: one trait, one derivation,
+and deep copies of plain composites. C: B plus a copy on every std type.
+
+**Recommendation: A.** Handles, the main `OwnOnly` types, cannot be
+duplicated anyway, and plain values already copy by aliasing. A trait
+can be added later without breaking A.
+
+**Question.** Is copying an owned value an ordinary method per type,
+with no std `Clone` trait for now?
+
+### 6.4 Drop In Generic Code
+
+```text
+fn pick[T < own Any](a: T, b: T, first: bool) -> T:   # hypothetical syntax
+    if first: a else: b                                # the other one is dropped here
+```
+
+The meaning is decided. The value not returned is dropped at the end of
+`pick`, exactly once. A drop flag decides where the compiler cannot tell
+statically, as in Rust. What stays open is how the compiled body
+finds `T`'s `drop`, which is not observable, so it is a compiler choice.
+
+hd's compiler monomorphizes but folds instances by representation
+([hd_mono](../../crates/hd_mono/DESIGN.md)). So `List[Point].push` and
+`List[User].push` share one body, which cannot know which `drop` to run.
+
+**Option A: drop-aware folding.** Types without a destructor keep
+folding. Each type with a `drop` gets its own instance of a body that
+drops a `T`, which calls `drop` directly. Only those instances carry
+drop flags.
+
+**Option B: drop through a table.** Every instance folds, and each
+owned type supplies its `drop` through a table, as a `dyn` value's
+vtable does. Each drop is an indirect call, and every folded body keeps
+its flags.
+
+**Elsewhere.** Rust monomorphizes generic code
+([generics](https://doc.rust-lang.org/book/ch10-01-syntax.html)), and a
+trait object runs the destructor of its underlying type
+([destructors](https://doc.rust-lang.org/reference/destructors.html)).
+Its drop flags live on the stack and are checked at run time only where
+static analysis cannot decide
+([drop flags](https://doc.rust-lang.org/nomicon/drop-flags.html)).
+
+Swift's type metadata carries a value witness table with operations such
+as copying and destroying a value
+([type metadata](https://github.com/swiftlang/swift/blob/main/docs/ABI/TypeMetadata.rst)).
+Mojo destroys a value after its last use, not at scope end
+([death](https://docs.modular.com/mojo/manual/lifecycle/death/)).
+OxCaml has no destructors.
+
+**Cost.** Neither option adds a rule. A grows code only for owned
+instantiations whose type has a destructor, which are few. B keeps code
+small but pays an indirect call per drop and flags in every instance.
+
+**Recommendation: A**, as a compiler choice outside the spec, with its
+footprint reported as for any compiler change.
+
+**Question.** Is generic drop dispatch a compiler choice outside the
+spec, starting with drop-aware folding?
+
+### 6.5 Higher-Order Functions
+
+A pool drops its idle connections and names the rest:
+
+```text
+fn prune(pool: ^mut Pool) -> List[string]:            # hypothetical syntax
+    pool.idle.retain(fn(c: ^Conn) -> bool: c.sent() > 0)                # hypothetical syntax
+    pool.idle.iter().map(fn(c: ^Conn) -> string: c.peer()).collect()   # hypothetical syntax
+```
+
+Today `List.map` and `List.filter` hand each element to a callback
+taking `T`. For an owned element, that moves it out of a list the caller
+still owns. So by the decided container split, those methods stay in the
+plain-only impl. The open point is which shapes owned lists get.
+
+**Option A: the item carries the mode.** Adapters keep their signatures
+on `Iterator`. `iter()` on an owned list yields `^Conn` items, so `map`
+above is today's `map` with `T = ^Conn`. `List` gains
+`retain(^mut self, keep: fn(^T) -> bool)`, which drops what it removes.
+
+Consuming work goes through `into_iter()`, whose cursor has `map`,
+`fold`, and a `filter` that tests `^T` and drops what it rejects. They
+run eagerly and return a new cursor. A lazy one would be a named
+producer, which `for` does not take (6.1).
+
+**Option B: owned twins on `List`.** Every adapter gets two more names,
+as `map_borrowed` and `map_consuming`. Swift's SE-0437 weighed
+`borrowingMap` and `consumingMap`, then preferred views.
+
+**Option C: borrowed callbacks everywhere.** Every list method moves to
+an `[T < own Any]` impl with `fn(^T)` callbacks. A `^Point` is not a
+`Point`, so every lambda over a plain list changes type.
+
+The one-shot closure rule stays, so a callback that reads an owned value
+captures a borrow of it. Exclusive state rides in `fold`'s accumulator
+or in a loop:
+
+```text
+fn names(ids: ^List[usize], table: own Table) -> List[string]:   # hypothetical syntax
+    let t: ^Table = table                                         # hypothetical syntax
+    ids.iter().map(fn(id: usize) -> string: t.lookup(id)).collect()
+```
+
+**Elsewhere.** Rust's `map` takes `FnMut(Self::Item) -> B`, and `filter`
+takes `FnMut(&Self::Item) -> bool`
+([Iterator](https://doc.rust-lang.org/std/iter/trait.Iterator.html)). So
+the item type decides what a callback sees, and `Vec::retain` lends
+each element.
+Swift plans consuming `map`, `filter` and `reduce`, with borrowing
+through a view, once a type can store a borrow (SE-0437). A Mojo capture
+list says per value whether a closure reads, mutates, copies or moves it
+in ([closures](https://docs.modular.com/mojo/manual/functions/closures/)).
+An OxCaml closure that consumes a unique value is `once`.
+
+**Cost.** A: the owned cursor's adapters and `retain`, std only, with a
+fix-it from `conns.map(f)` to `conns.iter().map(f)`. B: about twice the
+adapter names. C: a breaking change to every plain callback.
+
+**Recommendation: A.** It reuses every adapter and matches Rust, where
+the same `map` serves `iter()` and `into_iter()`.
+
+**Question.** Do owned lists reach `map`, `filter` and `fold` through
+`iter()` and `into_iter()`, plus `retain`, with no owned twins on `List`?
+
+### 6.6 Migration Order
+
+The phasing is decided: std marks `^self` in steps, each proposed by a
+lint. The order, what the lint checks, and the spec chapters each step
+touches are open.
+
+**Option A: bottom up.** Each step needs only the steps above it:
+
+| Step | Change | Spec |
+| --- | --- | --- |
+| 1. Language | `own`, `^`, moves, borrows, drop, `OwnOnly`, `DropOwn`, `defer` as a guard | 01 to 11, 14 |
+| 2. Traits | `^self` on `Eq`, `Hash`, `Ord`, `Display`, `Debug`, `Iterable`; `OwnOnly` by `Structure` on `Option`, `Result`, `List`, `Map`, `Set` | 06, 09, 10; std cmp, hash, format, iter |
+| 3. Containers | owned-element methods in `[T < own Any]` impls, `IntoIter`, `retain` | 10; std collections, iter, option, result |
+| 4. Handles | sockets, listeners and readers become `OwnOnly` with `DropOwn` | std net, fs, process, http |
+| 5. The rest | `^self` wherever the lint proposes it | std, module by module |
+
+**Option B: handles first.** The safety payoff comes first. But an
+owned handle cannot be compared, printed or kept in a list until steps 2
+and 3 land.
+
+**Option C: all at once.** One large change, with no state where an
+owned value meets an unmarked method.
+
+The lint reuses checks the compiler already runs. It proposes `^self`
+where a method's body still checks with a borrowed receiver. It proposes
+`[T < own Any]` where a container method never copies a `T`.
+
+**Elsewhere.** Swift moved in steps. Noncopyable structs came in 5.9
+(SE-0390), generics and std primitives in 6.0
+([SE-0427](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0427-noncopyable-generics.md),
+SE-0437), and `Equatable` with its neighbors in 6.4 (SE-0499). Rust
+shipped ownership in 1.0, so it had no migration.
+
+**Recommendation: A**, with step 4 done together with the streaming
+redesign, since both rewrite the same handle traits.
+
+**Question.** Migrate in the order language, traits, containers,
+handles with streaming, then the rest of std by lint?
+
+### Consequences For Std Handles
+
+This decides nothing; the streaming design builds on it. Under these
+recommendations, `TcpStream`, `TcpListener`, `UdpSocket` and the
+planned readers for HTTP bodies, process output and files implement
+`OwnOnly` and `DropOwn`. So `connect!` returns `own dyn TcpStream`, and
+dropping a handle replaces every `close` method, on each exit and on
+cancellation. A writer whose close can fail keeps a consuming `finish!`
+that returns a `Result`, as 3.1 decides. The decided `Closed` variant
+can no longer occur, since a call after a drop or a move is
+`use-after-move`. Reads and writes take `^mut self`, so a helper takes
+`s: ^mut dyn TcpStream`; each call reborrows it, and the caller still
+owns and drops it. A line splitter holds a `^mut`, so it is `OwnOnly`
+named data, driven by a loop, since `for` takes no suspending cursor.
 
 ## Appendix: Limits And Holes
 
@@ -1041,12 +1362,14 @@ Ways a handle escapes its destructor, all by its author's choice ([2](#2-the-mod
 - Hylo, [parameter passing conventions](https://docs.hylo-lang.org/language-tour/functions-and-methods)
 - Austral, [linear types](https://austral-lang.org/tutorial/linear-types)
 - Lorenzen, White, Dolan, Eisenberg, Lindley, [Oxidizing OCaml with Modal Memory Management](https://doi.org/10.1145/3674642), ICFP 2024
-- OxCaml documentation: [modes](https://oxcaml.org/documentation/modes/intro/), [stack allocation](https://oxcaml.org/documentation/stack-allocation/intro/), [uniqueness](https://oxcaml.org/documentation/uniqueness/intro/)
+- OxCaml documentation: [modes](https://oxcaml.org/documentation/modes/intro/), [stack allocation](https://oxcaml.org/documentation/stack-allocation/intro/), [uniqueness](https://oxcaml.org/documentation/uniqueness/intro/), [borrowing](https://oxcaml.org/documentation/uniqueness/borrow/)
+- Section 6 adds: Rust [destructors](https://doc.rust-lang.org/reference/destructors.html), [drop flags](https://doc.rust-lang.org/nomicon/drop-flags.html), [Iterator](https://doc.rust-lang.org/std/iter/trait.Iterator.html), [HashMap](https://doc.rust-lang.org/std/collections/struct.HashMap.html) and [Clone](https://doc.rust-lang.org/std/clone/trait.Clone.html); Swift [SE-0437](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0437-noncopyable-stdlib-primitives.md), [SE-0499](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0499-support-non-copyable-simple-protocols.md) and [type metadata](https://github.com/swiftlang/swift/blob/main/docs/ABI/TypeMetadata.rst); Mojo [life](https://docs.modular.com/mojo/manual/lifecycle/life/), [death](https://docs.modular.com/mojo/manual/lifecycle/death/), [control flow](https://docs.modular.com/mojo/manual/control-flow/) and [closures](https://docs.modular.com/mojo/manual/functions/closures/); all read on 2026-10-17
 
 ## Parse Log
 
-Every `text` block, 29 in all, was parsed on 2026-10-16 with
-`scripts/hd-conformance.sh parse`. Each was parsed as written and with
+Every `text` block, 35 in all, was parsed with
+`scripts/hd-conformance.sh parse`: the 29 of sections 1 to 3 on
+2026-10-16, and the six of section 6 on 2026-10-17. Each was parsed as written and with
 the marks erased (`own`, `^`, `^{...}`, lifetime brackets). Parsing
 checks syntax only. Nothing was type-checked, and the blocks call
 functions this study does not define.
@@ -1054,4 +1377,4 @@ functions this study does not define.
 | Result | Blocks |
 | --- | --- |
 | Parses as written | 5, among them section 1, the REPL inputs in 3.11, and the `defer` row example in 3.1 |
-| Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 24 |
+| Fails only at the new marks; parses with the marks and `impl OwnOnly` lines erased | the other 30, all six of section 6 among them |
