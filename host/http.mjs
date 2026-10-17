@@ -105,6 +105,10 @@ const once = (url, host, method, headers, body, ms) =>
       headers: all.flat(),
       agent: false,
     });
+    // Node 24 silently drops response headers past 1000 pairs; a request
+    // option does not lift that, the property does (0 is no limit).
+    // std-http.headers.pairs keeps every pair.
+    req.maxHeadersCount = 0;
     const timer = setTimeout(() => {
       settle(err("Timeout"));
       req.destroy();
