@@ -19,8 +19,11 @@ action at a distance.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
   study of serializable closures and remote calls (#166).
 - [Ownership And Borrows: Design Study](OWNERSHIP_DESIGN.md): the owner's
-  Rust-model redirect for #163: `own` types, `^` borrows, lifetimes named
-  by variables. Nothing in it is accepted.
+  Rust-model design for #163: `own` at the use site, `^` borrows, lifetimes
+  named by variables, `DropOwn`. Fully decided by the owner (2026-10-17);
+  not yet in the spec.
+- [Ownership Prototype Plan](OWNERSHIP_PROTOTYPE.md): 23 hour-sized
+  slices to prototype the design behind an opt-in.
 - [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md): twelve cases
   and the same eleven evaluation dimensions, including cancellation,
   linear collections, and exclusive callable/provider access.
