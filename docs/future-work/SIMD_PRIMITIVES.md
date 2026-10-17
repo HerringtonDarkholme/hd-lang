@@ -434,4 +434,7 @@ be rerun from them on request.
 ## 11. Open Points
 
 1. When to land step 1 (native loops); deferred by the owner.
-2. The string layout, decided after the probe's numbers.
+2. The string layout. The owner kept `(array i8)` after the probe
+   (2026-10-17); revisit once JSON and text parsing scan through these
+   primitives instead of reading byte by byte, and measure real programs
+   then.
