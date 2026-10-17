@@ -13,7 +13,7 @@ use std.error.Error
 ## See [std-regex.regex.decl](../../spec/std/regex.md#r-std-regex.regex.decl).
 pub data Regex:
     text: string
-    program: List[Inst]
+    program: Program
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
@@ -82,7 +82,7 @@ impl Regex:
         let program: mut List[Inst] = []
         compile(parsed.node, program)
         program.push(Inst.Done)
-        .Ok(Regex { text: pattern, program: program, names: names })
+        .Ok(Regex { text: pattern, program: lower(program), names: names })
 
     # The pattern as written.
     ## The pattern the regex was compiled from.
@@ -90,83 +90,76 @@ impl Regex:
     pub fn pattern(self) -> string:
         self.text
 
-    # Whether some part of `text` matches (r-std-regex.is-match).
+    # Whether some part of `text` matches (r-std-regex.is-match). The search
+    # stops at the first thread that reaches the end of the pattern.
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(self, text: string) -> bool:
-        self.find(text).is_some()
+        let vm: mut Vm = new_vm(self.program, text, 0)
+        run(vm, 0, true)
 
     # The leftmost match, and among those that start there, the one the
     # pattern prefers (r-std-regex.find.leftmost-first).
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(self, text: string) -> Match?:
-        hay := Haystack::of(text)
-        match run(self.program, hay, 0, 2):
-            .Some(slots) => .Some(hay.match_of(matched(slots, 0), matched(slots, 1)))
-            .None => .None
+        let vm: mut Vm = new_vm(self.program, text, 2)
+        if run(vm, 0, false): .Some(vm.whole()) else: .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(self, text: string) -> List[Match]:
-        hay := Haystack::of(text)
+        let vm: mut Vm = new_vm(self.program, text, 2)
         let found: mut List[Match] = []
-        for slots in all_slots(self.program, hay, 2):
-            found.push(hay.match_of(matched(slots, 0), matched(slots, 1)))
+        while advance(vm):
+            found.push(vm.whole())
         found
 
     # The groups of the first match (r-std-regex.captures).
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(self, text: string) -> Captures?:
-        hay := Haystack::of(text)
-        match run(self.program, hay, 0, self.slot_count()):
-            .Some(slots) => .Some(hay.captures_of(slots, self.names))
-            .None => .None
+        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        if run(vm, 0, false): .Some(vm.groups(self.names)) else: .None
 
     # The groups of each match that `find_all` returns
     # (r-std-regex.captures-all).
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(self, text: string) -> List[Captures]:
-        hay := Haystack::of(text)
+        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
         let found: mut List[Captures] = []
-        for slots in all_slots(self.program, hay, self.slot_count()):
-            found.push(hay.captures_of(slots, self.names))
+        while advance(vm):
+            found.push(vm.groups(self.names))
         found
 
     # `text` with its first match replaced (r-std-regex.replace).
     ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(self, text: string, replacement: string) -> string:
-        hay := Haystack::of(text)
-        match run(self.program, hay, 0, self.slot_count()):
-            .Some(slots) =>
-                groups := hay.captures_of(slots, self.names)
-                template := Pattern::of(replacement)
-                start := hay.offsets[matched(slots, 0)]
-                end := hay.offsets[matched(slots, 1)]
-                text.slice(0, start) + expand(template, groups) + text.slice(end, text.len())
-            .None => text
+        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        if !run(vm, 0, false):
+            return text
+        template := Pattern::of(replacement)
+        groups := vm.groups(self.names)
+        text.slice(0, vm.start()) + expand(template, groups) + text.slice(vm.end(), text.len())
 
     # `text` with each match that `find_all` returns replaced
     # (r-std-regex.replace-all).
     ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(self, text: string, replacement: string) -> string:
-        hay := Haystack::of(text)
+        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
         template := Pattern::of(replacement)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
         let pieces: mut List[string] = []
         let last: usize = 0
-        for slots in all_slots(self.program, hay, self.slot_count()):
-            groups := hay.captures_of(slots, self.names)
-            start := hay.offsets[matched(slots, 0)]
-            pieces.push(text.slice(last, start))
-            pieces.push(expand(template, groups))
-            last = hay.offsets[matched(slots, 1)]
+        while advance(vm):
+            pieces.push(text.slice(last, vm.start()))
+            pieces.push(expand(template, vm.groups(self.names)))
+            last = vm.end()
         pieces.push(text.slice(last, text.len()))
         pieces.join("")
 
@@ -175,12 +168,12 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(self, text: string) -> List[string]:
-        hay := Haystack::of(text)
+        let vm: mut Vm = new_vm(self.program, text, 2)
         let pieces: mut List[string] = []
         let last: usize = 0
-        for slots in all_slots(self.program, hay, 2):
-            pieces.push(text.slice(last, hay.offsets[matched(slots, 0)]))
-            last = hay.offsets[matched(slots, 1)]
+        while advance(vm):
+            pieces.push(text.slice(last, vm.start()))
+            last = vm.end()
         pieces.push(text.slice(last, text.len()))
         pieces
 
@@ -188,12 +181,6 @@ impl Regex:
     fn slot_count(self) -> usize:
         2 * self.names.len()
 
-# A whole match always has both slots. Keeping this invariant check in one
-# place lets all optional slot storage remain lossless over `usize`.
-fn matched(slots: List[usize?], index: usize) -> usize:
-    match slots[index]:
-        .Some(value) => value
-        .None => panic("std.regex: missing whole-match slot")
 
 impl Captures:
     # The number of groups, plus one for the whole match
@@ -576,11 +563,14 @@ fn class_char(source: Pattern, at: usize) -> Result[ClassChar, RegexError]:
         return .Ok(ClassChar { item: escaped.item, value: escaped.value, next: at + 2 })
     .Ok(ClassChar { item: .None, value: c, next: at + 1 })
 
-# The VM's instructions. `Split` tries `first` before `second`.
+# The VM's instructions, as `compile` writes them; `lower` turns them into
+# a `Program`. `Split` tries `first` before `second`. A character is its
+# scalar value, and a class is a list of inclusive ranges of scalar values,
+# low then high for each.
 enum Inst:
-    Char(value: char)
+    Char(point: i32)
     AnyChar
-    Class(items: List[ClassItem], negated: bool)
+    Class(ranges: List[i32], negated: bool)
     Begin
     End
     Split(first: usize, second: usize)
@@ -628,9 +618,9 @@ fn scaled(size: usize, count: usize) -> usize:
 fn compile(node: Node, program: mut List[Inst]) -> void:
     match node:
         .Empty => pass
-        .Literal(value) => program.push(Inst.Char(value))
+        .Literal(value) => program.push(Inst.Char(i32(char_scalar(value))))
         .AnyChar => program.push(Inst.AnyChar)
-        .Class(items, negated) => program.push(Inst.Class(items, negated))
+        .Class(items, negated) => program.push(Inst.Class(class_ranges(items), negated))
         .Begin => program.push(Inst.Begin)
         .End => program.push(Inst.End)
         .Group(body, index) =>
@@ -690,215 +680,404 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                     for split in splits:
                         program[split] = choice(split + 1, program.len(), greedy)
 
+# The instructions as parallel lists that the VM reads by index, so a step
+# compares integers instead of matching a variant. `ops[pc]` is the kind:
+#
+# | op | instruction | `left[pc]` | `right[pc]` |
+# | -- | ----------- | ---------- | ----------- |
+# | 0 | `Char`, scalar value in `points[pc]` | - | - |
+# | 1 | `AnyChar` | - | - |
+# | 2 | `Class` | start of its ranges in `ranges` | end of them |
+# | 3 | negated `Class` | start of its ranges in `ranges` | end of them |
+# | 4 | `Done` | - | - |
+# | 5 | `Split` | first | second |
+# | 6 | `Jump` | target | - |
+# | 7 | `Save` | slot | - |
+# | 8 | `Begin` | - | - |
+# | 9 | `End` | - | - |
+#
+# Ops 0 to 4 are the ones a thread waits at for the next character.
+data Program:
+    ops: List[i32]
+    left: List[usize]
+    right: List[usize]
+    points: List[i32]
+    ranges: List[i32]
+
+fn lower(program: List[Inst]) -> Program:
+    let ops: mut List[i32] = []
+    let left: mut List[usize] = []
+    let right: mut List[usize] = []
+    let points: mut List[i32] = []
+    let ranges: mut List[i32] = []
+    for inst in program:
+        let op = +0
+        let first: usize = 0
+        let second: usize = 0
+        let point = +0
+        match inst:
+            .Char(value) => point = value
+            .AnyChar => op = +1
+            .Class(bounds, negated) =>
+                op = if negated: +3 else: +2
+                first = ranges.len()
+                for bound in bounds:
+                    ranges.push(bound)
+                second = ranges.len()
+            .Done => op = +4
+            .Split(a, b) =>
+                op = +5
+                first = a
+                second = b
+            .Jump(target) =>
+                op = +6
+                first = target
+            .Save(slot) =>
+                op = +7
+                first = slot
+            .Begin => op = +8
+            .End => op = +9
+        ops.push(op)
+        left.push(first)
+        right.push(second)
+        points.push(point)
+    Program { ops: ops, left: left, right: right, points: points, ranges: ranges }
+
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
 
-# The searched text split into its characters, with the byte offset of each
-# and the text's length last.
-data Haystack:
+# One thread list: the instructions reached at one text position, as a
+# sparse set (Briggs and Torczon, as RE2 uses it) that keeps them in the
+# order they were added, so clearing it and testing or adding a member each
+# take constant time. `slots` holds `slot_count` slots for each
+# instruction, as byte offsets with -1 for an unset slot.
+data Threads:
+    dense: mut List[usize]
+    sparse: mut List[usize]
+    count: usize
+    slots: mut List[i64]
+
+fn new_threads(size: usize, slot_count: usize) -> mut Threads:
+    let dense: mut List[usize] = []
+    let sparse: mut List[usize] = []
+    while dense.len() < size:
+        dense.push(0)
+        sparse.push(0)
+    Threads { dense: dense, sparse: sparse, count: 0, slots: filled(size * slot_count) }
+
+impl Threads:
+    fn has(self, pc: usize) -> bool:
+        place := self.sparse[pc]
+        place < self.count && self.dense[place] == pc
+
+fn filled(count: usize) -> mut List[i64]:
+    let values: mut List[i64] = []
+    while values.len() < count:
+        values.push(-1)
+    values
+
+# The state of the searches of one call: two thread lists, the stack of the
+# epsilon walk, and the slots, allocated once and reused by every search
+# that call makes. The text is read in place, one UTF-8 scalar at a time,
+# and every position is a byte offset (r-std-regex.find.chars).
+data Vm:
+    program: Program
     text: string
-    chars: List[char]
-    offsets: List[usize]
+    size: usize
+    slot_count: usize
+    first: mut Threads
+    second: mut Threads
+    # The epsilon walk's stack: an entry of at least 0 is an instruction to
+    # visit; an entry -1 - s puts `values` at the same place back into slot s.
+    stack: mut List[i64]
+    values: mut List[i64]
+    scratch: mut List[i64]
+    # The slots of the match the last search found.
+    found: mut List[i64]
+    # Where the next search of `advance` starts, where the last match
+    # ended (-1 before the first), and whether the series is over.
+    from: usize
+    last_end: i64
+    finished: bool
 
-impl Haystack:
-    fn of(text: string) -> Haystack:
-        let chars: mut List[char] = []
-        let offsets: mut List[usize] = []
-        for (offset, c) in text.char_indices():
-            chars.push(c)
-            offsets.push(offset)
-        offsets.push(text.len())
-        Haystack { text: text, chars: chars, offsets: offsets }
+# A walk visits each instruction at most once and pushes at most one
+# entry for it, so the stack never holds more than size + 1.
+fn new_vm(program: Program, text: string, slot_count: usize) -> mut Vm:
+    size := program.ops.len()
+    Vm {
+        program: program,
+        text: text,
+        size: bytes_len(text),
+        slot_count: slot_count,
+        first: new_threads(size, slot_count),
+        second: new_threads(size, slot_count),
+        stack: filled(size + 1),
+        values: filled(size + 1),
+        scratch: filled(slot_count),
+        found: filled(slot_count),
+        from: 0,
+        last_end: -1,
+        finished: false,
+    }
 
-    # The match from character `start` to character `end`.
-    fn match_of(self, start: usize, end: usize) -> Match:
-        from := self.offsets[start]
-        to := self.offsets[end]
-        Match { start: from, end: to, text: self.text.slice(from, to) }
+impl Vm:
+    # Where the match found starts and ends; it always has both.
+    fn start(self) -> usize:
+        usize(self.found[0])
 
-    # The groups of a match, with each slot turned into a byte offset.
-    fn captures_of(self, slots: List[usize?], names: List[string]) -> Captures:
-        let offsets: mut List[usize?] = []
-        for slot in slots:
-            match slot:
-                .None => offsets.push(.None)
-                .Some(index) => offsets.push(.Some(self.offsets[index]))
-        Captures { text: self.text, slots: offsets, names: names }
+    fn end(self) -> usize:
+        usize(self.found[1])
 
-# The slots of every match `find_all` returns (r-std-regex.find-all.next):
-# after a match the next search starts at its end, or one character later
-# when it is empty, and an empty match where the last one ended is dropped.
-fn all_slots(program: List[Inst], hay: Haystack, slot_count: usize) -> List[List[usize?]]:
-    let found: mut List[List[usize?]] = []
-    let from: usize = 0
-    let last_end: usize? = .None
-    while from <= hay.chars.len():
-        match run(program, hay, from, slot_count):
-            .None => break
-            .Some(slots) =>
-                start := matched(slots, 0)
-                end := matched(slots, 1)
-                if start == end:
-                    let repeated = false
-                    match last_end:
-                        .Some(previous) => repeated = previous == start
-                        .None => pass
-                    if !repeated:
-                        found.push(slots)
-                    if end == hay.chars.len():
-                        break
-                    from = end + 1
-                else:
-                    found.push(slots)
-                    from = end
-                last_end = .Some(end)
-    found
+    fn whole(self) -> Match:
+        from := self.start()
+        to := self.end()
+        Match { start: from, end: to, text: bytes_slice(self.text, from, to) }
 
-# One step of the epsilon walk in `add_thread`: visit `pc`, or, when `slot`
-# is present, put `value` back into that slot.
-data Frame:
-    pc: usize
-    slot: usize?
-    value: usize?
+    # The groups of the match found.
+    fn groups(self, names: List[string]) -> Captures:
+        let slots: mut List[usize?] = []
+        for value in self.found:
+            if value < 0:
+                slots.push(.None)
+            else:
+                slots.push(.Some(usize(value)))
+        Captures { text: self.text, slots: slots, names: names }
+
+# Runs the next search of a `find_all` series (r-std-regex.find-all.next)
+# and leaves the match to report in `found`: after a match the next search
+# starts at its end, or one character later when it is empty, and an empty
+# match where the last one ended is dropped. False when no match is left.
+fn advance(vm: mut Vm) -> bool:
+    while !vm.finished:
+        if !run(vm, vm.from, false):
+            vm.finished = true
+            return false
+        start := vm.start()
+        end := vm.end()
+        if start != end:
+            vm.from = end
+            vm.last_end = i64(end)
+            return true
+        repeated := vm.last_end == i64(start)
+        vm.last_end = i64(end)
+        if end == vm.size:
+            vm.finished = true
+        else:
+            vm.from = end + scalar_width(bytes_at(vm.text, end))
+        if !repeated:
+            return true
+    false
 
 # The Pike VM (r-std-regex.find.leftmost-first): threads in priority
-# order, at most one per instruction at each position. A thread is its
-# instruction; its `slot_count` optional character indices sit in
-# `table`, one half for the current position and one for the next. The
-# search starts at character `from`. The result is the slots of the match,
-# with slot 0 its start and slot 1 its end.
-fn run(program: List[Inst], hay: Haystack, from: usize, slot_count: usize) -> List[usize?]?:
-    count := hay.chars.len()
-    size := program.len()
-    let marks: mut List[usize?] = []
-    for _ in program:
-        marks.push(.None)
-    let table: mut List[usize?] = []
-    let filled: usize = 0
-    while filled < 2 * size * slot_count:
-        table.push(.None)
-        filled = filled + 1
-    let scratch: mut List[usize?] = []
-    while scratch.len() < slot_count:
-        scratch.push(.None)
-    let stack: mut List[Frame] = []
-    let current: mut List[usize] = []
-    scratch[0] = .Some(from)
-    add_thread(program, marks, stack, from, current, table, half(from, size, slot_count), scratch, slot_count, 0, from, count)
-    let found: mut List[usize?] = []
-    let index = from
+# order, at most one per instruction at each position, starting at byte
+# `from`. When it finds a match, it returns true with the match's slots in
+# `vm.found`, slot 0 its start and slot 1 its end. With `earliest`, as
+# `is_match` asks, it returns true as soon as any thread reaches `Done`.
+fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
+    ops := vm.program.ops
+    points := vm.program.points
+    ranges := vm.program.ranges
+    left := vm.program.left
+    right := vm.program.right
+    text := vm.text
+    size := vm.size
+    slot_count := vm.slot_count
+    done := ops.len() - 1
+    let scratch: mut List[i64] = vm.scratch
+    let current: mut Threads = vm.first
+    let next: mut Threads = vm.second
+    current.count = 0
+    restart(scratch, slot_count, from)
+    add_thread(vm, current, 0, from)
+    if earliest && current.has(done):
+        return true
+    let matched = false
+    let at = from
     while true:
-        let next: mut List[usize] = []
-        let next_index = index
-        if index < count:
-            next_index = index + 1
-        here := half(index, size, slot_count)
-        there := half(next_index, size, slot_count)
-        for pc in current:
-            inst := program[pc]
-            # A finished thread cuts off every thread it outranks.
-            if inst_done(inst):
-                found = []
+        next.count = 0
+        let point: i32 = -1
+        let after = at
+        if at < size:
+            lead := bytes_at(text, at)
+            if lead < 128:
+                point = i32(lead)
+                after = at + 1
+            else:
+                after = at + scalar_width(lead)
+                point = scalar_point(text, at, after, lead)
+        dense := current.dense
+        slots := current.slots
+        count := current.count
+        let index: usize = 0
+        while index < count:
+            pc := dense[index]
+            index = index + 1
+            op := ops[pc]
+            let step = false
+            if op == 0:
+                step = point == points[pc]
+            else if op == 1:
+                step = point >= 0 && point != 10
+            else if op == 4:
+                # A finished thread cuts off every thread it outranks.
                 let slot: usize = 0
+                base := pc * slot_count
                 while slot < slot_count:
-                    found.push(table[here + pc * slot_count + slot])
+                    vm.found[slot] = slots[base + slot]
                     slot = slot + 1
-                found[1] = .Some(index)
+                if slot_count > 1:
+                    vm.found[1] = i64(at)
+                matched = true
                 break
-            if index < count && inst_accepts(inst, hay.chars[index]):
+            else if op <= 3 && point >= 0:
+                let hit = false
+                let bound = left[pc]
+                end := right[pc]
+                while bound < end:
+                    if point >= ranges[bound] && point <= ranges[bound + 1]:
+                        hit = true
+                        break
+                    bound = bound + 2
+                step = hit != (op == 3)
+            if step:
                 let slot: usize = 0
+                base := pc * slot_count
                 while slot < slot_count:
-                    scratch[slot] = table[here + pc * slot_count + slot]
+                    scratch[slot] = slots[base + slot]
                     slot = slot + 1
-                add_thread(program, marks, stack, next_index, next, table, there, scratch, slot_count, pc + 1, next_index, count)
-        if index >= count:
+                add_thread(vm, next, pc + 1, after)
+                if earliest && next.has(done):
+                    return true
+        if at >= size:
             break
-        index = next_index
-        if found.len() == 0:
+        at = after
+        if !matched:
+            restart(scratch, slot_count, at)
+            add_thread(vm, next, 0, at)
+            if earliest && next.has(done):
+                return true
+        else if next.count == 0:
+            break
+        let held: mut Threads = current
+        current = next
+        next = held
+    matched
+
+# Sets the scratch slots for a thread that starts at byte `at`.
+fn restart(scratch: mut List[i64], slot_count: usize, at: usize) -> void:
+    if slot_count == 0:
+        return
+    scratch[0] = i64(at)
+    let slot: usize = 1
+    while slot < slot_count:
+        scratch[slot] = -1
+        slot = slot + 1
+
+# The byte length of the UTF-8 scalar whose first byte is `lead`.
+fn scalar_width(lead: u8) -> usize:
+    if lead < 128:
+        return 1
+    if lead < 224:
+        return 2
+    if lead < 240: 3 else: 4
+
+# The code point of the scalar from byte `at` up to `after`, whose first
+# byte is `lead`, at least 128.
+fn scalar_point(text: string, at: usize, after: usize, lead: u8) -> i32:
+    let point = i32(lead)
+    if lead < 224:
+        point = point - 192
+    else if lead < 240:
+        point = point - 224
+    else:
+        point = point - 240
+    let index = at + 1
+    while index < after:
+        point = point * 64 + i32(bytes_at(text, index)) - 128
+        index = index + 1
+    point
+
+# Adds the thread at `start`, with the slots in `vm.scratch`, to `list`,
+# following jumps, splits, saves, and assertions in priority order at byte
+# `at`. An instruction already in `list` is not visited again. A save sets
+# its slot for the instructions after it and puts the old value back after
+# them, so `vm.scratch` is unchanged on return.
+fn add_thread(vm: mut Vm, list: mut Threads, start: usize, at: usize) -> void:
+    ops := vm.program.ops
+    slot_count := vm.slot_count
+    if ops[start] <= 4:
+        # A thread that waits for a character, the common case, needs no
+        # walk.
+        if !list.has(start):
+            list.sparse[start] = list.count
+            list.dense[list.count] = start
+            list.count = list.count + 1
+            base := start * slot_count
             let slot: usize = 0
             while slot < slot_count:
-                scratch[slot] = .None
+                list.slots[base + slot] = vm.scratch[slot]
                 slot = slot + 1
-            scratch[0] = .Some(index)
-            add_thread(program, marks, stack, index, next, table, there, scratch, slot_count, 0, index, count)
-        else:
-            if next.len() == 0:
-                break
-        current = next
-    if found.len() == 0:
-        return .None
-    .Some(found)
-
-# Where the slots for position `index` start in the table.
-fn half(index: usize, size: usize, slot_count: usize) -> usize:
-    (index % 2) * size * slot_count
-
-fn inst_done(inst: Inst) -> bool:
-    match inst:
-        .Done => true
-        _ => false
-
-fn inst_accepts(inst: Inst, c: char) -> bool:
-    match inst:
-        .Char(value) => c == value
-        .AnyChar => c != '\n'
-        .Class(items, negated) => class_matches(items, negated, c)
-        _ => false
-
-# Adds the thread at `pc`, with the slots in `scratch`, to `list`, following
-# jumps, splits, saves, and assertions in priority order.
-# `marks[pc] == generation` means `pc` is already in `list`. A save sets its
-# slot for the instructions after it and puts the old value back after
-# them, so `scratch` is unchanged on return.
-fn add_thread(program: List[Inst], marks: mut List[usize?], stack: mut List[Frame], generation: usize, list: mut List[usize], table: mut List[usize?], base: usize, scratch: mut List[usize?], slot_count: usize, pc: usize, at: usize, count: usize) -> void:
-    let top: usize = 0
-    top = push_frame(stack, top, Frame { pc: pc, slot: .None, value: .None })
+        return
+    left := vm.program.left
+    right := vm.program.right
+    size := vm.size
+    let stack: mut List[i64] = vm.stack
+    let values: mut List[i64] = vm.values
+    let scratch: mut List[i64] = vm.scratch
+    let dense: mut List[usize] = list.dense
+    let sparse: mut List[usize] = list.sparse
+    let slots: mut List[i64] = list.slots
+    let count = list.count
+    stack[0] = i64(start)
+    let top: usize = 1
     while top > 0:
         top = top - 1
-        frame := stack[top]
-        match frame.slot:
-            .Some(slot) =>
-                scratch[slot] = frame.value
-                continue
-            .None => pass
-        here := frame.pc
-        let seen = false
-        match marks[here]:
-            .Some(previous) => seen = previous == generation
-            .None => pass
-        if seen:
+        entry := stack[top]
+        if entry < 0:
+            scratch[usize(-1 - entry)] = values[top]
             continue
-        marks[here] = .Some(generation)
-        match program[here]:
-            .Jump(target) => top = push_frame(stack, top, Frame { pc: target, slot: .None, value: .None })
-            .Split(first, second) =>
-                top = push_frame(stack, top, Frame { pc: second, slot: .None, value: .None })
-                top = push_frame(stack, top, Frame { pc: first, slot: .None, value: .None })
-            .Save(slot) =>
-                if slot < slot_count:
-                    top = push_frame(stack, top, Frame { pc: 0, slot: .Some(slot), value: scratch[slot] })
-                    scratch[slot] = .Some(at)
-                top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
-            .Begin =>
-                if at == 0:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
-            .End =>
-                if at == count:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
-            _ =>
-                list.push(here)
+        # Follow the first choice at each step in place; the stack holds
+        # only the second choices and the slots to put back.
+        let pc = usize(entry)
+        while true:
+            place := sparse[pc]
+            if place < count && dense[place] == pc:
+                break
+            sparse[pc] = count
+            dense[count] = pc
+            count = count + 1
+            op := ops[pc]
+            if op <= 4:
+                base := pc * slot_count
                 let slot: usize = 0
                 while slot < slot_count:
-                    table[base + here * slot_count + slot] = scratch[slot]
+                    slots[base + slot] = scratch[slot]
                     slot = slot + 1
-
-fn push_frame(stack: mut List[Frame], top: usize, frame: Frame) -> usize:
-    if top < stack.len():
-        stack[top] = frame
-    else:
-        stack.push(frame)
-    top + 1
+                break
+            if op == 5:
+                stack[top] = i64(right[pc])
+                top = top + 1
+                pc = left[pc]
+            else if op == 6:
+                pc = left[pc]
+            else if op == 7:
+                slot := left[pc]
+                if slot < slot_count:
+                    stack[top] = -1 - i64(slot)
+                    values[top] = scratch[slot]
+                    top = top + 1
+                    scratch[slot] = i64(at)
+                pc = pc + 1
+            else if op == 8:
+                if at != 0:
+                    break
+                pc = pc + 1
+            else:
+                if at != size:
+                    break
+                pc = pc + 1
+    list.count = count
 
 # A reference in a replacement (r-std-regex.replace.expand).
 enum Reference:
@@ -962,22 +1141,38 @@ fn group_text(group: Match?) -> string:
         .Some(found) => found.text
         .None => ""
 
-fn class_matches(items: List[ClassItem], negated: bool, c: char) -> bool:
-    let hit = false
+# The ranges of scalar values a class's items match. `\d` and `\w` are
+# ASCII; `\s` is Unicode White_Space (r-std-regex.syntax.escape.digit,
+# r-std-regex.syntax.escape.space).
+fn class_ranges(items: List[ClassItem]) -> List[i32]:
+    let ranges: mut List[i32] = []
     for item in items:
-        if item_matches(item, c):
-            hit = true
-            break
-    hit != negated
+        match item:
+            .Range(low, high) =>
+                ranges.push(i32(char_scalar(low)))
+                ranges.push(i32(char_scalar(high)))
+            .Digit(negated) => push_ranges(ranges, [+48, +57], negated)
+            .Word(negated) => push_ranges(ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
+            .Space(negated) => push_ranges(ranges, [+9, +13, +32, +32, +133, +133, +160, +160, +5760, +5760, +8192, +8202, +8232, +8233, +8239, +8239, +8287, +8287, +12288, +12288], negated)
+    ranges
 
-# `\d` and `\w` are ASCII; `\s` is Unicode White_Space
-# (r-std-regex.syntax.escape.digit, r-std-regex.syntax.escape.space).
-fn item_matches(item: ClassItem, c: char) -> bool:
-    match item:
-        .Range(low, high) => c >= low && c <= high
-        .Digit(negated) => (c >= '0' && c <= '9') != negated
-        .Word(negated) => word_char(c) != negated
-        .Space(negated) => c.is_whitespace() != negated
+# Pushes the sorted ranges `set`, or, when `negated`, the ranges between
+# them up to the largest scalar value.
+fn push_ranges(ranges: mut List[i32], set: List[i32], negated: bool) -> void:
+    if !negated:
+        for bound in set:
+            ranges.push(bound)
+        return
+    let low = +0
+    let index: usize = 0
+    while index < set.len():
+        if set[index] > low:
+            ranges.push(low)
+            ranges.push(set[index] - 1)
+        low = set[index + 1] + 1
+        index = index + 2
+    ranges.push(low)
+    ranges.push(+1114111)
 
 fn word_char(c: char) -> bool:
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
@@ -1064,3 +1259,26 @@ impl Debug for RegexErrorKind:
 impl Debug for RegexError:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("RegexError").field("kind", self.kind).field("position", self.position).finish()
+
+# Primitives (spec/std/README.md#standard-library-primitives). The compiler
+# supplies each body. `@intrinsic` is prototype-internal and accepted only
+# in lib/std.
+
+@intrinsic("bytes_len")
+fn bytes_len(text: string) -> usize:
+    panic("intrinsic")
+
+# The byte at offset `index`, which must be below `bytes_len(text)`.
+@intrinsic("bytes_at")
+fn bytes_at(text: string, index: usize) -> u8:
+    panic("intrinsic")
+
+# The bytes from offset `start` up to `end`, sharing them in constant time.
+@intrinsic("bytes_slice")
+fn bytes_slice(text: string, start: usize, end: usize) -> string:
+    panic("intrinsic")
+
+# A `char` is its scalar value at run time.
+@intrinsic("char_scalar")
+fn char_scalar(value: char) -> u32:
+    panic("intrinsic")
