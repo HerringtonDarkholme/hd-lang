@@ -67,6 +67,34 @@ impl Path:
                 pieces.last()
             .None => .None
 
+    # The file name without its extension: the name up to the last `.`, or the
+    # whole name when `extension` is none (r-std-path.file-stem.value).
+    ## The file name without its extension, in `.Some`, or `.None` when there is no file name.
+    ## See [std-path.file-stem](../../spec/std/path.md#r-std-path.file-stem).
+    pub fn file_stem(self) -> string?:
+        match self.file_name():
+            .Some(name) =>
+                match self.extension():
+                    .Some(ext) => .Some(name.slice(0, name.len() - ext.len() - 1))
+                    .None => .Some(name)
+            .None => .None
+
+    # Keeps the text up to the end of the file stem, dropping trailing `/` and
+    # `/.` pieces first, then adds `.` and `extension` unless it is empty
+    # (r-std-path.with-extension.value). A path without a file name is
+    # returned as it is.
+    ## The path with the extension of its file name replaced by `extension`, or removed when it is empty.
+    ## See [std-path.with-extension](../../spec/std/path.md#r-std-path.with-extension).
+    pub fn with_extension(self, extension: string) -> Path:
+        match (self.file_name(), self.file_stem()):
+            (.Some(name), .Some(stem)) =>
+                let text = string(self)
+                while text.ends_with("/") || text.ends_with("/."):
+                    text = text.slice(0, text.len() - (if text.ends_with("/"): 1 else: 2))
+                kept := text.slice(0, text.len() - (name.len() - stem.len()))
+                Path(if extension == "": kept else: kept + "." + extension)
+            _ => self
+
 fn components(text: string) -> List[string]:
     let found: mut List[string] = []
     for piece in text.split("/"):

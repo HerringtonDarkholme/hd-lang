@@ -6,7 +6,7 @@ This chapter defines `std.path`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the `Path` type that the file system traits take;
-- the text operations `join`, `parent`, `file_name`, and `extension`.
+- the text operations `join`, `parent`, `file_name`, `extension`, `file_stem`, and `with_extension`.
 
 ## Paths
 
@@ -55,8 +55,10 @@ fn is_markdown(file: Path) -> bool:
 | r[std-path.parent] `parent` | `pub fn parent(self) -> Path?` | the path without its last component, or `.None` when it has none |
 | r[std-path.file-name] `file_name` | `pub fn file_name(self) -> string?` | the last component, when it names a file or directory |
 | r[std-path.extension] `extension` | `pub fn extension(self) -> string?` | the text after the last `.` of the file name |
+| r[std-path.file-stem] `file_stem` | `pub fn file_stem(self) -> string?` | the file name without its extension |
+| r[std-path.with-extension] `with_extension` | `pub fn with_extension(self, extension: string) -> Path` | the path with the extension of its file name replaced |
 
-1. r[std-path.ops.methods] `std.path` gives `Path` the four methods above. Calling one needs only the `Path` import.
+1. r[std-path.ops.methods] `std.path` gives `Path` the six methods above. Calling one needs only the `Path` import.
 2. r[std-path.ops.separator] The separator is `/` on every host.
 3. r[std-path.ops.components] The components of a path are the pieces of its text between separators. Empty pieces and `.` pieces are left out, except a `.` that comes first in a path that does not start with `/`.
 4. r[std-path.ops.text-only] The methods read text only. None touches a file system, resolves `..`, or changes a path beyond what a rule below says.
@@ -70,18 +72,40 @@ fn is_markdown(file: Path) -> bool:
 12. r[std-path.extension.none] It returns `.None` when there is no file name, when the name has no `.`, or when its only `.` is its first character.
 13. r[std-path.extension.empty] A file name that ends in `.` gives `.Some("")`.
 
-| Text | `parent` | `file_name` | `extension` |
-| --- | --- | --- | --- |
-| `"/a/b.txt"` | `.Some(Path("/a"))` | `.Some("b.txt")` | `.Some("txt")` |
-| `"a/b/"` | `.Some(Path("a"))` | `.Some("b")` | `.None` |
-| `"a"` | `.Some(Path(""))` | `.Some("a")` | `.None` |
-| `"/a"` | `.Some(Path("/"))` | `.Some("a")` | `.None` |
-| `"/"`, `""` | `.None` | `.None` | `.None` |
-| `".bashrc"` | `.Some(Path(""))` | `.Some(".bashrc")` | `.None` |
-| `"a.tar.gz"` | `.Some(Path(""))` | `.Some("a.tar.gz")` | `.Some("gz")` |
-| `"a."` | `.Some(Path(""))` | `.Some("a.")` | `.Some("")` |
-| `"a/.."` | `.Some(Path("a"))` | `.None` | `.None` |
-| `"./a"` | `.Some(Path("."))` | `.Some("a")` | `.None` |
+14. r[std-path.file-stem.value] `file_stem` returns, in `.Some`, the file name without the `.` and extension that `extension` returns. When `extension` returns `.None`, the stem is the whole file name, so `.bashrc` has the stem `.bashrc`.
+15. r[std-path.file-stem.none] `file_stem` returns `.None` exactly when `file_name` does.
+16. r[std-path.file-stem.dots] Only the last `.` splits the name, so `a.tar.gz` has the stem `a.tar`. A name that ends in `.` loses it, so `a.` has the stem `a`.
+17. r[std-path.with-extension.value] `with_extension` returns the path text up to the end of the file stem, followed by `.` and `extension`. The file name is the last component, as in `file_name`.
+18. r[std-path.with-extension.empty] When `extension` is `""`, `with_extension` adds no `.`, so it removes the extension. A name without one is kept.
+19. r[std-path.with-extension.none] A path with no file name, `""`, `/`, `.`, or a path ending in `..`, is returned unchanged.
+20. r[std-path.with-extension.trailing] Separators and `.` components after the file name are dropped, so `Path("a/b/").with_extension("x")` is `Path("a/b.x")`. Separators before the name stay as written.
+21. r[std-path.with-extension.verbatim] `extension` is added as written. It is not checked, and a leading `.` is not removed, so `with_extension(".x")` adds `..x`.
+22. r[std-path.with-extension.dotfile] A dotfile has no extension, so `with_extension` appends: `Path(".bashrc").with_extension("bak")` is `Path(".bashrc.bak")`.
+23. r[std-path.ops.cost] `file_stem` and `with_extension` slice the path text, and `with_extension` builds one new text.
+
+| Text | `parent` | `file_name` | `extension` | `file_stem` |
+| --- | --- | --- | --- | --- |
+| `"/a/b.txt"` | `.Some(Path("/a"))` | `.Some("b.txt")` | `.Some("txt")` | `.Some("b")` |
+| `"a/b/"` | `.Some(Path("a"))` | `.Some("b")` | `.None` | `.Some("b")` |
+| `"a"` | `.Some(Path(""))` | `.Some("a")` | `.None` | `.Some("a")` |
+| `"/a"` | `.Some(Path("/"))` | `.Some("a")` | `.None` | `.Some("a")` |
+| `"/"`, `""` | `.None` | `.None` | `.None` | `.None` |
+| `".bashrc"` | `.Some(Path(""))` | `.Some(".bashrc")` | `.None` | `.Some(".bashrc")` |
+| `"a.tar.gz"` | `.Some(Path(""))` | `.Some("a.tar.gz")` | `.Some("gz")` | `.Some("a.tar")` |
+| `"a."` | `.Some(Path(""))` | `.Some("a.")` | `.Some("")` | `.Some("a")` |
+| `"a/.."` | `.Some(Path("a"))` | `.None` | `.None` | `.None` |
+| `"./a"` | `.Some(Path("."))` | `.Some("a")` | `.None` | `.Some("a")` |
+
+| `with_extension` of | With | Result |
+| --- | --- | --- |
+| `Path("a/b.txt")` | `"md"` | `Path("a/b.md")` |
+| `Path("a.tar.gz")` | `"zip"` | `Path("a.tar.zip")` |
+| `Path("a")` | `"md"` | `Path("a.md")` |
+| `Path("a.txt")` | `""` | `Path("a")` |
+| `Path(".bashrc")` | `"bak"` | `Path(".bashrc.bak")` |
+| `Path("a.")` | `"md"` | `Path("a.md")` |
+| `Path("a/b/")` | `"x"` | `Path("a/b.x")` |
+| `Path("/")` | `"x"` | `Path("/")` |
 
 | `join` of | Result |
 | --- | --- |
@@ -91,7 +115,8 @@ fn is_markdown(file: Path) -> bool:
 | `Path("")` and `"b"` | `Path("b")` |
 
 > **Why.** The methods and their edge cases are Rust's `Path::join`,
-> `parent`, `file_name`, and `extension` on Unix, so the dotfile,
+> `parent`, `file_name`, `extension`, `file_stem`, and `with_extension` on
+> Unix, so the dotfile,
 > trailing-slash, and root rows match there. Go's `filepath.Join` also
 > cleans the result, which Rust and this chapter do not. `part` is a
 > `string`, since hd has no `AsRef`; a `Path` argument is written
