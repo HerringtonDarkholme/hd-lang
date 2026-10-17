@@ -264,7 +264,8 @@ fn width(text: string) -> Result[i32, dyn Error]:
 2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
 4. r[std-error.std-types.resource] `ResourceError[E]` implements `Display` when `E < Display`. `Operation(error)` displays as `error` does, and `Disposed` as `resource disposed`.
-5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
+5. r[std-error.std-types.string] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and converts into `dyn Error`.
+6. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
 
 > **Why.** An application error type is the erased `dyn Error` in most
 > scripts. A std error that cannot reach it forces a wrapper type at

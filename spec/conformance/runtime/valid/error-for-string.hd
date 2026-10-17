@@ -1,0 +1,29 @@
+# test: string implements Error, so it satisfies an E < Error bound and an erased dyn Error can hold it
+# Spec std/error Standard Error Types: std-error.std-types.string.
+use std.error.{Error, report_of}
+
+fn describe[E < Error](error: E) -> string:
+    error.to_string()
+
+fn fail(text: string) -> Result[void, dyn Error]:
+    .Err(text)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a string satisfies an Error bound"):
+        assert_equal(describe("disk full"), "disk full", reason="the text is the message")
+
+    it("a dyn Error holds a string"):
+        match fail("disk full"):
+            .Ok(_) => assert_equal(true, false, reason="expected an error")
+            .Err(error) =>
+                assert_equal(error.to_string(), "disk full", reason="displays as the text")
+                assert_equal(report_of(error).causes.len(), 0, reason="no cause")
+
+    it("context accepts a string error"):
+        let failed: Result[i32, string] = .Err("disk full")
+        match failed.context("saving"):
+            .Ok(_) => assert_equal(true, false, reason="expected an error")
+            .Err(error) =>
+                assert_equal(report_of(error).to_string(), "saving\ncaused by: disk full", reason="the string is the cause")

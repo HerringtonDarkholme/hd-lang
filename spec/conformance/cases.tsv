@@ -3319,3 +3319,4 @@ typing/invalid/polymorphic-recursion-list.hd	type	reject:instantiation-too-deep	
 typing/invalid/polymorphic-recursion-mutual.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle
 typing/invalid/polymorphic-recursion-tuple.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle.grows
 typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.step
+runtime/valid/error-for-string.hd	runtime	accept	std/error.md#r-std-error.std-types.string
