@@ -459,7 +459,7 @@ fn checker_errors_are_reported() {
         ),
         (
             "data P:\n    x: i32\n\npub fn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
-            Code::UnknownDataField,
+            Code::UnknownField,
         ),
         (
             "fn get!() -> i32:\n    1\n\npub fn main() -> void $ Console:\n    println(get!())\n",

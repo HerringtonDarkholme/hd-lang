@@ -1659,11 +1659,10 @@ impl Ck<'_, '_> {
                 .copied()
                 .or_else(|| rest.filter(|_| i == items.len()))
             else {
-                // Tuples have no inherent members: a member no trait
-                // supplies is a method-resolution failure
-                // (`trait.own.inherent.std.no-tuple`).
-                let msg = format!("no method `{name}` on {}", self.show(bt));
-                self.err(Code::UnknownMethod, n, &msg);
+                // A selection past the end is a missing field read
+                // (`expr.tuple.select-underscore`).
+                let msg = format!("no field `{name}` on {}", self.show(bt));
+                self.err(Code::UnknownField, n, &msg);
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
@@ -1701,7 +1700,7 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownMethod, n, &msg);
         } else {
             let msg = format!("no field `{name}` on {}", self.show(bt));
-            self.err(Code::UnknownDataField, n, &msg);
+            self.err(Code::UnknownField, n, &msg);
         }
         Ok((Ref(NONE), Ty::NEVER))
     }
@@ -2290,7 +2289,7 @@ impl Ck<'_, '_> {
             let fname = self.sym_of(*a);
             let Some(i) = fields.iter().position(|f| f.name == fname) else {
                 let msg = format!("no field `{}`", self.cx.names.text(fname));
-                self.err(Code::UnknownDataField, *a, &msg);
+                self.err(Code::UnknownField, *a, &msg);
                 failed = true;
                 continue;
             };

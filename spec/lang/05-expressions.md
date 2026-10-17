@@ -521,7 +521,7 @@ point := (10, 20)
 2. r[expr.tuple.comma] A comma constructs a tuple.
 3. r[expr.tuple.single] A one-element tuple requires a trailing comma.
 4. r[expr.tuple.order] Tuple elements evaluate left to right.
-5. r[expr.tuple.select-underscore] Tuple selection uses the member `_` followed by the zero-based element index, such as `point._0` and `point._1`.
+5. r[expr.tuple.select-underscore] Tuple selection uses the member `_` followed by the zero-based element index, such as `point._0` and `point._1`. An index past the last element is an error. Error: `unknown-field`.
 6. r[expr.tuple.select-underscore.identifier] That member name is an ordinary identifier, so `point._0._1` selects through a nested tuple like any other member chain.
 
 > **Why.** An identifier removes the floating-point ambiguity of `t.0.1`, and
@@ -690,7 +690,7 @@ fn demo(items: List[i32]) -> usize:
 `value.member` selects a member, and `tuple._0` selects a tuple element.
 
 1. r[expr.member.select-identifier] `value.member` selects a member named by an identifier, and `tuple._0` selects a tuple element.
-2. r[expr.member.field-read] Without an argument clause, `value.name` reads a field.
+2. r[expr.member.field-read] Without an argument clause, `value.name` reads a field. A field the type does not declare is an error. Error: `unknown-field`.
 3. r[expr.member.lookup] [Member Resolution](03-names-and-scopes.md#member-resolution) defines field and method lookup, including promoted members and the declaration-time check `ambiguous-promoted-member`.
 4. r[expr.member.enum-variant] `Enum.Variant` is not member access: it names an enum variant.
 5. r[expr.member.variant-fn-value] A variant constructor with exactly one payload field is a function value.

@@ -185,7 +185,7 @@ user := User {
 1. r[data.literal.form] Data values use typed brace literals.
 2. r[data.literal.required] Each field without a default must be initialized exactly once. Omitting one is an error. Error: `missing-required-field`.
 3. r[data.literal.defaulted] A field with a default may be omitted or supplied explicitly.
-4. r[data.literal.unknown] An unknown field is a compile-time error. Error: `unknown-data-field`.
+4. r[data.literal.unknown] An unknown field is a compile-time error. Error: `unknown-field`.
 5. r[data.literal.duplicate] A duplicate field is a compile-time error. Error: `duplicate-field`.
 6. r[data.literal.any-order] Fields may appear in any order.
 7. r[data.literal.eval-explicit] Explicit field expressions are evaluated in source order.
@@ -193,7 +193,7 @@ user := User {
 
 ```text
 missing := User { id: "user_123" }                       # error: missing-required-field
-unknown := User { id: "u", email: "e", nickname: "Ada" } # error: unknown-data-field
+unknown := User { id: "u", email: "e", nickname: "Ada" } # error: unknown-field
 twice := User { id: "u", id: "v", email: "e" }           # error: duplicate-field
 ```
 
@@ -695,14 +695,14 @@ error := ToolError.NotFound(resource="user_123")
 ```
 
 1. r[data.enum.construct.call] Variant construction follows function-call conventions: positional arguments come before named arguments.
-2. r[data.enum.construct.unknown] A named argument that names no payload field of the variant is an error. Error: `unknown-data-field`.
+2. r[data.enum.construct.unknown] A named argument that names no payload field of the variant is an error. Error: `unknown-field`.
 3. r[data.enum.construct.call-codes] Other argument errors use the call codes in [Calls](05-expressions.md#calls), such as `duplicate-argument`.
 
 ```text
 enum Pair:
     Value(first: i32, second: i32)
 
-fn make() -> Pair: Pair.Value(missing=1, first=2)  # error: unknown-data-field
+fn make() -> Pair: Pair.Value(missing=1, first=2)  # error: unknown-field
 fn again() -> Pair: Pair.Value(1, first=2)         # error: duplicate-argument
 ```
 
@@ -847,7 +847,7 @@ phrase := HttpStatus.NotFound.phrase
 4. r[data.shared.permissions] Shared fields follow ordinary composite access permissions.
 5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
 6. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a mutable enum root. Error: `invalid-assignment-target`.
-7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-data-field`.
+7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-field`.
 8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter. Error: `duplicate-field`.
 9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults; writing one is an error. Error: `syntax-error`.
 

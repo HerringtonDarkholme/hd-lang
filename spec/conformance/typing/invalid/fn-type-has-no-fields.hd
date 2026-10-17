@@ -3,4 +3,4 @@
 use std.function.Fn
 
 fn inputs(callback: Fn[(), i32, $()]) -> i32:
-    callback.inputs  # diagnostic: unknown-data-field
+    callback.inputs  # diagnostic: unknown-field

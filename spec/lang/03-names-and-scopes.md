@@ -770,7 +770,7 @@ data Record:
     Base
 
 fn invalid(record: Record) -> string:
-    record.secret  # error: unknown-data-field
+    record.secret  # error: unknown-field
 ```
 
 ```text
@@ -871,7 +871,7 @@ data Record:
 
 1. r[names.field-lookup.select] **Selection.** Among the fields of `S` that lookup considers, the field named `name` at the smallest depth is selected. There is at most one, because a conflict is a declaration error.
 2. r[names.field-lookup.private] **Visibility.** When the selected field is an own field of `S` that is not visible from `M`, the use is an error. Error: `private-member`.
-3. r[names.field-lookup.unknown] **Not found.** If lookup considers no field named `name`, the use is an error. Error: `unknown-data-field`.
+3. r[names.field-lookup.unknown] **Not found.** If lookup considers no field named `name`, the use is an error. Error: `unknown-field`.
 
 ```hd
 data User:

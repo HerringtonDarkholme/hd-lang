@@ -6,4 +6,4 @@ enum Shape(sides: i32):
     Square(side: f64) -> Shape(4)
 
 fn radius(shape: Shape) -> f64:
-    shape.radius  # diagnostic: unknown-data-field
+    shape.radius  # diagnostic: unknown-field

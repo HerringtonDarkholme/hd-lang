@@ -584,7 +584,7 @@ match expr:
 2. r[flow.match.payload.order] Positional patterns come first, and `field=pattern` names a payload field.
 3. r[flow.match.payload.required] A pattern for a variant that carries a payload must list that payload, with one pattern per payload field.
 4. r[flow.match.payload.arity] A bare variant pattern for such a variant, or a payload list of a different length, is an error. Error: `pattern-arity`.
-5. r[flow.match.payload.unknown] A named pattern that names no payload field of the variant is an error. Error: `unknown-data-field`.
+5. r[flow.match.payload.unknown] A named pattern that names no payload field of the variant is an error. Error: `unknown-field`.
 6. r[flow.match.payload.binding] A bare identifier in payload position binds a new arm-local name. It does not need to match the payload field's declaration name.
 7. r[flow.match.payload.name-mismatch] The compiler emits `variant-binding-name-mismatch` when a positional bare binding equals a different payload field's name in that same variant.
 8. r[flow.match.payload.name-mismatch.example] For example, binding `else_value` in the `then_value` position emits `variant-binding-name-mismatch`.
@@ -607,7 +607,7 @@ fn choose(flag: Flag) -> i32:
 
 fn bad(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(missing=value, right=other) => value  # error: unknown-data-field
+        Choice.Pair(missing=value, right=other) => value  # error: unknown-field
 ```
 
 > **Note.** Use named patterns to make an intentional reorder explicit.
@@ -652,7 +652,7 @@ match value:
 5. r[flow.match.data.unlisted] Unlisted fields are ignored.
 6. r[flow.match.data.label] As in a data expression, a field label inside the braces is followed by `:`. The `=` label belongs to payload patterns in parentheses.
 7. r[flow.match.data.fields] Listed fields must be distinct and exist on the named data type.
-8. r[flow.match.data.fields.unknown] A listed field that the data type does not declare is an error. Error: `unknown-data-field`.
+8. r[flow.match.data.fields.unknown] A listed field that the data type does not declare is an error. Error: `unknown-field`.
 9. r[flow.match.data.fields.duplicate] A field listed twice is an error. Error: `duplicate-data-pattern-field`.
 10. r[flow.match.data.public] A cross-module pattern may name only public fields.
 11. r[flow.match.data.empty] An empty data pattern is irrefutable for that data type.
@@ -669,7 +669,7 @@ data User:
 
 fn read(user: User) -> i32:
     match user:
-        User { missing } => 1  # error: unknown-data-field
+        User { missing } => 1  # error: unknown-field
 
 fn invalid(user: User) -> string:
     match user:

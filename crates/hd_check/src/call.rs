@@ -2449,7 +2449,7 @@ impl Ck<'_, '_> {
         for (fname, e) in &args.named {
             let Some(i) = names.iter().position(|x| x == fname) else {
                 let msg = format!("no field `{fname}` of variant `{name}`");
-                self.err(Code::UnknownDataField, *e, &msg);
+                self.err(Code::UnknownField, *e, &msg);
                 named_bad = true;
                 continue;
             };

@@ -5,4 +5,4 @@ enum Choice:
 
 fn first(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(missing=value, right=_other) => value  # diagnostic: unknown-data-field
+        Choice.Pair(missing=value, right=_other) => value  # diagnostic: unknown-field

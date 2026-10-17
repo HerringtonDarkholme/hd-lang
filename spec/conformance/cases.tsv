@@ -524,14 +524,14 @@ typing/invalid/copy-update-source-type-mismatch.hd	type	reject:type-mismatch	lan
 runtime/valid/copy-update-skips-defaults.hd	runtime	accept	lang/08-data-and-enums.md#data-declarations
 runtime/valid/fieldless-data-argument.hd	runtime	accept	lang/08-data-and-enums.md#data-declarations
 typing/invalid/data-literal-missing-field.hd	type	reject:missing-required-field	lang/08-data-and-enums.md#construction-and-access
-typing/invalid/data-literal-unknown-field.hd	type	reject:unknown-data-field	lang/08-data-and-enums.md#construction-and-access
+typing/invalid/data-literal-unknown-field.hd	type	reject:unknown-field	lang/08-data-and-enums.md#construction-and-access
 typing/invalid/data-literal-field-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#construction-and-access
 parse/valid/data-field-shorthand.hd	parse	accept	lang/02-grammar.md#field-shorthand-in-data-expressions
 runtime/valid/data-field-shorthand.hd	runtime	accept	lang/08-data-and-enums.md#field-shorthand
 typing/invalid/data-field-shorthand-unknown-name.hd	type	reject:unknown-name	lang/08-data-and-enums.md#field-shorthand
 typing/invalid/data-pattern-repeated-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#match-expressions
 typing/invalid/data-pattern-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions
-typing/invalid/data-pattern-unknown-field.hd	type	reject:unknown-data-field	lang/06-control-flow.md#match-expressions
+typing/invalid/data-pattern-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#match-expressions
 runtime/valid/data-patterns.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 typing/valid/data-pattern-colon-labels.hd	type	accept	lang/06-control-flow.md#match-expressions
 parse/invalid/data-pattern-equals-label.hd	parse	reject:syntax-error	lang/02-grammar.md#patterns
@@ -812,7 +812,7 @@ typing/invalid/result-constructor-without-context.hd	type	reject:cannot-infer-ty
 typing/invalid/none-without-expected-type.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#optional-types
 typing/invalid/nil-is-unknown-name.hd	type	reject:unknown-name	lang/01-lexical-structure.md#boolean-literals
 typing/invalid/bool-ordering.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
-typing/invalid/tuple-index-out-of-range.hd	type	reject:unknown-method	lang/05-expressions.md#member-access
+typing/invalid/tuple-index-out-of-range.hd	type	reject:unknown-field	lang/05-expressions.md#member-access
 typing/valid/explicit-empty-row.hd	type	accept	lang/02-grammar.md#types
 parse/valid/defer-same-line-nested-suite.hd	parse	accept	lang/02-grammar.md#statements
 parse/valid/header-resumes-after-nested-suite.hd	parse	accept	lang/01-lexical-structure.md#physical-and-logical-lines
@@ -833,8 +833,8 @@ typing/invalid/parameter-default-order.hd	type	reject:default-order	lang/07-func
 typing/invalid/variant-duplicate-argument.hd	type	reject:duplicate-argument	lang/08-data-and-enums.md#enum-declarations
 typing/invalid/duplicate-argument.hd	type	reject:duplicate-argument	lang/05-expressions.md#calls
 typing/invalid/unknown-named-argument.hd	type	reject:unknown-named-argument	lang/05-expressions.md#calls
-typing/invalid/variant-unknown-payload-field.hd	type	reject:unknown-data-field	lang/08-data-and-enums.md#enum-declarations
-typing/invalid/variant-pattern-unknown-field.hd	type	reject:unknown-data-field	lang/06-control-flow.md#match-expressions
+typing/invalid/variant-unknown-payload-field.hd	type	reject:unknown-field	lang/08-data-and-enums.md#enum-declarations
+typing/invalid/variant-pattern-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#match-expressions
 typing/invalid/for-binding-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#for-loops
 typing/invalid/for-over-non-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#for-loops
 typing/invalid/defer-return.hd	type	reject:defer-control-flow	lang/06-control-flow.md#deferred-cleanup
@@ -913,7 +913,7 @@ runtime/valid/stored-function-field-call.hd	runtime	accept	lang/05-expressions.m
 typing/invalid/stored-function-called-as-method.hd	type	reject:unknown-method	lang/05-expressions.md#r-expr.member.stored-fn.error
 typing/invalid/operator-trait-method-not-imported.hd	type	reject:unknown-method	lang/05-expressions.md#r-expr.member.trait-available
 typing/valid/operator-trait-method-imported.hd	type	accept	lang/05-expressions.md#r-expr.member.trait-available
-typing/invalid/bare-method-is-field-read.hd	type	reject:unknown-data-field	lang/05-expressions.md#r-expr.member.method-not-value
+typing/invalid/bare-method-is-field-read.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.method-not-value
 runtime/valid/method-reference-as-value.hd	runtime	accept	lang/05-expressions.md#r-expr.member.method-references
 runtime/valid/closure-adapts-method-call.hd	runtime	accept	lang/05-expressions.md#r-expr.member.closure-adapt
 typing/invalid/readonly-root-mut-field-push.hd	type	reject:mutable-receiver-required	lang/05-expressions.md#r-expr.member.readonly-root
@@ -968,7 +968,7 @@ typing/valid/trait-value-as-target-argument.hd	type	accept	lang/09-traits.md#imp
 typing/invalid/private-field-nothing-visible.hd	type	reject:private-member	lang/03-names-and-scopes.md#member-resolution
 typing/invalid/private-promoted-method-nothing-visible.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#member-resolution
 typing/invalid/private-own-method-nothing-visible.hd	type	reject:private-member	lang/03-names-and-scopes.md#member-resolution
-typing/invalid/private-embedded-field-nothing-visible.hd	type	reject:unknown-data-field	lang/03-names-and-scopes.md#member-resolution
+typing/invalid/private-embedded-field-nothing-visible.hd	type	reject:unknown-field	lang/03-names-and-scopes.md#member-resolution
 runtime/valid/embedded-part-follows-container.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type	reject:mutable-receiver-required	lang/08-data-and-enums.md#data-embedding
 typing/invalid/promoted-field-assignment-readonly.hd	type	reject:readonly-root	lang/04-type-system.md#mutable-paths
@@ -1020,7 +1020,7 @@ typing/invalid/private-own-field-needs-another-name.hd	type	reject:ambiguous-pro
 typing/invalid/private-own-field-beside-deep-promoted.hd	type	reject:ambiguous-promoted-member	lang/03-names-and-scopes.md#r-names.conflict.private-shadow
 runtime/valid/pub-own-member-hides-promoted.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.hide.depth
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.hide.depth
-typing/invalid/same-module-private-field-not-promoted.hd	type	reject:unknown-data-field	lang/03-names-and-scopes.md#member-resolution
+typing/invalid/same-module-private-field-not-promoted.hd	type	reject:unknown-field	lang/03-names-and-scopes.md#member-resolution
 typing/invalid/same-module-private-method-not-promoted.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#member-resolution
 typing/valid/same-module-private-member-explicit-path.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
 typing/valid/pub-own-member-shadows-promoted.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
@@ -2869,7 +2869,7 @@ typing/invalid/shared-enum-variant-without-constructor.hd	type	reject:missing-re
 typing/invalid/shared-enum-constructor-missing-argument.hd	type	reject:missing-required-field	lang/08-data-and-enums.md#r-data.shared.arguments
 typing/invalid/shared-enum-payload-name-duplicate.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.shared.payload-names
 parse/invalid/variant-payload-default.hd	parse	reject:syntax-error	lang/08-data-and-enums.md#r-data.shared.payload-defaults
-typing/invalid/shared-enum-payload-field-access.hd	type	reject:unknown-data-field	lang/08-data-and-enums.md#r-data.shared.payload-fields
+typing/invalid/shared-enum-payload-field-access.hd	type	reject:unknown-field	lang/08-data-and-enums.md#r-data.shared.payload-fields
 typing/invalid/data-literal-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.literal
 typing/invalid/copy-update-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.private-fields
 typing/invalid/entry-point-parameters.hd	type	reject:entry-point-parameters	lang/10-modules.md#r-module.entry.parameters
@@ -3172,7 +3172,7 @@ runtime/valid/integration-program-no-module-path.hd	runtime	accept	lang/10-modul
 typing/invalid/doc-test-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.doc.relative
 runtime/valid/doc-test-console-row.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.requirements
 typing/invalid/source-root-not-a-module.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.lib-only-root
-typing/invalid/fn-type-has-no-fields.hd	type	reject:unknown-data-field	lang/07-functions.md#r-fn.type.ctor.opaque-sources
+typing/invalid/fn-type-has-no-fields.hd	type	reject:unknown-field	lang/07-functions.md#r-fn.type.ctor.opaque-sources
 parse/invalid/mut-before-closure.hd	parse	reject:syntax-error	lang/07-functions.md#r-fn.type.no-mut.syntax
 runtime/valid/variant-constructor-passed-as-function.hd	runtime	accept	lang/07-functions.md#r-fn.type.variant-value
 typing/valid/fn-type-converts-permission-only.hd	type	accept	lang/07-functions.md#r-fn.type.variance-repr
@@ -3208,13 +3208,13 @@ typing/invalid/match-bare-none.hd	type	reject:bare-variant-pattern	lang/06-contr
 parse/invalid/match-optional-question-pattern.hd	parse	reject:syntax-error	lang/06-control-flow.md#r-flow.match.optional.no-pattern
 runtime/valid/match-payload-positional-then-named.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.payload.order
 typing/invalid/match-bare-variant-with-payload.hd	type	reject:pattern-arity	lang/06-control-flow.md#r-flow.match.payload.arity
-typing/invalid/match-payload-unknown-field.hd	type	reject:unknown-data-field	lang/06-control-flow.md#r-flow.match.payload.unknown
+typing/invalid/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 typing/warnings/match-payload-binding-name-swap.hd	type	warn:variant-binding-name-mismatch	lang/06-control-flow.md#r-flow.match.payload.name-mismatch
 runtime/valid/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 runtime/valid/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
 runtime/valid/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership
 runtime/valid/match-generic-payload-mut.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.bind.generic
-typing/invalid/match-data-unknown-field.hd	type	reject:unknown-data-field	lang/06-control-flow.md#r-flow.match.data.fields.unknown
+typing/invalid/match-data-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.data.fields.unknown
 typing/invalid/match-data-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate
 typing/valid/match-empty-data-pattern.hd	type	accept	lang/06-control-flow.md#r-flow.match.data.empty
 typing/invalid/match-data-mut-field-readonly-subject.hd	type	reject:mutable-receiver-required	lang/06-control-flow.md#r-flow.match.data.readonly-mut

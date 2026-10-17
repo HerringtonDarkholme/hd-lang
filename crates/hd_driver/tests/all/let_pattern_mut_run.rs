@@ -208,7 +208,7 @@ fn edit(t: mut Tally) -> void:
     pass
 ",
     );
-    assert_eq!(codes_of(&main), vec![Code::UnknownDataField]);
+    assert_eq!(codes_of(&main), vec![Code::UnknownField]);
 }
 
 #[test]

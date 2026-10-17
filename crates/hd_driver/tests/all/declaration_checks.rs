@@ -121,7 +121,7 @@ fn an_unknown_field_suppresses_the_missing_field_error() {
 
 fn get() -> i32: Point { y: 1 }.x
 ",
-        Code::UnknownDataField,
+        Code::UnknownField,
         "data Point:
     x: i32
 

@@ -3024,7 +3024,7 @@ impl Ck<'_, '_> {
                         return Ok(());
                     }
                     let msg = format!("no field `{fname}` on {}", self.show(bt));
-                    self.err(Code::UnknownDataField, *lhs, &msg);
+                    self.err(Code::UnknownField, *lhs, &msg);
                     return Ok(());
                 };
                 self.check_field_visible(pt, &fname, *lhs);

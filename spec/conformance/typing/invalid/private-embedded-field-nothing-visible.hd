@@ -3,4 +3,4 @@
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> i32:
-    outer.serial  # diagnostic: unknown-data-field
+    outer.serial  # diagnostic: unknown-field

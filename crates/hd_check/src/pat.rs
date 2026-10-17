@@ -382,7 +382,7 @@ impl Ck<'_, '_> {
                 let (subs, unknown) = self.variant_subpatterns(p, t, &name)?;
                 for (fname, sub) in unknown {
                     let msg = format!("no field `{fname}` of variant `{name}`");
-                    self.err(Code::UnknownDataField, sub, &msg);
+                    self.err(Code::UnknownField, sub, &msg);
                     self.declare_pattern(sub, Ty::POISON, binds)?;
                 }
                 if subs.len() != fields.len() {
@@ -459,7 +459,7 @@ impl Ck<'_, '_> {
                     seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
                         let msg = format!("no field `{fname}` on {}", self.show(t));
-                        self.err(Code::UnknownDataField, f, &msg);
+                        self.err(Code::UnknownField, f, &msg);
                         continue;
                     };
                     self.check_field_visible(t, &fname, f);

@@ -281,17 +281,16 @@ fn let_tuple_pattern_needs_the_same_arity() {
 
 #[test]
 fn selection_past_the_tuple_is_unknown() {
-    // Tuples have no inherent members: past-the-end selection is a
-    // method-resolution failure (`trait.own.inherent.std.no-tuple`),
-    // not an unknown field.
+    // Past-the-end selection is a missing field read
+    // (`expr.tuple.select-underscore`), not a method failure.
     let fixed = "\
 fn f(t: (i32, i32)) -> i32: t._2
 ";
-    assert_eq!(codes_of(fixed), [Code::UnknownMethod]);
+    assert_eq!(codes_of(fixed), [Code::UnknownField]);
     let rest = "\
 fn f(t: (i32, List[i32]...)) -> i32: t._2
 ";
-    assert_eq!(codes_of(rest), [Code::UnknownMethod]);
+    assert_eq!(codes_of(rest), [Code::UnknownField]);
     let inside = "\
 fn f(t: (i32, i32)) -> i32: t._1
 ";
@@ -340,5 +339,5 @@ enum Code(i32):
 
 fn f(c: Code) -> i32: c._1
 ";
-    assert_eq!(codes_of(out_of_range), [Code::UnknownDataField]);
+    assert_eq!(codes_of(out_of_range), [Code::UnknownField]);
 }

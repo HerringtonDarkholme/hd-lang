@@ -68,7 +68,7 @@ fn unknown_variant_field_binds_its_value() {
     let got = codes(
         "enum Choice:\n    Pair(left: i32, right: i32)\n\nfn f(choice: Choice) -> i32:\n    match choice:\n        Choice.Pair(missing=value, right=other) => value\n",
     );
-    assert_eq!(got, vec![Code::UnknownDataField]);
+    assert_eq!(got, vec![Code::UnknownField]);
 }
 
 #[test]
