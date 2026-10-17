@@ -1,6 +1,4 @@
-# std.encoding: bytes as hex and base64 text (spec/std/encoding.md). The
-# prototype's std loader does not list this module yet
-# (src/checker/standard-sources.ts).
+# std.encoding: bytes as hex and base64 text (spec/std/encoding.md).
 use std.format.DebugWriter
 use std.error.Error
 
@@ -66,72 +64,148 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
         index = index + 2
     .Ok(bytes)
 
-# The RFC 4648 standard alphabet with `=` padding
-# (r-std-encoding.base64.encode).
-## The bytes as base64 text with padding.
-## See [std-encoding.base64.encode](../../spec/std/encoding.md#r-std-encoding.base64.encode).
-pub fn base64_encode(bytes: List[u8]) -> string:
-    let codes: mut List[u8] = []
-    size := bytes.len()
-    let index: usize = 0
-    while index + 3 <= size:
-        group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
-        codes.push(base64_symbol(group >> 18))
-        codes.push(base64_symbol((group >> 12) & 63))
-        codes.push(base64_symbol((group >> 6) & 63))
-        codes.push(base64_symbol(group & 63))
-        index = index + 3
-    rest := size - index
-    if rest == 1:
-        group := i32(bytes[index]) << 16
-        codes.push(base64_symbol(group >> 18))
-        codes.push(base64_symbol((group >> 12) & 63))
-        codes.push(61)
-        codes.push(61)
-    else if rest == 2:
-        group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8)
-        codes.push(base64_symbol(group >> 18))
-        codes.push(base64_symbol((group >> 12) & 63))
-        codes.push(base64_symbol((group >> 6) & 63))
-        codes.push(61)
-    ascii_text(codes)
+# The four base64 encodings of RFC 4648 sections 4 and 5, after Go's
+# `base64.Encoding` values (r-std-encoding.base64.variants).
+## A base64 encoding: the standard or URL-safe alphabet, with or without `=` padding.
+## See [std-encoding.base64.variants](../../spec/std/encoding.md#r-std-encoding.base64.variants).
+pub enum Base64:
+    # RFC 4648 section 4, padded.
+    Standard
+    StandardNoPad
+    # RFC 4648 section 5, padded.
+    Url
+    UrlNoPad
 
-# Canonical text only: the length is checked first, then the characters
-# from the left, then the pad bits (r-std-encoding.base64.decode.order).
-## Reads base64 text into bytes, or returns the first error.
-## See [std-encoding.base64.decode](../../spec/std/encoding.md#r-std-encoding.base64.decode).
-pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
-    codes := ascii_codes(text)
-    size := codes.len()
-    if size % 4 != 0:
-        return .Err(DecodeError.InvalidLength(size))
-    # The padding is the run of `=` that ends the text, at most two long.
-    let padding: usize = 0
-    if size > 0 && codes[size - 1] == 61:
-        padding = if codes[size - 2] == 61: 2 else: 1
-    end := size - padding
-    let bytes: mut List[u8] = []
-    let buffer: i32 = 0
-    let bits: u32 = 0
-    let index: usize = 0
-    while index < end:
-        code := codes[index]
-        if code == 61:
-            return .Err(DecodeError.InvalidPadding(index))
-        value := base64_value(code)
-        if value < 0:
-            return .Err(DecodeError.InvalidCharacter(index))
-        buffer = (buffer << 6) | value
-        bits = bits + 6
-        if bits >= 8:
-            bits = bits - 8
-            bytes.push(u8(buffer >> bits))
-            buffer = buffer & ((1 << bits) - 1)
-        index = index + 1
-    # The bits left over are the pad bits, which must be zero.
-    if buffer != 0:
-        return .Err(DecodeError.InvalidPadding(end - 1))
-    .Ok(bytes)
+impl Base64:
+    # One exact-size buffer of ASCII codes, which `string_from_bytes` turns
+    # into the text without a second UTF-8 check
+    # (r-std-encoding.base64.encode.groups).
+    ## The bytes as text in this encoding.
+    ## See [std-encoding.base64.encode](../../spec/std/encoding.md#r-std-encoding.base64.encode).
+    pub fn encode(self, bytes: List[u8]) -> string:
+        size := bytes.len()
+        whole := size / 3
+        rest := size - whole * 3
+        let length: usize = whole * 4
+        if rest != 0:
+            length = length + (if self.padded(): 4 else: rest + 1)
+        let codes: mut List[u8] = zeroes(length)
+        let index: usize = 0
+        let at: usize = 0
+        while index + 3 <= size:
+            group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
+            codes[at] = self.symbol(group >> 18)
+            codes[at + 1] = self.symbol((group >> 12) & 63)
+            codes[at + 2] = self.symbol((group >> 6) & 63)
+            codes[at + 3] = self.symbol(group & 63)
+            index = index + 3
+            at = at + 4
+        if rest == 1:
+            group := i32(bytes[index]) << 16
+            codes[at] = self.symbol(group >> 18)
+            codes[at + 1] = self.symbol((group >> 12) & 63)
+            if self.padded():
+                codes[at + 2] = 61
+                codes[at + 3] = 61
+        else if rest == 2:
+            group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8)
+            codes[at] = self.symbol(group >> 18)
+            codes[at + 1] = self.symbol((group >> 12) & 63)
+            codes[at + 2] = self.symbol((group >> 6) & 63)
+            if self.padded():
+                codes[at + 3] = 61
+        string_from_bytes(codes)
+
+    # Canonical text only: the length is checked first, then the characters
+    # from the left, then the pad bits (r-std-encoding.base64.decode.order).
+    # The text is read in place by byte offset, and the result is one
+    # buffer of exactly the decoded size.
+    ## Reads text in this encoding into bytes, or returns the first error.
+    ## See [std-encoding.base64.decode](../../spec/std/encoding.md#r-std-encoding.base64.decode).
+    pub fn decode(self, text: string) -> Result[List[u8], DecodeError]:
+        size := bytes_len(text)
+        let end: usize = size
+        if self.padded():
+            if size % 4 != 0:
+                return .Err(DecodeError.InvalidLength(size))
+            # The padding is the run of `=` that ends the text, at most two long.
+            if size > 0 && bytes_at(text, size - 1) == 61:
+                end = if bytes_at(text, size - 2) == 61: size - 2 else: size - 1
+        else if size % 4 == 1:
+            return .Err(DecodeError.InvalidLength(size))
+        let bytes: mut List[u8] = zeroes(end * 6 / 8)
+        let buffer: i32 = 0
+        let bits: u32 = 0
+        let index: usize = 0
+        let at: usize = 0
+        while index < end:
+            code := bytes_at(text, index)
+            if code == 61:
+                return .Err(DecodeError.InvalidPadding(index))
+            value := self.value(code)
+            if value < 0:
+                return .Err(DecodeError.InvalidCharacter(index))
+            buffer = (buffer << 6) | value
+            bits = bits + 6
+            if bits >= 8:
+                bits = bits - 8
+                bytes[at] = u8(buffer >> bits)
+                at = at + 1
+                buffer = buffer & ((1 << bits) - 1)
+            index = index + 1
+        # The bits left over are the pad bits, which must be zero.
+        if buffer != 0:
+            return .Err(DecodeError.InvalidPadding(end - 1))
+        .Ok(bytes)
+
+    fn padded(self) -> bool:
+        match self:
+            .Standard => true
+            .StandardNoPad => false
+            .Url => true
+            .UrlNoPad => false
+
+    fn is_url(self) -> bool:
+        match self:
+            .Standard => false
+            .StandardNoPad => false
+            .Url => true
+            .UrlNoPad => true
+
+    fn symbol(self, value: i32) -> u8:
+        if value < 26:
+            u8(65 + value)
+        else if value < 52:
+            u8(71 + value)
+        else if value < 62:
+            u8(value - 4)
+        else if value == 62:
+            if self.is_url(): 45 else: 43
+        else:
+            if self.is_url(): 95 else: 47
+
+    fn value(self, code: u8) -> i32:
+        if code >= 65 && code <= 90:
+            i32(code) - 65
+        else if code >= 97 && code <= 122:
+            i32(code) - 71
+        else if code >= 48 && code <= 57:
+            i32(code) + 4
+        else if code == (if self.is_url(): 45 else: 43):
+            62
+        else if code == (if self.is_url(): 95 else: 47):
+            63
+        else:
+            -1
+
+impl Eq for Base64:
+    fn eq(self, other: Base64) -> bool:
+        match (self, other):
+            (.Standard, .Standard) => true
+            (.StandardNoPad, .StandardNoPad) => true
+            (.Url, .Url) => true
+            (.UrlNoPad, .UrlNoPad) => true
+            _ => false
 
 fn hex_symbol(value: u8) -> u8:
     if value < 10: 48 + value else: 87 + value
@@ -146,32 +220,6 @@ fn hex_value(code: i32) -> i32:
     else:
         -1
 
-fn base64_symbol(value: i32) -> u8:
-    if value < 26:
-        u8(65 + value)
-    else if value < 52:
-        u8(71 + value)
-    else if value < 62:
-        u8(value - 4)
-    else if value == 62:
-        43
-    else:
-        47
-
-fn base64_value(code: i32) -> i32:
-    if code >= 65 && code <= 90:
-        code - 65
-    else if code >= 97 && code <= 122:
-        code - 71
-    else if code >= 48 && code <= 57:
-        code + 4
-    else if code == 43:
-        62
-    else if code == 47:
-        63
-    else:
-        -1
-
 # One entry per byte: its code when it is ASCII, and -1 for each byte of
 # any other character, so a list index is a byte offset.
 fn ascii_codes(text: string) -> List[i32]:
@@ -182,6 +230,13 @@ fn ascii_codes(text: string) -> List[i32]:
         else:
             codes.push(-1)
     codes
+
+# A list of `count` zero bytes, written once by index.
+fn zeroes(count: usize) -> mut List[u8]:
+    let values: mut List[u8] = []
+    while values.len() < count:
+        values.push(0)
+    values
 
 fn ascii_text(codes: List[u8]) -> string:
     match string::from_utf8(codes):
@@ -200,3 +255,26 @@ impl Debug for DecodeError:
             .InvalidCharacter(position) => out.debug_tuple("DecodeError.InvalidCharacter").named_field("position", position).finish()
             .InvalidLength(position) => out.debug_tuple("DecodeError.InvalidLength").named_field("position", position).finish()
             .InvalidPadding(position) => out.debug_tuple("DecodeError.InvalidPadding").named_field("position", position).finish()
+
+impl Debug for Base64:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Standard => out.write("Base64.Standard")
+            .StandardNoPad => out.write("Base64.StandardNoPad")
+            .Url => out.write("Base64.Url")
+            .UrlNoPad => out.write("Base64.UrlNoPad")
+
+# Primitives: the string's bytes read in place, and a string made of bytes
+# that the caller has checked are UTF-8.
+@intrinsic("bytes_len")
+fn bytes_len(text: string) -> usize:
+    panic("intrinsic")
+
+# The byte at offset `index`, which must be below `bytes_len(text)`.
+@intrinsic("bytes_at")
+fn bytes_at(text: string, index: usize) -> u8:
+    panic("intrinsic")
+
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")

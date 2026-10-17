@@ -1,39 +1,83 @@
-# test: base64_encode and base64_decode match the RFC 4648 section 10 test vectors
-# Spec std/encoding Base64: std-encoding.base64.encode.padding, std-encoding.base64.decode.value (ENCODING-SURFACE; task #224).
+# test: the Base64 encodings match the RFC 4648 section 10 test vectors and the URL-safe alphabet
+# Spec std/encoding Base64: std-encoding.base64.variants, std-encoding.base64.encode.padding, std-encoding.base64.decode.value (issue 472).
 # Also covers std-encoding.import, std-encoding.no-panic,
 # std-encoding.base64.encode, std-encoding.base64.decode,
-# std-encoding.base64.encode.groups, and std-encoding.base64.encode.pad-bits.
-use std.encoding.{base64_decode, base64_encode, DecodeError}
+# std-encoding.base64.alphabet, std-encoding.base64.encode.groups,
+# std-encoding.base64.encode.pad-bits, and std-encoding.base64.encode.no-pad.
+use std.encoding.{Base64, DecodeError}
 fn bytes_of(text: string) -> List[u8]:
     text.bytes().collect()
 
-fn token(bytes: List[u8]) -> string:
-    base64_encode(bytes)
+fn token(encoding: Base64, bytes: List[u8]) -> string:
+    encoding.encode(bytes)
 
-fn payload(text: string) -> Result[List[u8], DecodeError]:
-    base64_decode(text)
+fn payload(encoding: Base64, text: string) -> Result[List[u8], DecodeError]:
+    encoding.decode(text)
 
 tests:
     use std.testing.assert_equal
 
-    it("encodes the RFC 4648 vectors"):
-        assert_equal(token(bytes_of("")), "", reason="empty")
-        assert_equal(token(bytes_of("f")), "Zg==", reason="f")
-        assert_equal(token(bytes_of("fo")), "Zm8=", reason="fo")
-        assert_equal(token(bytes_of("foo")), "Zm9v", reason="foo")
-        assert_equal(token(bytes_of("foob")), "Zm9vYg==", reason="foob")
-        assert_equal(token(bytes_of("fooba")), "Zm9vYmE=", reason="fooba")
-        assert_equal(token(bytes_of("foobar")), "Zm9vYmFy", reason="foobar")
+    it("encodes the RFC 4648 vectors, padded"):
+        assert_equal(token(.Standard, bytes_of("")), "", reason="empty")
+        assert_equal(token(.Standard, bytes_of("f")), "Zg==", reason="f")
+        assert_equal(token(.Standard, bytes_of("fo")), "Zm8=", reason="fo")
+        assert_equal(token(.Standard, bytes_of("foo")), "Zm9v", reason="foo")
+        assert_equal(token(.Standard, bytes_of("foob")), "Zm9vYg==", reason="foob")
+        assert_equal(token(.Standard, bytes_of("fooba")), "Zm9vYmE=", reason="fooba")
+        assert_equal(token(.Standard, bytes_of("foobar")), "Zm9vYmFy", reason="foobar")
+        assert_equal(token(.Url, bytes_of("foob")), "Zm9vYg==", reason="Url pads")
+        assert_equal(token(.Url, bytes_of("fooba")), "Zm9vYmE=", reason="Url pads")
 
-    it("decodes the RFC 4648 vectors"):
-        assert_equal(payload(""), .Ok(bytes_of("")), reason="empty")
-        assert_equal(payload("Zg=="), .Ok(bytes_of("f")), reason="f")
-        assert_equal(payload("Zm8="), .Ok(bytes_of("fo")), reason="fo")
-        assert_equal(payload("Zm9v"), .Ok(bytes_of("foo")), reason="foo")
-        assert_equal(payload("Zm9vYg=="), .Ok(bytes_of("foob")), reason="foob")
-        assert_equal(payload("Zm9vYmE="), .Ok(bytes_of("fooba")), reason="fooba")
-        assert_equal(payload("Zm9vYmFy"), .Ok(bytes_of("foobar")), reason="foobar")
+    it("encodes the RFC 4648 vectors, without padding"):
+        assert_equal(token(.StandardNoPad, bytes_of("")), "", reason="empty")
+        assert_equal(token(.StandardNoPad, bytes_of("f")), "Zg", reason="f")
+        assert_equal(token(.StandardNoPad, bytes_of("fo")), "Zm8", reason="fo")
+        assert_equal(token(.StandardNoPad, bytes_of("foo")), "Zm9v", reason="foo")
+        assert_equal(token(.StandardNoPad, bytes_of("foob")), "Zm9vYg", reason="foob")
+        assert_equal(token(.StandardNoPad, bytes_of("fooba")), "Zm9vYmE", reason="fooba")
+        assert_equal(token(.UrlNoPad, bytes_of("foobar")), "Zm9vYmFy", reason="foobar")
+        assert_equal(token(.UrlNoPad, bytes_of("f")), "Zg", reason="UrlNoPad f")
 
-    it("uses + and / for 62 and 63"):
-        assert_equal(base64_encode([0xfb, 0xff, 0xbf]), "+/+/", reason="the last two symbols")
-        assert_equal(base64_decode("+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="the last two symbols")
+    it("decodes the RFC 4648 vectors in every encoding"):
+        assert_equal(payload(.Standard, ""), .Ok(bytes_of("")), reason="empty")
+        assert_equal(payload(.Standard, "Zg=="), .Ok(bytes_of("f")), reason="f")
+        assert_equal(payload(.Standard, "Zm8="), .Ok(bytes_of("fo")), reason="fo")
+        assert_equal(payload(.Standard, "Zm9v"), .Ok(bytes_of("foo")), reason="foo")
+        assert_equal(payload(.Standard, "Zm9vYg=="), .Ok(bytes_of("foob")), reason="foob")
+        assert_equal(payload(.Standard, "Zm9vYmE="), .Ok(bytes_of("fooba")), reason="fooba")
+        assert_equal(payload(.Standard, "Zm9vYmFy"), .Ok(bytes_of("foobar")), reason="foobar")
+        assert_equal(payload(.Url, "Zm9vYmE="), .Ok(bytes_of("fooba")), reason="Url")
+        assert_equal(payload(.StandardNoPad, ""), .Ok(bytes_of("")), reason="NoPad empty")
+        assert_equal(payload(.StandardNoPad, "Zg"), .Ok(bytes_of("f")), reason="NoPad f")
+        assert_equal(payload(.StandardNoPad, "Zm8"), .Ok(bytes_of("fo")), reason="NoPad fo")
+        assert_equal(payload(.StandardNoPad, "Zm9vYmE"), .Ok(bytes_of("fooba")), reason="NoPad fooba")
+        assert_equal(payload(.UrlNoPad, "Zm9vYg"), .Ok(bytes_of("foob")), reason="UrlNoPad foob")
+        assert_equal(payload(.UrlNoPad, "Zm9vYmFy"), .Ok(bytes_of("foobar")), reason="UrlNoPad foobar")
+
+    it("uses + and / in the standard encodings and - and _ in the URL encodings"):
+        assert_equal(token(.Standard, [0xfb, 0xff, 0xbf]), "+/+/", reason="Standard")
+        assert_equal(token(.StandardNoPad, [0xfb, 0xff, 0xbf]), "+/+/", reason="StandardNoPad")
+        assert_equal(token(.Url, [0xfb, 0xff, 0xbf]), "-_-_", reason="Url")
+        assert_equal(token(.UrlNoPad, [0xfb, 0xff, 0xbf]), "-_-_", reason="UrlNoPad")
+        assert_equal(token(.Standard, [0xfb, 0xff]), "+/8=", reason="Standard two bytes")
+        assert_equal(token(.Url, [0xfb, 0xff]), "-_8=", reason="Url two bytes")
+        assert_equal(token(.UrlNoPad, [0xfb, 0xff]), "-_8", reason="UrlNoPad two bytes")
+        assert_equal(payload(.Standard, "+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="Standard")
+        assert_equal(payload(.StandardNoPad, "+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="StandardNoPad")
+        assert_equal(payload(.Url, "-_-_"), .Ok([0xfb, 0xff, 0xbf]), reason="Url")
+        assert_equal(payload(.UrlNoPad, "-_-_"), .Ok([0xfb, 0xff, 0xbf]), reason="UrlNoPad")
+        assert_equal(payload(.UrlNoPad, "-_8"), .Ok([0xfb, 0xff]), reason="UrlNoPad two bytes")
+
+    it("round-trips every length in every encoding"):
+        let bytes: mut List[u8] = []
+        let count: usize = 0
+        while count < 12:
+            for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
+                assert_equal(payload(encoding, token(encoding, bytes)), .Ok(bytes), reason="round trip")
+            bytes.push(u8(count * 29 + 200))
+            count = count + 1
+
+    it("Base64 implements Eq and Debug"):
+        assert_equal(Base64.Url, Base64.Url, reason="same variant")
+        assert_equal(Base64.Url == Base64.UrlNoPad, false, reason="another variant")
+        assert_equal(debug(Base64.StandardNoPad), "Base64.StandardNoPad", reason="Debug")
