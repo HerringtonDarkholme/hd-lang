@@ -1,0 +1,1242 @@
+# test: parse on the input's bytes and from_json with lazy paths give the same values and the same errors as the parser and reader they replaced
+# Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.out-of-range, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
+use std.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
+use std.num.parse_f64
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Member, VariantInfo, Facts, SelfRef}
+use std.testing.{assert_equal, Choices, it_prop_with}
+
+# The old parser and the old reader stay here as the reference: the parser
+# copied the text into a list of bytes and built every string byte by
+# byte, and the reader built a path string for every member and item.
+
+data Parsed:
+    value: Json
+    end: usize
+
+data ParsedText:
+    text: string
+    end: usize
+
+fn old_parse(text: string) -> Result[Json, JsonError]:
+    bytes := text.to_utf8()
+    parsed := parse_value(bytes, 0, 0)?
+    end := skip_space(bytes, parsed.end)
+    if end < bytes.len():
+        return .Err(JsonError.UnexpectedCharacter(end))
+    .Ok(parsed.value)
+
+# The error for a byte that cannot continue the text at `offset`.
+fn unexpected(bytes: List[u8], offset: usize) -> JsonError:
+    if offset >= bytes.len():
+        return JsonError.UnexpectedEnd(offset)
+    JsonError.UnexpectedCharacter(offset)
+
+fn skip_space(bytes: List[u8], start: usize) -> usize:
+    let index = start
+    while index < bytes.len():
+        byte := bytes[index]
+        if byte != 32 && byte != 9 && byte != 10 && byte != 13:
+            return index
+        index = index + 1
+    index
+
+fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[Parsed, JsonError]:
+    index := skip_space(bytes, start)
+    if index >= bytes.len():
+        return .Err(unexpected(bytes, index))
+    byte := bytes[index]
+    if byte == 123:
+        return parse_object(bytes, index, depth)
+    if byte == 91:
+        return parse_array(bytes, index, depth)
+    if byte == 34:
+        found := parse_string(bytes, index)?
+        return .Ok(Parsed { value: Json.Text(found.text), end: found.end })
+    if byte == 116:
+        return parse_word(bytes, index, "true", Json.Bool(true))
+    if byte == 102:
+        return parse_word(bytes, index, "false", Json.Bool(false))
+    if byte == 110:
+        return parse_word(bytes, index, "null", Json.Null)
+    if byte == 45 || (byte >= 48 && byte <= 57):
+        return parse_number(bytes, index)
+    .Err(unexpected(bytes, index))
+
+fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Result[Parsed, JsonError]:
+    let index = start
+    for expected in word.bytes():
+        if index >= bytes.len() || bytes[index] != expected:
+            return .Err(unexpected(bytes, index))
+        index = index + 1
+    .Ok(Parsed { value: value, end: index })
+
+fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
+    if depth >= 128:
+        return .Err(JsonError.NestingTooDeep(open))
+    let items: mut List[Json] = []
+    let index = skip_space(bytes, open + 1)
+    if index < bytes.len() && bytes[index] == 93:
+        return .Ok(Parsed { value: Json.Array(items), end: index + 1 })
+    while true:
+        found := parse_value(bytes, index, depth + 1)?
+        items.push(found.value)
+        index = skip_space(bytes, found.end)
+        if index < bytes.len() && bytes[index] == 44:
+            index = index + 1
+        else if index < bytes.len() && bytes[index] == 93:
+            return .Ok(Parsed { value: Json.Array(items), end: index + 1 })
+        else:
+            return .Err(unexpected(bytes, index))
+
+fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
+    if depth >= 128:
+        return .Err(JsonError.NestingTooDeep(open))
+    let fields: mut JsonObject = JsonObject::new()
+    let index = skip_space(bytes, open + 1)
+    if index < bytes.len() && bytes[index] == 125:
+        return .Ok(Parsed { value: Json.Object(fields), end: index + 1 })
+    while true:
+        if index >= bytes.len() || bytes[index] != 34:
+            return .Err(unexpected(bytes, index))
+        key := parse_string(bytes, index)?
+        index = skip_space(bytes, key.end)
+        if index >= bytes.len() || bytes[index] != 58:
+            return .Err(unexpected(bytes, index))
+        found := parse_value(bytes, index + 1, depth + 1)?
+        fields.set(key.text, found.value)
+        index = skip_space(bytes, found.end)
+        if index < bytes.len() && bytes[index] == 44:
+            index = skip_space(bytes, index + 1)
+        else if index < bytes.len() && bytes[index] == 125:
+            return .Ok(Parsed { value: Json.Object(fields), end: index + 1 })
+        else:
+            return .Err(unexpected(bytes, index))
+
+# The string that starts at the quote at `open`.
+fn parse_string(bytes: List[u8], open: usize) -> Result[ParsedText, JsonError]:
+    let buffer: mut List[u8] = []
+    let index = open + 1
+    while true:
+        if index >= bytes.len():
+            return .Err(unexpected(bytes, index))
+        byte := bytes[index]
+        if byte == 34:
+            return .Ok(ParsedText { text: old_bytes_text(buffer), end: index + 1 })
+        if byte < 32:
+            return .Err(JsonError.ControlCharacter(index))
+        if byte != 92:
+            buffer.push(byte)
+            index = index + 1
+            continue
+        backslash := index
+        if index + 1 >= bytes.len():
+            return .Err(unexpected(bytes, index + 1))
+        escaped := bytes[index + 1]
+        index = index + 2
+        if escaped == 34 || escaped == 92 || escaped == 47:
+            buffer.push(escaped)
+        else if escaped == 98:
+            buffer.push(8)
+        else if escaped == 102:
+            buffer.push(12)
+        else if escaped == 110:
+            buffer.push(10)
+        else if escaped == 114:
+            buffer.push(13)
+        else if escaped == 116:
+            buffer.push(9)
+        else if escaped == 117:
+            unit := read_hex4(bytes, index)
+            if unit == -2:
+                return .Err(unexpected(bytes, bytes.len()))
+            if unit < 0:
+                return .Err(JsonError.InvalidEscape(backslash))
+            index = index + 4
+            let point = unit
+            if unit >= 56320 && unit <= 57343:
+                return .Err(JsonError.LoneSurrogate(backslash))
+            if unit >= 55296 && unit <= 56319:
+                low := if index + 1 < bytes.len() && bytes[index] == 92 && bytes[index + 1] == 117: read_hex4(bytes, index + 2) else: -1
+                if low < 56320 || low > 57343:
+                    return .Err(JsonError.LoneSurrogate(backslash))
+                point = 65536 + (unit - 55296) * 1024 + (low - 56320)
+                index = index + 6
+            push_scalar(buffer, point)
+        else:
+            return .Err(JsonError.InvalidEscape(backslash))
+
+# The value of the four hex digits at `at`, -1 when one is not a hex digit,
+# or -2 when the text ends first.
+fn read_hex4(bytes: List[u8], at: usize) -> i32:
+    let value: i32 = 0
+    let offset: usize = 0
+    while offset < 4:
+        if at + offset >= bytes.len():
+            return -2
+        digit := hex_value(i32(bytes[at + offset]))
+        if digit < 0:
+            return -1
+        value = value * 16 + digit
+        offset = offset + 1
+    value
+
+fn hex_value(code: i32) -> i32:
+    if code >= 48 && code <= 57:
+        return code - 48
+    if code >= 97 && code <= 102:
+        return code - 87
+    if code >= 65 && code <= 70:
+        return code - 55
+    -1
+
+# The UTF-8 bytes of a scalar value.
+fn push_scalar(out: mut List[u8], point: i32) -> void:
+    if point < 128:
+        out.push(u8(point))
+    else if point < 2048:
+        out.push(u8(192 + (point >> 6)))
+        out.push(u8(128 + (point & 63)))
+    else if point < 65536:
+        out.push(u8(224 + (point >> 12)))
+        out.push(u8(128 + ((point >> 6) & 63)))
+        out.push(u8(128 + (point & 63)))
+    else:
+        out.push(u8(240 + (point >> 18)))
+        out.push(u8(128 + ((point >> 12) & 63)))
+        out.push(u8(128 + ((point >> 6) & 63)))
+        out.push(u8(128 + (point & 63)))
+
+# 2^63, the first u64 past the i64 range, and the largest u64.
+fn sign_limit() -> u64:
+    9223372036854775808
+
+fn u64_max() -> u64:
+    18446744073709551615
+
+# The number that starts at `start`: `-`? then `0` or a nonzero digit and
+# digits. An integer in the i64 or u64 range is exact; `-0` is the float
+# -0.0, as in serde_json. A fraction, an exponent, or an integer past both
+# ranges is the float that `parse_f64` gives (r-std-json.parse.number.float).
+fn parse_number(bytes: List[u8], start: usize) -> Result[Parsed, JsonError]:
+    size := bytes.len()
+    let index = start
+    negative := bytes[index] == 45
+    if negative:
+        index = index + 1
+    if index >= size:
+        return .Err(unexpected(bytes, index))
+    let magnitude: u64 = 0
+    let overflow = false
+    if bytes[index] == 48:
+        index = index + 1
+    else if bytes[index] >= 49 && bytes[index] <= 57:
+        while index < size && bytes[index] >= 48 && bytes[index] <= 57:
+            digit := u64(bytes[index] - 48)
+            if magnitude > (u64_max() - digit) / 10:
+                overflow = true
+            else:
+                magnitude = magnitude * 10 + digit
+            index = index + 1
+    else:
+        return .Err(unexpected(bytes, index))
+    let exotic = false
+    if index < size && bytes[index] == 46:
+        index = index + 1
+        if index >= size || bytes[index] < 48 || bytes[index] > 57:
+            return .Err(unexpected(bytes, index))
+        while index < size && bytes[index] >= 48 && bytes[index] <= 57:
+            index = index + 1
+        exotic = true
+    if index < size && (bytes[index] == 101 || bytes[index] == 69):
+        index = index + 1
+        if index < size && (bytes[index] == 43 || bytes[index] == 45):
+            index = index + 1
+        if index >= size || bytes[index] < 48 || bytes[index] > 57:
+            return .Err(unexpected(bytes, index))
+        while index < size && bytes[index] >= 48 && bytes[index] <= 57:
+            index = index + 1
+        exotic = true
+    if exotic || overflow || (negative && magnitude > sign_limit()):
+        return float_number(bytes, start, index)
+    if !negative:
+        return .Ok(Parsed { value: Json.Number(Number::from_u64(magnitude)), end: index })
+    if magnitude == 0:
+        match Number::from_f64(-0.0):
+            .Some(zero) => return .Ok(Parsed { value: Json.Number(zero), end: index })
+            .None => return float_number(bytes, start, index)
+    if magnitude == sign_limit():
+        return .Ok(Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index })
+    .Ok(Parsed { value: Json.Number(Number::from_i64(-i64(magnitude))), end: index })
+
+# The float of the number text from `start` up to `end`, which the caller
+# has read to the end of its grammar; past the f64 range it is a
+# `NumberOutOfRange` at `start` (r-std-json.parse.number.out-of-range).
+fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[Parsed, JsonError]:
+    let digits: mut List[u8] = []
+    let index = start
+    while index < end:
+        digits.push(bytes[index])
+        index = index + 1
+    value := match parse_f64(old_bytes_text(digits)):
+        .Ok(found) => found
+        .Err(_) => panic("std.json: a JSON number is parse_f64 text")
+    match Number::from_f64(value):
+        .Some(number) => .Ok(Parsed { value: Json.Number(number), end: end })
+        .None => .Err(JsonError.NumberOutOfRange(start))
+
+fn old_bytes_text(bytes: List[u8]) -> string:
+    match string::from_utf8(bytes):
+        .Ok(text) => text
+        .Err(_) => panic("old parser: valid UTF-8")
+
+# One open list, map, or variant of the reader: the path of its items'
+# container, the path to restore when it closes, a list's items or a map's
+# values with a map's keys, and a variant's members.
+data OldFrame:
+    pub base: string
+    pub home: string
+    pub items: List[Json]
+    pub keys: List[string]
+    pub fields: JsonObject
+
+# Reads one `Json` for `from_json`. `value` is the value at the cursor,
+# `present` is false for a member whose key is missing, and `path` is the
+# cursor's path (r-std-json.error.path). `at` holds each open frame's next
+# index.
+data OldReader:
+    pub value: Json
+    pub present: bool
+    pub path: string
+    pub frames: mut List[OldFrame]
+    pub at: mut List[usize]
+
+impl OldReader:
+    # A missing key is a `MissingField`; any other value that does not fit
+    # is a `WrongType` (r-std-json.derive.from-json.missing).
+    fn fail(self, expected: string) -> JsonError:
+        if !self.present:
+            return JsonError.MissingField(self.path)
+        JsonError.WrongType(self.path, expected)
+
+    fn push(mut self, frame: OldFrame) -> void:
+        self.frames.push(frame)
+        self.at.push(0)
+
+    fn top(self) -> OldFrame:
+        match self.frames.last():
+            .Some(frame) => frame
+            .None => panic("std.json: no open container")
+
+    fn pop(mut self) -> void:
+        frame := self.top()
+        _ := self.frames.pop()
+        _ := self.at.pop()
+        self.path = frame.home
+
+impl Deserializer for OldReader:
+    type Error = JsonError
+
+    fn peek(mut self) -> Result[ValueKind, JsonError]:
+        if !self.present:
+            return .Ok(ValueKind.Null)
+        match self.value:
+            .Null => .Ok(ValueKind.Null)
+            .Bool(_) => .Ok(ValueKind.Bool)
+            .Number(number) =>
+                if number.as_i64().is_some():
+                    .Ok(ValueKind.Int)
+                else if number.as_u64().is_some():
+                    .Ok(ValueKind.Uint)
+                else:
+                    .Ok(ValueKind.Float)
+            .Text(_) => .Ok(ValueKind.Text)
+            .Array(_) => .Ok(ValueKind.List)
+            .Object(_) => .Ok(ValueKind.Map)
+
+    # A missing key reads as `null` (r-std-json.derive.from-json.missing).
+    fn is_null(mut self) -> Result[bool, JsonError]:
+        .Ok(!self.present || self.value.is_null())
+
+    fn bool(mut self, expected: string) -> Result[bool, JsonError]:
+        if self.present:
+            match self.value:
+                .Bool(flag) => return .Ok(flag)
+                _ => pass
+        .Err(self.fail(expected))
+
+    # A float is never an integer (r-std-json.std.integer.read).
+    fn int(mut self, expected: string) -> Result[i64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_i64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_u64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn float(mut self, expected: string) -> Result[f64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_f64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn text(mut self, expected: string) -> Result[string, JsonError]:
+        if self.present:
+            match self.value:
+                .Text(found) => return .Ok(found)
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn begin_list(mut self) -> Result[void, JsonError]:
+        if self.present:
+            match self.value:
+                .Array(items) =>
+                    self.push(OldFrame { base: self.path, home: self.path, items: items, keys: [], fields: JsonObject::new() })
+                    return .Ok(())
+                _ => pass
+        .Err(self.fail("array"))
+
+    # An item's path adds `[index]` (r-std-json.std.item-path).
+    fn next_item(mut self) -> Result[bool, JsonError]:
+        frame := self.top()
+        last := self.at.len() - 1
+        index := self.at[last]
+        if index >= frame.items.len():
+            self.pop()
+            return .Ok(false)
+        self.at[last] = index + 1
+        self.value = frame.items[index]
+        self.present = true
+        self.path = "${frame.base}[$index]"
+        .Ok(true)
+
+    fn begin_map(mut self) -> Result[void, JsonError]:
+        if self.present:
+            match self.value:
+                .Object(fields) =>
+                    let keys: mut List[string] = []
+                    let items: mut List[Json] = []
+                    for entry in fields:
+                        keys.push(entry._0)
+                        items.push(entry._1)
+                    self.push(OldFrame { base: self.path, home: self.path, items: items, keys: keys, fields: JsonObject::new() })
+                    return .Ok(())
+                _ => pass
+        .Err(self.fail("object"))
+
+    # A map value's path adds `.key` (r-std-json.std.item-path).
+    fn next_key(mut self) -> Result[string?, JsonError]:
+        frame := self.top()
+        last := self.at.len() - 1
+        index := self.at[last]
+        if index >= frame.items.len():
+            self.pop()
+            return .Ok(.None)
+        self.at[last] = index + 1
+        key := frame.keys[index]
+        self.value = frame.items[index]
+        self.present = true
+        self.path = "${frame.base}.$key"
+        .Ok(.Some(key))
+
+    # A data type reads an object. An enum reads `"Variant"` as
+    # `{"Variant": {}}`, or an object with exactly one key
+    # (r-std-json.derive.from-json.enum).
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+        if choices.len() == 1 && choices[0].of_data:
+            if self.present:
+                match self.value:
+                    .Object(fields) =>
+                        self.push(OldFrame { base: self.path, home: self.path, items: [], keys: [], fields: fields })
+                        return .Ok(0)
+                    _ => pass
+            return .Err(self.fail("object"))
+        if !self.present:
+            return .Err(self.fail("variant"))
+        let name = ""
+        let payload = Json.Null
+        match self.value:
+            .Text(text) =>
+                name = text
+                payload = Json.Object(JsonObject::new())
+            .Object(fields) =>
+                if fields.len() != 1:
+                    return .Err(self.fail("variant"))
+                for entry in fields:
+                    name = entry._0
+                    payload = entry._1
+            _ => return .Err(self.fail("variant"))
+        let index: usize = 0
+        while index < choices.len():
+            if choices[index].name == name:
+                base := "${self.path}.$name"
+                fields := match payload:
+                    .Object(found) => found
+                    _ => return .Err(JsonError.WrongType(base, "object"))
+                self.push(OldFrame { base: base, home: self.path, items: [], keys: [], fields: fields })
+                return .Ok(index)
+            index = index + 1
+        .Err(JsonError.UnknownVariant(self.path, name))
+
+    # A member reads the value of its key; a missing key is absent
+    # (r-std-json.derive.from-json.member).
+    fn member(mut self, m: Member) -> Result[void, JsonError]:
+        frame := self.top()
+        self.path = "${frame.base}.${m.name}"
+        match frame.fields.get(m.name):
+            .Some(found) =>
+                self.value = found
+                self.present = true
+            .None =>
+                self.value = Json.Null
+                self.present = false
+        .Ok(())
+
+    fn end_variant(mut self) -> Result[void, JsonError]:
+        self.pop()
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> JsonError:
+        self.fail(expected)
+fn old_from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
+    let reader: mut OldReader = OldReader { value: value, present: true, path: "\$", frames: [], at: [] }
+    T::deserialize(reader)
+
+fn old_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
+    value := old_parse(text)?
+    old_from_json::[T](value)
+
+# A result as text: the value's debug text, or the error's debug text and
+# its message.
+fn result_text[T < Debug](result: Result[T, JsonError]) -> string:
+    match result:
+        .Ok(value) => "ok ${debug(value)}"
+        .Err(error) => "err ${debug(error)} \"$error\""
+
+# Where parse differs from the old parser, or "".
+fn parse_disagreement(text: string) -> string:
+    old := result_text(old_parse(text))
+    now := result_text(parse(text))
+    if now != old:
+        return "parse ${debug(text)}: new $now, old $old"
+    match (old_parse(text), parse(text)):
+        (.Ok(left), .Ok(right)) =>
+            if left != right:
+                return "parse ${debug(text)}: values differ"
+        _ => pass
+    ""
+
+# Where from_json and decode differ from the old reader, or "".
+fn read_disagreement[T < Deserialize & Debug](value: Json) -> string:
+    old := result_text(old_from_json::[T](value))
+    now := result_text(from_json::[T](value))
+    if now != old:
+        return "from_json ${debug(value)}: new $now, old $old"
+    text := "$value"
+    old_text := result_text(old_decode::[T](text))
+    now_text := result_text(decode::[T](text))
+    if now_text != old_text:
+        return "decode ${debug(text)}: new $now_text, old $old_text"
+    ""
+
+# ---------------------------------------------------------------------------
+# Random JSON texts.
+
+NUMBERS := [
+    "0", "-0", "1", "-1", "7", "42", "-42", "0.5", "-0.0", "1e2", "1E+2", "1e-2", "2.5E-3", "123.456e7",
+    "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
+    "18446744073709551615", "18446744073709551616", "123456789012345678901234567890",
+    "-123456789012345678901234567890", "100000000000000000000", "1e308", "1.7976931348623157e308",
+    "1e309", "-1e400", "1e-400", "4.9e-324", "2.2250738585072014e-308", "0.1",
+]
+
+# The inside of a JSON string, as written in the text: plain text, raw
+# non-ASCII, and every escape class, with surrogate pairs in both cases.
+STRING_PIECES := [
+    "a", "Z", " ", "key", "\u{7f}", "\u{e9}", "\u{20ac}", "\u{1f600}", "\\\"", "\\\\", "\\/", "\\b", "\\f", "\\n",
+    "\\r", "\\t", "\\u0041", "\\u00e9", "\\u00E9", "\\u20ac", "\\u0000", "\\u001f", "\\ud83d\\ude00",
+    "\\uD83D\\uDE00", "\\udbff\\udfff", "\\ud800\\udc00",
+]
+
+# Pieces that break a string: bad escapes, lone surrogates, raw control
+# characters, and a backslash at the end.
+BAD_PIECES := [
+    "\\x", "\\u12", "\\uzzzz", "\\u12g4", "\\ud800", "\\udc00", "\\ud800\\u0041", "\\ud800x", "\\ud83d\\ud83d",
+    "\\U0041", "\u{1}", "\u{1f}", "\t", "\n", "\\",
+]
+
+# Keys, as written in the text; some are the probe's member and variant names.
+KEYS := ["a", "b", "x", "y", "k0", "k1", "D", "name", "", "\u{e9}", "a\\\"b", "\\u0061"]
+
+# Single characters that break a text when inserted, replaced, or removed.
+INSERTS := ["\"", "\\", "{", "}", "[", "]", ",", ":", " ", "0", "-", "+", ".", "e", "u", "x", "\u{1}", "\u{1f}", "\u{7f}", "\n", "\u{e9}", "n", "t", "f"]
+
+fn space(c: mut Choices, parts: mut List[string]) -> void:
+    if c.int(0, 3) == 0:
+        parts.push(c.choose([" ", "\n", "\t", "\r", "  \n "]))
+
+fn number_text(c: mut Choices) -> string:
+    match c.int(0, 3):
+        0 => "${c.int(-1000000000, 1000000000)}"
+        1 => "${c.int(-1000, 1000)}.${c.int(0, 99999)}e${c.int(-30, 30)}"
+        _ => c.choose(NUMBERS)
+
+fn push_string(c: mut Choices, parts: mut List[string], bad: bool) -> void:
+    parts.push("\"")
+    for _ in 0..c.int(0, 6):
+        if bad && c.int(0, 7) == 7:
+            parts.push(c.choose(BAD_PIECES))
+        else:
+            parts.push(c.choose(STRING_PIECES))
+    parts.push("\"")
+
+fn push_value(c: mut Choices, parts: mut List[string], depth: i32, bad: bool) -> void:
+    space(c, parts)
+    pick := c.int(0, if depth < 4: 9 else: 5)
+    if pick == 0:
+        parts.push(c.choose(["null", "true", "false"]))
+    else if pick <= 2:
+        parts.push(number_text(c))
+    else if pick <= 4:
+        push_string(c, parts, bad)
+    else if pick == 5:
+        parts.push(c.choose(["[]", "{}", "[ ]", "{ }"]))
+    else if pick <= 7:
+        parts.push("[")
+        count := c.int(1, 5)
+        for at in 0..count:
+            if at > 0:
+                parts.push(",")
+            push_value(c, parts, depth + 1, bad)
+        parts.push("]")
+    else:
+        parts.push("{")
+        count := c.int(1, 12)
+        for at in 0..count:
+            if at > 0:
+                parts.push(",")
+            space(c, parts)
+            if bad && c.int(0, 7) == 7:
+                push_string(c, parts, true)
+            else:
+                parts.push("\"${c.choose(KEYS)}\"")
+            space(c, parts)
+            parts.push(":")
+            push_value(c, parts, depth + 1, bad)
+        parts.push("}")
+    space(c, parts)
+
+fn valid_text(c: mut Choices) -> string:
+    let parts: mut List[string] = []
+    push_value(c, parts, 0, false)
+    parts.join("")
+
+# A text with bad pieces, then a character inserted, replaced, or removed,
+# or the text cut, at a random character.
+fn broken_text(c: mut Choices) -> string:
+    let parts: mut List[string] = []
+    push_value(c, parts, 0, true)
+    let chars: mut List[string] = []
+    for ch in parts.join("").chars():
+        chars.push("$ch")
+    if chars.len() == 0:
+        return c.choose(INSERTS)
+    at := c.int(usize(0), chars.len() - 1)
+    match c.int(0, 4):
+        0 =>
+            _ := chars.remove_at(at)
+        1 => chars.insert(at, c.choose(INSERTS))
+        2 => chars[at] = c.choose(INSERTS)
+        3 =>
+            while chars.len() > at:
+                _ := chars.pop()
+        _ => pass
+    chars.join("")
+
+# Arrays and objects nested about 128 deep, around the limit.
+fn nested_text(c: mut Choices) -> string:
+    depth := c.int(usize(124), usize(131))
+    let opens: mut List[string] = []
+    let closes: mut List[string] = []
+    for _ in 0..depth:
+        if c.bool():
+            opens.push("[")
+            closes.push("]")
+        else:
+            opens.push("{\"a\": ")
+            closes.push("}")
+    let parts: mut List[string] = []
+    for open in opens:
+        parts.push(open)
+    push_value(c, parts, 4, false)
+    let index = closes.len()
+    while index > 0:
+        index = index - 1
+        parts.push(closes[index])
+    parts.join("")
+
+# ---------------------------------------------------------------------------
+# Random values for typed decodes: each member is right most of the time,
+# and sometimes missing, of the wrong kind, out of range, or joined by an
+# extra key; the members come in declaration order or reversed.
+
+TEXTS := ["", "a", "b", "x", "k0", "D", "Guest", "Member", "Admin", "Pair", "Nope", "\u{e9}", "\u{1f600}", "two", "a.b[0]"]
+
+@derive(Deserialize, Debug)
+enum Role:
+    Guest
+    Member(since: i32)
+    Admin(level: i8, note: string?)
+    Pair(i32, i32)
+
+@derive(Deserialize, Debug)
+data Address:
+    city: string
+    zip: u16
+
+@derive(Deserialize, Debug)
+data User:
+    name: string
+    age: u8
+    email: string?
+    letter: char
+    ratio: f32
+    big: u64
+    tags: List[string]
+    scores: Map[string, i32]
+    role: Role
+    home: Address?
+    friends: List[User]
+    raw: Json
+
+# More than 8 members, so a found key goes through the object's index.
+@derive(Deserialize, Debug)
+data Wide:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: string
+
+fn int_json(value: i64) -> Json:
+    Json.Number(Number::from_i64(value))
+
+fn float_json(value: f64) -> Json:
+    match Number::from_f64(value):
+        .Some(number) => Json.Number(number)
+        .None => Json.Null
+
+fn any_json(c: mut Choices, depth: i32) -> Json:
+    pick := c.int(0, if depth < 3: 8 else: 5)
+    match pick:
+        0 => Json.Null
+        1 => Json.Bool(c.bool())
+        2 => int_json(c.choose([0, -1, 1, 127, 128, -129, 255, 256, 65536, 2147483648, -9223372036854775807 - 1, 9223372036854775807]))
+        3 => c.choose([float_json(1.5), float_json(-0.0), float_json(1e39), float_json(-1e300), Json.Number(Number::from_u64(18446744073709551615))])
+        4 => Json.Text(c.choose(TEXTS))
+        5 => Json.Array([])
+        6 =>
+            let items: mut List[Json] = []
+            for _ in 0..c.int(0, 4):
+                items.push(any_json(c, depth + 1))
+            Json.Array(items)
+        _ =>
+            let fields: mut JsonObject = JsonObject::new()
+            for _ in 0..c.int(0, 11):
+                fields.set(c.choose(["a", "b", "x", "y", "k0", "D", "name", "f3", "since", "0"]), any_json(c, depth + 1))
+            Json.Object(fields)
+
+# One of `good` most of the time, and sometimes one of `bad`.
+fn edge(c: mut Choices, good: List[Json], bad: List[Json]) -> Json:
+    if c.int(0, 11) == 11:
+        return c.choose(bad)
+    c.choose(good)
+
+# `good` most of the time, and sometimes another value.
+fn maybe(c: mut Choices, good: Json) -> Json:
+    if c.int(0, 24) == 24:
+        return any_json(c, 2)
+    good
+
+fn put(c: mut Choices, pairs: mut List[(string, Json)], key: string, good: Json) -> void:
+    if c.int(0, 39) == 39:
+        return
+    pairs.push((key, maybe(c, good)))
+
+fn object_of(c: mut Choices, pairs: List[(string, Json)]) -> Json:
+    let ordered: mut List[(string, Json)] = []
+    for pair in pairs:
+        ordered.push(pair)
+    if c.int(0, 4) == 4:
+        ordered.insert(c.int(usize(0), ordered.len()), (c.choose(["extra", "x", "Name", "name "]), any_json(c, 2)))
+    let fields: mut JsonObject = JsonObject::new()
+    walk := if c.int(0, 3) == 3: ordered.reversed() else: ordered
+    for pair in walk:
+        fields.set(pair._0, pair._1)
+    Json.Object(fields)
+
+fn role_json(c: mut Choices) -> Json:
+    match c.choose([0, 2, 3, 4, 7, 0, 2, 3, 4, 7, 1, 5, 6, 8]):
+        0 => Json.Text("Guest")
+        1 => Json.Text(c.choose(["Member", "Nope", "Admin"]))
+        2 =>
+            let pairs: mut List[(string, Json)] = []
+            put(c, pairs, "since", int_json(c.int(-5, 5)))
+            wrap("Member", object_of(c, pairs))
+        3 =>
+            let pairs: mut List[(string, Json)] = []
+            put(c, pairs, "level", edge(c, [int_json(0), int_json(7), int_json(-128), int_json(127)], [int_json(300), int_json(-129)]))
+            put(c, pairs, "note", c.choose([Json.Null, Json.Text("n")]))
+            wrap("Admin", object_of(c, pairs))
+        4 =>
+            let pairs: mut List[(string, Json)] = []
+            put(c, pairs, if c.int(0, 7) == 7: "0" else: "_0", int_json(1))
+            put(c, pairs, if c.int(0, 7) == 7: "1" else: "_1", int_json(2))
+            wrap("Pair", object_of(c, pairs))
+        5 => wrap(c.choose(["Member", "Guest", "Owner"]), maybe(c, int_json(3)))
+        6 =>
+            let fields: mut JsonObject = JsonObject::new()
+            fields.set("Guest", Json.Object(JsonObject::new()))
+            fields.set("Member", Json.Object(JsonObject::new()))
+            Json.Object(fields)
+        7 => wrap("Guest", Json.Object(JsonObject::new()))
+        _ => any_json(c, 2)
+
+fn wrap(name: string, payload: Json) -> Json:
+    let fields: mut JsonObject = JsonObject::new()
+    fields.set(name, payload)
+    Json.Object(fields)
+
+fn address_json(c: mut Choices) -> Json:
+    let pairs: mut List[(string, Json)] = []
+    put(c, pairs, "city", Json.Text(c.choose(TEXTS)))
+    put(c, pairs, "zip", edge(c, [int_json(0), int_json(8000), int_json(65535)], [int_json(65536), int_json(-1)]))
+    object_of(c, pairs)
+
+fn user_json(c: mut Choices, depth: i32) -> Json:
+    let pairs: mut List[(string, Json)] = []
+    put(c, pairs, "name", Json.Text(c.choose(TEXTS)))
+    put(c, pairs, "age", edge(c, [int_json(0), int_json(30), int_json(255)], [int_json(256), int_json(-1), float_json(30.0)]))
+    put(c, pairs, "email", if c.bool(): Json.Null else: Json.Text("e@x"))
+    put(c, pairs, "letter", edge(c, [Json.Text("a"), Json.Text("\u{e9}"), Json.Text("\u{1f600}")], [Json.Text("ab"), Json.Text("")]))
+    put(c, pairs, "ratio", edge(c, [float_json(0.25), int_json(2), float_json(-3.4e38)], [float_json(1e39), float_json(-3.5e38)]))
+    put(c, pairs, "big", edge(c, [Json.Number(Number::from_u64(18446744073709551615)), int_json(5)], [int_json(-5), float_json(1.0)]))
+    let tags: mut List[Json] = []
+    for _ in 0..c.int(0, 3):
+        tags.push(maybe(c, Json.Text(c.choose(TEXTS))))
+    put(c, pairs, "tags", Json.Array(tags))
+    let scores: mut List[(string, Json)] = []
+    for _ in 0..c.int(0, 3):
+        scores.push((c.choose(TEXTS), maybe(c, int_json(c.int(-9, 9)))))
+    put(c, pairs, "scores", object_of(c, scores))
+    put(c, pairs, "role", role_json(c))
+    put(c, pairs, "home", if c.bool(): Json.Null else: address_json(c))
+    let friends: mut List[Json] = []
+    if depth < 2:
+        for _ in 0..c.int(0, 2):
+            friends.push(user_json(c, depth + 1))
+    put(c, pairs, "friends", Json.Array(friends))
+    put(c, pairs, "raw", any_json(c, 1))
+    object_of(c, pairs)
+
+fn wide_json(c: mut Choices) -> Json:
+    let pairs: mut List[(string, Json)] = []
+    for at in 0..11:
+        put(c, pairs, "f$at", int_json(i64(at)))
+    put(c, pairs, "f11", Json.Text("last"))
+    object_of(c, pairs)
+
+# A typed target and a value for it.
+@derive(Debug)
+data Typed:
+    target: i32
+    value: Json
+
+fn typed_gen(c: mut Choices) -> Typed:
+    target := c.int(+0, +5)
+    value := match target:
+        0 => user_json(c, 0)
+        1 =>
+            let users: mut List[Json] = []
+            for _ in 0..c.int(0, 3):
+                users.push(maybe(c, user_json(c, 1)))
+            Json.Array(users)
+        2 => wide_json(c)
+        3 => role_json(c)
+        4 =>
+            let roles: mut List[(string, Json)] = []
+            for _ in 0..c.int(0, 4):
+                roles.push((c.choose(TEXTS), role_json(c)))
+            object_of(c, roles)
+        _ => any_json(c, 0)
+    Typed { target: target, value: value }
+
+fn typed_disagreement(typed: Typed) -> string:
+    match typed.target:
+        0 => read_disagreement::[User](typed.value)
+        1 => read_disagreement::[List[User]](typed.value)
+        2 => read_disagreement::[Wide](typed.value)
+        3 => read_disagreement::[Role](typed.value)
+        4 => read_disagreement::[Map[string, Role]](typed.value)
+        _ => read_disagreement::[Json](typed.value)
+
+# ---------------------------------------------------------------------------
+# A hand-written `Deserialize` that drives the reader through calls derived
+# code never makes: a member of a list or a map, a map's values as items, a
+# variant ended by `next_item`, the cursor after a container closes, and
+# `invalid` anywhere. It logs every answer; the error it stops at, when
+# `stop` is reached, is its result.
+
+data ProbeState:
+    pub log: mut List[string]
+    pub errors: i32
+    pub stop: i32
+
+impl ProbeState:
+    fn failed[E](mut self, what: string, error: E) -> Result[void, E]:
+        self.errors = self.errors + 1
+        if self.errors == self.stop:
+            return .Err(error)
+        self.log.push("$what err")
+        .Ok(())
+
+fn member_named(name: string) -> Member:
+    Member { name: name, position: +0, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }
+
+fn variant_named(name: string, of_data: bool) -> VariantInfo:
+    VariantInfo { name: name, index: +0, facts: Facts { items: [] }, doc: .None, of_data: of_data, shared: [], self_ref: SelfRef.Absent }
+
+fn kind_name(kind: ValueKind) -> string:
+    match kind:
+        .Null => "null"
+        .Bool => "bool"
+        .Int => "int"
+        .Uint => "uint"
+        .Float => "float"
+        .Text => "text"
+        .List => "list"
+        .Map => "map"
+
+fn scalars[R < Deserializer](input: mut R, state: mut ProbeState) -> Result[void, R::Error]:
+    match input.bool("b"):
+        .Ok(found) => state.log.push("bool $found")
+        .Err(error) => state.failed("bool", error)?
+    match input.int("i"):
+        .Ok(found) => state.log.push("int $found")
+        .Err(error) => state.failed("int", error)?
+    match input.uint("u"):
+        .Ok(found) => state.log.push("uint $found")
+        .Err(error) => state.failed("uint", error)?
+    match input.float("f"):
+        .Ok(found) => state.log.push("float ${debug(found)}")
+        .Err(error) => state.failed("float", error)?
+    match input.text("t"):
+        .Ok(found) => state.log.push("text ${debug(found)}")
+        .Err(error) => state.failed("text", error)?
+    error := input.invalid("x")
+    state.failed("invalid", error)
+
+fn probe[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+    let kind = ValueKind.Null
+    match input.peek():
+        .Ok(found) =>
+            kind = found
+            state.log.push("peek ${kind_name(found)}")
+        .Err(error) => state.failed("peek", error)?
+    match input.is_null():
+        .Ok(found) => state.log.push("null $found")
+        .Err(error) => state.failed("null", error)?
+    mode := (depth + i32(state.log.len())) % 3
+    match kind:
+        .List => probe_list(input, state, depth)
+        .Map =>
+            if mode == 0:
+                probe_map(input, state, depth, false)
+            else if mode == 1:
+                probe_record(input, state, depth)
+            else:
+                probe_enum(input, state, depth)
+        .Text =>
+            scalars(input, state)?
+            probe_enum(input, state, depth)
+        _ => scalars(input, state)
+
+fn probe_list[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+    match input.begin_list():
+        .Ok(_) => state.log.push("list")
+        .Err(error) => return state.failed("list", error)
+    let index = +0
+    while true:
+        match input.next_item():
+            .Ok(more) =>
+                if !more:
+                    break
+            .Err(error) => return state.failed("item", error)
+        state.log.push("item $index")
+        if index % 3 == 2:
+            match input.member(member_named("m")):
+                .Ok(_) => state.log.push("list member")
+                .Err(error) => state.failed("list member", error)?
+            scalars(input, state)?
+        else:
+            probe(input, state, depth + 1)?
+        index = index + 1
+    state.log.push("list end")
+    scalars(input, state)
+
+# With `items_first`, the first value is read with `next_item`.
+fn probe_map[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32, items_first: bool) -> Result[void, R::Error]:
+    match input.begin_map():
+        .Ok(_) => state.log.push("map")
+        .Err(error) => return state.failed("map", error)
+    let count = +0
+    while true:
+        if (count + (if items_first: 3 else: depth)) % 4 == 3:
+            match input.next_item():
+                .Ok(more) =>
+                    if !more:
+                        break
+                    state.log.push("map item")
+                .Err(error) => return state.failed("map item", error)
+        else:
+            match input.next_key():
+                .Ok(found) =>
+                    match found:
+                        .Some(key) => state.log.push("key ${debug(key)}")
+                        .None => break
+                .Err(error) => return state.failed("key", error)
+        if count % 5 == 4:
+            match input.member(member_named("a")):
+                .Ok(_) => state.log.push("map member")
+                .Err(error) => state.failed("map member", error)?
+            scalars(input, state)?
+        else:
+            probe(input, state, depth + 1)?
+        count = count + 1
+    state.log.push("map end")
+    .Ok(())
+
+fn probe_record[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+    match input.begin_variant(Facts { items: [] }, [variant_named("D", true)]):
+        .Ok(index) => state.log.push("record $index")
+        .Err(error) => return state.failed("record", error)
+    for name in ["a", "x", "k0", "missing", "b", "a", "name", "f3"]:
+        match input.member(member_named(name)):
+            .Ok(_) => state.log.push("member $name")
+            .Err(error) => state.failed("member", error)?
+        probe(input, state, depth + 1)?
+    if depth % 2 == 0:
+        match input.end_variant():
+            .Ok(_) => state.log.push("record end")
+            .Err(error) => return state.failed("record end", error)
+    else:
+        match input.next_item():
+            .Ok(more) => state.log.push("record item $more")
+            .Err(error) => return state.failed("record item", error)
+    scalars(input, state)
+
+fn probe_enum[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+    choices := [variant_named("a", false), variant_named("b", false), variant_named("x", false), variant_named("k0", false), variant_named("Member", false), variant_named("Admin", false), variant_named("Guest", false)]
+    match input.begin_variant(Facts { items: [] }, choices):
+        .Ok(index) => state.log.push("variant $index")
+        .Err(error) => return state.failed("variant", error)
+    # The variant's value read again as a map while the variant is open.
+    if depth % 2 == 0:
+        probe_map(input, state, depth + 1, depth % 4 == 0)?
+    for name in ["x", "y", "a", "since", "level"]:
+        match input.member(member_named(name)):
+            .Ok(_) => state.log.push("member $name")
+            .Err(error) => state.failed("member", error)?
+        probe(input, state, depth + 1)?
+    if depth % 2 == 1:
+        match input.next_key():
+            .Ok(found) => state.log.push("variant key ${debug(found)}")
+            .Err(error) => return state.failed("variant key", error)
+    else:
+        match input.end_variant():
+            .Ok(_) => state.log.push("variant end")
+            .Err(error) => return state.failed("variant end", error)
+    scalars(input, state)
+
+# The probe reads `[stop, value]`: the number of the error to stop at, or
+# -1 to log every error, then the value it walks.
+@derive(Debug)
+data Probe:
+    errors: i32
+    log: string
+
+impl Deserialize for Probe:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Probe, R::Error]:
+        input.begin_list()?
+        _ := input.next_item()?
+        stop := i32(input.int("stop")?)
+        _ := input.next_item()?
+        let state: mut ProbeState = ProbeState { log: [], errors: 0, stop: stop }
+        probe(input, state, 0)?
+        .Ok(Probe { errors: state.errors, log: state.log.join(" | ") })
+
+fn probed(stop: i32, value: Json) -> Json:
+    Json.Array([int_json(i64(stop)), value])
+
+# The walk with every error logged, then the walk stopped at each error in
+# turn, so that each error's text and path are compared too.
+fn probe_disagreement(value: Json) -> string:
+    all := read_disagreement::[Probe](probed(-1, value))
+    if all != "":
+        return all
+    count := match from_json::[Probe](probed(-1, value)):
+        .Ok(found) => found.errors
+        .Err(_) => +0
+    let stop = +1
+    while stop <= count && stop <= 40:
+        found := read_disagreement::[Probe](probed(stop, value))
+        if found != "":
+            return found
+        stop = stop + 1
+    ""
+
+fn probe_gen(c: mut Choices) -> Json:
+    if c.bool():
+        return any_json(c, 0)
+    typed_gen(c).value
+
+# ---------------------------------------------------------------------------
+# `JsonObject` against a list of pairs searched from the front: a new key
+# goes last, and an existing key keeps its place with the new value.
+
+OBJECT_KEYS := ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10", "k11", "k12", "k13", "k14", "", "\u{e9}", "k1 "]
+
+@derive(Debug)
+data Sets:
+    keys: List[string]
+
+fn sets_gen(c: mut Choices) -> Sets:
+    Sets { keys: c.list(40, fn(inner: mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
+
+fn object_disagreement(sets: Sets) -> string:
+    let object: mut JsonObject = JsonObject::new()
+    let model: mut List[(string, i64)] = []
+    let step: i64 = 0
+    for key in sets.keys:
+        step = step + 1
+        object.set(key, int_json(step))
+        let found = false
+        let at: usize = 0
+        while at < model.len():
+            if model[at]._0 == key:
+                model[at] = (key, step)
+                found = true
+                break
+            at = at + 1
+        if !found:
+            model.push((key, step))
+        if object.len() != model.len():
+            return "len after ${debug(key)}"
+        for wanted in OBJECT_KEYS:
+            let expected: Json? = .None
+            for pair in model:
+                if pair._0 == wanted:
+                    expected = .Some(int_json(pair._1))
+            if debug(object.get(wanted)) != debug(expected):
+                return "get ${debug(wanted)} after ${debug(key)}"
+            if object.contains_key(wanted) != expected.is_some():
+                return "contains_key ${debug(wanted)} after ${debug(key)}"
+    let order: mut List[string] = []
+    for pair in model:
+        order.push(pair._0)
+    if object.keys() != order:
+        return "keys ${debug(object.keys())}, model ${debug(order)}"
+    let entries: mut List[string] = []
+    for entry in object:
+        entries.push("${entry._0}=${entry._1}")
+    let expected_entries: mut List[string] = []
+    for pair in model:
+        expected_entries.push("${pair._0}=${pair._1}")
+    if entries != expected_entries:
+        return "iteration"
+    ""
+
+tests:
+    it("the texts of the spec parse as before"):
+        for text in [
+            "", " ", "null", "true", "false", "nul", "tru", "-", "01", "1.", "1e", "1e+", "-0", "0.0e0", "[1,]", "{\"a\":1,}", "1 2",
+            "\"a\\u0041\\n\"", "\"\\ud83d\\ude00\"", "\"\\ud83d\"", "\"\\ude00\"", "\"\\ud83dx\"", "\"\\u12\"", "\"\\u12", "\"\\uzz\"",
+            "\"\\q\"", "\"a\u{1}\"", "\"\\", "\"abc", "{\"b\": 1, \"a\": 2, \"b\": 3}", "1e400", "-1e400", "[1e400]",
+            "18446744073709551616", "-9223372036854775809", "{\"a\" 1}", "{1:2}", "[\"\u{e9}\u{1f600}\"]", "{\"\":{\"\":[]}}",
+        ]:
+            assert_equal(parse_disagreement(text), "", reason=debug(text))
+
+    it("nesting at the limit parses as before"):
+        for depth in [usize(126), usize(127), usize(128), usize(129), usize(130)]:
+            opens := "[".repeat(depth)
+            closes := "]".repeat(depth)
+            assert_equal(parse_disagreement(opens + closes), "", reason="arrays $depth")
+            keyed := "{\"a\":".repeat(depth)
+            braces := "}".repeat(depth)
+            assert_equal(parse_disagreement(keyed + "1" + braces), "", reason="objects $depth")
+
+    it("a parsed string with no escape shares no state with the next parse"):
+        first := parse("[\"plain\", \"esc\\u0041ped\"]").expect("parses")
+        second := parse("[\"other\", \"x\"]").expect("parses")
+        assert_equal("$first", "[\"plain\",\"escAped\"]", reason="first")
+        assert_equal("$second", "[\"other\",\"x\"]", reason="second")
+
+    it("an object past 8 keys keeps the first place and the last value of a repeated key"):
+        text := "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":3,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":9,\"k3\":33,\"k9\":99,\"k0\":0}"
+        assert_equal(parse_disagreement(text), "", reason="against the old parser")
+        assert_equal("${parse(text).expect("parses")}", "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":33,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":99}", reason="text")
+
+    it("the decode errors of the spec read as before"):
+        assert_equal(read_disagreement::[User](Json.Array([])), "", reason="data from an array")
+        assert_equal(read_disagreement::[Role](Json.Text("Admin")), "", reason="a name alone")
+        assert_equal(read_disagreement::[Role](Json.Text("Owner")), "", reason="unknown name")
+        assert_equal(read_disagreement::[Role](wrap("Member", int_json(3))), "", reason="payload not an object")
+        assert_equal(read_disagreement::[Map[string, Role]](wrap("ada", wrap("Member", wrap("since", Json.Text("x"))))), "", reason="map value variant member")
+        assert_equal(read_disagreement::[List[Wide]](Json.Array([Json.Object(JsonObject::new())])), "", reason="missing in a list item")
+
+    it_prop_with("random valid texts parse as before", gen=valid_text, cases=300, prop=fn!(text: string):
+        assert_equal(parse_disagreement(text), "", reason="valid")
+    )
+
+    it_prop_with("random broken texts fail as before", gen=broken_text, cases=500, prop=fn!(text: string):
+        assert_equal(parse_disagreement(text), "", reason="broken")
+    )
+
+    it_prop_with("texts nested near the limit parse as before", gen=nested_text, cases=60, prop=fn!(text: string):
+        assert_equal(parse_disagreement(text), "", reason="nested")
+    )
+
+    it_prop_with("random typed decodes read as before", gen=typed_gen, cases=600, prop=fn!(typed: Typed):
+        assert_equal(typed_disagreement(typed), "", reason="typed")
+    )
+
+    it_prop_with("a hand-written reader walk reads as before", gen=probe_gen, cases=200, prop=fn!(value: Json):
+        assert_equal(probe_disagreement(value), "", reason="probe")
+    )
+
+    it_prop_with("JsonObject sets and gets as a list of pairs", gen=sets_gen, cases=200, prop=fn!(sets: Sets):
+        assert_equal(object_disagreement(sets), "", reason="object")
+    )

@@ -185,6 +185,12 @@ impl[HdS] Members[HdS]:
     ## The key of the member at `position`, or the end key.
     ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
     pub fn at(self, position: i32) -> Key[HdS]:
+        # A type's members are listed by position, so the member at
+        # `position` is most often the info at that index.
+        if position >= 0 && usize(position) < self.infos.len():
+            info := self.infos[usize(position)]
+            if info.position == position:
+                return Key { info: info, is_end: false, hd_type: self.hd_type }
         for info in self.infos:
             if info.position == position:
                 return Key { info: info, is_end: false, hd_type: self.hd_type }

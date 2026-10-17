@@ -752,3 +752,8 @@ its own issue.
   `Rng::from_seed`, fix the `CliError` doc, name the program in
   `ProcessError.NotFound`, one naming scheme for test providers, and the
   rest as listed there.
+- **Zero-copy JSON strings** (#360). A parsed string with no escape
+  shares the input's bytes, so the whole input stays alive while any
+  such string does, as a Go substring keeps its backing array. The
+  speed is worth it; a program that keeps one small field of a huge
+  document can copy it.
