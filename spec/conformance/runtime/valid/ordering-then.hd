@@ -1,0 +1,34 @@
+# test: then keeps a decided ordering, and takes the other for Equal
+# Spec std/cmp Ordering Values: std-cmp.ordering.then.result, std-cmp.ordering.then.chain (issue #484).
+data Entry:
+    name: string
+    score: i32
+
+fn by_score_then_name(a: Entry, b: Entry) -> Ordering:
+    b.score.cmp(a.score).then(a.name.cmp(b.name))
+
+tests:
+    use std.testing.assert_equal
+
+    it("Less keeps itself"):
+        assert_equal(Ordering.Less.then(.Greater), .Less, reason="Less then Greater")
+        assert_equal(Ordering.Less.then(.Equal), .Less, reason="Less then Equal")
+
+    it("Greater keeps itself"):
+        assert_equal(Ordering.Greater.then(.Less), .Greater, reason="Greater then Less")
+        assert_equal(Ordering.Greater.then(.Equal), .Greater, reason="Greater then Equal")
+
+    it("Equal takes the other"):
+        assert_equal(Ordering.Equal.then(.Less), .Less, reason="Equal then Less")
+        assert_equal(Ordering.Equal.then(.Greater), .Greater, reason="Equal then Greater")
+        assert_equal(Ordering.Equal.then(.Equal), .Equal, reason="Equal then Equal")
+
+    it("a two-key comparator sorts by score, then name"):
+        entries := [
+            Entry { name: "cy", score: 5 },
+            Entry { name: "al", score: 7 },
+            Entry { name: "bo", score: 5 },
+            Entry { name: "di", score: 7 },
+        ]
+        names := entries.sorted_by(by_score_then_name).map(fn(entry: Entry) -> string: entry.name)
+        assert_equal(names, ["al", "di", "bo", "cy"], reason="highest score first, ties by name")

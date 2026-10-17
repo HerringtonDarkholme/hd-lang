@@ -18,6 +18,14 @@ pub enum Ordering:
 pub trait Eq:
     fn eq(self, other: Self) -> bool
 
+impl Ordering:
+    ## `self` unless it is `.Equal`, and `other` for `.Equal`: chains the keys of a comparator.
+    ## See [std-cmp.ordering.then.result](../../spec/std/cmp.md#r-std-cmp.ordering.then.result).
+    pub fn then(self, other: Ordering) -> Ordering:
+        match self:
+            .Equal => other
+            _ => self
+
 # Two orderings are equal when they are the same case (r-std-cmp.ordering.eq).
 impl Eq for Ordering:
     fn eq(self, other: Ordering) -> bool:

@@ -3412,3 +3412,4 @@ runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
+runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result

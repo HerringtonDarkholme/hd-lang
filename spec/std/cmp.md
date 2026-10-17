@@ -150,3 +150,7 @@ fn is_before(a: string, b: string) -> bool:
 1. r[std-cmp.ordering.eq] `Ordering` implements `Eq`. Two values are equal exactly when they are the same case.
 2. r[std-cmp.ordering.debug-text] `Ordering` implements `Debug`, and writes its qualified case: `Ordering.Less`, `Ordering.Equal`, or `Ordering.Greater`.
 3. r[std-cmp.ordering.no-display] `Ordering` does not implement `Display`; `debug(o)` gives its text.
+4. r[std-cmp.ordering.then.decl] `std.cmp` declares the inherent method `pub fn then(self, other: Ordering) -> Ordering` on `Ordering`, so every `Ordering` has it without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
+5. r[std-cmp.ordering.then.result] `then` returns `self` unless `self` is `.Equal`, and returns `other` for `.Equal`. `.Less.then(o)` and `.Greater.then(o)` are `.Less` and `.Greater`; `.Equal.then(o)` is `o`.
+6. r[std-cmp.ordering.then.chain] `then` chains the keys of a comparator: `b.score.cmp(a.score).then(a.name.cmp(b.name))` orders by score, highest first, and by name among equal scores.
+7. r[std-cmp.ordering.then.eager] `other` is an ordinary argument, evaluated before the call, whatever `self` is. `then` does not suspend.
