@@ -14,6 +14,15 @@ text until the owner orders the ownership spec pass.
 - [4. Hard Cases By Slice](#4-hard-cases-by-slice)
 - [5. Questions For The Owner](#5-questions-for-the-owner)
 
+**Decided by the owner, 2026-10-17** (these override the plan below where they differ):
+- No opt-in switch: "just turn it on, no one is using this except me". Ownership checking is on for every program; programs without marks are unaffected because nothing in them is owned or borrowed. Drop the `HD_PROTOTYPE` variable, the toolchain-key option and the `ownership-prototype-off` code from every slice.
+- Shared TIR and type pool for every program: yes (the wire format version changes once).
+- The parser accepts the marks in every program: yes.
+- The ownership pass reads TIR for bodies with marks: accepted.
+- Fixtures go into `spec/conformance/` now, not `crates/hd_driver/tests/ownership/`. So each slice also writes the spec rules its fixtures cite (the owner's standing order: every decided behaviour ships with its spec rules and fixtures); the ownership spec grows slice by slice.
+- `OwnOnly`, `DropOwn` and `drop` land in a new std module every program can see.
+- Freshness also covers a later store into a plain field of an owned value (review case O10), not only construction.
+
 ## 1. What The Prototype Proves
 
 Six adversarial reviews tested the design on paper, and the sixth closed

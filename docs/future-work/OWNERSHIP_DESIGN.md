@@ -985,6 +985,7 @@ adds a few of its own. Each rejects code the old design accepted:
 - 6.4 Drop in generic code: how compiled code finds `drop` is a compiler choice outside the spec; types without a destructor keep sharing one body, each type with a destructor gets its own instance and drop flags.
 - 6.5 Higher-order functions: owned lists reach `map`, `filter` and `fold` through `iter()` and `into_iter()`, plus `retain`; no owned twins on `List`.
 - 6.6 Migration: bottom up: language, traits, containers, handles with streaming, then the rest of std by lint.
+- Freshness on stores (prototype question 7, review O10): the freshness rule also applies to a later store into a plain field of an owned value, so `own` stays the only path to the whole value.
 
 The option discussions below are kept as the record of why.
 
