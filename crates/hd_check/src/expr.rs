@@ -2438,7 +2438,11 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `if c: a else: b` as a statement or a value.
+    /// `if c: a else if d: b else: e` as a statement or a value. The
+    /// chain is one node whose branches are siblings (`flow.if.else-if`).
+    /// It lowers to nested `If`s, each later branch in the `else` block of
+    /// the one before, built by a loop so a long chain takes no stack per
+    /// branch.
     pub(crate) fn if_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let Some(cond) = e.children().next() else {
@@ -2447,78 +2451,129 @@ impl Ck<'_, '_> {
         let Some(then_node) = Src::child(e, SyntaxKind::Block) else {
             return unsupported("an `if` without a block");
         };
-        let clause = Src::child(e, SyntaxKind::ElseClause);
+        // Each branch: its node, condition, and suite.
+        let mut branches = vec![(e, cond, then_node)];
+        let mut last_else = None;
+        for clause in e.children() {
+            match clause.kind() {
+                SyntaxKind::ElseIfClause => {
+                    let (Some(cond), Some(blk)) = (
+                        clause.children().next(),
+                        Src::child(clause, SyntaxKind::Block),
+                    ) else {
+                        return unsupported("an `else if` without a condition or a block");
+                    };
+                    branches.push((clause, cond, blk));
+                }
+                SyntaxKind::ElseClause => {
+                    let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
+                        return unsupported("an `else` without a block");
+                    };
+                    last_else = Some((clause, blk));
+                }
+                _ => {}
+            }
+        }
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
-        let (when_true, when_false) = self.take_cond_flow(cond);
+        let first_flow = self.take_cond_flow(cond);
         // `flow.if.value.else`: an `if` used where a value is required
         // must have an `else`. A function-body tail is exempt: there the
         // fallthrough is `missing-return-value`.
-        if clause.is_none() && want != Some(Ty::VOID) && self.fn_body_tail != Some(e.index()) {
+        if last_else.is_none() && want != Some(Ty::VOID) && self.fn_body_tail != Some(e.index()) {
             self.err(
                 Code::TypeMismatch,
                 e,
                 "an `if` used as a value needs an `else`, for the value when the condition is false",
             );
         }
-        // A value `if` needs an `else`; without one it is a statement.
-        let want = if clause.is_none() {
+        // A value `if` needs an `else`; without one the chain is a
+        // statement.
+        let want = if last_else.is_none() {
             Some(Ty::VOID)
         } else {
             want
         };
-        self.join_site(want, |this, result| {
-            // Each branch starts from the condition's `when_true` or
-            // `when_false`.
-            let tb = this.b.open_block();
-            this.set_uninit(when_true.clone());
-            let (tt, tty) = this.block_value(then_node, Some(result))?;
-            let then = this.b.close_block(tb, tt, tty, then_node.index());
-            let after_then = this.replace_uninit(when_false.clone());
-            let (els, ety) = if let Some(clause) = clause {
-                let eb = this.b.open_block();
-                let (tail, ty) = if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
-                    let (r, t) = this.if_expr(nested, Some(result))?;
-                    let t = this.infer.shallow(pool, t);
-                    if t == Ty::VOID || r.0 == NONE {
-                        (None, t)
-                    } else {
-                        // A nested site has a type of its own, which then
-                        // joins this site's.
-                        (
-                            Some(this.coerce(
-                                r,
-                                t,
-                                result,
-                                nested,
-                                "result",
-                                ExpectPosition::General,
-                            )),
-                            t,
-                        )
-                    }
+        let last = branches.len() - 1;
+        self.join_site(want, |this, site| {
+            struct Frame {
+                node: hd_base::NodeIdx,
+                c: Ref,
+                then: Ref,
+                tty: Ty,
+                after_then: hd_base::HashSet<hd_base::LocalId>,
+                els: Option<hd_tir::ir::BlockMark>,
+            }
+            let mut frames: Vec<Frame> = Vec::with_capacity(branches.len());
+            let mut flow = Some((c, first_flow));
+            for (k, &(node, cond, then_node)) in branches.iter().enumerate() {
+                // A later branch's condition is checked in the `else`
+                // block of the branch before it.
+                let (c, (when_true, when_false)) = if let Some(first) = flow.take() {
+                    first
                 } else {
-                    let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
-                        return unsupported("an `else` without a block");
-                    };
-                    this.block_value(blk, Some(result))?
+                    let (c, ct) = this.expr(cond, Some(Ty::BOOL))?;
+                    this.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+                    (c, this.take_cond_flow(cond))
                 };
-                (this.b.close_block(eb, tail, ty, clause.index()), ty)
-            } else {
-                (Ref(NONE), Ty::VOID)
+                // Each branch starts from the condition's `when_true` or
+                // `when_false`.
+                let tb = this.b.open_block();
+                this.set_uninit(when_true);
+                let (tt, tty) = this.block_value(then_node, Some(site))?;
+                let then = this.b.close_block(tb, tt, tty, then_node.index());
+                let after_then = this.replace_uninit(when_false);
+                let els = (k < last || last_else.is_some()).then(|| this.b.open_block());
+                frames.push(Frame {
+                    node: node.index(),
+                    c,
+                    then,
+                    tty,
+                    after_then,
+                    els,
+                });
+            }
+            let (mut els, mut ety) = match (last_else, frames.last().and_then(|f| f.els)) {
+                (Some((clause, blk)), Some(eb)) => {
+                    let (tail, ty) = this.block_value(blk, Some(site))?;
+                    (this.b.close_block(eb, tail, ty, clause.index()), ty)
+                }
+                _ => (Ref(NONE), Ty::VOID),
             };
-            let both_never = tty == Ty::NEVER && ety == Ty::NEVER;
-            // `names.definite.merge`, `names.definite.diverging`: a branch
-            // that diverges is not an incoming path.
-            let merged = [(tty, &after_then), (ety, &this.uninit)]
-                .into_iter()
-                .filter(|(t, _)| *t != Ty::NEVER)
-                .flat_map(|(_, s)| s.iter().copied())
-                .collect();
-            this.set_uninit(merged);
-            let ty = if both_never { Ty::NEVER } else { result };
-            let rec = this.b.refs_record(&[then, els]);
-            Ok((this.b.emit(Tag::If, c.0, rec, ty, e.index()), ty))
+            // From the last branch back to the first: each `If` is the
+            // value of the `else` block of the branch before it.
+            while let Some(f) = frames.pop() {
+                let both_never = f.tty == Ty::NEVER && ety == Ty::NEVER;
+                // `names.definite.merge`, `names.definite.diverging`: a
+                // branch that diverges is not an incoming path.
+                let merged = [(f.tty, &f.after_then), (ety, &this.uninit)]
+                    .into_iter()
+                    .filter(|(t, _)| *t != Ty::NEVER)
+                    .flat_map(|(_, s)| s.iter().copied())
+                    .collect();
+                this.set_uninit(merged);
+                let ty = if both_never { Ty::NEVER } else { site };
+                let rec = this.b.refs_record(&[f.then, els]);
+                let r = this.b.emit(Tag::If, f.c.0, rec, ty, f.node);
+                let Some(outer) = frames.last() else {
+                    return Ok((r, ty));
+                };
+                let Some(eb) = outer.els else {
+                    return unsupported("an `else if` without an `else` block");
+                };
+                let t = this.infer.shallow(pool, ty);
+                let tail = if t == Ty::VOID || r.0 == NONE {
+                    None
+                } else {
+                    // A later branch's `If` has a type of its own, which
+                    // then joins this site's.
+                    let node = this.cx.src.parse.tree.node(f.node);
+                    Some(this.coerce(r, t, site, node, "result", ExpectPosition::General))
+                };
+                els = this.b.close_block(eb, tail, t, f.node);
+                ety = t;
+            }
+            unsupported("an `if` without a branch")
         })
     }
 

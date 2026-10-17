@@ -186,7 +186,11 @@ pass. `precede` wraps a finished node through `forward_parent`;
 - **Progress and depth.** Each repetition consumes at least one token,
   into an `ERROR` node if the grammar made no progress. Brackets, blocks,
   closures and interpolations share one depth counter. At 160 the parser
-  reports `nesting-too-deep` once and skips the balanced remainder.
+  reports `nesting-too-deep` once and skips the balanced remainder. An
+  `else if` chain is one `IfExpr` whose `ElseIfClause` branches are
+  siblings, parsed by a loop, so a branch adds no depth
+  (`flow.if.else-if`); the checker and the Wasm emitter also walk the
+  chain with a loop, so its length costs no stack depth.
 - **Operators.** Precedence climbing. A left-associative chain loops
   instead of recursing, so its length costs no stack depth; recursion is
   bounded by the number of precedence levels. Comparisons report

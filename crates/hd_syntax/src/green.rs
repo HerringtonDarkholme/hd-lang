@@ -50,6 +50,7 @@ pub enum SyntaxKind {
     DeferStmt,
     ExprStmt,
     ElseClause,
+    ElseIfClause,
     MatchArm,
     MatchGuard,
     // Expressions. A binary node keeps its operator token; the kind records
@@ -485,6 +486,7 @@ ast_nodes! {
     DeferStmt => DeferStmt,
     ExprStmt => ExprStmt,
     ElseClause => ElseClause,
+    ElseIfClause => ElseIfClause,
     MatchArm => MatchArm,
     MatchGuard => MatchGuard,
     BindingExpr => BindingExpr,
