@@ -790,33 +790,21 @@ fn tls_program(url: &str) -> Program {
 }
 
 #[test]
-fn http_loopback_tls_alert_is_tls_error_on_wasmtime() {
+fn http_loopback_tls_alert_is_tls_error_on_both_providers() {
     use std::io::{Read, Write};
+    let scratch = Scratch::new();
     let server = TcpFixture::new(|mut peer| {
         let mut header = [0; 5];
         peer.read_exact(&mut header).unwrap();
         assert_eq!(header[0], 22);
         let mut hello = vec![0; usize::from(u16::from_be_bytes([header[3], header[4]]))];
         peer.read_exact(&mut hello).unwrap();
+        // A fatal `unknown_ca` alert. Node reports it as `EPROTO`.
         peer.write_all(&[21, 3, 3, 0, 2, 2, 48]).unwrap();
         let _ = peer.read_to_end(&mut Vec::new());
     });
     let p = tls_program(&format!("https://127.0.0.1:{}/", server.address.port()));
-    let (wasm, expected) = p.finish(7);
-    // Node emits EPROTO for this actual TLS alert and wrongly classifies it
-    // as Connect. Preserve the specified Tls category on the Rust provider.
-    let setup = hd_run::HostSetup {
-        providers: vec![],
-        grants: hd_run::Grants::default(),
-        limits: hd_run::Limits::default(),
-        args: vec![],
-        program: String::new(),
-    };
-    let result =
-        hd_run_wasmtime::run_captured(hd_run_wasmtime::EngineConfig::default(), &wasm, &setup)
-            .unwrap();
-    assert_eq!(result.status, 7);
-    assert_eq!(result.stderr, expected.as_bytes());
+    assert_program(&scratch, p, vec![], || {});
 }
 
 fn unhex(text: &str) -> Vec<u8> {
