@@ -542,146 +542,108 @@ new numbered item with the given ID; renumber the list.
 
 ## C. Compiler, Diagnostic And Host Work
 
+Filed as GitHub issues under #183 group C, each item re-probed at e7f630651
+(2026-10-17). "Dropped" means it no longer reproduces or has nothing left to
+do; "moved to D" means a spec decision is needed first.
+
 ### Compiler Bug Found By This Pass
 
-- `while ... else` whose `break` values are functions with different rows
-  (`break orders` with `$ Console`, `else: health` with none) stops with
-  `internal-error: ... TIR verifier: invariant 4 ... Break value of type
-  1970 where 1968 is expected`. The same functions joined by an `if` check
-  fine. Probe `p/p69.hd`. Fixed by 86d03d467 (#380).
-- REPL facts after a type's first derivation (2026-10-13, moved from B3).
-  The owner accepted that a derivation built after a later input's block
-  with no trait sees the block's facts (live-execution.md, REPL
-  Decisions). Today, once the session has built one derivation for the
-  type, a later block reaches no derivation: one written after the block
-  still sees the old facts. Without an earlier derivation it works. Fix
-  the session, then add B3's Note. Probes `replpkg/in4.txt`, `in5.txt`,
-  `in8.txt` under `target/spec-audit-b/`.
+- `while ... else` with `break` values of different rows: dropped, fixed by
+  86d03d467 (#380); probe `p69.hd` checks clean.
+- REPL facts after a type's first derivation: #381.
 
 ### Checker Gaps
 
-- Long `else if` chain (2026-10-17): 180 branches report
-  `nesting-too-deep`. The spec's nesting limit counts brackets, suites,
-  closures and interpolations, and an `else if` chain is one form, so a
-  chain branch should not count as a level.
-- Header goal out of fuel (2026-10-15): reports nothing
-  (`header.rs` treats `OutOfFuel` as proved). `fn.limit.complexity.error`
-  already names `item-too-complex` for any item.
-- `f32` literal rounds twice (2026-10-09): the checker stores float literals
-  as `f64` bits; round the decimal once to `f32`.
-- Case folding for module paths (2026-10-11): approximate fold; use the
-  full Unicode fold table.
-- Host panics during a fact (2026-10-11): `stack-exhausted`, `time-limit`
-  and `host-contract` raised by the host are not wrapped as
-  `fact-evaluation-failed`.
-- Same-name items in one message (2026-10-08): the module-qualified form is
-  untested; add a test.
-- Typed facts are missing from `facts_of` results (part of 2026-10-10
-  `facts_of` row, see B24).
+- Long `else if` chain: #382.
+- Header goal out of fuel: #383.
+- `f32` literal rounds twice: #384.
+- Case folding for module paths: #385.
+- Host panics during a fact: #386.
+- Same-name items in one message: #387 (it is worse than untested: the
+  names print identically, unqualified).
+- Typed facts missing from `facts_of` results: dropped, no failing input
+  could be built (a typed decorator on a function reads back through
+  `find::[T]()`; `facts-of-read.hd` passes).
 
 ### Messages And Hints
 
-- Unimported or misspelled `it_prop`, `itt` in `tests:` (2026-10-17): say
-  the name is unknown or unimported.
-- `(1: i64)` (2026-10-17): the message talks about trailing blocks; say
-  casts are calls, `i64(1)`.
-- `collect` into a list of the wrong element type (2026-10-17): name the
-  element type, `FromIterator[(usize, usize)]`.
-- Mutation after `let m = f()` where `f` returns `mut T` (2026-10-17):
-  mention `let` with a `mut` annotation.
+- Unimported or misspelled `it_prop`, `itt` in `tests:`: #388.
+- `(1: i64)`: #389.
+- `collect` into a list of the wrong element type: #390.
+- Mutation after `let m = f()` where `f` returns `mut T`: #391.
 - Std names used without `use`, `StringBuilder`, `parse_f64`,
-  `@arbitrary.with` (2026-10-17, 2026-10-16): suggest the `use` path, or
-  a fix-it.
-- `mixed-derived-law` (2026-10-08, 2026-10-16): name the missing or mixed
-  trait, as `PartialOrd`.
-- `ambiguous-method` hint (2026-10-08): show candidate trait arguments,
-  `Convert::[i32]::convert(c)`.
-- Row parameters print as `owner#index` (2026-10-08): print the declared
-  name.
-- Test and task module paths (2026-10-08): `use super.up` in
-  `tests/common/mod.hd` reads "no module named `tests`"; quote the path as
-  written.
-- Span of `syntax-error` for an unknown `$.name` (2026-10-10): point at the
-  name.
-- Near names (2026-10-15, 2026-10-16): `append`, `Map.new`, `copy`,
-  `into`, `print` and similar get no did-you-mean.
-- `mutable-receiver-required` (2026-10-15): name the binding form that
-  gives mutable access.
-- Wrong spellings (2026-10-15): `loop:`, `/// doc`, `use` inside a
-  function, `eprintln` or `Error` without `use`.
-- Suspension hints (2026-10-15): `race!(slow!(), ...)` should suggest cold
-  calls; a bang call in `defer` should suggest acting after the scope.
-- Map key panic (2026-10-15): name the key, and do not reuse the list
-  wording.
-- `List + List` (2026-10-15): point at the list operations.
-- Stdlib-audit hints (2026-10-15): optional in `Display` suggests
-  `debug(...)`; `unwrap` suggests `expect`; `Map::new()` suggests `{}`.
-- `unsatisfied-trait-bound` prints a `mut` the value lacks (2026-10-15).
-- `mixed-signedness` (2026-10-15): suggest a `usize` counter or `i32(n)`.
-- Bound mismatch with defaulted literals (2026-10-16): keep `[i32]` and say
-  the literals defaulted to `usize`.
-- Syntax errors from other languages (2026-10-16): `newtype Meters(f64)`,
-  `1 | 2 | 3 =>`, a postfix `!`; suggest the hd spelling.
-- `T < Add` with `acc + item` (2026-10-16): suggest `T < Add[Out = T]`.
-- Doc test in an executable package (2026-10-16): say doc tests see only
-  library modules.
-- One-argument `IndexSet` (2026-10-16): name the missing type argument.
-- Mid-character string slice (2026-10-16): say the offset is not on a
-  character boundary.
+  `@arbitrary.with`: #388.
+- `mixed-derived-law`: #390.
+- `ambiguous-method` hint: #390.
+- Row parameters print as `owner#index`: dropped, a function type prints
+  without its row, and no probe printed `owner#index`.
+- Test and task module paths: #393.
+- Span of `syntax-error` for an unknown `$.name`: #389.
+- Near names, `append`, `Map.new`, `copy`, `into`, `print`: #388.
+- `mutable-receiver-required`: #391.
+- Wrong spellings, `loop:`, `/// doc`, `use` inside a function: #389;
+  `eprintln` or `Error` without `use`: #388.
+- Suspension hints: #392.
+- Map key panic: #393.
+- `List + List`: #390.
+- Stdlib-audit hints: `Display` of an optional #390; `unwrap` and
+  `Map::new()` #388.
+- `unsatisfied-trait-bound` prints a `mut` the value lacks: #390.
+- `mixed-signedness`: #391.
+- Bound mismatch with defaulted literals: #390.
+- Syntax errors from other languages: #389.
+- `T < Add` with `acc + item`: #390.
+- Doc test in an executable package: #393.
+- One-argument `IndexSet`: #390.
+- Mid-character string slice: #393.
 
 ### Cascades
 
-- `?` in `main!() -> void` (2026-10-15): drop the follow-on
-  `uninhabited-binding`.
-- Index key of the wrong type (2026-10-16): still two errors, now
-  `Table does not implement Index` and `Table::Out does not implement
-  Display` (probe `p/p189.hd`).
-- Missing `use std.convert.From` (2026-10-16): `unknown-trait`, then
-  `invalid-result-propagation` (probe `p/p190b.hd`). The `.collect()` half of
-  that row is gone (probe `p/p190c.hd`).
+- `?` in `main!() -> void`: #394.
+- Index key of the wrong type: #395.
+- Missing `use std.convert.From`: #396.
 
 ### Fix-Its
 
-- `unused-derivation-fact` (2026-10-08): still `"fixes":[]`, though
-  `DiagBuf` now carries fix-its for other codes.
-- Test or task file beside its directory (2026-10-08): still `"fixes":[]`;
-  the move to `DIR/mod.hd` needs a fix-it that moves a file.
-- Fix-its in text output (2026-10-15): text mode shows none.
+- `unused-derivation-fact`: #397.
+- Test or task file beside its directory: moved to D. The JSON fix-it
+  shape (`cli.json.fix.edit`) replaces bytes in a file and cannot move one.
+- Fix-its in text output: moved to D. The spec fixes no text layout for a
+  diagnostic, so the form of a text fix-it is a decision. The row stays in
+  diagnostic-notes.md.
 
 ### CLI And Std
 
-- `hd test` case that cannot run yet (2026-10-08): text `UNSUPPORTED`,
-  JSON `ignored`. Keep it rare; no spec change.
-- `dbg-in-dependency` (2026-10-09, 2026-10-10): still not reported. The
-  release half of that row is done: `hd build --release` reports
-  `dbg-in-release` (probe `p90/`).
-- Declared defaults in derivations (2026-10-11): open as #44.
+- `hd test` case that cannot run yet: dropped, no action (the note itself
+  says keep it rare, no spec change). The row stays in diagnostic-notes.md.
+- `dbg-in-dependency`: #398.
+- Declared defaults in derivations: already open as #44.
 
 ### Hosts
 
-- Node file grants check then open by name, so a swapped symbolic link
-  escapes (2026-10-15). The wasmtime host is safe.
-- Process input a child does not read (2026-10-15, moved from B2):
-  `run!("head", ["-n", "1"], stdin=...)` with 200000 lines returns
-  `.Ok` on wasmtime, but `.Err(ProcessError.Other("spawnSync head EPIPE"))`
-  on Node. Fix the Node host to drop the unread rest, as Go's `exec` does,
-  then add B2's `std-process.stdin.unread`.
-- External process spawning without a shebang (2026-10-10): pin the native
-  host's behavior with a test; the spec need not say.
-- Pipe-worker thread creation failure (2026-10-10): may block before
-  cancellation.
-- Native resolver family hints (2026-10-10).
-- Node Http: TLS alerts classified as `Connect` (2026-10-10).
-- Node Http: response headers cut at 1000 pairs (2026-10-10).
-- Node Net: high-bit read maxima read as negative (2026-10-10).
-- Native DNS cancellation (2026-10-10).
-- Non-Unix output-cap cancellation (2026-10-10).
-- Windows directory grants on Node (2026-10-10).
-- Linux nested cgroup CPU quotas (2026-10-10).
-- Native syscall cancellation limits (2026-10-10).
-- Darwin descriptor exhaustion edge (2026-10-10; owner accepted it as a
-  documented limit).
-- `std-process.cancel` on Windows: the job-assignment window (2026-10-15).
+- Node file grants: `..` after a link: #399 (reproduced, node reads the
+  file, wasmtime refuses). Link swapped between check and open: #400.
+- Process input a child does not read: #401.
+- External process spawning without a shebang: dropped, the test exists
+  (`no_shebang_executable_uses_rust_standard_spawning_behavior`; its flake
+  is #375).
+- Pipe-worker thread creation failure: dropped, the process provider no
+  longer uses scoped threads (it runs on the async runtime).
+- Native resolver family hints: #406.
+- Node Http: TLS alerts classified as `Connect`: #402.
+- Node Http: response headers cut at 1000 pairs: #403 (reproduced).
+- Node Net: high-bit read maxima: #404.
+- Native DNS cancellation: #405.
+- Non-Unix output-cap cancellation: dropped, the process provider uses
+  async pipes on every platform.
+- Windows directory grants on Node: dropped, `createGrant` takes the path
+  separator (host/core.mjs).
+- Linux nested cgroup CPU quotas: #408.
+- Native syscall cancellation limits: dropped, an OS limit; the row stays in
+  diagnostic-notes.md.
+- Darwin descriptor exhaustion edge: dropped, owner accepted it as a
+  documented limit; the row stays in diagnostic-notes.md.
+- `std-process.cancel` on Windows, the job-assignment window: #407.
 
 ## A. Resolved (Deleted From diagnostic-notes.md)
 
