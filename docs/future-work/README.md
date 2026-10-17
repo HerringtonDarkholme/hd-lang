@@ -36,6 +36,9 @@ action at a distance.
 - [Ownership Adversarial Review 5](OWNERSHIP_STRESS_TEST_5.md): confirms the
   fourth round's repairs and tests generic copying, guarded consuming
   patterns, and replacement through exclusive borrows.
+- [Ownership Adversarial Review 6](OWNERSHIP_STRESS_TEST_6.md): retests the
+  fifth round's repairs, then probes global cleanup dependencies,
+  cancellation around optional extraction, and always-owned generics.
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
