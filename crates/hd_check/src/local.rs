@@ -142,8 +142,13 @@ impl Ck<'_, '_> {
             global: self.cx.global,
             solver: self.cx.solver,
             session: self.cx.session,
+            fuel: self.cx.fuel,
         };
         for f in crate::header::local_supertraits(&hcx, it)? {
+            // A local impl is part of its body, which is too complex.
+            if f.code == Code::ItemTooComplex {
+                return crate::body::out_of_fuel();
+            }
             self.err(f.code, s, &f.message);
         }
         Ok(())

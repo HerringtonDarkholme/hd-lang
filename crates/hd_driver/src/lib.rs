@@ -1312,10 +1312,11 @@ pub struct Packages<'a> {
     /// builds `input` alone, whose exports are `hd.init` and `hd.poll`.
     pub inputs_from: Option<u32>,
     /// A test-only hook: the fuel of each body of the root package's
-    /// modules, smaller than `Fuel::BODY_DEFAULT`, so a small program
-    /// reaches `item-too-complex` (`fn.limit.complexity.error`) fast.
-    /// It is part of those modules' check keys. `None` keeps the default;
-    /// every other package always does.
+    /// modules, and of each of their items' header goals, smaller than
+    /// `Fuel::BODY_DEFAULT`, so a small program reaches `item-too-complex`
+    /// (`fn.limit.complexity.error`) fast. It is part of those modules'
+    /// check keys and of their folders' header-check keys. `None` keeps
+    /// the default; every other package always does.
     pub body_fuel: Option<u64>,
 }
 
@@ -3826,6 +3827,10 @@ impl Run<'_> {
             .into_iter()
             .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
             .collect();
+        // A test's fuel budget for the root package ([`Packages::body_fuel`])
+        // bounds each item's goals too, so it is part of the key.
+        let test_fuel = self.body_fuel.filter(|_| folder.package == 0);
+        let fuel = test_fuel.unwrap_or(hd_base::Fuel::BODY_DEFAULT);
         // The folder's own impls of private types are in its findings.
         // Its uses' diagnostics read its own uses, which a body-only use
         // edit changes and no interface hash sees (`reads_key`), and the
@@ -3837,6 +3842,9 @@ impl Run<'_> {
             k.hash(self.reads_key(fi));
             for i in &all {
                 k.hash(i.names_hash);
+            }
+            if let Some(fuel) = test_fuel {
+                k.u64(fuel);
             }
             k.finish()
         };
@@ -3901,6 +3909,7 @@ impl Run<'_> {
             global: &self.memo,
             solver: &TableSolver,
             session: &session,
+            fuel,
         };
         let r = hd_check::header::stage_b(&cx, &own.items);
         let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
@@ -5633,6 +5642,7 @@ impl Run<'_> {
             global: cx.global,
             solver: cx.solver,
             session: cx.session,
+            fuel: cx.fuel,
         };
         let Ok(findings) = hd_check::header::private_items(&hcx, cx.lookup.own) else {
             return;
@@ -5674,6 +5684,7 @@ impl Run<'_> {
             global: cx.global,
             solver: cx.solver,
             session: cx.session,
+            fuel: cx.fuel,
         };
         for it in cx.lookup.own.iter().filter(|it| traits.contains(&it.def)) {
             let Ok(findings) = hd_check::header::boundary(&hcx, it) else {
@@ -5722,6 +5733,7 @@ impl Run<'_> {
             global: cx.global,
             solver: cx.solver,
             session: cx.session,
+            fuel: cx.fuel,
         };
         for h in heads.iter().filter(|h| {
             h.kind == hd_resolve::HeadKind::Fn
@@ -5930,6 +5942,7 @@ impl Run<'_> {
             global: cx.global,
             solver: cx.solver,
             session: cx.session,
+            fuel: cx.fuel,
         };
         if let Ok(fs) = hd_check::header::derived_newtypes(&hcx, cx.lookup.own) {
             for f in fs {

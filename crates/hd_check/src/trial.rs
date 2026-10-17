@@ -15,7 +15,7 @@ use hd_types::solver::{
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, RowFrame, out_of_fuel, unsupported};
+use crate::body::{Ck, ExpectPosition, RowFrame, unsupported};
 use crate::call::{Args, TraitTarget, subst_owner};
 
 /// One change to body state that is written in place, logged while a
@@ -824,7 +824,6 @@ impl Ck<'_, '_> {
                 Ok(Some(out))
             }
             Answer::Fails(_) => Ok(Some(vec![])),
-            Answer::OutOfFuel => out_of_fuel(),
             _ => Ok(None),
         }
     }

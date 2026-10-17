@@ -10,8 +10,9 @@
 //! Compiler-supplied traits are not the solver's yet (§3.9), so a goal on
 //! one of them reports nothing here. A goal whose proof needs more than 64
 //! nested bounds (`Overflow`) is `trait-resolution-depth`, as in a body
-//! (`trait.bound.depth.limit`); one that runs out of fuel reports nothing.
-//! Otherwise only `Fails` is an error.
+//! (`trait.bound.depth.limit`). An item whose goals run out of fuel is one
+//! `item-too-complex` on the item (`fn.limit.complexity.error`), and its
+//! remaining goals are not asked. Otherwise only `Fails` is an error.
 
 use hd_base::{DefId, Fuel, StageResult, Symbol};
 use hd_diag::Code;
@@ -21,7 +22,7 @@ use hd_types::solver::{
 };
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, Types};
 
-use crate::body::add_bound;
+use crate::body::{TOO_COMPLEX, add_bound};
 
 /// What a folder's header check sees: the items of its closure, its view
 /// of the impls, the run memo and the solver.
@@ -35,6 +36,9 @@ pub struct HeaderCx<'a> {
     /// module for derivation templates ([`crate::BodyCx::session`]). Empty
     /// otherwise.
     pub session: &'a [hd_base::PathId],
+    /// The fuel of each item's goals: `Fuel::BODY_DEFAULT`, or the smaller
+    /// budget a test sets for bodies ([`crate::BodyCx::fuel`]).
+    pub fuel: u64,
 }
 
 /// One problem stage B found: the item, a code and a message.
@@ -92,16 +96,7 @@ fn stage_b_over<'i>(
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     for it in items {
-        let mut env = environment(cx, it);
-        env.key = Some(cx.global.env_key(&env));
-        let mut hc = ItemCheck {
-            cx,
-            env,
-            memo: BodyMemo::default(),
-            fuel: Fuel::new(Fuel::BODY_DEFAULT),
-            item: it.def,
-            out: &mut out,
-        };
+        let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.item(it)?;
     }
     Ok(out)
@@ -118,16 +113,7 @@ pub fn local_supertraits(cx: &HeaderCx<'_>, it: &Item) -> StageResult<Vec<Findin
     {
         return Ok(out);
     }
-    let mut env = environment(cx, it);
-    env.key = Some(cx.global.env_key(&env));
-    let mut hc = ItemCheck {
-        cx,
-        env,
-        memo: BodyMemo::default(),
-        fuel: Fuel::new(Fuel::BODY_DEFAULT),
-        item: it.def,
-        out: &mut out,
-    };
+    let mut hc = ItemCheck::new(cx, it, &mut out);
     hc.supertraits(it)?;
     Ok(out)
 }
@@ -151,16 +137,7 @@ pub fn derived_newtypes(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Fi
         else {
             continue;
         };
-        let mut env = environment(cx, it);
-        env.key = Some(cx.global.env_key(&env));
-        let mut hc = ItemCheck {
-            cx,
-            env,
-            memo: BodyMemo::default(),
-            fuel: Fuel::new(Fuel::BODY_DEFAULT),
-            item: it.def,
-            out: &mut out,
-        };
+        let mut hc = ItemCheck::new(cx, it, &mut out);
         let tv = hc.pool().intern_ty(&TyData::TraitValue {
             def: *trait_,
             args: *trait_args,
@@ -241,23 +218,25 @@ pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<
     if pool.has_poison(sig.ret) {
         return Ok(out);
     }
-    let mut env = environment(cx, it);
-    env.key = Some(cx.global.env_key(&env));
     let mut findings = Vec::new();
-    let mut hc = ItemCheck {
-        cx,
-        env,
-        memo: BodyMemo::default(),
-        fuel: Fuel::new(Fuel::BODY_DEFAULT),
-        item: it.def,
-        out: &mut findings,
-    };
+    let mut hc = ItemCheck::new(cx, it, &mut findings);
     let termination = pool.intern_ty(&TyData::TraitValue {
         def: cx.names.item("std.process", "Termination"),
         args: TyList::EMPTY,
         bindings: vec![],
     });
-    if hc.fails(sig.ret, termination, 0)? {
+    let fails = hc.fails(sig.ret, termination, 0)?;
+    // A proof too deep is at the result, one out of fuel on the function.
+    out.extend(findings.into_iter().map(|f| EntryFinding {
+        at: if f.code == Code::ItemTooComplex {
+            EntryAt::Name
+        } else {
+            EntryAt::Result
+        },
+        code: f.code,
+        message: f.message,
+    }));
+    if fails {
         out.push(EntryFinding {
             at: EntryAt::Result,
             code: Code::UnsatisfiedTraitBound,
@@ -333,6 +312,27 @@ struct ItemCheck<'c, 'a> {
     fuel: Fuel,
     item: DefId,
     out: &'c mut Vec<Finding>,
+    /// Whether the fuel ran out: `item-too-complex` is reported, and no
+    /// further goal is asked.
+    too_complex: bool,
+}
+
+impl<'c, 'a> ItemCheck<'c, 'a> {
+    /// The goals of `it`, under its environment, with a fresh memo and
+    /// `cx.fuel`; findings go to `out`.
+    fn new(cx: &'c HeaderCx<'a>, it: &Item, out: &'c mut Vec<Finding>) -> Self {
+        let mut env = environment(cx, it);
+        env.key = Some(cx.global.env_key(&env));
+        ItemCheck {
+            cx,
+            env,
+            memo: BodyMemo::default(),
+            fuel: Fuel::new(cx.fuel),
+            item: it.def,
+            out,
+            too_complex: false,
+        }
+    }
 }
 
 impl<'a> ItemCheck<'_, 'a> {
@@ -763,8 +763,13 @@ impl<'a> ItemCheck<'_, 'a> {
     /// Whether `t` provably does not implement the trait value `bound`
     /// under the item's environment: the solver answers `Fails`. A proof
     /// deeper than 64 bounds reports `trait-resolution-depth` at `slot`
-    /// (`trait.bound.depth.limit`) and is not a failure.
+    /// (`trait.bound.depth.limit`) and is not a failure. A goal that runs
+    /// out of fuel is one `item-too-complex` on the item, at its header
+    /// (`fn.limit.complexity.error`), and no goal is asked after it.
     fn fails(&mut self, t: Ty, bound: Ty, slot: u32) -> StageResult<bool> {
+        if self.too_complex {
+            return Ok(false);
+        }
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(bound) else {
             return Ok(false);
@@ -809,6 +814,10 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.cx.names.display_name(def)
             );
             self.report(slot, Code::TraitResolutionDepth, message);
+        }
+        if matches!(answer, Answer::OutOfFuel) {
+            self.too_complex = true;
+            self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
         }
         Ok(matches!(answer, Answer::Fails(_)))
     }
@@ -1030,16 +1039,7 @@ pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
         let Some(sig) = mi.sig() else {
             continue;
         };
-        let mut env = environment(cx, mi);
-        env.key = Some(cx.global.env_key(&env));
-        let mut hc = ItemCheck {
-            cx,
-            env,
-            memo: BodyMemo::default(),
-            fuel: Fuel::new(Fuel::BODY_DEFAULT),
-            item: m,
-            out: &mut out,
-        };
+        let mut hc = ItemCheck::new(cx, mi, &mut out);
         let crossing: Vec<(Ty, DefId)> = sig
             .params
             .iter()

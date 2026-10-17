@@ -127,6 +127,10 @@ pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
     e.stage == Stage::Body && e.what == OUT_OF_FUEL
 }
 
+/// The message of `item-too-complex`, in a body and in a header.
+pub(crate) const TOO_COMPLEX: &str =
+    "checking this item needs more steps than the compiler allows; split it into smaller items";
+
 /// `fn.limit.complexity.error` (`crates/hd_check/DESIGN.md` (type
 /// checking) §11.2): an item whose check ran out of fuel gets one
 /// `item-too-complex` at `at`. The diagnostics reported before stay, and
@@ -137,11 +141,7 @@ pub(crate) fn too_complex(
     at: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    diags.error(
-        Code::ItemTooComplex,
-        cx.src.span(at),
-        "checking this item needs more steps than the compiler allows; split it into smaller items",
-    );
+    diags.error(Code::ItemTooComplex, cx.src.span(at), TOO_COMPLEX);
     let mut b = TirBuilder::new(item, kind);
     let blk = b.open_block();
     let p = b.emit(Tag::Poison, NONE, NONE, Ty::POISON, at.index());
@@ -2089,7 +2089,6 @@ impl Ck<'_, '_> {
                 self.err(Code::TraitResolutionDepth, at, &msg);
                 Ok(None)
             }
-            Answer::OutOfFuel => out_of_fuel(),
             other => unsupported(format!("solver answer {other:?}")),
         }
     }
@@ -2121,6 +2120,9 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Asks `goal` of the solver with the body's fuel. A goal that runs
+    /// out of fuel stops the check (`out_of_fuel`), so no caller takes
+    /// `OutOfFuel` for an answer.
     pub(crate) fn solve_goal(&mut self, goal: &Goal) -> StageResult<Answer> {
         let decls = self.cx.decls();
         let view = self.cx.impls.hiding(&self.hidden);
@@ -2133,7 +2135,10 @@ impl Ck<'_, '_> {
             body_memo: &mut self.memo,
             global: self.cx.global,
         };
-        self.cx.solver.solve(&mut scx, goal, &mut self.fuel)
+        match self.cx.solver.solve(&mut scx, goal, &mut self.fuel)? {
+            Answer::OutOfFuel => out_of_fuel(),
+            answer => Ok(answer),
+        }
     }
 
     /// The evidence of a goal that a compiler-supplied row (`crates/hd_check/DESIGN.md` (trait solver)
@@ -2626,7 +2631,6 @@ impl Ck<'_, '_> {
                 Ok(true)
             }
             Answer::Stalled { .. } => Ok(false),
-            Answer::OutOfFuel => out_of_fuel(),
             other => unsupported(format!("solver answer {other:?}")),
         }
     }

@@ -1432,8 +1432,14 @@ turns it into `item-too-complex` (`too_complex`) on its item:
 | a test case or registration | `check_tests` | its registration call; the error fails the test run |
 | a fact list | `check_fact_list`, `check_decl_facts` | the decorated item, once |
 
-`BodyCx::fuel` is the budget; a driver test sets a small one through
-`Packages::body_fuel`, which is part of the check key.
+A header goal (stage B, `header::ItemCheck::fails`) that runs out of
+its item's fuel is one `item-too-complex` on the item's header, and the
+item's later goals are not asked; never a proved goal. A local impl's
+supertrait check runs out as part of its body.
+
+`BodyCx::fuel` is the budget, and `HeaderCx::fuel` the header's; a driver
+test sets a small one for both through `Packages::body_fuel`, which is
+part of the check key and the header-check key.
 Implementation differs: the generated bodies (`@error`, delegation
 forwarders) still stop with a structured "not implemented".
 

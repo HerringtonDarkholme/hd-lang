@@ -5,7 +5,9 @@
 //! `Packages::body_fuel` hook. The diagnostics reported before stay, and
 //! an omitted result type becomes poison, so callers see no cascade. A
 //! module's top level reports it on the module, a test case on its
-//! registration, and a fact list on the decorated item.
+//! registration, and a fact list on the decorated item. A header goal (a
+//! signature or field bound) that runs out reports it on its item too,
+//! never counting the goal as proved.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
@@ -154,4 +156,53 @@ fn a_long_declaration_fact_is_too_complex_on_the_declaration() {
     );
     assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 4)]);
     assert_eq!(diags(&main, None), vec![]);
+}
+
+/// A bound `Marker` proved through `n` nested `Box`es: about two steps
+/// each, so 40 exhaust `FUEL` while staying under the depth limit of 64.
+fn marker_prelude() -> &'static str {
+    "pub trait Marker\n\npub data Box[T]:\n    value: T\n\nimpl Marker for i32\n\nimpl[T < Marker] Marker for Box[T]\n\npub data Need[T < Marker]:\n    value: T\n\n"
+}
+
+/// `Box[Box[...i32]]` with `n` boxes.
+fn boxes(n: usize) -> String {
+    format!("{}i32{}", "Box[".repeat(n), "]".repeat(n))
+}
+
+/// Line 13 is the first line after `marker_prelude`.
+const AFTER_PRELUDE: usize = 13;
+
+#[test]
+fn a_long_signature_bound_is_too_complex_on_its_function() {
+    for vis in ["", "pub "] {
+        let main = format!(
+            "{}{vis}fn deep(value: Need[{}]) -> void:\n    pass\n\npub fn main() -> void:\n    pass\n",
+            marker_prelude(),
+            boxes(40)
+        );
+        assert_eq!(
+            diags(&main, Some(FUEL)),
+            vec![(Code::ItemTooComplex, AFTER_PRELUDE)],
+            "{vis}fn"
+        );
+        assert_eq!(diags(&main, None), vec![], "{vis}fn");
+    }
+}
+
+#[test]
+fn a_long_field_bound_is_too_complex_on_its_data() {
+    for vis in ["", "pub "] {
+        let main = format!(
+            "{}{vis}data Deep:\n    first: Need[{}]\n    second: Need[{}]\n\npub fn main() -> void:\n    pass\n",
+            marker_prelude(),
+            boxes(40),
+            boxes(41)
+        );
+        assert_eq!(
+            diags(&main, Some(FUEL)),
+            vec![(Code::ItemTooComplex, AFTER_PRELUDE)],
+            "{vis}data"
+        );
+        assert_eq!(diags(&main, None), vec![], "{vis}data");
+    }
 }

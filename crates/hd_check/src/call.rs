@@ -16,7 +16,7 @@ use hd_tir::ir::{
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
-use crate::body::{Ck, ExpectPosition, out_of_fuel, unsupported};
+use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::ty::Named;
 
 /// The methods of the items a body sees, by name (built once per module).
@@ -3263,7 +3263,6 @@ impl Ck<'_, '_> {
         let cands = match self.solve_goal(&goal)? {
             Answer::Candidates(c) => c,
             Answer::Stalled { .. } => return self.waiting_trait(t, &builtin, traits),
-            Answer::OutOfFuel => return out_of_fuel(),
             other => return unsupported(format!("solver answer {other:?} to a method lookup")),
         };
         // The candidates by trait, in content order of their first one.
