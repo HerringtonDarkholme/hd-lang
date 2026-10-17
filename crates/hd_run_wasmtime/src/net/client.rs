@@ -14,7 +14,7 @@ use crate::codec::{Dec, Enc, Handle, Wire, encode};
 use crate::host::Stop;
 
 use super::ops::{Done, Got, Job, Opened, ended};
-use super::socket::{End, Stream, Udp, wrong_kind};
+use super::socket::{self, End, Stream, Udp, wrong_kind};
 use super::validate::{at, covers_lookup, ip_literal, valid_host};
 
 /// The sockets an instance opened, by handle.
@@ -104,7 +104,10 @@ impl Client {
             }
             "TcpStream.write" => (String::new(), Vec::<u8>::dec(&mut d)?),
             "UdpSocket.send_to" => (String::dec(&mut d)?, Vec::<u8>::dec(&mut d)?),
-            "TcpStream.set_timeout" | "TcpListener.set_timeout" | "UdpSocket.set_timeout" => {
+            "TcpStream.set_timeout"
+            | "TcpListener.set_timeout"
+            | "UdpSocket.set_timeout"
+            | "TcpStream.set_keepalive" => {
                 bound = Option::<abi::Duration>::dec(&mut d)?.map(|t| millis(t.millis));
                 (String::new(), Vec::new())
             }
@@ -250,6 +253,18 @@ impl Client {
                 };
                 return ready(Outcome::Ok(Value::None));
             }
+            ("TcpStream.set_nodelay", Some(Entry::Stream(stream))) => {
+                return match socket::set_nodelay(stream, scalar(1)? != 0) {
+                    Ok(()) => ready(Outcome::Ok(Value::None)),
+                    Err(error) => refused(error),
+                };
+            }
+            ("TcpStream.set_keepalive", Some(Entry::Stream(stream))) => {
+                return match socket::set_keepalive(stream, bound) {
+                    Ok(()) => ready(Outcome::Ok(Value::None)),
+                    Err(error) => refused(error),
+                };
+            }
             ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
                 let handle = scalar(0)?;
                 self.close(handle);
@@ -259,7 +274,12 @@ impl Client {
                 });
             }
             (
-                "TcpStream.read" | "TcpStream.write" | "TcpListener.accept" | "UdpSocket.receive",
+                "TcpStream.read"
+                | "TcpStream.write"
+                | "TcpStream.set_nodelay"
+                | "TcpStream.set_keepalive"
+                | "TcpListener.accept"
+                | "UdpSocket.receive",
                 Some(_),
             ) => return refused(wrong_kind()),
             _ => return Err(Stop::Contract(format!("unknown Net method {method}")).into()),
@@ -937,6 +957,141 @@ mod tests {
             .done(),
             expected.done()
         );
+        net.client.stop();
+    }
+    /// The stream of `handle`, to read an option back from the socket.
+    fn stream_of(net: &Net, handle: i64) -> Arc<super::Stream> {
+        match net.client.handles.get(&handle) {
+            Some(Entry::Stream(stream)) => Arc::clone(stream),
+            _ => panic!("a stream handle"),
+        }
+    }
+
+    fn some_millis(millis: i64) -> Enc {
+        crate::codec::encode(&Some(crate::abi::Duration { millis }))
+    }
+
+    /// `std-net.option.nodelay`, `std-net.option.keepalive` and
+    /// `std-net.option.default`: a connected or accepted stream starts at
+    /// the system default, each option reads back from the socket, and a
+    /// closed handle is `Disposed`.
+    #[test]
+    fn nodelay_and_keepalive_set_the_socket_and_start_at_the_default() {
+        use socket2::SockRef;
+        let mut net = Net::new();
+        let listener = net.opened("listen", 0);
+        let port = match net.client.handles.get(&listener) {
+            Some(Entry::Listener(l)) => l.local_addr().unwrap().port(),
+            _ => panic!("a listener handle"),
+        };
+        let grants = Grants::default();
+        let client = net.opened("connect", port);
+        let accepted = {
+            let encoded = net
+                .call("TcpListener.accept", &[listener], &[], &grants)
+                .unwrap();
+            let mut d = Dec::new(encoded.done());
+            assert_eq!(d.leb().unwrap(), 0);
+            i64::try_from(d.leb().unwrap()).unwrap()
+        };
+        for handle in [client, accepted] {
+            let socket = stream_of(&net, handle);
+            assert!(!socket.socket.nodelay().unwrap(), "nodelay starts off");
+            assert!(
+                !SockRef::from(&socket.socket).keepalive().unwrap(),
+                "keep-alive starts off"
+            );
+        }
+        let flag = |net: &mut Net, enabled: i64| {
+            net.call("TcpStream.set_nodelay", &[client, enabled], &[], &grants)
+                .unwrap()
+        };
+        assert_eq!(flag(&mut net, 1).done(), &[0]);
+        assert!(stream_of(&net, client).socket.nodelay().unwrap());
+        assert!(!stream_of(&net, accepted).socket.nodelay().unwrap());
+        assert_eq!(flag(&mut net, 0).done(), &[0]);
+        assert!(!stream_of(&net, client).socket.nodelay().unwrap());
+        let keepalive = |net: &mut Net, idle: &Enc| {
+            net.call("TcpStream.set_keepalive", &[client], idle.done(), &grants)
+                .unwrap()
+        };
+        assert_eq!(keepalive(&mut net, &some_millis(30_000)).done(), &[0]);
+        let raw = stream_of(&net, client);
+        assert!(SockRef::from(&raw.socket).keepalive().unwrap());
+        #[cfg(unix)]
+        assert_eq!(
+            SockRef::from(&raw.socket).tcp_keepalive_time().unwrap(),
+            Duration::from_secs(30)
+        );
+        assert!(
+            !SockRef::from(&stream_of(&net, accepted).socket)
+                .keepalive()
+                .unwrap()
+        );
+        assert_eq!(
+            keepalive(
+                &mut net,
+                &crate::codec::encode(&None::<crate::abi::Duration>)
+            )
+            .done(),
+            &[0]
+        );
+        assert!(!SockRef::from(&raw.socket).keepalive().unwrap());
+        // A listener is not a stream.
+        let wrong = net
+            .call("TcpStream.set_nodelay", &[listener, 1], &[], &grants)
+            .unwrap();
+        assert_eq!(
+            wrong.done(),
+            super::reply(super::Outcome::Error(super::wrong_kind()), true)
+                .unwrap()
+                .done()
+        );
+        net.call("TcpStream.close", &[client], &[], &grants)
+            .unwrap();
+        assert_eq!(flag(&mut net, 1).done(), disposed());
+        assert_eq!(keepalive(&mut net, &some_millis(1000)).done(), disposed());
+        net.client.stop();
+    }
+
+    /// `std-net.listen.reuse`: a port with old connections in `TIME_WAIT`
+    /// rebinds at once, and two live listeners never share an address.
+    #[cfg(unix)]
+    #[test]
+    fn listen_reuses_a_time_wait_port_and_refuses_a_live_one() {
+        let mut net = Net::new();
+        let grants = Grants::default();
+        let listener = net.opened("listen", 0);
+        let port = match net.client.handles.get(&listener) {
+            Some(Entry::Listener(l)) => l.local_addr().unwrap().port(),
+            _ => panic!("a listener handle"),
+        };
+        let mut second = Enc::default();
+        second.str("127.0.0.1");
+        let refused = net
+            .call("listen", &[i64::from(port), 0], second.done(), &grants)
+            .unwrap();
+        let mut d = Dec::new(refused.done());
+        assert_eq!(d.leb().unwrap(), 1, "an error");
+        assert_eq!(d.leb().unwrap(), 3, "Refused");
+        // The listener's side closes first, which leaves it in TIME_WAIT.
+        let mut peer = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let accepted = {
+            let encoded = net
+                .call("TcpListener.accept", &[listener], &[], &grants)
+                .unwrap();
+            let mut d = Dec::new(encoded.done());
+            assert_eq!(d.leb().unwrap(), 0);
+            i64::try_from(d.leb().unwrap()).unwrap()
+        };
+        net.call("TcpStream.close", &[accepted], &[], &grants)
+            .unwrap();
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+        drop(peer);
+        net.call("TcpListener.close", &[listener], &[], &grants)
+            .unwrap();
+        let again = net.opened("listen", port);
+        assert_ne!(again, listener);
         net.client.stop();
     }
 }

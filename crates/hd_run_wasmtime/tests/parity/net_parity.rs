@@ -46,6 +46,8 @@ fn handle(p: &mut Program, method: &str, args: &[i32], payload: Option<&[u8]>, e
                 | "TcpStream.set_timeout"
                 | "TcpListener.set_timeout"
                 | "UdpSocket.set_timeout"
+                | "TcpStream.set_nodelay"
+                | "TcpStream.set_keepalive"
         ),
         expected,
     );
@@ -309,6 +311,65 @@ fn tcp_timed_out_read_keeps_the_stream_and_zero_bound_returns_only_buffered_byte
     handle(
         &mut p,
         "TcpStream.set_timeout",
+        &[1],
+        Some(&bound(None)),
+        vec![1, 1],
+    );
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Net",
+            Limit::Entries(vec![format!("127.0.0.1:{}", server.address.port())]),
+        )],
+        || {},
+    );
+}
+
+#[test]
+fn tcp_nodelay_and_keepalive_set_and_a_closed_stream_is_disposed() {
+    let scratch = Scratch::new();
+    let server = TcpFixture::new(|mut peer| {
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).unwrap();
+    });
+    let mut p = Program::new();
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        server.address.port(),
+        vec![0, 1],
+    );
+    handle(&mut p, "TcpStream.set_nodelay", &[1, 1], None, vec![0]);
+    handle(&mut p, "TcpStream.set_nodelay", &[1, 0], None, vec![0]);
+    handle(
+        &mut p,
+        "TcpStream.set_keepalive",
+        &[1],
+        Some(&bound(Some(30_000))),
+        vec![0],
+    );
+    // An idle shorter than a second rounds up, and none turns it off.
+    handle(
+        &mut p,
+        "TcpStream.set_keepalive",
+        &[1],
+        Some(&bound(Some(1))),
+        vec![0],
+    );
+    handle(
+        &mut p,
+        "TcpStream.set_keepalive",
+        &[1],
+        Some(&bound(None)),
+        vec![0],
+    );
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    handle(&mut p, "TcpStream.set_nodelay", &[1, 1], None, vec![1, 1]);
+    handle(
+        &mut p,
+        "TcpStream.set_keepalive",
         &[1],
         Some(&bound(None)),
         vec![1, 1],

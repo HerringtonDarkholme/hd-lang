@@ -8,7 +8,7 @@ use std::net::{IpAddr, Shutdown, SocketAddr, ToSocketAddrs};
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
-use socket2::{Domain, Protocol, SockRef, Socket, Type};
+use socket2::{Domain, Protocol, SockRef, Socket, TcpKeepalive, Type};
 
 use super::CONNECT_ATTEMPT_TIMEOUT;
 use super::client::NetError;
@@ -177,6 +177,37 @@ pub(crate) enum Bound {
 pub(crate) fn wrong_kind() -> NetError {
     NetError::Other {
         message: "an operation on a handle of another kind".into(),
+    }
+}
+
+/// `std-net.option.nodelay`: `TCP_NODELAY` on or off.
+pub(crate) fn set_nodelay(stream: &Stream, enabled: bool) -> Result<(), NetError> {
+    stream
+        .socket
+        .set_nodelay(enabled)
+        .map_err(|error| option_error(&error, "set_nodelay"))
+}
+
+/// `std-net.option.keepalive`: keep-alive off, or on with `idle` before the
+/// first probe. The system counts whole seconds, so a shorter idle rounds up
+/// to one second, as on Node.
+pub(crate) fn set_keepalive(stream: &Stream, idle: Option<Duration>) -> Result<(), NetError> {
+    let socket = SockRef::from(&stream.socket);
+    let set = match idle {
+        None => socket.set_keepalive(false),
+        Some(idle) => {
+            let secs = idle.as_secs() + u64::from(idle.subsec_nanos() > 0);
+            socket
+                .set_tcp_keepalive(&TcpKeepalive::new().with_time(Duration::from_secs(secs.max(1))))
+        }
+    };
+    set.map_err(|error| option_error(&error, "set_keepalive"))
+}
+
+/// An option the system refused, with its message (`std-net.option.failure`).
+fn option_error(error: &io::Error, option: &str) -> NetError {
+    NetError::Other {
+        message: format!("{option}: {error}"),
     }
 }
 

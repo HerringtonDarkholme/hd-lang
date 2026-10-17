@@ -71,6 +71,8 @@ pub trait TcpStream:
     fn read!(mut self, max: usize) -> Result[List[u8], ResourceError[NetError]]
     fn write!(mut self, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
     fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
+    fn set_nodelay(mut self, enabled: bool) -> Result[void, ResourceError[NetError]]
+    fn set_keepalive(mut self, idle: Duration?) -> Result[void, ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 ## A TCP listener: a closable handle.
@@ -120,18 +122,20 @@ pub data ScriptedStream:
     failed: bool
     bytes: mut List[u8]
     bound: Duration?
+    nodelay_on: bool
+    keepalive_idle: Duration?
     closed: bool
 
 impl ScriptedStream:
     ## Returns a stream that returns the chunks of `reads` in order, one per `read!`.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(reads: List[List[u8]]) -> mut ScriptedStream:
-        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], bound: .None, closed: false }
+        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
 
     ## Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
     ## See [std-net.scripted.failing](../../spec/std/net.md#r-std-net.scripted.failing).
     pub fn failing(reads: List[List[u8]], error: NetError) -> mut ScriptedStream:
-        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], bound: .None, closed: false }
+        ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
 
     ## Every byte written to the stream, in order.
     ## See [std-net.scripted.write](../../spec/std/net.md#r-std-net.scripted.write).
@@ -142,6 +146,16 @@ impl ScriptedStream:
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
     pub fn timeout(self) -> Duration?:
         self.bound
+
+    ## Whether `set_nodelay` last turned nodelay on; `false` before any call.
+    ## See [std-net.scripted.options](../../spec/std/net.md#r-std-net.scripted.options).
+    pub fn nodelay(self) -> bool:
+        self.nodelay_on
+
+    ## The idle time `set_keepalive` stored last, or `.None` before any call or after `.None`.
+    ## See [std-net.scripted.options](../../spec/std/net.md#r-std-net.scripted.options).
+    pub fn keepalive(self) -> Duration?:
+        self.keepalive_idle
 
     ## Whether the stream is closed.
     ## See [std-net.scripted.closed](../../spec/std/net.md#r-std-net.scripted.closed).
@@ -192,6 +206,19 @@ impl TcpStream for ScriptedStream:
         if self.closed:
             return .Err(.Disposed)
         self.bound = timeout
+        .Ok(())
+
+    # Like a timeout, an option is only stored (r-std-net.scripted.options).
+    fn set_nodelay(mut self, enabled: bool) -> Result[void, ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        self.nodelay_on = enabled
+        .Ok(())
+
+    fn set_keepalive(mut self, idle: Duration?) -> Result[void, ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        self.keepalive_idle = idle
         .Ok(())
 
     fn close(mut self) -> Result[void, ResourceError[NetError]]:

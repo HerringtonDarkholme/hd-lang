@@ -300,6 +300,18 @@ export const METHODS = {
       params: ["i32", option(Duration)],
       result: result(unit, ResourceError(NetError)),
     },
+    "TcpStream.set_nodelay": {
+      wait: "never",
+      resource: null,
+      params: ["i32", "i32"],
+      result: result(unit, ResourceError(NetError)),
+    },
+    "TcpStream.set_keepalive": {
+      wait: "never",
+      resource: null,
+      params: ["i32", option(Duration)],
+      result: result(unit, ResourceError(NetError)),
+    },
     "TcpStream.close": {
       wait: "never",
       resource: null,

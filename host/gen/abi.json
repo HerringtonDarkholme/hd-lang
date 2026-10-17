@@ -75,6 +75,8 @@
       { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], ResourceError[NetError]]" },
       { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "TcpStream.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "TcpStream.set_nodelay", "wait": "never", "resource": null, "params": ["i32", "i32"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "TcpStream.set_keepalive", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "TcpStream.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]},
     { "key": "Net", "std": "std.net.TcpListener", "methods": [

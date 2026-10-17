@@ -339,6 +339,11 @@ function netProvider({ grant, netClient }) {
   // milliseconds, or `null` for no bound.
   const setBound = (h, timeout) =>
     handleOp("set_timeout")(h, { timeout: timeout === null ? null : Number(timeout.millis) });
+  // std-net.option.nodelay and std-net.option.keepalive: the flag crosses
+  // as a number, and the idle `Duration?` as milliseconds, or `null` for off.
+  const setNoDelay = (h, enabled) => handleOp("set_nodelay")(h, { enabled: enabled !== 0 });
+  const setKeepAlive = (h, idle) =>
+    handleOp("set_keepalive")(h, { idle: idle === null ? null : Number(idle.millis) });
   // A second `close` is `Disposed` (std-net.handles.closable).
   const close = (h) => handleResult(netClient.call({ op: "close", handle: h }));
   return {
@@ -360,6 +365,8 @@ function netProvider({ grant, netClient }) {
     "TcpStream.read": (h, max) => handleOp("read")(h, { max }),
     "TcpStream.write": (h, bytes) => handleOp("write")(h, { bytes }),
     "TcpStream.set_timeout": setBound,
+    "TcpStream.set_nodelay": setNoDelay,
+    "TcpStream.set_keepalive": setKeepAlive,
     "TcpStream.close": close,
     "TcpListener.accept": (h) => handleOp("accept")(h),
     "TcpListener.set_timeout": setBound,

@@ -225,6 +225,28 @@ const ops = {
     h.timeout = timeout;
     return { ok: null };
   },
+  // std-net.option.nodelay: `TCP_NODELAY` on or off; a refusal carries the
+  // system's message (std-net.option.failure).
+  set_nodelay: ({ h, enabled }) => {
+    try {
+      h.socket.setNoDelay(enabled);
+      return { ok: null };
+    } catch (e) {
+      return fail("Other", e.message);
+    }
+  },
+  // std-net.option.keepalive: `idle` milliseconds before the first probe,
+  // or `null` for off. The system counts whole seconds, so a shorter idle
+  // rounds up to one second, as on wasmtime.
+  set_keepalive: ({ h, idle }) => {
+    try {
+      if (idle === null) h.socket.setKeepAlive(false);
+      else h.socket.setKeepAlive(true, Math.max(1, Math.ceil(idle / 1000)) * 1000);
+      return { ok: null };
+    } catch (e) {
+      return fail("Other", e.message);
+    }
+  },
   close: ({ h }) => {
     // std-net.close.release: a full close of both directions.
     if (h.kind === "stream") h.socket.destroy();
