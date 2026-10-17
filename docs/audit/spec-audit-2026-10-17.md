@@ -18,6 +18,35 @@ The probes also found one new compiler bug, listed first under C: a
 `while ... else` loop whose `break` values are functions with different
 rows crashes the checker.
 
+## Owner Answers (2026-10-17)
+
+All 22 questions are answered. Each becomes a spec edit plus, where marked, a compiler change; issue numbers are added as they are filed.
+
+| Q | Answer |
+| --- | --- |
+| D1 | Always an error: a generic call cycle whose type arguments grow is rejected; layout never decides. Checker change. |
+| D2 | `private-type-leak` for an associated type binding of an impl whose trait and target are public. Checker change. |
+| D3 | A copy-update snapshots `src` when the spread is evaluated, before any explicit field. Compiler change. |
+| D4 | Iteration panics when growth compacts the entries during a live iteration. Runtime change. |
+| D5 | Infer `never` for a parameter only `never` values meet. Spec sentence. |
+| D6 | One copy of shared data per variant; a shared field whose type names a type parameter is a named error (replacing `unsupported`). Holds while payload stays out of scope in the constructor expression. |
+| D7 | One requirement key: a binding the supertrait list fixes counts in key identity, as for trait values. Checker change. |
+| D8 | A trait default is checked once, against the trait. Spec sentence. |
+| D9 | An `@error` message is a plain string literal only; a prefixed string is `invalid-error-marker`. Checker change. |
+| D10 | Repeated fact types are checked in list literals only; the spec says so. Spec sentence. |
+| D11 | `println` at the top level of a non-entry module reports both `missing-requirement` and `suspension-forbidden-context`; the fixture is split. Checker change. |
+| D12 | `hd test --update` rewrites a failing in-code snapshot's `expect` literal in place, as for doc tests. CLI change. |
+| D13 | `duplicate-associated-binding` also inside one bound. Checker change. |
+| D14 | `duplicate-data-pattern-field` covers variant payload patterns. Checker change. |
+| D15 | Repeated parameter names in an enum header or a variant are `duplicate-field`. Checker change. |
+| D16 | A tuple selection past the end is the missing-field code. The owner also renames `unknown-data-field` to `unknown-field` everywhere. |
+| D17 | One general manifest code for any `hd.toml` error without a specific code, with file and line. CLI change. |
+| D18 | Relax the row-printing rules: each key once, in a stable order; an alias expansion may be part of the message. Function types in messages still gain their rows (compiler work). |
+| D19 | Delete `module.repo.private-pattern` until hd uses a checksum log or proxy. |
+| D20 | Add a CLI session fixture format for the REPL (inputs file plus expected transcript). Conformance README and runner change. |
+| D21 | Detect a fact that reads itself and fail at once with `fact-evaluation-failed`. Runtime change. |
+| D22 | `impl Suspend[T] for X` reports `unknown-trait` (Suspend is a built-in data type), with a message that says so. Checker change. |
+
 ## D. Questions For The Owner
 
 ### Batch 1: Language Semantics

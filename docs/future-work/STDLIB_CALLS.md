@@ -850,3 +850,21 @@ its own issue.
   such string does, as a Go substring keeps its backing array. The
   speed is worth it; a program that keeps one small field of a huge
   document can copy it.
+
+## Owner decisions (2026-10-17)
+
+Questions the stdlib audit (#350) raised that were the owner's to answer.
+
+- **Map hash** (#353): string keys hash with a per-run seed, recorded in
+  the run journal so replay is exact; `std-hash.map.bucket-hash` becomes
+  "may differ between runs". Iteration stays insertion-ordered, so output
+  does not change.
+- **Integer text** (#357): a std primitive `format_int` whose body is the
+  runtime's IntToStr helper; its signature is a plain hd declaration.
+- **`sqrt`**: an intrinsic method on `f32` and `f64` (one Wasm
+  instruction, correctly rounded).
+- **Property tests**: many cases run in one instance; a panicking case
+  gets a fresh instance for its shrink run.
+- **Kept as they are**: float text stays a host primitive; the raw-string
+  prefix `r` stays an import; `it_each` and `it_prop` stay closure-only;
+  `Duration` stays in milliseconds for now.
