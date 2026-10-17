@@ -1717,6 +1717,8 @@ combination (`sha256_hex`, `token_hex`), or a type folded into another
 
 ## Data Questions For The Owner
 
+**Answered by the owner, 2026-10-17:** all five approved: (1) the serde naming facts `rename`, `skip`, `rename_all` and `skip_none`; (2) `Display` writes into a builder (`write(self, out: mut StringBuilder)` with a default body over `to_string()`, called by interpolation); (3) `Hasher.write_u64` and `write_str` with default bodies; (4) `u64` conversions on the sealed `Integer` so `Rng.int` is generic; (5) regex decoding through `Deserialize`.
+
 1. **Serde naming facts.** Apply the planned `@serde(rename=...)` and
    `@serde(skip)`, and add serde's type-level `rename_all` and a
    `skip_none`, so a derived type reads a camelCase API. They are

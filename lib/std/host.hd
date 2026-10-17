@@ -18,7 +18,7 @@ pub trait Env:
     fn get(self, name: string) -> string?
     fn names(self) -> List[string]
 
-## The process's arguments, the program name first.
+## The process's arguments after the program name.
 ## See [std-host.args.helper](../../spec/std/host.md#r-std-host.args.helper).
 pub fn args() -> List[string] $ Args:
     $.use(Args).list()
