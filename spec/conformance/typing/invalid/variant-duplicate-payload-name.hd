@@ -1,0 +1,5 @@
+# test: two named payload parameters of one variant may not share a name
+# Spec 08 Shared Fields: data.shared.payload-names.
+enum Shape:
+    Dot
+    Pair(x: i32, x: i32)  # diagnostic: duplicate-field

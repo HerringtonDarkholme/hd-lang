@@ -36,7 +36,7 @@ data User:
 
 ### Fields
 
-1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`.
+1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`. The named parameters of an enum header, and the named payload parameters of one variant, are unique in the same way.
 2. r[data.field.typed] Every field has an explicit type.
 3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
 4. r[data.field.mut-type] `friend: mut User` declares a field whose type grants mutable access through that reference.
@@ -848,7 +848,7 @@ phrase := HttpStatus.NotFound.phrase
 5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
 6. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a mutable enum root. Error: `invalid-assignment-target`.
 7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-field`.
-8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter. Error: `duplicate-field`.
+8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter, nor another named payload parameter of that variant. Error: `duplicate-field`.
 9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults; writing one is an error. Error: `syntax-error`.
 
 ```text

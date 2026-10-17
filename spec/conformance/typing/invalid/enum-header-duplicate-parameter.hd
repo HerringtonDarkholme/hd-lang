@@ -1,0 +1,4 @@
+# test: two named parameters of one enum header may not share a name
+# Spec 08 Data Declarations: data.field.unique.
+enum Status(code: i32, code: i32):  # diagnostic: duplicate-field
+    Ok -> Status(200, 200)

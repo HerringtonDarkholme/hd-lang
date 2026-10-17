@@ -2842,6 +2842,23 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// A named parameter under `holder` that repeats an earlier one of the
+    /// same list (`data.field.unique`); `what` names the list in the error.
+    fn repeated_names(&mut self, holder: Option<NodeRef<'_>>, what: &str) {
+        let mut seen: HashSet<String> = HashSet::default();
+        for p in Self::field_nodes(holder) {
+            let Some(pt) = p.name(&self.src.parse.tokens) else {
+                continue;
+            };
+            let name = self.src.text(pt).to_owned();
+            if !seen.insert(name.clone()) {
+                let msg = format!("{what} `{name}` is declared twice");
+                self.diags
+                    .error(Code::DuplicateField, self.src.span(p), &msg);
+            }
+        }
+    }
+
     /// An enum's variants are unique (`data.enum.unique`), and a variant's
     /// named payload parameter does not repeat a named shared parameter
     /// (`data.shared.payload-names`).
@@ -2856,6 +2873,7 @@ impl Lower<'_, '_, '_> {
             .filter(|(n, _)| n.name(&self.src.parse.tokens).is_some())
             .map(|(_, f)| f.name)
             .collect();
+        self.repeated_names(shared_node, "the shared parameter");
         let mut seen = HashSet::default();
         for v in block
             .iter()
@@ -2871,6 +2889,10 @@ impl Lower<'_, '_, '_> {
                 self.diags
                     .error(Code::DuplicateVariant, self.src.span(v), &msg);
             }
+            self.repeated_names(
+                Src::child(v, SyntaxKind::ParameterList),
+                "the payload parameter",
+            );
             for p in Self::field_nodes(Src::child(v, SyntaxKind::ParameterList)) {
                 let Some(pt) = p.name(&self.src.parse.tokens) else {
                     continue;

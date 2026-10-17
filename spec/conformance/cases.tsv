@@ -3308,3 +3308,5 @@ runtime/valid/long-else-if-chain.hd	runtime	accept	lang/02-grammar.md#r-grammar.
 typing/invalid/else-if-chain-missing-return-value.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.if.else-if
 runtime/valid/process-output.hd	runtime	accept	std/process.md#r-std-process.helper.output
 typing/invalid/match-variant-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate
+typing/invalid/enum-header-duplicate-parameter.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.field.unique
+typing/invalid/variant-duplicate-payload-name.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.shared.payload-names
