@@ -1237,6 +1237,18 @@ that a `Parse` impl replaces, or a builder method that `Arg` replaces.
 
 ## Questions For The Owner
 
+**Answered by the owner, 2026-10-17:**
+- Constructors: `Request::get(url)`, one rule for every builder.
+- Status as an error by default: not decided; the owner asked for more investigation (a research job follows).
+- Language-tier trait changes: approved. `Process.run!` takes a `Command`; `Console` keeps only `write!` (and its stderr counterpart): `println` is a std function that sends the text and `"\n"` in one `write!`, since hd's newline is `"\n"` on every host.
+- `connect_timeout!`: removed; `timeout!` around `connect!` replaces it.
+- Streaming: design it now, before implementing (a design job follows).
+- `Cli` names: the derive is `Cli`, the untyped builder `ArgParser`.
+- `--help`: fix the exit status now: design how an error chooses its exit status (a language-tier design job follows) before the CLI work.
+- Env fallback: removed from the `Cli` derive; typed env config is its own `EnvConfig` derive.
+- A Retrofit-style typed HTTP endpoint derive: rejected ("almost a http framework").
+
+
 1. **Constructor spelling.** `Request::get(url)` keeps one rule for every
    builder (`Command::new`, `ArgParser::new`, `Client::new`), while free
    `get(url)` and `post(url)` read like ky and `reqwest::get`.
@@ -2392,6 +2404,13 @@ where the old surface could not express a realistic program; elsewhere
 the count falls.
 
 ## Structure Questions For The Owner
+
+**Answered by the owner, 2026-10-17:**
+- One `retry!(policy)`: merge `retry!` and `retry_with!`.
+- Language-tier changes: (a) the prelude change is approved; (b) `Source.next`, `Members.at` and `Members.find` return `Key?` and positions become `usize` (the end sentinel goes; every case it served is covered); (c) a `Closed` variant in each handle module's error replaces `std.resource.ResourceError`, and `std.resource` is removed.
+- Cause naming: adopt Rust's `source` everywhere (the method, the report field and the printed line), not `@cause`.
+- The cross-module fixes: apply all (`StringBuilder.push` chains, `ParseTimeError`, one `HostError`, `ConsoleError` gains `NotGranted` and `Other`, drop `Request.timeout`).
+
 
 1. **One `retry!`.** The merge puts `Clock` in the row of every retry,
    an immediate one included, so its test supplies a `ManualClock`.

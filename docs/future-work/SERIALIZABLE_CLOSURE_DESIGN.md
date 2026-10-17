@@ -861,14 +861,10 @@ callers move. A fan-out provider sends the closure once per worker.
 
 ## 8. Open Points
 
-1. **A plain call to a portable value.** A worker runs a closure it
-   received with a plain call, so a plain `p(args)` must run somewhere.
-   Draft: it runs in process wherever the caller's row covers the
-   closure's row, and only `remote!(p, args)` routes by the module of
-   the literal. Alternative: the configuration wins here too, so a plain
-   call is a build error where the literal's module is served
-   elsewhere. The build cannot always tell which literal made `p`, so
-   this would need a flow check.
+None remain. The owner settled the last one on 2026-10-17: a plain call
+`p(args)` to a portable value runs in process wherever the caller's row
+covers the closure's row, and only `remote!(p, args)` routes by the module
+of the literal. No flow analysis is needed.
 
 The draft treats three earlier questions as settled by the goals; the
 owner may reopen any of them. The cache belongs to the language and
