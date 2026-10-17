@@ -2727,6 +2727,7 @@ runtime/valid/json-typed-missing-key-ignores-default.hd	runtime	accept	std/json.
 typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.in
 typing/invalid/boundary-nested-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
+typing/invalid/host-trait-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
 runtime/panic/boundary-deserialize-error.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.boundary.deserialize.exact
 runtime/valid/boundary-public-fields-cross.hd	runtime	accept	lang/10-modules.md#r-module.boundary.public
 runtime/valid/boundary-redacted-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.serialize.exact
