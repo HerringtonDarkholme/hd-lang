@@ -101,7 +101,7 @@ export const answerSize: Metric = {
     );
 
     const mistakeDir = makeTempDir("answer");
-    const source = join(context.repoRoot, "test", "metrics", "mistakes", "length-as-i32.hd");
+    const source = join(context.repoRoot, "bench", "metrics", "mistakes", "length-as-i32.hd");
     writeFileSync(join(mistakeDir, "length-as-i32.hd"), readFileSync(source, "utf8"));
     const check = await run(["check", "--format", "json", "length-as-i32.hd"], mistakeDir);
     const diagnostic = diagnosticsOf(check.stdout)[0];

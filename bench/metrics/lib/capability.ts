@@ -7,7 +7,7 @@ import { runHd, type HdCommand } from "./hd.ts";
 import { listTree, makeTempDir } from "./tmp.ts";
 
 /** The commands whose help text the probes read. */
-const HELP_COMMANDS = ["check", "test", "build", "clean", "add", "fetch", "repl"];
+const HELP_COMMANDS = ["check", "test", "build", "clean", "cache gc", "add", "fetch", "repl"];
 
 const helpTexts = new Map<string, Promise<{ readonly all: string; readonly check: string }>>();
 
@@ -48,12 +48,17 @@ export interface ThreadControl {
 }
 
 /**
- * The documented thread control of `hd check`: a `--jobs`, `--threads` or
- * `-j` flag in `hd help check`, or an `HD_THREADS`, `HD_JOBS` or
- * `HD_PARALLELISM` variable named in any help text. Undefined when none is
+ * The documented thread control of `hd check`: an `HD_THREADS`, `HD_JOBS` or
+ * `HD_PARALLELISM` variable named in any help text, else a `--jobs`,
+ * `--threads` or `-j` flag in `hd help check`. The variable comes first
+ * because help text can list a flag that a command does not accept; an
+ * environment variable never makes a run fail. Undefined when none is
  * documented.
  */
 export function findThreadControl(checkHelp: string, allHelp: string): ThreadControl | undefined {
+  const variable = /\b(HD_(?:THREADS|JOBS|PARALLELISM|NUM_THREADS))\b/.exec(allHelp)?.[1];
+  if (variable)
+    return { name: variable, args: () => [], env: (threads) => ({ [variable]: String(threads) }) };
   const named = (pattern: string) =>
     new RegExp(`(?:^|\\s)(${pattern})(?=[\\s=,]|$)`, "m").exec(checkHelp)?.[1];
   const flag = named("--jobs|--threads") ?? named("-j");
@@ -63,9 +68,6 @@ export function findThreadControl(checkHelp: string, allHelp: string): ThreadCon
       args: (threads) => (flag === "-j" ? [`-j${threads}`] : [`${flag}=${threads}`]),
       env: () => ({}),
     };
-  const variable = /\b(HD_(?:THREADS|JOBS|PARALLELISM|NUM_THREADS))\b/.exec(allHelp)?.[1];
-  if (variable)
-    return { name: variable, args: () => [], env: (threads) => ({ [variable]: String(threads) }) };
   return undefined;
 }
 

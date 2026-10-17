@@ -5,7 +5,10 @@
 //   `hd check --format json`, `hd test`, `hd test --format json`, and
 //   `hd doc m001.Item1` when this hd has `hd doc`;
 // - three mistake programs: `hd check --tests --format json FILE`.
-// A run's output is its exit status, stdout and stderr together.
+// A run's output is its exit status, stdout and stderr together. Each input
+// runs once first to warm the compiled cache: the cache state is part of the
+// input, and the JSON summary's `modules_checked` counts cache work, so a cold
+// run differs from a warm one by design (`cli.json.summary.modules-checked`).
 // Target (Pillar 1): every input byte-identical across its 10 runs.
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -31,7 +34,7 @@ export const determinism: Metric = {
     for (const name of PROGRAMS)
       writeFileSync(
         join(programs, `${name}.hd`),
-        readFileSync(join(context.repoRoot, "test", "metrics", "mistakes", `${name}.hd`), "utf8"),
+        readFileSync(join(context.repoRoot, "bench", "metrics", "mistakes", `${name}.hd`), "utf8"),
       );
     const inputs: { label: string; args: string[]; cwd: string }[] = [
       { label: "check", args: ["check"], cwd: dir },
@@ -50,6 +53,7 @@ export const determinism: Metric = {
     const differing: string[] = [];
     for (const input of inputs) {
       const outputs = new Set<string>();
+      await runHd(context.hd, input.args, { cwd: input.cwd, timeoutMs: TIMEOUT_MS });
       for (let index = 0; index < RUNS; index++) {
         const result = await runHd(context.hd, input.args, {
           cwd: input.cwd,

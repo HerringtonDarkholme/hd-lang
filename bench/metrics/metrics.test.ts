@@ -3,7 +3,15 @@
 // outside the `pnpm test` glob.
 
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, linkSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
@@ -279,6 +287,9 @@ describe("pillar 2 helpers", () => {
     assert.deepEqual(flag?.args(4), ["--jobs=4"]);
     const variable = findThreadControl("flags:\n  --tests\n", "HD_THREADS sets the thread count");
     assert.deepEqual(variable?.env(2), { HD_THREADS: "2" });
+    const both = findThreadControl("  --jobs N  use N threads\n", "the default is HD_JOBS");
+    assert.deepEqual(both?.env(3), { HD_JOBS: "3" });
+    assert.deepEqual(both?.args(3), []);
     assert.equal(findThreadControl("  -p, --package NAME\n", "HD_CACHE"), undefined);
     assert.equal(findCacheCap("HD_CACHE_MAX_BYTES caps the cache"), "HD_CACHE_MAX_BYTES");
     assert.equal(findCacheCap("Fetched versions go to HD_CACHE when it is set."), undefined);
@@ -342,6 +353,11 @@ describe("pillar 2 helpers", () => {
     const root = join(import.meta.dirname, "..", "..");
     const toolchain = toolchainOf(["node", join(root, "scripts", "test-web-compiler.js")]);
     assert.equal(toolchain.kind, "node_modules");
+  });
+
+  it("takes a native hd as its own toolchain, even in a checkout with node_modules", () => {
+    const toolchain = toolchainOf([process.execPath]);
+    assert.deepEqual(toolchain, { kind: "files", paths: [realpathSync(process.execPath)] });
   });
 });
 

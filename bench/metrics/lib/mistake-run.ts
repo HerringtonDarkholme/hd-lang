@@ -85,7 +85,7 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
 }
 
 async function runAll(context: MetricContext): Promise<MistakeOutcome[]> {
-  const corpus = loadMistakes(join(context.repoRoot, "test", "metrics", "mistakes"));
+  const corpus = loadMistakes(join(context.repoRoot, "bench", "metrics", "mistakes"));
   context.log(`mistake corpus: checking ${corpus.length} programs`);
   const outcomes: MistakeOutcome[] = Array.from({ length: corpus.length });
   let next = 0;

@@ -13,10 +13,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { helpText } from "./capability.ts";
 import { runProblem } from "./fixture.ts";
 import { runHd, supportsCommand, type HdCommand } from "./hd.ts";
-import { makeTempDir, writeTree } from "./tmp.ts";
+import { listTree, makeTempDir, writeTree } from "./tmp.ts";
 
 const HOST = "hd-metrics.invalid";
 
@@ -144,7 +143,7 @@ const ADD_TIMEOUT_MS = 60_000;
 /**
  * Sets up the remote and one dependent package with `hd add`, in a cache of
  * its own. Returns `{ na }` when this hd has no dependency cache to probe:
- * no git, no `hd add`, or no help text that names `HD_CACHE`. Returns
+ * no git, no `hd add`, or an `hd add` that writes nothing under `HD_CACHE`. Returns
  * `{ problem }` when `hd add` fails.
  */
 export async function prepareDependent(
@@ -152,16 +151,19 @@ export async function prepareDependent(
 ): Promise<DependentSource | { readonly na: string } | { readonly problem: string }> {
   if (!hasGit()) return { na: "no git on PATH, so no local remote" };
   if (!(await supportsCommand(hd, "add", makeTempDir("help")))) return { na: "no hd add" };
-  if (!(await helpText(hd)).all.includes("HD_CACHE"))
-    return { na: "no dependency cache: no help text names HD_CACHE" };
   const remote = makeLocalRemote();
   const dir = makeTempDir("dependent");
   writeDependent(dir);
-  const result = await runHd(hd, ["add", "dep", `${remote.hostPath}@${remote.version}`], {
+  const cache = makeTempDir("cache");
+  const result = await runHd(hd, ["add", `${remote.hostPath}@${remote.version}`], {
     cwd: dir,
-    env: { ...remote.env, HD_CACHE: makeTempDir("cache") },
+    env: { ...remote.env, HD_CACHE: cache },
     timeoutMs: ADD_TIMEOUT_MS,
   });
   const problem = runProblem(result, ADD_TIMEOUT_MS, "hd add of a local dependency");
-  return problem ? { problem } : { remote, dir };
+  if (problem) return { problem };
+  // The cache is found by behaviour: a fetch writes the version under HD_CACHE.
+  if (listTree(cache).length === 0)
+    return { na: "no dependency cache: hd add fetched a version and wrote nothing under HD_CACHE" };
+  return { remote, dir };
 }

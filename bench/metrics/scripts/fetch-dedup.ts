@@ -9,7 +9,7 @@
 // The value is the connections all 4 checks made, against the connections
 // of the first check alone.
 // Target (Pillar 2): fetched once, so the later checks connect no more.
-// n/a: no git on PATH, no `hd add`, or no help text that names HD_CACHE.
+// n/a: no git on PATH, no `hd add`, or an `hd add` that writes nothing under HD_CACHE.
 
 import { prepareDependent } from "../lib/deps.ts";
 import { copyPackage, runProblem } from "../lib/fixture.ts";

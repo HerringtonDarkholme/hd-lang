@@ -5,9 +5,11 @@
 // HD_CACHE; the artifacts are the files those runs add inside the package.
 // HD_CACHE is shared by every package of the user (cli.cache.shared), so its
 // size is in the note but not counted.
-// Toolchain: when a file the hd command names lies in a Node package with a
-// node_modules folder, node_modules is the toolchain, and the line says so.
-// Otherwise the toolchain is the files the command names: its program,
+// Toolchain: when a script that the hd command's program runs (an argument
+// that is an existing file) lies in a Node package with a node_modules
+// folder, node_modules is the toolchain, and the line says so. A native
+// program is never run from node_modules, even when it sits in a checkout
+// that has one. Otherwise the toolchain is the files the command names: its program,
 // found on PATH, and any argument that is an existing file.
 // Sizes add up file sizes; a hard-linked file counts once, and symbolic
 // links are not followed.
@@ -52,11 +54,13 @@ export function toolchainOf(argv: readonly string[]): Toolchain {
   const files = argv
     .filter((word) => isAbsolute(word) && existsSync(word) && lstatSync(word).isFile())
     .map((word) => realpathSync(word));
+  const program = isAbsolute(argv[0]!) ? argv[0] : onPath(argv[0]!);
+  const native = program && existsSync(program) ? realpathSync(program) : undefined;
   for (const file of files) {
+    if (file === native) continue;
     const modules = nodeModulesAbove(file);
     if (modules) return { kind: "node_modules", path: modules };
   }
-  const program = isAbsolute(argv[0]!) ? argv[0] : onPath(argv[0]!);
   const paths = new Set(files);
   if (program && existsSync(program)) paths.add(realpathSync(program));
   return { kind: "files", paths: [...paths] };

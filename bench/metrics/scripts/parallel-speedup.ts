@@ -6,7 +6,7 @@
 // check of 50k lines times out, the 10k package is used instead.
 // The speedup is the 1-thread wall time over the all-threads wall time.
 // Target (Pillar 2): ≥ 0.6 × cores, for up to 8 cores.
-// n/a: when no help text documents a thread count flag or variable.
+// n/a: when no help text documents a thread count variable or flag.
 
 import { availableParallelism } from "node:os";
 

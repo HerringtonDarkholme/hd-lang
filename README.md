@@ -150,16 +150,17 @@ Correctness is a gate, not a pillar.
    and early cutoff, and std is checked in advance. The targets: an
    edit-to-check of a 10k-line package in 50 ms at the median, a cold check
    in 1 s, an edit-to-test in 300 ms, and near-linear time on the
-   pathological cases. Measured on 2026-10-17: edit-to-check p50, cold
-   check, and edit-to-test are not measured yet (fail), because the
-   generated 10k-line package does not check (`ambiguous-method`). On the
-   pathological cases, 7 of 10 stay within 2 s and 200 MB at 4x (the
-   slowest, `large-enum-match`, takes 330 ms), but `large-enum-match` grows
-   with exponent 2.01 against 1.3, and `deep-blocks`, `deep-parens`, and
-   `method-chain` fail (nesting limit, stack overflow). Diagnostics are
-   compact, and `hd check --format json` carries exact-edit fix-its that
-   `hd fix` applies. Output is deterministic. Tests sit in the same file under
-   `tests:`, and providers turn a fake clock or mailer into one line.
+   pathological cases. Measured on 2026-10-17: edit-to-check takes 25 ms
+   at the median (p95 27 ms), a cold check 111 ms, and edit-to-test 110 ms,
+   all within target. On the pathological cases, 7 of 10 stay within 2 s and
+   200 MB at 4x (the slowest, `large-enum-match`, takes 338 ms), but
+   `large-enum-match` grows with exponent 2.42 against 1.3, and
+   `deep-blocks`, `deep-parens`, and `method-chain` fail (nesting limit,
+   stack overflow). Diagnostics are compact, and `hd check --format json`
+   has a field for exact-edit fix-its that `hd fix` applies, but no corpus
+   mistake offers one yet. Output is deterministic. Tests sit in the same
+   file under `tests:`, and providers turn a fake clock or mailer into one
+   line.
 2. **Many agents on one machine.** Check results and compiled code are
    cached by content and shared across processes, and std is checked in
    advance and built into the binary. A program reaches the host only
@@ -172,18 +173,18 @@ Correctness is a gate, not a pillar.
    compiled into the Wasm module.
 
 The goal metrics are scripts under [bench/metrics](bench/metrics/README.md)
-(`pnpm run metrics`). The first baseline (2026-10-17, commit `001c12542`)
-is in [docs/audit/metrics-2026-10-17.md](docs/audit/metrics-2026-10-17.md):
+(`pnpm run metrics`). The current baseline (2026-10-17, commit
+`493f95da4` plus the harness fixes of #347) is in [docs/audit/metrics-2026-10-17.md](docs/audit/metrics-2026-10-17.md):
 
-- Pillar 1: 25 pass, 23 fail, 2 n/a.
-- Pillar 2: 6 pass, 29 fail, 4 n/a.
-- Pillar 3: 19 pass, 16 fail, 0 n/a (for example, runtime geomean 1.62x
+- Pillar 1: 36 pass, 17 fail, 3 n/a.
+- Pillar 2: 33 pass, 5 fail, 1 n/a.
+- Pillar 3: 19 pass, 16 fail, 0 n/a (for example, runtime geomean 1.35x
   Node against 1.5x; allocations 0 B per iteration).
 - Correctness gate: conformance passes 171 of 171; incremental soundness
-  fails (same package error).
+  passes.
 
-Most failures share one cause, the generated package, so the baseline
-mostly shows what is not yet measured.
+The remaining failures are measured values. They are listed in the
+baseline with their targets.
 
 ## What hd borrows
 
