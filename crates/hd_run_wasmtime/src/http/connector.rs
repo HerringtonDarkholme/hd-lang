@@ -292,7 +292,7 @@ impl SocketTransport {
         cancel: Cancel,
     ) -> Result<Self, ureq::Error> {
         cancel.check()?;
-        let runtime = crate::io_runtime::handle()
+        let runtime = crate::runtime::io::handle()
             .map_err(|error| ureq::Error::Io(std::io::Error::other(error)))?;
         stream.set_nonblocking(true)?;
         let stream = {

@@ -161,7 +161,7 @@ Not built yet; see #182.
   status 3; an entry's `.Err` is status 1 and `ExitCode(n)` is n. A stack
   overflow is `stack-exhausted` and a refused allocation `heap-exhausted`,
   which Node cannot report.
-- **Waiting (`reactor.rs`, `io_runtime.rs`).** No host call blocks. A
+- **Waiting (`runtime/reactor.rs`, `runtime/io.rs`).** No host call blocks. A
   `.start` that cannot finish at once returns a handle. Timers and console
   writes complete in the reactor; a reader thread delivers standard input;
   `Process`, `Net`, `Http` and special-file operations run as tasks on one
@@ -330,7 +330,7 @@ only for a property whose cases leave state behind.
 The spec's resource limits (`cli.limit.*`, `flow.panic.heap-exhausted`,
 `flow.panic.time-limit`) on wasmtime:
 
-- **`--time-limit`.** A shared 10 ms epoch ticker (`deadline.rs`) and an
+- **`--time-limit`.** A shared 10 ms epoch ticker (`runtime/epochs.rs`) and an
   absolute wall deadline per store; a wall-clock check stops an early tick
   from expiring a fresh store. Init, polling and reactor waits share the
   deadline, as do Http, Net and Process waits. Expiry is

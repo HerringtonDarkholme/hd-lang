@@ -4,7 +4,7 @@
 //! §17.5).
 //!
 //! A program runs in-process: its module is compiled by Cranelift with
-//! Wasm GC on, instantiated with the imports of `host.rs`, and driven by
+//! Wasm GC on, instantiated with the imports of `host/`, and driven by
 //! `hd.init`, then `hd.poll` and `hd.wake` until it is done, as the Node
 //! host (`host/core.mjs`) drives it. Its standard output, error
 //! and status are the Node host's: a panic stub's report and status 3, an
@@ -20,7 +20,11 @@
 //! The host traits of the default profile that run here are `Console`,
 //! `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`, `FsWrite`, `Process`,
 //! `Random`, `Sys`, `Http`, `Net`, their handle traits, the `hd:rt` runtime
-//! imports and the `hd:prim` primitives.
+//! imports and the `hd:prim` primitives. Each trait's provider is one
+//! module with one `call` entry point (`console`, `sys`, `fs`, `process`,
+//! `http`, `net`, `testing::provider`, and the fixtures' `profiles`), which
+//! `host/call.rs` routes to; what they share (the reactor, the `hd-io`
+//! runtime, the epoch ticker, native error categories) is `runtime/`.
 //! A module that imports any other is refused at
 //! load with a message naming it; `hd` runs those on Node.
 
@@ -28,8 +32,7 @@ pub mod abi;
 mod cache;
 mod code_cache;
 mod codec;
-mod core;
-mod deadline;
+mod console;
 mod engine;
 mod fs;
 #[cfg(test)]
@@ -38,27 +41,24 @@ mod hd_source;
 mod host;
 mod http;
 mod instance;
-mod io_runtime;
 mod limits;
-mod native_io;
 mod net;
 pub mod prim;
+mod process;
 mod profiles;
-mod property;
-mod reactor;
 mod run;
+mod runtime;
 pub mod scenario;
 mod session;
 #[cfg(test)]
 mod session_link_tests;
 #[cfg(test)]
 mod session_tests;
+mod sys;
 mod test_engine;
 #[cfg(all(test, unix))]
 mod test_fifo;
 pub mod testing;
-mod testing_files;
-mod testing_json;
 #[cfg(test)]
 mod tests;
 
@@ -67,13 +67,13 @@ pub use engine::{EngineConfig, Module, OptLevel, WasmtimeEngine, thread_stack};
 pub(crate) use engine::{new_store, wasmtime_config};
 pub use host::HostIo;
 pub use instance::WasmtimeInstance;
-pub use io_runtime::io_started;
 pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
     Captured, run, run_captured, run_captured_reading, run_captured_with_profile, run_traced,
     run_with_profile,
 };
+pub use runtime::io::io_started;
 pub use session::{REBUILD_AFTER, Rebuilder, Rebuilt, Stopper, WasmtimeSession};
 pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,

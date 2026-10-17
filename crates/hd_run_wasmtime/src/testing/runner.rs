@@ -1,7 +1,7 @@
 use super::case::{BodyResult, CaseRun, TestCase};
 use super::state::{BodyState, State};
-use crate::property::{self, PlanKind};
-use crate::testing_files::save_regression;
+use crate::testing::files::save_regression;
+use crate::testing::property::{self, PlanKind};
 
 /// Native adapters retain the store only when `reuse` is true and its
 /// previous body succeeded. Fresh bodies run their module init export.

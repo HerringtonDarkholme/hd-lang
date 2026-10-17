@@ -1,3 +1,6 @@
+//! `Sys`: the platform's name, architecture, host name and CPU count,
+//! each behind its own grant entry.
+
 use hd_run::Grants;
 
 use crate::abi::SysError;
@@ -5,7 +8,7 @@ use crate::codec::{Enc, Wire, encode};
 
 /// `Sys.<name>`'s result: the value, `.NotGranted` outside the grant, or
 /// `.Unsupported` when the platform cannot tell.
-pub fn sys(name: &str, grants: &Grants) -> Enc {
+pub(super) fn sys(name: &str, grants: &Grants) -> Enc {
     match name {
         "os" => sys_read(name, grants, || {
             Some(
@@ -52,7 +55,7 @@ pub fn sys(name: &str, grants: &Grants) -> Enc {
     }
 }
 
-pub(crate) fn sys_read<T: Wire>(
+pub(super) fn sys_read<T: Wire>(
     name: &str,
     grants: &Grants,
     read: impl FnOnce() -> Option<T>,

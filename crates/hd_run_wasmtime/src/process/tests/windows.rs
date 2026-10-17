@@ -1,5 +1,5 @@
 use super::{offload, request, run};
-use crate::reactor::Reactor;
+use crate::runtime::reactor::Reactor;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 fn fixture_args(name: &str, path: Option<&std::path::Path>) -> Vec<String> {
     let mut args = vec![
         "--exact".into(),
-        format!("core::tests::windows::{name}"),
+        format!("process::tests::windows::{name}"),
         "--ignored".into(),
         "--nocapture".into(),
     ];

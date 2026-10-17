@@ -17,11 +17,23 @@ pub(crate) enum Kind {
         method: profiles::Method,
         finish: bool,
     },
+    Rt(Rt),
+    Prim(Prim),
+}
+
+/// An `hd:rt` import (`rt.rs`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Rt {
     Block,
     Abort,
     Stderr,
     Stdout,
     Panic,
+}
+
+/// An `hd:prim` import (`rt.rs`, over `prim.rs`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Prim {
     FormatF64,
     FormatF32,
     FormatFixed,
@@ -45,14 +57,9 @@ pub(crate) enum Record {
 impl Kind {
     pub(crate) fn record(self) -> Record {
         match self {
-            Self::FormatF64
-            | Self::FormatF32
-            | Self::FormatFixed
-            | Self::Lower
-            | Self::Upper
-            | Self::ParseF64 => Record::Skip,
-            Self::Block => Record::Block,
-            Self::Abort => Record::Abort,
+            Self::Prim(_) => Record::Skip,
+            Self::Rt(Rt::Block) => Record::Block,
+            Self::Rt(Rt::Abort) => Record::Abort,
             Self::Fixture { finish: true, .. } | Self::Host { finish: true, .. } => Record::Finish,
             _ => Record::Call,
         }
@@ -76,7 +83,8 @@ impl Kind {
                     .count();
                 (scalars < method.params.len()).then_some(scalars)
             }
-            Self::Stderr | Self::Stdout | Self::Lower | Self::Upper | Self::ParseF64 => Some(0),
+            Self::Rt(Rt::Stderr | Rt::Stdout)
+            | Self::Prim(Prim::Lower | Prim::Upper | Prim::ParseF64) => Some(0),
             _ => None,
         }
     }
@@ -100,8 +108,8 @@ impl Kind {
                 (Wait::Never, Codec::Scalar(Scalar::F64)) => matches!(results, [ValType::F64]),
                 (Wait::Never, _) => matches!(results, [value] if integer(value)),
             },
-            Self::Abort | Self::Stderr | Self::Stdout | Self::Panic => results.is_empty(),
-            Self::ParseF64 => matches!(results, [ValType::F64]),
+            Self::Rt(Rt::Abort | Rt::Stderr | Rt::Stdout | Rt::Panic) => results.is_empty(),
+            Self::Prim(Prim::ParseF64) => matches!(results, [ValType::F64]),
             Self::Fixture { method, finish } if !finish && method.is_waiting() => pair(),
             _ => matches!(results, [value] if integer(value)),
         }
@@ -172,17 +180,17 @@ impl Kind {
             return Some(kind);
         }
         Some(match (module, name) {
-            ("hd:rt", "block") => Kind::Block,
-            ("hd:rt", "abort") => Kind::Abort,
-            ("hd:rt", "stderr") => Kind::Stderr,
-            ("hd:rt", "stdout") => Kind::Stdout,
-            ("hd:rt", "panic") => Kind::Panic,
-            ("hd:prim", "format_f64") => Kind::FormatF64,
-            ("hd:prim", "format_f32") => Kind::FormatF32,
-            ("hd:prim", "format_f64_fixed") => Kind::FormatFixed,
-            ("hd:prim", "string_lower") => Kind::Lower,
-            ("hd:prim", "string_upper") => Kind::Upper,
-            ("hd:prim", "parse_f64") => Kind::ParseF64,
+            ("hd:rt", "block") => Kind::Rt(Rt::Block),
+            ("hd:rt", "abort") => Kind::Rt(Rt::Abort),
+            ("hd:rt", "stderr") => Kind::Rt(Rt::Stderr),
+            ("hd:rt", "stdout") => Kind::Rt(Rt::Stdout),
+            ("hd:rt", "panic") => Kind::Rt(Rt::Panic),
+            ("hd:prim", "format_f64") => Kind::Prim(Prim::FormatF64),
+            ("hd:prim", "format_f32") => Kind::Prim(Prim::FormatF32),
+            ("hd:prim", "format_f64_fixed") => Kind::Prim(Prim::FormatFixed),
+            ("hd:prim", "string_lower") => Kind::Prim(Prim::Lower),
+            ("hd:prim", "string_upper") => Kind::Prim(Prim::Upper),
+            ("hd:prim", "parse_f64") => Kind::Prim(Prim::ParseF64),
             _ => return None,
         })
     }

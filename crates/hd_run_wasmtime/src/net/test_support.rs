@@ -3,7 +3,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
 use crate::codec::{Dec, Enc};
-use crate::reactor::{Done, Reactor, Work};
+use crate::runtime::reactor::{Done, Reactor, Work};
 use hd_run::Grants;
 
 use super::Client;
@@ -41,7 +41,7 @@ pub(crate) enum Started {
     Pending(i32),
 }
 
-/// An instance's `Net` table and reactor, driven as `host/call.rs` drives
+/// An instance's `Net` table and reactor, driven as `net::call` drives
 /// them: each `.start`, its wait, and its `.finish` or abort.
 pub(crate) struct Net {
     pub(crate) client: Client,

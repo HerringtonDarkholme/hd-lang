@@ -6,7 +6,7 @@ use hd_run::Grants;
 
 use crate::abi::{self, Entry, EntryKind, FsError};
 use crate::codec::{Dec, Enc, Wire, encode};
-use crate::reactor::Done;
+use crate::runtime::reactor::Done;
 
 use super::io::{open, read, write};
 use super::ops::{Env, at, run};
@@ -377,7 +377,7 @@ pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -
         } => (error, *syscall, path),
     };
     let typed = abi::Path(path.to_owned());
-    match crate::native_io::error_kind(err) {
+    match crate::runtime::native_io::error_kind(err) {
         io::ErrorKind::NotFound => return error(FsError::NotFound { path: typed }),
         io::ErrorKind::PermissionDenied => {
             return error(FsError::PermissionDenied { path: typed });

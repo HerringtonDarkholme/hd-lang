@@ -9,6 +9,17 @@
 //! their order (`std-http.headers.case`, `.order`). Compression and
 //! environment proxies are deliberately disabled. Timed DNS returns promptly, but std's
 //! underlying getaddrinfo call in the DNS helper thread cannot be aborted.
+//!
+//! `call` is the provider; `client` starts and finishes a send, `request`
+//! checks and frames it, `target` resolves and checks each URL, and
+//! `connector` opens its connections.
+
+use wasmtime::{Caller, Val};
+
+use crate::abi::HostMethod;
+use crate::host::offload::{finished, not_completed, pending};
+use crate::host::{Host, Ret, bytes, int_arg};
+use crate::runtime::reactor::Done;
 
 pub(crate) mod client;
 pub(crate) mod connector;
@@ -25,4 +36,25 @@ pub(crate) fn is_token(value: &str) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
+}
+
+/// `Http.send`'s `.start`, or its `.finish` when `finish`.
+pub(crate) fn call(
+    _method: &'static HostMethod,
+    finish: bool,
+    caller: &mut Caller<'_, Host>,
+    params: &[Val],
+) -> wasmtime::Result<Ret> {
+    if finish {
+        let Done::Http(sent) = finished(caller, params)? else {
+            return Err(not_completed());
+        };
+        return Ok(Ret::encoded(client::finish(sent)?));
+    }
+    let b = bytes(caller, int_arg(params, 0)?)?;
+    let host = caller.data_mut();
+    match client::start(&b, &host.grants)? {
+        client::Start::Ready(e) => Ret::ready(e),
+        client::Start::Run(job) => pending(host.reactor.offload(job.run()), client::not_run),
+    }
 }

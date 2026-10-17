@@ -6,7 +6,8 @@ use wasmtime::{Linker, Store};
 
 use super::instance::WasmtimeInstance;
 use crate::host::{Host, HostIo, Stop, define, start_clock, supported, unsupported_message};
-use crate::{cache, deadline, limits};
+use crate::runtime::epochs;
+use crate::{cache, limits};
 
 /// The wasmtime configuration of §18.1, as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,7 +186,7 @@ pub(crate) fn new_store(
         StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
     })?;
     if store.data().deadline().is_some() || store.data().interrupt.is_some() {
-        deadline::register(engine).map_err(StartError::Engine)?;
+        epochs::register(engine).map_err(StartError::Engine)?;
         store.epoch_deadline_callback(|cx| {
             cx.data().check_deadline()?;
             Ok(wasmtime::UpdateDeadline::Continue(1))

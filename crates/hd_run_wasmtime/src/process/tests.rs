@@ -1,7 +1,6 @@
-use super::process::{Output, Request, Start, finish, start};
-use super::{random, sys_read};
+use super::native::{Output, Request, Start, finish, start};
 use crate::codec::{Enc, Wire};
-use crate::reactor::{Done, Reactor, Work};
+use crate::runtime::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
 use std::io;
 
@@ -41,7 +40,7 @@ fn finished(reactor: &mut Reactor, h: i32) -> Done {
 }
 
 /// The run of a finished operation.
-fn ran(done: Done) -> super::process::Ran {
+fn ran(done: Done) -> super::native::Ran {
     match done {
         Done::Process(ran) => ran,
         _ => panic!("the operation is not a run"),
@@ -65,29 +64,6 @@ fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
             finish(ran(finished(&mut reactor, h))).into_bytes()
         }
     }
-}
-
-#[test]
-fn random_returns_the_requested_number_of_bytes() {
-    assert!(random(0).unwrap().is_empty());
-    assert_eq!(random(8).unwrap().len(), 8);
-    assert_eq!(random(1024).unwrap().len(), 1024);
-}
-
-#[test]
-fn sys_grant_is_checked_before_reading_and_failure_is_unsupported() {
-    let grants = Grants {
-        limits: vec![("Sys".into(), Limit::Entries(vec!["os".into()]))],
-    };
-    let denied = sys_read::<String>("hostname", &grants, || panic!("denied read ran"));
-    let mut expected = Enc::default();
-    expected.leb(1).leb(0).str("hostname");
-    assert_eq!(denied.done(), expected.done());
-
-    let unsupported = sys_read::<String>("hostname", &Grants::default(), || None);
-    let mut expected = Enc::default();
-    expected.leb(1).leb(1).str("hostname");
-    assert_eq!(unsupported.done(), expected.done());
 }
 
 #[test]

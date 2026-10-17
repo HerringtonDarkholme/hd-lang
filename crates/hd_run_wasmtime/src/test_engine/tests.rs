@@ -1,6 +1,7 @@
 use super::{NativeBodyRunner, TestEngine, TestEnvironment, TestHostKind, TestPoolConfig};
 use crate::host::HostIo;
-use crate::reactor::{Reactor, Work};
+use crate::process::test_child;
+use crate::runtime::reactor::{Reactor, Work};
 use crate::testing::{BodyRunner, State, TestCase};
 use crate::{EngineConfig, WasmtimeEngine};
 use hd_cache::MemoryStore;
@@ -250,11 +251,11 @@ fn child_arguments() -> crate::codec::Enc {
 fn start_child(
     environment: &TestEnvironment,
     deadline: Option<std::time::Instant>,
-) -> super::process::ChildRun {
+) -> test_child::ChildRun {
     let arguments = child_arguments();
-    match super::start(arguments.done(), &Grants::default(), environment, deadline).unwrap() {
-        super::Start::Run(run) => run,
-        super::Start::Ready(_) => panic!("the child starts"),
+    match test_child::start(arguments.done(), &Grants::default(), environment, deadline).unwrap() {
+        test_child::Start::Run(run) => run,
+        test_child::Start::Ready(_) => panic!("the child starts"),
     }
 }
 
@@ -268,7 +269,7 @@ fn finished_child(reactor: &mut Reactor, h: i32) -> Option<crate::codec::Enc> {
         assert!(reactor.wait(), "the child is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
-        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded)))) => encoded,
+        Some(Work::Offloaded(Some(crate::runtime::reactor::Done::Child(encoded)))) => encoded,
         _ => panic!("the child has no result"),
     }
 }

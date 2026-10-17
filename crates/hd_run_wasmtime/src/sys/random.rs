@@ -1,6 +1,8 @@
+//! `Random`: the operating system's random bytes.
+
 use crate::host::Stop;
 
-pub fn random(count: usize) -> wasmtime::Result<Vec<u8>> {
+pub(crate) fn random(count: usize) -> wasmtime::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(count)

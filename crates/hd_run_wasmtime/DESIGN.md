@@ -349,17 +349,22 @@ the variant index and the path.
   waits by its own name, one that may by `.start` and `.finish`. Its
   descriptor gives the shape of its results, which the linker checks
   before any effect, and which parameter holds its argument length, which
-  a REPL journal records. `host/call.rs` dispatches on its `Id`, so a
-  method the model adds does not compile until a provider handles it. A
-  provider decodes its arguments and encodes its result with the
+  a REPL journal records. `host/call.rs` routes on its `Id` to its
+  trait's provider, so a method the model adds does not compile until a
+  provider handles it. Each provider is one module with one `call` entry
+  (`console`, `sys` for `Clock`, `Sys`, `Random`, `Args` and `Env`, `fs`,
+  `process`, `http`, `net`, `testing::provider`, and `profiles` for the
+  fixtures); the plumbing they share is `runtime/` (the reactor and its
+  handles, the `hd-io` runtime, the epoch ticker) and `host/offload.rs`
+  (a `.start` that offloads, and its `.finish`). A provider decodes its arguments and encodes its result with the
   generated std types. It decodes every argument before any grant or
   handle check, as the JS host does, so a malformed argument is the
   `host-contract` panic on both engines whatever the grants.
 - **The `hd-io` runtime** is one process-wide tokio current-thread
   runtime, driven on a dedicated `hd-io` thread and started by the first
-  offloaded operation (`io_runtime.rs`). A `.start` that cannot finish at
+  offloaded operation (`runtime/io.rs`). A `.start` that cannot finish at
   once spawns a task there and returns its handle; the task delivers its
-  result into its instance's reactor inbox (`reactor.rs`). Timers,
+  result into its instance's reactor inbox (`runtime/reactor.rs`). Timers,
   `Console.write_line` and standard-input lines complete through the same
   inbox. One runtime per process, not one per worker thread, is better:
   a program that never offloads starts no thread, and workers share one
