@@ -1,0 +1,7 @@
+# test: a module path to a type its module declares without pub is private-import
+# Spec 03 Name Categories: names.type.qualified.
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn headline(draft: words.Draft) -> string:  # diagnostic: private-import
+    "draft"

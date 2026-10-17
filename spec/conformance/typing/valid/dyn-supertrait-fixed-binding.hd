@@ -1,0 +1,19 @@
+# test: a binding that a supertrait list fixes counts as bound, so dyn Sub and dyn Sub[Item = i32] are one type
+# expect: accept
+# Spec 09 Bound Associated Types: trait.dyn.binding.complete,
+# trait.dyn.binding.identity.
+trait Super:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Sub < Super[Item = i32]:
+    fn name(self) -> string
+
+fn widen(value: dyn Sub) -> dyn Sub[Item = i32]:
+    value
+
+fn narrow(value: dyn Sub[Item = i32]) -> dyn Sub:
+    value
+
+fn read(value: dyn Sub) -> i32:
+    narrow(widen(value)).get()

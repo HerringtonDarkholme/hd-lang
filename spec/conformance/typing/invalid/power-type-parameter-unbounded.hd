@@ -1,0 +1,4 @@
+# test: `**` on a base of a type parameter with no Integer or Float bound is an error
+# Spec 05 Exponentiation: expr.power.type-parameter.
+fn square[T](x: T) -> T:
+    x ** x  # diagnostic: type-mismatch

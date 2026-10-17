@@ -1,0 +1,8 @@
+# test: a type may be named through a module in scope, as words.Phrase after use pkg.words
+# expect: accept
+# Spec 03 Name Categories: names.type.qualified.
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn headline(phrase: words.Phrase) -> string:
+    phrase.text

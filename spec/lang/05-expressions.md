@@ -545,7 +545,7 @@ fn run(xs: List[i32]) -> usize:
     total(t) + total((1, 2)) + total((1, 2, xs...))
 ```
 
-1. r[expr.tuple.rest.collect] Against an expected tuple type with a rest element `List[T]...`, a tuple expression's elements fill the fixed elements one each, in order. The elements after them are collected into the rest element, each checked against `T`. Too few elements is an error. Error: `type-mismatch`.
+1. r[expr.tuple.rest.collect] Against an expected tuple type with a rest element `List[T]...`, a tuple expression's elements fill the fixed elements one each, in order. The elements after them are collected into the rest element, each checked against `T`. So `()` against `(List[i32]...,)` is a tuple whose rest is empty. Too few elements is an error. Error: `type-mismatch`.
 2. r[expr.tuple.rest.spread] A spread `xs...` that ends a tuple expression supplies the rest element. The elements before it are the fixed elements, and `xs` is the rest element's list. Against an expected type, both must match it. Error: `type-mismatch`.
 3. r[expr.tuple.rest.spread.list] The spread operand must be a `List[T]`, which gives the rest element `List[T]...`. A tuple or any other operand is an error. Error: `type-mismatch`.
 4. r[expr.tuple.rest.value] The resulting tuple's rest element is a `List[T]` that holds the collected elements in order, or the spread operand's list.
@@ -1078,6 +1078,7 @@ fn spreads(pair: (i32, i32), items: List[i32], t: (usize, usize, List[i32]...)) 
 5. r[expr.call.spread.mismatch] An operand that does not meet the table's requirement is an error. Error: `type-mismatch`.
 6. r[expr.call.spread.list-needs-vararg] A `List[T]` operand where the next positional parameter is not a vararg is an error. Error: `positional-spread-needs-vararg`.
 7. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
+8. r[expr.call.spread.inputs.only] A value of type `Fn[Args, O, $ R]` takes its inputs only as one spread. A call with separate arguments, a trailing block, or more positional values is an error. Error: `type-mismatch`.
 
 ```text
 fn add(a: i32, b: i32) -> i32: a + b
@@ -1547,6 +1548,7 @@ fn scale(x: i64, n: i32) -> i64:
 7. r[expr.power.float.same-type] For a floating-point base, the exponent must have the base's type, as for a [binary numeric operator](04-type-system.md#binary-numeric-operators). A floating-point literal exponent takes that type. Error: `type-mismatch`.
 8. r[expr.power.float.pow] Floating `**` computes IEEE 754-2019 `pow` as specified in clause 9.2, including its special cases, and rounds the result correctly to the destination format.
 9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
+10. r[expr.power.type-parameter] For a base of a type parameter, its bound picks the rule: `T < Integer` takes the integer rules, and `T < Float` the float rules. Any other type parameter base is an error. Error: `type-mismatch`.
 
 ```text
 fn power(exponent: i32) -> i32: 2 ** exponent  # error: type-mismatch

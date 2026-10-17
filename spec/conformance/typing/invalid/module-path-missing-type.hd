@@ -1,0 +1,7 @@
+# test: a module path to a type its module does not declare is unknown-import
+# Spec 03 Name Categories: names.type.qualified.
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn headline(phrase: words.Phrasee) -> string:  # diagnostic: unknown-import
+    "phrase"

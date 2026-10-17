@@ -944,7 +944,7 @@ See also: [Runtime Panics](06-control-flow.md#runtime-panics).
 ### Numeric Display
 
 1. r[types.display.int] `Display` formats integers in base ten.
-2. r[types.display.float] `Display` formats floating values with the shortest round-trip decimal digits.
+2. r[types.display.float] `Display` formats floating values with the shortest round-trip decimal digits. When two shortest strings are equally close to the value, it writes the one with an even last digit.
 3. r[types.display.width] The digits round-trip at the value's own width, so an `f32` displays its `f32` digits even when formatted through generic code.
 4. r[types.display.notation] Finite floats use fixed notation when the normalized decimal exponent is in `[-6, 21)` and lowercase scientific notation otherwise.
 5. r[types.display.exponent] Scientific exponents always include `+` or `-` and no leading zeroes.
@@ -1349,7 +1349,7 @@ fn invalid(parent: mut Parent, child: Child) -> void:
 2. r[types.path.reassign.old-value] Replacing a field does not mutate the old referenced value.
 3. r[types.path.store-mut-edge] Storing into a direct `field: mut U` of a mutable value requires `mut U`.
 4. r[types.path.store-readonly] A readonly value may store `U` there and cannot later be upgraded to `mut T`.
-5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores the copy-update `T { ...value }` of the field's type `T`, which must have mutable access. Otherwise the store is an error. Error: `mutable-upgrade`.
+5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores the copy-update `T { ...value }` of the field's type `T`. A store into a readonly target is an error, as for any store. Error: `readonly-root`. When the copy itself has only readonly access, as from a readonly source with a `mut` composite field, the store is an error. Error: `mutable-upgrade`.
 
 ```hd
 data Box:
@@ -2207,7 +2207,7 @@ fn demo() -> void:
 
 ## Least Common Type
 
-r[types.lct.sites] Several constructs infer one type from several values when no expected type is available:
+r[types.lct.sites] Several constructs infer one type from several values when no expected type is available, as this table lists. An expected type that is a type parameter the enclosing call has not solved yet counts as none: the site joins first, and the call then solves the parameter from the result.
 
 | Construct | Values | Defined in |
 | --- | --- | --- |
@@ -2221,7 +2221,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 
 1. r[types.lct.uses] Each of these uses the least common type defined here.
 2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the conversions that `types.lct.conversions` lists.
-3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
+3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Permission weakening applies inside tuple elements too, as assignment allows, so `(mut User, i32)` and `(User, i32)` join to `(User, i32)`. Error: `no-common-type`.
 4. r[types.lct.optional] Optional injection adds one layer, as [`types.assign.optional`](#r-types.assign.optional) states. So an `i32` and an `i32?` join to `i32?`, in a list literal, a value-producing `if` or `match`, and an inferred result type alike.
 5. r[types.lct.optional.one-layer] A `T` and a `T??` have no common type, because injection never adds two layers. Error: `no-common-type`.
 6. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.

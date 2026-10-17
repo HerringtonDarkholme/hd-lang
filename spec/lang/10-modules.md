@@ -107,7 +107,7 @@ A package's versions are the git tags of its repository:
 1. r[module.version.tag] A version is a git tag `vMAJOR.MINOR.PATCH`, with an optional SemVer 2.0.0 pre-release suffix.
 2. r[module.version.tag-prefix] A package in a subdirectory uses tags prefixed with that subdirectory's path and `/`, such as `lint/v2.3.0`.
 3. r[module.version.tag-only] The tag is the only version. A manifest does not state its own package's version.
-4. r[module.version.pseudo] A **pseudo-version** names one untagged commit. Its form depends on the closest earlier tag of the package, as the table below shows.
+4. r[module.version.pseudo] A **pseudo-version** names one untagged commit. Its form depends on the closest earlier tag of the package, as the table below shows. The closest earlier tag is the greatest version tag, with the package's tag prefix, among the commit's ancestors, as Go chooses it.
 5. r[module.version.pseudo.commit] In a pseudo-version, `TIME` is the commit's UTC time as `yyyymmddhhmmss`, and `HASH` is the first 12 hexadecimal digits of the commit hash.
 6. r[module.version.order] Versions, pseudo-versions included, are ordered by SemVer 2.0.0 precedence.
 7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
@@ -858,7 +858,7 @@ fn check_order(id: i32, count: i32) -> bool:
 1. r[module.dbg.signature] `std.format` declares `dbg` as `@intrinsic pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
 2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs). So `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
 3. r[module.dbg.tuple-argument] `dbg((a, b, c))` is a call with one argument, a tuple, as [`fn.vararg.no-auto-spread`](07-functions.md#r-fn.vararg.no-auto-spread) says. It prints one line for the tuple, where `dbg(a, b, c)` prints one line for each argument.
-4. r[module.dbg.body.print] The body evaluates the arguments from left to right. It prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
+4. r[module.dbg.body.print] The body evaluates the arguments from left to right. It prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type. A call with a spread or `values=` evaluates every argument first, then prints each element. A call with positional arguments prints each one as it is evaluated.
 5. r[module.dbg.body.site] The body prints what it knows of the call site, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. A direct call with only positional arguments and no explicit type arguments knows each argument's source text. Any other call knows only the location.
 6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site. So its body prints each element of its one tuple argument on a line of its own, with no location.
 7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test](#r-module.testing.unit-row.anywhere), and in generic code.
@@ -1384,14 +1384,14 @@ pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: stri
 `it_prop` and `it_prop_with` register one property test case each:
 
 ```text
-pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
-                                                       expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
-                                                       prop: fn!(T) -> R) -> void
-pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                                expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
-                                                prop: fn!(T) -> R) -> void
+pub fn it_prop[T < Arbitrary & Debug, R < Termination, $Q](name: string, ignore: string? = .None,
+                                                           expect_panic: string? = .None, timeout: Duration? = .None,
+                                                           cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
+                                                           prop: fn!(T) -> R $ Q) -> void $ Q
+pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                    expect_panic: string? = .None, timeout: Duration? = .None,
+                                                    cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
+                                                    prop: fn!(T) -> R $ Q) -> void $ Q
 ```
 
 1. r[module.testing.reg.calls] `it_each`, `it_prop`, and `it_prop_with` take test registration calls with the signatures above; `std.testing` declares them. The test-position rules of `it` apply to them.
@@ -1703,7 +1703,7 @@ tests:
 2. r[module.init.requirement-free.forms] It must not use `$.use`, enter a provider scope, make a bang call, or call a callable whose requirement row is not empty.
 3. r[module.init.script-row] A script module may use requirements and suspension only through an inferred entry requirement row.
 4. r[module.init.script-row.report] The compiler reports that row alongside `main!` rows for host configuration.
-5. r[module.init.script-not-driver] A script's top level is not itself a suspension driver. Bang calls must occur in a suspending entry function or another specified driver context.
+5. r[module.init.script-not-driver] A script's top level is not itself a suspension driver. Bang calls must occur in a suspending entry function or another specified driver context. A REPL input is a driver context, by [`cli.repl.input.driver`](../cli/command-line.md#r-cli.repl.input.driver).
 
 ```hd
 limit := +10

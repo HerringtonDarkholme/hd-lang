@@ -208,9 +208,9 @@ fn users_path() -> string:
         .None => ""
 ```
 
-1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`.
+1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
-3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules.
+3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, and `@str_prefix` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
 
 ```text

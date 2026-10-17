@@ -19,9 +19,10 @@ resolve. It does not define type compatibility or access permission.
 1. r[names.category.syntax] A use is resolved in the category required by its syntax.
 2. r[names.category.syntax.type] For example, the name before `{` in `User { ... }` is resolved as a type.
 3. r[names.category.syntax.value] In `user.email`, `user` is resolved as a value and `email` as a member of its type.
-4. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error. Examples are `let x = User` and `field.metadata(MaxLen)`. Error: `type-used-as-value`.
-5. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration. Error: `duplicate-module-name`.
-6. r[names.module.no-overloading] Function overloading is therefore not permitted.
+4. r[names.type.qualified] A type may be named through a module in scope, as `types.User` after `use pkg.user.types`, by the rules of [`expr.name.qualified`](05-expressions.md#r-expr.name.qualified). A missing declaration is an error. Error: `unknown-import`. A private one is an error. Error: `private-import`.
+5. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error. Examples are `let x = User` and `field.metadata(MaxLen)`. Error: `type-used-as-value`.
+6. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration. Error: `duplicate-module-name`.
+7. r[names.module.no-overloading] Function overloading is therefore not permitted.
 
 ```text
 fn value(input: i32) -> i32: input
@@ -545,7 +546,7 @@ See also: [Prelude Names](#prelude-names).
 
 ### Local Declaration Limits
 
-1. r[names.local.no-pub] `pub` is not permitted on local declarations.
+1. r[names.local.no-pub] `pub` is not permitted on local declarations. Error: `syntax-error`.
 2. r[names.local.no-metadata] Decorators and [derivation blocks with no trait](14-annotations.md#derivation-blocks-with-no-trait) are not permitted in a local scope.
 
 ```hd

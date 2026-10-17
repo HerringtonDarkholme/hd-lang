@@ -1,0 +1,7 @@
+# test: a projection whose bounds select no associated type declaration is an error
+# Spec 09 Associated Types: trait.assoc.no-type.
+trait Supplier:
+    fn supply(self) -> i32
+
+fn take[T < Supplier](x: T) -> T::Element:  # diagnostic: unknown-associated-type
+    x.supply()

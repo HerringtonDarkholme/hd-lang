@@ -1,0 +1,8 @@
+# test: a supertrait list may name one trait twice with different arguments
+# expect: accept
+# Spec 09 Supertraits: trait.super.unique.
+trait Convert[T]:
+    fn convert(self) -> T
+
+trait Both < Convert[i32] & Convert[string]:
+    fn name(self) -> string

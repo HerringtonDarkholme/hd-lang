@@ -1213,17 +1213,18 @@ enum Poll[T]:
     Pending
     Ready(T)
 
-trait Suspend[T]:
+data Suspend[T]: pass
+
+impl[T] Suspend[T]:
     fn poll(mut self, context: PollContext) -> Poll[T]
     fn cancel(mut self) -> void
 ```
 
-1. r[req.protocol.sealed] `Suspend[T]` is sealed.
-2. r[req.protocol.implementers] Only compiler-generated frames and implementations in `std.task` may implement it; ordinary packages may consume the trait but cannot declare an implementation.
-3. r[req.protocol.no-other] There is no separate `Pollable` or public `Continuation[T]` abstraction.
+1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error. Error: `sealed-trait-implementation`.
+2. r[req.protocol.no-other] There is no separate `Pollable` or public `Continuation[T]` abstraction.
 
-> **Why.** Sealing makes the one-shot runtime checks part of the protocol
-> rather than an unenforceable user convention.
+> **Why.** A built-in type makes the one-shot runtime checks part of the
+> protocol rather than an unenforceable user convention.
 
 ### Suspension Values
 
@@ -1256,9 +1257,9 @@ trait Waker:
     fn wake(self) -> void
 ```
 
-1. r[req.poll-context.construction] `PollContext` is constructed only by the host runtime and `std.task`; user code cannot construct one.
+1. r[req.poll-context.construction] `PollContext` is constructed only by the host runtime and `std.task`; user code cannot construct one. Its field is private and not shown above, so a construction in user code is an error. Error: `private-member`.
 2. r[req.poll-context.waker] Standard-library suspension implementations access its waker through this sealed surface.
-3. r[req.poll-context.user] Ordinary user packages may receive a `PollContext` only inside APIs explicitly provided by `std.task`; they cannot use it to implement the sealed `Suspend` trait.
+3. r[req.poll-context.user] Ordinary user packages may receive a `PollContext` only inside APIs explicitly provided by `std.task`; they cannot use it to implement `Suspend[T]`, a built-in type.
 
 ### Wakers
 
@@ -1427,7 +1428,7 @@ fn demo!() -> string $ Console:
 3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
 4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
-6. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
+6. r[req.combinator.user] Because `Suspend[T]` is a built-in type, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
 7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
 8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
 9. r[req.combinator.race-empty] A `race!` call written with no task argument, as `race!::[i32]()`, is an error. Error: `argument-count`.

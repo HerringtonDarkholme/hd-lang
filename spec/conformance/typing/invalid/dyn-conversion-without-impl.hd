@@ -1,0 +1,10 @@
+# test: converting a concrete value to a trait value without an implementation is an error
+# Spec 09 Dynamic Trait Values: trait.dyn.convert.
+trait Shape:
+    fn area(self) -> i32
+
+data Square:
+    side: i32
+
+fn as_shape(square: Square) -> dyn Shape:
+    square  # diagnostic: type-mismatch

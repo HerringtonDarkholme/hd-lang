@@ -1,6 +1,8 @@
 # A word joiner for the module-path fixtures: `use pkg.words` then
 # `words.join_words(...)` calls the public function, `words.squash` names a
-# private one, and `words.join_wordz` names nothing.
+# private one, and `words.join_wordz` names nothing. In type position,
+# `words.Phrase` names the public type, `words.Draft` the private one, and
+# `words.Phrasee` nothing.
 pub fn join_words(words: List[string], separator: string) -> string:
     let out = ""
     for word in words:
@@ -9,3 +11,9 @@ pub fn join_words(words: List[string], separator: string) -> string:
 
 fn squash(word: string) -> string:
     word
+
+pub data Phrase:
+    pub text: string
+
+data Draft:
+    text: string

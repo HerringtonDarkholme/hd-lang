@@ -448,7 +448,7 @@ else:
 4. r[flow.loop.else.break-value] `break value` terminates the loop and supplies its value.
 5. r[flow.loop.else.exhaustion] Normal exhaustion of a `for` loop, or a `false` `while` condition, evaluates the `else` suite and uses that suite's value.
 6. r[flow.loop.else.plain-break] Plain `break` in a value-producing loop is an error. Error: `break-value-context`.
-7. r[flow.loop.else.type] Every reachable `break value` and the `else` suite must produce one compatible loop result type.
+7. r[flow.loop.else.type] Every reachable `break value` and the `else` suite join by the [least common type](04-type-system.md#r-types.lct.sites), which is the loop result type.
 8. r[flow.loop.else.continue] `continue` does not produce a loop value.
 9. r[flow.loop.else.skipped] The `else` suite is not executed after any `break`, abrupt function return, propagation with `?`, cancellation, or runtime panic.
 

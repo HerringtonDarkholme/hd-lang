@@ -131,7 +131,7 @@ trait Formattable < Display:
 4. r[trait.super.impl-bounds] The check is made at the implementation, under its own bounds: they must prove every supertrait for its target. With `impl[T < Eq] Parent for Box[T]`, an `impl[T] Child for Box[T]` is an error. Error: `missing-supertrait-implementation`.
 5. r[trait.super.acyclic] The supertrait graph must be acyclic: a direct or indirect cycle is a compile-time error. Error: `supertrait-cycle`.
 6. r[trait.super.cycle-report] An indirect cycle is reported once, on the member of the cycle that appears first. Members are ordered first by module identity, then by source position within the module.
-7. r[trait.super.unique] A supertrait bound must not list one trait twice. Error: `duplicate-supertrait`.
+7. r[trait.super.unique] A supertrait bound must not list one trait twice with the same arguments; `Convert[i32] & Convert[string]` lists two bounds. Error: `duplicate-supertrait`.
 
 ```text
 trait Parent
@@ -196,7 +196,8 @@ impl Supplier for NameSupplier:
 2. r[trait.assoc.self] `Self::Item` projects from the current implementation.
 3. r[trait.assoc.projection] `T::Item` projects from a generic type whose bounds select exactly one associated type declaration.
 4. r[trait.assoc.ambiguous-type] A projection whose bounds select two different associated type declarations is ambiguous. An ambiguous projection is an error. Error: `ambiguous-associated-type`.
-5. r[trait.assoc.bound] A bound may also fix a projection to a type.
+5. r[trait.assoc.no-type] A projection whose bounds select no associated type declaration is an error. Error: `unknown-associated-type`.
+6. r[trait.assoc.bound] A bound may also fix a projection to a type.
 
 ```text
 trait Named:
@@ -283,7 +284,7 @@ trait Hash:
 10. r[trait.derive.cmp-templates] `Eq`, `PartialOrd`, `Ord`, and `Hash` derive through their templates, as every derivable trait does. The compiler writes none of their bodies.
 11. r[trait.derive.cmp-every-member] A derivation of `Eq`, `PartialOrd`, `Ord`, or `Hash` covers every member, and no member line or derivation block configures it.
 12. r[trait.derive.templated] `@derive` accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
-13. r[trait.derive.field-missing-trait] A field that a derived `Eq`, `PartialOrd`, `Ord`, or `Hash` compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
+13. r[trait.derive.field-missing-trait] A field that a derived `Eq`, `PartialOrd`, `Ord`, or `Hash` compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. A field that lacks several of the derived traits gets one error, naming the first of them in the `@derive` list. Error: `derive-field-missing-trait`.
 14. r[trait.derive.field-missing-trait.template] For these four traits, this error replaces the template's `member-not-derivable` of [`annot.walker.obligation.error`](14-annotations.md#r-annot.walker.obligation.error).
 15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use. One case is `==` on two `Box[fn() -> void]` values. Error: `missing-derived-bound`.
 16. r[trait.derive.owner] A derived implementation is owned by the module that declares its target, whichever module declares the trait.
@@ -1750,12 +1751,13 @@ fn run() -> i32:
 ```
 
 1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `dyn Supplier[Item = i32]`.
-2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
-3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
-4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
-5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
-6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
-7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `dyn NamedSupplier[Item = i32]` widens to `dyn Supplier[Item = i32]`.
+2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A binding that a supertrait list fixes counts as bound, so under `trait Sub < Super[Item = T]` the types `dyn Sub` and `dyn Sub[Item = T]` are one type. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
+3. r[trait.dyn.binding.self-fixed] A binding to `Self` that a supertrait list fixes, as in `trait Summable < Add[Out = Self]`, counts as bound. The trait value does not carry it, so `Out` stays a projection.
+4. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
+5. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
+6. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
+7. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
+8. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `dyn NamedSupplier[Item = i32]` widens to `dyn Supplier[Item = i32]`.
 
 ```text
 trait Supplier:
@@ -1843,7 +1845,7 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 
 ### Conversion To Trait Values
 
-1. r[trait.dyn.convert] Converting a concrete value to a trait value requires an explicit implementation.
+1. r[trait.dyn.convert] Converting a concrete value to a trait value requires an explicit implementation. A conversion without one is an error. Error: `type-mismatch`.
 2. r[trait.dyn.convert.any-type] The concrete type can be composite or primitive.
 3. r[trait.dyn.mut] Mutable dynamic access uses `mut dyn Trait` and cannot be recovered from a readonly `dyn Trait` value.
 4. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
@@ -1891,7 +1893,6 @@ compiler and the standard library supply.
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
 | r[trait.sealed.anyval-values] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
-| r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |
@@ -2155,7 +2156,7 @@ fn demo() -> bool:
 | r[trait.typeid.name.package] Package declaration | a declaration in a package | the package name from `hd.toml` with each `-` written `_`, then the module path and the name, as in `acme_shop.model.User` |
 | r[trait.typeid.name.single-file] Single-file declaration | a declaration in a [single-file program](10-modules.md#single-file-programs) | the file's stem, then the name, as in `shop.User` in `shop.hd` |
 | r[trait.typeid.name.option] Option | `Option[T]` | `T?` |
-| r[trait.typeid.name.tuple] Tuple | a tuple | `(A, B)` |
+| r[trait.typeid.name.tuple] Tuple | a tuple | `(A, B)`; the empty tuple, `void` included, is `()` |
 | r[trait.typeid.name.separator] Separator | elements and type arguments | separated by `, ` |
 | r[trait.typeid.name.inner-mut] Inner `mut` | a `mut` inside a type argument | written before that argument, as in `List[mut acme.model.User]` |
 | r[trait.typeid.name.outer-mut] Outer `mut` | the outer `mut` | never appears |

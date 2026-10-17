@@ -1,0 +1,13 @@
+# test: () against a rest-only tuple type is a tuple whose rest is empty
+# expect: test
+# Spec 05 Tuple Expressions: expr.tuple.rest.collect, expr.tuple.rest.value.
+fn count(values: (List[i32]...,)) -> usize:
+    values._0.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("collects no elements into the rest"):
+        let empty: (List[i32]...,) = ()
+        assert_equal(count(empty), 0, reason="() fills the rest element with an empty list")
+        assert_equal(count((+1, +2)), 2, reason="two elements fill the rest element")

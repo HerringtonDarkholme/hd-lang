@@ -437,17 +437,18 @@ Sys = ["os", "arch"]
 
 1. r[cli.cap.scope.path] An `FsRead` or `FsWrite` entry covers the file it names, or every path under the directory it names.
 2. r[cli.cap.scope.path.resolved] `hd` resolves `..` and symbolic links in the entry and in the accessed path before it compares them, so no path escapes a granted directory.
-3. r[cli.cap.scope.path.relative] A relative path in the table is relative to the package directory, and one in a flag to the command's working directory.
-4. r[cli.cap.scope.write-not-read] An `FsWrite` entry grants no read.
-5. r[cli.cap.scope.rename] `rename!` needs an `FsWrite` entry that covers each of its two paths.
-6. r[cli.cap.scope.host] An `Http` entry covers a request whose URL host matches the entry's host, and whose port equals the entry's port when the entry gives one.
-7. r[cli.cap.scope.host.forms] An entry's host is a name, an IPv4 address, or a bracketed IPv6 address. The entry `*.example.com` matches every name that ends in `.example.com`.
-8. r[cli.cap.scope.redirect] `hd` checks each redirect target of an `Http` request as a new request.
-9. r[cli.cap.scope.net] A `Net` entry covers the address of a connect, listen, bind, or send by the host match of an `Http` entry. An entry without a port covers every port.
-10. r[cli.cap.scope.net.lookup] A `Net` entry covers a DNS lookup of a host that its host matches.
-11. r[cli.cap.scope.env] An `Env` entry covers the variable it names. An entry that ends in `*` covers every name that starts with the text before the `*`.
-12. r[cli.cap.scope.process] A `Process` entry covers a `run!` call whose `program` argument equals it, as written, before the host looks the program up.
-13. r[cli.cap.scope.sys] A `Sys` entry covers the method of `Sys` that it names: `os`, `arch`, `hostname`, or `cpu_count`.
+3. r[cli.cap.scope.path.access] Once the grant check passes, the access itself resolves the path as the operating system does, on every engine. So reading `data/missing/../a.txt` fails with `NotFound` when `data/missing` does not exist.
+4. r[cli.cap.scope.path.relative] A relative path in the table is relative to the package directory, and one in a flag to the command's working directory.
+5. r[cli.cap.scope.write-not-read] An `FsWrite` entry grants no read.
+6. r[cli.cap.scope.rename] `rename!` needs an `FsWrite` entry that covers each of its two paths.
+7. r[cli.cap.scope.host] An `Http` entry covers a request whose URL host matches the entry's host, and whose port equals the entry's port when the entry gives one.
+8. r[cli.cap.scope.host.forms] An entry's host is a name, an IPv4 address, or a bracketed IPv6 address. The entry `*.example.com` matches every name that ends in `.example.com`.
+9. r[cli.cap.scope.redirect] `hd` checks each redirect target of an `Http` request as a new request.
+10. r[cli.cap.scope.net] A `Net` entry covers the address of a connect, listen, bind, or send by the host match of an `Http` entry. An entry without a port covers every port.
+11. r[cli.cap.scope.net.lookup] A `Net` entry covers a DNS lookup of a host that its host matches.
+12. r[cli.cap.scope.env] An `Env` entry covers the variable it names. An entry that ends in `*` covers every name that starts with the text before the `*`.
+13. r[cli.cap.scope.process] A `Process` entry covers a `run!` call whose `program` argument equals it, as written, before the host looks the program up.
+14. r[cli.cap.scope.sys] A `Sys` entry covers the method of `Sys` that it names: `os`, `arch`, `hostname`, or `cpu_count`.
 
 > **Note.** In an integration test, `run!` names an executable or a task
 > of the package ([`cli.test.process`](#r-cli.test.process)), so a
@@ -1042,7 +1043,7 @@ hd check --format json
 5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
 6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
 7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
-8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, `file` is the path as written on the command line.
+8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, `file` is the path as written on the command line. At a workspace root, `file` is relative to the workspace root, as `lib/src/lib.hd`, so two members' files stay apart.
 9. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
 10. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
 11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
@@ -1272,11 +1273,7 @@ hd test              # runs tests/hello.hd, which runs the executable
 > A package left out of `members` would be skipped by every root command
 > without a word.
 
-### Planned: GitHub Pages Workflow
-
-> **Note.** This section is not available yet. `hd new` has no `--pages`
-> flag and asks no Pages question. It waits for the redesign of
-> [`hd doc`](#documentation), which has no output directory flag today.
+### GitHub Pages Workflow
 
 1. r[cli.new.pages] `hd new --pages` also writes `.github/workflows/docs.yml` in the new package's directory, for an application and for a library.
 2. r[cli.new.pages.workflow] That workflow runs [`hd doc`](#documentation) and deploys the output directory to GitHub Pages.
@@ -1343,15 +1340,16 @@ echo 'println(1 + 2)' | hd    # prints 3
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
 9. r[cli.repl.input-types] Each input of a session is checked on its own, by [Open Literal Width](../lang/04-type-system.md#open-literal-width). A later input never changes the type of an earlier input's binding.
 10. r[cli.repl.host.default-profile] A session runs its inputs under the [default profile](#r-cli.host.default-profile), as `hd FILE` does, so an input may call each host capability trait that the profile binds.
-11. r[cli.repl.host.cwd] A session's relative paths resolve from the working directory of the `hd` command.
-12. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
-13. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
-14. r[cli.repl.value] The REPL shows an expression input's value as [`dbg`](../lang/10-modules.md#debug-values) prints it, then ` : ` and its type, as in `[3, 6] : List[usize]`. So a value of a type without `Display` or `Debug` shows too.
-15. r[cli.repl.value.stream] The REPL writes the value line to standard output, after the input's own output and its `dbg` lines.
-16. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
-17. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
-18. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
-19. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
+11. r[cli.repl.input.driver] An input's top level is a suspension driver context, as `main!`'s body is, so an input may make bang calls. Its row is inferred under the default profile.
+12. r[cli.repl.host.cwd] A session's relative paths resolve from the working directory of the `hd` command.
+13. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
+14. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
+15. r[cli.repl.value] The REPL shows an expression input's value as [`dbg`](../lang/10-modules.md#debug-values) prints it, then ` : ` and its type, as in `[3, 6] : List[usize]`. So a value of a type without `Display` or `Debug` shows too. An expression input is an input whose only top-level item is an expression statement that binds nothing. The REPL shows no value line when that expression's type is `void` or `never`.
+16. r[cli.repl.value.stream] The REPL writes the value line to standard output, after the input's own output and its `dbg` lines.
+17. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
+18. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
+19. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
+20. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
 
 ```sh
 hd> let log: mut List[string] = []
@@ -1370,8 +1368,9 @@ hd> log                             # the push remains
 ```sh
 hd> use std.time.{now}
 hd> started := now()          # reads the system clock once
+hd> use std.path.{Path}
 hd> use std.fs.{read_text}
-hd> read_text!("notes.txt")   # reads ./notes.txt
+hd> read_text!(Path("notes.txt"))   # reads ./notes.txt
 ```
 
 > **Note.** An input such as `x := 21` has no signed literal, so `x`
@@ -1409,6 +1408,10 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 > panicked declared nothing, by
 > [`cli.repl.panic.binding`](#r-cli.repl.panic.binding), so its names stay
 > free.
+
+> **Note.** An implementation of `Debug` added after a value of its type
+> was shown does not change how later values of that type show. A type
+> not yet shown uses it.
 
 > **Why.** A session is one scope, as a module is, so a name means one
 > declaration. Shadowing would leave earlier items and values tied to a
@@ -1477,7 +1480,7 @@ hd check    # works offline from now on
 5. r[cli.dep.no-sum-write] `hd check`, `hd build`, `hd run`, and `hd test` never write `hd.sum` or `hd.toml`.
 6. r[cli.dep.verify] A selected version whose tree hash differs from its `hd.sum` entry is an error, by [`module.sum.mismatch`](../lang/10-modules.md#r-module.sum.mismatch). Error: `sum-mismatch`.
 7. r[cli.dep.path] A path requirement names the package in its directory, by [`module.path-dep.form`](../lang/10-modules.md#r-module.path-dep.form). It is never fetched, and it has no `hd.sum` entry.
-8. r[cli.dep.invalid] A dependency key or requirement that breaks a rule of [Dependency Requirements](../lang/10-modules.md#dependency-requirements), [Host Paths](../lang/10-modules.md#host-paths), or [Versions](../lang/10-modules.md#versions) is an error at its line of `hd.toml`. Error: `invalid-requirement`.
+8. r[cli.dep.invalid] A dependency key or requirement that breaks a rule of [Dependency Requirements](../lang/10-modules.md#dependency-requirements), [Host Paths](../lang/10-modules.md#host-paths), or [Versions](../lang/10-modules.md#versions) is an error at its line of `hd.toml`. A requirement that the command is adding has no line yet, so its error has no file or line. Error: `invalid-requirement`.
 9. r[cli.dep.no-library] A requirement whose package has no `src/lib.hd` is an error, by [`module.path.no-lib-dependency`](../lang/10-modules.md#r-module.path.no-lib-dependency). Error: `invalid-requirement`.
 10. r[cli.dep.missing-sum.manifest] In those commands, a version that a requirement reaches and that has no [manifest line](#r-cli.sum.manifest-line) is an error at its requirement. Selection does not read its manifest. Error: `missing-sum-entry`.
 11. r[cli.dep.verify.manifest] A reached version whose manifest hash differs from its manifest line is an error, and selection does not read that manifest. Error: `sum-mismatch`.
@@ -1491,7 +1494,7 @@ hd check    # works offline from now on
 
 ### Repositories
 
-1. r[cli.dep.repo-url] `hd` fetches a host path's repository from the URL `https://` followed by its [repository part](../lang/10-modules.md#host-paths). So `github.com/acme/tools/lint` is fetched from `https://github.com/acme/tools`.
+1. r[cli.dep.repo-url] `hd` fetches a host path's repository from the URL `https://` followed by its [repository part](../lang/10-modules.md#host-paths). So `github.com/acme/tools/lint` is fetched from `https://github.com/acme/tools`. When the HTTPS fetch fails for any reason, `hd` tries `ssh://git@` followed by the repository part, without prompts. Within one run, a host that answered over SSH is tried over SSH first. `url.<base>.insteadOf` rewrites apply to each URL first. When both URLs fail, one error names both. Error: `fetch-failed`.
 2. r[cli.dep.git] `hd` fetches with the system's `git` command, so git's own configuration applies, such as credential helpers, SSH keys, and `url.<base>.insteadOf` rewrites.
 3. r[cli.dep.tag] A version's tree is the package's directory in the commit of its tag, by [`module.version.tag`](../lang/10-modules.md#r-module.version.tag) and [`module.version.tag-prefix`](../lang/10-modules.md#r-module.version.tag-prefix).
 4. r[cli.dep.no-prompt] Fetching never asks a question. A repository that git cannot reach or read, as a private one without credentials, is an error that names the host path. Error: `fetch-failed`.

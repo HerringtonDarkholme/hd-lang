@@ -1,0 +1,15 @@
+# test: an expected type that the call has not solved yet counts as none, so the site joins first
+# expect: test
+# Spec 04 Least Common Type: types.lct.sites.
+fn same[T](value: T) -> T:
+    value
+
+fn choose(flag: bool, fallback: i32?) -> i32?:
+    same(if flag: +1 else: fallback)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the branches join to i32?, then T is solved from it"):
+        assert_equal(choose(true, .None), .Some(+1), reason="i32 and i32? join to i32?")
+        assert_equal(choose(false, .Some(+5)), .Some(+5), reason="the optional branch")

@@ -355,7 +355,7 @@ itself.
 | Rule | Limit | Error | Reported on |
 | --- | --- | --- | --- |
 | r[data.embed.width] Width | A data type may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
-| r[data.embed.depth] Depth | Embedding chains may be at most three levels deep: `C` may embed `P1`, which embeds `P2`, which embeds `P3`. | `embedding-too-deep` | the embedded field that begins the first chain that reaches depth 4 |
+| r[data.embed.depth] Depth | Embedding chains may be at most three levels deep: `C` may embed `P1`, which embeds `P2`, which embeds `P3`. A type that reaches a cycle without being part of it gets no `embedding-cycle`; its depth counts along chains that never repeat a type. | `embedding-too-deep` | the embedded field that begins the first chain that reaches depth 4 |
 | r[data.embed.depth.self] Cycle | A data type that embeds itself, directly or through other types, is an error, in place of `embedding-too-deep`. | `embedding-cycle` | the embedded field that begins the cycle, in the cycle's first declared type |
 
 ```text

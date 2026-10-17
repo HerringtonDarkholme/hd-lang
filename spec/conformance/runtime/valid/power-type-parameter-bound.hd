@@ -1,0 +1,20 @@
+# test: a type parameter base takes the integer rules under Integer and the float rules under Float
+# expect: test
+# Spec 05 Exponentiation: expr.power.type-parameter, expr.power.int.literal,
+# expr.power.float.same-type.
+use std.num.{Float, Integer}
+
+fn cube[T < Integer](x: T) -> T:
+    x ** 3
+
+fn power[T < Float](x: T, n: T) -> T:
+    x ** n
+
+tests:
+    use std.testing.assert_equal
+
+    it("an Integer base takes a u32 exponent"):
+        assert_equal(cube(+2), +8, reason="T < Integer takes the integer rules")
+
+    it("a Float base takes an exponent of its own type"):
+        assert_equal(power(2.0, 3.0), 8.0, reason="T < Float takes the float rules")

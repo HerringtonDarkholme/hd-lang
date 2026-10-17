@@ -1,0 +1,28 @@
+# test: facts_of leaves out compiler decorators, which attach no value
+# expect: test
+# Spec 14 Function Facts: annot.facts-of.result.
+use std.annotation.facts_of
+use std.ops.{Template, num_suffix, str_prefix}
+
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@route("/shout")
+@str_prefix
+fn shout(t: Template[i32]) -> string:
+    t.raw_parts[0]
+
+@route("/km")
+@num_suffix
+fn km(n: i32) -> i32:
+    n
+
+tests:
+    use std.testing.assert_equal
+
+    it("keeps only the route value"):
+        assert_equal(facts_of(shout).items.len(), 1, reason="@str_prefix attaches no value")
+        assert_equal(facts_of(km).items.len(), 1, reason="@num_suffix attaches no value")

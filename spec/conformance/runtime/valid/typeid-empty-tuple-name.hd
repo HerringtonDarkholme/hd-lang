@@ -1,0 +1,11 @@
+# test: the TypeId name of the empty tuple, void included, is ()
+# expect: test
+# Spec 09 Stability And Printing: trait.typeid.name.tuple.
+use std.inspect.TypeId
+tests:
+    use std.testing.assert_equal
+
+    it("void and the empty tuple print as ()"):
+        assert_equal(TypeId::of::[void]().to_string(), "()", reason="void is the empty tuple")
+        assert_equal(TypeId::of::[()]().to_string(), "()", reason="the empty tuple")
+        assert_equal(TypeId::of::[(i32, string)]().to_string(), "(i32, string)", reason="a tuple writes its elements")
