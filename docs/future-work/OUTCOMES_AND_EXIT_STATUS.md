@@ -25,6 +25,8 @@ and `exit_code` are placeholders.
 - [Sources](#sources)
 - [Parse Log](#parse-log)
 
+**Decided by the owner, 2026-10-17:** (1) A5: `send!` fails for status 400 to 599 and `run!` for any non-zero exit, the error carries the whole response or output, and a builder setter (placeholder name `ok_status`) accepts an expected status. (2) B1: `Error` gains `exit_code()` with default 1 and `Termination` reads it; `CliError.Help` reports 0 on stdout, every other `CliError` 2. (3) An error may choose exit status 0, with the test-runner guard: a test whose result holds `.Err` fails. (4) std adds `impl Error for string`.
+
 ## 1. Problem, And What hd Has Today
 
 ### Question A: Is A Non-Success Outcome An Error?
