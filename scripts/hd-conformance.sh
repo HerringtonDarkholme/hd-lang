@@ -6,7 +6,9 @@
 # `hd` has no `parse` command (the CLI specification removed it), so
 # `parse FILE` runs the parser alone, through hd_syntax's parse_check
 # example. Every other action goes to target/debug/hd. Each binary is
-# built in the dev profile when it is missing.
+# built in the dev profile when it is missing. Both live under cargo's
+# target directory: CARGO_TARGET_DIR when it is set, else target/ at the
+# repository root.
 #
 # hd prints `error: PATH:LINE:COL: CODE: message`, `warning: PATH:LINE:COL:
 # CODE: message` and indented `panic: CODE: message` lines; the contract
@@ -16,6 +18,7 @@
 # compared exactly, so only `check` and `test` output is rewritten there.
 set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+target=${CARGO_TARGET_DIR:-$root/target}
 
 contract() {
     sed -E \
@@ -26,12 +29,12 @@ contract() {
 
 if [ "${1-}" = parse ]; then
     shift
-    parser="$root/target/debug/examples/parse_check"
+    parser="$target/debug/examples/parse_check"
     [ -x "$parser" ] ||
         cargo build -q --manifest-path "$root/Cargo.toml" -p hd_syntax --example parse_check >&2
     exec "$parser" "$@"
 fi
-hd="$root/target/debug/hd"
+hd="$target/debug/hd"
 [ -x "$hd" ] || cargo build -q --manifest-path "$root/Cargo.toml" -p hd_cli >&2
 case "${1-}" in
     check | test) "$hd" "$@" 2> >(contract >&2) | contract ;;
