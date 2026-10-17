@@ -749,8 +749,9 @@ std/error.md	1	accept	runtime/valid/error-chain.hd
 std/error.md	2	accept	runtime/valid/error-root-cause.hd|runtime/valid/error-find-erased.hd
 std/error.md	3	mixed	typing/invalid/error-find-non-error.hd
 std/error.md	4	accept	runtime/valid/error-report.hd
-std/error.md	5	accept	runtime/valid/error-context.hd
-std/error.md	6	accept	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
+std/error.md	5	accept	runtime/valid/error-message.hd
+std/error.md	6	accept	runtime/valid/error-context.hd
+std/error.md	7	accept	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd
 std/task.md	3	type-fragment	-
@@ -834,6 +835,7 @@ std/random.md	6	accept	runtime/valid/rng-seeded-sequence.hd
 std/random.md	7	accept	runtime/valid/rng-shuffle-choose-sample.hd
 std/option.md	1	accept	runtime/valid/option-and-then.hd
 std/option.md	2	accept	runtime/valid/option-tests-conversions.hd
+std/option.md	3	accept	runtime/valid/error-message.hd
 std/result.md	1	accept	runtime/valid/result-and-then.hd
 std/result.md	2	mixed	typing/invalid/result-and-then-error-type.hd
 std/result.md	3	accept	runtime/valid/result-map.hd

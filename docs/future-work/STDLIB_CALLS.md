@@ -735,7 +735,7 @@ its own issue.
   `try_exists` and Go's `os.Stat` keep it. `create_dir_all!`, `remove!`,
   `rename!` and `write_bytes!` also got helpers.
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
-  `Option.context(text) -> Result[T, dyn Error]`.
+  `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`.
 - **Collection and text atoms.** `Set` from `collect()`, `Map.entries()`,
   `max_by_key`/`min_by_key`, `dedup`, `most_common`, `rfind`, `splitn`.

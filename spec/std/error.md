@@ -9,6 +9,7 @@ ordinary hd over the language tier:
   and the free function `chain`, which list and search an error's causes;
 - the type `ErrorReport` and the helper `report_of`, which snapshot an
   error's message and its causes' messages;
+- the function `message`, which makes an error from a text;
 - the method `context` of `Result[T, E]` and the type `ContextError` it
   wraps an error in;
 - which std error types implement `Error`.
@@ -151,6 +152,31 @@ fn summary() -> string:
 > ([`module.boundary.erased-error`](../lang/10-modules.md#r-module.boundary.erased-error)).
 > A report keeps the message and the causes apart, so a receiver can show
 > the first line alone or the whole chain.
+
+## One-Off Errors
+
+`message` makes an error from a text, as Go's `errors.New` and Rust's
+`anyhow!` do, so a script that wants to fail needs no error type:
+
+```text
+use std.error.{Error, message}
+
+fn parse_port(text: string) -> Result[i32, dyn Error]:
+    if text == "":
+        return .Err(message("empty port"))
+    .Ok(80)
+```
+
+For `parse_port("")`, the error displays as `empty port`.
+
+1. r[std-error.message.decl] `std.error` declares `pub fn message(text: string) -> dyn Error`. Code imports it, as in `use std.error.message`.
+2. r[std-error.message.type] The returned error is a value of a private data type, so code cannot name that type or match on it.
+3. r[std-error.message.display] The error displays as `text`, unchanged.
+4. r[std-error.message.cause] Its `cause` returns `.None`, so `chain` lists only that error.
+5. r[std-error.message.propagate] The result converts as any `dyn Error` does, so `.Err(message(text))` is a valid result of a function that returns `Result[T, dyn Error]`.
+
+> **Why.** An ad hoc failure otherwise needs a data type, a `Display`
+> impl, and an `Error` impl. The text is the whole error, as in Go.
 
 ## Error Context
 

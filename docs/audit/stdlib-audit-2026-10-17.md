@@ -657,16 +657,16 @@ pub fn main() -> void $ Console:
 
 **24. Context and report.** A strength: the run printed `loading
 settings`, `caused by: reading missing.json`, `caused by: not found:
-missing.json`. Missing is the one-off error of task 5; proposed `return
-.Err(message("http status $s"))`, as Go's `errors.New` and anyhow's
-`anyhow!`. Python: `raise ... from err`.
+missing.json`. A one-off error is `.Err(message("..."))`, as Go's
+`errors.New` and anyhow's `anyhow!`, and `Option.context` turns a `.None`
+into one (both added in #366, below). Python: `raise ... from err`.
 
 ```hd
 use std.fs.{FsRead, read_text}
 use std.path.Path
 use std.json.decode
 use std.serde.Deserialize
-use std.error.Error
+use std.error.{Error, message}
 
 @derive(Deserialize)
 data Settings:
@@ -674,13 +674,23 @@ data Settings:
 
 fn load!(path: Path) -> Result[Settings, dyn Error] $ FsRead:
     text := read_text!(path).context("reading $path")?
-    decode::[Settings](text).context("parsing $path")
+    settings := decode::[Settings](text).context("parsing $path")?
+    if settings.port == 0:
+        return .Err(message("port 0 is reserved"))
+    .Ok(settings)
+
+fn first_arg(args: List[string]) -> Result[string, dyn Error]:
+    args.first().context("no config path given")
 
 pub fn main!() -> Result[void, dyn Error] $ Console + FsRead:
-    settings := load!(Path("missing.json")).context("loading settings")?
+    path := first_arg(["missing.json"])?
+    settings := load!(Path(path)).context("loading settings")?
     println("port ${settings.port}")
     .Ok(())
 ```
+
+With #366 the one-off error needs no type and no impl: `message` and
+`Option.context` replace the seven-line `StatusError` of task 5.
 
 **25. A typed error enum.** `@error` with `@from` and `@source` is
 thiserror in hd; the run printed `line 3 is not a number`, `caused by:

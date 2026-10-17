@@ -116,6 +116,21 @@ impl Error for ContextError:
     fn cause(self) -> dyn Error?:
         .Some(self.error)
 
+# The error that `message` returns: only a text (r-std-error.message.type).
+data MessageError:
+    text: string
+
+impl Display for MessageError:
+    fn to_string(self) -> string:
+        self.text
+
+impl Error for MessageError
+
+## Makes an error whose `Display` text is `text` and that has no cause.
+## See [std-error.message.decl](../../spec/std/error.md#r-std-error.message.decl).
+pub fn message(text: string) -> dyn Error:
+    MessageError { text: text }
+
 # The std error types of the prelude-joined modules implement `Error` here,
 # so a program that never names `Error` does not join this module
 # (r-std-error.std-types.impl). The other modules' error types implement it
@@ -133,6 +148,16 @@ impl[T, E < Error] Result[T, E]:
         match self:
             .Ok(value) => .Ok(value)
             .Err(error) => .Err(ContextError { message: message, error: error })
+
+# `Option.context` lives here, beside `Result.context`, so a program that never
+# names `Error` does not join this module (r-std-option.context.decl).
+impl[T] T?:
+    ## `.Ok` of the value for a `.Some`, and `.Err` of `message(text)` for a `.None`.
+    ## See [std-option.context.decl](../../spec/std/option.md#r-std-option.context.decl).
+    pub fn context(self, text: string) -> Result[T, dyn Error]:
+        match self:
+            .Some(value) => .Ok(value)
+            .None => .Err(message(text))
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

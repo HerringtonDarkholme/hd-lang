@@ -3241,3 +3241,4 @@ runtime/valid/top-level-pattern-binding.hd	runtime	accept	lang/02-grammar.md#r-g
 typing/invalid/top-level-refutable-let-without-else.hd	type	reject:refutable-let-pattern	lang/06-control-flow.md#r-flow.let.refutable.else
 runtime/valid/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.exists
 runtime/valid/process-run-helper.hd	runtime	accept	std/process.md#r-std-process.helper.run
+runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.display

@@ -1,0 +1,41 @@
+# test: message makes a one-off error, and Option.context turns a .None into one
+# Spec std/error One-Off Errors: std-error.message.display, std-error.message.cause, std-error.message.propagate; std/option Optional Context: std-option.context.some, std-option.context.none.
+use std.error.{Error, chain, message, report_of}
+
+fn parse_port(text: string) -> Result[i32, dyn Error]:
+    if text == "":
+        return .Err(message("empty port"))
+    .Ok(80)
+
+fn first_word(words: List[string]) -> Result[string, dyn Error]:
+    word := words.first().context("no words")?
+    .Ok(word)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("message displays as its text and has no cause"):
+        failure := message("disk full")
+        assert_equal(failure.to_string(), "disk full", reason="the text as is")
+        assert_equal(chain(failure).len(), 1, reason="no cause")
+        assert_equal(report_of(failure).to_string(), "disk full", reason="one line")
+
+    it("? carries a message error out of a function"):
+        match parse_port(""):
+            .Ok(_) => assert(false, reason="the port is empty")
+            .Err(failure) => assert_equal(failure.to_string(), "empty port", reason="the text")
+        match parse_port("80"):
+            .Ok(port) => assert_equal(port, 80, reason="unchanged")
+            .Err(_) => assert(false, reason="the port is fine")
+
+    it("context on a .Some passes the value through"):
+        match first_word(["a", "b"]):
+            .Ok(word) => assert_equal(word, "a", reason="the value")
+            .Err(_) => assert(false, reason="there is a word")
+
+    it("context on a .None is an error with the text"):
+        match first_word([]):
+            .Ok(_) => assert(false, reason="there is no word")
+            .Err(failure) =>
+                assert_equal(failure.to_string(), "no words", reason="the text")
+                assert_equal(chain(failure).len(), 1, reason="no cause")
