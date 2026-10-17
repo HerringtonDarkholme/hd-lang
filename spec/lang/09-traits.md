@@ -1589,7 +1589,7 @@ fn double[T < Summable](value: T) -> T:
 5. r[trait.binding.super.names] The rules of [Binding Names](#binding-names) apply to a supertrait list as to a generic parameter list.
 6. r[trait.binding.super.merge] When two supertrait paths of a trait bind the same associated type to the same type, the bindings merge into one.
 7. r[trait.binding.super.conflict] When the two paths bind it to different types, the trait declaration is an error. The diagnostic is reported at the declaring trait and names both paths. Error: `duplicate-associated-binding`.
-8. r[trait.binding.super.conflict.bound] The bounds of one generic parameter follow the same two rules, as in `T < Numbers & Words`. A conflict there is reported on that parameter's bound list. Error: `duplicate-associated-binding`.
+8. r[trait.binding.super.conflict.bound] The bounds of one generic parameter follow the same two rules, as in `T < Numbers & Words`. A conflict there is reported on that parameter's bound list. A binding written in one bound that names a different type from the one the bound's own supertraits fix is the same conflict, as in `T < Prices[Item = string]` under `trait Prices < Source[Item = i32]`. Error: `duplicate-associated-binding`.
 
 ```text
 trait Source:

@@ -1,0 +1,10 @@
+# test: a bound that binds an associated type differently from the supertraits of its own trait is an error at the bound
+# Spec 09 Supertrait Bindings: trait.binding.super.conflict.bound.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Prices < Supplier[Item = i32]
+
+fn total[T < Prices[Item = string]](supplier: T) -> i32:  # diagnostic: duplicate-associated-binding
+    0

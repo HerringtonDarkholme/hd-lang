@@ -317,6 +317,7 @@ pub fn bound_clashes(
     self_ty: Ty,
     bounds: &[Ty],
 ) -> Vec<BoundClash> {
+    let mut out: Vec<BoundClash> = Vec::new();
     let fixed: Vec<(DefId, Vec<Fixed>)> = bounds
         .iter()
         .filter_map(|b| {
@@ -329,7 +330,25 @@ pub fn bound_clashes(
                 return None;
             };
             let mut all: Vec<Fixed> = bindings.into_iter().map(|(a, t)| (a, t, true)).collect();
-            for (a, t, _) in super_fixed(pool, view, (def, args, Some(self_ty))) {
+            let supers = super_fixed(pool, view, (def, args, Some(self_ty)));
+            // A binding written in the bound against one its own
+            // supertraits fix (`trait.binding.super.conflict.bound`).
+            for &(a, t, _) in &all {
+                if let Some(&(_, st, _)) = supers.iter().find(|x| x.0 == a)
+                    && t != st
+                    && !pool.has_poison(t)
+                    && !pool.has_poison(st)
+                    && !out.iter().any(|c| c.assoc == a)
+                {
+                    out.push(BoundClash {
+                        assoc: a,
+                        first: (def, t),
+                        second: (def, st),
+                        written: false,
+                    });
+                }
+            }
+            for (a, t, _) in supers {
                 if !all.iter().any(|x| x.0 == a) {
                     all.push((a, t, false));
                 }
@@ -337,7 +356,6 @@ pub fn bound_clashes(
             Some((def, all))
         })
         .collect();
-    let mut out: Vec<BoundClash> = Vec::new();
     for (i, (d1, f1)) in fixed.iter().enumerate() {
         for (d2, f2) in &fixed[i + 1..] {
             for &(assoc, t1, w1) in f1 {
@@ -372,7 +390,13 @@ pub fn clash_message(names: &Names<'_>, c: &BoundClash) -> String {
         names.display_name(c.first.0),
         names.display_name(c.second.0),
     );
-    if c.written {
+    if !c.written && c.first.0 == c.second.0 {
+        format!(
+            "`{name}` is bound to `{}` in `{a}`, whose supertraits fix it to `{}`",
+            show_ty(names, c.first.1),
+            show_ty(names, c.second.1)
+        )
+    } else if c.written {
         format!("`{name}` is bound in both `{a}` and `{b}`, and a projection is bound once")
     } else {
         format!(

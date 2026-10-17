@@ -2927,6 +2927,7 @@ runtime/valid/error-chain-method.hd	runtime	accept	std/error.md#r-std-error.chai
 typing/invalid/parameter-bare-trait.hd	type	reject:trait-used-as-type	lang/04-type-system.md#r-types.trait.value.dyn-required
 typing/valid/supertrait-binding-diamond-merge.hd	type	accept	lang/09-traits.md#r-trait.binding.super.merge
 typing/invalid/supertrait-binding-conflict.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.super.conflict
+typing/invalid/bound-binding-contradicts-supertrait.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.super.conflict.bound
 parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-result-type
 parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params
 runtime/panic/fact-evaluation-panics-on-read.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
