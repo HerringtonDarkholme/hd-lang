@@ -3307,3 +3307,4 @@ runtime/valid/lct-unsolved-parameter-joins-first.hd	runtime	accept	lang/04-type-
 runtime/valid/long-else-if-chain.hd	runtime	accept	lang/02-grammar.md#r-grammar.limit.nesting
 typing/invalid/else-if-chain-missing-return-value.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.if.else-if
 runtime/valid/process-output.hd	runtime	accept	std/process.md#r-std-process.helper.output
+typing/invalid/match-variant-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate

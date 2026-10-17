@@ -151,9 +151,10 @@ struct RangeBounds {
 
 /// A variant pattern's sub-patterns by field position (`None` for an
 /// omitted named field), with the named fields the variant does not
-/// declare: their names and sub-patterns, for the caller to report and
-/// bind to the poison type.
-type VariantSubs<'t> = (Vec<Option<NodeRef<'t>>>, Vec<(String, NodeRef<'t>)>);
+/// declare, and the named fields that repeat a field already matched:
+/// their names and sub-patterns, and whether the field is a repeat, for the
+/// caller to report and bind to the poison type.
+type VariantSubs<'t> = (Vec<Option<NodeRef<'t>>>, Vec<(String, NodeRef<'t>, bool)>);
 
 impl Ck<'_, '_> {
     /// Declares the bindings of a pattern against a type, checking the
@@ -380,9 +381,15 @@ impl Ck<'_, '_> {
                     return Ok(());
                 };
                 let (subs, unknown) = self.variant_subpatterns(p, t, &name)?;
-                for (fname, sub) in unknown {
-                    let msg = format!("no field `{fname}` of variant `{name}`");
-                    self.err(Code::UnknownField, sub, &msg);
+                for (fname, sub, repeated) in unknown {
+                    if repeated {
+                        let msg = format!("`{fname}` appears twice in this pattern");
+                        self.err(Code::DuplicateDataPatternField, sub, &msg);
+                        self.pattern_rejected = true;
+                    } else {
+                        let msg = format!("no field `{fname}` of variant `{name}`");
+                        self.err(Code::UnknownField, sub, &msg);
+                    }
                     self.declare_pattern(sub, Ty::POISON, binds)?;
                 }
                 if subs.len() != fields.len() {
@@ -638,7 +645,7 @@ impl Ck<'_, '_> {
         // Extra positional sub-patterns stay in the list, so the caller
         // reports the arity.
         let mut out = vec![None; v.fields.len().max(positional)];
-        let mut unknown: Vec<(String, NodeRef<'t>)> = Vec::new();
+        let mut unknown: Vec<(String, NodeRef<'t>, bool)> = Vec::new();
         let mut filled = vec![false; out.len()];
         for (i, k) in kids.into_iter().enumerate() {
             let (slot, sub) = if i < positional {
@@ -653,7 +660,7 @@ impl Ck<'_, '_> {
                 // by the caller; its sub-pattern binds to the poison type
                 // so its uses stay silent.
                 if slot.is_none() {
-                    unknown.push((fname.to_owned(), k.children().next().unwrap_or(k)));
+                    unknown.push((fname.to_owned(), k.children().next().unwrap_or(k), false));
                 }
                 (slot, k.children().next().or(Some(k)))
             } else {
@@ -663,8 +670,13 @@ impl Ck<'_, '_> {
             };
             let Some(slot) = slot else { continue };
             if std::mem::replace(&mut filled[slot], true) {
-                // The spec gives no diagnostic for a field matched twice.
-                return unsupported("a variant field matched twice in one pattern");
+                // `flow.match.data.fields.duplicate`: the repeat reports
+                // and binds to the poison type.
+                if let Some(sub) = sub {
+                    let fname = self.cx.src.text(self.cx.src.first(k));
+                    unknown.push((fname.to_owned(), sub, true));
+                }
+                continue;
             }
             out[slot] = sub;
         }

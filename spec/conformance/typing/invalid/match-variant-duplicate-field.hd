@@ -1,0 +1,10 @@
+# test: a variant payload pattern that matches one payload field twice is an error
+# Spec 06 Nested And Data Patterns: flow.match.data.fields.duplicate.
+enum Shape:
+    Rect(w: i32, h: i32)
+    Dot
+
+fn width(shape: Shape) -> i32:
+    match shape:
+        .Rect(w, w=1) => w  # diagnostic: duplicate-data-pattern-field
+        _ => 0

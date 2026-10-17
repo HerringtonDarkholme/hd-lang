@@ -653,7 +653,7 @@ match value:
 6. r[flow.match.data.label] As in a data expression, a field label inside the braces is followed by `:`. The `=` label belongs to payload patterns in parentheses.
 7. r[flow.match.data.fields] Listed fields must be distinct and exist on the named data type.
 8. r[flow.match.data.fields.unknown] A listed field that the data type does not declare is an error. Error: `unknown-field`.
-9. r[flow.match.data.fields.duplicate] A field listed twice is an error. Error: `duplicate-data-pattern-field`.
+9. r[flow.match.data.fields.duplicate] A field listed twice is an error, in a data pattern and in an enum payload pattern alike. In `.Rect(w, w=1)` the positional pattern and `w=` both name the payload field `w`. Error: `duplicate-data-pattern-field`.
 10. r[flow.match.data.public] A cross-module pattern may name only public fields.
 11. r[flow.match.data.empty] An empty data pattern is irrefutable for that data type.
 12. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different data type with the same fields.
