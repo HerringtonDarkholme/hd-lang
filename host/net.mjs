@@ -173,7 +173,9 @@ const ops = {
       });
     }),
   // std-net.read: at least one byte, at most `max`; empty at the end.
-  read: async ({ h, max }) => {
+  read: async ({ h, max: signed }) => {
+    // `usize` crosses the ABI as an i32 bit pattern, so read it unsigned.
+    const max = signed >>> 0;
     if (max === 0) return { ok: new Uint8Array(0) };
     let chunk = h.rest;
     h.rest = null;
@@ -212,7 +214,8 @@ const ops = {
       );
     }),
   // std-net.receive: one datagram, at most `max` of its bytes.
-  receive: async ({ h, max }) => {
+  receive: async ({ h, max: signed }) => {
+    const max = signed >>> 0;
     const got = await h.inbox.next(h.timeout);
     if (got === TIMED_OUT) return timedOut();
     if (got === null) return failure(h.inbox.end?.error ?? "the socket stopped", "", "");

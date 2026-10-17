@@ -658,6 +658,69 @@ fn udp_binary_truncation_zero_receive_consumption_and_each_send_grant() {
     assert_eq!(server.seen.lock().unwrap().len(), 8);
 }
 
+/// `std-net.read`: `max` is a `usize`, which the ABI carries as an unsigned
+/// i32 bit pattern, so `0x8000_0000` is a bound above any buffered bytes.
+#[test]
+fn tcp_read_maximum_with_the_high_bit_set() {
+    let scratch = Scratch::new();
+    let server = TcpFixture::new(|mut peer| {
+        peer.write_all(b"abcdef").unwrap();
+        let _ = peer.read(&mut [0; 1]);
+    });
+    let mut p = Program::new();
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        server.address.port(),
+        vec![0, 1],
+    );
+    handle(
+        &mut p,
+        "TcpStream.read",
+        &[1, i32::MIN],
+        None,
+        vec![0, 6, b'a', b'b', b'c', b'd', b'e', b'f'],
+    );
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Net",
+            Limit::Entries(vec![format!("127.0.0.1:{}", server.address.port())]),
+        )],
+        || {},
+    );
+}
+
+#[test]
+fn udp_receive_maximum_with_the_high_bit_set() {
+    let scratch = Scratch::new();
+    let server = UdpFixture::new();
+    let port = server.address.port();
+    let mut p = Program::new();
+    open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 1]);
+    send(&mut p, "127.0.0.1", port, b"abcdef", vec![0]);
+    handle(
+        &mut p,
+        "UdpSocket.receive",
+        &[1, i32::MIN],
+        None,
+        datagram(b"abcdef", port),
+    );
+    handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
+    assert_program(
+        &scratch,
+        p,
+        vec![(
+            "Net",
+            Limit::Entries(vec!["127.0.0.1:0".into(), format!("127.0.0.1:{port}")]),
+        )],
+        || {},
+    );
+}
+
 #[test]
 fn net_refused_connect_and_occupied_tcp_udp_bind_addresses() {
     let scratch = Scratch::new();
