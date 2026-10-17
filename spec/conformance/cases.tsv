@@ -2672,6 +2672,7 @@ runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/
 runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
 runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
 runtime/valid/path-stem-with-extension.hd	runtime	accept	std/path.md#path-operations
+runtime/valid/path-parse.hd	runtime	accept	std/path.md#paths
 runtime/valid/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum
 runtime/panic/iterator-sum-overflow.hd	runtime	panic:integer-overflow	std/iter.md#r-std-iter.adapter.sum.overflow
 runtime/panic/list-sum-overflow.hd	runtime	panic:integer-overflow	std/collections.md#r-std-collections.helper.sum.overflow
@@ -3321,3 +3322,7 @@ typing/invalid/polymorphic-recursion-mutual.hd	type	reject:instantiation-too-dee
 typing/invalid/polymorphic-recursion-tuple.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle.grows
 typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.step
 runtime/valid/error-for-string.hd	runtime	accept	std/error.md#r-std-error.std-types.string
+runtime/valid/error-exit-code.hd	runtime	accept	std/error.md#r-std-error.exit-code.default
+typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
+typing/valid/entry-err-exit-zero.hd	type	accept	lang/10-modules.md#r-module.entry.termination.err-code
+typing/valid/error-exit-code-usage.hd	type	accept	std/error.md#r-std-error.exit-code.decl

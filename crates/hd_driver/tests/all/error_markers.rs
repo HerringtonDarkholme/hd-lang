@@ -133,7 +133,7 @@ fn from_type_parameter_on_data_is_rejected() {
 /// unmet bound, reported once, plain or optional.
 #[test]
 fn cause_without_error_is_an_unmet_bound() {
-    for ty in ["string", "string?"] {
+    for ty in ["i64", "i64?"] {
         let src = format!("@error\nenum E:\n    @error(\"bad\")\n    Path(@source reason: {ty})\n");
         assert_eq!(codes(&src), vec![Code::UnsatisfiedTraitBound], "{ty}");
     }

@@ -2807,7 +2807,7 @@ impl Em<'_> {
                 Ok(())
             }
             // `std.rt`'s report of an entry point's or a test case's `.Err`
-            // on standard error (`module.entry.err-stderr`).
+            // on standard error (`module.entry.err-stream`).
             // `dbg`'s line, to the program's debug output, which is standard
             // error (`module.dbg.stream`); the same write as an entry point's
             // error report.
@@ -2820,7 +2820,7 @@ impl Em<'_> {
             }
             // The REPL's value line (`cli.repl.value.stream`), to standard
             // output through the runtime, which needs no `Console`.
-            "repl_write" => {
+            "repl_write" | "entry_write_out" => {
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::StrToBuf));
                 self.a.call(crate::rt::stdout_import());

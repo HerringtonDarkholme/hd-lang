@@ -106,12 +106,12 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// `std.rt`: the hd the compiler roots after an entry point or a test case
 /// returns (module.entry.exit-report, module.testing.pass): the status
 /// `report()` gives, after an `.Err`'s report on standard error
-/// (module.entry.err-stderr). The driver picks one by the result type:
-/// `entry_status` for any `Termination`, `entry_status_display` for a
-/// `Result` whose error is only `Display`, `entry_status_error` for one
-/// whose error type implements `Error` and `entry_status_dyn` for the
-/// erased `dyn Error`; the last two print the cause chain
-/// (module.entry.err-render-chain). It is compiler-supplied, like
+/// (module.entry.err-stream). The driver picks one by the result type:
+/// `entry_status` for any `Termination`, `entry_status_error` for a
+/// `Result` whose error type implements `Error` and `entry_status_dyn`
+/// for the erased `dyn Error`; the last two print the cause chain
+/// (module.entry.err-render-chain), on standard output for an error whose
+/// `exit_code` is 0 and on standard error otherwise (module.entry.err-stream). It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
 pub const RT_SOURCE: &str = "\
 # std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
@@ -121,26 +121,31 @@ use std.error.{Error, report_of}
 fn entry_status[T < Termination](result: T) -> u8:
     u8(result.report())
 
-fn entry_status_display[T < Termination, E < Display](result: Result[T, E]) -> u8:
-    match result:
-        .Ok(value) => u8(value.report())
-        .Err(error) =>
-            entry_write(error.to_string())
-            1
-
 fn entry_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            entry_write(report_of(error).to_string())
-            1
+            code := error.exit_code()
+            entry_report(report_of(error).to_string(), code)
+            u8(code)
 
 fn entry_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            entry_write(report_of(error).to_string())
-            1
+            code := error.exit_code()
+            entry_report(report_of(error).to_string(), code)
+            u8(code)
+
+fn entry_report(text: string, code: i32) -> void:
+    if code == 0:
+        entry_write_out(text)
+    else:
+        entry_write(text)
+
+@intrinsic(\"entry_write_out\")
+fn entry_write_out(text: string) -> void:
+    panic(\"intrinsic\")
 
 @intrinsic(\"entry_write\")
 fn entry_write(text: string) -> void:
@@ -7350,7 +7355,7 @@ impl Run<'_> {
                 if script {
                     return None;
                 }
-                self.report_fn(p, env.ret(*d).unwrap_or(Ty::VOID))
+                self.report_fn(env.ret(*d).unwrap_or(Ty::VOID))
             })
             .collect();
         for r in reports.iter().flatten() {
@@ -7698,9 +7703,9 @@ impl Run<'_> {
 
     /// The `std.rt` function that turns a root's result into its exit
     /// status (module.entry.exit-report), or `None` for `void`: the
-    /// `Error` form for an error type that implements `Error` (its cause
-    /// chain is printed), the `Display` form otherwise.
-    fn report_fn(&self, p: &ProgramTables, ret: Ty) -> Option<(DefId, TyList)> {
+    /// `Error` form for a `Result` (its cause chain is printed; its error
+    /// type implements `Error` by module.entry.termination.result).
+    fn report_fn(&self, ret: Ty) -> Option<(DefId, TyList)> {
         let pool = &self.pool;
         let names = self.names();
         if ret == Ty::VOID || ret == Ty::NEVER {
@@ -7721,16 +7726,7 @@ impl Run<'_> {
             TyData::TraitValue { def, .. } if def == error => {
                 Some((rt("entry_status_dyn"), pool.list(&[ok])))
             }
-            TyData::Adt { def: ed, .. }
-                if p.items.values().any(|i| {
-                    matches!(&i.data, ItemData::Impl { trait_, self_ty, .. }
-                        if *trait_ == error
-                            && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == ed))
-                }) =>
-            {
-                Some((rt("entry_status_error"), args))
-            }
-            _ => Some((rt("entry_status_display"), args)),
+            _ => Some((rt("entry_status_error"), args)),
         }
     }
 

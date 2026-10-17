@@ -4,4 +4,4 @@
 @error
 enum SaveError:
     @error(transparent)
-    Text(reason: string)  # diagnostic: unsatisfied-trait-bound
+    Text(reason: i64)  # diagnostic: unsatisfied-trait-bound

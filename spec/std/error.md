@@ -12,6 +12,7 @@ ordinary hd over the language tier:
 - the function `message`, which makes an error from a text;
 - the method `context` of `Result[T, E]` and the type `ContextError` it
   wraps an error in;
+- the default of `exit_code`, which picks an entry point's exit status;
 - which std error types implement `Error`.
 
 The language tier keeps what the compiler knows by name:
@@ -226,6 +227,43 @@ fn summary() -> string:
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the
 > second as the cause, and leaves `chain` and `report_of` unchanged.
+
+## Exit Status
+
+`exit_code` lets an error pick the status of an entry point that returns
+it, as [Entry Results](../lang/10-modules.md#entry-results) describes:
+
+```text
+use std.error.Error
+
+pub data Usage:
+    text: string
+
+impl Display for Usage:
+    fn to_string(self) -> string: self.text
+
+impl Error for Usage:
+    fn exit_code(self) -> i32: 2
+
+pub fn main() -> Result[void, Usage]:
+    .Err(Usage { text: "usage: tool FILE" })
+```
+
+This `main` prints `usage: tool FILE` on standard error and exits with
+status 2.
+
+1. r[std-error.exit-code.decl] `Error` declares `fn exit_code(self) -> i32`, by [`trait.error.exit-code`](../lang/09-traits.md#r-trait.error.exit-code).
+2. r[std-error.exit-code.default] The default returns 1, so an error that does not override it exits with 1.
+3. r[std-error.exit-code.dyn] `exit_code` is a member of `Error`, so a `dyn Error` value answers it with the code of the error it holds.
+4. r[std-error.exit-code.context] A `ContextError` keeps the default, so `context` makes the status 1 whatever code the wrapped error has.
+5. r[std-error.exit-code.string] `string` and every std error type keep the default.
+
+> **Note.** An error that returns 0 is printed on standard output, by
+> [`module.entry.err-stream`](../lang/10-modules.md#r-module.entry.err-stream),
+> and the program counts as a success.
+
+> **Why.** The error knows whether it is a failure. A help request is an
+> error value to `?`, yet clap and Go's `flag` exit 0 for it.
 
 ## Standard Error Types
 

@@ -25,11 +25,11 @@ impl Termination for void:
     fn report(self) -> ExitCode:
         ExitCode(0)
 
-impl[T < Termination, E < Display] Termination for Result[T, E]:
+impl[T < Termination, E < Error] Termination for Result[T, E]:
     fn report(self) -> ExitCode:
         match self:
             .Ok(value) => value.report()
-            .Err(_) => ExitCode(1)
+            .Err(error) => ExitCode(u8(error.exit_code()))
 
 # The host capability to start a program (spec/lang/10-modules.md#processes).
 ## What `run!` returns for a started program: its output and exit status.

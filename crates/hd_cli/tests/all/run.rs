@@ -135,7 +135,7 @@ fn run_samples_on_v8_cold_then_warm() {
 }
 
 /// M4c: `main` returning `.Err` prints the error's report on standard
-/// error and exits with status 1 (module.entry.err-stderr).
+/// error and exits with status 1 (module.entry.err-stream).
 #[test]
 fn main_returning_err_exits_with_its_report() {
     let output = hd(&cache("hd-cache-err-exit"))

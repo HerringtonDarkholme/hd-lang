@@ -42,7 +42,7 @@ wins.
 | `std.inspect` | `downcast_val`, and `downcast` and `downcast_mut` | downcasting needs intrinsic bodies; `Inspectable` and `TypeId` stay in `inspect.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it`, `assert_equal` | intrinsic bodies (`test_case`, `assert_equal`) |
-| `std.rt` | `entry_status`, `entry_status_display`, `entry_status_error`, `entry_status_dyn`, `entry_write` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` intrinsic |
+| `std.rt` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `entry_report`, `entry_write`, `entry_write_out` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` and `entry_write_out` intrinsics |
 
 | Fixed, non-exporting prelude use | Why the compiler needs it |
 | --- | --- |
@@ -69,7 +69,7 @@ every key in `lib/std` has a row.
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
 | `suspend_cancel`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
 | `dbg`, `dbg_text`, `dbg_write`, `dbg_show`, `repl_write` | `format.hd` | compiler |
-| `panic_message`, `task_all`, `test_case`, `assert_equal`, `downcast_val`, `downcast`, `downcast_mut`, `entry_write` | seeded items and `rt.hd` | compiler |
+| `panic_message`, `task_all`, `test_case`, `assert_equal`, `downcast_val`, `downcast`, `downcast_mut`, `entry_write`, `entry_write_out` | seeded items and `rt.hd` | compiler |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
 | `string_lower`, `string_upper` | `text.hd` | host primitive |
 | `parse_f64`, `format_f64_fixed` | `num.hd` | host primitive |

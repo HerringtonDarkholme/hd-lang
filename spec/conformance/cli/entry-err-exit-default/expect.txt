@@ -1,0 +1,6 @@
+# An error that keeps the default `exit_code` exits with status 1 and
+# reports on standard error (trait.error.exit-code,
+# std-error.exit-code.default).
+run: hd default.hd
+exit: 1
+stderr: failed

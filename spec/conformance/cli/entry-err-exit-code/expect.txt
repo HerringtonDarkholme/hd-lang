@@ -1,0 +1,8 @@
+# An error that overrides `exit_code` picks the exit status, here through
+# `?` into `dyn Error`, and a non-zero code writes the report to standard
+# error (module.entry.termination.err-code, module.entry.err-stream,
+# trait.error.exit-code, std-error.exit-code.dyn).
+run: hd code.hd
+exit: 3
+stdout: starting
+stderr: bad flag

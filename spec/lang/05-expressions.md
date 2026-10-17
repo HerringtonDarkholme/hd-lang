@@ -1409,8 +1409,8 @@ fn hidden() -> Result[void, Hidden]:
 fn maybe() -> i32?:
     .None
 
-fn lookup(key: string) -> Result[i32, string]:
-    .Err("missing: " + key)
+fn lookup(key: i64) -> Result[i32, i64]:
+    .Err(key)
 
 tests:
     use std.testing.assert
@@ -1418,8 +1418,8 @@ tests:
     it("an error without Display", fn!() -> Result[void, Hidden]: hidden())  # error: unsatisfied-trait-bound
     it("an optional result", fn!() -> i32?: maybe())                         # error: unsatisfied-trait-bound
 
-    it("a string error does not convert"):
-        value := lookup("port")?  # error: invalid-result-propagation
+    it("an error that is not an Error does not convert"):
+        value := lookup(80)?  # error: invalid-result-propagation
         assert(value > 0, reason="a positive port")
         .Ok(())
 ```

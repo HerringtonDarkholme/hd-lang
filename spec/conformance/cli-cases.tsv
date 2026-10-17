@@ -170,3 +170,6 @@ toolchain-minimum-met	cli.manifest.toolchain-keys,cli.exit.success
 toolchain-dependency-too-old	cli.manifest.toolchain-keys,cli.dep.reached
 integration-shared-copy	cli.test.every-case,cli.exit.success
 doc-test-compile-fail-compiles	cli.test.doc.default,cli.exit.test-failure
+entry-err-exit-code	cli.file.run,cli.exit.program
+entry-err-exit-zero	cli.file.run,cli.exit.program
+entry-err-exit-default	cli.file.run,cli.exit.program

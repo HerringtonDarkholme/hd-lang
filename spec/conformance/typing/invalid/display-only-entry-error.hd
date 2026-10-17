@@ -1,0 +1,9 @@
+# Spec 10 Exit Status: module.entry.termination.result.
+pub data Failure:
+    text: string
+
+impl Display for Failure:
+    fn to_string(self) -> string: self.text
+
+pub fn main() -> Result[void, Failure]:  # diagnostic: unsatisfied-trait-bound
+    .Err(Failure { text: "failed" })

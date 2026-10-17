@@ -1998,7 +1998,7 @@ enum SaveError:
     @error("two causes")
     Both(@source first: DiskError, @source second: DiskError)  # error: invalid-error-marker
     @error("bad path")
-    Path(@source reason: string)  # error: unsatisfied-trait-bound
+    Path(@source reason: i64)  # error: unsatisfied-trait-bound
 ```
 
 ### Error Conversions

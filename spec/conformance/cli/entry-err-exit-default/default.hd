@@ -1,0 +1,12 @@
+use std.error.Error
+
+pub data Failure:
+    text: string
+
+impl Display for Failure:
+    fn to_string(self) -> string: self.text
+
+impl Error for Failure
+
+pub fn main() -> Result[void, Failure]:
+    .Err(Failure { text: "failed" })

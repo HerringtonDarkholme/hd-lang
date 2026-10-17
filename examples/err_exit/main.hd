@@ -1,11 +1,15 @@
 # M4c: a `main` returning `.Err` writes the error's `Display` text to
-# standard error and exits with status 1 (module.entry.err-stderr).
+# standard error and exits with status 1 (module.entry.err-stream).
+use std.error.Error
+
 pub data Oops:
     what: string
 
 impl Display for Oops:
     fn to_string(self) -> string:
         "oops: ${self.what}"
+
+impl Error for Oops
 
 fn check(n: i32) -> Result[i32, Oops]:
     if n > 2:

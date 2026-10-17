@@ -1,0 +1,14 @@
+use std.error.Error
+
+pub data Help:
+    text: string
+
+impl Display for Help:
+    fn to_string(self) -> string: self.text
+
+impl Error for Help:
+    fn exit_code(self) -> i32: 0
+
+pub fn main() -> Result[void, Help] $ Console:
+    println("starting")
+    .Err(Help { text: "usage: tool FILE" })

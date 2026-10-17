@@ -897,8 +897,8 @@ impl From[Parse] for Wrapped:
 fn parse() -> Result[i32, Parse]:
     .Err(Parse { text: \"x\" })
 
-fn word() -> Result[i32, string]:
-    .Err(\"x\")
+fn word() -> Result[i32, i64]:
+    .Err(1)
 ";
     for ok in [
         "fn f() -> Result[i32, Wrapped]:\n    .Ok(parse()?)",
