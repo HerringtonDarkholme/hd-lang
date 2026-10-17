@@ -660,12 +660,12 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     // 1 once the waiting input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
     let mut script = Script::of(&[
-        "use std.time.{sleep, s}",
+        "use std.time.{sleep, Duration}",
         "let log: mut List[string] = []",
         "fn nap!() -> void:",
         "    defer:",
         "        log.push(\"cleanup\")",
-        "    sleep!(s(+30))",
+        "    sleep!(Duration.seconds(+30))",
         "",
         "nap!()",
         "log",

@@ -10,9 +10,9 @@ use hd_sched::SerialOrder;
 /// `main!` with `before` ahead of a wait that `after` follows.
 fn program(before: &str, after: &str) -> String {
     format!(
-        "use std.time.{{Clock, ms, sleep}}\n\n\
+        "use std.time.{{Clock, Duration, sleep}}\n\n\
          pub fn main!() -> void $ Console + Clock:\n\
-         {before}    sleep!(ms(1))\n\
+         {before}    sleep!(Duration::milliseconds(1))\n\
          {after}    println(\"done\")\n"
     )
 }

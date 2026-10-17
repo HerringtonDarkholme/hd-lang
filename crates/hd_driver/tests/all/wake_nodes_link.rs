@@ -61,8 +61,8 @@ fn a_program_without_all_links_no_waker_nodes() {
     assert!(!exports.iter().any(|e| e == "hd.all_polls"), "{exports:?}");
 
     let (fns, exports) = linked(
-        "use std.time.{Clock, ms, sleep}\nuse std.task.all\n\n\
-         fn nap!(j: i64) -> i64 $ Clock:\n    sleep!(ms(j))\n    j\n\n\
+        "use std.time.{Clock, Duration, sleep}\nuse std.task.all\n\n\
+         fn nap!(j: i64) -> i64 $ Clock:\n    sleep!(Duration::milliseconds(j))\n    j\n\n\
          pub fn main!() -> void $ Console + Clock:\n    \
          let (a, b) = all!(nap(1), nap(2))\n    println(a + b)\n",
     );

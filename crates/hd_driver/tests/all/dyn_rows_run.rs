@@ -62,7 +62,7 @@ fn output_of(name: &str, main: &str) -> String {
 /// A sensor trait whose suspending method waits on the clock and logs,
 /// with two implementations.
 const SENSORS: &str = "\
-use std.time.{Clock, ms, sleep}
+use std.time.{Clock, Duration, sleep}
 
 trait Sensor:
     fn sample!(self, tick: i32) -> i32 $ Console + Clock
@@ -73,7 +73,7 @@ data Thermometer:
 
 impl Sensor for Thermometer:
     fn sample!(self, tick: i32) -> i32 $ Console + Clock:
-        sleep!(ms(2))
+        sleep!(Duration::milliseconds(2))
         println(\"thermometer ${tick}\")
         self.offset + tick
 
@@ -85,7 +85,7 @@ data Barometer:
 impl Sensor for Barometer:
     fn sample!(self, tick: i32) -> i32 $ Console + Clock:
         println(\"barometer ${tick}\")
-        sleep!(ms(1))
+        sleep!(Duration::milliseconds(1))
         self.scale * tick
 
     fn name(self) -> string: \"barometer\"

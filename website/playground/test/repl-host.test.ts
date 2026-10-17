@@ -157,11 +157,11 @@ test("inputs run under the page's numbers; a panic leaves the session going", as
 test("a stop cancels an input that waits; its defer suite runs", async () => {
   const w = new Worker();
   await w.start();
-  await w.input(1, "use std.time.{sleep, s}\n");
+  await w.input(1, "use std.time.{sleep, Duration}\n");
   await w.input(2, "let woke = 0\n");
   await w.input(
     3,
-    'fn nap!() -> void:\n    defer:\n        woke = 1\n        dbg("woke")\n    sleep!(s(+30))\n',
+    'fn nap!() -> void:\n    defer:\n        woke = 1\n        dbg("woke")\n    sleep!(Duration.seconds(+30))\n',
   );
   w.printed();
   const begun = performance.now();

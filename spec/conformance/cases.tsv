@@ -3328,5 +3328,4 @@ runtime/valid/error-exit-code.hd	runtime	accept	std/error.md#r-std-error.exit-co
 typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
 typing/valid/entry-err-exit-zero.hd	type	accept	lang/10-modules.md#r-module.entry.termination.err-code
 typing/valid/error-exit-code-usage.hd	type	accept	std/error.md#r-std-error.exit-code.decl
-typing/invalid/duration-no-constructor-functions.hd	type	reject:unknown-method	std/time.md#r-std-time.suffix.std.duration-api
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared

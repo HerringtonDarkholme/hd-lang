@@ -30,10 +30,10 @@ fn wide() -> String {
 }
 
 /// The child every program here waits on.
-const NAP: &str = "use std.time.{Clock, ms, sleep}\n\
+const NAP: &str = "use std.time.{Clock, Duration, sleep}\n\
                    use std.task.all\n\n\
                    fn nap!(j: i64) -> i64 $ Clock:\n    \
-                   sleep!(ms(5 * j))\n    \
+                   sleep!(Duration::milliseconds(5 * j))\n    \
                    j\n\n";
 
 /// How many `all!` children the run of `main` polled, and its standard

@@ -7,4 +7,4 @@ fn past_the_end(limit: Duration) -> Duration:
 
 tests:
     it("overflows past the largest duration"):
-        _ := past_the_end(ms(9_223_372_036_854_775_807))
+        _ := past_the_end(Duration::milliseconds(9_223_372_036_854_775_807))

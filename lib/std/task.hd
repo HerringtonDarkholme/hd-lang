@@ -6,7 +6,7 @@
 use std.task.all
 use std.error.Error
 use std.format.DebugWriter
-use std.time.{Clock, Duration, ms, sleep}
+use std.time.{Clock, Duration, sleep}
 
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers). Its plain signature types every call
@@ -126,7 +126,7 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
         clock.sleep!(delay)
         result = attempt!()
         tries = tries + 1
-        grown := ms(delay.as_milliseconds() * i64(backoff.factor))
+        grown := Duration::milliseconds(delay.as_milliseconds() * i64(backoff.factor))
         delay = if grown > backoff.max: backoff.max else: grown
     result
 

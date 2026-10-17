@@ -62,7 +62,7 @@ fn output_of(name: &str, main: &str) -> String {
 /// `Repo[User]` counts 20 and `Repo[Post]` counts 1, so a function that
 /// reads both prints 201 only when each key reaches its own provider.
 const PRELUDE: &str = "\
-use std.time.{Clock, ms, sleep}
+use std.time.{Clock, Duration, sleep}
 
 trait Repo[T]:
     fn count(self) -> i32
@@ -174,7 +174,7 @@ fn a_suspension_binds_both_providers_at_construction() {
     let items = "\
 fn later!() -> i32 $ Repo[User] + Repo[Post] + Clock:
     first := $.use(Repo[User]).count()
-    sleep!(ms(1))
+    sleep!(Duration::milliseconds(1))
     first * 10 + $.use(Repo[Post]).count()
 ";
     let body = "\
@@ -182,7 +182,7 @@ let pending: mut Suspend[i32] = later()
 println(pending!())
 tally := fn!() -> i32 $ Repo[User] + Repo[Post] + Clock:
     first := $.use(Repo[Post]).count()
-    sleep!(ms(1))
+    sleep!(Duration::milliseconds(1))
     $.use(Repo[User]).count() * 10 + first
 println(tally!())
 ";

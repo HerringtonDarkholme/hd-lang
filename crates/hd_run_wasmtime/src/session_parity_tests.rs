@@ -24,13 +24,13 @@ use hd_run::Outcome;
 /// than a request's 8 inline bytes, a panic, and inputs that use earlier
 /// bindings.
 const INPUTS: [&str; 10] = [
-    "use std.time.{now, sleep, ms}\n",
+    "use std.time.{now, sleep, Duration}\n",
     "rate := +3\n",
     "fn price(n: i32) -> i32:\n    n * rate\n",
     "price(+2)\n",
     "started := now().unix_milliseconds()\n",
     "started > 0\n",
-    "sleep!(ms(+1))\n",
+    "sleep!(Duration.milliseconds(+1))\n",
     "println(\"five cost ${price(+5)}\")\n",
     "x := [+1][3]\n",
     "price(+5) + rate\n",

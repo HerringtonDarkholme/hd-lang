@@ -574,8 +574,8 @@ fn dbg_lines_print_before_the_value_line() {
 fn an_input_makes_bang_calls_at_top_level() {
     let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
     let inputs = [
-        "use std.time.{sleep, ms}\n".to_owned(),
-        "sleep!(ms(+1))\n".to_owned(),
+        "use std.time.{sleep, Duration}\n".to_owned(),
+        "sleep!(Duration.milliseconds(+1))\n".to_owned(),
         "use std.fs.{read_text}\nuse std.path.{Path}\n".to_owned(),
         format!(
             "text := read_text!(Path({})).unwrap_or(\"\")\n",
@@ -672,7 +672,7 @@ fn a_waiting_input_is_cancelled_and_its_defer_runs() {
 fn nap!() -> void:
     defer:
         log.push(\"cleanup\")
-    sleep!(s(+30))
+    sleep!(Duration.seconds(+30))
 
 nap!()
 ";
@@ -680,7 +680,7 @@ nap!()
         let stopper = session.stopper();
         let mut repl = repl(session);
         for input in [
-            "use std.time.{sleep, s}\n",
+            "use std.time.{sleep, Duration}\n",
             "let log: mut List[string] = []\n",
         ] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
@@ -714,14 +714,14 @@ fn a_cancelled_input_leaves_no_timer_behind() {
         let stopper = session.stopper();
         let mut repl = repl(session);
         assert_eq!(
-            repl.input("use std.time.{sleep, ms}\n"),
+            repl.input("use std.time.{sleep, Duration}\n"),
             Outcome::Exit(0),
             "{}",
             text(&io.err)
         );
         let cancelled = std::time::Instant::now();
         assert_eq!(
-            repl.input_stopped_waiting("sleep!(ms(+1500))\n", &stopper),
+            repl.input_stopped_waiting("sleep!(Duration.milliseconds(+1500))\n", &stopper),
             Outcome::Exit(3)
         );
         assert_eq!(text(&io.err), "cancelled\n");
@@ -729,7 +729,7 @@ fn a_cancelled_input_leaves_no_timer_behind() {
         // The cancelled timer would be due during this input's wait.
         let started = std::time::Instant::now();
         assert_eq!(
-            repl.input("sleep!(ms(+2000))\nprintln(\"woke\")\n"),
+            repl.input("sleep!(Duration.milliseconds(+2000))\nprintln(\"woke\")\n"),
             Outcome::Exit(0),
             "{}",
             text(&io.err)
@@ -755,12 +755,12 @@ fn a_cancelled_input_leaves_no_timer_behind() {
 fn a_panicking_input_leaves_no_operation_pending() {
     let input = "\
 use std.task.{all}
-use std.time.{sleep, s}
+use std.time.{sleep, Duration}
 
 fn boom!() -> void:
     _ := [+1][3]
 
-all!(sleep(s(+30)), boom())
+all!(sleep(Duration.seconds(+30)), boom())
 ";
     with_session(|session, io| {
         let mut repl = repl(session);
@@ -803,9 +803,9 @@ fn journal_shape(session: &WasmtimeSession) -> Vec<String> {
 fn a_session_journal_records_each_input_s_host_calls_in_order() {
     use hd_run::journal::{Event, Request, Value};
     let inputs = [
-        "use std.time.{now, sleep, ms}\n",
+        "use std.time.{now, sleep, Duration}\n",
         "a := now()\n",
-        "sleep!(ms(+1))\n",
+        "sleep!(Duration.milliseconds(+1))\n",
         "println(\"hi\")\n",
         "x := [+1][3]\n",
     ];
@@ -1116,7 +1116,7 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
     with_session(|session, io| {
         let stopper = session.stopper();
         let mut repl = repl(session);
-        for input in ["use std.time.{sleep, s}\n", "let kept = 7\n"] {
+        for input in ["use std.time.{sleep, Duration}\n", "let kept = 7\n"] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         assert_eq!(
@@ -1124,7 +1124,7 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
             Outcome::Exit(3)
         );
         assert_eq!(
-            repl.input_stopped_waiting("sleep!(s(+30))\n", &stopper),
+            repl.input_stopped_waiting("sleep!(Duration.seconds(+30))\n", &stopper),
             Outcome::Exit(3)
         );
         assert_eq!(text(&io.err), "stopped\ncancelled\n");

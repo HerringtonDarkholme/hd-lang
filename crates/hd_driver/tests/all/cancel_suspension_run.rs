@@ -60,7 +60,7 @@ fn output_of(name: &str, main: &str) -> String {
 fn program(body: &str) -> String {
     format!(
         "\
-use std.time.{{Clock, ms, sleep}}
+use std.time.{{Clock, Duration, sleep}}
 use std.task.race
 
 data Log:
@@ -76,7 +76,7 @@ fn slow!(log: mut Log) -> i32 $ Clock:
     log.text = log.text + \"start;\"
     defer:
         log.text = log.text + \"cleanup;\"
-    sleep!(ms(500))
+    sleep!(Duration::milliseconds(500))
     log.text = log.text + \"done;\"
     7
 
