@@ -1,0 +1,7 @@
+# test: DropOwn for every instance of a type that owns only for some arguments by structure
+@derive(OwnOnly)
+data Tracked[T]:
+    value: T
+
+impl[T < own Any] DropOwn for Tracked[T]:  # diagnostic: missing-supertrait-implementation
+    fn drop(^mut self) -> void: pass

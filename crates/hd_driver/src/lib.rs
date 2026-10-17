@@ -5842,30 +5842,9 @@ impl Run<'_> {
             if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
                 continue;
             }
-            // `OwnOnly` by structure is a compiler rule that a later section
-            // of 13-ownership.md specifies; until then it is not supported.
+            // `OwnOnly` by structure is a compiler rule with no template
+            // (`own.structure.declare`): the ownership classifier reads it.
             if *trait_ == names.known.own_only {
-                let span = match &it.data {
-                    ItemData::Impl { self_ty, .. } if *kind == hd_resolve::ImplKind::Derived => {
-                        match names.pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => hd_resolve::lower::derive_span(
-                                &names, cx.scope, &cx.src, heads, def, *trait_,
-                            ),
-                            _ => None,
-                        }
-                    }
-                    _ => heads
-                        .iter()
-                        .find(|h| h.def == it.def)
-                        .map(|h| cx.src.span(h.node)),
-                };
-                if let Some(span) = span {
-                    diags.error(
-                        Code::Unsupported,
-                        span,
-                        "`OwnOnly` by structure is not supported yet",
-                    );
-                }
                 continue;
             }
             let template = hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_);

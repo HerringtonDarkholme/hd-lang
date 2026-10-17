@@ -1,0 +1,10 @@
+# test: an owning leaf makes a recursive instance own
+data Conn:
+    fd: i32
+
+@derive(OwnOnly)
+data Chain[T]:
+    value: T
+    next: Chain[T]?
+
+fn walk(chain: Chain[own Conn]) -> void: pass  # diagnostic: own-type-plain

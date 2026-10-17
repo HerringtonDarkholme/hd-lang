@@ -11,8 +11,8 @@ owned, or borrowed.
 > implementation diagnoses a program that uses it, as
 > [Specification Status](../README.md#specification-status) requires.
 >
-> So far the chapter checks marks in declarations. Bodies are not specified
-> yet: a body that writes a mark is diagnosed, and so is one that holds a
+> So far the chapter checks marks in declarations, and ownership by
+> structure. Bodies are not specified yet: a body that writes a mark is diagnosed, and so is one that holds a
 > value whose type has a mode or is a type parameter with an `own` bound. A
 > lifetime named by a requirement key is diagnosed too.
 
@@ -355,3 +355,123 @@ impl OwnOnly for i32                     # error: orphan-impl
 > **Why.** A plain value may already have aliases, so a plain `File` could
 > be read after its owner dropped it. Requiring `own` or `^` at every use of
 > an `OwnOnly` type means no producer hands out a plain one.
+
+## Ownership By Structure
+
+A generic type keeps a plain header and may take its ownership from its
+fields: an instance implements `OwnOnly` exactly when some field's type
+owns, after substitution.
+
+```text
+use std.structure.Structure
+
+data Conn:
+    fd: i32
+
+data Batch[T]:
+    values: List[T]
+
+impl[T] OwnOnly for Batch[T] by Structure
+
+@derive(OwnOnly)
+enum Outcome[A, B]:
+    Good(value: A)
+    Bad(error: B)
+
+@derive(OwnOnly)
+data Chain[T]:
+    value: T
+    next: Chain[T]?
+
+fn accept(batch: own Batch[own Conn]) -> void: pass       # owned: its list owns
+fn settle(result: own Outcome[own Conn, string]) -> void: pass
+fn sum(batch: Batch[i32]) -> i32: 0                         # plain: nothing owns
+fn walk(chain: ^Chain[own Conn]) -> void: pass
+```
+
+1. r[own.structure.declare] `@derive(OwnOnly)`, or `impl[T] OwnOnly for Box[T] by Structure`, declares that `Box` implements `OwnOnly` by structure. Like a written impl, it is declared in the module that declares its target type.
+2. r[own.structure.instance] An instance of a type that implements `OwnOnly` by structure implements `OwnOnly` when the type of one of its fields or payloads owns, after substituting the instance's type arguments.
+3. r[own.structure.owns] A type **owns** by the table below.
+4. r[own.structure.recursive] A recursive type owns only when the table reaches an owning part without going around the recursion, that is the least solution of the table.
+5. r[own.structure.builtin] `T?` and tuples take ownership from their elements by the table, and `List[T]` and `Map[K, V]` from `T` and `V`, with no declaration.
+6. r[own.structure.admission] An `own` type argument is allowed for a list's element and a map's value. It is also allowed for a type that implements `OwnOnly` by structure, or by a written impl for that instance. Any other `own` type argument is an error, a map's key included. Error: `own-in-plain-type`.
+7. r[own.structure.exclusive] A `^mut` field makes no instance own, so a type with one implements `OwnOnly` by a written impl, as [own.own-only.field](#r-own.own-only.field) requires.
+8. r[own.structure.drop-own] An `impl DropOwn` must cover only instances that implement `OwnOnly`, so a type that owns only for some arguments by structure has no `DropOwn` for every instance. Error: `missing-supertrait-implementation`.
+9. r[own.own-only.field-tuple] A tuple element of a field's or payload's type counts as a field for [own.own-only.field](#r-own.own-only.field), so `(own Conn, i32)` needs an `OwnOnly` holder. Error: `own-field-plain-type`.
+
+| A part of type | Owns |
+| --- | --- |
+| `own U` | always |
+| `^U` | never, whatever `U` is |
+| `^mut U` | never; see [own.structure.exclusive](#r-own.structure.exclusive) |
+| `mut U`, `U?` | when `U` owns |
+| a tuple | when one of its elements owns |
+| a function type | never, whatever its result is |
+| a type parameter | when its argument owns |
+| `List[U]`, `Map[K, U]` | when `U` owns |
+| a type that implements `OwnOnly` by structure | by [own.structure.instance](#r-own.structure.instance) |
+| a type that implements `OwnOnly` by a written impl | always |
+| a primitive type, or another type | never |
+
+```text
+data Conn:
+    fd: i32
+
+@derive(OwnOnly)
+data View[T, ^a]:
+    value: ^{a} T
+
+@derive(OwnOnly)
+data Token[T]:
+    id: usize
+
+@derive(OwnOnly)
+data Factory[T]:
+    make: fn() -> T
+
+fn views(v: View[own Conn, ^]) -> void: pass   # plain: a shared borrow owns nothing
+fn tokens(t: Token[own Conn]) -> void: pass    # plain: no field holds a T
+fn makers(f: Factory[own Conn]) -> void: pass  # plain: a function type owns nothing
+```
+
+```text
+data Conn:
+    fd: i32
+
+data File:
+    fd: i32
+
+data Box[T]:
+    item: T
+
+@derive(OwnOnly)
+data Batch[T]:
+    values: List[T]
+
+@derive(OwnOnly)
+data Writer[^a]:
+    file: ^{a} mut File                                 # error: own-field-plain-type
+
+@derive(OwnOnly)
+data Tracked[T]:
+    value: T
+
+impl[T < own Any] DropOwn for Tracked[T]:              # error: missing-supertrait-implementation
+    fn drop(^mut self) -> void: pass
+
+data Pair:
+    both: (own Conn, i32)                              # error: own-field-plain-type
+
+fn keep(b: own Box[own Conn]) -> void: pass            # error: own-in-plain-type
+fn index(m: ^Map[own Conn, i32]) -> void: pass         # error: own-in-plain-type
+fn accept(batch: Batch[own Conn]) -> void: pass        # error: own-type-plain
+fn many(xs: List[own Conn]) -> void: pass              # error: own-type-plain
+```
+
+> **Why.** A container is owned exactly when it holds an owned value, so
+> `Batch[i32]` keeps plain copies while `Batch[own Conn]` moves. Reading
+> only stored values keeps shared views, unused arguments and factories
+> plain. A `^mut` field asks for a written impl, so a holder of an
+> exclusive borrow is always owned on purpose.
+
+See also: [Ownership Traits](#ownership-traits).

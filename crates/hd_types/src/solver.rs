@@ -231,8 +231,15 @@ impl HeadKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ImplOrigin {
     Written,
-    Derived { template: DefId },
-    Delegated { field: u16 },
+    Derived {
+        template: DefId,
+    },
+    /// `OwnOnly` by structure (`own.structure.declare`): a compiler rule,
+    /// not a row the solver matches; the ownership classifier reads it.
+    Structure,
+    Delegated {
+        field: u16,
+    },
     Error,
     NumericFamily,
     TupleTemplate,

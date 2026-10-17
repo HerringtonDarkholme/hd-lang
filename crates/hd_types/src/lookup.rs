@@ -10,7 +10,9 @@ use hd_base::{DefId, FolderId, ModuleId, PathId};
 use hd_intern::{PathKind, PathTable};
 
 use crate::pool::{Ty, TyData, Types};
-use crate::solver::{HeadKey, ImplRef, ImplTable, ImplUniverseId, MemberStep, TuplePlans};
+use crate::solver::{
+    HeadKey, ImplOrigin, ImplRef, ImplTable, ImplUniverseId, MemberStep, TuplePlans,
+};
 
 /// The table id of the asking module's own impls. Its rows sit in its
 /// folder's table too; this table is read first, as before owner lookup.
@@ -368,7 +370,33 @@ impl<'a> Impls<'a> {
     /// trait's, the self type's, each known argument's), the unowned
     /// rows and, when `open` (an argument's owner is unknown), the
     /// directory. `seen` records which universe-decided rows the probe read.
+    /// Rows of `OwnOnly` by structure are not candidates: the ownership
+    /// classifier answers them (`own.structure.declare`).
     pub fn candidates(
+        self,
+        pool: Types<'_>,
+        trait_: DefId,
+        self_ty: Ty,
+        args: &[Ty],
+        open: bool,
+        seen: &mut UniverseReads,
+    ) -> Vec<(ImplRef, &'a ImplTable)> {
+        let mut rows = self.all_candidates(pool, trait_, self_ty, args, open, seen);
+        rows.retain(|(r, t)| t.origin[r.row as usize] != ImplOrigin::Structure);
+        rows
+    }
+
+    /// Whether `self_ty`'s type declares `trait_` by structure
+    /// (`own.structure.declare`).
+    #[must_use]
+    pub fn by_structure(self, pool: Types<'_>, trait_: DefId, self_ty: Ty) -> bool {
+        let mut seen = UniverseReads::default();
+        self.all_candidates(pool, trait_, self_ty, &[], false, &mut seen)
+            .iter()
+            .any(|(r, t)| t.origin[r.row as usize] == ImplOrigin::Structure)
+    }
+
+    fn all_candidates(
         self,
         pool: Types<'_>,
         trait_: DefId,

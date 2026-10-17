@@ -1,0 +1,9 @@
+# test: an instance that owns by structure is own-type-plain in a plain position
+data Conn:
+    fd: i32
+
+@derive(OwnOnly)
+data Batch[T]:
+    values: List[T]
+
+fn accept(batch: Batch[own Conn]) -> void: pass  # diagnostic: own-type-plain

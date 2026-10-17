@@ -647,6 +647,9 @@ lang/13-ownership.md	10	mixed	typing/invalid/ownership/bare-borrow-in-field.hd|t
 lang/13-ownership.md	11	accept	typing/valid/ownership/own-only-positions.hd
 lang/13-ownership.md	12	accept	typing/valid/ownership/own-only-positions.hd
 lang/13-ownership.md	13	mixed	typing/invalid/ownership/own-field-plain-type.hd|typing/invalid/ownership/drop-own-without-own-only.hd|typing/invalid/ownership/own-type-plain-parameter.hd|typing/invalid/ownership/own-type-plain-type-argument.hd|typing/invalid/ownership/own-only-orphan.hd
+lang/13-ownership.md	14	accept	typing/valid/ownership/own-only-structure.hd
+lang/13-ownership.md	15	accept	typing/valid/ownership/own-only-structure-cutoffs.hd
+lang/13-ownership.md	16	mixed	typing/invalid/ownership/structure-mutable-borrow-field.hd|typing/invalid/ownership/structure-drop-own.hd|typing/invalid/ownership/own-field-tuple.hd|typing/invalid/ownership/own-in-plain-type.hd|typing/invalid/ownership/own-in-plain-type-map-key.hd|typing/invalid/ownership/own-type-plain-structure.hd|typing/invalid/ownership/own-type-plain-list.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

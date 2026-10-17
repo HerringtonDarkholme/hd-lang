@@ -1764,6 +1764,9 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::Delegated => ImplOrigin::Delegated { field: 0 },
+            ImplKind::Derived | ImplKind::Derivation if trait_ == names.known.own_only => {
+                ImplOrigin::Structure
+            }
             ImplKind::Derived | ImplKind::Derivation => ImplOrigin::Derived { template: trait_ },
             ImplKind::Written | ImplKind::Template | ImplKind::Error => ImplOrigin::Written,
         });

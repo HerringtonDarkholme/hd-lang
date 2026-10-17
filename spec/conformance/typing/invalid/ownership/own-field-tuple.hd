@@ -1,0 +1,6 @@
+# test: an own tuple element of a field needs an OwnOnly holder
+data Conn:
+    fd: i32
+
+data Pair:
+    both: (own Conn, i32)  # diagnostic: own-field-plain-type

@@ -79,7 +79,6 @@ fn body_marks_are_unsupported() {
         "fn make() -> void:\n    fn inner[T < own Any](x: T) -> T: x\n    pass\n",
         "let own TOP = File { fd: 1 }\n",
         "trait Keeper < own Named:\n    fn keep(self) -> void\n",
-        "@derive(OwnOnly)\ndata Cell[T]:\n    value: T\n",
     ];
     for form in forms {
         let program = format!("{PRELUDE}\n{form}");

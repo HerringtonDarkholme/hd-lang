@@ -1,0 +1,18 @@
+# test: lists, map values, optionals and tuples take ownership from their elements
+data Conn:
+    fd: i32
+
+fn pool(xs: ^List[own Conn]) -> void: pass
+
+fn take(xs: own List[own Conn]) -> void: pass
+
+fn plain(xs: List[Conn]) -> void: pass
+
+fn by_name(m: ^mut Map[string, own Conn]) -> void: pass
+
+fn first(c: own Conn?) -> void: pass
+
+fn pair(p: (own Conn, i32)) -> (own Conn, string): panic("stub")
+
+pub fn main() -> void:
+    pass
