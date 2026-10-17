@@ -269,7 +269,8 @@ impl Folder<'_, '_> {
     /// included. The later member is reported.
     fn inherent_members(&self, diags: &mut DiagBuf) {
         // By member name: each declaration's implementation, target and place.
-        let mut by_name: HashMap<String, Vec<(DefId, hd_types::Ty, Span)>> = HashMap::default();
+        let mut by_name: HashMap<String, Vec<(DefId, Vec<hd_types::Ty>, Span)>> =
+            HashMap::default();
         let mut order = Vec::new();
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
@@ -301,10 +302,11 @@ impl Folder<'_, '_> {
                     if !by_name.contains_key(&name) {
                         order.push(name.clone());
                     }
-                    by_name
-                        .entry(name)
-                        .or_default()
-                        .push((h.def, *self_ty, m.src.span(f)));
+                    by_name.entry(name).or_default().push((
+                        h.def,
+                        self.targets(h.def, *self_ty),
+                        m.src.span(f),
+                    ));
                 }
             }
         }
@@ -314,10 +316,14 @@ impl Folder<'_, '_> {
         };
         for name in order {
             let decls = &by_name[&name];
-            for (j, (def, ty, span)) in decls.iter().enumerate() {
-                let clash = decls[..j].iter().any(|(d, t, _)| {
-                    let mut sub = HashMap::default();
-                    u.unify(*t, *ty, *d, *def, &mut sub)
+            for (j, (def, tys, span)) in decls.iter().enumerate() {
+                let clash = decls[..j].iter().any(|(d, ts, _)| {
+                    ts.iter().any(|t| {
+                        tys.iter().any(|ty| {
+                            let mut sub = HashMap::default();
+                            u.unify(*t, *ty, *d, *def, &mut sub)
+                        })
+                    })
                 });
                 if clash {
                     let msg = format!(
@@ -326,6 +332,48 @@ impl Folder<'_, '_> {
                     diags.error(Code::DuplicateInherentMember, *span, &msg);
                 }
             }
+        }
+    }
+
+    /// The targets an inherent implementation stands for. A target that is a
+    /// bare parameter bounded by a trait, as in `impl[N < Integer] N`, is a
+    /// numeric family and stands for one implementation per type that
+    /// implements the bound (`trait.target.numeric-family.each`), so a
+    /// member of it clashes only with a member of one of those types. Any
+    /// other target stands for itself.
+    fn targets(&self, def: DefId, self_ty: hd_types::Ty) -> Vec<hd_types::Ty> {
+        let pool = self.names.pool;
+        let TyData::Param(p) = pool.get(self_ty) else {
+            return vec![self_ty];
+        };
+        let bound = self
+            .own
+            .get(&def)
+            .filter(|_| p.owner == def)
+            .and_then(|imp| imp.generics.get(usize::from(p.index)))
+            .and_then(|g| g.bound);
+        let Some(bound) = bound else {
+            return vec![self_ty];
+        };
+        let members: Vec<hd_types::Ty> = self
+            .own
+            .values()
+            .filter_map(|i| match &i.data {
+                ItemData::Impl {
+                    trait_,
+                    self_ty,
+                    kind,
+                    ..
+                } if *trait_ == bound && kind.is_impl() && !pool.has_param(*self_ty) => {
+                    Some(*self_ty)
+                }
+                _ => None,
+            })
+            .collect();
+        if members.is_empty() {
+            vec![self_ty]
+        } else {
+            members
         }
     }
 

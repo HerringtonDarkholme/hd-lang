@@ -38,7 +38,7 @@ tests:
             assert(first == second, reason="a read does not advance")
             assert_equal(elapsed(first), 0s, reason="nothing passed")
 
-    it("elapsed is negative for a start in the future"):
+    it("elapsed is zero for a start in the future"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         $.with(Clock=clock):
-            assert_equal(elapsed(Instant::from_milliseconds(1250)), -(250ms), reason="behind the start")
+            assert_equal(elapsed(Instant::from_milliseconds(1250)), 0ms, reason="behind the start")

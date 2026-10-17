@@ -11,11 +11,10 @@ tests:
     it("adds and subtracts milliseconds"):
         assert_equal(total(1s, 500ms).as_milliseconds(), 1500, reason="one and a half seconds")
         assert_equal((1min - 30s).as_milliseconds(), 30000, reason="thirty seconds left")
-        assert_equal((1s - 2s).as_milliseconds(), -1000, reason="a difference may be negative")
+        assert_equal((2s - 2s).as_milliseconds(), 0, reason="a difference may be zero")
 
     it("moves a timestamp by a duration"):
         start := Timestamp::from_unix_milliseconds(1000)
         later := start + 2s
         assert_equal(later.since(start).as_milliseconds(), 2000, reason="two seconds later")
-        earlier := start + -(1s)
-        assert_equal(earlier.since(start).as_milliseconds(), -1000, reason="a negative duration moves back")
+        assert_equal(start.since(later).as_milliseconds(), 0, reason="since saturates at zero")

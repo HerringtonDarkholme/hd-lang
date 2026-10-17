@@ -1,0 +1,10 @@
+# test: Duration::milliseconds with a negative count panics with explicit-panic, so no negative duration exists
+# Spec std/time Duration: std-time.duration.negative-count.
+use std.time.Duration
+
+fn wait_for(count: i64) -> Duration:
+    Duration::milliseconds(count)  # panic: explicit-panic
+
+tests:
+    it("panics on a negative count"):
+        _ := wait_for(-1)

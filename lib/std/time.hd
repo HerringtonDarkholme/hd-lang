@@ -2,35 +2,56 @@
 # `Clock` with `Timestamp` and `Instant`, and the
 # deterministic `ManualClock`, and the UTC `Date` with RFC 3339 text
 # (spec/std/time.md).
-# A `Duration` is a whole number of
-# milliseconds in an `i64` (r-std-time.suffix.std.duration), and its public API is
-# `milliseconds`, `seconds`, and `as_milliseconds` (r-std-time.suffix.std.duration-api);
-# the `millis` field is the prototype's own. Each suffix scales its literal by
+# A `Duration` is a whole, non-negative number of
+# milliseconds in an `i64` (r-std-time.suffix.std.duration,
+# r-std-time.duration.non-negative), as Rust's `std::time::Duration` is
+# never negative. Every way to build one is checked, so the field is never
+# below zero. Its public API is
+# `milliseconds`, `seconds`, `as_milliseconds`, `checked_sub`, and
+# `saturating_sub` (r-std-time.suffix.std.duration-api); the `millis`
+# field is the prototype's own. Each suffix scales its literal by
 # checked `i64` multiplication, so an overflow panics (r-std-time.suffix.std.overflow).
 # Each suffix is a function marked `@num_suffix` (r-std-time.suffix.std.fn).
-# `-5s` is the ordinary negation `-(5s)`, so `Duration` implements `Neg`
-# (r-std-time.suffix.std.duration-neg).
+# `Duration` has no `Neg`, so `-5s` is a type error (r-std-time.duration.no-neg).
 use std.format.DebugWriter
 use std.error.Error
 use std.text.Parse
-use std.ops.{Add, Neg, Sub, num_suffix}
+use std.ops.{Add, Sub, num_suffix}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 
-## A distance in time, as a count of whole milliseconds, positive or negative.
+## A distance in time, as a count of whole milliseconds, never negative.
 ## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).
 pub data Duration:
     millis: i64
 
 impl Duration:
-    ## Returns a `Duration` of that many milliseconds.
-    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
+    ## Returns a `Duration` of that many milliseconds. A negative count panics.
+    ## See [std-time.duration.negative-count](../../spec/std/time.md#r-std-time.duration.negative-count).
     pub fn milliseconds(count: i64) -> Duration:
+        if count < 0:
+            panic("Duration::milliseconds with a negative count: ${count}")
         Duration { millis: count }
 
-    ## Returns a `Duration` of that many seconds.
-    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
+    ## Returns a `Duration` of that many seconds. A negative count panics.
+    ## See [std-time.duration.negative-count](../../spec/std/time.md#r-std-time.duration.negative-count).
     pub fn seconds(count: i64) -> Duration:
+        if count < 0:
+            panic("Duration::seconds with a negative count: ${count}")
         Duration { millis: count * 1000 }
+
+    ## The duration minus `rhs`, or `.None` when `rhs` is the longer one.
+    ## See [std-time.duration.checked-sub](../../spec/std/time.md#r-std-time.duration.checked-sub).
+    pub fn checked_sub(self, rhs: Duration) -> Duration?:
+        if rhs.millis > self.millis:
+            return .None
+        .Some(Duration { millis: self.millis - rhs.millis })
+
+    ## The duration minus `rhs`, or zero when `rhs` is the longer one.
+    ## See [std-time.duration.saturating-sub](../../spec/std/time.md#r-std-time.duration.saturating-sub).
+    pub fn saturating_sub(self, rhs: Duration) -> Duration:
+        if rhs.millis > self.millis:
+            return Duration { millis: 0 }
+        Duration { millis: self.millis - rhs.millis }
 
     ## The milliseconds since the origin that the instant holds.
     ## See [std-time.instant.as-milliseconds](../../spec/std/time.md#r-std-time.instant.as-milliseconds).
@@ -45,44 +66,40 @@ impl Parse for Duration:
     fn parse(text: string) -> Result[Duration, ParseTimeError]:
         parse_duration_text(text)
 
-impl Neg for Duration:
-    type Out = Duration
-    fn neg(self) -> Duration:
-        Duration { millis: -self.millis }
-
 # Checked `i64` arithmetic on the milliseconds, so an overflow panics
-# (r-std-time.duration.add, r-std-time.duration.overflow).
+# (r-std-time.duration.add, r-std-time.duration.overflow). A release build
+# wraps the sum below zero, and the constructor then panics, so a negative
+# `Duration` never exists.
 impl Add for Duration:
     type Out = Duration
     fn add(self, rhs: Duration) -> Duration:
-        Duration { millis: self.millis + rhs.millis }
+        Duration::milliseconds(self.millis + rhs.millis)
 
+# `-` panics when `rhs` is the longer duration, in every build, as Rust's
+# `Duration` does (r-std-time.duration.sub).
 impl Sub for Duration:
     type Out = Duration
     fn sub(self, rhs: Duration) -> Duration:
-        Duration { millis: self.millis - rhs.millis }
+        match self.checked_sub(rhs):
+            .Some(difference) => difference
+            .None => panic("Duration subtraction underflow: ${self} - ${rhs}")
 
 # Go's `time.Duration.String`, in hd's units (r-std-time.duration.text):
 # `h`, `min`, then `s` with the milliseconds as a fraction, and every
 # component below the largest one written, even when zero; under one
-# second, `ms`; zero is `0s`. Each component is taken from the signed
-# milliseconds by truncating division, and only that small component is
-# negated, so the most negative duration does not overflow
-# (r-std-time.duration.text.min-value).
+# second, `ms`; zero is `0s`.
 impl Display for Duration:
     fn to_string(self) -> string:
         millis := self.millis
         if millis == 0:
             return "0s"
         let text = ""
-        if millis < 0:
-            text = "-"
-        if millis > -1000 && millis < 1000:
-            return "${text}${magnitude(millis)}ms"
-        hours := magnitude(millis / 3600000)
-        minutes := magnitude((millis % 3600000) / 60000)
-        seconds := magnitude((millis % 60000) / 1000)
-        fraction := magnitude(millis % 1000)
+        if millis < 1000:
+            return "${millis}ms"
+        hours := millis / 3600000
+        minutes := (millis % 3600000) / 60000
+        seconds := (millis % 60000) / 1000
+        fraction := millis % 1000
         if hours > 0:
             text = text + "${hours}h"
         if hours > 0 || minutes > 0:
@@ -91,12 +108,6 @@ impl Display for Duration:
         if fraction > 0:
             text = text + "." + fraction_digits(fraction)
         text + "s"
-
-# The absolute value of one component, which is far from the `i64` limits.
-fn magnitude(value: i64) -> i64:
-    if value < 0:
-        return -value
-    value
 
 # The milliseconds `1` to `999` as the decimal digits after the point,
 # without trailing zeros (r-std-time.duration.text.fraction).
@@ -219,11 +230,16 @@ impl Timestamp:
     pub fn unix_milliseconds(self) -> i64:
         self.millis
 
-    # Negative when `earlier` is the later one (r-std-time.timestamp.since).
-    ## The time from `earlier` to the timestamp, negative when `earlier` is the later one.
+    ## The time from `earlier` to the timestamp, or `.None` when `earlier` is the later one.
+    ## See [std-time.timestamp.checked-since](../../spec/std/time.md#r-std-time.timestamp.checked-since).
+    pub fn checked_since(self, earlier: Timestamp) -> Duration?:
+        checked_millis_since(self.millis, earlier.millis)
+
+    # Zero when `earlier` is the later one (r-std-time.timestamp.since).
+    ## The time from `earlier` to the timestamp, or zero when `earlier` is the later one.
     ## See [std-time.timestamp.since](../../spec/std/time.md#r-std-time.timestamp.since).
     pub fn since(self, earlier: Timestamp) -> Duration:
-        Duration::milliseconds(self.millis - earlier.millis)
+        millis_since(self.millis, earlier.millis)
 
     # The UTC calendar date (r-std-time.date.of-timestamp).
     ## The calendar day of the timestamp in UTC.
@@ -581,10 +597,31 @@ impl Instant:
     pub fn as_milliseconds(self) -> i64:
         self.millis
 
-    ## The time from `earlier` to the instant.
-    ## See [std-time.instant.api-milliseconds](../../spec/std/time.md#r-std-time.instant.api-milliseconds).
+    ## The time from `earlier` to the instant, or `.None` when `earlier` is the later one.
+    ## See [std-time.instant.checked-since](../../spec/std/time.md#r-std-time.instant.checked-since).
+    pub fn checked_since(self, earlier: Instant) -> Duration?:
+        checked_millis_since(self.millis, earlier.millis)
+
+    ## The time from `earlier` to the instant, or zero when `earlier` is the later one.
+    ## See [std-time.instant.since](../../spec/std/time.md#r-std-time.instant.since).
     pub fn since(self, earlier: Instant) -> Duration:
-        Duration::milliseconds(self.millis - earlier.millis)
+        millis_since(self.millis, earlier.millis)
+
+# The span from `earlier` to `later`, or `.None` when `earlier` is later or
+# the span does not fit in `i64` milliseconds.
+fn checked_millis_since(later: i64, earlier: i64) -> Duration?:
+    if earlier > later:
+        return .None
+    match later.checked_sub(earlier):
+        .Some(span) => .Some(Duration { millis: span })
+        .None => .None
+
+# The span from `earlier` to `later`: zero when `earlier` is later, and the
+# longest duration when the span does not fit.
+fn millis_since(later: i64, earlier: i64) -> Duration:
+    if earlier > later:
+        return Duration { millis: 0 }
+    Duration { millis: later.saturating_sub(earlier) }
 
 # An `Instant` debugs as its milliseconds, as `Instant(5ms)`
 # (r-std-format.debug.std-types.time).
@@ -635,13 +672,9 @@ impl Clock for ManualClock:
     fn monotonic(self) -> Instant:
         Instant::from_milliseconds(self.current.millis)
 
-    # A negative duration panics, and a zero one leaves the time as it is
-    # (r-std-time.clock.sleep.negative, r-std-time.manual.sleep.zero).
+    # A zero duration leaves the time as it is (r-std-time.manual.sleep.zero).
     fn sleep!(mut self, duration: Duration) -> void:
-        step := duration.as_milliseconds()
-        if step < 0:
-            panic("sleep! with a negative duration: ${duration}")
-        self.current = Timestamp::from_unix_milliseconds(self.current.millis + step)
+        self.current = Timestamp::from_unix_milliseconds(self.current.millis + duration.as_milliseconds())
 
 # `Duration` and `Instant` serialize to every format, and so to the host
 # boundary, as their whole milliseconds; a `Timestamp` serializes as its
@@ -659,7 +692,11 @@ impl Deserialize for Duration:
                 match Duration::parse(text):
                     .Ok(duration) => .Ok(duration)
                     .Err(_) => .Err(input.invalid("Duration"))
-            _ => .Ok(Duration { millis: input.int("Duration")? })
+            _ =>
+                millis := input.int("Duration")?
+                if millis < 0:
+                    return .Err(input.invalid("Duration"))
+                .Ok(Duration { millis: millis })
 
 impl Serialize for Timestamp:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
@@ -707,24 +744,19 @@ fn is_digit_code(code: i32) -> bool:
     code >= 48 && code <= 57
 
 # Go's `time.ParseDuration` at millisecond resolution
-# (r-std-time.duration.parse). The total is summed as a non-positive
-# number, whose range holds the most negative duration, so the text of
-# every duration parses back (r-std-time.duration.parse.round-trip).
+# (r-std-time.duration.parse). A `-` sign is not allowed, as no duration is
+# negative (r-std-time.duration.parse.no-sign).
 fn parse_duration_text(text: string) -> Result[Duration, ParseTimeError]:
     codes := byte_codes(text)
     size := codes.len()
     let index: usize = 0
-    let negative = false
-    if index < size && (codes[index] == 43 || codes[index] == 45):
-        negative = codes[index] == 45
+    if index < size && codes[index] == 43:
         index = index + 1
     if index >= size:
         return .Err(ParseTimeError.TooShort(size))
     if index + 1 == size && codes[index] == 48:
         return .Ok(Duration { millis: 0 })
-    let limit: i64 = -9223372036854775807
-    if negative:
-        limit = limit - 1
+    let limit: i64 = 9223372036854775807
     let total: i64 = 0
     while index < size:
         start := index
@@ -732,10 +764,10 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseTimeError]:
         let overflow = false
         while index < size && is_digit_code(codes[index]):
             digit := i64(codes[index] - 48)
-            if whole < -922337203685477580 || (whole == -922337203685477580 && digit > 8):
+            if whole > 922337203685477580 || (whole == 922337203685477580 && digit > 7):
                 overflow = true
             else:
-                whole = whole * 10 - digit
+                whole = whole * 10 + digit
             index = index + 1
         if index == start:
             return .Err(ParseTimeError.InvalidCharacter(index))
@@ -783,15 +815,13 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseTimeError]:
             scale_down := power_of_ten(places)
             if scaled % scale_down != 0:
                 return .Err(ParseTimeError.Inexact(start))
-            if whole < limit / multiplier:
+            if whole > limit / multiplier:
                 return .Err(ParseTimeError.OutOfRange(start))
             part := scaled / scale_down
-            if whole * multiplier < limit + part:
+            if whole * multiplier > limit - part:
                 return .Err(ParseTimeError.OutOfRange(start))
-            component = whole * multiplier - part
-        if component < limit - total:
+            component = whole * multiplier + part
+        if component > limit - total:
             return .Err(ParseTimeError.OutOfRange(start))
         total = total + component
-    if negative:
-        return .Ok(Duration { millis: total })
-    .Ok(Duration { millis: -total })
+    .Ok(Duration { millis: total })

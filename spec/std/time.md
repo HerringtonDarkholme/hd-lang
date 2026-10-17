@@ -34,17 +34,24 @@ nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
 ## Duration
 
 1. r[std-time.suffix.std.duration] A `std.time.Duration` is a whole number of milliseconds, held in an `i64`.
-2. r[std-time.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, and `d.as_milliseconds() -> i64`.
-3. r[std-time.suffix.std.duration-neg] `Duration` implements `std.ops.Neg` with `Out = Duration`, negating its milliseconds. So `-5s` is the ordinary negation `-(5s)`, minus five seconds.
-4. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
-5. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
+2. r[std-time.duration.non-negative] A `Duration` is never negative: no call builds one below zero, and `Duration` holds zero milliseconds at the least. It is modeled on Rust's `std::time::Duration`.
+3. r[std-time.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, `d.as_milliseconds() -> i64`, `d.checked_sub(rhs: Duration) -> Duration?`, and `d.saturating_sub(rhs: Duration) -> Duration`.
+4. r[std-time.duration.negative-count] `Duration::milliseconds(n)` and `Duration::seconds(n)` with a negative `n` panic at run time, in every build. Panic: `explicit-panic`.
+5. r[std-time.duration.no-neg] `Duration` does not implement `std.ops.Neg`, so `-5s`, which is `-(5s)`, is rejected by the type check: `type-mismatch`.
+6. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+7. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
 
 ```text
 use std.time.{Duration, s}
 
-fn rewind() -> Duration:
-    -5s  # -(s(5)), through Neg for Duration
+fn remaining(limit: Duration, used: Duration) -> Duration:
+    limit.saturating_sub(used)  # zero when used is the longer
 ```
+
+> **Why.** A wait, a timeout, or a backoff can then never be negative, so
+> `sleep!` needs no rule for one. A signed difference is a question of
+> order, which `checked_sub` and `since` answer with an absent value or
+> zero, as Rust's `Duration` and `Instant` do.
 
 ### Duration Arithmetic
 
@@ -61,13 +68,16 @@ fn later(start: Timestamp) -> Timestamp:
 ```
 
 1. r[std-time.duration.add] `Duration` implements `std.ops.Add` with `Out = Duration`. `a + b` holds the sum of the milliseconds of `a` and `b`.
-2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. `a - b` holds the milliseconds of `a` minus those of `b`.
-3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time in a debug or test build. This is as checked `i64` arithmetic does, and it wraps in a release build. Panic: `integer-overflow`.
-4. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
-5. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
+2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. When `a` is not shorter than `b`, `a - b` holds the milliseconds of `a` minus those of `b`.
+3. r[std-time.duration.sub.underflow] `a - b` with `a` shorter than `b` panics at run time, in every build. Panic: `explicit-panic`.
+4. r[std-time.duration.checked-sub] `a.checked_sub(b)` is `.Some(a - b)` when `a` is not shorter than `b`, and `.None` otherwise. It never panics.
+5. r[std-time.duration.saturating-sub] `a.saturating_sub(b)` is `a - b` when `a` is not shorter than `b`, and zero otherwise. It never panics.
+6. r[std-time.duration.overflow] A sum that does not fit in `i64` milliseconds panics at run time. In a debug or test build this is checked `i64` arithmetic. Panic: `integer-overflow`. A release build wraps the sum, and the wrapped value is negative, so the result panics as [`std-time.duration.negative-count`](#r-std-time.duration.negative-count) says.
+7. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
+8. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
 
-> **Note.** A negative `d` gives an earlier timestamp. `Timestamp` has no
-> `Sub`: `t.since(earlier)` is the duration between two timestamps, by
+> **Note.** `Timestamp` has no `Sub`: `t.since(earlier)` is the duration
+> between two timestamps, by
 > [`std-time.timestamp.since`](#r-std-time.timestamp.since).
 
 ### Duration Display
@@ -90,14 +100,12 @@ fn waited() -> string:
 5. r[std-time.duration.text.fraction] The seconds component carries the remaining milliseconds as a decimal fraction without trailing zeros, as in `3.5s` and `1.005s`. Whole seconds have no point.
 6. r[std-time.duration.text.sub-second] A duration under one second that is not zero displays as its milliseconds, then `ms`, as in `500ms`.
 7. r[std-time.duration.text.zero] A zero duration displays as `0s`.
-8. r[std-time.duration.text.negative] A negative duration displays as `-`, then the text of its magnitude, as in `-1min30s` and `-500ms`.
-9. r[std-time.duration.text.min-value] The most negative duration follows the same rule and displays as `-2562047788015h12min55.808s`. Displaying a duration never overflows.
+8. r[std-time.duration.text.max-value] The longest duration displays as `2562047788015h12min55.807s`. Displaying a duration never overflows.
 
 | Milliseconds | Text |
 | --- | --- |
 | `0` | `0s` |
 | `500` | `500ms` |
-| `-500` | `-500ms` |
 | `1500` | `1.5s` |
 | `1005` | `1.005s` |
 | `2000` | `2s` |
@@ -106,7 +114,6 @@ fn waited() -> string:
 | `3600000` | `1h0min0s` |
 | `3605000` | `1h0min5s` |
 | `3723500` | `1h2min3.5s` |
-| `-90000` | `-1min30s` |
 
 > **Why.** Go's text is the most widely read duration format, so a log
 > line needs no explanation. Writing every component below the first, as
@@ -124,24 +131,25 @@ fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:
     text.parse::[Duration]()  # "1h30m" is 5400000 milliseconds
 ```
 
-The text is an optional sign, then one or more components. A component
+The text is an optional `+`, then one or more components. A component
 is a number and a unit:
 
 | Part | Form |
 | --- | --- |
-| sign | `+` or `-`, optional, once at the start |
+| sign | `+`, optional, once at the start |
 | number | one or more digits, then optionally `.` and one or more digits |
 | unit | `h`, `min`, `m`, `s`, `ms`, `us`, `µs`, `μs`, or `ns` |
 
 1. r[std-time.duration.parse] `std.time` declares `impl Parse for Duration` with `type Error = ParseTimeError`, and no inherent parse function. `text.parse::[Duration]()` returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
-2. r[std-time.duration.parse.grammar] `text` must hold the sign, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
+2. r[std-time.duration.parse.grammar] `text` must hold the optional `+`, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
 3. r[std-time.duration.parse.units] `h` is 3600 seconds. `min` and `m` are 60 seconds. `s` is one second, and `ms` is a millisecond. `us`, `µs` (U+00B5), and `μs` (U+03BC) are a microsecond. `ns` is a nanosecond.
-4. r[std-time.duration.parse.sum] The duration is the sum of its components, negated when the sign is `-`. A component's value is its number times its unit, with the fraction exact.
+4. r[std-time.duration.parse.sum] The duration is the sum of its components. A component's value is its number times its unit, with the fraction exact.
 5. r[std-time.duration.parse.exact] A component whose value is not a whole number of milliseconds gives `Inexact`. Nothing is rounded, so `1.5ms` and `500us` are errors, and `2000us` and `1.005s` are not.
-6. r[std-time.duration.parse.zero] The text `0`, with an optional sign and no unit, is the zero duration. No other number is valid without a unit.
-7. r[std-time.duration.parse.range] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The most negative duration is in range, so `-9223372036854775808ms` parses.
-8. r[std-time.duration.parse.round-trip] For every duration `d`, `d.to_string().parse::[Duration]()` is `.Ok(d)`.
-9. r[std-time.duration.parse.no-panic] The `Parse` impl of `Duration` never panics.
+6. r[std-time.duration.parse.zero] The text `0`, with an optional `+` and no unit, is the zero duration. No other number is valid without a unit.
+7. r[std-time.duration.parse.range] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The longest duration is in range, so `9223372036854775807ms` parses.
+8. r[std-time.duration.parse.no-sign] A `-` is not a duration character: no duration is negative, so `-5s` gives `InvalidCharacter` at 0, as does `-0`.
+9. r[std-time.duration.parse.round-trip] For every duration `d`, `d.to_string().parse::[Duration]()` is `.Ok(d)`.
+10. r[std-time.duration.parse.no-panic] The `Parse` impl of `Duration` never panics.
 
 | Text | `parse` gives the milliseconds |
 | --- | --- |
@@ -149,7 +157,7 @@ is a number and a unit:
 | `1h0min5s` | `3605000` |
 | `250ms` | `250` |
 | `1.5s` | `1500` |
-| `-1.5h` | `-5400000` |
+| `1.5h` | `5400000` |
 | `2000us` | `2` |
 | `0` | `0` |
 
@@ -163,8 +171,8 @@ is a number and a unit:
 A failed duration parse reports a [`ParseTimeError`](#time-parse-errors),
 the one error type of all time text, at a byte position:
 
-1. r[std-time.duration.parse-error.too-short] Text that ends where a number is needed gives `TooShort` at the text's length. That is empty text, a sign alone, or a `.` with no digit after it.
-2. r[std-time.duration.parse-error.invalid-character] A character that is not a digit, where a number must start, gives `InvalidCharacter` at that character, as does a non-digit after a `.`.
+1. r[std-time.duration.parse-error.too-short] Text that ends where a number is needed gives `TooShort` at the text's length. That is empty text, a `+` alone, or a `.` with no digit after it.
+2. r[std-time.duration.parse-error.invalid-character] A character that is not a digit, where a number must start, gives `InvalidCharacter` at that character, as does a non-digit after a `.`. So a `-` gives it at its own position.
 3. r[std-time.duration.parse-error.missing-unit] A number that is followed by the end of the text, or by a `.`, gives `MissingUnit` at the end of the number.
 4. r[std-time.duration.parse-error.unknown-unit] The characters after a number, up to the next digit or `.`, that are not a unit give `UnknownUnit` at their start.
 5. r[std-time.duration.parse-error.range-position] `Inexact` and `OutOfRange` are at the first digit of the component.
@@ -173,7 +181,8 @@ the one error type of all time text, at a byte position:
 | Text | `parse` gives |
 | --- | --- |
 | `""` | `.Err(TooShort(0))` |
-| `"-"` | `.Err(TooShort(1))` |
+| `"+"` | `.Err(TooShort(1))` |
+| `"-5s"` | `.Err(InvalidCharacter(0))` |
 | `"1"` | `.Err(MissingUnit(1))` |
 | `"1x"` | `.Err(UnknownUnit(1))` |
 | `"1 s"` | `.Err(UnknownUnit(1))` |
@@ -228,30 +237,28 @@ pub trait Clock:
 3. r[std-time.clock.monotonic] `monotonic` returns the current reading of a clock that never goes backwards, as an `Instant`.
 4. r[std-time.clock.sleep] `sleep!(duration)` completes once `duration` has passed on the clock.
 5. r[std-time.clock.sleep.zero] `sleep!` with a zero `duration` completes without waiting.
-6. r[std-time.clock.sleep.negative] `sleep!` with a negative `duration` must panic, on every provider. Panic: `explicit-panic`.
-7. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
-8. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
+6. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
+7. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
 
 > **Why.** A clock read is a value from the host, as an environment read
 > is, so it needs no driver. Replay records it at the boundary either
 > way. Waiting is the one operation that suspends.
 
-> **Why.** `Duration` is signed, so a negative wait can be written. It is
-> a caller's bug, and a panic shows it where it happens, rather than as a
-> sleep that silently returns.
-
 ### Timestamps And Instants
 
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
-2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Reading RFC 3339 text is [`impl Parse for Timestamp`](#parsing-rfc-3339).
+2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, `t.checked_since(earlier: Timestamp) -> Duration?`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Reading RFC 3339 text is [`impl Parse for Timestamp`](#parsing-rfc-3339).
 3. r[std-time.timestamp.unix-milliseconds] `t.unix_milliseconds()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_milliseconds(m).unix_milliseconds()` is `m` for every `m`.
-4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
-5. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
-6. r[std-time.instant.api-milliseconds] The public API of `Instant` is `Instant::from_milliseconds(milliseconds: i64)`, `i.as_milliseconds() -> i64`, and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
-7. r[std-time.instant.as-milliseconds] `i.as_milliseconds()` returns the milliseconds since the origin that `i` holds, so `Instant::from_milliseconds(m).as_milliseconds()` is `m` for every `m`.
-8. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
-9. r[std-time.timestamp.display] `Timestamp` implements `Display`, and its text is `t.to_rfc3339()`. `Instant` does not implement `Display`.
-10. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
+4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`. It is zero when `earlier` is the later one, and the longest duration when the time does not fit in `i64` milliseconds. It never panics.
+5. r[std-time.timestamp.checked-since] `t.checked_since(earlier)` is `.Some` of that time, and `.None` when `earlier` is the later one or the time does not fit in `i64` milliseconds.
+6. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
+7. r[std-time.instant.api-milliseconds] The public API of `Instant` is `Instant::from_milliseconds(milliseconds: i64)`, `i.as_milliseconds() -> i64`, `i.since(earlier: Instant) -> Duration`, and `i.checked_since(earlier: Instant) -> Duration?`.
+8. r[std-time.instant.since] `i.since(earlier)` is the time from `earlier` to `i`, with the cases of [`std-time.timestamp.since`](#r-std-time.timestamp.since): zero when `earlier` is the later one, and the longest duration when the time does not fit.
+9. r[std-time.instant.checked-since] `i.checked_since(earlier)` is `.Some` of that time, and `.None` in the cases of [`std-time.timestamp.checked-since`](#r-std-time.timestamp.checked-since).
+10. r[std-time.instant.as-milliseconds] `i.as_milliseconds()` returns the milliseconds since the origin that `i` holds, so `Instant::from_milliseconds(m).as_milliseconds()` is `m` for every `m`.
+11. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
+12. r[std-time.timestamp.display] `Timestamp` implements `Display`, and its text is `t.to_rfc3339()`. `Instant` does not implement `Display`.
+13. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
 
 ```text
 use std.time.{Instant, Timestamp}
@@ -323,11 +330,10 @@ tests:
 3. r[std-time.manual.new] `ManualClock::new(start: Timestamp) -> mut ManualClock` returns a clock whose current time is `start`.
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
-6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. A positive `duration` is added to the current time.
+6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. The `duration` is added to the current time.
 7. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
-8. r[std-time.manual.sleep.panics] A negative `duration` panics, as [`std-time.clock.sleep.negative`](#r-std-time.clock.sleep.negative) requires, and leaves the current time unchanged. Panic: `explicit-panic`.
-9. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
-10. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
+8. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
+9. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
 
 > **Why.** Virtual time advances by itself. A test of a timeout or a
 > backoff sleeps through it in no real time and needs no extra call. A
@@ -587,8 +593,9 @@ fn record(lease: Lease) -> string:
 2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
 3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
 4. r[std-time.serde.int-read] An `Instant`, and a `Duration` whose value is a number, each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.
-5. r[std-time.serde.text-read] A `Timestamp` reads one text with `"Timestamp"` as `expected`, and holds what [`Parse` for `Timestamp`](#parsing-rfc-3339) accepts. A text the parser rejects is a decode error naming `Timestamp`.
-6. r[std-time.serde.duration-text-read] A `Duration` whose value is text reads one text with `"Duration"` as `expected`, and holds what [`Parse` for `Duration`](#duration-parsing) accepts, as `"30s"`. A text the parser rejects is a decode error naming `Duration`. Writing stays whole milliseconds, so a `Duration` reads both forms and writes one.
+5. r[std-time.serde.negative-read] A `Duration` whose number is negative is a decode error naming `Duration`, as one the parser rejects is. No negative `Duration` is built.
+6. r[std-time.serde.text-read] A `Timestamp` reads one text with `"Timestamp"` as `expected`, and holds what [`Parse` for `Timestamp`](#parsing-rfc-3339) accepts. A text the parser rejects is a decode error naming `Timestamp`.
+7. r[std-time.serde.duration-text-read] A `Duration` whose value is text reads one text with `"Duration"` as `expected`, and holds what [`Parse` for `Duration`](#duration-parsing) accepts, as `"30s"`. A text the parser rejects is a decode error naming `Duration`. Writing stays whole milliseconds, so a `Duration` reads both forms and writes one.
 
 > **Why.** A timestamp reads the way it displays, so JSON carries the same
 > text a log line does. Durations and instants stay integers of

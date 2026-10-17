@@ -1,5 +1,5 @@
 # test: now() and sleep! call the covering Clock provider, and timestamps and instants measure and order time
-# Spec std/time Clock: std-time.helper.now, std-time.helper.sleep, std-time.timestamp.since,
+# Spec std/time Clock: std-time.helper.now, std-time.helper.sleep, std-time.timestamp.since, std-time.timestamp.checked-since, std-time.instant.since, std-time.instant.checked-since,
 # std-time.instant.api-milliseconds, and std-time.time.eq-ord (batch 64, STD-2 and STD-3).
 use std.time.{Clock, Duration, Instant, Timestamp, ms, now, s, sleep}
 
@@ -29,10 +29,22 @@ tests:
             stamp := wait_and_stamp!(2s)
             assert_equal(stamp.since(Timestamp::from_unix_milliseconds(1000)).as_milliseconds(), 2000, reason="slept two seconds")
 
-    it("since is negative when the earlier stamp is later"):
+    it("since is zero when the earlier stamp is later"):
         early := Timestamp::from_unix_milliseconds(500)
         late := Timestamp::from_unix_milliseconds(800)
-        assert_equal(early.since(late).as_milliseconds(), -300, reason="backwards")
+        assert_equal(early.since(late).as_milliseconds(), 0, reason="backwards saturates to zero")
+        assert_equal(late.since(early).as_milliseconds(), 300, reason="forwards")
+        assert_equal(late.checked_since(early), .Some(Duration::milliseconds(300)), reason="checked forwards")
+        assert_equal(early.checked_since(late), .None, reason="checked backwards")
+        assert_equal(early.checked_since(early), .Some(Duration::milliseconds(0)), reason="the same stamp")
         assert(early < late, reason="timestamps order by time")
         assert(Instant::from_milliseconds(1) < Instant::from_milliseconds(2), reason="instants order by time")
         assert_equal(Instant::from_milliseconds(9).since(Instant::from_milliseconds(4)).as_milliseconds(), 5, reason="instant difference")
+        assert_equal(Instant::from_milliseconds(4).since(Instant::from_milliseconds(9)).as_milliseconds(), 0, reason="instant difference saturates")
+        assert_equal(Instant::from_milliseconds(4).checked_since(Instant::from_milliseconds(9)), .None, reason="checked instant difference")
+
+    it("a span past the largest duration saturates, and has no checked value"):
+        low := Timestamp::from_unix_milliseconds(-9223372036854775807 - 1)
+        high := Timestamp::from_unix_milliseconds(9223372036854775807)
+        assert_equal(high.since(low).as_milliseconds(), 9223372036854775807, reason="saturated")
+        assert_equal(high.checked_since(low), .None, reason="does not fit")

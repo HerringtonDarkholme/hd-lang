@@ -1,5 +1,5 @@
 # test: Duration and Instant write and read whole milliseconds; Timestamp writes and reads RFC 3339 text
-# Spec std/time Serialization: std-time.serde.impls, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read.
+# Spec std/time Serialization: std-time.serde.impls, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read, std-time.serde.negative-read.
 use std.json.{encode, decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp, Instant}
@@ -21,7 +21,7 @@ tests:
 
     it("durations and instants write milliseconds, timestamps RFC 3339 text"):
         assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}", reason="forms")
-        assert_equal(encode(Duration::milliseconds(-1500)), "-1500", reason="a negative duration")
+        assert_equal(encode(Duration::milliseconds(1500)), "1500", reason="a duration is one int")
 
     it("each time type reads its form back"):
         match decode::[Lease](encode(lease())):
@@ -43,6 +43,10 @@ tests:
     it("a value that is not the form names the time type"):
         assert_equal(decode::[Duration]("1.5"), .Err(JsonError.WrongType("$", "Duration")), reason="number")
         assert_equal(decode::[Timestamp]("1.5"), .Err(JsonError.WrongType("$", "Timestamp")), reason="number")
+
+    it("a negative duration number is a decode error naming Duration"):
+        assert_equal(decode::[Duration]("-1500"), .Err(JsonError.WrongType("$", "Duration")), reason="negative")
+        assert_equal(decode::[Duration]("0"), .Ok(Duration::milliseconds(0)), reason="zero")
 
     it("a bad timestamp string is a decode error naming Timestamp"):
         assert_equal(decode::[Timestamp]("\"30s\""), .Err(JsonError.WrongType("$", "Timestamp")), reason="bad text")

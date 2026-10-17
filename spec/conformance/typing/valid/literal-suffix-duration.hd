@@ -5,8 +5,8 @@ use std.time.{Duration, ms, s}
 fn delay() -> Duration:
     250ms  # ms(250): Duration
 
-fn rewind() -> Duration:
-    -5s  # -(s(5)), through Neg for Duration
+fn remaining(limit: Duration, used: Duration) -> Duration:
+    limit.saturating_sub(used)
 
 fn both() -> List[Duration]:
     [5s, 250ms]

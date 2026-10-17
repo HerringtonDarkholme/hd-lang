@@ -11,4 +11,4 @@ tests:
 
     it("durations order by milliseconds"):
         assert(250ms < 1s, reason="shorter first")
-        assert(-1s < 0ms, reason="a negative duration is below zero")
+        assert(0ms < 1s, reason="zero is the least duration")

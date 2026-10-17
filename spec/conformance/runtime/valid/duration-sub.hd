@@ -1,0 +1,24 @@
+# test: Duration subtraction is checked: checked_sub gives none and saturating_sub gives zero when the right side is longer
+# Spec std/time Duration Arithmetic: std-time.duration.sub, std-time.duration.checked-sub, std-time.duration.saturating-sub.
+use std.time.{Duration, ms, s}
+
+fn remaining(limit: Duration, used: Duration) -> Duration:
+    limit.saturating_sub(used)
+
+tests:
+    use std.testing.assert_equal
+
+    it("subtracts when the left side is the longer"):
+        assert_equal((3s - 1s).as_milliseconds(), 2000, reason="two seconds left")
+        assert_equal(3s.checked_sub(1s), .Some(2s), reason="checked, in range")
+        assert_equal(remaining(3s, 1s), 2s, reason="saturating, in range")
+
+    it("the same duration leaves zero"):
+        assert_equal((1s - 1000ms).as_milliseconds(), 0, reason="zero")
+        assert_equal(1s.checked_sub(1000ms), .Some(0ms), reason="checked zero")
+        assert_equal(remaining(1s, 1000ms), 0ms, reason="saturating zero")
+
+    it("a longer right side gives none or zero"):
+        assert_equal(1s.checked_sub(2s), .None, reason="checked underflow")
+        assert_equal(remaining(1s, 2s), 0ms, reason="saturated to zero")
+        assert_equal(0ms.checked_sub(1ms), .None, reason="one millisecond below zero")

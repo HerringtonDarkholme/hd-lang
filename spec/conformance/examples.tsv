@@ -755,7 +755,7 @@ std/text.md	7	accept	typing/valid/string-prefix-std-r.hd
 std/text.md	8	accept	runtime/valid/string-more-methods.hd|runtime/valid/string-rfind-splitn.hd
 std/text.md	9	accept	runtime/valid/text-join-builder.hd
 std/text.md	10	accept	runtime/valid/text-prefix-helpers.hd
-std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd
+std/time.md	1	accept	runtime/valid/duration-sub.hd|typing/valid/literal-suffix-duration.hd
 std/time.md	2	accept	runtime/valid/duration-arithmetic.hd
 std/time.md	3	accept	runtime/valid/duration-display.hd
 std/time.md	4	accept	runtime/valid/duration-parse.hd

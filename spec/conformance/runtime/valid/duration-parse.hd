@@ -1,5 +1,5 @@
 # test: parsing a Duration reads Go-style text in h, min, m, s, ms, us, µs, μs, and ns, exactly, and the text of every duration parses back
-# Spec std/time Duration Parsing: std-time.duration.parse, std-time.duration.parse.grammar, std-time.duration.parse.units, std-time.duration.parse.sum, std-time.duration.parse.exact, std-time.duration.parse.zero, std-time.duration.parse.range, std-time.duration.parse.round-trip, std-time.duration.parse.no-panic (#370).
+# Spec std/time Duration Parsing: std-time.duration.parse, std-time.duration.parse.grammar, std-time.duration.parse.no-sign, std-time.duration.parse.units, std-time.duration.parse.sum, std-time.duration.parse.exact, std-time.duration.parse.zero, std-time.duration.parse.range, std-time.duration.parse.round-trip, std-time.duration.parse.no-panic (#370).
 use std.time.{Duration, ParseTimeError, h, min, ms, s}
 
 fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:
@@ -13,13 +13,13 @@ fn millis_of(text: string) -> i64:
 tests:
     use std.testing.{assert, assert_equal}
 
-    it("components sum, with an optional sign"):
+    it("components sum, with an optional plus sign"):
         assert_equal(millis_of("1h30m"), 5400000, reason="Go's m is minutes")
         assert_equal(millis_of("1h0min5s"), 3605000, reason="the text Display writes")
         assert_equal(millis_of("250ms"), 250, reason="milliseconds")
         assert_equal(millis_of("1.5s"), 1500, reason="a fraction")
         assert_equal(millis_of("+2s"), 2000, reason="a plus sign")
-        assert_equal(timeout_of("-1.5h"), .Ok(-(90min)), reason="a minus sign negates the sum")
+        assert_equal(timeout_of("1.5h"), .Ok(90min), reason="a fraction of hours")
         assert_equal(timeout_of("1m1m"), .Ok(2min), reason="a unit may repeat")
 
     it("finer units are accepted when the value is whole"):
@@ -34,17 +34,21 @@ tests:
 
     it("zero needs no unit"):
         assert_equal(timeout_of("0"), .Ok(0s), reason="bare zero")
-        assert_equal(timeout_of("-0"), .Ok(0s), reason="signed zero")
+        assert_equal(timeout_of("+0"), .Ok(0s), reason="plus zero")
         assert_equal(timeout_of("0s"), .Ok(0s), reason="zero with a unit")
         assert_equal(timeout_of("00"), .Err(ParseTimeError.MissingUnit(2)), reason="only the text 0")
 
     it("the whole range of Duration parses"):
         assert_equal(millis_of("9223372036854775807ms"), 9223372036854775807, reason="the largest")
-        assert_equal(timeout_of("-9223372036854775808ms"), .Ok(Duration::milliseconds(-9223372036854775807 - 1)), reason="the most negative")
-        assert_equal(timeout_of("-2562047788015h12min55.808s"), .Ok(Duration::milliseconds(-9223372036854775807 - 1)), reason="its Display text")
+        assert_equal(timeout_of("2562047788015h12min55.807s"), .Ok(Duration::milliseconds(9223372036854775807)), reason="its Display text")
+
+    it("a minus sign is an error, as no duration is negative"):
+        assert_equal(timeout_of("-5s"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a negative duration")
+        assert_equal(timeout_of("-0"), .Err(ParseTimeError.InvalidCharacter(0)), reason="negative zero")
+        assert_equal(timeout_of("-1.5h"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a negative fraction")
 
     it("the text of a duration parses back"):
-        let values: List[i64] = [0, 1, -1, 500, 999, 1000, 1005, 1050, 59999, 60000, 3600000, 3605000, 3723500, -90000, -3723500, 9223372036854775807, -9223372036854775807 - 1]
+        let values: List[i64] = [0, 1, 500, 999, 1000, 1005, 1050, 59999, 60000, 3600000, 3605000, 3723500, 90000, 9223372036854775807]
         for value in values:
             duration := Duration::milliseconds(value)
             assert_equal(duration.to_string().parse::[Duration](), .Ok(duration), reason="round trip of ${duration}")

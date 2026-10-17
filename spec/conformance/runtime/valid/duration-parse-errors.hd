@@ -10,7 +10,6 @@ tests:
 
     it("text that ends where a number is needed"):
         assert_equal(parsed(""), .Err(ParseTimeError.TooShort(0)), reason="empty")
-        assert_equal(parsed("-"), .Err(ParseTimeError.TooShort(1)), reason="a sign alone")
         assert_equal(parsed("+"), .Err(ParseTimeError.TooShort(1)), reason="a plus alone")
         assert_equal(parsed("1."), .Err(ParseTimeError.TooShort(2)), reason="a point with no digits at the end")
 
@@ -18,7 +17,9 @@ tests:
         assert_equal(parsed("x"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a letter first")
         assert_equal(parsed(".5s"), .Err(ParseTimeError.InvalidCharacter(0)), reason="no digit before the point")
         assert_equal(parsed("1.s"), .Err(ParseTimeError.InvalidCharacter(2)), reason="no digit after the point")
-        assert_equal(parsed("--1s"), .Err(ParseTimeError.InvalidCharacter(1)), reason="a second sign")
+        assert_equal(parsed("-5s"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a minus sign")
+        assert_equal(parsed("-"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a minus sign alone")
+        assert_equal(parsed("+-1s"), .Err(ParseTimeError.InvalidCharacter(1)), reason="a minus after a plus")
         assert_equal(parsed("1h-5m"), .Err(ParseTimeError.UnknownUnit(1)), reason="a sign in the middle is part of the unit")
         assert_equal(parsed("1h.5s"), .Err(ParseTimeError.InvalidCharacter(2)), reason="a component with no digit before the point")
         assert_equal(parsed("1s "), .Err(ParseTimeError.UnknownUnit(1)), reason="a trailing space is part of the unit")
@@ -44,7 +45,6 @@ tests:
 
     it("values out of range"):
         assert_equal(parsed("9223372036854775808ms"), .Err(ParseTimeError.OutOfRange(0)), reason="one past the largest")
-        assert_equal(parsed("-9223372036854775809ms"), .Err(ParseTimeError.OutOfRange(1)), reason="one past the most negative")
         assert_equal(parsed("99999999999999999999ms"), .Err(ParseTimeError.OutOfRange(0)), reason="more digits than i64 holds")
         assert_equal(parsed("2562047788016h"), .Err(ParseTimeError.OutOfRange(0)), reason="hours overflow")
         assert_equal(parsed("9223372036854775807ms1ms"), .Err(ParseTimeError.OutOfRange(21)), reason="the running total overflows")

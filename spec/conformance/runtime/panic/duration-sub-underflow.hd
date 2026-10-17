@@ -1,0 +1,10 @@
+# test: Duration subtraction that would go below zero panics with explicit-panic, in every build
+# Spec std/time Duration Arithmetic: std-time.duration.sub.underflow.
+use std.time.{Duration, s}
+
+fn rewind(now: Duration, back: Duration) -> Duration:
+    now - back  # panic: explicit-panic
+
+tests:
+    it("panics when the right side is longer"):
+        _ := rewind(1s, 2s)

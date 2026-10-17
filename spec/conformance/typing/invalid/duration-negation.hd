@@ -1,0 +1,6 @@
+# test: Duration has no Neg, so a minus before a duration suffix is a type error
+# Spec std/time Duration: std-time.duration.no-neg.
+use std.time.{Duration, s}
+
+fn rewind() -> Duration:
+    -5s  # diagnostic: type-mismatch
