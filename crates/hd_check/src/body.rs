@@ -936,6 +936,9 @@ fn fn_body_steps(
     ck.check_row_patterns(&sig, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
+    // An owned parameter drops when the body ends: the body is a cleanup
+    // scope whose suites are the parameters' `DropLocal`s.
+    let dm = ck.b.drop_mark();
     // Projections in the signature normalize under the bounds, so
     // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
     // (`trait.binding.interchangeable`).
@@ -943,6 +946,7 @@ fn fn_body_steps(
         let ty = ck.norm_ty(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
+        ck.register_drop(l, ty, node.index());
     }
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
@@ -956,7 +960,11 @@ fn fn_body_steps(
     let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
     let (tail, ret) = ck.join_site(want, |ck, ret| {
         ck.rets[0] = ret;
-        let (tail, _) = ck.block_value(body, Some(ret))?;
+        let (tail, ty) = ck.block_value(body, Some(ret))?;
+        let tail = match ck.b.close_drops(dm, tail, ty, body.index()) {
+            Some(scope) => tail.map(|_| scope),
+            None => tail,
+        };
         Ok((tail, ret))
     })?;
     // `own.body.result-written`: an owned or borrowed result is written.
@@ -2237,7 +2245,15 @@ impl Ck<'_, '_> {
                 Err(e) => Err(e),
             }
         } else {
-            self.lines(block, want)
+            // A suite that binds an owned local is a cleanup scope too: its
+            // `DropLocal`s are its suites (13-ownership.md).
+            let dm = self.b.drop_mark();
+            self.lines(block, want).map(|(tail, ty)| {
+                match self.b.close_drops(dm, tail, ty, block.index()) {
+                    Some(scope) => (tail.map(|_| scope), ty),
+                    None => (tail, ty),
+                }
+            })
         };
         self.scopes.pop();
         self.move_to(at);
@@ -4010,6 +4026,9 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
             return None;
         }
         u32::try_from(row.keys.len()).ok()
+    }
+    fn owns(&self, ty: Ty) -> Option<bool> {
+        Some(crate::own::holds_owned(self.cx.names.pool.types(), ty))
     }
 }
 

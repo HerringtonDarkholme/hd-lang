@@ -298,6 +298,8 @@ pub fn open_insts(
             | Tag::Return
             | Tag::Unreachable
             | Tag::ToArm
+            | Tag::DropLocal
+            | Tag::DropTemp
             | Tag::Hole
             | Tag::Poison => continue,
             // A tag switch reads its scrutinee's tag; over an open value,

@@ -953,6 +953,7 @@ impl Ck<'_, '_> {
                 None => self.bind_local(name, t, pat),
             };
             self.set_local(l, r, at.index());
+            self.register_drop(l, t, at.index());
             return Ok(());
         }
         // A pattern: a two-arm (or one-arm) match whose bindings stay in

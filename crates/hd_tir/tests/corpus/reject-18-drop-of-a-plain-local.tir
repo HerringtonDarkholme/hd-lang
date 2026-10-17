@@ -1,0 +1,12 @@
+# expect: reject 18
+body 1 Fn
+local 91 0 - 33
+labels
+caps
+modes
+extra 1 0 1 2147483648 2 1 2
+dropmode 0
+%0 = DropLocal 0 - : 0 @-
+%1 = Block 0 - : 0 @-
+%2 = Scope 1 2 : 0 @-
+%3 = Block 4 - : 0 @-

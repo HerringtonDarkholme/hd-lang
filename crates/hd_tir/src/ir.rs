@@ -152,6 +152,10 @@ tags! {
     Unwrap: Value, None;
     Guard: Block, Blocks;
     ToArm: Meta, None;
+    // ownership (13-ownership.md); appended, so every earlier tag keeps
+    // its number in the wire form
+    DropLocal: Local, None;
+    DropTemp: Value, None;
 }
 
 /// `Prim` operators (the `Meta` word of a `Prim` instruction).
@@ -304,6 +308,30 @@ pub enum Coercion {
     Lend,
     /// A place's value lent to a `^mut T` position (`own.body.lend`).
     LendMut,
+}
+
+/// A `Scope` record word that names a `DropLocal` registration (bit 31
+/// set, the instruction in bits 0..30) rather than a `defer` suite.
+pub const DROP_ENTRY: u32 = 1 << 31;
+
+/// How a `DropLocal`'s local drops when its scope exits (the `drop_mode`
+/// column): always, by its drop flag where it moves on some paths only,
+/// or never, where every path moves it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum DropMode {
+    Always,
+    Flag,
+    Never,
+}
+
+impl DropMode {
+    #[must_use]
+    pub fn from_u32(v: u32) -> Option<Self> {
+        [DropMode::Always, DropMode::Flag, DropMode::Never]
+            .get(v as usize)
+            .copied()
+    }
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.
@@ -497,6 +525,11 @@ pub struct Body {
     /// none (`flow.panic.report.fallback`). Sorted by instruction. A
     /// location-like column, outside the hash: it changes no code.
     pub fallback: Vec<[u32; 2]>,
+    /// The instructions that move an owned place: a `LocalGet` or `Field`
+    /// no `Lend` wraps, sorted. Written at `finish` by the ownership pass.
+    pub moves: Vec<u32>,
+    /// One row per `DropLocal`, in instruction order: how its local drops.
+    pub drop_mode: Vec<DropMode>,
 }
 
 impl Body {
@@ -526,6 +559,8 @@ impl Body {
             strings: vec![],
             label: "".into(),
             fallback: vec![],
+            moves: vec![],
+            drop_mode: vec![],
         }
     }
 
@@ -655,6 +690,13 @@ pub struct TirCheckpoint {
 pub struct BlockMark(u32);
 #[derive(Clone, Copy, Debug)]
 pub struct ScopeMark(u32);
+/// Where a block's statements started, for [`TirSink::close_drops`]: the
+/// open block's depth and its list's length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DropMark {
+    open: u32,
+    scratch: u32,
+}
 #[derive(Clone, Copy, Debug)]
 pub struct LoopMark(pub LabelId);
 #[derive(Clone, Copy, Debug)]
@@ -695,6 +737,15 @@ pub trait TirSink {
     fn open_scope(&mut self) -> ScopeMark;
     fn defer(&mut self, suite: Ref, syn: NodeIdx);
     fn close_scope(&mut self, m: ScopeMark, body: Ref, ty: Ty, syn: NodeIdx) -> Ref;
+    /// Registers owned local `l`'s drop in the enclosing `Scope`.
+    fn drop_local(&mut self, l: LocalId, syn: NodeIdx);
+    /// Drops owned temporary `v` here, at the end of its statement.
+    fn drop_temp(&mut self, v: Ref, syn: NodeIdx);
+    /// Marks where the open block's next statements start.
+    fn drop_mark(&self) -> DropMark;
+    /// Wraps the open block's instructions since `m` into a `Scope` when
+    /// one of them is a `DropLocal`; `None`, changing nothing, otherwise.
+    fn close_drops(&mut self, m: DropMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Option<Ref>;
     fn open_loop(&mut self) -> LoopMark;
     fn close_loop(&mut self, m: LoopMark, body: Ref, ty: Ty, syn: NodeIdx) -> Ref;
     fn reserve(&mut self) -> Slot;
@@ -858,6 +909,18 @@ impl TirBuilder {
         self.finish_checked(root, capture_modes, tolerated, Some(cx))
     }
 
+    /// The ownership pass's moves: the `LocalGet` and `Field`
+    /// instructions that move an owned place, sorted.
+    pub fn set_moves(&mut self, moves: Vec<u32>) {
+        self.body.moves = moves;
+    }
+
+    /// The ownership pass's drop modes, one per `DropLocal` in
+    /// instruction order.
+    pub fn set_drop_modes(&mut self, modes: Vec<DropMode>) {
+        self.body.drop_mode = modes;
+    }
+
     fn finish_checked(
         mut self,
         root: Ref,
@@ -866,6 +929,17 @@ impl TirBuilder {
         cx: Option<&dyn VerifyCx>,
     ) -> Result<Body, Vec<VerifyError>> {
         self.body.sub_root[0] = root.0;
+        // A `DropLocal` drops always until the ownership pass decides its
+        // flag (`set_drop_modes`).
+        let drops = self
+            .body
+            .tags
+            .iter()
+            .filter(|t| **t == Tag::DropLocal)
+            .count();
+        if self.body.drop_mode.is_empty() {
+            self.body.drop_mode = vec![DropMode::Always; drops];
+        }
         self.body.cap_mode = capture_modes.to_vec();
         self.body
             .cap_mode
@@ -949,14 +1023,62 @@ impl TirSink for TirBuilder {
     fn defer(&mut self, suite: Ref, syn: NodeIdx) {
         self.push(Tag::Defer, suite.0, NONE, Ty::VOID, syn);
     }
-    /// The scope's suites are the `Defer`s emitted since `open_scope`.
+    /// The scope's suites are the `Defer`s emitted since `open_scope`,
+    /// and the `DropLocal`s its body block lists, as [`DROP_ENTRY`] words,
+    /// in instruction order.
     fn close_scope(&mut self, m: ScopeMark, body: Ref, ty: Ty, syn: NodeIdx) -> Ref {
+        let direct: Vec<u32> = match body.as_inst() {
+            Some(blk) if self.body.tags[blk.0 as usize] == Tag::Block => {
+                self.body.record(self.body.data[blk.0 as usize][0]).to_vec()
+            }
+            _ => Vec::new(),
+        };
         let suites: Vec<u32> = (m.0 as usize..self.body.tags.len())
-            .filter(|&i| self.body.tags[i] == Tag::Defer)
-            .map(|i| self.body.data[i][0])
+            .filter_map(|i| match self.body.tags[i] {
+                Tag::Defer => Some(self.body.data[i][0]),
+                Tag::DropLocal => {
+                    let i = u32::try_from(i).expect("insts");
+                    direct.contains(&i).then_some(DROP_ENTRY | i)
+                }
+                _ => None,
+            })
             .collect();
         let r = self.record(&suites);
         self.push(Tag::Scope, body.0, r, ty, syn)
+    }
+    fn drop_local(&mut self, l: LocalId, syn: NodeIdx) {
+        self.push(Tag::DropLocal, l.raw(), NONE, Ty::VOID, syn);
+    }
+    fn drop_temp(&mut self, v: Ref, syn: NodeIdx) {
+        self.push(Tag::DropTemp, v.0, NONE, Ty::VOID, syn);
+    }
+    fn drop_mark(&self) -> DropMark {
+        DropMark {
+            open: u32::try_from(self.open.len()).expect("open"),
+            scratch: u32::try_from(self.scratch.len()).expect("scratch"),
+        }
+    }
+    fn close_drops(&mut self, m: DropMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Option<Ref> {
+        assert_eq!(m.open as usize, self.open.len(), "drops close in order");
+        let from = m.scratch as usize;
+        if !self.scratch[from..]
+            .iter()
+            .any(|&i| self.body.tags[i as usize] == Tag::DropLocal)
+        {
+            return None;
+        }
+        let list: Vec<u32> = self.scratch.drain(from..).collect();
+        // The block has no `defer` of its own (that block is a `Scope`
+        // already), so its suites are its `DropLocal`s alone.
+        let drops: Vec<u32> = list
+            .iter()
+            .filter(|&&i| self.body.tags[i as usize] == Tag::DropLocal)
+            .map(|&i| DROP_ENTRY | i)
+            .collect();
+        let r = self.record(&list);
+        let body = self.push(Tag::Block, r, tail.map_or(NONE, |t| t.0), ty, syn);
+        let d = self.record(&drops);
+        Some(self.push(Tag::Scope, body.0, d, ty, syn))
     }
     fn open_loop(&mut self) -> LoopMark {
         let l = LabelId::from_raw(u32::try_from(self.body.label_inst.len()).expect("labels"));
@@ -1096,7 +1218,9 @@ impl VerifyError {
 /// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
 /// the checker's facts ([`VerifyCx`], [`verify_in`]), and 3's `Hole` and
 /// `Poison` half the module's errors ([`poison_sites`]).
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
+pub const CHECKED_INVARIANTS: &[u8] = &[
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19,
+];
 
 /// What the verifier reads from the checker for the invariants a body
 /// alone cannot show (`crates/hd_tir/DESIGN.md` §4.13.11): read-only facts
@@ -1114,6 +1238,12 @@ pub trait VerifyCx {
     /// How many row keys a call of `callee` supplies providers for, when
     /// the callee's row is closed (invariant 8).
     fn row_keys(&self, callee: &Callee) -> Option<u32>;
+    /// Whether a value of `ty` holds an owned value, and so may need a
+    /// drop; `None` when unknown (invariants 18 and 19).
+    fn owns(&self, ty: Ty) -> Option<bool> {
+        let _ = ty;
+        None
+    }
 }
 
 /// [`verify`], then the invariants that need the checker's facts `cx`:
@@ -1125,7 +1255,10 @@ pub trait VerifyCx {
 ///   `SwitchInt`, `SwitchChar` and `SwitchStr` have a default;
 /// - 13: a `Builtin` choice that names a `BuiltinImpl` (its value is the
 ///   impl plus one) names one of the callee's trait;
-/// - 17: a `CallDyn` has one evidence operand per method-level bound.
+/// - 17: a `CallDyn` has one evidence operand per method-level bound;
+/// - 18: a `DropLocal` names a local, and a `DropTemp` a value, whose type
+///   owns;
+/// - 19: each move names an owned place.
 pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
     let mut errs = verify(b);
     let ty_of = |v: u32| {
@@ -1207,7 +1340,28 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
                     err(17, format!("{count} evidence operands for {n} bounds"));
                 }
             }
+            Tag::DropLocal => {
+                if let Some(&t) = b.local_ty.get(a as usize)
+                    && cx.owns(t) == Some(false)
+                {
+                    err(18, "DropLocal of a local that needs no drop".into());
+                }
+            }
+            Tag::DropTemp if ty_of(a).and_then(|t| cx.owns(t)) == Some(false) => {
+                err(18, "DropTemp of a value that needs no drop".into());
+            }
             _ => {}
+        }
+    }
+    for &m in &b.moves {
+        if let Some(&t) = b.ty.get(m as usize)
+            && cx.owns(t) == Some(false)
+        {
+            errs.push(VerifyError {
+                invariant: 19,
+                inst: m,
+                what: "a move of a place that is not owned".into(),
+            });
         }
     }
     errs
@@ -1430,7 +1584,70 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
     types_are_global(b, &mut errs);
     suspension_scopes(b, &tree, &mut errs);
     constant_rows(b, &mut errs);
+    ownership_forms(b, &mut errs);
     errs
+}
+
+/// Invariants 18 and 19 from the body alone: each `DropLocal` names a
+/// local, is listed by exactly one `Scope`, and has one `drop_mode` row;
+/// `moves` is sorted and names `LocalGet` and `Field` instructions.
+fn ownership_forms(b: &Body, errs: &mut Vec<VerifyError>) {
+    let mut listed = vec![0u32; b.len()];
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag != Tag::Scope {
+            continue;
+        }
+        for &w in b.record(b.data[i][1]) {
+            if w & DROP_ENTRY != 0
+                && let Some(n) = listed.get_mut((w & !DROP_ENTRY) as usize)
+            {
+                *n += 1;
+            }
+        }
+    }
+    let mut drops = 0;
+    for (i, &tag) in b.tags.iter().enumerate() {
+        let inst = u32::try_from(i).expect("i");
+        match tag {
+            Tag::DropLocal => {
+                drops += 1;
+                if listed[i] != 1 {
+                    errs.push(VerifyError {
+                        invariant: 18,
+                        inst,
+                        what: format!("DropLocal is listed by {} scopes", listed[i]),
+                    });
+                }
+            }
+            _ if listed[i] != 0 => errs.push(VerifyError {
+                invariant: 18,
+                inst,
+                what: format!("a scope lists {} as a DropLocal", tag.name()),
+            }),
+            _ => {}
+        }
+    }
+    if drops != b.drop_mode.len() {
+        errs.push(VerifyError {
+            invariant: 18,
+            inst: NONE,
+            what: format!(
+                "{drops} DropLocal instructions but {} drop modes",
+                b.drop_mode.len()
+            ),
+        });
+    }
+    for (k, &m) in b.moves.iter().enumerate() {
+        let ok = matches!(b.tags.get(m as usize), Some(Tag::LocalGet | Tag::Field))
+            && (k == 0 || b.moves[k - 1] < m);
+        if !ok {
+            errs.push(VerifyError {
+                invariant: 19,
+                inst: m,
+                what: "a move names no place, or moves are not sorted".into(),
+            });
+        }
+    }
 }
 
 /// The `Hole` and `Poison` instructions of `b`, a reserved slot never
@@ -1694,6 +1911,13 @@ pub fn print(b: &Body) -> String {
     for [inst, local] in &b.fallback {
         let _ = writeln!(o, "fallback {inst} {local}");
     }
+    if !b.moves.is_empty() {
+        let _ = writeln!(o, "moves {}", words(&b.moves));
+    }
+    if !b.drop_mode.is_empty() {
+        let modes: Vec<u32> = b.drop_mode.iter().map(|m| *m as u32).collect();
+        let _ = writeln!(o, "dropmode {}", words(&modes));
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -1826,6 +2050,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
             }
             "extra" => b.extra = nums(1)?,
+            "moves" => b.moves = nums(1)?,
+            "dropmode" => {
+                b.drop_mode = nums(1)?
+                    .into_iter()
+                    .map(|m| DropMode::from_u32(m).ok_or_else(|| e("bad drop mode".into())))
+                    .collect::<Result<_, _>>()?;
+            }
             "fallback" => {
                 let v = nums(1)?;
                 if v.len() != 2 {
@@ -2213,7 +2444,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 59);
+        assert_eq!(Tag::ALL.len(), 61);
         assert!(
             Tag::ALL
                 .iter()

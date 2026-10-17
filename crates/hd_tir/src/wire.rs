@@ -17,7 +17,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Tag};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, DropMode, Tag};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -103,6 +103,8 @@ pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::Guard
         | Tag::ToArm
         | Tag::Unreachable
+        | Tag::DropLocal
+        | Tag::DropTemp
         | Tag::Poison => vec![],
         other => {
             return Err(NotImplemented::new(
@@ -238,6 +240,12 @@ pub fn write_body(
         w.str(st);
     }
     w.str(&b.label);
+    // The ownership columns only when a body has them, so a body without
+    // marks encodes, and hashes, as before they existed.
+    if !b.moves.is_empty() || !b.drop_mode.is_empty() {
+        u32s(&mut w, b.moves.iter().copied());
+        u32s(&mut w, b.drop_mode.iter().map(|m| *m as u32));
+    }
     // Locations last, outside the hashed prefix: moving a body in its file
     // changes node indices, not the body (`crates/hd_cache/DESIGN.md` §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
@@ -270,6 +278,7 @@ pub fn read_body(
     paths: &PathTable,
     syms: &ShardedInterner,
 ) -> Option<Body> {
+    let hashed = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
     let mut r = Reader::new(bytes.get(4..)?);
     let t = Tables::read(&mut r, pool, paths, syms)?;
     let item = t.def(r.u32())?;
@@ -329,6 +338,13 @@ pub fn read_body(
         b.strings.push(r.str().into());
     }
     b.label = r.str().into();
+    if r.pos() < hashed {
+        b.moves = col(&mut r);
+        b.drop_mode = col(&mut r)
+            .into_iter()
+            .map(DropMode::from_u32)
+            .collect::<Option<_>>()?;
+    }
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.fallback = col(&mut r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
@@ -394,7 +410,10 @@ pub fn tir_hash(bytes: &[u8]) -> Hash128 {
 #[cfg(test)]
 mod tests {
     use super::{read_body, tir_hash, write_body};
-    use crate::ir::{BodyKind, Callee, Providers, Tag, TirBuilder, TirSink, local_flags};
+    use crate::ir::{
+        BodyKind, Callee, Coercion, DROP_ENTRY, DropMode, Providers, Tag, TirBuilder, TirSink,
+        local_flags,
+    };
     use hd_base::NodeIdx;
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, Ty, TyData};
@@ -442,5 +461,80 @@ mod tests {
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
+    }
+
+    /// The ownership forms cross the wire: a `Lend`, a `DropLocal` in its
+    /// `Scope`, a `DropTemp`, and the `moves` and `drop_mode` columns.
+    #[test]
+    fn ownership_forms_round_trip() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let f = paths.item("app", "main", "f");
+        let size = paths.item("app", "main", "size");
+        let file = pool.intern_ty(&TyData::Adt {
+            def: paths.item("app", "main", "File"),
+            args: pool.list(&[]),
+        });
+        let owned = pool.intern_ty(&TyData::Own(file));
+        let borrowed = pool.intern_ty(&TyData::Borrow {
+            ty: file,
+            mutable: false,
+            lifetimes: pool.list(&[]),
+        });
+        let mut b = TirBuilder::new(f, BodyKind::Fn);
+        let n = NodeIdx::from_raw(0);
+        let blk = b.open_block();
+        let p = b.local(owned, syms.intern("p"), local_flags::PARAM, n);
+        let mark = b.drop_mark();
+        b.drop_local(p, n);
+        let get = b.get(p, owned, n);
+        let lend = b.coerce(Coercion::Lend, crate::ir::NONE, get, borrowed, n);
+        let call = b.call(
+            &Callee::Item {
+                def: size,
+                targs: pool.list(&[]),
+            },
+            &[lend],
+            Providers::None,
+            Ty::I32,
+            n,
+        );
+        let temp = b.get(p, owned, n);
+        b.drop_temp(temp, n);
+        let scope = b
+            .close_drops(mark, Some(call), Ty::I32, n)
+            .expect("a scope");
+        let root = b.close_block(blk, Some(scope), Ty::I32, n);
+        b.set_moves(vec![temp.0]);
+        b.set_drop_modes(vec![DropMode::Flag]);
+        let body = b.finish(root, &[]).expect("verifies");
+        let s = scope.0 as usize;
+        assert_eq!(body.tags[s], Tag::Scope);
+        let drop_at = body
+            .tags
+            .iter()
+            .position(|t| *t == Tag::DropLocal)
+            .expect("drop");
+        assert_eq!(
+            body.record(body.data[s][1]),
+            &[DROP_ENTRY | u32::try_from(drop_at).expect("inst")]
+        );
+        let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
+        let (pool2, paths2, syms2) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
+        assert_eq!(back.moves, body.moves);
+        assert_eq!(back.drop_mode, vec![DropMode::Flag]);
+        assert_eq!(back.tags, body.tags);
+        let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
+        assert_eq!(tir_hash(&bytes), tir_hash(&again));
+        let text = crate::ir::print(&body);
+        assert_eq!(crate::ir::parse(&text).expect("parse"), body);
     }
 }

@@ -733,6 +733,7 @@ The full encoding, instruction catalog and builder are in
 | `consts`, `strings` | `(Ty, u64)`; literal text | emission; indexed by a constant `Ref` |
 | `susp` | `SuspRow`, 16 bytes | suspension lowering |
 | `fallback` | | panic reports for defaulted literals |
+| `moves`, `drop_mode` | `u32`; `DropMode`, one per `DropLocal` | drop emission; written by the ownership pass, empty in a body without marks |
 
 **Identity.** Instruction, local, sub-body, capture and label indices are
 body-local `u32`s. A `Ref` is an instruction below 2^31, or, with bit 31

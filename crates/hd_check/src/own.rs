@@ -376,3 +376,23 @@ pub(crate) fn owned_arguments(pool: Types<'_>, t: Ty) -> Vec<(Ty, usize)> {
     }
     out
 }
+
+/// Whether `t` holds an owned value outside any borrow: an owned type, or
+/// an optional, tuple, or type argument that holds one. A value of such a
+/// type may need a drop (the TIR's `DropLocal`, invariant 18).
+pub(crate) fn holds_owned(pool: Types<'_>, t: Ty) -> bool {
+    if !pool.has_mode(t) {
+        return false;
+    }
+    match pool.get(t) {
+        TyData::Own(_) => true,
+        TyData::Option(i) | TyData::Mut(i) => holds_owned(pool, i),
+        TyData::Tuple { elems, rest } => pool
+            .list_items(elems)
+            .iter()
+            .chain(rest.iter())
+            .any(|&e| holds_owned(pool, e)),
+        TyData::Adt { args, .. } => pool.list_items(args).iter().any(|&a| holds_owned(pool, a)),
+        _ => false,
+    }
+}

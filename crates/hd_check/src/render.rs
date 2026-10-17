@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use hd_resolve::{Names, show_ty};
 use hd_tir::Body;
-use hd_tir::ir::{Callee, NONE, Op, Ref, Tag};
+use hd_tir::ir::{Callee, Coercion, DROP_ENTRY, NONE, Op, Ref, Tag};
 use hd_types::{Ty, TyList};
 
 fn ty(names: &Names<'_>, t: Ty) -> String {
@@ -44,7 +44,33 @@ fn value(names: &Names<'_>, b: &Body, w: u32) -> String {
     format!("{bits}:{}", ty(names, t))
 }
 
-/// One line per local, sub-body and instruction.
+/// A `Coerce` record: the kind by name, then the evidence word.
+fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
+    let r = b.record(word);
+    let kinds = [
+        Coercion::Never,
+        Coercion::Weaken,
+        Coercion::Variance,
+        Coercion::WrapSome,
+        Coercion::RowSubsume,
+        Coercion::ToTraitValue,
+        Coercion::ToAny,
+        Coercion::Supertrait,
+        Coercion::SuspendFnToCtor,
+        Coercion::Identity,
+        Coercion::Lend,
+        Coercion::LendMut,
+    ];
+    let kind = r
+        .first()
+        .and_then(|&k| kinds.iter().find(|c| **c as u32 == k))
+        .map_or_else(|| "?kind".to_owned(), |c| format!("{c:?}"));
+    let evidence = r.get(1).map_or("-".to_owned(), |&e| value(names, b, e));
+    format!("[{kind} {evidence}]")
+}
+
+/// One line per local, sub-body and instruction, then the ownership
+/// columns when the body has them.
 #[must_use]
 pub fn render(names: &Names<'_>, b: &Body) -> String {
     let mut o = String::new();
@@ -125,6 +151,22 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
                             ops.push(format!("[{}]", ks.join(" ")));
                         } else if tag == Tag::ProviderGet || tag == Tag::ItemRef {
                             ops.push("[..]".into());
+                        } else if tag == Tag::Coerce {
+                            ops.push(coercion(names, b, word));
+                        } else if tag == Tag::Scope {
+                            // A suite, or a `DropLocal` registration.
+                            let vals: Vec<String> = b
+                                .record(word)
+                                .iter()
+                                .map(|&x| {
+                                    if x & DROP_ENTRY != 0 {
+                                        format!("drop %{}", x & !DROP_ENTRY)
+                                    } else {
+                                        value(names, b, x)
+                                    }
+                                })
+                                .collect();
+                            ops.push(format!("[{}]", vals.join(" ")));
                         } else if matches!(tag, Tag::SwitchTag | Tag::Payload | Tag::FieldSet) {
                             // Variant and field numbers stay numbers.
                             let r = b.record(word);
@@ -161,6 +203,14 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             ops.join(" "),
             ty(names, b.ty[i])
         );
+    }
+    if !b.moves.is_empty() {
+        let moves: Vec<String> = b.moves.iter().map(|m| format!("%{m}")).collect();
+        let _ = writeln!(o, "  moves {}", moves.join(" "));
+    }
+    if !b.drop_mode.is_empty() {
+        let modes: Vec<String> = b.drop_mode.iter().map(|m| format!("{m:?}")).collect();
+        let _ = writeln!(o, "  drop modes {}", modes.join(" "));
     }
     o
 }

@@ -512,6 +512,8 @@ pub struct Body {
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
+    pub moves: Vec<u32>,                // the LocalGet and Field instructions that move an owned place, sorted
+    pub drop_mode: Vec<DropMode>,       // Always | Flag | Never, one per DropLocal in instruction order
 }
 pub struct Inst(pub u32);
 pub struct Ref(pub u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
@@ -605,6 +607,8 @@ holds.
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
+| `Lend` | a place's value → `^T` ([`own.body.lend`](../../spec/lang/13-ownership.md#r-own.body.lend)) | none | none: the borrow is the same reference |
+| `LendMut` | a place's value → `^mut T` | none | none: the borrow is the same reference |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.
@@ -721,7 +725,7 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Block` | a: `[instructions]`, b: tail value or `NONE` | the tail's type, or `void` |
-| `Scope` | a: body `Block`, b: `[defer suites]`, each a `Block` | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
+| `Scope` | a: body `Block`, b: `[defer suites and drops]`: a suite `Block`, or `DROP_ENTRY` (bit 31) plus a `DropLocal` the body block lists, in instruction order | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
 | `Defer` | a: suite number in the enclosing `Scope` | `void`; registers that suite here |
 | `If` | a: condition, b: `[then Block, else Block]` | the join of both |
 | `Loop` | a: body `Block`, b: else `Block` or `NONE` | the join of its `Break` values, or `void` |
@@ -731,6 +735,27 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | `Continue` | a: target label of a `Loop` | `never` |
 | `Return` | a: value, or `NONE` for a bare `return` in a `void` body | `never` |
 | `Unreachable` | none | `never`; the default of an exhaustive switch |
+
+**Ownership** ([Ownership and Borrows](../../spec/lang/13-ownership.md)).
+The checker decides every ownership fact and the builder records it, so
+collection and emission never derive one again.
+
+| Tag | Operands | Type rule |
+| --- | --- | --- |
+| `DropLocal` | a: an owned local | `void`; registers the local's drop in the enclosing `Scope`, where the local is bound |
+| `DropTemp` | a: an owned temporary | `void`; drops it at the end of its statement |
+
+A block that binds an owned local, and a function with an owned
+parameter, is a `Scope` whose suites include those `DropLocal`s
+(`TirSink::drop_mark` and `close_drops` wrap the statements after the
+fact, so a block without one is built as before). Bindings and `defer`
+suites thus drop in one last-in, first-out order, and the exit ladder
+and the cancellation record that serve `defer` serve drops too. A move is
+a `LocalGet` or `Field` of an owned place that no `Lend` wraps; the
+ownership pass lists them in the `moves` column and decides each
+`DropLocal`'s `drop_mode` (always, by flag, or never), both written at
+`finish`; until it runs, every mode is `Always`. Emission runs nothing
+for these forms yet.
 
 An exit (`Break`, `Continue`, `Return`, or falling off a scope) runs the
 registered suites of every `Scope` it leaves, innermost first. Which
@@ -941,14 +966,21 @@ The verifier checks each of these:
     earlier parameters, in order, and it precedes the call in the block.
 16. (Unused.)
 17. A `CallDyn` has one evidence operand per method-level bound.
+18. A `DropLocal` names a local whose type may need a drop, and exactly
+    one `Scope` lists it; `drop_mode` has one row per `DropLocal`. A
+    `DropTemp`'s operand may need a drop.
+19. Each row of `moves` names an owned place, a `LocalGet` or `Field`,
+    and the rows are sorted.
 
-Implementation differs: `verify` checks invariants 1 to 15 and 17
+Implementation differs: `verify` checks invariants 1 to 15 and 17 to 19
 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
 `verify` alone.
 - **Partial checks.**
+  - 18 and 19: the types (may need a drop, owned) only with the
+    checker's facts (`VerifyCx::owns`).
   - 1: only def-before-use.
   - 2: only block lists.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
@@ -1021,6 +1053,7 @@ with its per-item interface hash), for code keys.
 | tables | the body's own entry-local string, path and type tables; every `Symbol`, `DefId` and `Ty` in that body is a row in them |
 | item, kind | the item's path row, the body kind |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
+| ownership | `moves`, `drop_mode`: only when either is not empty, so a body without marks encodes as before; the reader finds them before the hashed length ends |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs

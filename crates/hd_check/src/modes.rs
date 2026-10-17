@@ -372,6 +372,14 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Registers local `l`'s drop where it is bound, when its type `t`
+    /// holds an owned value (the TIR's `DropLocal`).
+    pub(crate) fn register_drop(&mut self, l: hd_base::LocalId, t: Ty, at: hd_base::NodeIdx) {
+        if self.owned_part(t) {
+            self.b.drop_local(l, at);
+        }
+    }
+
     /// Whether `r` reads a top-level binding or a part of one.
     pub(crate) fn global_place(&mut self, r: Ref) -> bool {
         let mut r = r;

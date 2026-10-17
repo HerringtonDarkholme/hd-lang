@@ -1068,7 +1068,7 @@ impl Em<'_> {
                 self.a.s().unreachable();
             }
             Tag::Scope => {
-                if !self.rec(bw).is_empty() {
+                if !self.suites(bw).is_empty() {
                     return self.scope(i, a, bw);
                 }
                 self.result(i)?;
@@ -1189,6 +1189,10 @@ impl Em<'_> {
                 self.store_from(i, &inner)?;
             }
             Tag::Hook => {}
+            // Drop glue is not emitted yet (ownership prototype slice 10):
+            // a registration and a statement-end drop run nothing, as
+            // before these forms existed.
+            Tag::DropLocal | Tag::DropTemp => {}
             Tag::Defer => {
                 let Some(&f) = self.defer_flags.get(&a) else {
                     return unsupported("a `Defer` outside its scope");
@@ -4943,8 +4947,16 @@ impl<'a> Em<'a> {
     /// Each suite has a "registered" flag; every exit stores its code and
     /// branches to the scope's end, which runs the registered suites last
     /// in, first out, then takes the exit.
+    /// A `Scope`'s `defer` suites, without its `DropLocal` registrations
+    /// ([`hd_tir::ir::DROP_ENTRY`] words), which run nothing yet.
+    fn suites(&self, rec: u32) -> Vec<u32> {
+        let mut v = self.rec(rec);
+        v.retain(|w| w & hd_tir::ir::DROP_ENTRY == 0);
+        v
+    }
+
     fn scope(&mut self, i: u32, body: u32, rec: u32) -> StageResult<()> {
-        let suites = self.rec(rec);
+        let suites = self.suites(rec);
         self.result(i)?;
         let code = self.a.local(VT::I32);
         let flags: Vec<u32> = suites.iter().map(|_| self.a.local(VT::I32)).collect();

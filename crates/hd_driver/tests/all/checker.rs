@@ -137,6 +137,41 @@ fn std_bodies_match_golden_tir() {
     }
 }
 
+/// The golden TIR of a small owned body (ownership prototype slice 8):
+/// an owned parameter and an owned local each register a `DropLocal` in
+/// the `Scope` around their statements, and each lending is a `Lend`
+/// coercion. No move pass runs yet, so each drop mode is `Always`.
+/// `HD_UPDATE_GOLDEN=1` rewrites the file.
+#[test]
+fn owned_body_matches_golden_tir() {
+    let mut src = MemorySources::default();
+    src.insert(
+        "main.hd",
+        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn report(keep: own File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    archive(f)\n    n + keep.size()\n\npub fn main() -> void:\n    pass\n",
+    );
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &["app/main/report"],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "app", &Goal::Analyze);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    let got = out
+        .tir_text
+        .get("app/main/report")
+        .unwrap_or_else(|| panic!("no body; have {:?}", out.tir_text.keys()));
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tir/owned_body.tir");
+    if std::env::var_os("HD_UPDATE_GOLDEN").is_some() {
+        std::fs::write(&golden, got).expect("write golden");
+        return;
+    }
+    let want = std::fs::read_to_string(&golden).unwrap_or_default();
+    assert_eq!(got, &want, "TIR differs from {}", golden.display());
+}
+
 /// `use a.b as c` and `use a.{b as c}` (grammar.use) reach the checker:
 /// the renamed module, type and trait resolve in bodies.
 #[test]

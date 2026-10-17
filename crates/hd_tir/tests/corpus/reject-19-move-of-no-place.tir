@@ -1,0 +1,8 @@
+# expect: reject 19
+body 1 Fn
+labels
+caps
+modes
+extra 0
+moves 0
+%0 = Block 0 - : 0 @-
