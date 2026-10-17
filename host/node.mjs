@@ -370,6 +370,7 @@ function netProvider({ grant, netClient }) {
     "TcpStream.close": close,
     "TcpListener.accept": (h) => handleOp("accept")(h),
     "TcpListener.set_timeout": setBound,
+    "TcpListener.local_address": (h) => handleOp("local_address")(h, {}),
     "TcpListener.close": close,
     // std-net.send-to.grant: each datagram's own address.
     "UdpSocket.send_to": (h, host, port, bytes) => {
@@ -382,6 +383,7 @@ function netProvider({ grant, netClient }) {
     },
     "UdpSocket.receive": (h, max) => handleOp("receive")(h, { max }),
     "UdpSocket.set_timeout": setBound,
+    "UdpSocket.local_address": (h) => handleOp("local_address")(h, {}),
     "UdpSocket.close": close,
   };
 }

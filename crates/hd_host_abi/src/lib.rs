@@ -434,6 +434,13 @@ pub static HANDLES: &[HostTrait] = &[
                 None,
             ),
             m(
+                "TcpListener.local_address",
+                &[S(Scalar::I32)],
+                B("Result[(string, u16), ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+            m(
                 "TcpListener.close",
                 &[S(Scalar::I32)],
                 B("Result[void, ResourceError[NetError]]"),
@@ -464,6 +471,13 @@ pub static HANDLES: &[HostTrait] = &[
                 "UdpSocket.set_timeout",
                 &[S(Scalar::I32), B("Duration?")],
                 B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+            m(
+                "UdpSocket.local_address",
+                &[S(Scalar::I32)],
+                B("Result[(string, u16), ResourceError[NetError]]"),
                 Wait::Never,
                 None,
             ),

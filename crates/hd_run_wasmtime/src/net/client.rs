@@ -53,6 +53,7 @@ pub(crate) enum Value {
     Addresses(Vec<String>),
     Bytes(Vec<u8>),
     Datagram(Vec<u8>, SocketAddr),
+    Address(SocketAddr),
 }
 
 pub(crate) enum Outcome {
@@ -265,6 +266,18 @@ impl Client {
                     Err(error) => refused(error),
                 };
             }
+            ("TcpListener.local_address", Some(Entry::Listener(listener))) => {
+                return match listener.local_addr() {
+                    Ok(address) => ready(Outcome::Ok(Value::Address(address))),
+                    Err(error) => refused(socket::local_address_error(&error)),
+                };
+            }
+            ("UdpSocket.local_address", Some(Entry::Udp(socket))) => {
+                return match socket.socket.local_addr() {
+                    Ok(address) => ready(Outcome::Ok(Value::Address(address))),
+                    Err(error) => refused(socket::local_address_error(&error)),
+                };
+            }
             ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
                 let handle = scalar(0)?;
                 self.close(handle);
@@ -279,7 +292,9 @@ impl Client {
                 | "TcpStream.set_nodelay"
                 | "TcpStream.set_keepalive"
                 | "TcpListener.accept"
-                | "UdpSocket.receive",
+                | "TcpListener.local_address"
+                | "UdpSocket.receive"
+                | "UdpSocket.local_address",
                 Some(_),
             ) => return refused(wrong_kind()),
             _ => return Err(Stop::Contract(format!("unknown Net method {method}")).into()),
@@ -414,6 +429,7 @@ fn reply(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
         Outcome::Ok(Value::Handle(handle)) => ok(Handle(handle)),
         Outcome::Ok(Value::Addresses(addresses)) => ok(addresses),
         Outcome::Ok(Value::Bytes(bytes)) => ok(bytes),
+        Outcome::Ok(Value::Address(address)) => ok((address.ip().to_string(), address.port())),
         Outcome::Ok(Value::Datagram(bytes, peer)) => ok(Datagram {
             bytes,
             host: peer.ip().to_string(),
@@ -1051,6 +1067,56 @@ mod tests {
             .unwrap();
         assert_eq!(flag(&mut net, 1).done(), disposed());
         assert_eq!(keepalive(&mut net, &some_millis(1000)).done(), disposed());
+        net.client.stop();
+    }
+
+    /// `std-net.local-address`: a port-0 listener and UDP socket report the
+    /// port the system picked, a client connects to it, and a closed handle
+    /// is `Disposed`.
+    #[test]
+    fn local_address_reports_the_picked_port() {
+        let mut net = Net::new();
+        let grants = Grants::default();
+        let listener = net.opened("listen", 0);
+        let udp = net.opened("bind_udp", 0);
+        let report = |net: &mut Net, method: &str, handle: i64| {
+            let encoded = net.call(method, &[handle], &[], &grants).unwrap();
+            let mut d = Dec::new(encoded.done());
+            assert_eq!(d.leb().unwrap(), 0);
+            let host = <String as crate::codec::Wire>::dec(&mut d).unwrap();
+            (host, u16::try_from(d.leb().unwrap()).unwrap())
+        };
+        let (host, port) = report(&mut net, "TcpListener.local_address", listener);
+        assert_eq!(host, "127.0.0.1");
+        assert_ne!(port, 0);
+        let actual = match net.client.handles.get(&listener) {
+            Some(Entry::Listener(l)) => l.local_addr().unwrap().port(),
+            _ => panic!("a listener handle"),
+        };
+        assert_eq!(port, actual);
+        // The reported port accepts a connection.
+        net.opened("connect", port);
+        let (host, udp_port) = report(&mut net, "UdpSocket.local_address", udp);
+        assert_eq!(host, "127.0.0.1");
+        assert_ne!(udp_port, 0);
+        // A UDP socket is not a listener.
+        let wrong = net
+            .call("TcpListener.local_address", &[udp], &[], &grants)
+            .unwrap();
+        assert_eq!(
+            wrong.done(),
+            super::reply(super::Outcome::Error(super::wrong_kind()), true)
+                .unwrap()
+                .done()
+        );
+        for (method, handle) in [("TcpListener", listener), ("UdpSocket", udp)] {
+            net.call(&format!("{method}.close"), &[handle], &[], &grants)
+                .unwrap();
+            let closed = net
+                .call(&format!("{method}.local_address"), &[handle], &[], &grants)
+                .unwrap();
+            assert_eq!(closed.done(), disposed());
+        }
         net.client.stop();
     }
 

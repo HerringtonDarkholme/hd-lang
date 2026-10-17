@@ -204,6 +204,13 @@ pub(crate) fn set_keepalive(stream: &Stream, idle: Option<Duration>) -> Result<(
     set.map_err(|error| option_error(&error, "set_keepalive"))
 }
 
+/// `std-net.local-address`: the system could not report the bound address.
+pub(crate) fn local_address_error(error: &io::Error) -> NetError {
+    NetError::Other {
+        message: format!("local_address: {error}"),
+    }
+}
+
 /// An option the system refused, with its message (`std-net.option.failure`).
 fn option_error(error: &io::Error, option: &str) -> NetError {
     NetError::Other {

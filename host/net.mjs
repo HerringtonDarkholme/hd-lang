@@ -247,6 +247,16 @@ const ops = {
       return fail("Other", e.message);
     }
   },
+  // std-net.local-address: the bound IP address as text and the port, which
+  // is the one the system picked for port 0.
+  local_address: ({ h }) => {
+    try {
+      const { address, port } = (h.kind === "listener" ? h.server : h.socket).address();
+      return { ok: [address, port] };
+    } catch (e) {
+      return fail("Other", e.message);
+    }
+  },
   close: ({ h }) => {
     // std-net.close.release: a full close of both directions.
     if (h.kind === "stream") h.socket.destroy();

@@ -326,10 +326,12 @@ fn host(
         | Id::NetTcpStreamClose
         | Id::NetTcpListenerAccept
         | Id::NetTcpListenerSetTimeout
+        | Id::NetTcpListenerLocalAddress
         | Id::NetTcpListenerClose
         | Id::NetUdpSocketSendTo
         | Id::NetUdpSocketReceive
         | Id::NetUdpSocketSetTimeout
+        | Id::NetUdpSocketLocalAddress
         | Id::NetUdpSocketClose => {
             if finish {
                 let Done::Net(done) = finished(caller, params)? else {
@@ -337,7 +339,7 @@ fn host(
                 };
                 return Ok(Ret::encoded(caller.data_mut().net.finish(done)?));
             }
-            // `set_timeout`, the options and `close` never wait: the reply is the
+            // `set_timeout`, the options, `local_address` and `close` never wait: the reply is the
             // call's result.
             let at_once = method.wait == Wait::Never;
             let args = (0..params.len())

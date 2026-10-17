@@ -673,10 +673,12 @@ pub enum Id {
     NetTcpStreamClose,
     NetTcpListenerAccept,
     NetTcpListenerSetTimeout,
+    NetTcpListenerLocalAddress,
     NetTcpListenerClose,
     NetUdpSocketSendTo,
     NetUdpSocketReceive,
     NetUdpSocketSetTimeout,
+    NetUdpSocketLocalAddress,
     NetUdpSocketClose,
 }
 
@@ -1134,6 +1136,15 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
     },
     HostMethod {
+        id: Id::NetTcpListenerLocalAddress,
+        module: "hd:Net",
+        name: "TcpListener.local_address",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[(string, u16), ResourceError[NetError]]"),
+    },
+    HostMethod {
         id: Id::NetTcpListenerClose,
         module: "hd:Net",
         name: "TcpListener.close",
@@ -1173,6 +1184,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("Duration?")],
         result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+    },
+    HostMethod {
+        id: Id::NetUdpSocketLocalAddress,
+        module: "hd:Net",
+        name: "UdpSocket.local_address",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[(string, u16), ResourceError[NetError]]"),
     },
     HostMethod {
         id: Id::NetUdpSocketClose,

@@ -80,6 +80,7 @@ pub trait TcpStream:
 pub trait TcpListener:
     fn accept!(mut self) -> Result[mut dyn TcpStream, ResourceError[NetError]]
     fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
+    fn local_address(self) -> Result[(string, u16), ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 ## One UDP datagram with its sender.
@@ -103,6 +104,7 @@ pub trait UdpSocket:
     fn send_to!(mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
     fn receive!(mut self, max: usize) -> Result[Datagram, ResourceError[NetError]]
     fn set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]
+    fn local_address(self) -> Result[(string, u16), ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 # The deterministic providers (spec/std/net.md#scripted-net). Every
@@ -234,23 +236,29 @@ pub data ScriptedListener:
     next: usize
     error: NetError?
     bound: Duration?
+    address: (string, u16)?
     closed: bool
 
 impl ScriptedListener:
     ## Returns a listener that accepts the streams of `connections` in order.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(connections: List[mut ScriptedStream]) -> mut ScriptedListener:
-        ScriptedListener { connections: connections, next: 0, error: .None, bound: .None, closed: false }
+        ScriptedListener { connections: connections, next: 0, error: .None, bound: .None, address: .None, closed: false }
 
     ## Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
     ## A test scripts an `accept!` that times out with `NetError.Timeout`.
     pub fn failing(connections: List[mut ScriptedStream], error: NetError) -> mut ScriptedListener:
-        ScriptedListener { connections: connections, next: 0, error: .Some(error), bound: .None, closed: false }
+        ScriptedListener { connections: connections, next: 0, error: .Some(error), bound: .None, address: .None, closed: false }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
     pub fn timeout(self) -> Duration?:
         self.bound
+
+    ## Makes `local_address()` return `.Ok((host, port))`.
+    ## See [std-net.scripted.local-address](../../spec/std/net.md#r-std-net.scripted.local-address).
+    pub fn set_local_address(mut self, host: string, port: u16) -> void:
+        self.address = .Some((host, port))
 
     ## Whether the listener is closed.
     ## See [std-net.scripted.closed](../../spec/std/net.md#r-std-net.scripted.closed).
@@ -275,6 +283,13 @@ impl TcpListener for ScriptedListener:
         self.bound = timeout
         .Ok(())
 
+    fn local_address(self) -> Result[(string, u16), ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        match self.address:
+            .Some(address) => .Ok(address)
+            .None => .Err(.Operation(.Other("ScriptedListener has no local address")))
+
     fn close(mut self) -> Result[void, ResourceError[NetError]]:
         if self.closed:
             return .Err(.Disposed)
@@ -289,23 +304,29 @@ pub data ScriptedUdp:
     error: NetError?
     outgoing: mut List[Datagram]
     bound: Duration?
+    address: (string, u16)?
     closed: bool
 
 impl ScriptedUdp:
     ## Returns a socket that receives the datagrams of `incoming` in order.
     ## See [std-net.scripted.new](../../spec/std/net.md#r-std-net.scripted.new).
     pub fn new(incoming: List[Datagram]) -> mut ScriptedUdp:
-        ScriptedUdp { incoming: incoming, next: 0, error: .None, outgoing: [], bound: .None, closed: false }
+        ScriptedUdp { incoming: incoming, next: 0, error: .None, outgoing: [], bound: .None, address: .None, closed: false }
 
     ## Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
     ## A test scripts a `receive!` that times out with `NetError.Timeout`.
     pub fn failing(incoming: List[Datagram], error: NetError) -> mut ScriptedUdp:
-        ScriptedUdp { incoming: incoming, next: 0, error: .Some(error), outgoing: [], bound: .None, closed: false }
+        ScriptedUdp { incoming: incoming, next: 0, error: .Some(error), outgoing: [], bound: .None, address: .None, closed: false }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
     pub fn timeout(self) -> Duration?:
         self.bound
+
+    ## Makes `local_address()` return `.Ok((host, port))`.
+    ## See [std-net.scripted.local-address](../../spec/std/net.md#r-std-net.scripted.local-address).
+    pub fn set_local_address(mut self, host: string, port: u16) -> void:
+        self.address = .Some((host, port))
 
     ## Every datagram sent, with its destination, in order.
     ## See [std-net.scripted.udp](../../spec/std/net.md#r-std-net.scripted.udp).
@@ -340,6 +361,13 @@ impl UdpSocket for ScriptedUdp:
             return .Err(.Disposed)
         self.bound = timeout
         .Ok(())
+
+    fn local_address(self) -> Result[(string, u16), ResourceError[NetError]]:
+        if self.closed:
+            return .Err(.Disposed)
+        match self.address:
+            .Some(address) => .Ok(address)
+            .None => .Err(.Operation(.Other("ScriptedUdp has no local address")))
 
     fn close(mut self) -> Result[void, ResourceError[NetError]]:
         if self.closed:

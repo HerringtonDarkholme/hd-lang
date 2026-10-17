@@ -48,6 +48,8 @@ fn handle(p: &mut Program, method: &str, args: &[i32], payload: Option<&[u8]>, e
                 | "UdpSocket.set_timeout"
                 | "TcpStream.set_nodelay"
                 | "TcpStream.set_keepalive"
+                | "TcpListener.local_address"
+                | "UdpSocket.local_address"
         ),
         expected,
     );
@@ -913,4 +915,126 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
     assert_eq!(result.status, 7);
     assert_eq!(result.stdout, b"core-parity\n");
     assert_eq!(result.stderr, expected.as_bytes());
+}
+
+/// A `local_address` result: `.Ok((host, port))`.
+fn address(host: &str, port: u16) -> Vec<u8> {
+    Enc::default().leb(0).str(host).leb(u64::from(port)).0
+}
+
+/// `std-net.local-address`: a listener and a UDP socket report their bound
+/// address, the same bytes on both engines, and `Disposed` after close.
+#[test]
+fn local_address_reports_the_bound_address_and_a_closed_handle_is_disposed() {
+    let scratch = Scratch::new();
+    // The port is leased as in the accept test above, so both engines
+    // report the same bytes.
+    let tcp = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let udp = UdpSocket::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let mut p = Program::new();
+    open(&mut p, "listen", "127.0.0.1", tcp, vec![0, 1]);
+    handle(
+        &mut p,
+        "TcpListener.local_address",
+        &[1],
+        None,
+        address("127.0.0.1", tcp),
+    );
+    handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 2]);
+    handle(&mut p, "TcpStream.close", &[2], None, vec![0]);
+    handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
+    handle(&mut p, "TcpListener.local_address", &[1], None, vec![1, 1]);
+    open(&mut p, "bind_udp", "127.0.0.1", udp, vec![0, 3]);
+    handle(
+        &mut p,
+        "UdpSocket.local_address",
+        &[3],
+        None,
+        address("127.0.0.1", udp),
+    );
+    handle(&mut p, "UdpSocket.close", &[3], None, vec![0]);
+    handle(&mut p, "UdpSocket.local_address", &[3], None, vec![1, 1]);
+    let clients = Mutex::new(Vec::new());
+    assert_program(&scratch, p, vec![], || {
+        clients.lock().unwrap().push(std::thread::spawn(move || {
+            // The peer polls until the listener appears, and connects to the
+            // address the listener reports.
+            let to = SocketAddr::from(([127, 0, 0, 1], tcp));
+            let deadline = Instant::now() + Duration::from_secs(20);
+            loop {
+                assert!(Instant::now() < deadline, "the listener starts in time");
+                let Ok(mut peer) = TcpStream::connect_timeout(&to, Duration::from_millis(50))
+                else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                peer.set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let mut rest = Vec::new();
+                // The guest closes the accepted stream.
+                if peer.read_to_end(&mut rest).is_ok() && rest.is_empty() {
+                    break;
+                }
+            }
+        }));
+    });
+    for client in clients.into_inner().unwrap() {
+        client.join().unwrap();
+    }
+}
+
+/// `std-net.local-address`: with port 0 the system picks the port, so each
+/// engine reports its own. Both report loopback and a nonzero port.
+#[test]
+fn local_address_of_port_zero_reports_the_port_the_system_picked() {
+    let scratch = Scratch::new();
+    let mut p = Program::new();
+    open(&mut p, "listen", "127.0.0.1", 0, vec![0, 1]);
+    handle(&mut p, "TcpListener.local_address", &[1], None, vec![]);
+    handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
+    handle(&mut p, "TcpListener.local_address", &[1], None, vec![1, 1]);
+    open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 2]);
+    handle(&mut p, "UdpSocket.local_address", &[2], None, vec![]);
+    handle(&mut p, "UdpSocket.close", &[2], None, vec![0]);
+    handle(&mut p, "UdpSocket.local_address", &[2], None, vec![1, 1]);
+    // The reports are the lines at 1 and 5: a line holding `.Ok(("127.0.0.1",
+    // port))` with a nonzero port becomes `picked`.
+    let (wasm, _) = p.finish(7);
+    let picked = |stderr: &[u8]| {
+        String::from_utf8(stderr.to_vec())
+            .unwrap()
+            .lines()
+            .enumerate()
+            .map(|(i, line)| {
+                if i != 1 && i != 5 {
+                    return line.to_owned();
+                }
+                // `.Ok`, then the text "127.0.0.1" as its length and bytes.
+                let host = "00093132372e302e302e31";
+                let port = line.strip_prefix(host).expect("the loopback host");
+                assert_ne!(port, "00", "the system picked a port");
+                assert!(
+                    !port.is_empty() && port.len() <= 6,
+                    "a port is one to three bytes"
+                );
+                "picked".to_owned()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .into_bytes()
+    };
+    let result = parity_masked(&scratch, &wasm, vec![], || {}, picked);
+    assert_eq!(result.status, 7);
+    let lines = String::from_utf8(result.stderr).unwrap();
+    // Closed handles are Disposed on both engines.
+    assert_eq!(lines.lines().nth(3), Some("0101"));
+    assert_eq!(lines.lines().nth(7), Some("0101"));
 }

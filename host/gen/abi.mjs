@@ -330,6 +330,12 @@ export const METHODS = {
       params: ["i32", option(Duration)],
       result: result(unit, ResourceError(NetError)),
     },
+    "TcpListener.local_address": {
+      wait: "never",
+      resource: null,
+      params: ["i32"],
+      result: result(tuple(str, unsigned), ResourceError(NetError)),
+    },
     "TcpListener.close": {
       wait: "never",
       resource: null,
@@ -353,6 +359,12 @@ export const METHODS = {
       resource: null,
       params: ["i32", option(Duration)],
       result: result(unit, ResourceError(NetError)),
+    },
+    "UdpSocket.local_address": {
+      wait: "never",
+      resource: null,
+      params: ["i32"],
+      result: result(tuple(str, unsigned), ResourceError(NetError)),
     },
     "UdpSocket.close": {
       wait: "never",

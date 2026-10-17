@@ -82,12 +82,14 @@
     { "key": "Net", "std": "std.net.TcpListener", "methods": [
       { "name": "TcpListener.accept", "wait": "may", "resource": null, "params": ["i32"], "result": "Result[TcpStream, ResourceError[NetError]]" },
       { "name": "TcpListener.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "TcpListener.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), ResourceError[NetError]]" },
       { "name": "TcpListener.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]},
     { "key": "Net", "std": "std.net.UdpSocket", "methods": [
       { "name": "UdpSocket.send_to", "wait": "may", "resource": "addr", "params": ["i32", "string", "i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
       { "name": "UdpSocket.receive", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[Datagram, ResourceError[NetError]]" },
       { "name": "UdpSocket.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
+      { "name": "UdpSocket.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), ResourceError[NetError]]" },
       { "name": "UdpSocket.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
     ]}
   ],

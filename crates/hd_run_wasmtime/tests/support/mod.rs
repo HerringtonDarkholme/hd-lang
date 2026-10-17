@@ -544,6 +544,18 @@ pub fn parity(
     limits: Vec<(&str, Limit)>,
     reset: impl Fn(),
 ) -> Captured {
+    parity_masked(scratch, wasm, limits, reset, <[u8]>::to_vec)
+}
+
+/// `parity`, comparing `mask` of each engine's stderr: for a result that
+/// holds a value only the engine knows, such as a port the system picked.
+pub fn parity_masked(
+    scratch: &Scratch,
+    wasm: &[u8],
+    limits: Vec<(&str, Limit)>,
+    reset: impl Fn(),
+    mask: impl Fn(&[u8]) -> Vec<u8>,
+) -> Captured {
     let limits = limits
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v))
@@ -648,7 +660,7 @@ pub fn parity(
         String::from_utf8_lossy(&node_stderr)
     );
     assert_eq!(rust.stdout, node_stdout, "stdout differs");
-    assert_eq!(rust.stderr, node_stderr, "stderr differs");
+    assert_eq!(mask(&rust.stderr), mask(&node_stderr), "stderr differs");
     rust
 }
 
