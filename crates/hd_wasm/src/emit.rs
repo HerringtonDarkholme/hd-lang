@@ -541,6 +541,132 @@ impl Em<'_> {
         Ok(())
     }
 
+    /// `If` `i`, and the `If`s nested in each `else` block after it, as an
+    /// `else if` chain lowers (`flow.if.else-if`): a loop, not a recursion,
+    /// so a long chain takes no stack per branch. Each step does what
+    /// `inst` and `block_into` would for the `else` block's last `If`.
+    fn if_chain(&mut self, first: u32) -> StageResult<()> {
+        // An `else` block that continues into an `If`: the `If` it holds,
+        // its items after that `If`, and the `inst` state to restore.
+        struct Open {
+            i: u32,
+            els: u32,
+            rest: Vec<u32>,
+            at: Option<u32>,
+            here: Option<(u32, usize)>,
+        }
+        let mut open: Vec<Open> = Vec::new();
+        let mut i = first;
+        let mut done = loop {
+            let next = match self.if_head(i) {
+                Ok(Some(els)) => self.else_chain(i, els).map(|n| n.map(|n| (els, n))),
+                Ok(None) => {
+                    self.ctrl.pop();
+                    self.a.end();
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            };
+            let (els, (inner, rest)) = match next {
+                Ok(Some(n)) => n,
+                Ok(None) => break Ok(()),
+                Err(e) => break Err(e),
+            };
+            let at = self.a.at;
+            if self
+                .b
+                .syn
+                .get(inner as usize)
+                .is_some_and(|n| *n != NodeIdx::NONE)
+            {
+                self.a.at = Some(inner);
+            }
+            let here = self.here.replace((inner, self.a.depth()));
+            open.push(Open {
+                i,
+                els,
+                rest,
+                at,
+                here,
+            });
+            i = inner;
+        };
+        while let Some(o) = open.pop() {
+            self.a.at = o.at;
+            self.here = o.here;
+            if done.is_ok() {
+                done = self.else_tail(o.i, o.els, &o.rest);
+            }
+        }
+        done
+    }
+
+    /// The start of `If` `i` through its `then` block, and `else` if it
+    /// has one: the `else` block, still to emit.
+    fn if_head(&mut self, i: u32) -> StageResult<Option<u32>> {
+        let [a, bw] = self.b.data[i as usize];
+        let r = self.rec(bw);
+        self.result(i)?;
+        self.comp(a, 0, &VT::I32)?;
+        self.resume_branch(i, r[0]);
+        self.a.if_();
+        self.open(Ctl::Plain);
+        self.block_into(r[0], Some(i))?;
+        let Some(&els) = r.get(1).filter(|e| **e != NONE) else {
+            return Ok(None);
+        };
+        self.a.else_();
+        Ok(Some(els))
+    }
+
+    /// Emits the items of `If` `i`'s `else` block `els` up to its last
+    /// `If`, which is returned with the items after it for the chain to
+    /// continue with. A block with no `If`, or one a resume enters, is
+    /// emitted whole, closing `i`.
+    fn else_chain(&mut self, i: u32, els: u32) -> StageResult<Option<(u32, Vec<u32>)>> {
+        if self.b.tags[els as usize] != Tag::Block {
+            return unsupported("a block operand that is not a block");
+        }
+        let items: Vec<u32> = self
+            .rec(self.b.data[els as usize][0])
+            .into_iter()
+            .filter(|x| self.b.tags[*x as usize] != Tag::Block)
+            .collect();
+        let last_if = items
+            .iter()
+            .rposition(|x| self.b.tags[*x as usize] == Tag::If)
+            .filter(|_| self.range(els).is_none());
+        let Some(p) = last_if else {
+            self.block_into(els, Some(i))?;
+            self.ctrl.pop();
+            self.a.end();
+            return Ok(None);
+        };
+        for &x in &items[..p] {
+            self.inst(x)?;
+        }
+        Ok(Some((items[p], items[p + 1..].to_vec())))
+    }
+
+    /// Finishes `If` `i` after the `If` its `else` block `els` continued
+    /// into: the block's remaining items, its tail, and the `end`.
+    fn else_tail(&mut self, i: u32, els: u32, rest: &[u32]) -> StageResult<()> {
+        for &x in rest {
+            self.inst(x)?;
+        }
+        let tail = self.b.data[els as usize][1];
+        if tail != NONE {
+            let want = self.vts(self.sub(self.b.ty[i as usize]))?;
+            if !want.is_empty() {
+                self.load_as(tail, &want)?;
+                self.store(i)?;
+            }
+        }
+        self.ctrl.pop();
+        self.a.end();
+        Ok(())
+    }
+
     fn panic(&mut self, msg: &str) {
         self.a.call(Sym::Helper(Helper::Panic(msg.to_owned())));
         self.a.s().unreachable();
@@ -889,21 +1015,7 @@ impl Em<'_> {
                 self.push_providers(&[key_t])?;
                 self.store(i)?;
             }
-            Tag::If => {
-                let r = self.rec(bw);
-                self.result(i)?;
-                self.comp(a, 0, &VT::I32)?;
-                self.resume_branch(i, r[0]);
-                self.a.if_();
-                self.open(Ctl::Plain);
-                self.block_into(r[0], Some(i))?;
-                if r.get(1).is_some_and(|e| *e != NONE) {
-                    self.a.else_();
-                    self.block_into(r[1], Some(i))?;
-                }
-                self.ctrl.pop();
-                self.a.end();
-            }
+            Tag::If => self.if_chain(i)?,
             Tag::Loop => {
                 self.result(i)?;
                 self.a.block();

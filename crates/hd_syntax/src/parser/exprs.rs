@@ -254,26 +254,34 @@ impl Parser<'_> {
         false
     }
 
+    /// `flow.if.else-if`: the chain is one `IfExpr` whose branches are
+    /// siblings, so a branch adds no nesting level
+    /// (`grammar.limit.nesting`) and the parser loops rather than recurses.
     fn if_expr(&mut self, ctx: Ctx) -> Done {
         let marker = self.start();
         self.bump(); // if
         self.expr(ctx.header());
         if self.expect(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
-            if self.at_else() {
+            while self.at_else() {
                 let clause = self.start();
                 self.bump(); // else
-                if self.at(TokenKind::KwIf) {
-                    if self.enter() {
-                        self.if_expr(ctx);
-                        self.leave();
-                    } else {
-                        self.skip_balanced();
+                if !self.eat(TokenKind::KwIf) {
+                    if self.expect(TokenKind::Colon, "':'") {
+                        self.suite(false, Ctx::Inline);
                     }
-                } else if self.expect(TokenKind::Colon, "':'") {
+                    self.complete(clause, SyntaxKind::ElseClause);
+                    break;
+                }
+                self.expr(ctx.header());
+                let closed = self.expect(TokenKind::Colon, "':'");
+                if closed {
                     self.suite(false, Ctx::Inline);
                 }
-                self.complete(clause, SyntaxKind::ElseClause);
+                self.complete(clause, SyntaxKind::ElseIfClause);
+                if !closed {
+                    break;
+                }
             }
         }
         self.complete(marker, SyntaxKind::IfExpr)

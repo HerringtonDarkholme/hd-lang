@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use crate::{SyntaxKind, parse};
 
 #[test]
@@ -215,4 +217,49 @@ fn column_zero_continuation_inside_brackets_still_parses() {
         );
         assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
     }
+}
+
+#[test]
+fn an_else_if_chain_is_one_flat_node() {
+    // grammar.limit.nesting, flow.if.else-if: each branch is a sibling, so
+    // a chain far longer than the nesting limit parses, at any length.
+    let mut source = String::from("fn pick(x: i32) -> i32:\n    if x == +0: +0\n");
+    for n in 1..10_000 {
+        writeln!(source, "    else if x == +{n}: +{n}").unwrap();
+    }
+    source.push_str("    else: -1\n");
+    let parsed = parse(source.as_bytes());
+    assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
+    let chain = parsed
+        .tree
+        .root()
+        .descendants()
+        .find(|node| node.kind() == SyntaxKind::IfExpr)
+        .expect("if");
+    let kinds: Vec<SyntaxKind> = chain.children().map(crate::NodeRef::kind).collect();
+    assert_eq!(kinds.len(), 2 + 9_999 + 1);
+    assert_eq!(kinds[2], SyntaxKind::ElseIfClause);
+    assert_eq!(kinds.last(), Some(&SyntaxKind::ElseClause));
+    let ifs = parsed.tree.root().descendants();
+    assert_eq!(ifs.filter(|n| n.kind() == SyntaxKind::IfExpr).count(), 1);
+    assert_eq!(parsed.tree.reconstruct(&parsed.tokens, &source), source);
+}
+
+#[test]
+fn an_if_nested_in_each_else_suite_still_nests_too_deep() {
+    // An `if` inside an indented `else` suite is a real nesting: each one
+    // opens a suite, so 200 of them pass the limit.
+    let mut source = String::from("fn pick(x: i32) -> i32:\n");
+    for n in 0..200 {
+        let pad = "    ".repeat(n + 1);
+        write!(source, "{pad}if x == +{n}:\n{pad}    +{n}\n{pad}else:\n").unwrap();
+    }
+    writeln!(source, "{}-1", "    ".repeat(201)).unwrap();
+    let parsed = parse(source.as_bytes());
+    assert!(
+        parsed
+            .diagnostic_codes()
+            .iter()
+            .any(|code| code.as_str() == "nesting-too-deep")
+    );
 }
