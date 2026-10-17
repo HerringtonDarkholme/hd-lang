@@ -1020,7 +1020,7 @@ lines to write shared metadata, as
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
 6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[dyn Any]`.
-7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
+7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Only a list literal's own elements are checked; a named list that `+=` brings is not. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block, with or without a trait, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
 

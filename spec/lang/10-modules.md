@@ -86,7 +86,6 @@ it:
 4. r[module.repo.subdirectory] Segments after the repository part name the directory that holds the package. One repository may hold several packages this way.
 5. r[module.repo.credentials] A private repository is fetched with git's own credentials, such as its credential helpers and SSH keys.
 6. r[module.repo.no-stored-credentials] The toolchain stores no credentials.
-7. r[module.repo.private-pattern] A private-path pattern marks host paths as private. The toolchain never sends a private path to a checksum log or proxy.
 
 ```toml
 [dependencies]

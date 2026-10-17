@@ -1,0 +1,11 @@
+# test: a type parameter that only a never value meets is inferred as never
+# Spec 04 Type System: types.lct.never.infer.
+
+fn id[T](x: T) -> T:
+    x
+
+fn stop() -> never:
+    id(panic("x"))
+
+fn number() -> i32:
+    id(panic("x"))

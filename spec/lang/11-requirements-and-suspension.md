@@ -312,7 +312,7 @@ fn serve_one(admin: bool) -> string $ Db + Clock:
 7. r[req.row.union.literal.direct] Only function elements take the union. An element that holds function values, such as a list, keeps its own type, so `[[health], [orders]]` has no common type. Error: `no-common-type`.
 8. r[req.row.union.literal.expected] With an expected type, each element is checked against the expected element type ([`expr.collection.expected`](05-expressions.md#r-expr.collection.expected)), and a key outside the expected row is `type-mismatch` ([`req.row.subsume.missing`](#r-req.row.subsume.missing)).
 9. r[req.row.union.literal.invariant] The inferred collection keeps the union row, and it converts to no list or map with a wider row, as the Note above states.
-10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row as the elements' rows are written, in element order, with each key or alias once.
+10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row with each key once, in a stable order.
 11. r[req.row.union.literal.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on that row also lists its expanded keys and names the missing key, as [`req.row.alias.diagnostics.expanded`](#r-req.row.alias.diagnostics.expanded) states.
 12. r[req.row.union.sites] The other least-common-type sites take the union the same way. They are the branches of a value-producing `if` and the arms of a value-producing `match`. They also include the final value and `return` operands of a closure or non-public function whose result type is inferred.
 13. r[req.row.union.sites.type] At each such site, the inferred type is the least common type of the values' types. Before that, each function type's row is widened to the union of their rows. Each value then fits that type by row subsumption.
@@ -557,7 +557,7 @@ type Back = $ Front + Cache
 #### Aliases In Diagnostics
 
 1. r[req.row.alias.diagnostics] A diagnostic prints a row as it is written, with alias names kept.
-2. r[req.row.alias.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on a row that uses an alias also lists the row's expanded keys and names the missing key.
+2. r[req.row.alias.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on a row that uses an alias also lists the row's expanded keys and names the missing key. The expansion may be part of the message text.
 
 For example, a missing `Metrics` under `$ WebRow + Auth` might read:
 

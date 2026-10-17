@@ -62,6 +62,7 @@ trait Named:
 2. r[trait.default.visible] Through `self` and `Self`, the body sees only the members of the trait and of its transitive supertraits.
 3. r[trait.default.no-self-members] The fields and inherent methods of an implementing type are not accessible there, even when every implementing type declares them. Naming one there is an error. Error: `unknown-method`.
 4. r[trait.default.no-self-members.error] A call there of a method that neither the trait nor a supertrait declares is an error. Error: `unknown-method`.
+5. r[trait.default.not-per-impl] A default body is not checked again for an implementation, so a bound that an implementation's method adds does not make a call in the default fail, as in [`annot.walk.rest.default`](14-annotations.md#r-annot.walk.rest.default).
 
 ```text
 trait Greeter:

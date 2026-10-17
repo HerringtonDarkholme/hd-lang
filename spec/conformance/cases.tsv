@@ -2009,6 +2009,7 @@ typing/valid/requirement-key-any-trait.hd	type	accept	lang/11-requirements-and-s
 typing/invalid/derive-beside-written-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.derive.beside-written
 runtime/valid/mut-trait-value-from-mut.hd	runtime	accept	lang/04-type-system.md#r-types.assign.trait-value.mut
 typing/valid/lct-drops-never.hd	type	accept	lang/04-type-system.md#r-types.lct.never.dropped
+typing/valid/infer-never-from-never-argument.hd	type	accept	lang/04-type-system.md#r-types.lct.never.infer
 typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.never
 typing/valid/mutable-access-bound.hd	type	accept	lang/04-type-system.md#r-types.path.access.mut-bound
 typing/invalid/readonly-edge-mut-self-call.hd	type	reject:mutable-receiver-required	lang/04-type-system.md#r-types.path.mutation.receiver
