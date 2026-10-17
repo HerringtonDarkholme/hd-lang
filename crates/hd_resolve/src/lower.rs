@@ -3283,13 +3283,20 @@ impl Lower<'_, '_, '_> {
                 }
                 let found = self.resolve_path(&segs, self.src.span(tn));
                 // `Suspend[T]` is the compiler's suspension type, not a
-                // declared trait, but it is a sealed trait all the same.
+                // trait (`req.protocol.builtin`).
                 if let Some((def, kind)) = found
                     && kind != HeadKind::Trait
                     && self.names.known.is_sealed(def)
                     && !self.in_std()
                 {
-                    self.sealed_impl_rejected(n, def);
+                    if self.r.frozen.is_none() {
+                        let msg = format!(
+                            "no trait named `{}`: it is a built-in type, not a trait",
+                            self.names.display_name(def)
+                        );
+                        self.diags
+                            .error(Code::UnknownTrait, self.src.span(tn), &msg);
+                    }
                     return;
                 }
                 match self.trait_value_from(tn, &gn, Some(self_ty), found) {

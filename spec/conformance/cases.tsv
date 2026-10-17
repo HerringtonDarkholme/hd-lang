@@ -180,7 +180,7 @@ typing/valid/mutable-suspension.hd	type	accept	lang/11-requirements-and-suspensi
 runtime/valid/runtimes-bind-different-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.model.runtimes
 typing/valid/stored-suspension-driving.hd	type	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/readonly-suspension-cancel.hd	type	reject:mutable-receiver-required	lang/11-requirements-and-suspension.md#suspending-functions
-typing/invalid/user-suspend-implementation.hd	type	reject:sealed-trait-implementation	lang/11-requirements-and-suspension.md#r-req.protocol.builtin
+typing/invalid/user-suspend-implementation.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.protocol.builtin
 runtime/panic/invalidated-iterator.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 typing/invalid/mixed-signedness.hd	type	reject:mixed-signedness	lang/04-type-system.md#numeric-conversions
 typing/invalid/unsigned-negation.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators

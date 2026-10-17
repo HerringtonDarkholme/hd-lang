@@ -85,11 +85,6 @@ fn each_trait_of_the_table_rejects_a_user_impl() {
             "use std.function.Tuple\n",
             "impl Tuple for Handle\n",
         ),
-        (
-            "Suspend",
-            "",
-            "impl Suspend[i32] for Handle:\n    fn poll(mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(mut self) -> void: pass\n",
-        ),
     ];
     for (name, uses, imp) in cases {
         let main = format!("{uses}\ndata Handle: pass\n\n{imp}");
@@ -296,4 +291,14 @@ fn a_bound_naming_no_trait_adds_no_second_error() {
     let main = "fn name[T < Reference](value: T) -> string: value.describe()\n";
     let out = analyze(main);
     assert_eq!(codes(main), vec![Code::UnknownTrait], "{}", out.render());
+}
+
+/// `Suspend[T]` is a built-in type, so an `impl` of it names no trait
+/// (`req.protocol.builtin`).
+#[test]
+fn an_impl_of_suspend_is_an_unknown_trait() {
+    let main = "data Handle: pass\n\nimpl Suspend[i32] for Handle:\n    fn poll(mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(mut self) -> void: pass\n";
+    let out = analyze(main);
+    assert_eq!(codes(main), vec![Code::UnknownTrait], "{}", out.render());
+    assert!(out.render().contains("built-in type"), "{}", out.render());
 }

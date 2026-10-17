@@ -1220,7 +1220,7 @@ impl[T] Suspend[T]:
     fn cancel(mut self) -> void
 ```
 
-1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error. Error: `sealed-trait-implementation`.
+1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error, because `Suspend` names a built-in type and no trait. Error: `unknown-trait`.
 2. r[req.protocol.no-other] There is no separate `Pollable` or public `Continuation[T]` abstraction.
 
 > **Why.** A built-in type makes the one-shot runtime checks part of the
