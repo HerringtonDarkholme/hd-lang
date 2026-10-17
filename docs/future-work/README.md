@@ -46,6 +46,8 @@ action at a distance.
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
   owner did not make explicitly, kept for the stdlib audit.
+- [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): proposed std
+  primitives for byte scans, and what blocks SIMD on GC strings (#428).
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
