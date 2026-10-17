@@ -1,0 +1,5 @@
+# test: a bare ^ in a result with no borrowed parameter is ambiguous-lifetime
+data File:
+    fd: i32
+
+fn make(fd: i32) -> ^File: panic("stub")  # diagnostic: ambiguous-lifetime

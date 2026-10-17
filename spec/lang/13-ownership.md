@@ -10,6 +10,11 @@ owned, or borrowed.
 > that test it. Until a section specifies how a mode is checked, an
 > implementation diagnoses a program that uses it, as
 > [Specification Status](../README.md#specification-status) requires.
+>
+> So far the chapter checks marks in declarations. Bodies are not specified
+> yet: a body that writes a mark is diagnosed, and so is one that holds a
+> value whose type has a mode or is a type parameter with an `own` bound. A
+> lifetime named by a requirement key is diagnosed too.
 
 ## Modes
 
@@ -116,7 +121,8 @@ A **lifetime** names how long a borrow lasts. A lifetime set lists the
 lifetimes a borrow or a lifetime argument is bounded by.
 
 1. r[own.lifetime.set] A lifetime set is `{`, one or more lifetimes separated by commas, and `}`. An empty set `{}` is an error. Error: `syntax-error`.
-2. r[own.lifetime.name] A lifetime is written as a variable such as a parameter, `self`, a path such as `items.T`, a requirement key such as `$Store`, or `static`.
+2. r[own.lifetime.named-by] A lifetime is written as a variable, that is a parameter or `self`, as a declared lifetime parameter, as a requirement key such as `$Store`, or as `static`.
+3. r[own.lifetime.field-path] A variable may be followed by a path of field names, as in `^{u.name}` or `^{u.addr.city}`. The path names part of the variable's value, not a type parameter.
 
 ### Owned Bindings And Receivers
 
@@ -168,10 +174,10 @@ impl[^doc] Parser[^{doc}]:
     fn line(^self) -> usize: self.at
 ```
 
-1. r[own.lifetime-param.declare] A data type, an enum, a trait, a `type` declaration, or an implementation declares a lifetime parameter as `^` and a name, as in `data Parser[^doc]`.
+1. r[own.lifetime-param.declared-by] A data type, an enum, a trait, a `type` declaration, an implementation, or a function declares a lifetime parameter as `^` and a name, as in `data Parser[^doc]` and `fn first[^c](...)`.
 2. r[own.lifetime-param.last] Lifetime parameters follow every type parameter. A type parameter after a lifetime parameter is an error. Error: `syntax-error`.
 3. r[own.lifetime-param.plain] A lifetime parameter takes no variance marker, bound, or default. Error: `syntax-error`.
-4. r[own.lifetime-param.function] A function's generic parameters include no lifetime parameter, since a function names lifetimes by its parameters. Error: `syntax-error`.
+4. r[own.lifetime-param.inner] A function declares a lifetime parameter to name a lifetime that no variable names, such as a borrow inside a parameter's type argument, as in `fn first[^c](x: ^List[^{c} Conn]) -> ^{c} Conn`.
 5. r[own.lifetime-arg.write] A use writes a lifetime argument as `^` and a lifetime set, or as a bare `^` that elides it, as in `Parser[^{text}]` and `Parser[^]`.
 6. r[own.lifetime-arg.last] Lifetime arguments follow every positional type argument and come before the bindings. Error: `syntax-error`.
 7. r[own.lifetime-arg.vs-borrow] In a type-argument list, `^` or `^` and a lifetime set is a lifetime argument when `,` or `]` follows it. When a type follows, it is a borrowed type argument, as in `Suspend[^{keep} Conn]`.
@@ -184,7 +190,7 @@ data Conn:
 data Pair[^a, A]:                     # error: syntax-error
     left: ^{a} A
 
-fn pick[^a](c: ^Conn) -> ^{a} Conn: c  # error: syntax-error
+fn pick[^a, T](c: ^Conn) -> ^{a} Conn: c  # error: syntax-error
 ```
 
 ### Owned Bounds
@@ -202,3 +208,85 @@ fn label[T < own Named & Any](x: ^T) -> string: x.name()
 
 1. r[own.bound.own] `own` comes first in a bound list, where `mut` may stand, as in `T < own Any`.
 2. r[own.bound.one-mark] A bound list takes `own` or `mut`, not both. Error: `syntax-error`.
+
+## Modes In Declarations
+
+A declaration's header says how each position holds its value: the
+parameters, the result, and the receiver of a function, and the fields of a
+data type or an enum.
+
+```text
+data File:
+    fd: i32
+
+data Document:
+    lines: List[string]
+
+data Parser[^doc]:
+    source: ^{doc} Document
+    at: usize
+
+trait Socket:
+    fn send(^mut self, bytes: List[u8]) -> void
+    fn peer(^self) -> ^string
+
+fn archive(f: own File) -> void: pass
+
+fn size(f: ^File) -> usize: 0
+
+fn parser(d: ^Document) -> Parser[^]: panic("stub")
+
+fn busier(a: ^File, b: ^File) -> ^{a, b} File: panic("stub")
+
+fn first[^c](xs: ^List[^{c} File]) -> ^{c} File: panic("stub")
+```
+
+### Owned Positions
+
+1. r[own.header.own-on-value] `own` on a primitive type, `string` included, is an error, since a primitive value is immutable and has no owner. Error: `own-on-value`.
+2. r[own.header.own-on-type-parameter] `own T` on a type parameter `T` is an error; a generic that takes owned values bounds its parameter, as in `T < own Any`. `own Self` is allowed. Error: `own-on-type-parameter`.
+3. r[own.header.fn-constructor] A mark inside the arguments of `Fn` or `SuspendFn` is an error; the `fn(...)` form takes marks. Error: `misplaced-lifetime`.
+
+```text
+use std.function.Fn
+
+data File:
+    fd: i32
+
+fn count(n: own i32) -> void: pass             # error: own-on-value
+fn keep[T](x: own T) -> void: pass             # error: own-on-type-parameter
+fn call(f: Fn[(^File,), void]) -> void: pass   # error: misplaced-lifetime
+```
+
+### Lifetimes In Declarations
+
+1. r[own.header.lifetime-scope] In a function's header, a lifetime name is first looked up among the function's parameters, `self` included, then among the lifetime parameters in scope, then as `static`. A field's type names only its declaration's lifetime parameters and `static`. A name found nowhere is an error. Error: `unknown-name`.
+2. r[own.header.field-path] Each field of a lifetime's field path must be a field of the type before it, with any mode removed, and must be `pub`, so a signature never names a private field. Error: `unknown-field` for a missing field, `private-member` for a field that is not `pub`.
+3. r[own.header.field-bare] A borrow in a field's type names its lifetime, as in `^{doc} Document`. A bare `^` there is an error. Error: `missing-lifetime`.
+4. r[own.header.parameter-bare] A bare `^` in a parameter's type, at any depth, is a lifetime of its own that nothing else can name.
+5. r[own.header.lifetime-arguments] A use of a declaration that has lifetime parameters writes one lifetime argument for each, at least `[^]`. Leaving them out is an error, fixed by writing `[^]`. Error: `missing-lifetime`. More lifetime arguments than lifetime parameters is an error. Error: `argument-count`.
+6. r[own.header.elision] A bare `^` in a function's result, at any depth, takes the lifetime of a `^self` or `^mut self` receiver. Without one, it takes the lifetime of the one parameter whose type holds a borrow or a lifetime argument.
+7. r[own.header.elision-ambiguous] A bare `^` in a result with no such receiver, and with no such parameter or several, is an error; the result names its sources instead, as in `^{a, b}`. Error: `ambiguous-lifetime`.
+
+```text
+data File:
+    fd: i32
+
+data User:
+    pub name: string
+    age: i32
+
+data Parser[^doc]:
+    source: ^File                                 # error: missing-lifetime
+    at: usize
+
+fn read(p: Parser) -> void: pass                  # error: missing-lifetime
+fn busier(a: ^File, b: ^File) -> ^File: panic("stub")   # error: ambiguous-lifetime
+fn age_of(u: ^User) -> ^{u.age} i32: panic("stub")      # error: private-member
+fn named(u: ^User) -> ^{w} string: panic("stub")        # error: unknown-name
+```
+
+> **Why.** A lifetime named by a variable reads as "lives as long as this
+> argument", which is what a caller checks. A field path borrows only part of
+> an argument, and keeping it to `pub` fields means a signature never shows
+> a private field to another module.

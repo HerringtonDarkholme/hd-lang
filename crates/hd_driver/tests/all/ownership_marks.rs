@@ -1,7 +1,7 @@
-//! Ownership marks parse in every program (13-ownership.md, Mark Syntax),
-//! but the checker does not check them yet (ownership prototype slice 2,
-//! issue #163): every program that writes a mark gets `unsupported`, in
-//! headers and bodies alike, and a program without marks stays clean.
+//! Ownership marks parse in every program (13-ownership.md, Mark Syntax).
+//! Headers check them (Modes In Declarations); a body that holds a moded
+//! value is `unsupported` until a later section checks bodies (issue #163),
+//! and a program without marks stays clean.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -41,38 +41,49 @@ pub fn main() -> void:
 ";
 
 #[test]
-fn every_mark_form_is_unsupported() {
+fn header_marks_check() {
     let forms = [
         "fn archive(f: own File) -> void: pass\n",
         "fn size(f: ^File) -> i32: 0\n",
         "fn fill(f: ^mut File) -> void: pass\n",
-        "fn view(a: File) -> ^{a} File: a\n",
+        "fn view(a: ^File) -> ^{a} File: panic(\"stub\")\n",
         "fn job(run: own fn() -> void) -> void: pass\n",
-        "data Holder:\n    file: own File\n",
         "data Parser[^doc]:\n    at: i32\n",
         "data Parser[^doc]:\n    at: i32\n\nfn parse(p: Parser[^]) -> void: pass\n",
-        "fn keep[T < own Any](x: T) -> T: x\n",
-        "trait Keeper < own Named:\n    fn keep(self) -> void\n",
+        "fn keep[T < own Any](x: i32) -> i32: x\n",
+        "fn first[^c](x: ^List[^{c} File]) -> ^{c} File: panic(\"stub\")\n",
         "impl File:\n    fn close(own self) -> void: pass\n",
         "impl File:\n    fn peek(^self) -> i32: 0\n",
         "impl File:\n    fn reset(^mut self) -> void: pass\n",
+    ];
+    for form in forms {
+        let program = format!("{PRELUDE}\n{form}");
+        let got = codes(&program);
+        assert_eq!(got, Vec::<Code>::new(), "for:\n{form}");
+    }
+}
+
+/// Bodies check marks from a later section on (the note of 13-ownership.md): a
+/// body mark, a read of a moded value, or a value of an `own`-bounded type
+/// parameter is `unsupported`, with nothing else.
+#[test]
+fn body_marks_are_unsupported() {
+    let forms = [
+        "fn size(f: ^File) -> i32: f.fd\n",
+        "fn open() -> own File: File { fd: 1 }\n",
+        "fn size(f: ^File) -> i32: 0\n\nfn call(f: File) -> i32: size(f)\n",
+        "fn keep[T < own Any](x: T) -> T: x\n",
         "fn make() -> void:\n    let own f = File { fd: 1 }\n",
         "fn make() -> void:\n    let f: own File = File { fd: 1 }\n",
         "fn make(f: File) -> void:\n    let v: ^File = f\n",
         "fn make() -> void:\n    fn inner[T < own Any](x: T) -> T: x\n    pass\n",
         "let own TOP = File { fd: 1 }\n",
+        "trait Keeper < own Named:\n    fn keep(self) -> void\n",
     ];
     for form in forms {
         let program = format!("{PRELUDE}\n{form}");
         let got = codes(&program);
-        assert!(
-            got.contains(&Code::Unsupported),
-            "no `unsupported` for:\n{form}got {got:?}"
-        );
-        assert!(
-            got.iter().all(|c| *c == Code::Unsupported),
-            "unexpected codes for:\n{form}got {got:?}"
-        );
+        assert_eq!(got, vec![Code::Unsupported], "for:\n{form}");
     }
 }
 

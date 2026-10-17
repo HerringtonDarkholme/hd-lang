@@ -335,6 +335,10 @@ fn layout_in(
         }
         // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
         TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
+        // Bodies that hold a mode are not checked yet (13-ownership.md).
+        TyData::Own(_) | TyData::Borrow { .. } | TyData::Lifetime(_) | TyData::Lifetimes(_) => {
+            return Err(NotImplemented::new(Stage::Emit, "an ownership mode"));
+        }
         TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
@@ -621,7 +625,11 @@ pub fn canon(
         }
         // Inference variables and canonical placeholders never reach an
         // instance key; encode the form only, never a run-local number.
-        TyData::Infer(_) => h.u8(12),
+        TyData::Infer(_)
+        | TyData::Own(_)
+        | TyData::Borrow { .. }
+        | TyData::Lifetime(_)
+        | TyData::Lifetimes(_) => h.u8(12),
         TyData::Canon(n) => {
             h.u8(13);
             h.u8(n);

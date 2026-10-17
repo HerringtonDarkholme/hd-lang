@@ -3,7 +3,7 @@ data Parser[T, ^doc]:
     items: own List[own T]?
 
 impl[^doc] Parser[Item, ^{doc}]:
-    fn take(own self, xs: ^mut List[^Item]) -> ^{self, xs.T, $Log, static} mut Item: pass
+    fn take(own self, xs: ^mut List[^Item]) -> ^{self, xs.len, $Log, static} mut Item: pass
     fn peek(^self) -> own fn() -> Parser[Item, ^]: pass
     fn swap(^mut self, d: Suspend[^{d} Doc], e: Pair[^, ^{e}]) -> void: pass
 

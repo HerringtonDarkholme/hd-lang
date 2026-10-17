@@ -1,0 +1,32 @@
+# test: parameters, results, receivers, and type arguments take modes
+data File:
+    fd: i32
+
+trait Socket:
+    fn send(^mut self, bytes: List[u8]) -> void
+    fn peer(^self) -> ^string
+    fn close(own self) -> void
+
+impl File:
+    fn peek(^self) -> usize: 0
+    fn reset(^mut self) -> void: pass
+    fn release(own self) -> void: pass
+
+fn archive(f: own File) -> void: pass
+
+fn size(f: ^File) -> usize: 0
+
+fn fill(buf: ^mut List[u8]) -> void: pass
+
+fn job(run: own fn() -> void) -> void: pass
+
+fn serve(s: own dyn Socket) -> void: pass
+
+fn primary(pool: ^List[own File]) -> Option[^File]: panic("stub")
+
+fn twin(c: ^File) -> (^File, usize): panic("stub")
+
+fn keep[T < own Any](x: i32) -> i32: x
+
+pub fn main() -> void:
+    pass

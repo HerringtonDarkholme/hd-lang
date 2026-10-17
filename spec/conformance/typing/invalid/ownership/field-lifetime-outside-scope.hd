@@ -1,0 +1,6 @@
+# test: a field's type names only its declaration's lifetime parameters
+data Conn:
+    fd: i32
+
+data Holder[^a]:
+    conn: ^{b} Conn  # diagnostic: unknown-name

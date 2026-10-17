@@ -153,8 +153,9 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::LifetimeSet)
     }
 
-    /// A lifetime name: a variable, `self`, a path such as `xs.T`, a
-    /// requirement key such as `$K`, or `static` (own.lifetime.name).
+    /// A lifetime name: a variable or `self`, either followed by a field
+    /// path such as `u.addr`, a lifetime parameter, a requirement key such
+    /// as `$K`, or `static` (own.lifetime.named-by, own.lifetime.field-path).
     fn lifetime(&mut self) -> Done {
         let marker = self.start();
         if self.eat(TokenKind::Dollar) {

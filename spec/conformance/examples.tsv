@@ -639,8 +639,11 @@ lang/13-ownership.md	2	accept	parse/valid/ownership/owned-types.hd|parse/valid/o
 lang/13-ownership.md	3	mixed	parse/invalid/ownership/own-mut-type.hd|parse/invalid/ownership/own-borrow-type.hd|parse/invalid/ownership/lifetime-after-mut.hd
 lang/13-ownership.md	4	accept	parse/valid/ownership/owned-bindings.hd|parse/valid/ownership/receivers.hd
 lang/13-ownership.md	5	accept	parse/valid/ownership/lifetime-parameters.hd|parse/valid/ownership/lifetime-arguments.hd
-lang/13-ownership.md	6	mixed	parse/invalid/ownership/lifetime-parameter-before-type.hd|parse/invalid/ownership/function-lifetime-parameter.hd
+lang/13-ownership.md	6	mixed	parse/invalid/ownership/lifetime-parameter-before-type.hd|parse/invalid/ownership/function-lifetime-parameter-before-type.hd
 lang/13-ownership.md	7	accept	parse/valid/ownership/owned-bounds.hd
+lang/13-ownership.md	8	accept	typing/valid/ownership/header-modes.hd|typing/valid/ownership/lifetime-parameters.hd
+lang/13-ownership.md	9	mixed	typing/invalid/ownership/own-on-value.hd|typing/invalid/ownership/own-on-type-parameter.hd|typing/invalid/ownership/mark-in-fn-constructor.hd
+lang/13-ownership.md	10	mixed	typing/invalid/ownership/bare-borrow-in-field.hd|typing/invalid/ownership/missing-lifetime-argument.hd|typing/invalid/ownership/ambiguous-lifetime.hd|typing/invalid/ownership/private-field-path.hd|typing/invalid/ownership/unknown-lifetime-name.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

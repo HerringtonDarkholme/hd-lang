@@ -1,0 +1,8 @@
+# test: a use of a declaration with a lifetime parameter writes a lifetime argument
+data Document:
+    lines: List[string]
+
+data Parser[^doc]:
+    source: ^{doc} Document
+
+fn read(p: Parser) -> void: pass  # diagnostic: missing-lifetime

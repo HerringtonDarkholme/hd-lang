@@ -1,4 +1,4 @@
-# test: a lifetime set names variables, self, paths, requirement keys, and static
+# test: a lifetime set names variables, self, field paths, lifetime parameters, requirement keys, and static
 trait Store:
     fn get(self) -> string
 
@@ -13,7 +13,9 @@ fn settings() -> ^{static} Settings:
 
 fn pair(a: ^Settings, b: ^Settings) -> ^{a, b,} Settings: a
 
-fn stored(items: ^List[Settings]) -> ^{items.T} Settings: items.at(0)
+fn label(s: ^Settings) -> ^{s.name} string: s.name
+
+fn first[^c](items: ^List[^{c} Settings]) -> ^{c} Settings: items.at(0)
 
 fn keyed() -> ^{$Store} Settings $ Store: settings()
 

@@ -1,0 +1,2 @@
+# test: own on a primitive type is own-on-value
+fn count(n: own i32) -> void: pass  # diagnostic: own-on-value

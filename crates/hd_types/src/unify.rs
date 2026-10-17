@@ -253,6 +253,16 @@ impl InferTable {
             },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
+            TyData::Own(i) => TyData::Own(r(i)),
+            TyData::Borrow {
+                ty,
+                mutable,
+                lifetimes,
+            } => TyData::Borrow {
+                ty: r(ty),
+                mutable,
+                lifetimes,
+            },
             TyData::Fn {
                 params,
                 result,
@@ -319,7 +329,8 @@ impl InferTable {
                 .copied()
                 .chain(rest)
                 .any(|x| self.occurs(pool, v, x)),
-            TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => self.occurs(pool, v, i),
+            TyData::Borrow { ty, .. } => self.occurs(pool, v, ty),
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
                     || pool
@@ -449,7 +460,21 @@ impl InferTable {
                 self.unify_lists(pool, e1, e2, a, b)?;
                 self.unify(pool, r1, r2)
             }
-            (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
+            (TyData::Option(x), TyData::Option(y)) | (TyData::Own(x), TyData::Own(y)) => {
+                self.unify(pool, x, y)
+            }
+            (
+                TyData::Borrow {
+                    ty: x,
+                    mutable: m1,
+                    lifetimes: l1,
+                },
+                TyData::Borrow {
+                    ty: y,
+                    mutable: m2,
+                    lifetimes: l2,
+                },
+            ) if m1 == m2 && l1 == l2 => self.unify(pool, x, y),
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..

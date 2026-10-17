@@ -1,0 +1,8 @@
+# test: a bare lifetime argument in a result elides like a bare borrow
+data Document:
+    lines: List[string]
+
+data Parser[^doc]:
+    source: ^{doc} Document
+
+fn mix(a: ^Document, b: ^Document) -> Parser[^]: panic("stub")  # diagnostic: ambiguous-lifetime

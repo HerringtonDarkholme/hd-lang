@@ -39,7 +39,7 @@ Root
         BorrowType ^ mut
           LifetimeSet { , , , }
             Lifetime self
-            Lifetime xs . T
+            Lifetime xs . len
             Lifetime $ Log
             Lifetime static
           NamedType Item

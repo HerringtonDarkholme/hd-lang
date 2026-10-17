@@ -589,7 +589,14 @@ fn name_into(
             out.push_str(">.");
             out.push_str(n.rsplit('.').next().unwrap_or(&n));
         }
-        TyData::Poison | TyData::Param(_) | TyData::Infer(_) | TyData::Canon(_) => {
+        TyData::Poison
+        | TyData::Param(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Own(_)
+        | TyData::Borrow { .. }
+        | TyData::Lifetime(_)
+        | TyData::Lifetimes(_) => {
             out.push_str(&pool.display(t));
         }
     }
@@ -1177,7 +1184,11 @@ impl Cx<'_> {
             | TyData::Poison
             | TyData::Param(_)
             | TyData::Infer(_)
-            | TyData::Canon(_) => {}
+            | TyData::Canon(_)
+            | TyData::Own(_)
+            | TyData::Borrow { .. }
+            | TyData::Lifetime(_)
+            | TyData::Lifetimes(_) => {}
         }
         let d = 1 + parts
             .into_iter()

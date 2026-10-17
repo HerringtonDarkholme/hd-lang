@@ -1,0 +1,5 @@
+# test: a function's lifetime parameters follow its type parameters
+data Conn:
+    fd: i32
+
+fn pick[^a, T](c: ^Conn) -> ^{a} Conn: c  # diagnostic: syntax-error

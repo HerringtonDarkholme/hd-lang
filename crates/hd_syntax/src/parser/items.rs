@@ -385,7 +385,7 @@ impl Parser<'_> {
                 self.bump();
             }
             if self.at(TokenKind::Caret) {
-                self.lifetime_parameter(mode, variance);
+                self.lifetime_parameter(variance);
                 saw_lifetime = true;
                 self.complete(param, SyntaxKind::LifetimeParameter);
                 if !self.eat(TokenKind::Comma) {
@@ -450,16 +450,9 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
-    /// `^name` in a generic parameter list (own.lifetime-param.declare):
-    /// no variance, bound, or default, and never a function's.
-    fn lifetime_parameter(&mut self, mode: Generics, variance: bool) {
-        if mode == Generics::Function {
-            // own.lifetime-param.function
-            self.error(
-                Code::SyntaxError,
-                "a function declares no lifetime parameter; it names lifetimes by its parameters, as '^{x}'",
-            );
-        }
+    /// `^name` in a generic parameter list (own.lifetime-param.declared-by):
+    /// no variance, bound, or default.
+    fn lifetime_parameter(&mut self, variance: bool) {
         if variance {
             // own.lifetime-param.plain
             self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);

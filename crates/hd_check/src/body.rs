@@ -216,6 +216,12 @@ pub(crate) struct Ck<'a, 'c> {
     pub rets: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
+    /// The type parameters with an `own` bound (`own.bound.own`).
+    pub own_params: Vec<ParamRef>,
+    /// Where a value of a moded type met another type, and where this
+    /// body's diagnostics start (the note of 13-ownership.md).
+    pub mode_gap: Option<hd_base::NodeIdx>,
+    pub diag_mark: hd_diag::DiagMark,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -466,6 +472,7 @@ pub(crate) fn new_ck<'a, 'c>(
     diags: &'c mut DiagBuf,
 ) -> Ck<'a, 'c> {
     let pool = cx.names.pool;
+    let diag_mark = diags.mark();
     let mut ck = Ck {
         cx,
         local,
@@ -479,6 +486,9 @@ pub(crate) fn new_ck<'a, 'c>(
         memo: BodyMemo::default(),
         rets: vec![ret],
         gens: Vec::new(),
+        own_params: Vec::new(),
+        mode_gap: None,
+        diag_mark,
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -1241,6 +1251,9 @@ impl Ck<'_, '_> {
             let index = u16::try_from(offset + i).unwrap_or(u16::MAX);
             let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             self.gens.push((g.name, p));
+            if g.own_bound {
+                self.own_params.push(ParamRef { owner, index });
+            }
             if g.row {
                 self.row_gens
                     .push((g.name, hd_types::RowParamRef { owner, index }));
@@ -1674,6 +1687,11 @@ impl Ck<'_, '_> {
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, got, want).is_err() {
             self.infer.rollback(snap);
+            if pool.has_mode(self.infer.resolve(pool, got))
+                || pool.has_mode(self.infer.resolve(pool, want))
+            {
+                self.mode_gap.get_or_insert(n.index());
+            }
             // `types.num.narrowing`: a value of a wider type of the same
             // numeric family where a narrower one is expected.
             if position != ExpectPosition::Operand && self.narrows(got, want) {
@@ -3457,6 +3475,34 @@ impl Ck<'_, '_> {
         body.fallback = rows;
     }
 
+    /// the note of 13-ownership.md: a body whose values hold an ownership mode,
+    /// or a type parameter with an `own` bound, is checked from a later
+    /// section on; until then it is `unsupported`, with nothing else.
+    fn mode_gate(&mut self, n: usize) -> StageResult<()> {
+        let pool = self.pool();
+        let body = self.b.body_mut();
+        // A block takes its type from its tail, or from its declared
+        // result when the tail never returns.
+        let found = (0..n).find(|&i| {
+            let t = body.ty[i];
+            let mut ps = Vec::new();
+            if !self.own_params.is_empty() && pool.has_param(t) {
+                crate::inst_cycles::params_in(pool, t, &mut ps);
+            }
+            body.tags[i] != Tag::Block
+                && (pool.has_mode(t) || ps.iter().any(|p| self.own_params.contains(p)))
+        });
+        let Some(at) = found.map(|i| body.syn[i]).or(self.mode_gap) else {
+            return Ok(());
+        };
+        self.diags.truncate(self.diag_mark);
+        if at == hd_base::NodeIdx::NONE {
+            return unsupported(crate::ty::OWNERSHIP_GAP);
+        }
+        let node = self.cx.src.parse.tree.node(at);
+        self.gap(node, crate::ty::OWNERSHIP_GAP)
+    }
+
     fn finish(self, root: Ref) -> StageResult<Body> {
         let ret = self.rets[0];
         self.finish_with(root, ret, None).map(|(b, ..)| b)
@@ -3623,6 +3669,7 @@ impl Ck<'_, '_> {
             self.b.body_mut().local_ty[i] = z;
         }
         self.fallback_rows(&open);
+        self.mode_gate(n)?;
         let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];

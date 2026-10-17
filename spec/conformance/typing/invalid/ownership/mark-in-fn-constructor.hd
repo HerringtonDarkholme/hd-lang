@@ -1,0 +1,7 @@
+# test: a mark inside Fn[...] is misplaced-lifetime
+use std.function.Fn
+
+data File:
+    fd: i32
+
+fn call(f: Fn[(^File,), void]) -> void: pass  # diagnostic: misplaced-lifetime

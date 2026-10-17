@@ -415,6 +415,13 @@ impl<'a> ItemCheck<'_, 'a> {
             if exposed && open.get(i).copied().unwrap_or(true) {
                 self.leak(t, slot);
             }
+            if let ItemData::Fn(s) | ItemData::Method { sig: s, .. } = &it.data {
+                for (code, message) in
+                    crate::own::field_paths(&self.cx.names, self.cx.lookup, &s.params, t)
+                {
+                    self.report(slot, code, message);
+                }
+            }
             self.check_ty(t, slot)?;
         }
         // The bounds the item writes are written types too

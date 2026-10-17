@@ -1,0 +1,17 @@
+# test: a lifetime's field path names pub fields of a parameter's value
+data Address:
+    pub city: string
+
+data User:
+    pub name: string
+    pub address: Address
+
+impl User:
+    fn city(^self) -> ^{self.address.city} string: panic("stub")
+
+fn name_of(u: ^User) -> ^{u.name} string: panic("stub")
+
+fn city_of(u: ^User) -> ^{u.address.city} string: panic("stub")
+
+pub fn main() -> void:
+    pass

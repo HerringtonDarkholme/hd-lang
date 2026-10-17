@@ -324,7 +324,7 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
 }
 
 /// The type parameters that occur in `t`, outside projections.
-fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
+pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
     match pool.get(t) {
         TyData::Param(p) => out.push(p),
         TyData::Adt { args, .. } => {
@@ -340,7 +340,9 @@ fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, r, out);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) => params_in(pool, i, out),
+        TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) | TyData::Borrow { ty: i, .. } => {
+            params_in(pool, i, out);
+        }
         TyData::Fn {
             params,
             result,
@@ -373,7 +375,9 @@ fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
         | TyData::Never
         | TyData::Poison
         | TyData::Infer(_)
-        | TyData::Canon(_) => {}
+        | TyData::Canon(_)
+        | TyData::Lifetime(_)
+        | TyData::Lifetimes(_) => {}
     }
 }
 

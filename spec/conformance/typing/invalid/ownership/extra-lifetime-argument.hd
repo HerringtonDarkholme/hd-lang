@@ -1,0 +1,8 @@
+# test: more lifetime arguments than lifetime parameters is argument-count
+data Document:
+    lines: List[string]
+
+data Parser[^doc]:
+    source: ^{doc} Document
+
+fn read(p: Parser[^, ^]) -> void: pass  # diagnostic: argument-count

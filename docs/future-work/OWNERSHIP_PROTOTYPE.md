@@ -375,7 +375,10 @@ might expect otherwise.
   for a borrow of a parameter that dies with the call; `borrow-escapes`
   into a top-level binding, a plain position, or a result that does not
   name it; a store into another parameter writes its destination
-  (design 3.3, 4.4).
+  (design 3.3, 4.4). A field-path lifetime, as `^{u.name}`, borrows only
+  that field, so the caller may still use and change `u`'s other fields
+  while the result lives (owner, 2026-10-17); slice 3 resolves the path and
+  checks that each field is `pub`.
 - **Done when.** Fixtures: `busier` with and without `^{a, b}`,
   `dangle`, `remember`, and review O2's identity.
 - **Risk.** High.

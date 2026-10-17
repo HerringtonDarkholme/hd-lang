@@ -669,7 +669,10 @@ generic_params = "[", generic_parameter, { ",", generic_parameter },
                  { ",", lifetime_parameter }, [ "," ], "]"
                | "[", lifetime_parameter, { ",", lifetime_parameter }, [ "," ], "]" ;
 function_generic_params = "[", function_generic_parameter,
-                          { ",", function_generic_parameter }, [ "," ], "]" ;
+                          { ",", function_generic_parameter },
+                          { ",", lifetime_parameter }, [ "," ], "]"
+                        | "[", lifetime_parameter, { ",", lifetime_parameter },
+                          [ "," ], "]" ;
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
                  [ type_default ]

@@ -1,0 +1,34 @@
+# test: data, impls, and functions declare lifetime parameters, and uses write lifetime arguments
+data Document:
+    lines: List[string]
+
+data Conn:
+    fd: i32
+
+data Parser[^doc]:
+    source: ^{doc} Document
+    at: usize
+
+data Session[^client, ^upstream]:
+    client: ^{client} Conn
+    upstream: ^{upstream} Conn
+
+impl[^doc] Parser[^{doc}]:
+    fn line(^self) -> usize: 0
+
+fn parser(d: ^Document) -> Parser[^]: panic("stub")
+
+fn named(text: ^Document) -> Parser[^{text}]: panic("stub")
+
+fn pair(s: ^Conn, u: ^Conn) -> Session[^{s}, ^{u}]: panic("stub")
+
+fn first[^c](xs: ^List[^{c} Conn]) -> ^{c} Conn: panic("stub")
+
+fn add[^c](dst: ^mut List[^{c} Conn], conn: ^{c} Conn) -> void: pass
+
+fn busier(a: ^Conn, b: ^Conn) -> ^{a, b} Conn: panic("stub")
+
+fn configured() -> ^{static} Conn: panic("stub")
+
+pub fn main() -> void:
+    pass

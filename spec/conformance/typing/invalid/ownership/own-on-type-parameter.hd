@@ -1,0 +1,2 @@
+# test: a generic writes no own T; it bounds T with own Any
+fn keep[T](x: own T) -> void: pass  # diagnostic: own-on-type-parameter

@@ -220,6 +220,62 @@ pub enum TyData {
     /// A reusable provider context, `$.Context[$ Row]` (`req.context.row`):
     /// indexed by one concrete, expanded row.
     Context(RowId),
+    /// An owned type, `own T` (`own.syntax.own`).
+    Own(Ty),
+    /// A borrowed type, `^T` or `^mut T`, bounded by a lifetime set: an
+    /// empty set is a borrow with its own lifetime (`own.syntax.borrow`).
+    Borrow {
+        ty: Ty,
+        mutable: bool,
+        lifetimes: TyList,
+    },
+    /// One lifetime of a set that is not a lifetime parameter.
+    Lifetime(Lifetime),
+    /// A lifetime argument, `^{a, b}` or a bare `^` (empty): a set of
+    /// [`TyData::Lifetime`]s and lifetime parameters (`TyData::Param`).
+    Lifetimes(TyList),
+}
+
+/// A lifetime named by something other than a lifetime parameter
+/// (`own.lifetime.named-by`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Lifetime {
+    Static,
+    /// The `index`th parameter of the enclosing signature, the receiver
+    /// first.
+    Input(u16),
+    /// A field path through that parameter, as `u.addr.city`: `path` is the
+    /// last field's member path under the first field's (`own.header.field-path`).
+    Field {
+        input: u16,
+        path: DefId,
+    },
+}
+
+impl Lifetime {
+    /// The three record words of a lifetime.
+    #[must_use]
+    pub fn words(self) -> [u32; 3] {
+        match self {
+            Lifetime::Static => [0, 0, 0],
+            Lifetime::Input(i) => [1, u32::from(i), 0],
+            Lifetime::Field { input, path } => [2, u32::from(input), path.raw()],
+        }
+    }
+
+    /// The lifetime of three record words.
+    #[must_use]
+    pub fn from_words(w: &[u32]) -> Option<Lifetime> {
+        let input = u16::try_from(*w.get(1)?).ok()?;
+        Some(match w.first()? {
+            0 => Lifetime::Static,
+            1 => Lifetime::Input(input),
+            _ => Lifetime::Field {
+                input,
+                path: DefId::from_raw(*w.get(2)?),
+            },
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -243,6 +299,10 @@ enum PoolTag {
     Row,
     RowTy,
     Context,
+    Own,
+    Borrow,
+    Lifetime,
+    Lifetimes,
 }
 
 /// Meta flags (§3.9.2).
@@ -252,6 +312,8 @@ pub mod meta {
     pub const HAS_PARAM: u32 = 4;
     pub const HAS_ASSOC: u32 = 8;
     pub const HAS_CANON: u32 = 16;
+    /// An ownership mode or a lifetime somewhere inside.
+    pub const HAS_MODE: u32 = 32;
 }
 
 impl PoolTag {
@@ -268,6 +330,8 @@ impl PoolTag {
                 | PoolTag::Assoc
                 | PoolTag::List
                 | PoolTag::Row
+                | PoolTag::Borrow
+                | PoolTag::Lifetime
         )
     }
 }
@@ -320,6 +384,7 @@ impl Cols {
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
+            PoolTag::Borrow | PoolTag::Lifetime => 3,
             PoolTag::Fn | PoolTag::Assoc => 4,
             PoolTag::TraitValue => 3 + 2 * x(2),
             PoolTag::Row => {
@@ -773,6 +838,10 @@ impl InternPool {
     pub fn has_assoc(&self, t: Ty) -> bool {
         self.types().has_assoc(t)
     }
+    #[must_use]
+    pub fn has_mode(&self, t: Ty) -> bool {
+        self.types().has_mode(t)
+    }
     pub fn subst(&self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
         self.types().subst(t, f)
     }
@@ -901,6 +970,26 @@ impl<'a> Types<'a> {
                 inputs,
             });
         }
+        let flat;
+        let t = match t {
+            TyData::Borrow {
+                ty,
+                mutable,
+                lifetimes,
+            } => {
+                flat = TyData::Borrow {
+                    ty: *ty,
+                    mutable: *mutable,
+                    lifetimes: self.lifetime_set(*lifetimes),
+                };
+                &flat
+            }
+            TyData::Lifetimes(l) => {
+                flat = TyData::Lifetimes(self.lifetime_set(*l));
+                &flat
+            }
+            _ => t,
+        };
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
             TyData::Prim(p) => (T::Prim, *p as u32, 0),
             TyData::Never => (T::Never, 0, 0),
@@ -940,6 +1029,14 @@ impl<'a> Types<'a> {
             TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
             TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
             TyData::Context(r) => (T::Context, r.0, self.row_meta(*r)),
+            TyData::Own(inner) => (T::Own, inner.0, self.meta_of(*inner) | meta::HAS_MODE),
+            TyData::Borrow { ty, lifetimes, .. } => (
+                T::Borrow,
+                0,
+                self.meta_of(*ty) | self.list_meta(*lifetimes) | meta::HAS_MODE,
+            ),
+            TyData::Lifetime(_) => (T::Lifetime, 0, meta::HAS_MODE),
+            TyData::Lifetimes(l) => (T::Lifetimes, l.0, self.list_meta(*l) | meta::HAS_MODE),
         };
         let mut buf = [0u32; 4];
         let rec: &[u32] = match t {
@@ -967,6 +1064,18 @@ impl<'a> Types<'a> {
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
                 &buf[..2]
+            }
+            TyData::Borrow {
+                ty,
+                mutable,
+                lifetimes,
+            } => {
+                buf[..3].copy_from_slice(&[ty.0, lifetimes.0, u32::from(*mutable)]);
+                &buf[..3]
+            }
+            TyData::Lifetime(l) => {
+                buf[..3].copy_from_slice(&l.words());
+                &buf[..3]
             }
             TyData::Assoc {
                 assoc,
@@ -1068,6 +1177,14 @@ impl<'a> Types<'a> {
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
             PoolTag::RowTy => TyData::Row(RowId(d)),
             PoolTag::Context => TyData::Context(RowId(d)),
+            PoolTag::Own => TyData::Own(Ty(d)),
+            PoolTag::Borrow => TyData::Borrow {
+                ty: Ty(x[0]),
+                lifetimes: TyList(x[1]),
+                mutable: x[2] != 0,
+            },
+            PoolTag::Lifetime => TyData::Lifetime(Lifetime::from_words(x).expect("lifetime")),
+            PoolTag::Lifetimes => TyData::Lifetimes(TyList(d)),
             PoolTag::List | PoolTag::Row => unreachable!("not a type index"),
         }
     }
@@ -1083,6 +1200,30 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
+    }
+    /// Whether a type holds an ownership mode or a lifetime.
+    #[must_use]
+    pub fn has_mode(self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_MODE != 0
+    }
+    /// A lifetime set in its one form: a nested set (a substituted
+    /// lifetime parameter) is flattened and repeats are dropped, keeping
+    /// the written order.
+    fn lifetime_set(self, l: TyList) -> TyList {
+        let items = self.list_items(l);
+        let mut out: Vec<Ty> = Vec::with_capacity(items.len());
+        for &t in items {
+            let inner = match self.get(t) {
+                TyData::Lifetimes(n) => self.list_items(n),
+                _ => std::slice::from_ref(&t),
+            };
+            for &x in inner {
+                if !out.contains(&x) {
+                    out.push(x);
+                }
+            }
+        }
+        if out == items { l } else { self.list(&out) }
     }
     /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
     /// outside the base of an associated-type projection.
@@ -1103,7 +1244,8 @@ impl<'a> Types<'a> {
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
-            TyData::Option(i) | TyData::Mut(i) => self.names_trait_self(i, trait_),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => self.names_trait_self(i, trait_),
+            TyData::Borrow { ty, .. } => self.names_trait_self(ty, trait_),
             TyData::Fn {
                 params,
                 result,
@@ -1170,6 +1312,17 @@ impl<'a> Types<'a> {
             },
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
+            TyData::Own(i) => TyData::Own(self.subst(i, f)),
+            TyData::Borrow {
+                ty,
+                mutable,
+                lifetimes,
+            } => TyData::Borrow {
+                ty: self.subst(ty, f),
+                mutable,
+                lifetimes: l(lifetimes),
+            },
+            TyData::Lifetimes(x) => TyData::Lifetimes(l(x)),
             TyData::Fn {
                 params,
                 result,
@@ -1299,7 +1452,30 @@ impl<'a> Types<'a> {
             TyData::Canon(i) => format!("^{i}"),
             TyData::Row(r) => self.display_row(r),
             TyData::Context(r) => format!("$.Context[{}]", self.display_row(r)),
+            TyData::Own(i) => format!("own {}", self.display(i)),
+            TyData::Borrow {
+                ty,
+                mutable,
+                lifetimes,
+            } => format!(
+                "^{}{}{}",
+                self.display_lifetimes(lifetimes),
+                if mutable { "mut " } else { "" },
+                self.display(ty)
+            ),
+            TyData::Lifetime(l) => format!("{l:?}"),
+            TyData::Lifetimes(l) => format!("^{}", self.display_lifetimes(l).trim_end()),
         }
+    }
+
+    /// A lifetime set as written after `^`: `{a, b} `, or nothing.
+    fn display_lifetimes(self, l: TyList) -> String {
+        let items = self.list_items(l);
+        if items.is_empty() {
+            return String::new();
+        }
+        let parts: Vec<String> = items.iter().map(|t| self.display(*t)).collect();
+        format!("{{{}}} ", parts.join(", "))
     }
 
     fn display_row(self, r: RowId) -> String {
@@ -1354,6 +1530,16 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         },
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
+        TyData::Own(i) => TyData::Own(with_assoc_args(pool, i, trait_, args)),
+        TyData::Borrow {
+            ty,
+            mutable,
+            lifetimes,
+        } => TyData::Borrow {
+            ty: with_assoc_args(pool, ty, trait_, args),
+            mutable,
+            lifetimes,
+        },
         TyData::Fn {
             params,
             result,

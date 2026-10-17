@@ -25,7 +25,7 @@ fn primary(pool: ^List[own Conn]) -> Option[^Conn]: pool.at(0)
 
 fn peek(pool: ^List[own Conn]) -> ^Conn?: pool.at(0)
 
-fn keep(c: ^{dst.T} Conn, dst: ^mut List[^Conn]) -> void: pass
+fn add[^c](dst: ^mut List[^{c} Conn], conn: ^{c} Conn) -> void: pass
 
 fn view(d: own Document) -> void:
     let v: ^Document = d

@@ -959,16 +959,25 @@ impl Resolver<'_, '_> {
     /// argument that has no default (`types.generic.default.written-missing`);
     /// the third is the number of parameters the declaration has
     /// (`types.generic.too-long`).
-    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> (Vec<Ty>, Option<String>, Option<usize>) {
+    /// A written type's arguments with defaults filled, the first
+    /// parameter left without one, the type parameter count, and the
+    /// lifetime parameter count (lifetime parameters come last).
+    fn fill_type_args(
+        &self,
+        def: DefId,
+        args: &[Ty],
+    ) -> (Vec<Ty>, Option<String>, Option<usize>, usize) {
         let pool = self.cx.names.pool;
         let fill = |generics: &[Generic]| {
+            let lts = generics.iter().filter(|g| g.lifetime).count();
+            let generics = &generics[..generics.len() - lts];
             let filled = fill_type_args(pool, def, generics, args);
             let missing = generics
                 .iter()
                 .skip(filled.len())
                 .find(|g| !g.row && g.default.is_none())
                 .map(|g| self.cx.names.text(g.name).to_owned());
-            (filled, missing, Some(generics.len()))
+            (filled, missing, Some(generics.len()), lts)
         };
         if let Some(g) = self.own_types.borrow().get(&def) {
             return fill(g);
@@ -986,7 +995,7 @@ impl Resolver<'_, '_> {
         });
         match iface.as_ref().and_then(|i| i.item(def)) {
             Some(item) => fill(&item.generics),
-            None => (args.to_vec(), None, None),
+            None => (args.to_vec(), None, None, 0),
         }
     }
 
@@ -1490,6 +1499,27 @@ struct Gen {
     /// Type parameters of the list being lowered whose bounds are not
     /// lowered yet: whether one is bounded by `Tuple` is not known.
     pending: Vec<Ty>,
+    /// Lifetime parameters in scope (`own.lifetime-param.declared-by`).
+    lts: Vec<(Symbol, Ty)>,
+    /// The parameters of the signature being lowered, the receiver
+    /// first, with their types so far (`own.lifetime.named-by`).
+    inputs: Vec<(Symbol, Ty)>,
+    /// What a bare `^` means where the type is written.
+    bare: Bare,
+}
+
+/// What a bare `^` stands for (13-ownership.md, Lifetimes In Declarations).
+#[derive(Clone, Default)]
+enum Bare {
+    /// A borrow with its own lifetime: a parameter, a local, a nested
+    /// position.
+    #[default]
+    Anon,
+    /// Not allowed: a field names its lifetime (`own.header.field-bare`).
+    Field,
+    /// A result: the one input lifetime, or `None` when there is none or
+    /// several (`own.header.elision`).
+    Result(Option<TyList>),
 }
 
 struct Lower<'a, 'r, 'x> {
@@ -1650,7 +1680,10 @@ impl Lower<'_, '_, '_> {
                         row = Some(r);
                         args.push(self.names.pool.intern_ty(&TyData::Row(r)));
                     }
-                    SyntaxKind::LifetimeArgument => self.gap(OWNERSHIP_GAP),
+                    SyntaxKind::LifetimeArgument => {
+                        let set = self.lifetimes(Src::child(a, SyntaxKind::LifetimeSet), gn, a);
+                        args.push(self.names.pool.intern_ty(&TyData::Lifetimes(set)));
+                    }
                     k if k.is_type() => args.push(self.ty(Some(a), gn)),
                     _ => {}
                 }
@@ -1914,6 +1947,12 @@ impl Lower<'_, '_, '_> {
         {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
+                // `own.header.fn-constructor`: a mark goes in the `fn(...)` form.
+                if args.iter().any(|a| pool.has_mode(*a)) {
+                    let msg =
+                        format!("`{name}[...]` takes no ownership mark; write the `fn(...)` form");
+                    self.diags.error(Code::MisplacedLifetime, span, &msg);
+                }
                 let inputs = args.first().copied().unwrap_or(Ty::POISON);
                 if !self.inputs_tuple(inputs, gn) {
                     let msg = format!(
@@ -1936,11 +1975,18 @@ impl Lower<'_, '_, '_> {
         // A written type omits its defaulted trailing arguments
         // (`types.generic.default.written`, `types.generic.default.bare`).
         let filled;
+        let is_lt = |a: &Ty| matches!(pool.get(*a), TyData::Lifetimes(_));
+        let lts: Vec<Ty> = args.iter().copied().filter(is_lt).collect();
+        let types: Vec<Ty>;
         let args = if matches!(
             kind,
             HeadKind::Alias | HeadKind::Data | HeadKind::Enum | HeadKind::Newtype
         ) {
-            let (f, missing, arity) = self.r.fill_type_args(def, args);
+            types = args.iter().copied().filter(|a| !is_lt(a)).collect();
+            let args = types.as_slice();
+            let (mut f, missing, arity, want) = self.r.fill_type_args(def, args);
+            f.extend(lts.iter().copied().take(want));
+            f.extend((lts.len()..want).map(|_| pool.intern_ty(&TyData::Lifetimes(TyList::EMPTY))));
             // `types.generic.too-long`: no more arguments than parameters.
             if let Some(max) = arity.filter(|max| args.len() > *max) {
                 self.too_many_args(def, max, args.len(), span);
@@ -2105,6 +2151,12 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         };
         let (args, bindings, row) = self.type_args(n, gn);
+        if matches!(
+            kind,
+            HeadKind::Data | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias
+        ) {
+            self.lifetime_args(def, n, &args);
+        }
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
@@ -2142,6 +2194,152 @@ impl Lower<'_, '_, '_> {
             c.kind() == SyntaxKind::NamedType
                 && self.segments(c).first().is_some_and(|s| s.0 == "Self")
         })
+    }
+
+    /// `own.header.lifetime-arguments`: a use of a declaration writes one
+    /// lifetime argument per lifetime parameter, `[^]` at least.
+    fn lifetime_args(&mut self, def: DefId, n: NodeRef<'_>, args: &[Ty]) {
+        let pool = self.names.pool;
+        let got = args
+            .iter()
+            .filter(|a| matches!(pool.get(**a), TyData::Lifetimes(_)))
+            .count();
+        let want = self.r.fill_type_args(def, &[]).3;
+        let name = self.names.display_name(def).to_owned();
+        let span = self.src.span(n);
+        if got > want {
+            let msg = format!("`{name}` takes {want} lifetime arguments, not {got}");
+            self.diags.error(Code::ArgumentCount, span, &msg);
+        } else if got < want {
+            let msg = format!("`{name}` holds a borrow: write its lifetime, as `{name}[^]`");
+            self.diags.error(Code::MissingLifetime, span, &msg);
+            if got == 0 {
+                let (at, text) = match Src::child(n, SyntaxKind::TypeArgumentList) {
+                    Some(l) => (self.src.token_span(self.src.last(l)).lo, ", ^"),
+                    None => (span.hi, "[^]"),
+                };
+                let at = Span {
+                    lo: at,
+                    hi: at,
+                    ..span
+                };
+                self.diags.add_fix(
+                    "write an elided lifetime",
+                    hd_diag::FixSafety::Exact,
+                    &[(at, text)],
+                );
+            }
+        }
+    }
+
+    /// A lifetime set (`own.lifetime.named-by`), or what a bare `^` stands for
+    /// where `at` is written.
+    fn lifetimes(&mut self, set: Option<NodeRef<'_>>, gn: &Gen, at: NodeRef<'_>) -> TyList {
+        let pool = self.names.pool;
+        let Some(set) = set else {
+            return match &gn.bare {
+                Bare::Anon => TyList::EMPTY,
+                Bare::Result(Some(l)) => *l,
+                Bare::Field => {
+                    self.diags.error(
+                        Code::MissingLifetime,
+                        self.src.span(at),
+                        "a field's borrow names a lifetime parameter of its type, as `^{a}`",
+                    );
+                    TyList::EMPTY
+                }
+                Bare::Result(None) => {
+                    self.diags.error(
+                        Code::AmbiguousLifetime,
+                        self.src.span(at),
+                        "a bare `^` in a result needs exactly one borrowed parameter or a `^self` receiver; name its source, as `^{a}`",
+                    );
+                    TyList::EMPTY
+                }
+            };
+        };
+        let mut out = Vec::new();
+        for l in set.children().filter(|c| c.kind() == SyntaxKind::Lifetime) {
+            let words: Vec<&str> = self
+                .src
+                .tokens(l)
+                .filter(|t| self.src.tkind(*t) != Some(TokenKind::Dot))
+                .map(|t| self.src.text(t))
+                .collect();
+            let span = self.src.span(l);
+            let head = words.first().copied().unwrap_or("");
+            if head == "$" {
+                // A requirement key's lifetime comes with the
+                // cross-call slices.
+                self.gap(OWNERSHIP_GAP);
+                continue;
+            }
+            let sym = self.sym(head);
+            let found = if let Some(i) = gn.inputs.iter().position(|(s, _)| *s == sym) {
+                let input = u16::try_from(i).unwrap_or(u16::MAX);
+                let lt = match self.field_path(gn.inputs[i].1, &words[1..], span) {
+                    Some(path) => hd_types::Lifetime::Field { input, path },
+                    None if words.len() > 1 => continue,
+                    None => hd_types::Lifetime::Input(input),
+                };
+                pool.intern_ty(&TyData::Lifetime(lt))
+            } else if let Some((_, t)) = gn.lts.iter().find(|(s, _)| *s == sym)
+                && words.len() == 1
+            {
+                *t
+            } else if head == "static" && words.len() == 1 {
+                pool.intern_ty(&TyData::Lifetime(hd_types::Lifetime::Static))
+            } else {
+                let msg = format!(
+                    "no parameter or lifetime parameter named `{head}` is in scope for this lifetime"
+                );
+                self.diags.error(Code::UnknownName, span, &msg);
+                continue;
+            };
+            out.push(found);
+        }
+        pool.list(&out)
+    }
+
+    /// The member path of a lifetime's field path through a parameter of
+    /// type `t` (`own.header.field-path`): each field is a member of the data
+    /// type that holds it. Whether the fields exist and are `pub` is
+    /// checked once the declarations are known.
+    fn field_path(&mut self, t: Ty, fields: &[&str], span: Span) -> Option<DefId> {
+        let (first, rest) = fields.split_first()?;
+        let pool = self.names.pool;
+        let mut t = t;
+        while let TyData::Own(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } = pool.get(t) {
+            t = i;
+        }
+        let TyData::Adt { def, .. } = pool.get(t) else {
+            let msg = format!(
+                "a lifetime path names a field, and this parameter's type has no field `{first}`"
+            );
+            self.diags.error(Code::UnknownField, span, &msg);
+            return None;
+        };
+        let mut path = self.names.member(def, PathKind::Member, first);
+        for f in rest {
+            path = self.names.member(path, PathKind::Member, f);
+        }
+        Some(path)
+    }
+
+    /// Whether a parameter of type `t` lends a lifetime that a bare `^` in
+    /// the result may take (`own.header.elision`).
+    fn lends(&self, t: Ty) -> bool {
+        let pool = self.names.pool;
+        if !pool.has_mode(t) {
+            return false;
+        }
+        let list = |l: TyList| pool.list_items(l).iter().any(|x| self.lends(*x));
+        match pool.get(t) {
+            TyData::Borrow { .. } | TyData::Lifetimes(_) => true,
+            TyData::Own(i) | TyData::Mut(i) | TyData::Option(i) => self.lends(i),
+            TyData::Adt { args, .. } | TyData::Tuple { elems: args, .. } => list(args),
+            _ => false,
+        }
     }
 
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
@@ -2342,9 +2540,41 @@ impl Lower<'_, '_, '_> {
                 })
             }
             SyntaxKind::InferType => Ty::POISON,
-            SyntaxKind::OwnType | SyntaxKind::BorrowType => {
-                self.gap(OWNERSHIP_GAP);
-                Ty::POISON
+            SyntaxKind::OwnType => {
+                let t = first_ty(self, n);
+                match pool.get(t) {
+                    // `own.header.own-on-value`
+                    TyData::Prim(_) => {
+                        self.diags.error(
+                            Code::OwnOnValue,
+                            self.src.span(n),
+                            "a primitive value is immutable and has no owner: drop `own`",
+                        );
+                        t
+                    }
+                    // `own.header.own-on-type-parameter`
+                    TyData::Param(_) if !self.names_self(n) => {
+                        self.diags.error(
+                            Code::OwnOnTypeParameter,
+                            self.src.span(n),
+                            "a generic writes no `own T`; bound the parameter with `T < own Any`",
+                        );
+                        t
+                    }
+                    _ => pool.intern_ty(&TyData::Own(t)),
+                }
+            }
+            SyntaxKind::BorrowType => {
+                let lifetimes = self.lifetimes(Src::child(n, SyntaxKind::LifetimeSet), gn, n);
+                let ty = first_ty(self, n);
+                let mutable = n
+                    .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
+                    .is_some();
+                pool.intern_ty(&TyData::Borrow {
+                    ty,
+                    mutable,
+                    lifetimes,
+                })
             }
             SyntaxKind::RequirementRow => {
                 self.gap("a requirement row in type position");
@@ -2390,9 +2620,6 @@ impl Lower<'_, '_, '_> {
         gn: &mut Gen,
     ) -> Vec<Generic> {
         let Some(gl) = gl else { return Vec::new() };
-        if Src::child(gl, SyntaxKind::LifetimeParameter).is_some() {
-            self.gap(OWNERSHIP_GAP);
-        }
         let params: Vec<NodeRef<'_>> = gl
             .children()
             .filter(|c| c.kind() == SyntaxKind::GenericParameter)
@@ -2457,9 +2684,7 @@ impl Lower<'_, '_, '_> {
             self.generic_default_rules(&params, position, row, &mut defaulted);
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
-                if Src::child(bl, SyntaxKind::ModeMark).is_some() {
-                    self.gap(OWNERSHIP_GAP);
-                }
+                g.own_bound = Src::child(bl, SyntaxKind::ModeMark).is_some();
                 g.mut_bound = bl
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
@@ -2532,6 +2757,41 @@ impl Lower<'_, '_, '_> {
             }
             g.row = row;
             done.push(g);
+        }
+        // Lifetime parameters follow the type parameters
+        // (`own.lifetime-param.declared-by`, `own.lifetime-param.last`).
+        let first = offset + u16::try_from(params.len()).unwrap_or(u16::MAX);
+        let lts = gl
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::LifetimeParameter);
+        for (j, l) in lts.enumerate() {
+            let Some(t) = l.name(&self.src.parse.tokens) else {
+                continue;
+            };
+            let name = self.sym(self.src.text(t));
+            let index = first + u16::try_from(j).unwrap_or(u16::MAX);
+            if self.r.frozen.is_none() && gn.lts.iter().any(|(s, _)| *s == name) {
+                let msg = format!(
+                    "`{}` is already a lifetime parameter in scope",
+                    self.src.text(t)
+                );
+                self.diags
+                    .error(Code::DuplicateBinding, self.src.span(l), &msg);
+            }
+            self.names.paths.set_param_name(
+                hd_base::PathId::from_raw(owner.raw()),
+                index,
+                self.src.text(t),
+            );
+            let t = self
+                .names
+                .pool
+                .intern_ty(&TyData::Param(ParamRef { owner, index }));
+            gn.lts.push((name, t));
+            done.push(Generic {
+                lifetime: true,
+                ..Generic::plain(name)
+            });
         }
         done
     }
@@ -2685,19 +2945,45 @@ impl Lower<'_, '_, '_> {
                 .collect();
             self.parameter_default_order(&nodes, true);
             self.vararg_final(&nodes);
+            // Every parameter names a lifetime (`own.lifetime.named-by`).
+            gn.inputs = nodes
+                .iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    let toks = &self.src.parse.tokens;
+                    let name = if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
+                        "self".to_owned()
+                    } else {
+                        p.name(toks)
+                            .map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned())
+                    };
+                    (self.sym(&name), Ty::POISON)
+                })
+                .collect();
             for (i, p) in nodes.into_iter().enumerate() {
-                if Src::child(p, SyntaxKind::ModeMark).is_some() {
-                    self.gap(OWNERSHIP_GAP);
-                }
                 let toks = &self.src.parse.tokens;
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
-                    let st = if p.direct_token(toks, TokenKind::KwMut).is_some() {
-                        self.names.pool.intern_ty(&TyData::Mut(st))
+                    let pool = self.names.pool;
+                    // `own.receiver.forms`: the receiver's mark is its mode.
+                    let mark = Src::child(p, SyntaxKind::ModeMark);
+                    let st = if let Some(m) =
+                        mark.filter(|m| m.direct_token(toks, TokenKind::Caret).is_some())
+                    {
+                        pool.intern_ty(&TyData::Borrow {
+                            ty: st,
+                            mutable: m.direct_token(toks, TokenKind::KwMut).is_some(),
+                            lifetimes: TyList::EMPTY,
+                        })
+                    } else if mark.is_some() {
+                        pool.intern_ty(&TyData::Own(st))
+                    } else if p.direct_token(toks, TokenKind::KwMut).is_some() {
+                        pool.intern_ty(&TyData::Mut(st))
                     } else {
                         st
                     };
                     params.push((self.sym("self"), st));
+                    gn.inputs[i].1 = st;
                     defaults.push(false);
                     continue;
                 }
@@ -2748,10 +3034,30 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 params.push((self.sym(&name), ty));
+                gn.inputs[i].1 = ty;
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
+        // `own.header.elision`: a bare `^` in the result takes a `^self`
+        // receiver's lifetime, else the one parameter that lends one.
+        let pool = self.names.pool;
+        let receiver = params.first().is_some_and(|(s, t)| {
+            self.names.text(*s) == "self" && matches!(pool.get(*t), TyData::Borrow { .. })
+        });
+        let lenders: Vec<usize> = (0..params.len())
+            .filter(|i| self.lends(params[*i].1))
+            .collect();
+        let source = match lenders.as_slice() {
+            _ if receiver => Some(0),
+            [one] => Some(*one),
+            _ => None,
+        };
+        gn.bare = Bare::Result(source.map(|i| {
+            let input = u16::try_from(i).unwrap_or(u16::MAX);
+            pool.list(&[pool.intern_ty(&TyData::Lifetime(hd_types::Lifetime::Input(input)))])
+        }));
         let ret = self.ty(Src::type_child(f), &gn);
+        gn.bare = Bare::Anon;
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), &gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
@@ -3962,6 +4268,7 @@ impl Lower<'_, '_, '_> {
                 let mut gn = Gen::default();
                 self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
+                gn.bare = Bare::Field;
                 let fields = self.fields(block, &gn);
                 if self.r.frozen.is_none() {
                     self.field_variance(h.def, &generics, block, &fields);
@@ -3979,6 +4286,7 @@ impl Lower<'_, '_, '_> {
                 let mut gn = Gen::default();
                 self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
+                gn.bare = Bare::Field;
                 let shared_params = Src::child(n, SyntaxKind::ParameterList);
                 let nodes: Vec<NodeRef<'_>> = shared_params
                     .iter()
@@ -4082,6 +4390,9 @@ impl Lower<'_, '_, '_> {
                 self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
+                if self.names.pool.has_mode(t) {
+                    self.gap(OWNERSHIP_GAP);
+                }
                 // `@derive` on a newtype names implementations from the
                 // base type's (`trait.derive.newtype`).
                 self.derived(h, &generics, out);
@@ -4134,6 +4445,9 @@ impl Lower<'_, '_, '_> {
             .own_types
             .borrow_mut()
             .insert(h.def, generics.clone());
+        if self.names.pool.has_mode(t) {
+            self.gap(OWNERSHIP_GAP);
+        }
         let mut it = Item::new(h.def, h.name, h.public, ItemData::Alias(t));
         it.generics = generics;
         out.push(it);
@@ -4381,7 +4695,12 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(pool.list_items(elems));
             kids.extend(rest);
         }
-        TyData::Option(i) | TyData::Mut(i) => kids.push(i),
+        TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => kids.push(i),
+        TyData::Borrow { ty, lifetimes, .. } => {
+            kids.push(ty);
+            kids.extend(pool.list_items(lifetimes));
+        }
+        TyData::Lifetimes(l) => kids.extend(pool.list_items(l)),
         TyData::Fn {
             params,
             result,
