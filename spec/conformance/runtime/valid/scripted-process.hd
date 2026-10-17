@@ -1,5 +1,5 @@
 # test: ScriptedProcess::new answers each scripted program, whatever its arguments, and reports any other as NotFound
-# Spec std/process Scripted Process: std-process.scripted.new, std-process.scripted.run, std-process.scripted.not-found.
+# Spec std/process Scripted Process: std-process.scripted.new, std-process.scripted.run, std-process.scripted.missing.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput, ScriptedProcess}
 fn version!() -> string $ Process:
@@ -9,7 +9,7 @@ fn version!() -> string $ Process:
 
 fn missing!() -> bool $ Process:
     match $.use(Process).run!("make", ["all"], "input"):
-        .Err(error) => error == ProcessError.NotFound
+        .Err(error) => error == ProcessError.NotFound(program="make")
         .Ok(_) => false
 
 tests:

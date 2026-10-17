@@ -181,13 +181,13 @@ file of its own.
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |
 | [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or`, `counts`, `Set`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` |
-| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, the providers `MapArgs` and `MapEnv`, and the rules every host operation follows |
+| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, the providers `ScriptedArgs` and `ScriptedEnv`, and the rules every host operation follows |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
 | [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, `send!` and `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
 | [`net.md`](net.md) | `std.net` | `std-net` | the host trait `Net` for DNS lookup, TCP, and UDP; the handles `TcpStream`, `TcpListener`, and `UdpSocket`; `Datagram` and `NetError` |
-| [`sys.md`](sys.md) | `std.sys` | `std-sys` | the host trait `Sys`, `SysError`, and the provider `MapSys` |
+| [`sys.md`](sys.md) | `std.sys` | `std-sys` | the host trait `Sys`, `SysError`, and the provider `ScriptedSys` |
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random`, the provider `SeededRandom`, and the seeded generator `Rng` with `rng` |
 | [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?` |
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
@@ -199,6 +199,18 @@ file of its own.
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
+
+## Test Provider Names
+
+Each host trait has a test provider in its own module. The name's first
+word says how the provider answers:
+
+| Prefix | The provider | Providers |
+| --- | --- | --- |
+| `Scripted` | answers from data the test gives it up front | `ScriptedInput`, `ScriptedProcess`, `ScriptedHttp`, `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, `ScriptedUdp`, `ScriptedArgs`, `ScriptedEnv`, `ScriptedSys` |
+| `Memory` | keeps its state in memory, as a real host would | `MemoryFs`, `MemoryConsole` |
+| `Manual` | holds a state that the test advances | `ManualClock` |
+| `Seeded` | draws from a generator that a seed starts | `SeededRandom` |
 
 ## Glossary
 

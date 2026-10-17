@@ -939,45 +939,57 @@ cost.
    (`lib/std/http.hd:105`) return `.Ok` for a 404, so the one-line fetch
    prints an error page and exits 0. Fix: `HttpError.Status(status, url)`
    and `Response.ok()`; `send!` stays raw, and `get_text!` checks.
+   Status: Dropped: fixed in 3fbf87919 (#364).
 2. **Host-trait helpers are uneven.** `std.fs` has free helpers for two
    of its ten methods (`lib/std/fs.hd:99`, `:106`; methods at `:80` to
    `:93`), `std.process` for none (`lib/std/process.hd:61`), while
    `std.http`, `std.time` and `std.host` have them. Fix: one free helper
    per method, as Go's `os` package has.
+   Status: Dropped: fixed in 34227f893 (#365).
 3. **`Process.run!` requires stdin and hides failure in a field**
    (`lib/std/process.hd:61`). Fix: `stdin: string = ""` on the helper,
    and `output!`, with a non-zero exit as `ProcessError.Exited(status,
    stderr)`.
+   Status: Partly fixed: `stdin = ""` came in 34227f893 (#365). `output!` and `ProcessError.Exited` remain open: they add a language-tier variant and need the owner to choose the return type.
 4. **`ProcessError.NotFound` does not name the program**
    (`lib/std/process.hd:53`), while `FsError.NotFound(path)` names its
    path. Fix: `NotFound(program: string)` and the same for
    `PermissionDenied`.
+   Status: Fixed in #374: `NotFound(program)` and `PermissionDenied(program)`; both hosts and the codec carry the program. Retired: `module.process.not-found`, `module.process.os-denied`, `std-process.error.display.not-found`, `std-process.error.display.permission`, `std-process.error.debug-text`, `std-process.error.eq`, `std-process.scripted.not-found`.
 5. **JSON decoding ignores declared defaults.** `port: u16 = 8080`
    decodes a missing key as `MissingField` (`spec/std/json.md:584` lists
    defaults as open), though `Field.default()` exists
    (`lib/std/structure.hd:133`). Fix: default, then `.None` for a `T?`,
    then `MissingField`. Applied in #371.
+   Status: Dropped: fixed in c1142ddc0 (#371).
 6. **`Rng` has two identical constructors**, `new` and `from_seed`
    (`lib/std/random.hd:78`, `:86`). Pass 89 renamed `from_seed`, but the
    old name stayed public. Fix: make it private or remove it.
+   Status: Fixed in #374: `from_seed` removed, `rng()` uses `Rng::new`, and the spec text said `from_seed` by mistake. No rule ID retired.
 7. **`CliError`'s doc promises a help request** (`lib/std/cli.hd:213`)
    that no variant holds, and an undeclared `--help` is an unknown
    option. Fix: correct the doc; later, consider a default `-h/--help`.
+   Status: Fixed in #374: the doc says there is no help variant. A declared `help` flag already skips the missing-positional check (`std-cli.error.help`); a default `-h/--help` stays a later call.
 8. **`monotonic()` has no free helper**, unlike `now()` and `sleep!`
    (`lib/std/time.hd:163` against `:170`, `:177`). Fix: `monotonic()`
    and `elapsed(start: Instant) -> Duration`, both `$ Clock`.
+   Status: Dropped: fixed in cc8ad6ead (#370).
 9. **`Duration` counts milliseconds** (`lib/std/time.hd:20` to `:36`),
    so short work times as `0ms` or `1ms`. Go and Rust count nanoseconds.
    Fix: store nanoseconds. It changes the `Clock` host trait: owner.
+   Status: Open: owner call, since it changes the `Clock` host trait and both host codecs.
 10. **`Duration` text says `min` where Go says `m`**
     (`lib/std/time.hd:56`), though the comment cites Go. Fix: a future
     `Duration::parse` reads both.
+   Status: Dropped: `Duration::parse` reads both (cc8ad6ead, #370); `Display` keeps `min`.
 11. **`Set` cannot be collected:** `FromIterator` covers only `List`,
     `Map`, `Result` and options (`lib/std/iter.hd:244` to `:289`). Fix:
     `impl[T < Eq & Hash] FromIterator[T] for Set[T]`.
+   Status: Dropped: fixed in ef561df70 (#368).
 12. **JSON numbers take two hops**: `Json.as_number()` then `as_i64()`
     (`lib/std/json.hd:212`). Fix: `Json.as_i64()`, `as_u64()`, `as_f64()`.
     Applied in #371.
+   Status: Dropped: fixed in c1142ddc0 (#371).
 13. **Test providers use six naming schemes:** `Scripted*`
     (`lib/std/http.hd:112`, `lib/std/process.hd:67`,
     `lib/std/console.hd:71`), `MemoryFs` (`lib/std/fs.hd:116`),
@@ -985,14 +997,18 @@ cost.
     (`lib/std/random.hd:24`), `Map*` (`lib/std/host.hd:33`, `:54`,
     `lib/std/sys.hd:47`), `BufferConsole` (`lib/std/console.hd:44`).
     Fix: one table in `spec/std/README.md` now, one naming rule later.
+   Status: Fixed in #374: renamed `MapArgs`, `MapEnv`, `MapSys` to `ScriptedArgs`, `ScriptedEnv`, `ScriptedSys`, and `BufferConsole` to `MemoryConsole`. `spec/std/README.md` has the table of four prefixes. `SeededRandom` keeps its name. Rule IDs such as `std-sys.map.*` keep their text.
 14. **`Rng` does not say it is not for secrets** (`lib/std/random.hd:72`).
     Fix: point to `Random.fill` in its doc, and add `token_hex`.
+   Status: Fixed in #374: the doc and a spec note point to `Random.fill`, and `token_hex(count) -> string $ Random` is new (`std-random.token-hex`).
 15. **The raw-string prefix `r` is not in the prelude**
     (`lib/std/text.hd:19`), so every regex program imports it. The
     prelude is language tier: owner question.
+   Status: Open: language tier, owner question.
 16. **`it_each` and `it_prop` take no trailing block**
     (`lib/std/testing.hd:509`, `:514`), unlike `it`. Language tier: owner
     question.
+   Status: Open: language tier, owner question.
 
 ## Method and limits
 

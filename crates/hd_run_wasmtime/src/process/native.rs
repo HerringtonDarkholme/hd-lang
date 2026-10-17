@@ -67,7 +67,9 @@ pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmti
         return Ok(Start::Refused(failed(ProcessError::NotGranted)));
     }
     if name.is_empty() {
-        return Ok(Start::Refused(failed(ProcessError::NotFound)));
+        return Ok(Start::Refused(failed(ProcessError::NotFound {
+            program: name,
+        })));
     }
     if let Some(message) = validate_process(&name, &argv) {
         return Ok(Start::Refused(failed(ProcessError::Other { message })));
@@ -112,8 +114,8 @@ pub(crate) fn finish(ran: Ran) -> Enc {
             status,
         })),
         Err(err) => failed(match crate::runtime::native_io::error_kind(&err) {
-            io::ErrorKind::NotFound => ProcessError::NotFound,
-            io::ErrorKind::PermissionDenied => ProcessError::PermissionDenied,
+            io::ErrorKind::NotFound => ProcessError::NotFound { program: ran.name },
+            io::ErrorKind::PermissionDenied => ProcessError::PermissionDenied { program: ran.name },
             _ => ProcessError::Other {
                 message: format!("cannot run {:?}: {err}", ran.name),
             },

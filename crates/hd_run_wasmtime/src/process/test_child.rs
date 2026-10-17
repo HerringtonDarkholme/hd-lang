@@ -83,7 +83,9 @@ pub(crate) fn start(
         return Ok(Start::Ready(failed(ProcessError::NotGranted)));
     }
     let Some(child) = environment.children.iter().find(|child| child.name == name) else {
-        return Ok(Start::Ready(failed(ProcessError::NotFound)));
+        return Ok(Start::Ready(failed(ProcessError::NotFound {
+            program: name,
+        })));
     };
     let stop = Arc::new(AtomicBool::new(false));
     let (sender, result) = oneshot::channel();

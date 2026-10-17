@@ -9,7 +9,7 @@ ordinary hd over the language tier:
 - when the host's console output becomes visible;
 - the host capability trait `ConsoleInput`, and the helper `read_line!`;
 - the traits of `ConsoleError`;
-- the test providers `BufferConsole` and `ScriptedInput`.
+- the test providers `MemoryConsole` and `ScriptedInput`.
 
 The language tier keeps what the prelude and the conformance harness name
 ([Console](../lang/10-modules.md#console)):
@@ -113,10 +113,10 @@ fn closed(error: ConsoleError) -> bool:
 
 ## Buffer Console
 
-`BufferConsole` is the recording `Console` provider for tests:
+`MemoryConsole` is the recording `Console` provider for tests:
 
 ```text
-use std.console.BufferConsole
+use std.console.MemoryConsole
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
@@ -124,16 +124,16 @@ tests:
     use std.testing.assert_equal
 
     it("records the line"):
-        let mut console = BufferConsole::new()
+        let mut console = MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
         assert_equal(console.output(), ["hello, Ada"], reason="one line")
 ```
 
-1. r[std-console.buffer.decl] `std.console` declares `BufferConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.BufferConsole`.
-2. r[std-console.buffer.new] `BufferConsole::new() -> mut BufferConsole` returns a console that has recorded nothing.
+1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
+2. r[std-console.buffer.new] `MemoryConsole::new() -> mut MemoryConsole` returns a console that has recorded nothing.
 3. r[std-console.buffer.output] `c.output() -> List[string]` returns the text of each `write_line!` call, in call order.
-4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `BufferConsole` overrides `write_error_line!`, so error lines are not in `output()`.
+4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `MemoryConsole` overrides `write_error_line!`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
 
 > **Why.** A test checks what a program printed and what it reported

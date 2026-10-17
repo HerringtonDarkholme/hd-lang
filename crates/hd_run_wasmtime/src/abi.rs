@@ -534,8 +534,8 @@ impl Wire for Path {
 /// `ProcessError` of `lib/std/process.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessError {
-    NotFound,
-    PermissionDenied,
+    NotFound { program: String },
+    PermissionDenied { program: String },
     NotGranted,
     Other { message: String },
 }
@@ -543,11 +543,13 @@ pub enum ProcessError {
 impl Wire for ProcessError {
     fn enc(&self, e: &mut Enc) {
         match self {
-            Self::NotFound => {
+            Self::NotFound { program } => {
                 e.leb(0);
+                program.enc(e);
             }
-            Self::PermissionDenied => {
+            Self::PermissionDenied { program } => {
                 e.leb(1);
+                program.enc(e);
             }
             Self::NotGranted => {
                 e.leb(2);
@@ -560,8 +562,12 @@ impl Wire for ProcessError {
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
         Ok(match d.tag(4)? {
-            0 => Self::NotFound,
-            1 => Self::PermissionDenied,
+            0 => Self::NotFound {
+                program: Wire::dec(d)?,
+            },
+            1 => Self::PermissionDenied {
+                program: Wire::dec(d)?,
+            },
             2 => Self::NotGranted,
             _ => Self::Other {
                 message: Wire::dec(d)?,

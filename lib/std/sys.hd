@@ -1,7 +1,7 @@
 # std.sys, the part written in hd (spec/std/sys.md): the host capability
-# trait Sys, its error, and the map-backed MapSys provider. A live
+# trait Sys, its error, and the map-backed ScriptedSys provider. A live
 # provider that reads the host system is host-bound; this file holds only
-# the declarations and MapSys, which never touches the host.
+# the declarations and ScriptedSys, which never touches the host.
 use std.error.Error
 use std.format.DebugWriter
 use std.num.parse_u32
@@ -44,16 +44,16 @@ pub trait Sys:
 
 ## The deterministic Sys provider: every read answers from a map.
 ## See [std-sys.map.decl](../../spec/std/sys.md#r-std-sys.map.decl).
-pub data MapSys:
+pub data ScriptedSys:
     values: Map[string, string]
 
-impl MapSys:
+impl ScriptedSys:
     ## Returns the provider whose methods read the value of the key that is the method's name.
     ## See [std-sys.map.new](../../spec/std/sys.md#r-std-sys.map.new).
-    pub fn new(values: Map[string, string]) -> MapSys:
-        MapSys { values: values }
+    pub fn new(values: Map[string, string]) -> ScriptedSys:
+        ScriptedSys { values: values }
 
-impl Sys for MapSys:
+impl Sys for ScriptedSys:
     fn os(self) -> Result[string, SysError]:
         match self.values.get("os"):
             .Some(text) => .Ok(text)

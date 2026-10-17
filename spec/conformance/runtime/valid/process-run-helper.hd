@@ -28,4 +28,4 @@ tests:
     it("run! reports an unscripted program as NotFound"):
         let mut process = ScriptedProcess::new({})
         $.with(Process=process):
-            assert_equal(status_of!("nope"), .Err(ProcessError.NotFound), reason="not scripted")
+            assert_equal(status_of!("nope"), .Err(ProcessError.NotFound(program="nope")), reason="not scripted")

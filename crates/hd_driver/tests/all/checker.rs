@@ -276,7 +276,7 @@ fn top_level_function_values_are_callable() {
 #[test]
 fn with_blocks_provide_requirements() {
     let out = cold_program(
-        "use std.console.BufferConsole\n\nfn show() -> void:\n    let mut console = BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
+        "use std.console.MemoryConsole\n\nfn show() -> void:\n    let mut console = MemoryConsole.new()\n    $.with(Console = console):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
         codes(&out).iter().all(|c| *c == Code::Unsupported),

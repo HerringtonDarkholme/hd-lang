@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability trait `Sys`, four reads about the host system;
 - the error enum `SysError`;
-- `MapSys`, the deterministic provider of `Sys`.
+- `ScriptedSys`, the deterministic provider of `Sys`.
 
 Which provider a command binds, and which methods its grant covers, is CLI
 tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
@@ -45,11 +45,11 @@ pub trait Sys:
 
 ## Map Sys
 
-`MapSys` is the deterministic `Sys` provider. A test supplies it with
+`ScriptedSys` is the deterministic `Sys` provider. A test supplies it with
 `$.with`:
 
 ```text
-use std.sys.{MapSys, Sys, SysError}
+use std.sys.{ScriptedSys, Sys, SysError}
 fn platform() -> string $ Sys:
     match $.use(Sys).os():
         .Ok(name) => name
@@ -59,16 +59,16 @@ tests:
     use std.testing.assert_equal
 
     it("reads the mapped system"):
-        $.with(Sys=MapSys::new({"os": "linux", "cpu_count": "8"})):
+        $.with(Sys=ScriptedSys::new({"os": "linux", "cpu_count": "8"})):
             assert_equal(platform(), "linux", reason="the mapped os")
             assert_equal($.use(Sys).cpu_count(), .Ok(8), reason="parsed as a count")
             assert_equal($.use(Sys).hostname(), .Err(SysError.Unsupported("hostname")), reason="not in the map")
 ```
 
-1. r[std-sys.map.decl] `std.sys` declares `MapSys`, which implements `Sys`, with private fields. Code imports it, as in `use std.sys.MapSys`.
-2. r[std-sys.map.new] `MapSys::new(values: Map[string, string]) -> MapSys` returns a provider whose methods each return the value of the key that is the method's name.
+1. r[std-sys.map.decl] `std.sys` declares `ScriptedSys`, which implements `Sys`, with private fields. Code imports it, as in `use std.sys.ScriptedSys`.
+2. r[std-sys.map.new] `ScriptedSys::new(values: Map[string, string]) -> ScriptedSys` returns a provider whose methods each return the value of the key that is the method's name.
 3. r[std-sys.map.cpu-count] `cpu_count` reads its value as a decimal `u32`.
 4. r[std-sys.map.missing] A method whose key is missing, or whose value `cpu_count` can't read, returns `.Err(SysError.Unsupported(name))`.
-5. r[std-sys.map.no-host] A `MapSys` never reads the host system.
+5. r[std-sys.map.no-host] A `ScriptedSys` never reads the host system.
 
 See also: [Host](host.md), [Capability Grants](../cli/command-line.md#capability-grants).

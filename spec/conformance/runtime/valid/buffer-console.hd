@@ -1,6 +1,6 @@
-# test: BufferConsole records each write_line! text in call order
+# test: MemoryConsole records each write_line! text in call order
 # Spec std/console Buffer Console: std-console.buffer.new, std-console.buffer.output (spec pass 89, audit item 6).
-use std.console.BufferConsole
+use std.console.MemoryConsole
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
@@ -8,13 +8,13 @@ tests:
     use std.testing.assert_equal
 
     it("records the line"):
-        let mut console = BufferConsole::new()
+        let mut console = MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
         assert_equal(console.output(), ["hello, Ada"], reason="one line")
 
     it("keeps call order"):
-        let mut console = BufferConsole::new()
+        let mut console = MemoryConsole::new()
         assert_equal(console.output().len(), 0, reason="nothing yet")
         $.with(Console=console):
             println("one")

@@ -1,11 +1,11 @@
-# test: BufferConsole keeps write_error_line! text apart from write_line! text
+# test: MemoryConsole keeps write_error_line! text apart from write_line! text
 # Spec std/console Buffer Console: std-console.buffer.error-output (spec pass 89, audit item 8).
-use std.console.{BufferConsole, eprintln}
+use std.console.{MemoryConsole, eprintln}
 tests:
     use std.testing.assert_equal
 
     it("keeps the streams apart"):
-        let mut console = BufferConsole::new()
+        let mut console = MemoryConsole::new()
         $.with(Console=console):
             println("out")
             eprintln("err")

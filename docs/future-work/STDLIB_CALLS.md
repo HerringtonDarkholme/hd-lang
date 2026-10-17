@@ -77,7 +77,7 @@ when the owner reviews it.
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
-| 70 (#220) | Every test provider is built with `X::new(...)` and has private fields. | `BufferConsole::new` and `ScriptedProcess::new` already work this way. | own |
+| 70 (#220) | Every test provider is built with `X::new(...)` and has private fields. | `MemoryConsole::new` and `ScriptedProcess::new` already work this way. | own |
 | 70 (#220) | `ManualClock` has no `advance`; a test calls `sleep!` on it. `monotonic` counts from the Unix epoch. | Keeps the surface minimal. | own |
 | 70 (#220) | `MemoryFs` keeps an explicit `dirs` list next to `files`. | `create_dir_all!` then `list_dir!` needs directories that outlive their files. | own |
 | 71 (#221) | `Duration`'s `Add` and `Sub` panic with `integer-overflow` on overflow. `Timestamp + Duration` is defined; `Timestamp - Timestamp` is not, because `since` covers it. | It matches i64 arithmetic. | confirmed |
@@ -162,7 +162,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 85 (#242) | No automatic `--help`. A declared flag named `help` that is set skips the missing-positional check. | `tool --help` must reach the program, as `argparse` and `clap` allow, without hidden flags. | own |
 | 85 (#242) | `Parsed` has public `flags`, `values`, and `positionals`, plus `flag(name)` and `value(name)`. An undeclared name reads as absent. `Parsed` implements `Eq` and `Debug`. | The plan's sketch. | own |
 | 85 (#242) | `usage` writes a `usage:` line, then `arguments:` and `options:` sections with one help column. A term is `-c, --name`, or four spaces and `--name`, plus ` <value>` for an option. No final newline. | Go's `flag` and `hd help` layouts; the four spaces align the long names. | own |
-| 85 (#242) | `parse_args` is a `Cli` method with `$ Args`, beside the pure `parse(arguments)`. | The task asks `std.cli` to read `$ Args`; tests use `parse` or `MapArgs`. | own |
+| 85 (#242) | `parse_args` is a `Cli` method with `$ Args`, beside the pure `parse(arguments)`. | The task asks `std.cli` to read `$ Args`; tests use `parse` or `ScriptedArgs`. | own |
 
 ## Regular Expressions
 
@@ -205,7 +205,7 @@ Pass 89 (#246) applied the stdlib audit (task #239); its open gaps are in [Open 
 | 89 (#246) | `ResourceError[E]` displays `Operation(e)` as `e` and `Disposed` as `resource disposed`, with no cause. | A wrapper that shows its error's text must not also list it as a cause, or a report prints it twice. | own |
 | 89 (#246) | `ConsoleError` implements `Eq` and `Debug`. | `std-format.debug.std-types` and owner Q21. | own |
 | 89 (#246) | `ScriptedInput::new(lines)` is the `ConsoleInput` test provider: lines in order, then `.Ok(.None)` forever. | Owner decision 4: a provider beside each host trait. | own |
-| 89 (#246) | `BufferConsole` is specified: `new`, `output()`, and `error_output()`, which keeps `write_error_line!` lines apart. | Go tests capture `Stdout` and `Stderr` apart. | own |
+| 89 (#246) | `MemoryConsole` is specified: `new`, `output()`, and `error_output()`, which keeps `write_error_line!` lines apart. | Go tests capture `Stdout` and `Stderr` apart. | own |
 | 89 (#246) | `Console.write_error_line!`, `eprintln`, and `error_output` stay out of `lib/std` (STD-HELPERS). | The prototype emits host glue for every host-trait method, so a second `Console` method grows every printing program by five functions. | changed: `lib/std/console.hd` declares them since task #263, and task #281 closed STD-HELPERS (`eprintln` writes to standard error under the default profile) |
 | 89 (#246) | `List` gains `get(index) -> T?`, `is_empty`, `take(count) -> List[T]`, and `extend(other)`; `first`, `last`, `filter`, `reversed`, `sorted_by`, and `zip` are specified. `Map` gains `is_empty`. | Rust's `slice::get` and `Vec::extend`. `take` is Kotlin's `List.take`: eager like `List.map`, so it does not clash with the lazy `Iterator.take`. | own |
 | 89 (#246) | `items.extend(items)` appends the elements held before the call, so it doubles the list. | It reads `other`'s length once; Rust forbids the aliasing instead. | own |
@@ -264,14 +264,14 @@ the spec edit on 2026-10-16, and it is applied (end of the entry).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
-| #256 | `std.net` declares four providers beside `Net`: `ScriptedNet` (lookups and the handles that `connect!`, `listen!`, and `bind_udp!` return), `ScriptedStream` (a `TcpStream`), `ScriptedListener` (a `TcpListener`), and `ScriptedUdp` (a `UdpSocket`). All have private fields and implement `Debug`. None lives in `std.testing`. | `ScriptedHttp` lives in `std.http`, `BufferConsole` in `std.console`, `ScriptedProcess` in `std.process`: a provider sits with its trait. A socket needs its own scripted handle, since `Net` returns handles. | own |
+| #256 | `std.net` declares four providers beside `Net`: `ScriptedNet` (lookups and the handles that `connect!`, `listen!`, and `bind_udp!` return), `ScriptedStream` (a `TcpStream`), `ScriptedListener` (a `TcpListener`), and `ScriptedUdp` (a `UdpSocket`). All have private fields and implement `Debug`. None lives in `std.testing`. | `ScriptedHttp` lives in `std.http`, `MemoryConsole` in `std.console`, `ScriptedProcess` in `std.process`: a provider sits with its trait. A socket needs its own scripted handle, since `Net` returns handles. | own |
 | #256 | The test builds each handle itself and keeps it: `ScriptedStream::new(reads) -> mut ScriptedStream`, `ScriptedListener::new(connections) -> mut ScriptedListener`, `ScriptedUdp::new(incoming) -> mut ScriptedUdp`. `ScriptedNet::new() -> mut ScriptedNet` takes no table; setup methods add to it (next row). Handles are `mut` values, so the copy that the net hands to the code under test is the copy the test holds, as `http` is after `$.with(Http=http)`. | One value per socket lets a test assert on exactly the connection it cares about. A table of every connection in `new` would need the accessor to name a connection. | own |
 | #256 | `ScriptedNet` setup: `add_host(host, addresses: List[string])` answers `lookup!`; `add_connection(address, stream)` queues a stream for `connect!`; `fail_connection(address, error: NetError)` queues an error for `connect!`; `add_listener(address, listener)` answers `listen!`; `add_udp(address, socket)` answers `bind_udp!`. An address is `host:port` as in `r[std-net.error.address]`. The connections for one address are served in queue order, one per call. | A queue per address lets a test script "the first connect is refused, the retry works". Errors share the queue so their order is exact. | own |
 | #256 | A call with nothing scripted fails at once with the `NetError` that a real network gives: `lookup!` of an unknown host is `.Dns(host)`; `connect!`, `listen!`, or `bind_udp!` of an address with no entry (or an emptied queue) is `.Refused(address)`. | `ScriptedHttp` also fails an unscripted call with an error, never a plausible answer. These two variants already mean "no such name" and "nobody there", so no new variant is needed. | own |
 | #256 | A read, accept, or receive past the end of the script returns `.Err(.Operation(.Other(message)))`, and `message` is `ScriptedStream has no more reads`, `ScriptedListener has no more connections`, or `ScriptedUdp has no more datagrams`. It never waits. | A provider that returns at once cannot hang, and a forgotten step shows up as a failure that names it. An empty `read!` result would look like a closed peer. | own |
 | #256 | End of stream is scripted, not implied: an empty chunk in `reads` is the peer's close, and every later `read!` on that stream returns the empty list again. | `r[std-net.read]` already makes an empty list the end of the stream. A script that ends without one is a test bug, so it errors (previous row). | own |
 | #256 | `ScriptedStream::new(reads: List[List[u8]])` returns the chunks in order, one per `read!`. A `read!(max)` returns at most `max` bytes of the front chunk and keeps the rest at the front. `ScriptedStream::failing(reads, error: NetError)` serves `reads`, then returns `.Err(.Operation(error))` from every later `read!` and `write!`. | The chunk is TCP's unit of arrival and `max` splitting matches `r[std-net.read]`. `failing` covers a reset or timeout in the middle of a reply. | own |
-| #256 | A test asserts on a stream with `written() -> List[u8]` (every byte of every `write!`, concatenated in order) and `is_closed() -> bool`. There is no per-call write list and no expected-writes script. | TCP keeps no write boundaries, so a per-call list would make a test depend on how the code chunks its writes. `BufferConsole.output()` is likewise a recording, and the test compares it itself; an expected-writes script would add a mismatch error to design. | own |
+| #256 | A test asserts on a stream with `written() -> List[u8]` (every byte of every `write!`, concatenated in order) and `is_closed() -> bool`. There is no per-call write list and no expected-writes script. | TCP keeps no write boundaries, so a per-call list would make a test depend on how the code chunks its writes. `MemoryConsole.output()` is likewise a recording, and the test compares it itself; an expected-writes script would add a mismatch error to design. | own |
 | #256 | `ScriptedUdp::new(incoming: List[Datagram])` returns its datagrams in order from `receive!`, cut to `max` bytes. `sent() -> List[Datagram]` returns each `send_to!` as a `Datagram` with the destination's host and port. `is_closed()` is as for a stream. | `Datagram` already carries bytes, host, and port in both directions. A datagram is one unit, so unlike a stream it does keep its boundaries. | own |
 | #256 | `ScriptedListener::new(connections: List[mut ScriptedStream])` returns its streams in order from `accept!`. `is_closed()` is as for a stream. | One accept, one scripted peer. | own |
 | #256 | `ScriptedNet.requested() -> List[string]` returns the address of every `lookup!`, `connect!`, `listen!`, and `bind_udp!` call in order (the host alone for a lookup), the failed ones included. | The counterpart of `ScriptedHttp.sent()`; it lets a test count retries and check what was dialed. | own |
@@ -829,10 +829,19 @@ its own issue.
 - **Integer and float math in hd:** integer `abs` and `pow`; float
   `floor`, `round`, `abs`. (`sqrt` waits for the owner: it needs an
   intrinsic.) Applied in #373, with float `ceil` and `trunc` added.
-- **The 16 design findings** of the audit: drop the duplicate
-  `Rng::from_seed`, fix the `CliError` doc, name the program in
-  `ProcessError.NotFound`, one naming scheme for test providers, and the
-  rest as listed there.
+- **The 16 design findings** of the audit, each marked there. Applied in
+  #374: `Rng::from_seed` removed; the `CliError` doc fixed (no help
+  variant; a declared `help` flag is how a program reads `--help`);
+  `ProcessError.NotFound(program)` and `PermissionDenied(program)`, as
+  `FsError` names its path, with `Display` text `program not found: git`;
+  test providers renamed to four prefixes (`Scripted`, `Memory`, `Manual`,
+  `Seeded`; table in `spec/std/README.md`): `MapArgs`, `MapEnv` and
+  `MapSys` are now `ScriptedArgs`, `ScriptedEnv` and `ScriptedSys`, and
+  `BufferConsole` is `MemoryConsole`; `token_hex(count)` and the `Rng`
+  secrets note. Eight were fixed already (#364 to #371). Still open:
+  `Process.output!` with `ProcessError.Exited` (a new variant and a
+  return-type choice), `Duration` in nanoseconds (changes `Clock`), and the
+  two language-tier ones (the `r` prefix, `it_each` and `it_prop` blocks).
 - **Zero-copy JSON strings** (#360). A parsed string with no escape
   shares the input's bytes, so the whole input stays alive while any
   such string does, as a Go substring keeps its backing array. The

@@ -27,6 +27,7 @@ pub trait Random:
 3. r[std-random.fill] `fill(count)` returns `count` values of that source, as bytes.
 4. r[std-random.plain] Both methods are plain calls, not bang calls.
 5. r[std-random.mut] Both take `mut self`, so `Random` is a mutable requirement trait and a seeded provider may advance its own state.
+6. r[std-random.token-hex] `std.random` declares `pub fn token_hex(count: usize) -> string $ Random`. It returns `fill(count)` of the `Random` provider that covers the call, as lowercase hex text with two digits per byte.
 
 ```text
 use std.random.Random
@@ -38,6 +39,11 @@ fn roll() -> u64 $ Random:
 > **Why.** A random draw returns a value from the host, as a clock read
 > does, so it needs no driver. A test installs a seeded provider, and
 > replay records each draw at the boundary.
+
+> **Note.** `Random.fill` and `token_hex` are the calls for a secret, such
+> as a session token, because the default host provider draws from the
+> system source. An [`Rng`](#rng) repeats for one seed, so it is never a
+> source of secrets.
 
 > **Note.** A property test's random draws also come from a `Random`
 > provider, one that `std.testing` seeds from the test runner
@@ -109,7 +115,7 @@ fn deal(seed: u64) -> List[string]:
 
 1. r[std-random.rng.decl] `std.random` declares the data type `Rng`, with private fields, and the methods above. Code imports it, as in `use std.random.Rng`.
 2. r[std-random.rng.new] `Rng::new(seed: u64) -> mut Rng` returns a generator that `seed` starts, as `SeededRandom::new` returns a provider.
-3. r[std-random.rng.from-random] `std.random` declares `pub fn rng() -> mut Rng $ Random`. It draws one `next_u64` from the `Random` provider that covers the call, and returns `Rng::from_seed` of that draw.
+3. r[std-random.rng.from-random] `std.random` declares `pub fn rng() -> mut Rng $ Random`. It draws one `next_u64` from the `Random` provider that covers the call, and returns `Rng::new` of that draw.
 4. r[std-random.rng.plain] Every `Rng` method is a plain call with the empty requirement row. An `Rng` reads nothing from the host.
 5. r[std-random.rng.mut] Every method takes `mut self`, since each draw advances the generator.
 

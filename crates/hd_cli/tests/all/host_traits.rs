@@ -240,7 +240,7 @@ fn process_runs_a_granted_host_program() {
     assert_eq!(text(&out.stderr), "");
     assert_eq!(
         text(&out.stdout),
-        "3 [fed] [oops\n]\nprogram not granted; run with --cap Process=PROGRAM\nprogram not found\n"
+        "3 [fed] [oops\n]\nprogram not granted; run with --cap Process=PROGRAM\nprogram not found: hd-no-such-program-176\n"
     );
 }
 

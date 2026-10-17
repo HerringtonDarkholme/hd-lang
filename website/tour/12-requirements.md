@@ -10,7 +10,7 @@ means patching globals or adding a mocking framework. In hd a public signature
 lists what the function needs after `$`. `$ Console` says that `remind_unpaid`
 writes to the console, and nothing else. The caller provides the console:
 `main` passes on the real one, and the test uses `$.with` to put a recording
-`BufferConsole` in its place for one block, then reads what was written. A test
+`MemoryConsole` in its place for one block, then reads what was written. A test
 gets no real console at all, so a test that forgets the fake does not compile.
 Your own traits work the same way: a `Mailer`, a `Clock`, a `PaymentGateway`.
 
@@ -24,7 +24,7 @@ tests:
     use std.testing.assert_equal
 
     it("reminds only the unpaid invoices"):
-        let console: mut BufferConsole = BufferConsole::new()
+        let console: mut MemoryConsole = MemoryConsole::new()
         $.with(Console=console):  # ← a recording console, for this block only
             remind_unpaid(sample())
         assert_equal(console.output(), ["Reminder: invoice INV-7 is due"], reason="one reminder")
@@ -34,7 +34,7 @@ tests:
 #     missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
 
 # ── plumbing ──
-use std.console.BufferConsole
+use std.console.MemoryConsole
 pub data Invoice:
     id: string
     paid: bool

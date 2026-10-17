@@ -658,7 +658,7 @@ pub data RunOutput:
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .Err(.NotFound) => panic("hd_run!: the package has no executable or task named '${name}'")
+        .Err(.NotFound(_)) => panic("hd_run!: the package has no executable or task named '${name}'")
         .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
 
 # The running test case's own temporary directory, which the runner

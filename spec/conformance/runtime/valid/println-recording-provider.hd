@@ -5,10 +5,10 @@
 # provider that covers the call, and drives the call to completion. The entry
 # is a non-suspending main.
 
-data BufferConsole:
+data MemoryConsole:
     lines: mut List[string]
 
-impl Console for BufferConsole:
+impl Console for MemoryConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
@@ -17,7 +17,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let mut console = BufferConsole { lines: [] }
+    let mut console = MemoryConsole { lines: [] }
     $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}")

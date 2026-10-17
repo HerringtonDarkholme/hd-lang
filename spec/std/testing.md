@@ -541,16 +541,16 @@ test binds with `$.with` instead:
 
 | Host trait | Provider | Defined in |
 | --- | --- | --- |
-| `Console` | `BufferConsole` | [Buffer Console](console.md#buffer-console) |
+| `Console` | `MemoryConsole` | [Buffer Console](console.md#buffer-console) |
 | `ConsoleInput` | `ScriptedInput` | [Scripted Input](console.md#scripted-input) |
-| `Args`, `Env` | `MapArgs`, `MapEnv` | [Map Providers](host.md#map-providers) |
+| `Args`, `Env` | `ScriptedArgs`, `ScriptedEnv` | [Map Providers](host.md#map-providers) |
 | `Clock` | `ManualClock` | [Manual Clock](time.md#manual-clock) |
 | `Random` | `SeededRandom` | [Seeded Random](random.md#seeded-random) |
 | `FsRead`, `FsWrite` | `MemoryFs` | [Memory File System](fs.md#memory-file-system) |
 | `Process` | `ScriptedProcess` | [Scripted Process](process.md#scripted-process) |
 | `Http` | `ScriptedHttp` | [Scripted Http](http.md#scripted-http) |
 | `Net` | `ScriptedNet` | [Scripted Net](net.md#scripted-net) |
-| `Sys` | `MapSys` | [Map Sys](sys.md#map-sys) |
+| `Sys` | `ScriptedSys` | [Map Sys](sys.md#map-sys) |
 
 ```text
 use std.time.{Clock, ManualClock, Timestamp, now}

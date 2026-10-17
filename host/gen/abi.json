@@ -159,8 +159,8 @@
     ] },
     "Path": { "kind": "newtype", "module": "lib/std/path.hd", "of": "string" },
     "ProcessError": { "kind": "enum", "module": "lib/std/process.hd", "generics": [], "variants": [
-      { "name": "NotFound", "fields": [] },
-      { "name": "PermissionDenied", "fields": [] },
+      { "name": "NotFound", "fields": [{ "name": "program", "type": "string" }] },
+      { "name": "PermissionDenied", "fields": [{ "name": "program", "type": "string" }] },
       { "name": "NotGranted", "fields": [] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },

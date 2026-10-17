@@ -611,7 +611,7 @@ hd test --seed 42                 # every property test starts from seed 42
 5. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
 6. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider. That provider starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
 7. r[cli.test.process.tasks] That provider also starts each [task](#tasks) of the package by its name, as `hd run NAME` does. A name names at most one program, by [`cli.task.name-clash`](#r-cli.task.name-clash).
-8. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound)` for a program name that names neither an executable nor a task of the package.
+8. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound(program))` for a program name that names neither an executable nor a task of the package.
 9. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
 10. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
 11. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).

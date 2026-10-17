@@ -76,7 +76,15 @@ fn process_grant_precedes_spawn_and_missing_program_is_not_found() {
         limits: vec![("Process".into(), Limit::Entries(vec![]))],
     };
     assert_eq!(process(args.done(), &grants), [1, 2]);
-    assert_eq!(process(args.done(), &Grants::default()), [1, 0]);
+    let mut missing = Enc::default();
+    missing
+        .leb(1)
+        .leb(0)
+        .str("hd-no-such-program-for-process-test");
+    assert_eq!(
+        process(args.done(), &Grants::default()),
+        missing.done().to_vec()
+    );
 }
 
 #[test]
@@ -109,5 +117,5 @@ fn process_invalid_names_and_arguments_are_typed_errors() {
     }
     let mut args = Enc::default();
     args.str("").leb(0).bytes(&[]);
-    assert_eq!(process(args.done(), &Grants::default()), [1, 0]);
+    assert_eq!(process(args.done(), &Grants::default()), [1, 0, 0]);
 }

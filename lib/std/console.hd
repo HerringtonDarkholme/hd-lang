@@ -1,10 +1,10 @@
 # std.console: `println`, `eprintln`, console input, and the recording
-# `BufferConsole`.
+# `MemoryConsole`.
 # `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/lang/10-modules.md#console), all declared here.
 # The checker still also knows `ConsoleError` by name. The default profile
 # binds a host `ConsoleInput` to standard input. `println` drives the covering
-# provider's `write_line!` with `block_on` (MHP-1), so a `BufferConsole`
+# provider's `write_line!` with `block_on` (MHP-1), so a `MemoryConsole`
 # records `println` lines too.
 use std.task.block_on
 use std.format.DebugWriter
@@ -41,15 +41,15 @@ pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
 # It keeps error lines apart from output lines.
 ## The recording `Console` provider: it keeps the lines in memory for a test to read.
 ## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
-pub data BufferConsole:
+pub data MemoryConsole:
     lines: mut List[string]
     error_lines: mut List[string]
 
-impl BufferConsole:
+impl MemoryConsole:
     ## Returns an empty recording provider.
     ## See [std-console.buffer.new](../../spec/std/console.md#r-std-console.buffer.new).
-    pub fn new() -> mut BufferConsole:
-        BufferConsole { lines: [], error_lines: [] }
+    pub fn new() -> mut MemoryConsole:
+        MemoryConsole { lines: [], error_lines: [] }
 
     # The lines `write_line!` received, in order (r-std-console.buffer.output).
     ## The lines written through `write_line!`, in order.
@@ -92,11 +92,11 @@ impl Debug for ScriptedInput:
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
-impl Debug for BufferConsole:
+impl Debug for MemoryConsole:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("BufferConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
+        out.debug_struct("MemoryConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
-impl Console for BufferConsole:
+impl Console for MemoryConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())

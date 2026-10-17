@@ -556,7 +556,11 @@ fn process_binary_input_lossy_outputs_status_and_missing_program() {
         "hd:Process",
         "run",
         process_args("hd-missing-program-parity-778811", &[], b""),
-        vec![1, 0],
+        Enc::default()
+            .leb(1)
+            .leb(0)
+            .str("hd-missing-program-parity-778811")
+            .0,
     );
     assert_program(&scratch, p, vec![], || {});
 }
@@ -677,7 +681,7 @@ fn process_signal_status_and_permission_denied() {
         "hd:Process",
         "run",
         process_args(path(&script), &[], b""),
-        vec![1, 1],
+        Enc::default().leb(1).leb(1).str(path(&script)).0,
     );
     assert_program(&scratch, p, vec![], || {});
 }
@@ -738,7 +742,12 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
 #[test]
 fn process_invalid_names_and_arguments_return_typed_errors() {
     let mut p = Program::new();
-    p.call_waiting("hd:Process", "run", process_args("", &[], b""), vec![1, 0]);
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_args("", &[], b""),
+        Enc::default().leb(1).leb(0).str("").0,
+    );
     for (name, args, message) in [
         ("a\0b", vec![], "program name contains a NUL byte"),
         (

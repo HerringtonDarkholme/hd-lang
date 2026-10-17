@@ -517,7 +517,7 @@ function processProvider({ grant, env, left }) {
     let r;
     if (env.programs) {
       const p = env.programs[name];
-      if (!p) return Err({ tag: "NotFound" });
+      if (!p) return Err({ tag: "NotFound", program: name });
       r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
         input,
         cwd: p.cwd,
@@ -534,15 +534,16 @@ function processProvider({ grant, env, left }) {
           timeout,
         });
       } catch (error) {
-        if (name === "") return Err({ tag: "NotFound" });
+        if (name === "") return Err({ tag: "NotFound", program: name });
         return Err({ tag: "Other", message: String(error.message) });
       }
     }
     if (r.error) {
       const code = r.error.code;
       if (code === "ETIMEDOUT") throw new TimeLimit();
-      if (code === "ENOENT") return Err({ tag: "NotFound" });
-      if (code === "EACCES" || code === "EPERM") return Err({ tag: "PermissionDenied" });
+      if (code === "ENOENT") return Err({ tag: "NotFound", program: name });
+      if (code === "EACCES" || code === "EPERM")
+        return Err({ tag: "PermissionDenied", program: name });
       return Err({ tag: "Other", message: String(r.error.message) });
     }
     // std-process.child.signal: a child ended by a signal reports 128 plus

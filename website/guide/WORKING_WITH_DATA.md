@@ -383,7 +383,7 @@ The first run fails until you record the snapshot with `hd test
 --update`; every later run compares against it. A snapshot that should
 change is re-recorded with another `--update`, and the diff is the review.
 Tests that need deterministic randomness or arguments bind `SeededRandom`
-or `MapArgs` the same way as `MemoryFs`.
+or `ScriptedArgs` the same way as `MemoryFs`.
 
 ## Packages And Dependencies
 

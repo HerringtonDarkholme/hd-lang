@@ -32,17 +32,19 @@ fn explain(error: ProcessError) -> string:
 
 | Rule | Variant | `Display` text |
 | --- | --- | --- |
-| r[std-process.error.display.not-found] Not found | `NotFound` | `program not found` |
-| r[std-process.error.display.permission] Permission | `PermissionDenied` | `permission denied` |
+| r[std-process.error.display.not-found-named] Not found | `NotFound(program)` | `program not found: PROGRAM` |
+| r[std-process.error.display.permission-named] Permission | `PermissionDenied(program)` | `permission denied: PROGRAM` |
 | r[std-process.error.display.not-granted] Not granted | `NotGranted` | `program not granted; run with --cap Process=PROGRAM` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
 
-1. r[std-process.error.debug-text] Its `Debug` writes the qualified variant, and for `Other` the `message` argument, as `ProcessError.Other(message="x")`, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
-2. r[std-process.error.eq] Two `ProcessError` values are equal when they are the same variant and, for `Other`, their messages are equal.
+1. r[std-process.error.debug-fields] Its `Debug` writes the qualified variant and its argument, as `ProcessError.NotFound(program="git")` and `ProcessError.Other(message="x")`, and `NotGranted` alone, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
+2. r[std-process.error.equal] Two `ProcessError` values are equal when they are the same variant and their arguments, if any, are equal.
 3. r[std-process.error.error] `ProcessError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
 > **Why.** The host's message is the whole text of `Other`, as `FsError`
-> keeps it. `NotFound` carries no program name, so the caller adds it.
+> keeps it. `NotFound` and `PermissionDenied` name the program, as
+> `FsError.NotFound(path)` names its path, so a message such as
+> `program not found: git` needs no caller to add the name.
 
 ## Exit Data
 
@@ -108,12 +110,12 @@ tests:
 1. r[std-process.scripted.decl] `std.process` declares `ScriptedProcess`, which implements `Process` and `Debug`, with private fields. Code imports it, as in `use std.process.ScriptedProcess`.
 2. r[std-process.scripted.new] `ScriptedProcess::new(outputs: Map[string, ProcessOutput]) -> mut ScriptedProcess` returns a provider that answers each program in `outputs`.
 3. r[std-process.scripted.run] `run!(program, args, stdin)` returns `.Ok` of the output that `outputs` holds for `program`, whatever `args` and `stdin` are.
-4. r[std-process.scripted.not-found] For a program that `outputs` does not hold, `run!` returns `.Err(ProcessError.NotFound)`.
+4. r[std-process.scripted.missing] For a program that `outputs` does not hold, `run!` returns `.Err(ProcessError.NotFound(program))`.
 5. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
 
 > **Why.** Every host capability trait has a deterministic provider
 > beside it, so a test never touches the host. A constructor keeps the
-> fields private, as `BufferConsole::new` and `ManualClock::new` do.
+> fields private, as `MemoryConsole::new` and `ManualClock::new` do.
 
 ## Child Processes
 

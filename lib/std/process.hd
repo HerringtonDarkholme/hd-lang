@@ -47,11 +47,11 @@ pub data ProcessOutput:
 
 # Why a program did not start (r-module.process.declares). A program that
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
-## Why a program did not start: not found, denied, not granted, or another reason with a message.
+## Why a program did not start: not found or denied (each naming the program), not granted, or another reason with a message.
 ## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
 pub enum ProcessError:
-    NotFound
-    PermissionDenied
+    NotFound(program: string)
+    PermissionDenied(program: string)
     NotGranted
     Other(message: string)
 
@@ -87,7 +87,7 @@ impl Process for ScriptedProcess:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(program):
             .Some(output) => .Ok(output)
-            .None => .Err(.NotFound)
+            .None => .Err(.NotFound(program))
 
 impl Eq for ExitCode:
     fn eq(self, other: ExitCode) -> bool:
@@ -100,8 +100,8 @@ impl Eq for ProcessOutput:
 impl Eq for ProcessError:
     fn eq(self, other: ProcessError) -> bool:
         match (self, other):
-            (.NotFound, .NotFound) => true
-            (.PermissionDenied, .PermissionDenied) => true
+            (.NotFound(left), .NotFound(right)) => left == right
+            (.PermissionDenied(left), .PermissionDenied(right)) => left == right
             (.NotGranted, .NotGranted) => true
             (.Other(left), .Other(right)) => left == right
             _ => false
@@ -110,8 +110,8 @@ impl Eq for ProcessError:
 impl Display for ProcessError:
     fn to_string(self) -> string:
         match self:
-            .NotFound => "program not found"
-            .PermissionDenied => "permission denied"
+            .NotFound(program) => "program not found: ${program}"
+            .PermissionDenied(program) => "permission denied: ${program}"
             .NotGranted => "program not granted; run with --cap Process=PROGRAM"
             .Other(message) => message
 
@@ -135,8 +135,8 @@ impl Debug for ProcessOutput:
 impl Debug for ProcessError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .NotFound => out.write("ProcessError.NotFound")
-            .PermissionDenied => out.write("ProcessError.PermissionDenied")
+            .NotFound(program) => out.debug_tuple("ProcessError.NotFound").named_field("program", program).finish()
+            .PermissionDenied(program) => out.debug_tuple("ProcessError.PermissionDenied").named_field("program", program).finish()
             .NotGranted => out.write("ProcessError.NotGranted")
             .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
 

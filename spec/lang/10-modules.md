@@ -1033,10 +1033,10 @@ fn report() -> void $ Console:
 A recording provider receives each line that `println` writes:
 
 ```text
-data BufferConsole:
+data MemoryConsole:
     lines: mut List[string]
 
-impl Console for BufferConsole:
+impl Console for MemoryConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
@@ -1045,7 +1045,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let mut console = BufferConsole { lines: [] }
+    let mut console = MemoryConsole { lines: [] }
     $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
@@ -1087,8 +1087,8 @@ pub data ProcessOutput:
     pub status: i32
 
 pub enum ProcessError:
-    NotFound
-    PermissionDenied
+    NotFound(program: string)
+    PermissionDenied(program: string)
     NotGranted
     Other(message: string)
 
@@ -1100,8 +1100,8 @@ pub trait Process:
 2. r[module.process.run] `run!(program, args, stdin)` starts the program named `program` with the arguments `args` and the standard input `stdin`, and completes when that program exits.
 3. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
 4. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
-5. r[module.process.not-found] `run!` returns `.Err(ProcessError.NotFound)` when its provider has no program named `program`.
-6. r[module.process.os-denied] It returns `.Err(ProcessError.PermissionDenied)` when the program exists but the operating system does not allow starting it.
+5. r[module.process.not-found-program] `run!` returns `.Err(ProcessError.NotFound(program))` when its provider has no program named `program`.
+6. r[module.process.denied] It returns `.Err(ProcessError.PermissionDenied(program))` when the program exists but the operating system does not allow starting it.
 7. r[module.process.not-granted] It returns `.Err(ProcessError.NotGranted)` when its provider refuses `program` because the program's run-time grant does not cover it.
 8. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
 9. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
@@ -1120,12 +1120,12 @@ impl Process for ScriptedProcess:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(program):
             .Some(output) => .Ok(output)
-            .None => .Err(.NotFound)
+            .None => .Err(.NotFound(program))
 
 fn version!() -> string $ Process:
     match $.use(Process).run!("git", ["--version"], ""):
         .Ok(output) => output.stdout
-        .Err(.NotFound) => "no git"
+        .Err(.NotFound(_)) => "no git"
         .Err(error) => "git did not start: ${error}"
 ```
 

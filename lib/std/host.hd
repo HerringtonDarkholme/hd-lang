@@ -1,5 +1,5 @@
 # std.host: the host capability traits `Args` and `Env`, their helpers, and
-# the deterministic providers `MapArgs` and `MapEnv` (spec/std/host.md).
+# the deterministic providers `ScriptedArgs` and `ScriptedEnv` (spec/std/host.md).
 # The default profile binds a host `Args` and `Env`
 # (src/commands/default-profile.ts).
 use std.format.DebugWriter
@@ -63,17 +63,17 @@ impl Error for EnvError
 # it returns the program name and the arguments it was made with.
 ## The deterministic `Args` provider: a fixed list of arguments, with no host access.
 ## See [std-host.map-args.decl](../../spec/std/host.md#r-std-host.map-args.decl).
-pub data MapArgs:
+pub data ScriptedArgs:
     program: string
     values: List[string]
 
-impl MapArgs:
+impl ScriptedArgs:
     ## Returns the provider whose arguments are `program` then `values`.
     ## See [std-host.map-args.new](../../spec/std/host.md#r-std-host.map-args.new).
-    pub fn new(program: string, values: List[string]) -> MapArgs:
-        MapArgs { program: program, values: values }
+    pub fn new(program: string, values: List[string]) -> ScriptedArgs:
+        ScriptedArgs { program: program, values: values }
 
-impl Args for MapArgs:
+impl Args for ScriptedArgs:
     fn program(self) -> string:
         self.program
 
@@ -84,16 +84,16 @@ impl Args for MapArgs:
 # lists the map's keys in its iteration order (r-std-host.map-env.names.order).
 ## The deterministic `Env` provider: a fixed map of variables, with no host access.
 ## See [std-host.map-env.decl](../../spec/std/host.md#r-std-host.map-env.decl).
-pub data MapEnv:
+pub data ScriptedEnv:
     values: Map[string, string]
 
-impl MapEnv:
+impl ScriptedEnv:
     ## Returns the provider that answers from `values`.
     ## See [std-host.map-env.new](../../spec/std/host.md#r-std-host.map-env.new).
-    pub fn new(values: Map[string, string]) -> MapEnv:
-        MapEnv { values: values }
+    pub fn new(values: Map[string, string]) -> ScriptedEnv:
+        ScriptedEnv { values: values }
 
-impl Env for MapEnv:
+impl Env for ScriptedEnv:
     fn get(self, name: string) -> string?:
         self.values.get(name)
 
@@ -109,13 +109,13 @@ impl Env for MapEnv:
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
 
-impl Debug for MapArgs:
+impl Debug for ScriptedArgs:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("MapArgs").field("program", self.program).field("values", self.values).finish()
+        out.debug_struct("ScriptedArgs").field("program", self.program).field("values", self.values).finish()
 
-impl Debug for MapEnv:
+impl Debug for ScriptedEnv:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("MapEnv").field("values", self.values).finish()
+        out.debug_struct("ScriptedEnv").field("values", self.values).finish()
 
 impl Debug for EnvError:
     fn debug(self, out: mut DebugWriter) -> void:

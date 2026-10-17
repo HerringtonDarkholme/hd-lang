@@ -1,6 +1,6 @@
 # test: env_as reads a variable as a Parse type: unset is none, unreadable is an error that names it
 # Spec std/host Typed Variables: std-host.env-as.decl, std-host.env-as.unset, std-host.env-as.present, std-host.env-as.invalid, std-host.env-as.error, std-host.env-as.plain (task #372).
-use std.host.{Env, EnvError, MapEnv, env_as}
+use std.host.{Env, EnvError, ScriptedEnv, env_as}
 
 fn workers() -> Result[usize, EnvError] $ Env:
     .Ok(env_as::[usize]("WORKERS")?.unwrap_or(4))
@@ -9,13 +9,13 @@ tests:
     use std.testing.assert_equal
 
     it("an unset variable is none"):
-        vars := MapEnv::new({})
+        vars := ScriptedEnv::new({})
         $.with(Env=vars):
             assert_equal(env_as::[usize]("WORKERS"), .Ok(.None), reason="unset")
             assert_equal(workers(), .Ok(usize(4)), reason="default")
 
     it("a good value is read as the type"):
-        vars := MapEnv::new({"WORKERS": "8", "DEBUG": "false", "NAME": "ci", "RATIO": "0.5"})
+        vars := ScriptedEnv::new({"WORKERS": "8", "DEBUG": "false", "NAME": "ci", "RATIO": "0.5"})
         $.with(Env=vars):
             assert_equal(workers(), .Ok(usize(8)), reason="usize")
             assert_equal(env_as::[bool]("DEBUG"), .Ok(.Some(false)), reason="bool")
@@ -23,7 +23,7 @@ tests:
             assert_equal(env_as::[f64]("RATIO"), .Ok(.Some(0.5)), reason="f64")
 
     it("an unreadable value names the variable"):
-        vars := MapEnv::new({"WORKERS": "many", "BIG": "300", "EMPTY": ""})
+        vars := ScriptedEnv::new({"WORKERS": "many", "BIG": "300", "EMPTY": ""})
         $.with(Env=vars):
             assert_equal(workers(), .Err(EnvError.InvalidValue("WORKERS", "invalid digit at position 0")), reason="not a number")
             assert_equal(env_as::[u8]("BIG"), .Err(EnvError.InvalidValue("BIG", "number out of range for its type")), reason="range")

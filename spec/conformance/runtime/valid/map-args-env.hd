@@ -1,6 +1,6 @@
-# test: MapArgs and MapEnv cover Args and Env rows through $.with, and names lists the map's keys
+# test: ScriptedArgs and ScriptedEnv cover Args and Env rows through $.with, and names lists the map's keys
 # Spec std/host Map Providers: std-host.map-args.new, std-host.map-env.new, and std-host.map-env.names.order (STDLIB decision 4, PROVIDER-SHAPES; task #220).
-use std.host.{Args, Env, MapArgs, MapEnv, args, env}
+use std.host.{Args, Env, ScriptedArgs, ScriptedEnv, args, env}
 fn greeting() -> string $ Args + Env:
     match env("GREETING"):
         .Some(word) => "${word}, ${args().len()}"
@@ -13,8 +13,8 @@ tests:
     use std.testing.assert_equal
 
     it("greets from fixed input"):
-        given := MapArgs::new("tool", ["a", "b"])
-        vars := MapEnv::new({"GREETING": "hi", "HOME": "/home/me"})
+        given := ScriptedArgs::new("tool", ["a", "b"])
+        vars := ScriptedEnv::new({"GREETING": "hi", "HOME": "/home/me"})
         $.with(Args=given, Env=vars):
             assert_equal(greeting(), "hi, 2", reason="one variable, two arguments")
             assert_equal(program(), "tool", reason="the program name")

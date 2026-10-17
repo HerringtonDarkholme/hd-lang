@@ -1,5 +1,5 @@
 # test: run! reports a refused start as .Err, and a non-zero exit status as an ordinary .Ok
-# Spec Modules, Processes: module.process.nonzero-ok, module.process.os-denied, module.process.other, module.process.error-traits.
+# Spec Modules, Processes: module.process.nonzero-ok, module.process.denied, module.process.other, module.process.error-traits.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
 data RefusingProcess: pass
@@ -7,7 +7,7 @@ data RefusingProcess: pass
 impl Process for RefusingProcess:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
         match program:
-            "locked" => .Err(.PermissionDenied)
+            "locked" => .Err(.PermissionDenied(program))
             "broken" => .Err(.Other(message="exec format error"))
             _ => .Ok(ProcessOutput { stdout: "", stderr: "failed", status: 2 })
 
@@ -28,7 +28,7 @@ tests:
         let mut refusing = RefusingProcess {}
         $.with(Process=refusing):
             match start!("locked"):
-                .Err(error) => assert_equal(error == ProcessError.PermissionDenied, true, reason="the variant is PermissionDenied")
+                .Err(error) => assert_equal(error == ProcessError.PermissionDenied(program="locked"), true, reason="the variant is PermissionDenied")
                 .Ok(_) => assert_equal(true, false, reason="locked never starts")
             match start!("broken"):
                 .Err(error) => assert_equal(error == ProcessError.Other(message="exec format error"), true, reason="Other keeps its message")

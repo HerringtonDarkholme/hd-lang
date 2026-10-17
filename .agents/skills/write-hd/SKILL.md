@@ -336,7 +336,7 @@ tests:
         assert(fake.sent.len() == 2, reason="two mails")
 ```
 
-To test printing, provide `BufferConsole` from `std.console` and read
+To test printing, provide `MemoryConsole` from `std.console` and read
 `console.output()` ([tour: requirements](../../../website/tour/12-requirements.md)).
 `it_each` and `it_prop` are in [tour: tests](../../../website/tour/13-tests.md).
 A function that makes a bang call is itself `fn name!(...)`, and so is
@@ -375,7 +375,7 @@ is imported:
 
 | Need | Import |
 | --- | --- |
-| read input, stderr, test console | `std.console.{ConsoleInput, read_line, eprintln, BufferConsole}` |
+| read input, stderr, test console | `std.console.{ConsoleInput, read_line, eprintln, MemoryConsole}` |
 | program arguments, environment | `std.host.{Args, args, Env, env}` |
 | files and paths | `std.fs.{FsRead, FsWrite, FsError, read_text, write_text}`, `std.path.Path` |
 | parse numbers | `std.num.{parse_i32, parse_i64, parse_usize, parse_f64}` |

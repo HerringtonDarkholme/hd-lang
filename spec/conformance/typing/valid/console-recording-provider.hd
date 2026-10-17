@@ -2,10 +2,10 @@
 # Spec 10 Console: write_line! takes mut self, so Console is a mutable requirement trait
 # and printing code still writes $ Console.
 
-data BufferConsole:
+data MemoryConsole:
     lines: mut List[string]
 
-impl Console for BufferConsole:
+impl Console for MemoryConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
@@ -14,6 +14,6 @@ fn greet() -> void $ Console:
     println("hello")
 
 pub fn main() -> void:
-    let mut console = BufferConsole { lines: [] }
+    let mut console = MemoryConsole { lines: [] }
     $.with(Console=console):
         greet()

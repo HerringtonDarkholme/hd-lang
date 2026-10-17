@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability traits `Args` and `Env`;
 - the helpers `args` and `env`;
-- `MapArgs` and `MapEnv`, their deterministic providers;
+- `ScriptedArgs` and `ScriptedEnv`, their deterministic providers;
 - what every host operation does while it waits, when it is cancelled,
   and with the data it holds.
 
@@ -97,11 +97,11 @@ fn greeting() -> string $ Args + Env:
 
 ## Map Providers
 
-`MapArgs` and `MapEnv` are the deterministic providers of `Args` and
+`ScriptedArgs` and `ScriptedEnv` are the deterministic providers of `Args` and
 `Env`. A test supplies them with `$.with`:
 
 ```text
-use std.host.{Args, Env, MapArgs, MapEnv, args, env}
+use std.host.{Args, Env, ScriptedArgs, ScriptedEnv, args, env}
 fn greeting() -> string $ Args + Env:
     match env("GREETING"):
         .Some(word) => "${word}, ${args().len()}"
@@ -111,18 +111,18 @@ tests:
     use std.testing.assert_equal
 
     it("greets from fixed input"):
-        given := MapArgs::new("tool", ["a", "b"])
-        vars := MapEnv::new({"GREETING": "hi", "HOME": "/home/me"})
+        given := ScriptedArgs::new("tool", ["a", "b"])
+        vars := ScriptedEnv::new({"GREETING": "hi", "HOME": "/home/me"})
         $.with(Args=given, Env=vars):
             assert_equal(greeting(), "hi, 2", reason="one variable, two arguments")
         assert_equal(vars.names().sorted(), ["GREETING", "HOME"], reason="both keys")
 ```
 
-1. r[std-host.map-args.decl] `std.host` declares `MapArgs`, which implements `Args`, with private fields. Code imports it, as in `use std.host.MapArgs`.
-2. r[std-host.map-args.new] `MapArgs::new(program: string, values: List[string]) -> MapArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
-3. r[std-host.map-env.decl] `std.host` declares `MapEnv`, which implements `Env`, with private fields. Code imports it, as in `use std.host.MapEnv`.
-4. r[std-host.map-env.new] `MapEnv::new(values: Map[string, string]) -> MapEnv` returns a provider whose `get(name)` returns the value of the key `name` in `values`, or `.None` when there is no such key.
-5. r[std-host.map-env.names.order] `names` on a `MapEnv` returns the keys of `values` in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+1. r[std-host.map-args.decl] `std.host` declares `ScriptedArgs`, which implements `Args`, with private fields. Code imports it, as in `use std.host.ScriptedArgs`.
+2. r[std-host.map-args.new] `ScriptedArgs::new(program: string, values: List[string]) -> ScriptedArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
+3. r[std-host.map-env.decl] `std.host` declares `ScriptedEnv`, which implements `Env`, with private fields. Code imports it, as in `use std.host.ScriptedEnv`.
+4. r[std-host.map-env.new] `ScriptedEnv::new(values: Map[string, string]) -> ScriptedEnv` returns a provider whose `get(name)` returns the value of the key `name` in `values`, or `.None` when there is no such key.
+5. r[std-host.map-env.names.order] `names` on a `ScriptedEnv` returns the keys of `values` in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
 6. r[std-host.map.no-host] Neither provider reads the host's arguments or environment.
 
 > **Why.** A test states every argument and variable that the code under

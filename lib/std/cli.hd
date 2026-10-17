@@ -222,7 +222,8 @@ impl Eq for Parsed:
         self.flags == other.flags && self.values == other.values && self.positionals == other.positionals
 
 # Why `parse` failed (r-std-cli.error.declared).
-## Why parsing failed: an unknown or repeated argument, a missing value or positional, an unexpected value, or a help request.
+## Why parsing failed: an unknown option, a missing value or positional, an unexpected value, or a value that does not read as its type.
+## There is no help-request variant: a program that declares a `help` flag reads it from `Parsed` (std-cli.error.help).
 ## See [std-cli.error.declared](../../spec/std/cli.md#r-std-cli.error.declared).
 pub enum CliError:
     UnknownOption(text: string)

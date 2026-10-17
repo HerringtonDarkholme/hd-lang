@@ -2,6 +2,7 @@
 # provider `SeededRandom`, and the `Rng` helpers (spec/std/random.md). The
 # default profile binds a host `Random` (src/commands/default-profile.ts);
 # `std.testing` draws a property test's cases from a `SeededRandom`.
+use std.encoding.hex_encode
 use std.format.DebugWriter
 use std.ops.Range
 
@@ -13,6 +14,12 @@ use std.ops.Range
 pub trait Random:
     fn next_u64(mut self) -> u64
     fn fill(mut self, count: usize) -> List[u8]
+
+# A secret token from the covering provider (r-std-random.token-hex).
+## `count` random bytes of the covering `Random` provider as lowercase hex text, two digits per byte.
+## See [std-random.token-hex](../../spec/std/random.md#r-std-random.token-hex).
+pub fn token_hex(count: usize) -> string $ Random:
+    hex_encode($.use(Random).fill(count))
 
 # The deterministic `Random` (spec/std/random.md#seeded-random): the same
 # seed gives the same draws (r-std-random.seeded.same-seed). The generator
@@ -68,6 +75,7 @@ impl Random for SeededRandom:
 # (r-std-random.rng.generator): the xoshiro128** state of `SeededRandom`, so
 # a seed gives the same draws in every implementation.
 ## A random generator: seeded, so its draws repeat for one seed.
+## Its draws are predictable from the seed, so never use them for a secret; `Random.fill` and `token_hex` draw from the host's source.
 ## See [std-random.rng.decl](../../spec/std/random.md#r-std-random.rng.decl).
 pub data Rng:
     source: mut SeededRandom
@@ -76,14 +84,6 @@ impl Rng:
     ## Returns the generator of `seed`.
     ## See [std-random.rng.new](../../spec/std/random.md#r-std-random.rng.new).
     pub fn new(seed: u64) -> mut Rng:
-        Rng { source: SeededRandom::new(seed) }
-
-    # The direct constructor that `rng()` uses for its draw
-    # (r-std-random.rng.from-random): the spec names no distinct behavior
-    # for it, so it builds the generator exactly as `new` does.
-    ## Returns the generator of a raw draw, as `rng()` seeds one.
-    ## See [std-random.rng.from-random](../../spec/std/random.md#r-std-random.rng.from-random).
-    pub fn from_seed(seed: u64) -> mut Rng:
         Rng { source: SeededRandom::new(seed) }
 
     ## The next random `u64`.

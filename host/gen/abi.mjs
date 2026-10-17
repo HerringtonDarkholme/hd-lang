@@ -96,8 +96,8 @@ export const NetError = variants({
   Other: { message: str },
 });
 export const ProcessError = variants({
-  NotFound: {},
-  PermissionDenied: {},
+  NotFound: { program: str },
+  PermissionDenied: { program: str },
   NotGranted: {},
   Other: { message: str },
 });
