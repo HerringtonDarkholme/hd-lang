@@ -8,10 +8,12 @@ ordinary hd over the language tier:
 - the `Duration` type, its public API, its arithmetic, and its `Display`
   text;
 - the duration suffixes `ms`, `s`, `min`, and `h`;
+- `Duration::parse`, which reads Go-style duration text;
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
-  it returns, and the helpers `now` and `sleep!`;
+  it returns, and the helpers `now`, `monotonic`, `elapsed`, and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
-- the UTC `Date` of a `Timestamp`, RFC 3339 text, and `TimeParseError`;
+- the UTC `Date` of a `Timestamp`, RFC 3339 and ISO 8601 text, the
+  `Timestamp.format` layouts, and `TimeParseError`;
 - the serialization opt-in of `Duration`, `Timestamp`, and `Instant`.
 
 The language tier keeps the suffix mechanism
@@ -111,6 +113,86 @@ fn waited() -> string:
 > Go writes `1h0m0s`, keeps one spelling per duration and a shape that
 > depends only on its largest unit.
 
+### Duration Parsing
+
+`Duration::parse` reads the text form of Go's `time.ParseDuration`:
+
+```text
+use std.time.{Duration, ParseDurationError}
+
+fn timeout_of(text: string) -> Result[Duration, ParseDurationError]:
+    Duration::parse(text)  # "1h30m" is 5400000 milliseconds
+```
+
+The text is an optional sign, then one or more components. A component
+is a number and a unit:
+
+| Part | Form |
+| --- | --- |
+| sign | `+` or `-`, optional, once at the start |
+| number | one or more digits, then optionally `.` and one or more digits |
+| unit | `h`, `min`, `m`, `s`, `ms`, `us`, `µs`, `μs`, or `ns` |
+
+1. r[std-time.duration.parse] `std.time` declares `Duration::parse(text: string) -> Result[Duration, ParseDurationError]`. It returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
+2. r[std-time.duration.parse.grammar] `text` must hold the sign, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
+3. r[std-time.duration.parse.units] `h` is 3600 seconds. `min` and `m` are 60 seconds. `s` is one second, and `ms` is a millisecond. `us`, `µs` (U+00B5), and `μs` (U+03BC) are a microsecond. `ns` is a nanosecond.
+4. r[std-time.duration.parse.sum] The duration is the sum of its components, negated when the sign is `-`. A component's value is its number times its unit, with the fraction exact.
+5. r[std-time.duration.parse.exact] A component whose value is not a whole number of milliseconds gives `Inexact`. Nothing is rounded, so `1.5ms` and `500us` are errors, and `2000us` and `1.005s` are not.
+6. r[std-time.duration.parse.zero] The text `0`, with an optional sign and no unit, is the zero duration. No other number is valid without a unit.
+7. r[std-time.duration.parse.range] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The most negative duration is in range, so `-9223372036854775808ms` parses.
+8. r[std-time.duration.parse.round-trip] For every duration `d`, `Duration::parse(d.to_string())` is `.Ok(d)`.
+9. r[std-time.duration.parse.no-panic] `parse` never panics.
+
+| Text | `parse` gives the milliseconds |
+| --- | --- |
+| `1h30m` | `5400000` |
+| `1h0min5s` | `3605000` |
+| `250ms` | `250` |
+| `1.5s` | `1500` |
+| `-1.5h` | `-5400000` |
+| `2000us` | `2` |
+| `0` | `0` |
+
+> **Why.** Go's text is what config files and flags already hold. `min`
+> is accepted next to Go's `m` so that the text `Display` writes parses
+> back. A unit finer than the resolution is allowed when the value is
+> whole, and rejected otherwise, so a duration never changes silently.
+
+#### Duration Parse Errors
+
+A failed parse reports one of six errors, each at a byte position:
+
+```text
+pub enum ParseDurationError:
+    TooShort(position: usize)
+    InvalidCharacter(position: usize)
+    MissingUnit(position: usize)
+    UnknownUnit(position: usize)
+    Inexact(position: usize)
+    OutOfRange(position: usize)
+```
+
+1. r[std-time.duration.parse-error.declared] `std.time` declares the enum `ParseDurationError` with the variants above, each with one field `position: usize`. Code imports it, as in `use std.time.ParseDurationError`.
+2. r[std-time.duration.parse-error.too-short] Text that ends where a number is needed gives `TooShort` at the text's length. That is empty text, a sign alone, or a `.` with no digit after it.
+3. r[std-time.duration.parse-error.invalid-character] A character that is not a digit, where a number must start, gives `InvalidCharacter` at that character, as does a non-digit after a `.`.
+4. r[std-time.duration.parse-error.missing-unit] A number that is followed by the end of the text, or by a `.`, gives `MissingUnit` at the end of the number.
+5. r[std-time.duration.parse-error.unknown-unit] The characters after a number, up to the next digit or `.`, that are not a unit give `UnknownUnit` at their start.
+6. r[std-time.duration.parse-error.range-position] `Inexact` and `OutOfRange` are at the first digit of the component.
+7. r[std-time.duration.parse-error.order] The text is read from the left, one component at a time. In a component the number and unit errors come first, then `OutOfRange`, then `Inexact`, and the first error wins.
+8. r[std-time.duration.parse-error.traits] `ParseDurationError` implements `Eq`, `Debug`, `Display`, and `Error`.
+
+| Text | `parse` gives |
+| --- | --- |
+| `""` | `.Err(TooShort(0))` |
+| `"-"` | `.Err(TooShort(1))` |
+| `"1"` | `.Err(MissingUnit(1))` |
+| `"1x"` | `.Err(UnknownUnit(1))` |
+| `"1 s"` | `.Err(UnknownUnit(1))` |
+| `".5s"` | `.Err(InvalidCharacter(0))` |
+| `"1.5ms"` | `.Err(Inexact(0))` |
+| `"1h2.5ms"` | `.Err(Inexact(2))` |
+| `"9223372036854775808ms"` | `.Err(OutOfRange(0))` |
+
 ## Duration Suffixes
 
 The standard library declares these suffixes in `std.time`:
@@ -202,8 +284,27 @@ fn wait_and_stamp!(pause: Duration) -> Timestamp $ Clock:
     now()
 ```
 
+```text
+use std.time.{Clock, Duration, elapsed, monotonic}
+
+fn timed_sum() -> Duration $ Clock:
+    start := monotonic()
+    let total = 0
+    for i in 0..1000:
+        total = total + i
+    elapsed(start)
+```
+
 1. r[std-time.helper.now] `std.time` declares `pub fn now() -> Timestamp $ Clock`, which returns `now()` of the `Clock` provider that covers the call.
 2. r[std-time.helper.sleep] `std.time` declares `pub fn sleep!(duration: Duration) -> void $ Clock`, which calls `sleep!(duration)` on that provider.
+3. r[std-time.helper.monotonic] `std.time` declares `pub fn monotonic() -> Instant $ Clock`, which returns `monotonic()` of the `Clock` provider that covers the call.
+4. r[std-time.helper.elapsed] `std.time` declares `pub fn elapsed(since: Instant) -> Duration $ Clock`, which returns `monotonic().since(since)`: the time from `since` to the provider's monotonic reading now.
+5. r[std-time.helper.elapsed.manual] Under a `ManualClock`, `elapsed(start)` is the total that was slept since `start` was read.
+
+> **Why.** Timing a block is two lines, as Go's `time.Since` and Rust's
+> `Instant::elapsed` make it. The helpers take the provider from the
+> requirement row, so the `Clock` trait is unchanged and a test times a
+> block in virtual time.
 
 ### Manual Clock
 
@@ -337,6 +438,52 @@ not zero, then `Z`:
 
 > **Why.** Whole seconds stay short, and a fraction shows every
 > millisecond a `Timestamp` holds, as Rust's chrono writes it.
+
+### ISO 8601 Dates
+
+`to_iso8601` writes a date as the calendar form of ISO 8601:
+
+```text
+use std.time.Timestamp
+
+fn day_text(millis: i64) -> string:
+    Timestamp::from_unix_milliseconds(millis).date().to_iso8601()  # "2023-11-14" for 1700000000500
+```
+
+1. r[std-time.date.iso8601] `d.to_iso8601()` returns `YYYY-MM-DD`: the year, the month in two digits, and the day in two digits, joined by `-`.
+2. r[std-time.date.iso8601.year] The year is written as [`std-time.rfc3339.text.year`](#r-std-time.rfc3339.text.year) writes it, so `-0001-01-01` is the first day of 2 BC.
+3. r[std-time.date.iso8601.fields] The month and day are the fields, padded to two digits. A `Date` literal that holds a day that does not exist is written as it is. `to_iso8601` never panics.
+4. r[std-time.date.iso8601.same-date] `t.date().to_iso8601()` is the first ten characters of `t.to_rfc3339()` for a year from 0 to 9999.
+
+### Layouts
+
+`format` writes a timestamp in UTC by a layout of `%` specifiers, as
+`strftime` does:
+
+```text
+use std.time.Timestamp
+
+fn clock_text(millis: i64) -> string:
+    Timestamp::from_unix_milliseconds(millis).format("%Y-%m-%d %H:%M")  # "2023-11-14 22:13"
+```
+
+| Specifier | Text |
+| --- | --- |
+| `%Y` | the year, as [`std-time.rfc3339.text.year`](#r-std-time.rfc3339.text.year) writes it |
+| `%m`, `%d` | the month and the day of `t.date()`, two digits each |
+| `%H`, `%M`, `%S` | the UTC hour `00` to `23`, minute, and second, two digits each |
+| `%z` | the UTC offset, always `+0000` |
+| `%%` | a `%` |
+
+1. r[std-time.format] `t.format(layout: string) -> string` returns `layout` with each specifier in the table above replaced by its text, and every other character kept.
+2. r[std-time.format.unknown] A `%` followed by any other character, or by the end of `layout`, is kept as written. So `%q` stays `%q`, and a final `%` stays `%`. `format` never panics.
+3. r[std-time.format.no-locale] `format` has no locale, no names of months or days, and no specifier for the milliseconds. A program writes the milliseconds with `to_rfc3339`.
+4. r[std-time.format.rfc3339] `t.format("%Y-%m-%dT%H:%M:%SZ")` is `t.to_rfc3339()` when the milliseconds of `t` are zero.
+
+> **Why.** Dates, times, and an offset cover log lines and file names.
+> The specifiers are those of C, Python, and Rust's chrono, which agents
+> already write, where Go's reference-date layouts are easy to misspell.
+> The set stays small because there is no time zone and no locale.
 
 ### Parsing RFC 3339
 

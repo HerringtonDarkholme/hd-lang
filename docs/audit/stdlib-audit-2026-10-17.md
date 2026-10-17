@@ -568,7 +568,7 @@ monotonic()`, `elapsed(start)`, nanosecond `Duration`. Go: `time.Since`.
 Python: `perf_counter()`.
 
 ```hd
-use std.time.Clock
+use std.time.{Clock, elapsed, monotonic}
 
 fn work() -> i64:
     let sum: i64 = 0
@@ -577,11 +577,9 @@ fn work() -> i64:
     sum
 
 pub fn main() -> void $ Console + Clock:
-    clock := $.use(Clock)
-    start := clock.monotonic()
+    start := monotonic()
     result := work()
-    elapsed := clock.monotonic().since(start)
-    println("sum=$result in $elapsed")
+    println("sum=$result in ${elapsed(start)}")
 ```
 
 **22. Format a date.** `Date` has no text form (no `Display`, by a
@@ -592,12 +590,10 @@ confirmed call), and no hours, weekday, zone or pattern. Proposed:
 ```hd
 use std.time.{Clock, now}
 
-fn two(n: i32) -> string: "$n".pad_start(2, '0')
-
 pub fn main() -> void $ Console + Clock:
     stamp := now()
-    date := stamp.date()
-    println("${date.year}-${two(date.month)}-${two(date.day)}")
+    println(stamp.date().to_iso8601())
+    println(stamp.format("%Y-%m-%d %H:%M"))
     println(stamp.to_rfc3339())
 ```
 
@@ -607,32 +603,12 @@ lines. Proposed: `Duration::parse(text)?`, reading Go's units and the
 `time.ParseDuration`. Python: none.
 
 ```hd
-use std.time.{Duration, h, min, s, ms}
-use std.num.parse_i64
-
-fn parse_duration(text: string) -> Duration?:
-    let total = ms(0)
-    let digits = ""
-    for c in text.chars():
-        if c.is_ascii_digit():
-            digits = digits + "$c"
-            continue
-        n := parse_i64(digits).ok()?
-        digits = ""
-        unit := match c:
-            'h' => h(n)
-            'm' => min(n)
-            's' => s(n)
-            _ => return .None
-        total = total + unit
-    if !digits.is_empty():
-        return .None
-    .Some(total)
+use std.time.Duration
 
 pub fn main() -> void $ Console:
-    match parse_duration("1h30m15s"):
-        .Some(d) => println("$d = ${d.as_milliseconds()} ms")
-        .None => println("bad duration")
+    match Duration::parse("1h30m15s"):
+        .Ok(d) => println("$d = ${d.as_milliseconds()} ms")
+        .Err(error) => println("bad duration: $error")
 ```
 
 ### Errors

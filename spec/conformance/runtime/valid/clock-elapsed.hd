@@ -1,0 +1,44 @@
+# test: monotonic() and elapsed(start) read the covering Clock provider, so timing a block under ManualClock gives the slept total
+# Spec std/time Clock Helpers: std-time.helper.monotonic, std-time.helper.elapsed, std-time.helper.elapsed.manual (#370).
+use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, elapsed, monotonic, ms, s, sleep}
+
+fn timed_sum() -> Duration $ Clock:
+    start := monotonic()
+    let total = 0
+    for i in 0..1000:
+        total = total + i
+    elapsed(start)
+
+fn timed_nap!() -> Duration $ Clock:
+    start := monotonic()
+    sleep!(1500ms)
+    sleep!(2s)
+    elapsed(start)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a block that does not sleep takes no virtual time"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
+        $.with(Clock=clock):
+            assert_equal(timed_sum(), Duration::milliseconds(0), reason="no sleep, no time")
+
+    it("elapsed is the total slept since the start"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
+        $.with(Clock=clock):
+            assert_equal(timed_nap!(), 3500ms, reason="1.5s plus 2s")
+        assert_equal(clock.now(), Timestamp::from_unix_milliseconds(8500), reason="the provider kept the time")
+
+    it("monotonic reads the provider and never changes it"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        $.with(Clock=clock):
+            first := monotonic()
+            second := monotonic()
+            assert_equal(first, Instant::from_milliseconds(1000), reason="the provider's monotonic reading")
+            assert(first == second, reason="a read does not advance")
+            assert_equal(elapsed(first), 0s, reason="nothing passed")
+
+    it("elapsed is negative for a start in the future"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        $.with(Clock=clock):
+            assert_equal(elapsed(Instant::from_milliseconds(1250)), -(250ms), reason="behind the start")

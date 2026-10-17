@@ -1,0 +1,55 @@
+# test: Date.to_iso8601 writes YYYY-MM-DD, and Timestamp.format writes %Y %m %d %H %M %S %z %% in UTC and keeps anything else as written
+# Spec std/time ISO 8601 Dates, Layouts: std-time.date.iso8601, std-time.date.iso8601.year, std-time.date.iso8601.fields, std-time.date.iso8601.same-date, std-time.format, std-time.format.unknown, std-time.format.no-locale, std-time.format.rfc3339 (#370).
+use std.time.{Date, Timestamp}
+
+fn day_text(millis: i64) -> string:
+    Timestamp::from_unix_milliseconds(millis).date().to_iso8601()
+
+fn clock_text(millis: i64) -> string:
+    Timestamp::from_unix_milliseconds(millis).format("%Y-%m-%d %H:%M")
+
+fn laid_out(millis: i64, layout: string) -> string:
+    Timestamp::from_unix_milliseconds(millis).format(layout)
+
+tests:
+    use std.testing.assert_equal
+
+    it("dates as ISO 8601"):
+        assert_equal(day_text(0), "1970-01-01", reason="the epoch")
+        assert_equal(day_text(1700000000500), "2023-11-14", reason="two digits for month and day")
+        assert_equal(day_text(-1), "1969-12-31", reason="before the epoch")
+        assert_equal(day_text(951782400000), "2000-02-29", reason="a leap day")
+        assert_equal(day_text(-62167219200000), "0000-01-01", reason="year zero")
+        assert_equal(day_text(-62198755200000), "-0001-01-01", reason="a negative year")
+        assert_equal(day_text(253402300800000), "10000-01-01", reason="a five digit year")
+
+    it("a date literal is written as it is"):
+        assert_equal(Date { year: 7, month: 3, day: 9 }.to_iso8601(), "0007-03-09", reason="padding")
+        assert_equal(Date { year: 2026, month: 13, day: 40 }.to_iso8601(), "2026-13-40", reason="no validation")
+
+    it("the ISO text is the date part of the RFC 3339 text"):
+        for millis in [0, 1700000000500, -1, 951782400000]:
+            stamp := Timestamp::from_unix_milliseconds(millis)
+            assert_equal(stamp.date().to_iso8601(), stamp.to_rfc3339().slice(0, 10), reason="same ten characters")
+
+    it("each specifier"):
+        assert_equal(clock_text(1700000000500), "2023-11-14 22:13", reason="date and time")
+        assert_equal(laid_out(1700000000500, "%H:%M:%S"), "22:13:20", reason="time of day")
+        assert_equal(laid_out(1700000000500, "%d/%m/%Y"), "14/11/2023", reason="another order")
+        assert_equal(laid_out(1700000000500, "%z"), "+0000", reason="always UTC")
+        assert_equal(laid_out(0, "%Y%m%d%H%M%S"), "19700101000000", reason="zero padding")
+        assert_equal(laid_out(-1, "%Y-%m-%d %H:%M:%S"), "1969-12-31 23:59:59", reason="the last second before the epoch")
+        assert_equal(laid_out(-62198755200000, "%Y"), "-0001", reason="the year as RFC 3339 writes it")
+
+    it("other characters stay as written"):
+        assert_equal(laid_out(0, ""), "", reason="empty layout")
+        assert_equal(laid_out(0, "no specifiers"), "no specifiers", reason="plain text")
+        assert_equal(laid_out(0, "100%% sure"), "100% sure", reason="percent")
+        assert_equal(laid_out(0, "%q%"), "%q%", reason="unknown specifier and a final percent")
+        assert_equal(laid_out(0, "%%Y"), "%Y", reason="an escaped percent is not a specifier")
+        assert_equal(laid_out(0, "é %Y é"), "é 1970 é", reason="non-ASCII text")
+        assert_equal(laid_out(0, "%é"), "%é", reason="percent before a non-ASCII character")
+
+    it("the RFC 3339 layout"):
+        stamp := Timestamp::from_unix_milliseconds(1700000000000)
+        assert_equal(stamp.format("%Y-%m-%dT%H:%M:%SZ"), stamp.to_rfc3339(), reason="whole seconds")

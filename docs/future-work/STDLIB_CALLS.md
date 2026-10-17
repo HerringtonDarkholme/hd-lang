@@ -777,6 +777,25 @@ its own issue.
   `times = 0`).
 - **Time helpers** that need no host change: free `monotonic()` and
   `elapsed()`, `Duration::parse`, `Date.to_iso8601()`, `Timestamp.format`.
+  Applied in #370, with no `Clock` or `Duration` change:
+  - `monotonic() -> Instant $ Clock` and `elapsed(since) -> Duration $
+    Clock` (Go's `time.Since`, Rust's `Instant::elapsed`).
+  - `Duration::parse` follows Go's `time.ParseDuration`: a sign, then
+    number-and-unit components, units `h`, `min`, `m`, `s`, `ms`, `us`,
+    `µs`, `μs`, `ns`. `min` is accepted so `Display` text parses back.
+    It is exact at millisecond resolution: `500us` and `1.5ms` are
+    `Inexact`, never rounded, and `2000us` is 2 ms. The most negative
+    duration parses. Differences from Go: `.5s` and `1.s` are errors
+    (digits are required on both sides of the point), and a bare `0` is
+    the only number without a unit. Errors are positioned, as
+    `TimeParseError` is. `Deserialize` from text is not part of it.
+  - `Date.to_iso8601()` is `YYYY-MM-DD`.
+  - `Timestamp.format(layout)` uses a strftime subset, `%Y %m %d %H %M %S
+    %z %%`, chosen over a fixed set of named layouts: chrono and Python
+    spell the same specifiers, and Go's reference-date layouts are easy
+    to misspell. `%z` is always `+0000`, an unknown specifier is kept
+    as written, so `format` never fails, and there is no locale and no
+    milliseconds specifier (`to_rfc3339` writes those).
 - **JSON.** Decoding uses a member's declared default for a missing key,
   as serde's `default` and Go's zero values do; this replaces
   `std-json.derive.from-json.no-default`. Also `Json.pointer`,
