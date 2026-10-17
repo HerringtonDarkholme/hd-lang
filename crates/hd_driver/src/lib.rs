@@ -9234,7 +9234,10 @@ impl Env<'_> {
     /// methods live on `Result`'s inherent impl, whose path the path
     /// table cannot name up front, so find them by declaration.
     fn result_unwrap(&self) -> Option<(DefId, DefId)> {
-        let mut found = None;
+        // `is_ok` and `expect` may sit in different inherent impls of
+        // `Result`: `expect` needs `E < Display`, so std declares it apart.
+        let mut is_ok = None;
+        let mut expect = None;
         for item in self.p.items.values() {
             let ItemData::Impl {
                 trait_,
@@ -9254,8 +9257,6 @@ impl Env<'_> {
             if def != self.run.known.result {
                 continue;
             }
-            let mut is_ok = None;
-            let mut expect = None;
             for (name, method) in methods {
                 match self.run.syms.resolve(*name) {
                     "is_ok" => is_ok = Some(*method),
@@ -9263,11 +9264,8 @@ impl Env<'_> {
                     _ => {}
                 }
             }
-            if let (Some(is_ok), Some(expect)) = (is_ok, expect) {
-                found = Some((is_ok, expect));
-            }
         }
-        found
+        Some((is_ok?, expect?))
     }
 
     /// Whether a method has a `self` receiver; one without is an
