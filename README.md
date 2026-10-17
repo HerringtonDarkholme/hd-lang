@@ -143,12 +143,17 @@ side rather than folded into one score
 ([goals](docs/compiler/goals.md#how-it-is-judged-the-agentic-programming-language-arena)).
 Correctness is a gate, not a pillar.
 
-1. **Cheap for one agent to get right.** Every signature is explicit, so
-   an agent reads a function's header, never a dependency's body.
-   Diagnostics are compact, and `hd check --format json` carries exact-edit
-   fix-its that `hd fix` applies. Checking is incremental, and output is
-   deterministic. Tests sit in the same file under `tests:`, and providers
-   turn a fake clock or mailer into one line.
+1. **Cheap for one agent to get right.** Elapsed time and tokens per
+   correct solution, and compile time is agent wait time. Every signature
+   is explicit, so the checker skips dependency bodies and an agent reads a
+   header, never a body. Checking is incremental, with a per-module cache
+   and early cutoff, and std is checked in advance. The targets: an
+   edit-to-check of a 10k-line package in 50 ms at the median, a cold check
+   in 1 s, an edit-to-test in 300 ms, and near-linear time on the
+   pathological cases. Diagnostics are compact, and
+   `hd check --format json` carries exact-edit fix-its that `hd fix`
+   applies. Output is deterministic. Tests sit in the same file under
+   `tests:`, and providers turn a fake clock or mailer into one line.
 2. **Many agents on one machine.** Check results and compiled code are
    cached by content and shared across processes, and std is checked in
    advance and built into the binary. A program reaches the host only
