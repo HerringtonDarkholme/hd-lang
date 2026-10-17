@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` data that describes a file;
-- the helpers `read_text!` and `write_text!`;
+- a free helper for each method of `FsRead` and `FsWrite`, and `exists!`;
 - `MemoryFs`, the deterministic provider of both traits.
 
 Paths are [`Path`](path.md) values. Which provider a command binds is CLI
@@ -121,10 +121,43 @@ fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
 
 1. r[std-fs.helper.read-text] `std.fs` declares `pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead`, which calls `read_text!(path)` on the `FsRead` provider that covers the call.
 2. r[std-fs.helper.write-text] `std.fs` declares `pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite`, which calls `write_text!(path, text)` on the `FsWrite` provider that covers the call.
-3. r[std-fs.helper.suspends] Both helpers are bang functions. `std` declares no helper that reads or writes a file without suspending.
+3. r[std-fs.helper.suspends] Every helper in this section is a bang function. `std` declares no helper that reads or writes a file without suspending.
+4. r[std-fs.helper.read-bytes] `std.fs` declares `pub fn read_bytes!(path: Path) -> Result[List[u8], FsError] $ FsRead`, which calls `read_bytes!(path)` on the covering `FsRead` provider.
+5. r[std-fs.helper.list-dir] `std.fs` declares `pub fn list_dir!(path: Path) -> Result[List[Entry], FsError] $ FsRead`, which calls `list_dir!(path)` on the covering `FsRead` provider.
+6. r[std-fs.helper.stat] `std.fs` declares `pub fn stat!(path: Path) -> Result[Entry?, FsError] $ FsRead`, which calls `stat!(path)` on the covering `FsRead` provider.
+7. r[std-fs.helper.exists] `std.fs` declares `pub fn exists!(path: Path) -> Result[bool, FsError] $ FsRead`, which returns `.Ok(true)` when `stat!(path)` is `.Ok(.Some(_))`, `.Ok(false)` when it is `.Ok(.None)`, and the same `.Err` otherwise.
+8. r[std-fs.helper.write-bytes] `std.fs` declares `pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite`, which calls `write_bytes!(path, bytes)` on the covering `FsWrite` provider.
+9. r[std-fs.helper.append-text] `std.fs` declares `pub fn append_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite`, which calls `append_text!(path, text)` on the covering `FsWrite` provider.
+10. r[std-fs.helper.create-dir-all] `std.fs` declares `pub fn create_dir_all!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `create_dir_all!(path)` on the covering `FsWrite` provider.
+11. r[std-fs.helper.remove] `std.fs` declares `pub fn remove!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `remove!(path)` on the covering `FsWrite` provider.
+12. r[std-fs.helper.rename] `std.fs` declares `pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite`, which calls `rename!(from, to)` on the covering `FsWrite` provider.
+13. r[std-fs.helper.row] A helper's row names exactly the capability of the method it calls: `FsRead` for `read_text!`, `read_bytes!`, `list_dir!`, `stat!`, and `exists!`, and `FsWrite` for the others.
+
+```text
+use std.fs.{FsError, append_text, exists, list_dir}
+use std.fs.{EntryKind, FsRead, FsWrite}
+use std.path.Path
+
+fn log_line!(path: Path, line: string) -> Result[bool, FsError] $ FsRead + FsWrite:
+    append_text!(path, "${line}\n")?
+    exists!(path)
+
+fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
+    let mut count: usize = 0
+    for entry in list_dir!(dir)?:
+        if entry.kind == EntryKind.File:
+            count = count + 1
+    .Ok(count)
+```
 
 > **Why.** A non-suspending wrapper would give each file operation two
 > spellings. A program that reads files declares `main!`.
+>
+> **Why `exists!` returns a `Result`.** `stat!` already answers a missing
+> path with `.None`, so `exists!` needs no `NotFound` case. Its `FsError`
+> is for a failed check, such as a denied path, which a plain `bool` would
+> hide as "missing". Rust's `Path::try_exists` returns `io::Result<bool>`
+> for the same reason, and Go's `os.Stat` keeps the error beside the answer.
 
 ## Memory File System
 

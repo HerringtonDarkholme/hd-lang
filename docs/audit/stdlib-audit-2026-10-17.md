@@ -107,12 +107,11 @@ Each task shows its program as it checks today. A block that starts with
 
 ### Files and paths
 
-**1. Read, write, append.** `append_text!` has no free helper; proposed
-`append_text!(out, "done\n")?`. Go: `os.ReadFile`, `os.WriteFile`,
+**1. Read, write, append.** `append_text!` is a free helper. Go: `os.ReadFile`, `os.WriteFile`,
 `os.OpenFile` with `O_APPEND`. Python: `open(p).read()`, `open(p, "a")`.
 
 ```hd
-use std.fs.{FsRead, FsWrite, FsError, read_text, write_text}
+use std.fs.{FsRead, FsWrite, FsError, append_text, read_text, write_text}
 use std.path.Path
 
 pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite:
@@ -120,21 +119,20 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite:
     lines := text.lines().filter(fn(l: string) -> bool: !l.trim().is_empty())
     out := Path("out.txt")
     write_text!(out, "${lines.len()} non-empty lines\n")?
-    $.use(FsWrite).append_text!(out, "done\n")?
+    append_text!(out, "done\n")?
     .Ok(())
 ```
 
-**2. Exists and size.** `stat!` has the right shape (`.None` when
-missing) but needs `$.use`; proposed `exists!(path)?`, `stat!(path)?`.
-Go: `os.Stat`, `errors.Is(err, fs.ErrNotExist)`. Python:
+**2. Exists and size.** `stat!` (`.None` when missing) and `exists!` are
+free helpers. Go: `os.Stat`, `errors.Is(err, fs.ErrNotExist)`. Python:
 `os.path.exists`, `getsize`.
 
 ```hd
-use std.fs.{FsRead, FsError}
+use std.fs.{FsRead, FsError, stat}
 use std.path.Path
 
 pub fn main!() -> Result[void, FsError] $ Console + FsRead:
-    match $.use(FsRead).stat!(Path("notes.txt"))?:
+    match stat!(Path("notes.txt"))?:
         .Some(entry) => println("exists, ${entry.size} bytes")
         .None => println("missing")
     .Ok(())
@@ -147,11 +145,11 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead:
 `list_dir!`.
 
 ```hd
-use std.fs.{FsRead, FsError, EntryKind}
+use std.fs.{FsRead, FsError, EntryKind, list_dir}
 use std.path.Path
 
 fn walk!(dir: Path, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
-    for entry in $.use(FsRead).list_dir!(dir)?:
+    for entry in list_dir!(dir)?:
         match entry.kind:
             .Directory => walk!(entry.path, found)?
             .File => found.push(entry.path)
@@ -353,17 +351,16 @@ pub fn main() -> Result[void, JsonError] $ Console:
 
 ### Processes and the command line
 
-**10. Run a command.** No free helper, a required empty stdin, a manual
-status check. Proposed: `run!(program, args, stdin = "")`, and
-`output!(program, args) -> Result[string, ProcessError]` with a non-zero
+**10. Run a command.** `run!(program, args, stdin = "")` is a free
+helper, with a manual status check. Proposed: `output!(program, args) -> Result[string, ProcessError]` with a non-zero
 exit as `.Err(ProcessError.Exited(status, stderr))`. Go:
 `exec.Command(...).Output()`. Python: `subprocess.check_output`.
 
 ```hd
-use std.process.{Process, ProcessError}
+use std.process.{Process, ProcessError, run}
 
 pub fn main!() -> Result[void, ProcessError] $ Console + Process:
-    output := $.use(Process).run!("git", ["rev-parse", "--short", "HEAD"], "")?
+    output := run!("git", ["rev-parse", "--short", "HEAD"])?
     if output.status != 0:
         println("git failed (${output.status}): ${output.stderr.trim()}")
         return .Ok(())

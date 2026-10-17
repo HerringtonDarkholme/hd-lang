@@ -7,6 +7,7 @@ ordinary hd over the language tier:
 
 - the `Display` text of `ProcessError`;
 - the traits of `ExitCode` and `ProcessOutput`;
+- the free helper `run!`;
 - the test provider `ScriptedProcess`;
 - what a child process inherits, the status a signal leaves, and what
   cancelling `run!` does.
@@ -61,6 +62,28 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 1. r[std-process.exit-code.eq] `ExitCode` implements `Eq`; two codes are equal when their `u8` values are.
 2. r[std-process.output.eq] `ProcessOutput` implements `Eq`; two outputs are equal when `stdout`, `stderr`, and `status` are each equal.
 3. r[std-process.debug-text] `ExitCode` and `ProcessOutput` implement `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types). An `ExitCode` writes its constructor call, as `ExitCode(0)`.
+
+## Run Helper
+
+`run!` starts a program through the covering provider, so a program need
+not write `$.use(Process)`:
+
+```text
+use std.process.{Process, ProcessError, run}
+
+fn commit!() -> Result[string, ProcessError] $ Process:
+    output := run!("git", ["rev-parse", "--short", "HEAD"])?
+    .Ok(output.stdout.trim())
+```
+
+1. r[std-process.helper.run] `std.process` declares `pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process`, which calls `run!(program, args, stdin)` on the covering `Process` provider.
+2. r[std-process.helper.stdin-default] A call that gives no `stdin` passes the empty string.
+3. r[std-process.helper.row] The helper's row is exactly `Process`.
+4. r[std-process.helper.suspends] `run!` is a bang function, as the method it calls is.
+
+> **Why.** Go's `exec.Command(...).Output()` and Python's `subprocess.run`
+> take no stdin by default. A non-zero status stays `.Ok`, as
+> [`module.process.nonzero-ok`](../lang/10-modules.md#r-module.process.nonzero-ok) says.
 
 ## Scripted Process
 

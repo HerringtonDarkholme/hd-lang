@@ -107,6 +107,60 @@ pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
     let mut files = $.use(FsWrite)
     files.write_text!(path, text)
 
+# The remaining helpers each call the covering provider's method of the
+# same name (spec/std/fs.md#r-std-fs.helper.read-bytes and its rows).
+## Returns the whole content of the file at `path` as bytes.
+## See [std-fs.helper.read-bytes](../../spec/std/fs.md#r-std-fs.helper.read-bytes).
+pub fn read_bytes!(path: Path) -> Result[List[u8], FsError] $ FsRead:
+    $.use(FsRead).read_bytes!(path)
+
+## Returns one `Entry` for each entry of the directory at `path`.
+## See [std-fs.helper.list-dir](../../spec/std/fs.md#r-std-fs.helper.list-dir).
+pub fn list_dir!(path: Path) -> Result[List[Entry], FsError] $ FsRead:
+    $.use(FsRead).list_dir!(path)
+
+## Returns the `Entry` for `path`, or `.None` when nothing is there.
+## See [std-fs.helper.stat](../../spec/std/fs.md#r-std-fs.helper.stat).
+pub fn stat!(path: Path) -> Result[Entry?, FsError] $ FsRead:
+    $.use(FsRead).stat!(path)
+
+## Returns whether anything is at `path`.
+## See [std-fs.helper.exists](../../spec/std/fs.md#r-std-fs.helper.exists).
+pub fn exists!(path: Path) -> Result[bool, FsError] $ FsRead:
+    match $.use(FsRead).stat!(path)?:
+        .Some(_) => .Ok(true)
+        .None => .Ok(false)
+
+## Creates the file at `path` from `bytes`, or replaces its whole content.
+## See [std-fs.helper.write-bytes](../../spec/std/fs.md#r-std-fs.helper.write-bytes).
+pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.write_bytes!(path, bytes)
+
+## Adds `text` at the end of the file at `path`, creating the file when there is none.
+## See [std-fs.helper.append-text](../../spec/std/fs.md#r-std-fs.helper.append-text).
+pub fn append_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.append_text!(path, text)
+
+## Creates the directory at `path` and every missing directory above it.
+## See [std-fs.helper.create-dir-all](../../spec/std/fs.md#r-std-fs.helper.create-dir-all).
+pub fn create_dir_all!(path: Path) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.create_dir_all!(path)
+
+## Removes the file or the empty directory at `path`.
+## See [std-fs.helper.remove](../../spec/std/fs.md#r-std-fs.helper.remove).
+pub fn remove!(path: Path) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.remove!(path)
+
+## Moves the entry at `from` to `to`.
+## See [std-fs.helper.rename](../../spec/std/fs.md#r-std-fs.helper.rename).
+pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.rename!(from, to)
+
 # The deterministic file system (spec/std/fs.md#memory-file-system). A
 # file's key is its path's text, as written. A directory is a key that
 # `create_dir_all!` made, or the text before a `/` in another key

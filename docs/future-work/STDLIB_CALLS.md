@@ -729,7 +729,11 @@ its own issue.
 - **A free helper for every host-trait method** in `std.fs` and
   `std.process`, as `read_text!` already has: `list_dir!`, `stat!`,
   `read_bytes!`, `append_text!`, `exists!`, and
-  `std.process.run!(program, args, stdin = "")`.
+  `std.process.run!(program, args, stdin = "")`. Applied in #365:
+  `exists!` returns `Result[bool, FsError]`, built on `stat!`, whose `.None`
+  already means missing; the error is for a failed check, as Rust's
+  `try_exists` and Go's `os.Stat` keep it. `create_dir_all!`, `remove!`,
+  `rename!` and `write_bytes!` also got helpers.
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
   `Option.context(text) -> Result[T, dyn Error]`.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`.

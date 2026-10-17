@@ -60,6 +60,14 @@ pub enum ProcessError:
 pub trait Process:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
 
+# Runs a program through the covering `Process` provider
+# (spec/std/process.md#r-std-process.helper.run).
+## Starts `program` with `args` and `stdin`, waits for it to exit, and returns its output.
+## See [std-process.helper.run](../../spec/std/process.md#r-std-process.helper.run).
+pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process:
+    let mut process = $.use(Process)
+    process.run!(program, args, stdin)
+
 # Answers each program with the output scripted for it
 # (r-std-process.scripted.decl).
 ## The deterministic `Process` provider: it answers each program from a table, with no host access.

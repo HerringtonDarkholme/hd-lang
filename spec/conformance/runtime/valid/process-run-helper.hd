@@ -1,0 +1,31 @@
+# test: process.run! calls the covering Process provider, and stdin defaults to the empty string
+# Spec std/process Run Helper: std-process.helper.run, std-process.helper.stdin-default,
+# and std-process.helper.row.
+# expect: test
+use std.process.{Process, ProcessError, ProcessOutput, ScriptedProcess, run}
+
+fn version!() -> Result[string, ProcessError] $ Process:
+    output := run!("git", ["--version"])?
+    .Ok(output.stdout)
+
+fn status_of!(program: string) -> Result[i32, ProcessError] $ Process:
+    output := run!(program, ["x"], "input")?
+    .Ok(output.status)
+
+tests:
+    use std.testing.assert_equal
+
+    it("run! answers from the provider without stdin"):
+        let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }})
+        $.with(Process=process):
+            assert_equal(version!(), .Ok("git 2.0"), reason="git is scripted")
+
+    it("run! passes a non-zero status through as Ok"):
+        let mut process = ScriptedProcess::new({"make": ProcessOutput { stdout: "", stderr: "boom", status: 2 }})
+        $.with(Process=process):
+            assert_equal(status_of!("make"), .Ok(2), reason="status is data")
+
+    it("run! reports an unscripted program as NotFound"):
+        let mut process = ScriptedProcess::new({})
+        $.with(Process=process):
+            assert_equal(status_of!("nope"), .Err(ProcessError.NotFound), reason="not scripted")
