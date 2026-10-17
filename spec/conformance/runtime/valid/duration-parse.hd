@@ -1,8 +1,8 @@
 # test: Duration::parse reads Go-style text in h, min, m, s, ms, us, µs, μs, and ns, exactly, and the text of every duration parses back
 # Spec std/time Duration Parsing: std-time.duration.parse, std-time.duration.parse.grammar, std-time.duration.parse.units, std-time.duration.parse.sum, std-time.duration.parse.exact, std-time.duration.parse.zero, std-time.duration.parse.range, std-time.duration.parse.round-trip, std-time.duration.parse.no-panic (#370).
-use std.time.{Duration, ParseDurationError, h, min, ms, s}
+use std.time.{Duration, ParseTimeError, h, min, ms, s}
 
-fn timeout_of(text: string) -> Result[Duration, ParseDurationError]:
+fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:
     Duration::parse(text)
 
 fn millis_of(text: string) -> i64:
@@ -36,7 +36,7 @@ tests:
         assert_equal(timeout_of("0"), .Ok(0s), reason="bare zero")
         assert_equal(timeout_of("-0"), .Ok(0s), reason="signed zero")
         assert_equal(timeout_of("0s"), .Ok(0s), reason="zero with a unit")
-        assert_equal(timeout_of("00"), .Err(ParseDurationError.MissingUnit(2)), reason="only the text 0")
+        assert_equal(timeout_of("00"), .Err(ParseTimeError.MissingUnit(2)), reason="only the text 0")
 
     it("the whole range of Duration parses"):
         assert_equal(millis_of("9223372036854775807ms"), 9223372036854775807, reason="the largest")

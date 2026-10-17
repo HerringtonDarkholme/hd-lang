@@ -1,0 +1,24 @@
+# test: one ParseTimeError type serves duration text and RFC 3339 text, and erases to Error
+# Spec std/time Time Parse Errors: std-time.parse-error.declared, std-time.parse-error.duration-variants, std-time.parse-error.traits (Debug is covered by std-format.debug.std-types).
+use std.time.{Duration, ParseTimeError, Timestamp}
+use std.error.Error
+
+fn both(duration: string, stamp: string) -> Result[void, ParseTimeError]:
+    _ := Duration::parse(duration)?
+    _ := Timestamp::parse_rfc3339(stamp)?
+    .Ok(())
+
+fn erased(duration: string) -> Result[Duration, dyn Error]:
+    .Ok(Duration::parse(duration)?)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a bad duration and a bad timestamp return the same error type"):
+        assert_equal(both("1x", "2026-10-03T12:00:00Z"), .Err(ParseTimeError.UnknownUnit(1)), reason="a bad duration")
+        assert_equal(both("1h", "2026-13-03T12:00:00Z"), .Err(ParseTimeError.OutOfRange(5)), reason="a bad timestamp")
+        assert_equal(both("1h", "2026-10-03T12:00:00Z"), .Ok(()), reason="both good")
+
+    it("the error is an Error"):
+        assert(erased("1x").is_err(), reason="erases to Error")
+        assert(erased("1h").is_ok(), reason="a good duration passes")

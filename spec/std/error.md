@@ -292,7 +292,7 @@ fn width(text: string) -> Result[i32, dyn Error]:
 | `FsError` | `std.fs` |
 | `ProcessError` | `std.process` |
 | `JsonError` | `std.json` |
-| `TimeParseError` | `std.time` |
+| `ParseTimeError` | `std.time` |
 | `CliError` | `std.cli` |
 | `EnvError` | `std.host` |
 | `RegexError` | `std.regex` |

@@ -13,7 +13,7 @@ ordinary hd over the language tier:
   it returns, and the helpers `now`, `monotonic`, `elapsed`, and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
 - the UTC `Date` of a `Timestamp`, RFC 3339 and ISO 8601 text, the
-  `Timestamp.format` layouts, and `TimeParseError`;
+  `Timestamp.format` layouts, and `ParseTimeError`;
 - the serialization opt-in of `Duration`, `Timestamp`, and `Instant`.
 
 The language tier keeps the suffix mechanism
@@ -118,9 +118,9 @@ fn waited() -> string:
 `Duration::parse` reads the text form of Go's `time.ParseDuration`:
 
 ```text
-use std.time.{Duration, ParseDurationError}
+use std.time.{Duration, ParseTimeError}
 
-fn timeout_of(text: string) -> Result[Duration, ParseDurationError]:
+fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:
     Duration::parse(text)  # "1h30m" is 5400000 milliseconds
 ```
 
@@ -133,7 +133,7 @@ is a number and a unit:
 | number | one or more digits, then optionally `.` and one or more digits |
 | unit | `h`, `min`, `m`, `s`, `ms`, `us`, `µs`, `μs`, or `ns` |
 
-1. r[std-time.duration.parse] `std.time` declares `Duration::parse(text: string) -> Result[Duration, ParseDurationError]`. It returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
+1. r[std-time.duration.parse] `std.time` declares `Duration::parse(text: string) -> Result[Duration, ParseTimeError]`. It returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
 2. r[std-time.duration.parse.grammar] `text` must hold the sign, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
 3. r[std-time.duration.parse.units] `h` is 3600 seconds. `min` and `m` are 60 seconds. `s` is one second, and `ms` is a millisecond. `us`, `µs` (U+00B5), and `μs` (U+03BC) are a microsecond. `ns` is a nanosecond.
 4. r[std-time.duration.parse.sum] The duration is the sum of its components, negated when the sign is `-`. A component's value is its number times its unit, with the fraction exact.
@@ -160,26 +160,15 @@ is a number and a unit:
 
 #### Duration Parse Errors
 
-A failed parse reports one of six errors, each at a byte position:
+A failed duration parse reports a [`ParseTimeError`](#time-parse-errors),
+the one error type of all time text, at a byte position:
 
-```text
-pub enum ParseDurationError:
-    TooShort(position: usize)
-    InvalidCharacter(position: usize)
-    MissingUnit(position: usize)
-    UnknownUnit(position: usize)
-    Inexact(position: usize)
-    OutOfRange(position: usize)
-```
-
-1. r[std-time.duration.parse-error.declared] `std.time` declares the enum `ParseDurationError` with the variants above, each with one field `position: usize`. Code imports it, as in `use std.time.ParseDurationError`.
-2. r[std-time.duration.parse-error.too-short] Text that ends where a number is needed gives `TooShort` at the text's length. That is empty text, a sign alone, or a `.` with no digit after it.
-3. r[std-time.duration.parse-error.invalid-character] A character that is not a digit, where a number must start, gives `InvalidCharacter` at that character, as does a non-digit after a `.`.
-4. r[std-time.duration.parse-error.missing-unit] A number that is followed by the end of the text, or by a `.`, gives `MissingUnit` at the end of the number.
-5. r[std-time.duration.parse-error.unknown-unit] The characters after a number, up to the next digit or `.`, that are not a unit give `UnknownUnit` at their start.
-6. r[std-time.duration.parse-error.range-position] `Inexact` and `OutOfRange` are at the first digit of the component.
-7. r[std-time.duration.parse-error.order] The text is read from the left, one component at a time. In a component the number and unit errors come first, then `OutOfRange`, then `Inexact`, and the first error wins.
-8. r[std-time.duration.parse-error.traits] `ParseDurationError` implements `Eq`, `Debug`, `Display`, and `Error`.
+1. r[std-time.duration.parse-error.too-short] Text that ends where a number is needed gives `TooShort` at the text's length. That is empty text, a sign alone, or a `.` with no digit after it.
+2. r[std-time.duration.parse-error.invalid-character] A character that is not a digit, where a number must start, gives `InvalidCharacter` at that character, as does a non-digit after a `.`.
+3. r[std-time.duration.parse-error.missing-unit] A number that is followed by the end of the text, or by a `.`, gives `MissingUnit` at the end of the number.
+4. r[std-time.duration.parse-error.unknown-unit] The characters after a number, up to the next digit or `.`, that are not a unit give `UnknownUnit` at their start.
+5. r[std-time.duration.parse-error.range-position] `Inexact` and `OutOfRange` are at the first digit of the component.
+6. r[std-time.duration.parse-error.order] The text is read from the left, one component at a time. In a component the number and unit errors come first, then `OutOfRange`, then `Inexact`, and the first error wins.
 
 | Text | `parse` gives |
 | --- | --- |
@@ -491,7 +480,7 @@ fn clock_text(millis: i64) -> string:
 section 5.6:
 
 ```text
-use std.time.{TimeParseError, Timestamp}
+use std.time.{ParseTimeError, Timestamp}
 
 fn read_stamp(text: string) -> Timestamp?:
     match Timestamp::parse_rfc3339(text):  # "2026-10-03T12:34:56.789+05:30"
@@ -511,7 +500,7 @@ fn read_stamp(text: string) -> Timestamp?:
 | fraction | optional: `.` and one or more digits | any |
 | offset | `Z`, `z`, or `+` or `-`, two hour digits, `:`, and two minute digits | hours `00` to `23`, minutes `00` to `59` |
 
-1. r[std-time.rfc3339.parse] `std.time` declares `Timestamp::parse_rfc3339(text: string) -> Result[Timestamp, TimeParseError]`. It returns `.Ok` of the instant that `text` names, or `.Err` of the first error.
+1. r[std-time.rfc3339.parse] `std.time` declares `Timestamp::parse_rfc3339(text: string) -> Result[Timestamp, ParseTimeError]`. It returns `.Ok` of the instant that `text` names, or `.Err` of the first error.
 2. r[std-time.rfc3339.parse.grammar] `text` must hold the parts in the table above, in order, each in its range, and nothing before or after them.
 3. r[std-time.rfc3339.parse.case] The separator may be `T` or `t`, and the UTC offset `Z` or `z`.
 4. r[std-time.rfc3339.parse.offset] A numeric offset is the local time's offset from UTC, so the instant is the local time minus the offset. `-00:00` and `+00:00` mean UTC, as `Z` does.
@@ -536,22 +525,27 @@ fn read_stamp(text: string) -> Timestamp?:
 
 ### Time Parse Errors
 
-A failed parse reports one of three errors, each at a position:
+One error type serves all time text: RFC 3339 timestamps and duration
+text. A failed parse reports one of six errors, each at a position:
 
 ```text
-pub enum TimeParseError:
+pub enum ParseTimeError:
     InvalidCharacter(position: usize)
     OutOfRange(position: usize)
     TooShort(position: usize)
+    MissingUnit(position: usize)
+    UnknownUnit(position: usize)
+    Inexact(position: usize)
 ```
 
-1. r[std-time.parse-error.declared] `std.time` declares the enum `TimeParseError` with the variants `InvalidCharacter`, `OutOfRange`, and `TooShort`, each with one field `position: usize`. Code imports it, as in `use std.time.TimeParseError`.
+1. r[std-time.parse-error.declared] `std.time` declares the enum `ParseTimeError` with the variants above, each with one field `position: usize`. Code imports it, as in `use std.time.ParseTimeError`.
 2. r[std-time.parse-error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-time.parse-error.invalid-character] A character that the grammar does not allow at its place gives `InvalidCharacter` at that character. So does a character after a complete timestamp.
 4. r[std-time.parse-error.out-of-range] A field whose digits are well formed but whose value is out of its range gives `OutOfRange` at the field's first digit.
 5. r[std-time.parse-error.too-short] Text that ends before the timestamp is complete gives `TooShort`, whose `position` is the text's length.
 6. r[std-time.parse-error.order] The text is read from the left, and the first error found wins. A field's range is checked as soon as its last digit is read.
-7. r[std-time.parse-error.traits] `TimeParseError` implements `Eq`, `Debug`, and `Display`.
+7. r[std-time.parse-error.traits] `ParseTimeError` implements `Eq`, `Debug`, `Display`, and `Error`.
+8. r[std-time.parse-error.duration-variants] `MissingUnit`, `UnknownUnit`, and `Inexact` come only from duration text, as [Duration Parse Errors](#duration-parse-errors) says. A timestamp parse gives only `InvalidCharacter`, `OutOfRange`, and `TooShort`.
 
 | Text | `parse_rfc3339` gives |
 | --- | --- |

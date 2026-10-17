@@ -28,7 +28,7 @@ impl Duration:
 
     ## Reads Go-style duration text such as `1h30m` or `250ms`.
     ## See [std-time.duration.parse](../../spec/std/time.md#r-std-time.duration.parse).
-    pub fn parse(text: string) -> Result[Duration, ParseDurationError]:
+    pub fn parse(text: string) -> Result[Duration, ParseTimeError]:
         parse_duration_text(text)
 
 impl Neg for Duration:
@@ -267,7 +267,7 @@ impl Timestamp:
 
     ## Reads RFC 3339 text into a timestamp.
     ## See [std-time.rfc3339.parse](../../spec/std/time.md#r-std-time.rfc3339.parse).
-    pub fn parse_rfc3339(text: string) -> Result[Timestamp, TimeParseError]:
+    pub fn parse_rfc3339(text: string) -> Result[Timestamp, ParseTimeError]:
         parse_byte_codes(byte_codes(text))
 
     # Whole days since the epoch, rounded toward negative infinity, so the
@@ -340,41 +340,57 @@ impl Debug for Date:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("Date").field("year", self.year).field("month", self.month).field("day", self.day).finish()
 
-# Why RFC 3339 text did not parse (spec/std/time.md#time-parse-errors).
-## Why RFC 3339 text failed to parse: the kind, and the byte position.
+# Why time text did not parse (spec/std/time.md#time-parse-errors): one error
+# for RFC 3339 timestamps and duration text.
+## Why time text failed to parse: the kind, and the byte position.
 ## See [std-time.parse-error.declared](../../spec/std/time.md#r-std-time.parse-error.declared).
-pub enum TimeParseError:
+pub enum ParseTimeError:
     # A character that the grammar does not allow at its place.
     InvalidCharacter(position: usize)
-    # A field whose digits are well formed but whose value is not allowed.
+    # A field or total whose value is not allowed.
     OutOfRange(position: usize)
     # The text ends early; `position` is its length.
     TooShort(position: usize)
+    # Duration text: a number with no unit after it.
+    MissingUnit(position: usize)
+    # Duration text: letters after a number that name no unit.
+    UnknownUnit(position: usize)
+    # Duration text: a component that is not a whole number of milliseconds.
+    Inexact(position: usize)
 
-impl Eq for TimeParseError:
-    fn eq(self, other: TimeParseError) -> bool:
+impl Eq for ParseTimeError:
+    fn eq(self, other: ParseTimeError) -> bool:
         match (self, other):
             (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
             (.OutOfRange(left), .OutOfRange(right)) => left == right
             (.TooShort(left), .TooShort(right)) => left == right
+            (.MissingUnit(left), .MissingUnit(right)) => left == right
+            (.UnknownUnit(left), .UnknownUnit(right)) => left == right
+            (.Inexact(left), .Inexact(right)) => left == right
             _ => false
 
-impl Display for TimeParseError:
+impl Display for ParseTimeError:
     fn to_string(self) -> string:
         match self:
             .InvalidCharacter(position) => "invalid character at position $position"
             .OutOfRange(position) => "value out of range at position $position"
-            .TooShort(position) => "the text ends at position $position, before the timestamp is complete"
+            .TooShort(position) => "the text ends at position $position, before the value is complete"
+            .MissingUnit(position) => "missing unit at position $position"
+            .UnknownUnit(position) => "unknown unit at position $position"
+            .Inexact(position) => "not a whole number of milliseconds at position $position"
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
-impl Error for TimeParseError
+impl Error for ParseTimeError
 
-impl Debug for TimeParseError:
+impl Debug for ParseTimeError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .InvalidCharacter(position) => out.debug_tuple("TimeParseError.InvalidCharacter").named_field("position", position).finish()
-            .OutOfRange(position) => out.debug_tuple("TimeParseError.OutOfRange").named_field("position", position).finish()
-            .TooShort(position) => out.debug_tuple("TimeParseError.TooShort").named_field("position", position).finish()
+            .InvalidCharacter(position) => out.debug_tuple("ParseTimeError.InvalidCharacter").named_field("position", position).finish()
+            .OutOfRange(position) => out.debug_tuple("ParseTimeError.OutOfRange").named_field("position", position).finish()
+            .TooShort(position) => out.debug_tuple("ParseTimeError.TooShort").named_field("position", position).finish()
+            .MissingUnit(position) => out.debug_tuple("ParseTimeError.MissingUnit").named_field("position", position).finish()
+            .UnknownUnit(position) => out.debug_tuple("ParseTimeError.UnknownUnit").named_field("position", position).finish()
+            .Inexact(position) => out.debug_tuple("ParseTimeError.Inexact").named_field("position", position).finish()
 
 # Howard Hinnant's `civil_from_days`: the date `day` days after
 # 1970-01-01. An era is 400 years, 146097 days, and each year in it starts
@@ -449,10 +465,10 @@ fn rfc3339_reach(codes: List[i32], start: usize, shape: string) -> usize:
     index
 
 # The error at `index`, where the shape stopped matching.
-fn rfc3339_mismatch(codes: List[i32], index: usize) -> TimeParseError:
+fn rfc3339_mismatch(codes: List[i32], index: usize) -> ParseTimeError:
     if index >= codes.len():
-        return TimeParseError.TooShort(codes.len())
-    TimeParseError.InvalidCharacter(index)
+        return ParseTimeError.TooShort(codes.len())
+    ParseTimeError.InvalidCharacter(index)
 
 # The value of the `width` digits from `start`, which the shape checked.
 fn rfc3339_value(codes: List[i32], start: usize, width: usize) -> i64:
@@ -466,7 +482,7 @@ fn rfc3339_value(codes: List[i32], start: usize, width: usize) -> i64:
 # RFC 3339 `date-time`. Each field's range is checked once its digits
 # match, before any later mismatch, so the first error from the left wins
 # (r-std-time.parse-error.order).
-fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
+fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
     reach := rfc3339_reach(codes, 0, "dddd-dd-ddTdd:dd:dd")
     # year, month, day, hour, minute, second
     let parts: mut List[i64] = []
@@ -487,7 +503,7 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
         else if start == 11:
             high = 23
         if value > high || (value == 0 && (start == 5 || start == 8)):
-            return .Err(TimeParseError.OutOfRange(start))
+            return .Err(ParseTimeError.OutOfRange(start))
     let index: usize = 19
     let fraction: i64 = 0
     if index < codes.len() && codes[index] == 46:
@@ -504,7 +520,7 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
             fraction = fraction * 10
             read = read + 1
     if index >= codes.len():
-        return .Err(TimeParseError.TooShort(codes.len()))
+        return .Err(ParseTimeError.TooShort(codes.len()))
     zone := codes[index]
     let offset: i64 = 0
     if zone == 90 || zone == 122:
@@ -515,20 +531,20 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
             return .Err(rfc3339_mismatch(codes, zone_reach))
         hours := rfc3339_value(codes, index + 1, 2)
         if hours > 23:
-            return .Err(TimeParseError.OutOfRange(index + 1))
+            return .Err(ParseTimeError.OutOfRange(index + 1))
         if zone_reach < index + 6:
             return .Err(rfc3339_mismatch(codes, zone_reach))
         minutes := rfc3339_value(codes, index + 4, 2)
         if minutes > 59:
-            return .Err(TimeParseError.OutOfRange(index + 4))
+            return .Err(ParseTimeError.OutOfRange(index + 4))
         offset = (hours * 60 + minutes) * 60000
         if zone == 45:
             offset = -offset
         index = index + 6
     else:
-        return .Err(TimeParseError.InvalidCharacter(index))
+        return .Err(ParseTimeError.InvalidCharacter(index))
     if index < codes.len():
-        return .Err(TimeParseError.InvalidCharacter(index))
+        return .Err(ParseTimeError.InvalidCharacter(index))
     local := days_from_civil(parts[0], parts[1], parts[2]) * 86400000 + parts[3] * 3600000 + parts[4] * 60000 + parts[5] * 1000 + fraction
     .Ok(Timestamp { millis: local - offset })
 
@@ -642,56 +658,6 @@ impl Deserialize for Instant:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Instant, R::Error]:
         .Ok(Instant { millis: input.int("Instant")? })
 
-# Why duration text did not parse (spec/std/time.md#duration-parsing).
-## Why duration text failed to parse: the kind, and the byte position.
-## See [std-time.duration.parse-error.declared](../../spec/std/time.md#r-std-time.duration.parse-error.declared).
-pub enum ParseDurationError:
-    # The text ends where a number is needed; `position` is its length.
-    TooShort(position: usize)
-    # A character that the grammar does not allow at its place.
-    InvalidCharacter(position: usize)
-    # A number with no unit after it.
-    MissingUnit(position: usize)
-    # Letters after a number that name no unit.
-    UnknownUnit(position: usize)
-    # A component that is not a whole number of milliseconds.
-    Inexact(position: usize)
-    # The total does not fit in `i64` milliseconds.
-    OutOfRange(position: usize)
-
-impl Eq for ParseDurationError:
-    fn eq(self, other: ParseDurationError) -> bool:
-        match (self, other):
-            (.TooShort(left), .TooShort(right)) => left == right
-            (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
-            (.MissingUnit(left), .MissingUnit(right)) => left == right
-            (.UnknownUnit(left), .UnknownUnit(right)) => left == right
-            (.Inexact(left), .Inexact(right)) => left == right
-            (.OutOfRange(left), .OutOfRange(right)) => left == right
-            _ => false
-
-impl Display for ParseDurationError:
-    fn to_string(self) -> string:
-        match self:
-            .TooShort(position) => "the duration text ends at position $position, before a number"
-            .InvalidCharacter(position) => "invalid character at position $position"
-            .MissingUnit(position) => "missing unit at position $position"
-            .UnknownUnit(position) => "unknown unit at position $position"
-            .Inexact(position) => "not a whole number of milliseconds at position $position"
-            .OutOfRange(position) => "duration out of range at position $position"
-
-impl Error for ParseDurationError
-
-impl Debug for ParseDurationError:
-    fn debug(self, out: mut DebugWriter) -> void:
-        match self:
-            .TooShort(position) => out.debug_tuple("ParseDurationError.TooShort").named_field("position", position).finish()
-            .InvalidCharacter(position) => out.debug_tuple("ParseDurationError.InvalidCharacter").named_field("position", position).finish()
-            .MissingUnit(position) => out.debug_tuple("ParseDurationError.MissingUnit").named_field("position", position).finish()
-            .UnknownUnit(position) => out.debug_tuple("ParseDurationError.UnknownUnit").named_field("position", position).finish()
-            .Inexact(position) => out.debug_tuple("ParseDurationError.Inexact").named_field("position", position).finish()
-            .OutOfRange(position) => out.debug_tuple("ParseDurationError.OutOfRange").named_field("position", position).finish()
-
 # A unit's scale: its milliseconds per unit, and how many units make one
 # millisecond (1 for a unit of a millisecond or more).
 fn duration_unit_scale(unit: string) -> (i64, i64)?:
@@ -722,7 +688,7 @@ fn is_digit_code(code: i32) -> bool:
 # (r-std-time.duration.parse). The total is summed as a non-positive
 # number, whose range holds the most negative duration, so the text of
 # every duration parses back (r-std-time.duration.parse.round-trip).
-fn parse_duration_text(text: string) -> Result[Duration, ParseDurationError]:
+fn parse_duration_text(text: string) -> Result[Duration, ParseTimeError]:
     codes := byte_codes(text)
     size := codes.len()
     let index: usize = 0
@@ -731,7 +697,7 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseDurationError]:
         negative = codes[index] == 45
         index = index + 1
     if index >= size:
-        return .Err(ParseDurationError.TooShort(size))
+        return .Err(ParseTimeError.TooShort(size))
     if index + 1 == size && codes[index] == 48:
         return .Ok(Duration { millis: 0 })
     let limit: i64 = -9223372036854775807
@@ -750,7 +716,7 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseDurationError]:
                 whole = whole * 10 - digit
             index = index + 1
         if index == start:
-            return .Err(ParseDurationError.InvalidCharacter(index))
+            return .Err(ParseTimeError.InvalidCharacter(index))
         let fraction: i64 = 0
         let places: usize = 0
         let inexact = false
@@ -761,8 +727,8 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseDurationError]:
                 index = index + 1
             if index == first:
                 if index >= size:
-                    return .Err(ParseDurationError.TooShort(size))
-                return .Err(ParseDurationError.InvalidCharacter(index))
+                    return .Err(ParseTimeError.TooShort(size))
+                return .Err(ParseTimeError.InvalidCharacter(index))
             let last = index
             while last > first && codes[last - 1] == 48:
                 last = last - 1
@@ -775,34 +741,34 @@ fn parse_duration_text(text: string) -> Result[Duration, ParseDurationError]:
         while index < size && !is_digit_code(codes[index]) && codes[index] != 46:
             index = index + 1
         if index == unit_start:
-            return .Err(ParseDurationError.MissingUnit(index))
+            return .Err(ParseTimeError.MissingUnit(index))
         scale := match duration_unit_scale(text.slice(unit_start, index)):
             .Some(found) => found
-            .None => return .Err(ParseDurationError.UnknownUnit(unit_start))
+            .None => return .Err(ParseTimeError.UnknownUnit(unit_start))
         if overflow:
-            return .Err(ParseDurationError.OutOfRange(start))
+            return .Err(ParseTimeError.OutOfRange(start))
         multiplier := scale._0
         divisor := scale._1
         let component: i64 = 0
         if divisor > 1:
             if inexact || fraction != 0 || whole % divisor != 0:
-                return .Err(ParseDurationError.Inexact(start))
+                return .Err(ParseTimeError.Inexact(start))
             component = whole / divisor
         else:
             if inexact:
-                return .Err(ParseDurationError.Inexact(start))
+                return .Err(ParseTimeError.Inexact(start))
             scaled := fraction * multiplier
             scale_down := power_of_ten(places)
             if scaled % scale_down != 0:
-                return .Err(ParseDurationError.Inexact(start))
+                return .Err(ParseTimeError.Inexact(start))
             if whole < limit / multiplier:
-                return .Err(ParseDurationError.OutOfRange(start))
+                return .Err(ParseTimeError.OutOfRange(start))
             part := scaled / scale_down
             if whole * multiplier < limit + part:
-                return .Err(ParseDurationError.OutOfRange(start))
+                return .Err(ParseTimeError.OutOfRange(start))
             component = whole * multiplier - part
         if component < limit - total:
-            return .Err(ParseDurationError.OutOfRange(start))
+            return .Err(ParseTimeError.OutOfRange(start))
         total = total + component
     if negative:
         return .Ok(Duration { millis: total })

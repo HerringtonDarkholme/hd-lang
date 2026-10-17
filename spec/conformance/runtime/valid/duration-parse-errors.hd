@@ -1,63 +1,63 @@
-# test: each ParseDurationError case with its byte position, the order of errors, and that exact means no rounding
-# Spec std/time Duration Parse Errors: std-time.duration.parse-error.declared, std-time.duration.parse-error.too-short, std-time.duration.parse-error.invalid-character, std-time.duration.parse-error.missing-unit, std-time.duration.parse-error.unknown-unit, std-time.duration.parse-error.range-position, std-time.duration.parse-error.order, std-time.duration.parse-error.traits (#370).
-use std.time.{Duration, ParseDurationError}
+# test: each ParseTimeError case with its byte position, the order of errors, and that exact means no rounding
+# Spec std/time Duration Parse Errors: std-time.duration.parse-error.too-short, std-time.duration.parse-error.invalid-character, std-time.duration.parse-error.missing-unit, std-time.duration.parse-error.unknown-unit, std-time.duration.parse-error.range-position, std-time.duration.parse-error.order, std-time.parse-error.declared, std-time.parse-error.traits (#370, #461).
+use std.time.{Duration, ParseTimeError}
 
-fn parsed(text: string) -> Result[Duration, ParseDurationError]:
+fn parsed(text: string) -> Result[Duration, ParseTimeError]:
     Duration::parse(text)
 
 tests:
     use std.testing.{assert, assert_equal}
 
     it("text that ends where a number is needed"):
-        assert_equal(parsed(""), .Err(ParseDurationError.TooShort(0)), reason="empty")
-        assert_equal(parsed("-"), .Err(ParseDurationError.TooShort(1)), reason="a sign alone")
-        assert_equal(parsed("+"), .Err(ParseDurationError.TooShort(1)), reason="a plus alone")
-        assert_equal(parsed("1."), .Err(ParseDurationError.TooShort(2)), reason="a point with no digits at the end")
+        assert_equal(parsed(""), .Err(ParseTimeError.TooShort(0)), reason="empty")
+        assert_equal(parsed("-"), .Err(ParseTimeError.TooShort(1)), reason="a sign alone")
+        assert_equal(parsed("+"), .Err(ParseTimeError.TooShort(1)), reason="a plus alone")
+        assert_equal(parsed("1."), .Err(ParseTimeError.TooShort(2)), reason="a point with no digits at the end")
 
     it("characters the grammar does not allow"):
-        assert_equal(parsed("x"), .Err(ParseDurationError.InvalidCharacter(0)), reason="a letter first")
-        assert_equal(parsed(".5s"), .Err(ParseDurationError.InvalidCharacter(0)), reason="no digit before the point")
-        assert_equal(parsed("1.s"), .Err(ParseDurationError.InvalidCharacter(2)), reason="no digit after the point")
-        assert_equal(parsed("--1s"), .Err(ParseDurationError.InvalidCharacter(1)), reason="a second sign")
-        assert_equal(parsed("1h-5m"), .Err(ParseDurationError.UnknownUnit(1)), reason="a sign in the middle is part of the unit")
-        assert_equal(parsed("1h.5s"), .Err(ParseDurationError.InvalidCharacter(2)), reason="a component with no digit before the point")
-        assert_equal(parsed("1s "), .Err(ParseDurationError.UnknownUnit(1)), reason="a trailing space is part of the unit")
+        assert_equal(parsed("x"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a letter first")
+        assert_equal(parsed(".5s"), .Err(ParseTimeError.InvalidCharacter(0)), reason="no digit before the point")
+        assert_equal(parsed("1.s"), .Err(ParseTimeError.InvalidCharacter(2)), reason="no digit after the point")
+        assert_equal(parsed("--1s"), .Err(ParseTimeError.InvalidCharacter(1)), reason="a second sign")
+        assert_equal(parsed("1h-5m"), .Err(ParseTimeError.UnknownUnit(1)), reason="a sign in the middle is part of the unit")
+        assert_equal(parsed("1h.5s"), .Err(ParseTimeError.InvalidCharacter(2)), reason="a component with no digit before the point")
+        assert_equal(parsed("1s "), .Err(ParseTimeError.UnknownUnit(1)), reason="a trailing space is part of the unit")
 
     it("numbers without a known unit"):
-        assert_equal(parsed("1"), .Err(ParseDurationError.MissingUnit(1)), reason="no unit at the end")
-        assert_equal(parsed("1h2"), .Err(ParseDurationError.MissingUnit(3)), reason="the last component has no unit")
-        assert_equal(parsed("1.5.5s"), .Err(ParseDurationError.MissingUnit(3)), reason="a second point")
-        assert_equal(parsed("1x"), .Err(ParseDurationError.UnknownUnit(1)), reason="an unknown unit")
-        assert_equal(parsed("1 s"), .Err(ParseDurationError.UnknownUnit(1)), reason="a space before the unit")
-        assert_equal(parsed("5d"), .Err(ParseDurationError.UnknownUnit(1)), reason="days are not a unit")
-        assert_equal(parsed("1H"), .Err(ParseDurationError.UnknownUnit(1)), reason="units are lower case")
-        assert_equal(parsed("1h2xm"), .Err(ParseDurationError.UnknownUnit(3)), reason="the position is the unit's start")
+        assert_equal(parsed("1"), .Err(ParseTimeError.MissingUnit(1)), reason="no unit at the end")
+        assert_equal(parsed("1h2"), .Err(ParseTimeError.MissingUnit(3)), reason="the last component has no unit")
+        assert_equal(parsed("1.5.5s"), .Err(ParseTimeError.MissingUnit(3)), reason="a second point")
+        assert_equal(parsed("1x"), .Err(ParseTimeError.UnknownUnit(1)), reason="an unknown unit")
+        assert_equal(parsed("1 s"), .Err(ParseTimeError.UnknownUnit(1)), reason="a space before the unit")
+        assert_equal(parsed("5d"), .Err(ParseTimeError.UnknownUnit(1)), reason="days are not a unit")
+        assert_equal(parsed("1H"), .Err(ParseTimeError.UnknownUnit(1)), reason="units are lower case")
+        assert_equal(parsed("1h2xm"), .Err(ParseTimeError.UnknownUnit(3)), reason="the position is the unit's start")
 
     it("values that are not whole milliseconds"):
-        assert_equal(parsed("1.5ms"), .Err(ParseDurationError.Inexact(0)), reason="half a millisecond")
-        assert_equal(parsed("500us"), .Err(ParseDurationError.Inexact(0)), reason="half a millisecond in us")
-        assert_equal(parsed("1ns"), .Err(ParseDurationError.Inexact(0)), reason="one nanosecond")
-        assert_equal(parsed("1.0005s"), .Err(ParseDurationError.Inexact(0)), reason="1000.5 ms")
-        assert_equal(parsed("1h2.5ms"), .Err(ParseDurationError.Inexact(2)), reason="the position is the component's first digit")
-        assert_equal(parsed("1.5us"), .Err(ParseDurationError.Inexact(0)), reason="a fraction of a fine unit")
-        assert_equal(parsed("0.0000000000001s"), .Err(ParseDurationError.Inexact(0)), reason="too many digits")
+        assert_equal(parsed("1.5ms"), .Err(ParseTimeError.Inexact(0)), reason="half a millisecond")
+        assert_equal(parsed("500us"), .Err(ParseTimeError.Inexact(0)), reason="half a millisecond in us")
+        assert_equal(parsed("1ns"), .Err(ParseTimeError.Inexact(0)), reason="one nanosecond")
+        assert_equal(parsed("1.0005s"), .Err(ParseTimeError.Inexact(0)), reason="1000.5 ms")
+        assert_equal(parsed("1h2.5ms"), .Err(ParseTimeError.Inexact(2)), reason="the position is the component's first digit")
+        assert_equal(parsed("1.5us"), .Err(ParseTimeError.Inexact(0)), reason="a fraction of a fine unit")
+        assert_equal(parsed("0.0000000000001s"), .Err(ParseTimeError.Inexact(0)), reason="too many digits")
 
     it("values out of range"):
-        assert_equal(parsed("9223372036854775808ms"), .Err(ParseDurationError.OutOfRange(0)), reason="one past the largest")
-        assert_equal(parsed("-9223372036854775809ms"), .Err(ParseDurationError.OutOfRange(1)), reason="one past the most negative")
-        assert_equal(parsed("99999999999999999999ms"), .Err(ParseDurationError.OutOfRange(0)), reason="more digits than i64 holds")
-        assert_equal(parsed("2562047788016h"), .Err(ParseDurationError.OutOfRange(0)), reason="hours overflow")
-        assert_equal(parsed("9223372036854775807ms1ms"), .Err(ParseDurationError.OutOfRange(21)), reason="the running total overflows")
-        assert_equal(parsed("1ms9223372036854775807ms"), .Err(ParseDurationError.OutOfRange(3)), reason="the total at the second component")
+        assert_equal(parsed("9223372036854775808ms"), .Err(ParseTimeError.OutOfRange(0)), reason="one past the largest")
+        assert_equal(parsed("-9223372036854775809ms"), .Err(ParseTimeError.OutOfRange(1)), reason="one past the most negative")
+        assert_equal(parsed("99999999999999999999ms"), .Err(ParseTimeError.OutOfRange(0)), reason="more digits than i64 holds")
+        assert_equal(parsed("2562047788016h"), .Err(ParseTimeError.OutOfRange(0)), reason="hours overflow")
+        assert_equal(parsed("9223372036854775807ms1ms"), .Err(ParseTimeError.OutOfRange(21)), reason="the running total overflows")
+        assert_equal(parsed("1ms9223372036854775807ms"), .Err(ParseTimeError.OutOfRange(3)), reason="the total at the second component")
 
     it("the first error from the left wins"):
-        assert_equal(parsed("1xh"), .Err(ParseDurationError.UnknownUnit(1)), reason="the unit before later text")
-        assert_equal(parsed("99999999999999999999x"), .Err(ParseDurationError.UnknownUnit(20)), reason="a unit error before the range error")
-        assert_equal(parsed("99999999999999999999.5ms"), .Err(ParseDurationError.OutOfRange(0)), reason="the range before the exact check")
-        assert_equal(parsed("1.5ms9223372036854775808ms"), .Err(ParseDurationError.Inexact(0)), reason="the first component first")
+        assert_equal(parsed("1xh"), .Err(ParseTimeError.UnknownUnit(1)), reason="the unit before later text")
+        assert_equal(parsed("99999999999999999999x"), .Err(ParseTimeError.UnknownUnit(20)), reason="a unit error before the range error")
+        assert_equal(parsed("99999999999999999999.5ms"), .Err(ParseTimeError.OutOfRange(0)), reason="the range before the exact check")
+        assert_equal(parsed("1.5ms9223372036854775808ms"), .Err(ParseTimeError.Inexact(0)), reason="the first component first")
 
-    it("ParseDurationError implements Eq and Display"):
-        assert(ParseDurationError.TooShort(3) == ParseDurationError.TooShort(3), reason="same position")
-        assert(ParseDurationError.Inexact(3) != ParseDurationError.Inexact(4), reason="another position")
-        assert(ParseDurationError.Inexact(5) != ParseDurationError.OutOfRange(5), reason="another variant")
-        assert("${ParseDurationError.UnknownUnit(4)}".len() > 0, reason="Display text")
+    it("ParseTimeError implements Eq and Display"):
+        assert(ParseTimeError.TooShort(3) == ParseTimeError.TooShort(3), reason="same position")
+        assert(ParseTimeError.Inexact(3) != ParseTimeError.Inexact(4), reason="another position")
+        assert(ParseTimeError.Inexact(5) != ParseTimeError.OutOfRange(5), reason="another variant")
+        assert("${ParseTimeError.UnknownUnit(4)}".len() > 0, reason="Display text")

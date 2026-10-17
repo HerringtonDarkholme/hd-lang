@@ -60,7 +60,7 @@ tests:
         assert(count("x").is_err(), reason="ParseNumberError")
         assert_equal(message(width("x")), "reading the width", reason="context")
         assert(document("[").is_err(), reason="JsonError")
-        assert(stamp("now").is_err(), reason="TimeParseError")
+        assert(stamp("now").is_err(), reason="ParseTimeError")
         assert(utf8([255]).is_err(), reason="Utf8Error")
         assert(missing("a.txt").is_err(), reason="FsError")
         assert(closed().is_err(), reason="ConsoleError")
