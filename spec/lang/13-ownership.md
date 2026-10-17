@@ -12,8 +12,8 @@ owned, or borrowed.
 > [Specification Status](../README.md#specification-status) requires.
 >
 > So far the chapter checks marks in declarations, ownership by structure,
-> and the modes values meet in bodies. Moves, drops, and loans are not
-> specified yet.
+> the modes values meet in bodies, the prototype's limits, and providers
+> and boundaries. Moves, drops, and loans are not specified yet.
 >
 > A body is diagnosed when it holds a value of a type parameter with an
 > `own` bound, passes a moded type argument, or names a lifetime. So is a
@@ -579,3 +579,116 @@ fn helper(): open()                         # error: missing-result-type
 > call site, so a call reads the same whether it borrows or not.
 
 See also: [Ownership By Structure](#ownership-by-structure).
+
+## Prototype Limits
+
+Some forms of owned and borrowed values wait for later sections of this
+chapter. A program that uses one is rejected with a diagnostic of its own.
+
+```text
+use std.task.{all, race}
+
+data Settings:
+    level: i32
+
+data Conn:
+    fd: i32
+
+impl OwnOnly for Conn
+
+fn open(level: i32) -> own Conn: Conn { fd: level }
+fn connect!(addr: string) -> own Conn: Conn { fd: 1 }
+fn handle!(c: own Conn) -> void: pass
+fn level(s: ^Settings) -> i32: s.level
+
+CONFIG := Settings { level: 1 }
+MAIN := open(1)                           # error: not-in-ownership-prototype
+let VIEW: ^Settings = CONFIG              # error: not-in-ownership-prototype
+
+fn current() -> i32: level(CONFIG)        # error: not-in-ownership-prototype
+
+fn later(c: own Conn) -> void:
+    _ := handle(c)                        # error: not-in-ownership-prototype
+
+fn both!(a: string, b: string) -> void:
+    _ := all!(connect(a), connect(b))     # error: not-in-ownership-prototype
+
+fn first!(a: string, b: string) -> void:
+    _ := race!(connect(a), connect(b))    # error: not-in-ownership-prototype
+```
+
+1. r[own.limit.top-level] A top-level binding whose type has an owned or borrowed part, at any depth, is an error, and so is a top-level `let own`. Error: `not-in-ownership-prototype`.
+2. r[own.limit.top-level-borrow] A top-level binding, or a field of one, lent to a borrowed position is an error, receivers included. Error: `not-in-ownership-prototype`.
+3. r[own.limit.cold-call] A plain call of a suspending function, which builds a cold suspension, is an error when the type of one of its arguments owns by [own.structure.owns](#r-own.structure.owns). Error: `not-in-ownership-prototype`.
+4. r[own.limit.child-result] A child of `all!` or `race!` whose result type owns is an error. Error: `not-in-ownership-prototype`.
+
+> **Why.** A top-level owner moves in statement order and drops when the
+> instance ends, and a borrowed global must not move. A cold suspension
+> and a combinator's buffer drop the owned values they hold when they are
+> cancelled. Each needs drops that later sections specify.
+
+```text
+data Settings:
+    level: i32
+
+trait Sink:
+    fn write(self) -> void
+
+data Memory:
+    count: i32
+
+impl Sink for Memory:
+    fn write(self) -> void: pass
+
+fn plain(s: Settings) -> i32: s.level
+fn peek(s: ^Settings) -> i32: s.level
+
+CONFIG := Settings { level: 1 }
+
+fn current() -> i32:
+    local := Settings { level: CONFIG.level }
+    peek(local) + plain(CONFIG)           # a local is lent; a top-level binding stays plain
+
+fn install(view: ^Settings) -> void:
+    $.with(Sink = Memory { count: view.level }):
+        pass                              # a plain provider, built from a borrowed value's field
+```
+
+## Providers And Boundaries
+
+Providers and values that cross a boundary stay plain.
+
+```text
+trait Sink:
+    fn write(^mut self) -> void
+
+data Token:
+    pub owner: string
+
+trait Vault:                                  # a host capability of the selected runtime profile
+    fn keep(self, token: own Token) -> Token  # error: not-boundary-safe
+    fn peek(self, token: ^Token) -> string    # error: not-boundary-safe
+
+fn emit(sink: ^mut dyn Sink) -> void:
+    sink.write()
+
+fn twice(sink: ^mut dyn Sink) -> void:
+    emit(sink)                                # an exclusive service is a parameter
+    emit(sink)
+
+fn wrong(sink: ^mut dyn Sink) -> void:
+    $.with(Sink=sink):                        # error: provider-not-plain
+        pass
+```
+
+1. r[own.provider.plain] A provider of `$.with` or `$.context` is a plain value. A provider whose type has an owned or borrowed part or a lifetime argument, at any depth, is an error. Error: `provider-not-plain`.
+2. r[own.boundary.not-safe] A type with an owned or borrowed part or a lifetime argument, at any depth, is not boundary-safe.
+3. r[own.boundary.signature] A boundary signature with such a type is an error, reported at that signature. A host capability method's receiver does not cross, so its mark is allowed. Error: `not-boundary-safe`.
+
+> **Why.** Sibling tasks share a provider with object semantics, so an
+> owned or borrowed provider would give two tasks one owner or one
+> exclusive borrow. A value that crosses a boundary is copied as a tree, so
+> it can neither stay the only path to its value nor point back into hd.
+
+See also: [Boundary-Safe Values](10-modules.md#boundary-safe-values),
+[Mutable Providers](11-requirements-and-suspension.md#mutable-providers).

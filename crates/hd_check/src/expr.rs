@@ -3887,6 +3887,20 @@ impl Ck<'_, '_> {
                 return unsupported("a provider key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
+            // `own.provider.plain`: a provider is a plain value.
+            let resolved = self.infer.resolve(pool, t);
+            if pool.has_mode(resolved) {
+                let msg = format!(
+                    "a provider is a plain value, but this is {}; pass an owned or borrowed service as a parameter",
+                    self.show(t)
+                );
+                self.err(Code::ProviderNotPlain, *vn, &msg);
+                pairs.push(Ref(key.0));
+                pairs.push(r);
+                self.check_key_collision(entry, &[key], &keys, &visible);
+                keys.push(key);
+                continue;
+            }
             // A mutable requirement trait needs a `mut` provider.
             if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
                 let msg = format!(

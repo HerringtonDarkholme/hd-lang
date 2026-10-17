@@ -85,13 +85,12 @@ fn body_marks_check() {
 /// What later sections check stays `unsupported` (the note of
 /// 13-ownership.md): a value of an `own`-bounded type parameter, owned
 /// type arguments, captures, iteration and patterns over moded values,
-/// top-level owned bindings, and marks in a supertrait list.
+/// and marks in a supertrait list.
 #[test]
 fn later_body_forms_are_unsupported() {
     let forms = [
         "fn keep[T < own Any](x: T) -> T: x\n",
         "fn make() -> void:\n    fn inner[T < own Any](x: T) -> T: x\n    pass\n",
-        "let own TOP = File { fd: 1 }\n",
         "trait Keeper < own Named:\n    fn keep(self) -> void\n",
         "fn id[T](x: T) -> T: x\n\nfn make(f: own File) -> i32:\n    g := id(f)\n    g.fd\n",
         "fn size(f: ^File) -> i32: f.fd\n\nfn make(f: own File) -> i32:\n    g := fn() -> i32: size(f)\n    g()\n",
@@ -103,6 +102,39 @@ fn later_body_forms_are_unsupported() {
         let program = format!("{PRELUDE}\n{form}");
         let got = codes(&program);
         assert_eq!(got, vec![Code::Unsupported], "for:\n{form}");
+    }
+}
+
+/// The prototype's limits (13-ownership.md, Prototype Limits) and the
+/// plain-only providers and boundaries reject with their own codes, and
+/// stand for the body's other ownership gaps.
+#[test]
+fn prototype_limits_reject() {
+    let limit = Code::NotInOwnershipPrototype;
+    let forms = [
+        ("let own TOP = File { fd: 1 }\n", limit),
+        (
+            "fn open() -> own File: File { fd: 1 }\n\nTOP := open()\n",
+            limit,
+        ),
+        ("TOP := File { fd: 1 }\n\nlet VIEW: ^File = TOP\n", limit),
+        (
+            "TOP := File { fd: 1 }\n\nfn size(f: ^File) -> i32: f.fd\n\nfn read() -> i32: size(TOP)\n",
+            limit,
+        ),
+        (
+            "fn handle!(f: own File) -> void: pass\n\nfn later(f: own File) -> void:\n    _ := handle(f)\n",
+            limit,
+        ),
+        (
+            "impl Named for File:\n    fn name(self) -> string: \"file\"\n\nfn named(f: own File) -> void:\n    $.with(Named = f):\n        pass\n",
+            Code::ProviderNotPlain,
+        ),
+    ];
+    for (form, code) in forms {
+        let program = format!("{PRELUDE}\n{form}");
+        let got = codes(&program);
+        assert_eq!(got, vec![code], "for:\n{form}");
     }
 }
 

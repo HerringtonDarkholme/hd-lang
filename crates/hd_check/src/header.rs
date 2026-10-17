@@ -1208,7 +1208,8 @@ fn sig_tys(sig: &FnSig) -> Vec<Ty> {
 /// `std.serde.Serialize` and in only through `std.serde.Deserialize`
 /// (`module.boundary.out`, `module.boundary.in`). A signature with a type
 /// that would cross without it is an error there, once per signature
-/// (`module.boundary.error`).
+/// (`module.boundary.error`), and so is one with an owned or borrowed
+/// type (`own.boundary.not-safe`).
 pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     let ItemData::Trait(t) = &trait_.data else {
@@ -1232,6 +1233,16 @@ pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
             .chain([(sig.ret, deserialize)])
             .collect();
         for (t, tr) in crossing {
+            // `own.boundary.not-safe`: an owned or borrowed value, or one
+            // that holds either, is not boundary-safe.
+            if cx.names.pool.has_mode(t) {
+                let message = format!(
+                    "{} is owned or borrowed, or holds an owned or borrowed part, so it is not boundary-safe and cannot cross a host call",
+                    hc.show(t)
+                );
+                hc.report(0, Code::NotBoundarySafe, message);
+                break;
+            }
             if let Some(bad) = hc.crosses_without(t, tr, &mut Vec::new())? {
                 let way = if tr == serialize { "out of" } else { "into" };
                 let message = format!(

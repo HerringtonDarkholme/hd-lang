@@ -1,0 +1,26 @@
+# test: a top-level binding passed plain and a plain provider stay within the ownership prototype
+data Settings:
+    level: i32
+
+trait Sink:
+    fn write(self) -> void
+
+data Memory:
+    count: i32
+
+impl Sink for Memory:
+    fn write(self) -> void: pass
+
+fn plain(s: Settings) -> i32: s.level
+
+fn peek(s: ^Settings) -> i32: s.level
+
+CONFIG := Settings { level: 1 }
+
+fn current() -> i32:
+    local := Settings { level: CONFIG.level }
+    peek(local) + plain(CONFIG)
+
+fn install(view: ^Settings) -> void:
+    $.with(Sink = Memory { count: view.level }):
+        pass

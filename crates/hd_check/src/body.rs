@@ -221,6 +221,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Where a value of a moded type met a form a later section of
     /// 13-ownership.md checks.
     pub mode_gap: Option<hd_base::NodeIdx>,
+    /// Whether the body met a form the ownership prototype rejects
+    /// (`own.limit.*`), which then stands for every later form's gap.
+    pub prototype_limit: bool,
     /// The type variables of generic calls: one that a moded type solves
     /// waits for owned type arguments (13-ownership.md).
     pub generic_vars: Vec<(Ty, hd_base::NodeIdx)>,
@@ -493,6 +496,7 @@ pub(crate) fn new_ck<'a, 'c>(
         gens: Vec::new(),
         own_params: Vec::new(),
         mode_gap: None,
+        prototype_limit: false,
         generic_vars: Vec::new(),
         let_own: false,
         structure: crate::own::StructureMemo::default(),
@@ -3560,6 +3564,8 @@ impl Ck<'_, '_> {
     /// bound, a generic call that a moded type argument solves, a closure
     /// that captures a moded local, a moded value in a body that defers
     /// or suspends, and a moded value meeting a form no section checks yet.
+    /// A body that met a form the prototype rejects (`own.limit.*`) reports
+    /// that instead.
     fn mode_gate(&mut self, n: usize) -> StageResult<()> {
         let pool = self.pool();
         let body = self.b.body_mut();
@@ -3572,6 +3578,11 @@ impl Ck<'_, '_> {
             body.tags[i] != Tag::Block && ps.iter().any(|p| self.own_params.contains(p))
         });
         let moded = (0..n).find(|&i| pool.has_mode(body.ty[i]));
+        // A form the prototype rejects is the body's diagnostic for it.
+        if moded.is_some() && self.prototype_limits(n) || self.prototype_limit {
+            return Ok(());
+        }
+        let body = self.b.body_mut();
         let waits = |t: Tag| {
             matches!(
                 t,

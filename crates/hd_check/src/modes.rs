@@ -6,7 +6,7 @@
 use hd_base::StageResult;
 use hd_diag::Code;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Coercion, NONE, Ref, Tag, TirSink};
+use hd_tir::ir::{Callee, Coercion, NONE, Ref, Tag, TirSink};
 use hd_types::solver::{Answer, Impls, TraitRef};
 use hd_types::{Ty, TyData, TyList};
 
@@ -158,6 +158,15 @@ impl Ck<'_, '_> {
                     return Some(r);
                 }
                 if self.expect(gt, wt, n, what, crate::body::ExpectPosition::General) {
+                    return Some(r);
+                }
+                if self.global_place(r) {
+                    self.err(
+                        Code::NotInOwnershipPrototype,
+                        n,
+                        "a borrow of a top-level binding is not in the ownership prototype; pass the value to a plain parameter",
+                    );
+                    self.prototype_limit = true;
                     return Some(r);
                 }
                 let kind = if mutable {
@@ -341,5 +350,105 @@ impl Ck<'_, '_> {
         let out = c.owns(t);
         self.structure = memo;
         out
+    }
+    /// Whether `t` holds an owned value outside any borrow: an owned type,
+    /// or an optional, tuple, or type argument that holds one.
+    pub(crate) fn owned_part(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if !pool.has_mode(t) {
+            return false;
+        }
+        match pool.get(t) {
+            TyData::Own(_) => true,
+            TyData::Option(i) | TyData::Mut(i) => self.owned_part(i),
+            TyData::Tuple { elems, rest } => pool
+                .list_items(elems)
+                .iter()
+                .chain(rest.iter())
+                .any(|&e| self.owned_part(e)),
+            TyData::Adt { args, .. } => pool.list_items(args).iter().any(|&a| self.owned_part(a)),
+            _ => false,
+        }
+    }
+
+    /// Whether `r` reads a top-level binding or a part of one.
+    pub(crate) fn global_place(&mut self, r: Ref) -> bool {
+        let mut r = r;
+        loop {
+            let Some(i) = r.as_inst() else {
+                return false;
+            };
+            let body = self.b.body_mut();
+            let i = i.0 as usize;
+            match body.tags[i] {
+                Tag::GlobalGet => return true,
+                Tag::Field | Tag::TupleGet | Tag::Coerce => r = Ref(body.data[i][0]),
+                _ => return false,
+            }
+        }
+    }
+
+    /// The forms the ownership prototype rejects in the first `n`
+    /// instructions of a finished body (`own.limit.cold-call`,
+    /// `own.limit.child-result`): an owned argument to a cold call, and an
+    /// owned result of a child of `all!` or `race!`. Returns whether any
+    /// was reported.
+    pub(crate) fn prototype_limits(&mut self, n: usize) -> bool {
+        let pool = self.pool();
+        let suspend = self.cx.names.known.suspend;
+        let race = self.cx.names.known.race;
+        let mut found: Vec<(usize, &'static str)> = Vec::new();
+        for i in 0..n {
+            let body = self.b.body_mut();
+            let tag = body.tags[i];
+            let t = body.ty[i];
+            match tag {
+                Tag::Call => {
+                    let st = self.strip_mut(self.infer.resolve(pool, t));
+                    let cold = matches!(pool.get(st), TyData::Adt { def, .. } if def == suspend);
+                    let args = self.b.body_mut().value_operands(i).unwrap_or_default();
+                    if cold
+                        && args
+                            .iter()
+                            .any(|&a| a != NONE && self.owned_part(self.b.ty_of(Ref(a))))
+                    {
+                        found.push((
+                            i,
+                            "an owned argument to a cold call is not in the ownership prototype; call it with `!`, or pass a borrow or a plain value",
+                        ));
+                    }
+                }
+                Tag::AwaitAll => {
+                    if self.owned_part(t) {
+                        found.push((
+                            i,
+                            "a child of `all!` that returns an owned value is not in the ownership prototype",
+                        ));
+                    }
+                }
+                Tag::Await => {
+                    let words = body.record(body.data[i][0]).to_vec();
+                    let racing = matches!(
+                        Callee::from_words(&words),
+                        Some(Callee::Item { def, .. }) if def == race
+                    );
+                    if racing && self.owned_part(t) {
+                        found.push((
+                            i,
+                            "a child of `race!` that returns an owned value is not in the ownership prototype",
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for &(i, msg) in &found {
+            let at = self.b.body_mut().syn[i];
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::NotInOwnershipPrototype, node, msg);
+        }
+        self.prototype_limit |= !found.is_empty();
+        self.prototype_limit
     }
 }

@@ -1,0 +1,15 @@
+# test: an owned value is never a provider
+trait Sink:
+    fn write(self) -> void
+
+data Memory:
+    count: i32
+
+impl Sink for Memory:
+    fn write(self) -> void: pass
+
+fn make() -> own Memory: Memory { count: 0 }
+
+fn wrong() -> void:
+    $.with(Sink=make()):  # diagnostic: provider-not-plain
+        pass
