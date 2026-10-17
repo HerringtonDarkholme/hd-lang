@@ -52,7 +52,15 @@ const failure = (e, host) => {
   ) {
     return err("Dns", host);
   }
-  if (TLS_CODES.has(code) || code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL")) {
+  // A fatal TLS alert from the peer, such as `unknown_ca`, surfaces as
+  // `EPROTO` with OpenSSL's text (`tlsv1 alert unknown ca`).
+  const alert = code === "EPROTO" && /\b(tls|ssl)/i.test(String(e.message));
+  if (
+    TLS_CODES.has(code) ||
+    code.startsWith("ERR_TLS") ||
+    code.startsWith("ERR_SSL") ||
+    alert
+  ) {
     return err("Tls", String(e.message));
   }
   return err("Connect", String(e?.message ?? e));
