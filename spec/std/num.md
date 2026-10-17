@@ -11,6 +11,7 @@ ordinary hd over the language tier:
 - the bit counts `count_ones` and `leading_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f64`;
+- `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
 - `abs` on the signed integers and the floats, and `pow` on the integers;
 - `trunc`, `floor`, `ceil`, and `round` on the floats;
 - integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
@@ -172,6 +173,32 @@ fn bounded(ratio: f64) -> bool:
 
 1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f64`. It returns `true` exactly when `self` is a NaN.
 2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
+
+## Float Bit Patterns
+
+`to_bits` reads a float's IEEE 754 bit pattern and `from_bits` builds a float from one, as Rust's do:
+
+```text
+fn is_negative_zero(x: f64) -> bool:
+    x.to_bits() == 9223372036854775808
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.float-bits.to] `to_bits` | `fn to_bits(self) -> U` | the bit pattern of `self`, sign bit most significant |
+| r[std-num.float-bits.from] `from_bits` | `fn from_bits(bits: U) -> F` | the float whose bit pattern is `bits` |
+
+In this section, `F` is `f64` with `U` as `u64`, or `F` is `f32` with `U` as `u32`.
+
+1. r[std-num.float-bits.widths] The two methods exist on `f32` and on `f64`. `from_bits` takes no receiver, so a call reads `f64::from_bits(bits)`.
+2. r[std-num.float-bits.exact] `to_bits` returns the IEEE 754 binary64 pattern of an `f64` and the binary32 pattern of an `f32`. So `1.0.to_bits()` is `4607182418800017408` and `(-0.0).to_bits()` is `9223372036854775808`.
+3. r[std-num.float-bits.round-trip] `from_bits(x.to_bits())` has the bits of `x`, and `from_bits(b).to_bits()` is `b`, for every `b`, a NaN's sign and payload included.
+4. r[std-num.float-bits.nan] Neither method canonicalizes a NaN. [`types.display.nan-canonical`](../lang/04-type-system.md#r-types.display.nan-canonical) applies only before hashing, boundary serialization, and `Display`, so a NaN's sign and payload are visible to `to_bits` inside the program.
+5. r[std-num.float-bits.no-panic] Neither method panics.
+
+> **Why.** Rust has the same pair. No float operation reveals the sign of a
+> NaN, so `total_cmp` needs the bits. Each method is one reinterpret
+> instruction on Wasm.
 
 ## Integer Parsing
 

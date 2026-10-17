@@ -437,6 +437,30 @@ impl u64:
     pub fn abs_diff(self, other: u64) -> u64:
         if self > other: self - other else: other - self
 
+# `to_bits` and `from_bits` are Rust's: the IEEE 754 bit pattern, with the
+# sign bit on top (r-std-num.float-bits.exact).
+impl f64:
+    ## The IEEE 754 bit pattern of the value.
+    ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
+    pub fn to_bits(self) -> u64:
+        f64_bits(self)
+
+    ## The value whose IEEE 754 bit pattern is `bits`.
+    ## See [std-num.float-bits.from](../../spec/std/num.md#r-std-num.float-bits.from).
+    pub fn from_bits(bits: u64) -> f64:
+        f64_from(bits)
+
+impl f32:
+    ## The IEEE 754 bit pattern of the value.
+    ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
+    pub fn to_bits(self) -> u32:
+        f32_bits(self)
+
+    ## The value whose IEEE 754 bit pattern is `bits`.
+    ## See [std-num.float-bits.from](../../spec/std/num.md#r-std-num.float-bits.from).
+    pub fn from_bits(bits: u32) -> f32:
+        f32_from(bits)
+
 impl f64:
     ## True when the value is NaN.
     ## See [std-num.is-nan](../../spec/std/num.md#r-std-num.is-nan).
@@ -796,6 +820,25 @@ fn after_digits(text: string, at: usize) -> usize:
 # only text in the grammar (spec/std/README.md#standard-library-primitives).
 @intrinsic("parse_f64")
 fn host_parse_f64(text: string) -> f64:
+    panic("intrinsic")
+
+# The bit casts between a float and the unsigned integer of its width: one
+# reinterpret instruction each, keeping every bit
+# (spec/std/README.md#standard-library-primitives).
+@intrinsic("f64_to_bits")
+fn f64_bits(value: f64) -> u64:
+    panic("intrinsic")
+
+@intrinsic("f64_from_bits")
+fn f64_from(bits: u64) -> f64:
+    panic("intrinsic")
+
+@intrinsic("f32_to_bits")
+fn f32_bits(value: f32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("f32_from_bits")
+fn f32_from(bits: u32) -> f32:
     panic("intrinsic")
 
 # The fixed-point text of `value` with `digits` fractional digits, from 0

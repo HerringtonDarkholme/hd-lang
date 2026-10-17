@@ -68,6 +68,8 @@ a `char`, or a list.
 | `concat_all` | `(parts: List[string]) -> string` | allocates one string's representation for every part, sized first, so `join` and `StringBuilder.build` copy each byte once; hd has no byte buffer |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
+| `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
+| `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
 | `list_truncate` | `[T](items: mut List[T], len: usize) -> void` | shortens a list to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 
 **Panic.** One primitive raises every checked runtime panic that `lib/std`

@@ -1,0 +1,42 @@
+# test: to_bits and from_bits give the exact IEEE 754 bit pattern, keeping a NaN's sign and payload
+# Spec std/num Float Bit Patterns: std-num.float-bits.to, std-num.float-bits.from, std-num.float-bits.nan (issue #478).
+tests:
+    use std.testing.assert_equal
+
+    it("f64 patterns"):
+        assert_equal(1.0.to_bits(), 4607182418800017408, reason="one")
+        assert_equal(0.0.to_bits(), 0, reason="positive zero")
+        assert_equal((-0.0).to_bits(), 9223372036854775808, reason="negative zero has the sign bit")
+        assert_equal((1.0 / 0.0).to_bits(), 9218868437227405312, reason="positive infinity")
+        assert_equal((-1.0 / 0.0).to_bits(), 18442240474082181120, reason="negative infinity")
+        assert_equal(f64::from_bits(4607182418800017408), 1.0, reason="one back")
+        assert_equal(f64::from_bits(9218868437227405312), 1.0 / 0.0, reason="infinity back")
+        assert_equal(f64::from_bits(9223372036854775808).to_bits(), 9223372036854775808, reason="negative zero back")
+
+    it("f64 NaN"):
+        let positive: u64 = 9221120237041090560
+        let negative: u64 = 18444492273895866368
+        let payload: u64 = 9219994337134247936
+        assert_equal(f64::from_bits(positive).to_bits(), positive, reason="a positive quiet NaN")
+        assert_equal(f64::from_bits(negative).to_bits(), negative, reason="a negative NaN keeps its sign")
+        assert_equal(f64::from_bits(payload).to_bits(), payload, reason="a NaN keeps its payload")
+        assert_equal(f64::from_bits(negative).is_nan(), true, reason="it is a NaN")
+        assert_equal(f64::from_bits(9218868437227405313).is_nan(), true, reason="a signaling pattern is a NaN")
+
+    it("f32 patterns"):
+        let one: f32 = 1.0
+        let zero: f32 = 0.0
+        let negative_zero: f32 = -0.0
+        let infinity: f32 = 1.0 / 0.0
+        assert_equal(one.to_bits(), 1065353216, reason="one")
+        assert_equal(zero.to_bits(), 0, reason="positive zero")
+        assert_equal(negative_zero.to_bits(), 2147483648, reason="negative zero")
+        assert_equal(infinity.to_bits(), 2139095040, reason="positive infinity")
+        assert_equal((-infinity).to_bits(), 4286578688, reason="negative infinity")
+        assert_equal(f32::from_bits(1065353216), one, reason="one back")
+        assert_equal(f32::from_bits(2139095040), infinity, reason="infinity back")
+
+    it("f32 NaN"):
+        assert_equal(f32::from_bits(2143289344).to_bits(), 2143289344, reason="a positive quiet NaN")
+        assert_equal(f32::from_bits(4290772992).to_bits(), 4290772992, reason="a negative NaN keeps its sign")
+        assert_equal(f32::from_bits(2141192192).to_bits(), 2141192192, reason="a NaN keeps its payload")

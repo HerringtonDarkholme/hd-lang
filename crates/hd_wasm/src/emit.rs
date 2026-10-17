@@ -2923,6 +2923,29 @@ impl Em<'_> {
                 self.store(i)
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
+            // The bit casts between a float and the integer of its width:
+            // one reinterpret instruction, which keeps every bit, a NaN's
+            // sign and payload included.
+            "f64_to_bits" => {
+                self.comp(args[0], 0, &VT::F64)?;
+                self.a.s().i64_reinterpret_f64();
+                self.store(i)
+            }
+            "f64_from_bits" => {
+                self.comp(args[0], 0, &VT::I64)?;
+                self.a.s().f64_reinterpret_i64();
+                self.store(i)
+            }
+            "f32_to_bits" => {
+                self.comp(args[0], 0, &VT::F32)?;
+                self.a.s().i32_reinterpret_f32();
+                self.store(i)
+            }
+            "f32_from_bits" => {
+                self.comp(args[0], 0, &VT::I32)?;
+                self.a.s().f32_reinterpret_i32();
+                self.store(i)
+            }
             "task_race_frame" => {
                 let Shape::Suspend { base, poll, result } = self.lay.shape(ty)? else {
                     return unsupported("a `race!` frame of a type that is not a suspension");
@@ -3434,6 +3457,8 @@ impl Em<'_> {
             || kind == Coercion::RowSubsume as u32
             || kind == Coercion::SuspendFnToCtor as u32
             || kind == Coercion::Identity as u32
+            || kind == Coercion::Lend as u32
+            || kind == Coercion::LendMut as u32
         {
             self.load_as(v, &want)?;
             return self.store(i);
