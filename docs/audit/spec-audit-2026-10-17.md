@@ -9,9 +9,9 @@ committed). Rows are named by their Date and Where columns.
 
 | Group | Meaning | Rows |
 | --- | --- | --- |
-| D | Needs an owner ruling | 22 rows, as 20 questions in 5 batches |
-| B | Code right, spec wording lags | 36 |
-| C | Message, code or host quality only; no spec rule involved | 58 |
+| D | Needs an owner ruling | 23 rows, as 22 questions in 6 batches |
+| B | Code right, spec wording lags | 36: 33 applied, 1 moved to D, 2 to C |
+| C | Message, code or host quality only; no spec rule involved | 60 |
 | A | Resolved; deleted from diagnostic-notes.md in this commit | 76 |
 
 The probes also found one new compiler bug, listed first under C: a
@@ -325,164 +325,203 @@ rules are tested only by Rust tests named by rule ID.
 
 Refs: `cli.repl.*`; #17.
 
+### Batch 6: Found While Applying Group B
+
+Group B was re-checked at `86d03d467` with probes under
+`target/spec-audit-b/` (not committed). These two items did not hold as
+written.
+
+**D21. A fact that reads itself.**
+A fact whose evaluation reads the same fact again recurses until the stack
+runs out, and the panic is a plain `stack-exhausted`. Any other panic in a
+fact is `fact-evaluation-failed`, naming the fact and the original
+category, as `annot.fact.eval.panic-runtime` requires. Stack exhaustion
+escapes that rule today.
+
+1. Detect the re-entry and panic at once with `fact-evaluation-failed`,
+   naming the fact (Recommended). Rust's `OnceCell` panics on a reentrant
+   init the same way. Consequence: a runtime change, one flag per fact.
+2. Recurse, as today, and report `stack-exhausted` unwrapped.
+   Consequence: `annot.fact.eval.panic-runtime` gets an exception.
+
+Refs: `annot.fact.eval.panic-runtime`, `annot.fact.eval.lazy`; #285a;
+probes `i32.hd`, `i32b.hd`.
+
+**D22. The code for implementing `Suspend[T]`.**
+Owner decision #14 made `Suspend[T]` a built-in type, applied as
+`req.protocol.builtin` (B35). `impl Suspend[i32] for X` still reports
+`sealed-trait-implementation`, a code named for sealed traits.
+`impl Other for X` with another data type `Other` reports `unknown-trait`,
+"not a trait", and so does `dyn Suspend[i32]`. The new rule keeps today's
+code.
+
+1. Keep `sealed-trait-implementation` (Recommended). It tells the writer
+   that only the standard library implements it. Consequence: none.
+2. Report `unknown-trait`, as for any data type after `impl`.
+   Consequence: a checker change; the fixture
+   `user-suspend-implementation.hd` changes its code.
+
+Refs: `req.protocol.builtin`, `trait.sealed.user-impl`; probes `i35.hd`,
+`i35b.hd`.
+
 ## B. Spec Edits (Code Right, Wording Lags)
 
 Each item names the file, the rule, and the edit. "New item after X" means a
 new numbered item with the given ID; renumber the list.
 
-1. **`..` after a missing directory** (2026-10-15). `spec/cli/command-line.md`,
+1. **`..` after a missing directory** (2026-10-15). Applied in c914df255. `spec/cli/command-line.md`,
    new item after `cli.cap.scope.path.resolved`:
    `r[cli.cap.scope.path.access] Once the grant check passes, the access
    itself resolves the path as the operating system does, on every engine.
    So reading data/missing/../a.txt fails with NotFound when data/missing
    does not exist.`
-2. **Child that does not read its input** (2026-10-15). `spec/std/process.md`,
+2. **Child that does not read its input** (2026-10-15). Moved to C (Hosts): the Node host returns `.Err` on `EPIPE`. `spec/std/process.md`,
    new item after `std-process.helper.stdin-default`:
    `r[std-process.stdin.unread] When the child exits or closes its standard
    input before reading all of stdin, the rest is dropped. The call still
    returns .Ok with the child's output and status.` (Go's `exec` does the
    same.)
-3. **REPL member lines for an earlier type** (2026-10-13).
+3. **REPL member lines for an earlier type** (2026-10-13). Moved to C (Compiler Bug): a later derivation does not see the block.
    `spec/cli/command-line.md`, Redefinition, new Note after
    `cli.repl.redefine.impl`: "A derivation built for an earlier input keeps
    the facts it saw. A later input's block adds facts that later
    derivations see, and `find` returns the first; a repeated fact type
    across inputs is `duplicate-fact`."
-4. **REPL `Debug` added late** (2026-10-13). Same place, one more Note
+4. **REPL `Debug` added late** (2026-10-13). Applied in c914df255. Same place, one more Note
    sentence: "An implementation of `Debug` added after a value of its type
    was shown does not change how later values of that type show; a type
    not yet shown uses it." (Owner accepted, live-execution.md.)
-5. **REPL example** (2026-10-12). `spec/cli/command-line.md`, example
+5. **REPL example** (2026-10-12). Applied in c914df255, with `use std.path.{Path}`: `Path` lives in `std.path`, not `std.fs`. `spec/cli/command-line.md`, example
    after `cli.repl.panic.declarations`. Before: `hd> read_text!("notes.txt")   # reads ./notes.txt`.
    After: `hd> read_text!(Path("notes.txt"))   # reads ./notes.txt`, and
    the `use` line above it becomes `hd> use std.fs.{Path, read_text}`.
-6. **REPL top-level bang calls** (2026-10-12, owner decision). New item
+6. **REPL top-level bang calls** (2026-10-12, owner decision). Applied in c914df255. New item
    after `cli.repl.host.default-profile`: `r[cli.repl.input.driver] An
    input's top level is a suspension driver context, as main!'s body is, so
    an input may make bang calls. Its row is inferred under the default
    profile.` `spec/lang/10-modules.md` `module.init.script-not-driver`,
    append: "A REPL input is a driver context, by cli.repl.input.driver."
-7. **REPL value line** (2026-10-12). `cli.repl.value`, append: "An
+7. **REPL value line** (2026-10-12). Applied in c914df255. `cli.repl.value`, append: "An
    expression input is an input whose only top-level item is an expression
    statement that binds nothing. The REPL shows no value line when that
    expression's type is `void` or `never`."
-8. **Field missing several derived traits** (2026-10-08).
+8. **Field missing several derived traits** (2026-10-08). Applied in c914df255.
    `spec/lang/09-traits.md` `trait.derive.field-missing-trait`, append: "A
    field that lacks several of the derived traits gets one error, naming
    the first of them in the `@derive` list."
-9. **Workspace diagnostic paths** (2026-10-08). `cli.json.diagnostic.file`,
+9. **Workspace diagnostic paths** (2026-10-08). Applied in c914df255. `cli.json.diagnostic.file`,
    append: "At a workspace root, `file` is relative to the workspace root,
    as `lib/src/lib.hd`, so two members' files stay apart."
-10. **`hd new --pages`** (2026-10-09). `spec/cli/command-line.md`. Delete
+10. **`hd new --pages`** (2026-10-09). Applied in c914df255; nothing linked to the old heading. `spec/cli/command-line.md`. Delete
     the Note under "Planned: GitHub Pages Workflow" and rename the heading
     to "GitHub Pages Workflow". The compiler writes the workflow (probe
     `p65/`), and the fixtures `new-pages`, `new-pages-existing` pass.
-11. **Loop value joins** (2026-10-09). `spec/lang/04-type-system.md`, the
+11. **Loop value joins** (2026-10-09). Table row done in 86d03d467 (#380); the `flow.loop.else.type` wording applied in c914df255. `spec/lang/04-type-system.md`, the
     `types.lct.sites` table, new row: "Value-producing `for` or `while` |
     every reachable `break` value, and the `else` suite's value | [Control
     Flow](06-control-flow.md#r-flow.loop.else.type)". `spec/lang/06-control-flow.md`
     `flow.loop.else.type`. Before: "must produce one compatible loop result
     type". After: "join by the least common type". The compiler crashes on
     this site today (C, first item).
-12. **Unsolved parameter as an expected type** (2026-10-09). `types.lct.sites`
+12. **Unsolved parameter as an expected type** (2026-10-09). Applied in c914df255. `types.lct.sites`
     lead sentence, append: "An expected type that is a type parameter the
     enclosing call has not solved yet counts as none: the site joins first,
     and the call then solves the parameter from the result."
-13. **Trait value without the impl** (2026-10-09). `spec/lang/09-traits.md`
+13. **Trait value without the impl** (2026-10-09). Applied in c914df255. `spec/lang/09-traits.md`
     `trait.dyn.convert`, append: "A conversion without one is an error.
     Error: `type-mismatch`."
-14. **`pub` on a local declaration** (2026-10-09). `spec/lang/03-names-and-scopes.md`
+14. **`pub` on a local declaration** (2026-10-09). Applied in c914df255; the fixture `parse/invalid/pub-local-function.hd` already existed. `spec/lang/03-names-and-scopes.md`
     `names.local.no-pub`, append: "Error: `syntax-error`." Add a fixture;
     the parser reports "'pub' is not accepted on local declarations" (probe
     `p/p84.hd`).
-15. **`dbg` order with spread** (2026-10-09). `spec/lang/10-modules.md`
+15. **`dbg` order with spread** (2026-10-09). Applied in c914df255. `spec/lang/10-modules.md`
     `module.dbg.body.print`, append: "A call with a spread or `values=`
     evaluates every argument first, then prints each element. A call with
     positional arguments prints each one as it is evaluated."
-16. **`**` on a type parameter base** (2026-10-09). `spec/lang/05-expressions.md`,
+16. **`**` on a type parameter base** (2026-10-09). Applied in c914df255. `spec/lang/05-expressions.md`,
     new item after `expr.power.mixed`: `r[expr.power.type-parameter] For a
     base of a type parameter, its bound picks the rule: T < Integer takes
     the integer rules and T < Float the float rules. Any other base type
     parameter is an error. Error: type-mismatch.`
-17. **`()` against a rest-only tuple type** (2026-10-09).
+17. **`()` against a rest-only tuple type** (2026-10-09). Applied in c914df255.
     `expr.tuple.rest.collect`, append: "So `()` against `(List[i32]...,)`
     is a tuple whose rest is empty." Add a fixture.
-18. **Shortest float display ties** (2026-10-09). `spec/lang/04-type-system.md`
+18. **Shortest float display ties** (2026-10-09). Applied in c914df255. `spec/lang/04-type-system.md`
     `types.display.float`, append: "When two shortest strings are equally
     close to the value, it writes the one with an even last digit." Both
     engines do (a66c3c1c8; Node probe prints `2.9802322387695312e-8`).
-19. **`Fn[Args, O, $ R]` called with separate arguments** (2026-10-09).
+19. **`Fn[Args, O, $ R]` called with separate arguments** (2026-10-09). Applied in c914df255.
     `spec/lang/05-expressions.md`, new item after the spread-inputs table:
     `r[expr.call.spread.inputs.only] A value of type Fn[Args, O, $ R] takes
     its inputs only as one spread. A call with separate arguments, a
     trailing block, or more positional values is an error. Error:
     type-mismatch.`
-20. **`TypeId` name of `void`** (2026-10-09). `spec/lang/09-traits.md`,
+20. **`TypeId` name of `void`** (2026-10-09). Applied in c914df255. `spec/lang/09-traits.md`,
     `trait.typeid.name.tuple` row. Before: "`(A, B)`". After: "`(A, B)`; the
     empty tuple, `void` included, is `()`".
-21. **`dyn Sub` and supertrait bindings** (2026-10-09). `trait.dyn.binding.complete`,
+21. **`dyn Sub` and supertrait bindings** (2026-10-09). Applied in c914df255. `trait.dyn.binding.complete`,
     append: "A binding that a supertrait list fixes counts as bound, so under
     `trait Sub < Super[Item = T]` the types `dyn Sub` and `dyn Sub[Item = T]`
     are one type."
-22. **Projection that no bound reaches** (2026-10-09). `spec/lang/09-traits.md`,
+22. **Projection that no bound reaches** (2026-10-09). Applied in c914df255. `spec/lang/09-traits.md`,
     new item after `trait.assoc.ambiguous-type`: `r[trait.assoc.no-type] A
     projection whose bounds select no associated type declaration is an
     error. Error: unknown-associated-type.` (probe `p/p112.hd`).
-23. **`dyn` over a `Self`-fixed binding** (2026-10-10). New item after
+23. **`dyn` over a `Self`-fixed binding** (2026-10-10). Applied in c914df255. New item after
     `trait.dyn.binding.complete`: `r[trait.dyn.binding.self-fixed] A
     binding to Self that a supertrait list fixes, as in trait Summable <
     Add[Out = Self], counts as bound. The trait value does not carry it, so
     Out stays a projection.`
-24. **`facts_of` and valueless decorators** (2026-10-10).
+24. **`facts_of` and valueless decorators** (2026-10-10). Applied in c914df255.
     `spec/lang/14-annotations.md` `annot.facts-of.declared`, append: "Its
     signature is `pub fn facts_of[F](f: F) -> Facts`." `annot.facts-of.result`,
     append: "Compiler decorators attach no value, so the result leaves out
     `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`,
     `@num_suffix` and `@str_prefix` lines." (Typed facts missing from the
     result is C work.)
-25. **A requirement `hd add` is adding** (2026-10-10). `cli.dep.invalid`,
+25. **A requirement `hd add` is adding** (2026-10-10). Applied in c914df255. `cli.dep.invalid`,
     append: "A requirement that the command is adding has no line yet, so
     its error has no file or line."
-26. **SSH fallback** (2026-10-10, owner approved, #280). `cli.dep.repo-url`.
+26. **SSH fallback** (2026-10-10, owner approved, #280). Applied in c914df255. `cli.dep.repo-url`.
     Append: "When the HTTPS fetch fails for any reason, `hd` tries
     `ssh://git@HOST/REPO` without prompts. Within one run it remembers,
     per host, the scheme that worked. When both fail, one `fetch-failed`
     names both URLs. `insteadOf` rewrites apply first."
-27. **`...=` into a readonly target** (2026-10-10). `spec/lang/04-type-system.md`
+27. **`...=` into a readonly target** (2026-10-10). Applied in c914df255. `spec/lang/04-type-system.md`
     `types.path.store-embedded`. Before: "which must have mutable access.
     Otherwise the store is an error. Error: `mutable-upgrade`." After:
     "A readonly target is `readonly-root`, as for any store. When the copy
     itself has only readonly access, as from a readonly source with a `mut`
     composite field, the store is an error. Error: `mutable-upgrade`."
     (probe `p/p139.hd`).
-28. **Embedding depth beside a cycle** (2026-10-10). `spec/lang/08-data-and-enums.md`,
+28. **Embedding depth beside a cycle** (2026-10-10). Applied in c914df255. `spec/lang/08-data-and-enums.md`,
     `data.embed.depth` row, append to its text: "A type that reaches a cycle
     without being part of it gets no `embedding-cycle`; its depth counts
     along chains that never repeat a type."
-29. **One trait twice as a supertrait** (2026-10-10). `trait.super.unique`.
+29. **One trait twice as a supertrait** (2026-10-10). Applied in c914df255. `trait.super.unique`.
     Before: "must not list one trait twice". After: "must not list one
     trait twice with the same arguments; `Convert[i32] & Convert[string]`
     lists two bounds".
-30. **Tuples at joins** (2026-10-11). `types.lct.conversions`, append:
+30. **Tuples at joins** (2026-10-11). Applied in c914df255. `types.lct.conversions`, append:
     "Permission weakening applies inside tuple elements too, as assignment
     allows, so `(mut User, i32)` and `(User, i32)` join to `(User, i32)`."
-31. **Pseudo-version base** (2026-10-11). `spec/lang/10-modules.md`
+31. **Pseudo-version base** (2026-10-11). Applied in c914df255. `spec/lang/10-modules.md`
     `module.version.pseudo`, append: "The closest earlier tag is the
     greatest version tag, with the package's tag prefix, among the commit's
     ancestors, as Go chooses it."
-32. **A fact that reads itself** (2026-10-11). `spec/lang/14-annotations.md`,
+32. **A fact that reads itself** (2026-10-11). Moved to D as D21: the panic escapes `fact-evaluation-failed`. `spec/lang/14-annotations.md`,
     new item after `annot.fact.eval.panic-runtime`: `r[annot.fact.eval.reentrant]
     A fact whose evaluation reads the same fact again recurses until the
     stack runs out.`
-33. **Constructing `PollContext`** (2026-10-11). `req.poll-context.construction`,
+33. **Constructing `PollContext`** (2026-10-11). Applied in c914df255. `req.poll-context.construction`,
     append: "Its one field is private, so a construction in user code is an
     error. Error: `private-member`."
-34. **Property registration rows** (2026-10-11). `spec/lang/10-modules.md`,
+34. **Property registration rows** (2026-10-11). Applied in c914df255. `spec/lang/10-modules.md`,
     the `it_prop` and `it_prop_with` signatures above
     `module.testing.reg.calls`: add `$Q` to the generics, write the body as
     `prop: fn!(T) -> R $ Q`, and the result as `-> void $ Q`, as
     `lib/std/testing.hd` declares them.
-35. **`Suspend[T]` is a built-in type** (2026-10-12, owner decision #14).
+35. **`Suspend[T]` is a built-in type** (2026-10-12, owner decision #14). Applied in c914df255 as `req.protocol.builtin`; `req.protocol.sealed`, `req.protocol.implementers` and `trait.sealed.suspend` retired. Its error code is D22.
     `spec/lang/09-traits.md`: delete the `trait.sealed.suspend` row.
     `spec/lang/11-requirements-and-suspension.md`: `req.protocol.sealed`
     becomes "`Suspend[T]` is a built-in type that no package implements; code
@@ -492,7 +531,7 @@ new numbered item with the given ID; renumber the list.
     "`Suspend[T]` is sealed" with "a built-in type". Read the whole
     `Suspend[T]` Protocol section first; its declaration block may change
     too.
-36. **Module-qualified type names** (2026-10-17). `spec/lang/03-names-and-scopes.md`,
+36. **Module-qualified type names** (2026-10-17). Applied in c914df255. `spec/lang/03-names-and-scopes.md`,
     new rule beside the type-name lookup rules: `r[names.type.qualified] A
     type may be named through a module in scope, as json.Json after use
     std.json, by the rules of expr.name.qualified. A missing declaration is
@@ -509,7 +548,15 @@ new numbered item with the given ID; renumber the list.
   (`break orders` with `$ Console`, `else: health` with none) stops with
   `internal-error: ... TIR verifier: invariant 4 ... Break value of type
   1970 where 1968 is expected`. The same functions joined by an `if` check
-  fine. Probe `p/p69.hd`.
+  fine. Probe `p/p69.hd`. Fixed by 86d03d467 (#380).
+- REPL facts after a type's first derivation (2026-10-13, moved from B3).
+  The owner accepted that a derivation built after a later input's block
+  with no trait sees the block's facts (live-execution.md, REPL
+  Decisions). Today, once the session has built one derivation for the
+  type, a later block reaches no derivation: one written after the block
+  still sees the old facts. Without an earlier derivation it works. Fix
+  the session, then add B3's Note. Probes `replpkg/in4.txt`, `in5.txt`,
+  `in8.txt` under `target/spec-audit-b/`.
 
 ### Checker Gaps
 
@@ -614,6 +661,11 @@ new numbered item with the given ID; renumber the list.
 
 - Node file grants check then open by name, so a swapped symbolic link
   escapes (2026-10-15). The wasmtime host is safe.
+- Process input a child does not read (2026-10-15, moved from B2):
+  `run!("head", ["-n", "1"], stdin=...)` with 200000 lines returns
+  `.Ok` on wasmtime, but `.Err(ProcessError.Other("spawnSync head EPIPE"))`
+  on Node. Fix the Node host to drop the unread rest, as Go's `exec` does,
+  then add B2's `std-process.stdin.unread`.
 - External process spawning without a shebang (2026-10-10): pin the native
   host's behavior with a test; the spec need not say.
 - Pipe-worker thread creation failure (2026-10-10): may block before
