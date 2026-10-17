@@ -29,7 +29,8 @@ tests:
             at = at + 1
 
     it("f64 sort"):
-        nan := 0.0 / 0.0
+        # IEEE 754 leaves the sign of 0.0 / 0.0 open (x86 sets it), so build a positive NaN.
+        nan := f64::from_bits(9221120237041090560)
         infinity := 1.0 / 0.0
         result := sorted([nan, 1.0, -0.0, 0.0, -infinity, infinity])
         assert_equal(result[0], -infinity, reason="negative infinity first")
