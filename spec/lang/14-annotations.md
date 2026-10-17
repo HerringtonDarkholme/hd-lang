@@ -1936,7 +1936,7 @@ enum WriteError:
 
 ### Error Messages
 
-1. r[annot.error.message.string] A message is an ordinary interpolated string, as [String Interpolation](05-expressions.md#string-interpolation) defines.
+1. r[annot.error.message.string] A message is an ordinary interpolated string, as [String Interpolation](05-expressions.md#string-interpolation) defines. A prefixed string is not a message, since it would run a user function each time the error is shown. Error: `invalid-error-marker`.
 2. r[annot.error.message.scope] A variant's message sees the variant's named payload members by name, and its unnamed payload members as `_0`, `_1`, and so on.
 3. r[annot.error.message.unnamed] Unnamed payload members are numbered from zero, in declaration order.
 4. r[annot.error.message.shared] A variant's message also sees the enum's named [shared fields](08-data-and-enums.md#shared-fields) by name.

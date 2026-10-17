@@ -1,0 +1,10 @@
+# test: an @error message that is a prefixed string, which would run a user function
+# Spec 14 Error Messages: annot.error.message.string.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn raw(t: Template[string]) -> string: t.raw_parts[0]
+
+@error(raw"bad")  # diagnostic: invalid-error-marker
+data DiskError:
+    free: i64

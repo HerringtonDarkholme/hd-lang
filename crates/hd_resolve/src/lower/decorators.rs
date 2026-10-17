@@ -266,7 +266,9 @@ impl Lower<'_, '_, '_> {
     /// `transparent` (`annot.error.form.argument`).
     fn error_args_ok(&self, args: Option<NodeRef<'_>>) -> bool {
         Self::error_arg(args).is_some_and(|value| match value.kind() {
-            SyntaxKind::StringExpr => true,
+            // A prefixed string runs a user function, so it is no message
+            // (`annot.error.message.string`).
+            SyntaxKind::StringExpr => self.src.text(self.src.first(value)).starts_with('"'),
             SyntaxKind::NameExpr => self
                 .src
                 .first_ident(value)
