@@ -1,0 +1,15 @@
+# An update run rewrites the failing literal and fills the omitted one,
+# leaves the passing one and a call in an it_each case. A case stops at
+# its first failing snapshot, so the second update run rewrites the next.
+run: hd test src/greet.hd
+exit: 1
+run: hd test --update src/greet.hd
+exit: 1
+run: hd test --update src/greet.hd
+exit: 1
+run: hd test src/greet.hd
+run: hd test --update src/rows.hd
+exit: 1
+run: hd test src/rows.hd
+exit: 1
+run: hd test tests/source.hd

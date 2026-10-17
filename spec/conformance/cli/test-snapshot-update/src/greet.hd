@@ -1,0 +1,18 @@
+fn greeting(name: string) -> string: "hello, " + name
+
+tests:
+    use std.testing.snapshot
+
+    it("rewrites a failing literal"):
+        snapshot(greeting("Ada"),
+            expect="hello")
+
+    it("fills an omitted literal"):
+        snapshot(greeting("Grace"))
+
+    it("keeps a passing literal"):
+        snapshot(greeting("Lin"), expect="hello,\u{20}Lin")
+
+    it("rewrites one literal per run"):
+        snapshot("one", expect="")
+        snapshot("two", expect="")

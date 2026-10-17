@@ -625,10 +625,18 @@ hd test --seed 42                 # every property test starts from seed 42
 18. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
 19. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
 20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
-21. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
-22. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
-23. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
-24. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
+21. r[cli.test.snapshot.update] An update run rewrites the `expect` literal of a failing [`snapshot`](../lang/10-modules.md#snapshots) call in place, to the text that the call compared, as [`cli.test.doc.update`](#r-cli.test.doc.update) does for a doc test.
+22. r[cli.test.snapshot.update.passing] An update run leaves a passing `snapshot` call as it is, and writes no file that holds no rewritten literal.
+23. r[cli.test.snapshot.update.form] The new literal is a single-line string literal in the form of [`std-format.debug.source.string`](../std/format.md#r-std-format.debug.source.string), whatever form the old literal had.
+24. r[cli.test.snapshot.update.omitted] A failing `snapshot` call with no `expect` argument gets `expect=` and the new literal, after its last argument.
+25. r[cli.test.snapshot.update.rows] An update run does not rewrite a `snapshot` call that fails in an `it_each`, `it_prop`, or `it_prop_with` test case, since the rows or inputs of one call share its literal.
+26. r[cli.test.snapshot.update.conflict] When failing test cases of one update run want different texts at one `snapshot` call, the call is left as it is.
+27. r[cli.test.snapshot.update.first] A test case stops at its first failing snapshot, so one update run rewrites at most one literal for each test case. The next update run rewrites the next.
+28. r[cli.test.snapshot.update.report] An update run reports each failure as a run without `--update` does, and its exit status is as for those failures. A later run without `--update` passes the rewritten snapshots.
+29. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
+30. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
+31. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
+32. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
 
 | Part | Value |
 | --- | --- |

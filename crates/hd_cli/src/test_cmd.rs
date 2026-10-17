@@ -365,6 +365,31 @@ impl Frames {
 }
 
 impl Frames {
+    /// The listed file and 1-based line of the call that a failed
+    /// `std.testing.snapshot` frame stands in: the frame after it that is
+    /// in a package file (`cli.test.snapshot.update`). `None` for a doc
+    /// test, which has no file of its own, and for a call from the
+    /// standard library.
+    fn snapshot_site(&self, wasm: &[u8], raw: &[(u32, u32)]) -> Option<(String, u32)> {
+        if self.doc.is_some() {
+            return None;
+        }
+        let table = self
+            .table
+            .get_or_init(|| hd_run::frames::LineTable::parse(wasm).ok())
+            .as_ref()?;
+        let anchors = table.anchor(raw);
+        let at = anchors
+            .iter()
+            .position(|a| self.positions.name(&a.item) == "std.testing.snapshot")?;
+        let (file, line) = anchors[at + 1..]
+            .iter()
+            .find_map(|a| self.positions.line(&a.item, a.inst))?;
+        (!file.starts_with("<std>")).then(|| (file.to_owned(), line))
+    }
+}
+
+impl Frames {
     /// The `hd.positions` section of a module `hd build` writes: each row
     /// of its line table resolved to the file, line and function name a
     /// frame prints, so the written module stands alone
@@ -1173,6 +1198,7 @@ fn run(
         }
         (session, prepared)
     };
+    let mut updates = crate::snapshot_update::Updates::default();
     for ((prog, running), prepared) in built.iter().zip(&running).zip(&prepared) {
         if running.is_empty() {
             continue;
@@ -1275,6 +1301,21 @@ fn run(
                         if let Some(input) = &c.input {
                             report.inputs.insert(k.clone(), input.clone());
                         }
+                        // One literal is no expectation for several rows or
+                        // generated inputs, so only an `it` case rewrites.
+                        if env.update
+                            && cases[i].kind == "it"
+                            && let Some(p) = c
+                                .panic
+                                .as_ref()
+                                .filter(|p| p.category == "assertion-failed")
+                            && let Some(literal) =
+                                crate::snapshot_update::actual_literal(&p.message)
+                            && let (Some(f), Some(wasm)) = (&prog.frames, &prog.wasm)
+                            && let Some((file, line)) = f.snapshot_site(wasm, &c.frames)
+                        {
+                            updates.record(&file, line, literal);
+                        }
                         let frames = match (&prog.frames, &prog.wasm) {
                             (Some(f), Some(wasm)) if c.trapped => {
                                 f.lines(wasm, &c.frames, env.sources)
@@ -1294,6 +1335,21 @@ fn run(
             report.flush();
             return Err(report.rep.fail(&e));
         }
+    }
+    // `cli.test.snapshot.update`: the literals the failed snapshots want.
+    let (notes, errors) = updates.apply(
+        |file| {
+            env.sources
+                .read(file)
+                .map(|t| String::from_utf8_lossy(&t).into_owned())
+        },
+        |file| env.sources.disk_path(file),
+    );
+    for line in notes {
+        eprintln!("{line}");
+    }
+    for line in errors {
+        eprintln!("error: {line}");
     }
     Ok(())
 }

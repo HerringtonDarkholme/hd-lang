@@ -22,6 +22,7 @@ mod pipeline_tests;
 #[cfg(feature = "wasmtime")]
 mod repl;
 mod report;
+mod snapshot_update;
 mod test_cmd;
 
 use std::ffi::OsString;
