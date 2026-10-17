@@ -338,7 +338,7 @@ fn unsupported_error_names_its_file() {
     let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
-        "let (a, b) = (+1, +2)\n\npub fn main() -> void:\n    pass\n",
+        "data P:\n    a: i32\n    b: i32\n\nlet P { a, b } = P { a: +1, b: +2 }\n\npub fn main() -> void:\n    pass\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -350,6 +350,23 @@ fn unsupported_error_names_its_file() {
     assert!(err.contains("pattern.hd:"), "{err}");
     assert!(err.contains("a top-level binding with a pattern"), "{err}");
     assert!(!err.contains(":0..0"), "{err}");
+}
+
+#[test]
+fn top_level_tuple_pattern_binds_each_name() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-top-tuple");
+    let file = dir.join("tuple.hd");
+    std::fs::write(
+        &file,
+        "let (a, (b, _)) = (1, (\"s\", 2))\nlet (c, d): (i64, i64) = (3, 4)\n\npub fn main() -> void $ Console:\n    println(\"$a $b $c $d\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-top-tuple"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "1 s 3 4\n");
 }
 
 fn scratch(name: &str) -> Scratch {

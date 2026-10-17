@@ -15,7 +15,7 @@ use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
 use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
-use hd_types::{RowData, RowId, Ty};
+use hd_types::{RowData, RowId, Ty, TyData};
 
 use crate::body::{
     BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, too_complex, unsupported,
@@ -383,28 +383,28 @@ fn poison_bindings(cx: &BodyCx<'_>, module: &str, stmts: &[NodeRef<'_>]) {
             let mut kids = n.children();
             let (pat, rhs) = (kids.next(), kids.last());
             node = rhs.filter(|r| r.kind() == SyntaxKind::BindingExpr);
-            let Some(pat) = pat.filter(|p| {
-                p.kind() == SyntaxKind::BindingPattern && p.children().next().is_none()
-            }) else {
+            let Some(leaves) = pat.and_then(|p| pattern_leaves(p)) else {
                 continue;
             };
-            let Some(t) = pat.direct_tokens().find(|t| {
-                matches!(
-                    cx.src.tkind(*t),
-                    Some(TokenKind::Ident | TokenKind::RawIdent)
-                )
-            }) else {
-                continue;
-            };
-            let text = cx.src.text(t);
-            let name = cx.names.syms.intern(text);
-            init.globals.entry(name).or_insert_with(|| Global {
-                def: cx.names.item(module, text),
-                ty: Ty::POISON,
-                stmt: i,
-                at: cx.src.span(*s).lo,
-                short: s.kind() == SyntaxKind::ExprStmt,
-            });
+            for leaf in leaves {
+                let Some(t) = leaf.direct_tokens().find(|t| {
+                    matches!(
+                        cx.src.tkind(*t),
+                        Some(TokenKind::Ident | TokenKind::RawIdent)
+                    )
+                }) else {
+                    continue;
+                };
+                let text = cx.src.text(t);
+                let name = cx.names.syms.intern(text);
+                init.globals.entry(name).or_insert_with(|| Global {
+                    def: cx.names.item(module, text),
+                    ty: Ty::POISON,
+                    stmt: i,
+                    at: cx.src.span(*s).lo,
+                    short: s.kind() == SyntaxKind::ExprStmt,
+                });
+            }
         }
     }
 }
@@ -454,7 +454,7 @@ fn init_steps(
     // unknown name.
     for (i, s) in stmts.iter().enumerate() {
         ck.declare_annotated(i, *s);
-        if let Some(name) = ck.binding_name(*s) {
+        for name in ck.binding_names(*s) {
             ck.later_names.entry(name).or_insert(i);
             let module = ck.module_init.clone().unwrap_or_default();
             let def = cx.names.item(&module, cx.names.text(name));
@@ -566,26 +566,33 @@ impl Ck<'_, '_> {
     /// a simple `let` with a type annotation that resolves without error;
     /// the statement declares it again when it runs.
     /// The name a top-level statement binds, for a plain `name` pattern.
-    fn binding_name(&mut self, s: NodeRef<'_>) -> Option<Symbol> {
-        let first = s.children().next()?;
-        let pat = match s.kind() {
-            SyntaxKind::LetStmt => first,
-            SyntaxKind::ExprStmt if first.kind() == SyntaxKind::BindingExpr => {
-                first.children().next()?
-            }
-            _ => return None,
+    fn binding_names(&mut self, s: NodeRef<'_>) -> Vec<Symbol> {
+        let Some(first) = s.children().next() else {
+            return Vec::new();
         };
-        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
-            return None;
-        }
-        let nt = pat.direct_tokens().find(|t| {
-            matches!(
-                self.cx.src.tkind(*t),
-                Some(TokenKind::Ident | TokenKind::RawIdent)
-            )
-        })?;
-        let text = self.cx.src.text(nt).to_owned();
-        Some(self.cx.names.syms.intern(&text))
+        let pat = match s.kind() {
+            SyntaxKind::LetStmt => Some(first),
+            SyntaxKind::ExprStmt if first.kind() == SyntaxKind::BindingExpr => {
+                first.children().next()
+            }
+            _ => None,
+        };
+        let Some(leaves) = pat.and_then(|p| pattern_leaves(p)) else {
+            return Vec::new();
+        };
+        leaves
+            .into_iter()
+            .filter_map(|leaf| {
+                let nt = leaf.direct_tokens().find(|t| {
+                    matches!(
+                        self.cx.src.tkind(*t),
+                        Some(TokenKind::Ident | TokenKind::RawIdent)
+                    )
+                })?;
+                let text = self.cx.src.text(nt).to_owned();
+                Some(self.cx.names.syms.intern(&text))
+            })
+            .collect()
     }
 
     fn declare_annotated(&mut self, i: usize, s: NodeRef<'_>) {
@@ -687,7 +694,86 @@ impl Ck<'_, '_> {
             self.stmt(s, false)?;
             return Ok(());
         };
+        if pat.kind() == SyntaxKind::TuplePattern && pat.children().next().is_some() {
+            return self.top_tuple_binding(s, pat, ty_node, rhs);
+        }
         self.top_binding(s, pat, ty_node, rhs).map(|_| ())
+    }
+
+    /// `let (a, b) = e` and `(a, b) := e` at the top level: the value is
+    /// evaluated once, then each name of the tuple pattern becomes a
+    /// global set from its element. Nested tuples and `_` are accepted.
+    fn top_tuple_binding(
+        &mut self,
+        s: NodeRef<'_>,
+        pat: NodeRef<'_>,
+        ty_node: Option<NodeRef<'_>>,
+        rhs: NodeRef<'_>,
+    ) -> StageResult<()> {
+        if pattern_leaves(pat).is_none() {
+            return unsupported("a top-level binding with a pattern");
+        }
+        let annot = match ty_node {
+            Some(t) => Some(self.ty_node(t)?),
+            None => None,
+        };
+        let (r, t) = self.expr(rhs, annot)?;
+        let (r, t) = match annot {
+            Some(a) => (
+                self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),
+                a,
+            ),
+            None => (r, t),
+        };
+        self.top_tuple_part(s, pat, r, t, annot.is_some())
+    }
+
+    fn top_tuple_part(
+        &mut self,
+        s: NodeRef<'_>,
+        pat: NodeRef<'_>,
+        r: Ref,
+        t: Ty,
+        annotated: bool,
+    ) -> StageResult<()> {
+        match pat.kind() {
+            SyntaxKind::WildcardPattern => Ok(()),
+            SyntaxKind::BindingPattern => self.declare_global(s, pat, r, t, annotated).map(|_| ()),
+            SyntaxKind::TuplePattern => {
+                let pool = self.pool();
+                let tr = self.infer.resolve(pool, t);
+                let inner = match pool.get(tr) {
+                    TyData::Mut(i) => self.infer.resolve(pool, i),
+                    _ => tr,
+                };
+                let subs: Vec<NodeRef<'_>> = pat.children().collect();
+                let elems = match pool.get(inner) {
+                    TyData::Tuple { elems, rest: None } => pool.list_items(elems).to_vec(),
+                    TyData::Poison => return Ok(()),
+                    _ => {
+                        let msg = format!("in pattern: {} is not a tuple", self.show(t));
+                        self.err(Code::TypeMismatch, pat, &msg);
+                        return Ok(());
+                    }
+                };
+                if elems.len() != subs.len() {
+                    let msg = format!(
+                        "the pattern binds {} names but the tuple has {} elements",
+                        subs.len(),
+                        elems.len()
+                    );
+                    self.err(Code::TypeMismatch, pat, &msg);
+                    return Ok(());
+                }
+                for (k, (sub, et)) in subs.into_iter().zip(elems).enumerate() {
+                    let idx = u32::try_from(k).unwrap_or(0);
+                    let g = self.b.emit(Tag::TupleGet, r.0, idx, et, sub.index());
+                    self.top_tuple_part(s, sub, g, et, annotated)?;
+                }
+                Ok(())
+            }
+            _ => unsupported("a top-level binding with a pattern"),
+        }
     }
 
     /// One top-level binding: a global set from its initializer. A chain
@@ -755,6 +841,62 @@ impl Ck<'_, '_> {
             self.let_mut_binding(t, annot.is_some(), pat);
             t
         } else if annot.is_none() {
+            self.readonly_view(t)
+        } else {
+            t
+        };
+        let module = self.module_init.clone().unwrap_or_default();
+        let def = self.cx.names.item(&module, &text);
+        self.cx.init.borrow_mut().globals.insert(
+            name,
+            Global {
+                def,
+                ty: t,
+                stmt: self.init_stmt,
+                at: self.cx.src.span(s).lo,
+                short: s.kind() == SyntaxKind::ExprStmt,
+            },
+        );
+        let a = self.b.refs_record(&[Ref(def.raw())]);
+        self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, s.index());
+        Ok((def, t))
+    }
+
+    /// One name of a top-level tuple pattern: a global set from `r`, which
+    /// has type `t`.
+    fn declare_global(
+        &mut self,
+        s: NodeRef<'_>,
+        pat: NodeRef<'_>,
+        r: Ref,
+        t: Ty,
+        annotated: bool,
+    ) -> StageResult<(DefId, Ty)> {
+        let Some(nt) = pat.direct_tokens().find(|t| {
+            matches!(
+                self.cx.src.tkind(*t),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            )
+        }) else {
+            return unsupported("a top-level binding without a name");
+        };
+        let text = self.cx.src.text(nt).to_owned();
+        let name = self.cx.names.syms.intern(&text);
+        self.check_prelude_shadow(name, pat);
+        let by = self.cx.init.borrow().declared_by.get(&name).cloned();
+        if let Some(by) = by {
+            let msg = format!(
+                "`{text}` is already declared by {by}; give it another name, or bind a `let` and assign it"
+            );
+            self.err(Code::DuplicateBinding, pat, &msg);
+        }
+        let t = if pat
+            .direct_tokens()
+            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
+        {
+            self.let_mut_binding(t, annotated, pat);
+            t
+        } else if !annotated {
             self.readonly_view(t)
         } else {
             t
@@ -1285,5 +1427,23 @@ pub fn definite_init(
                 &msg,
             );
         }
+    }
+}
+
+/// The named leaves of a binding pattern: the pattern itself when it is a
+/// plain name, or the names of a tuple pattern whose parts are plain names,
+/// `_`, or nested tuple patterns. `None` for any other pattern.
+fn pattern_leaves(pat: NodeRef<'_>) -> Option<Vec<NodeRef<'_>>> {
+    match pat.kind() {
+        SyntaxKind::BindingPattern if pat.children().next().is_none() => Some(vec![pat]),
+        SyntaxKind::WildcardPattern => Some(Vec::new()),
+        SyntaxKind::TuplePattern if pat.children().next().is_some() => {
+            let mut all = Vec::new();
+            for sub in pat.children() {
+                all.extend(pattern_leaves(sub)?);
+            }
+            Some(all)
+        }
+        _ => None,
     }
 }
