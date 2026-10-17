@@ -172,6 +172,7 @@ mod std_interfaces;
 mod std_stages;
 mod stored_fn_call;
 mod structure_run;
+mod substring_search_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
 mod suspending_fn_weaken_run;

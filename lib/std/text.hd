@@ -310,10 +310,11 @@ impl string:
                 pieces.push(bytes_slice(self, start, end))
                 start = end
             return pieces
+        finder := searcher(separator)
         let start: usize = 0
         let searching = true
         while searching:
-            match byte_find(self, separator, start):
+            match search_from(finder, self, start):
                 .Some(found) =>
                     pieces.push(bytes_slice(self, start, found))
                     start = found + bytes_len(separator)
@@ -340,10 +341,11 @@ impl string:
                 pieces.push(replacement)
                 start = end
             return join(pieces, "")
+        finder := searcher(old)
         let start: usize = 0
         let searching = true
         while searching:
-            match byte_find(self, old, start):
+            match search_from(finder, self, start):
                 .Some(found) =>
                     pieces.push(bytes_slice(self, start, found))
                     pieces.push(replacement)
@@ -489,11 +491,12 @@ impl string:
     pub fn count(self, needle: string) -> usize:
         if bytes_len(needle) == 0:
             return scalar_count(self) + 1
+        finder := searcher(needle)
         let found: usize = 0
         let start: usize = 0
         let searching = true
         while searching:
-            match byte_find(self, needle, start):
+            match search_from(finder, self, start):
                 .Some(at) =>
                     found = found + 1
                     start = at + bytes_len(needle)
@@ -604,14 +607,118 @@ fn bytes_match(text: string, needle: string, start: usize) -> bool:
 
 # The byte position of the first `needle` at or after byte `from`.
 fn byte_find(text: string, needle: string, from: usize) -> usize?:
-    let start = from
-    if bytes_len(needle) > bytes_len(text):
+    search_from(searcher(needle), text, from)
+
+# Every substring search goes through a Searcher: Two-Way (Crochemore and
+# Perrin 1991), as Rust's `str::find` and glibc's `memmem`. The needle is
+# cut at `split`; each window compares the right part, then the left part
+# backwards, and shifts past a right mismatch or by `period`. O(n + m)
+# time, constant space. `periodic`: the needle has period `period`, so a
+# shift keeps `size - period` bytes matched. `byteset` has bit `b % 64`
+# for each needle byte, to skip windows whose last byte is not in it.
+data Searcher:
+    needle: string
+    split: usize
+    period: usize
+    periodic: bool
+    byteset: u64
+
+fn searcher(needle: string) -> Searcher:
+    size := bytes_len(needle)
+    if size < 2:
+        return Searcher { needle: needle, split: 0, period: 1, periodic: false, byteset: 0 }
+    # The later maximal suffix under the byte order or its reverse.
+    low := maximal_suffix(needle, false)
+    high := maximal_suffix(needle, true)
+    let split = high._0
+    let period = high._1
+    if low._0 > high._0:
+        split = low._0
+        period = low._1
+    periodic := split + period <= size && bytes_match(needle, bytes_slice(needle, 0, split), period)
+    if !periodic:
+        period = (if split > size - split: split else: size - split) + 1
+    let byteset: u64 = 0
+    let index: usize = 0
+    while index < size:
+        byteset = byteset | (u64(1) << u64(bytes_at(needle, index) & 63))
+        index = index + 1
+    Searcher { needle: needle, split: split, period: period, periodic: periodic, byteset: byteset }
+
+# The start and period of `needle`'s maximal suffix under the byte order,
+# or its reverse (Rust's `TwoWaySearcher::maximal_suffix`).
+fn maximal_suffix(needle: string, reversed: bool) -> (usize, usize):
+    size := bytes_len(needle)
+    let left: usize = 0
+    let right: usize = 1
+    let offset: usize = 0
+    let period: usize = 1
+    while right + offset < size:
+        a := bytes_at(needle, right + offset)
+        b := bytes_at(needle, left + offset)
+        if (a < b && !reversed) || (a > b && reversed):
+            right = right + offset + 1
+            offset = 0
+            period = right - left
+        else if a == b:
+            if offset + 1 == period:
+                right = right + offset + 1
+                offset = 0
+            else:
+                offset = offset + 1
+        else:
+            left = right
+            right = right + 1
+            offset = 0
+            period = 1
+    (left, period)
+
+# The first match at or after byte `from`; a UTF-8 needle only matches at
+# a scalar boundary, so comparing bytes is exact.
+fn search_from(finder: Searcher, text: string, from: usize) -> usize?:
+    needle := finder.needle
+    size := bytes_len(needle)
+    end := bytes_len(text)
+    if from > end || size > end - from:
         return .None
-    last := bytes_len(text) - bytes_len(needle)
-    while start <= last:
-        if bytes_match(text, needle, start):
-            return .Some(start)
-        start = start + 1
+    if size == 0:
+        return .Some(from)
+    if size == 1:
+        byte := bytes_at(needle, 0)
+        let at = from
+        while at < end:
+            if bytes_at(text, at) == byte:
+                return .Some(at)
+            at = at + 1
+        return .None
+    split := finder.split
+    let position = from
+    # The needle's first `memory` bytes match at `position`.
+    let memory: usize = 0
+    while position + size <= end:
+        tail := bytes_at(text, position + size - 1)
+        if (finder.byteset >> u64(tail & 63)) & 1 == 0:
+            position = position + size
+            memory = 0
+        else:
+            let index = if memory > split: memory else: split
+            while index < size && bytes_at(needle, index) == bytes_at(text, position + index):
+                index = index + 1
+            if index < size:
+                position = position + index - split + 1
+                memory = 0
+            else:
+                let left = split
+                while left > memory && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1):
+                    left = left - 1
+                if left > memory:
+                    position = position + finder.period
+                    if finder.periodic:
+                        memory = size - finder.period
+                    else:
+                        memory = 0
+                else:
+                    return .Some(position)
     .None
 
 # The number of scalars in `text`.
