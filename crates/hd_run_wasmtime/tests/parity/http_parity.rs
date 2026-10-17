@@ -99,6 +99,29 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
     }
 }
 
+/// `std-http.headers.pairs`: a response keeps every header pair, however
+/// many. Node's default limit is 1000 pairs. The wasmtime host's HTTP
+/// library stops at 128 (ureq-proto `MAX_RESPONSE_HEADERS`), so this runs
+/// on the Node host alone.
+#[test]
+fn http_node_response_keeps_more_than_a_thousand_header_pairs() {
+    let scratch = Scratch::new();
+    let mut headers = vec![("X", "a"); 1001];
+    headers.push(("Content-Length", "0"));
+    let server = HttpFixture::new({
+        let headers = headers.clone();
+        move |_| (raw(200, &headers, b""), Duration::ZERO)
+    });
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &server.url("/"), &[], b"", None),
+        response(200, &headers, b"", &server.url("/")),
+    );
+    assert_node_program(&scratch, p, vec![]);
+}
+
 /// `std-http.headers.order`: the values of one name keep their order, so a
 /// name that repeats with another name between its values is delivered
 /// with its values together. Names compare ignoring case, so `X-A` and

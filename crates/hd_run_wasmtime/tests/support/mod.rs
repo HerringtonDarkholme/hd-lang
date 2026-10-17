@@ -538,28 +538,12 @@ impl Drop for Scratch {
     }
 }
 
-pub fn parity(
+/// The Node host's run of `wasm`: its exit code, stdout and stderr.
+pub fn run_node(
     scratch: &Scratch,
     wasm: &[u8],
-    limits: Vec<(&str, Limit)>,
-    reset: impl Fn(),
-) -> Captured {
-    parity_masked(scratch, wasm, limits, reset, <[u8]>::to_vec)
-}
-
-/// `parity`, comparing `mask` of each engine's stderr: for a result that
-/// holds a value only the engine knows, such as a port the system picked.
-pub fn parity_masked(
-    scratch: &Scratch,
-    wasm: &[u8],
-    limits: Vec<(&str, Limit)>,
-    reset: impl Fn(),
-    mask: impl Fn(&[u8]) -> Vec<u8>,
-) -> Captured {
-    let limits = limits
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect::<Vec<_>>();
+    limits: &[(String, Limit)],
+) -> (u8, Vec<u8>, Vec<u8>) {
     let json_string = |s: &str| {
         let mut quoted = String::from("\"");
         for c in s.chars() {
@@ -595,24 +579,6 @@ pub fn parity_masked(
     let file = scratch.at("program.wasm");
     fs::write(&config, format!("{{\"grants\":{{{grants}}}}}")).unwrap();
     fs::write(&file, wasm).unwrap();
-    let setup = HostSetup {
-        providers: vec![],
-        grants: Grants { limits },
-        limits: Limits::default(),
-        args: vec![],
-        program: String::new(),
-    };
-    reset();
-    let wasm_owned = wasm.to_vec();
-    let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = sender.send(run_captured(EngineConfig::default(), &wasm_owned, &setup));
-    });
-    let rust = receiver
-        .recv_timeout(Duration::from_secs(20))
-        .expect("wasmtime finishes within the fixture deadline")
-        .expect("wasmtime runs ABI module");
-    reset();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("host/run.mjs");
@@ -653,9 +619,74 @@ pub fn parity_masked(
     };
     let node_stdout = out.join().unwrap();
     let node_stderr = err.join().unwrap();
+    (
+        u8::try_from(status.code().expect("Node exits normally")).unwrap(),
+        node_stdout,
+        node_stderr,
+    )
+}
+
+/// Run `p` on the Node host alone and check its status, stdout and stderr.
+/// For a behaviour the wasmtime host cannot show, such as one past a limit
+/// of its HTTP library.
+pub fn assert_node_program(scratch: &Scratch, p: Program, limits: Vec<(&str, Limit)>) {
+    let (wasm, expected) = p.finish(7);
+    let limits = limits
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect::<Vec<_>>();
+    let (code, stdout, stderr) = run_node(scratch, &wasm, &limits);
+    assert_eq!(code, 7, "Node stderr: {}", String::from_utf8_lossy(&stderr));
+    assert_eq!(stdout, b"core-parity\n");
+    assert_eq!(stderr, expected.as_bytes());
+}
+
+pub fn parity(
+    scratch: &Scratch,
+    wasm: &[u8],
+    limits: Vec<(&str, Limit)>,
+    reset: impl Fn(),
+) -> Captured {
+    parity_masked(scratch, wasm, limits, reset, <[u8]>::to_vec)
+}
+
+/// `parity`, comparing `mask` of each engine's stderr: for a result that
+/// holds a value only the engine knows, such as a port the system picked.
+pub fn parity_masked(
+    scratch: &Scratch,
+    wasm: &[u8],
+    limits: Vec<(&str, Limit)>,
+    reset: impl Fn(),
+    mask: impl Fn(&[u8]) -> Vec<u8>,
+) -> Captured {
+    let limits = limits
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect::<Vec<_>>();
+    let setup = HostSetup {
+        providers: vec![],
+        grants: Grants {
+            limits: limits.clone(),
+        },
+        limits: Limits::default(),
+        args: vec![],
+        program: String::new(),
+    };
+    reset();
+    let wasm_owned = wasm.to_vec();
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(run_captured(EngineConfig::default(), &wasm_owned, &setup));
+    });
+    let rust = receiver
+        .recv_timeout(Duration::from_secs(20))
+        .expect("wasmtime finishes within the fixture deadline")
+        .expect("wasmtime runs ABI module");
+    reset();
+    let (code, node_stdout, node_stderr) = run_node(scratch, wasm, &limits);
     assert_eq!(
         rust.status,
-        u8::try_from(status.code().expect("Node exits normally")).unwrap(),
+        code,
         "Node stderr: {}",
         String::from_utf8_lossy(&node_stderr)
     );
