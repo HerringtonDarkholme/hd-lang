@@ -2674,7 +2674,6 @@ runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
 runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
 runtime/valid/path-stem-with-extension.hd	runtime	accept	std/path.md#path-operations
 runtime/valid/path-parse.hd	runtime	accept	std/path.md#paths
-runtime/valid/path-parse.hd	runtime	accept	std/path.md#paths
 runtime/valid/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum
 runtime/panic/iterator-sum-overflow.hd	runtime	panic:integer-overflow	std/iter.md#r-std-iter.adapter.sum.overflow
 runtime/panic/list-sum-overflow.hd	runtime	panic:integer-overflow	std/collections.md#r-std-collections.helper.sum.overflow
