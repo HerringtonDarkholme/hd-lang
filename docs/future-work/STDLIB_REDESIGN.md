@@ -1743,3 +1743,574 @@ combination (`sha256_hex`, `token_hex`), or a type folded into another
    serde derive means a type that decodes JSON also decodes a regex
    match, with the same facts. A separate derive would keep the two
    apart. Recommendation: reuse `Deserialize`, as `recap` does.
+
+## Structures And Control
+
+Job 3 covers the modules that shape values and control flow, and the
+prelude. Most do no I/O, so the data modules' readings apply, with three
+more:
+
+- **Eager lists, lazy iterators.** A `List` method returns a new list, as
+  Kotlin's `List` methods do; an `Iterator` adapter is lazy, as Kotlin's
+  `Sequence` is. Both use the same names, so a chain moves between them
+  with `.iter()` and `.collect()`. Lists are the 80%; the iterator is the
+  20%, for long chains and large or endless sources.
+- **Policies are data.** A combinator's options are one data value with
+  defaults, as Effect's `Schedule` is: `Backoff { attempts: 5 }`. Setters
+  are kept for values that grow lists, such as `Request` and `Command`.
+- **Protocols for derive authors.** `std.structure`, `std.annotation` and
+  `std.inspect` serve the people who write derives. They are judged on
+  cost and on whether they let an invalid state be written.
+
+## std.collections
+
+**Verdict: meets the bar, with one swap and two cost fixes.** The names
+are Rust's `Vec`, `VecDeque`, `HashSet` and `BinaryHeap`, with Python's
+`Counter.most_common`. Two calls force a cost that no implementation can
+remove, and one name is a second spelling.
+
+```text
+impl[T] List[T]:
+    pub fn chunks(self, size: usize) -> List[ListView[T]]                     # was List[List[T]]
+    pub fn windows(self, size: usize) -> List[ListView[T]]                    # was List[List[T]]
+    pub fn flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]   # was fn(T) -> List[U]
+
+impl[K < Eq & Hash, V] Map[K, V]:
+    pub fn get_or_insert(mut self, key: K, value: V) -> V                     # new; replaces get_or
+
+impl[T] FromIterator[T] for Deque[T]                                          # new impls, no new names
+impl[T < Ord] FromIterator[T] for Heap[T]                                     # heapify in O(n)
+```
+
+- `chunks` and `windows` return views. Today `windows(k)` copies every
+  element k times; a view copies nothing, as Rust's `chunks` and
+  `windows` hand out slices. `to_list()` makes a list where one is
+  needed.
+- `flat_map` takes any `Iterable` result, as Rust's `IntoIterator` bound
+  does, so the function need not build a list per item. With `T?`
+  iterable (see std.iter), `flat_map` also keeps the `.Some` results,
+  which is `filter_map` with no new name.
+- Removed: `Map.get_or(key, fallback)`. It is `get(key).unwrap_or(fallback)`.
+- Added: `get_or_insert`, Python's `setdefault` and Rust's
+  `entry(key).or_insert(value)`. It returns the stored value, so
+  `index.get_or_insert(word, Set::new()).insert(doc)` is one probe, where
+  today it is a `get`, a `match` and a store.
+- Not proposed: set algebra, which is a `filter` over `contains`; an
+  in-place `sort`, since `sorted` costs one copy beside an O(n log n)
+  sort; a sorted map.
+
+**Cost.** A list method allocates at most its one result list, of a size
+known or bounded by the input. `keys`, `values` and `entries` copy a
+snapshot by contract, one list of exact size. Today's code falls short:
+`sorted_by` allocates three lists per merge level, `group_by` builds its
+map twice, `counts` probes twice per item, `most_common(n)` sorts every
+entry to keep n, `Set` stores a `bool` per element, `Heap` and `Deque`
+wrap each slot in a `T?`, and `insert` and `remove_at` shift one element
+per step. All are filed for #426.
+
+## std.iter
+
+**Verdict: meets the bar, with one fix.** `Iterator[T]` is Rust's adapter
+set in pull form. `from_fn` and `next` are the atoms, and `collect`
+builds any `FromIterator`. The fix is the `flat_map` bound above, plus
+one impl:
+
+```text
+impl[T] Iterable[T] for T?                       # new impl: zero or one item
+impl[T] Iterator[T]:
+    pub fn flat_map[U, I < Iterable[U]](mut self, transform: fn(T) -> I) -> mut Iterator[U]
+```
+
+- `text.lines().iter().flat_map(parse)`, with `parse(line) -> Hit?`,
+  keeps the lines that parse, as Rust's `flat_map` over an `Option` does;
+  `filter_map` and Kotlin's `mapNotNull` are second names hd does not
+  need. As in Rust, `for x in maybe:` then also works.
+
+**Cost.** Each adapter allocates one closure, and each item makes one
+indirect call per adapter, as Go's `iter.Seq` does. Adapters are small
+and do not escape a chain that ends in `collect` or `for`, so inlining
+can remove both; the API forces neither. `Set.iter()` adds an adapter
+over its map, and a range's `iter()` builds a closure where a counted
+loop would do.
+
+## std.option and std.result
+
+**Verdict: meets the bar, with one addition and one fix.** The names are
+Rust's, cut to what programs use: `map`, `and_then`, `unwrap_or`,
+`expect`, the variant tests, `ok_or`, `ok`, `err`, `map_err`, and
+`context` on both. There is no bare `unwrap`, so every panic carries a
+message.
+
+```text
+impl[T] T?:
+    pub fn or(self, other: T?) -> T?                 # new: self when .Some, else other
+
+impl[T, E < Display] Result[T, E]:
+    pub fn expect(self, message: string) -> T        # the panic now shows "message: error"
+```
+
+- `or` layers fallbacks. A flag, then a variable, then a default is
+  `flag.or(env("PORT")).unwrap_or("8080")`. Rust's `Option::or`,
+  Kotlin's `?:` and Swift's `??` serve it; today it is a nested `match`.
+- `Result.expect` shows only its message, though its doc promises the
+  error, which Rust's prints. The bound is `Display`, which every `Error`
+  has.
+- Not proposed: `unwrap_or_else` and `or_else`. A costly fallback is a
+  `match`, which is lazy.
+
+**Cost.** Each method is one `match` and allocates nothing beyond its
+result. `unwrap_or(f())` runs `f` even for a `.Some`; that is the
+caller's choice, and `match` is the lazy form.
+
+## std.error
+
+**Verdict: meets the bar, with two cuts.** `@error` with `@from` and
+`@source` is thiserror. `context` and `message` are anyhow's `context`
+and `anyhow!`. `dyn Error` with `chain`, `root_cause` and `find::[T]()`
+reads a cause chain by type, as Go's `errors.As` does. `report_of` makes
+the boundary-safe `ErrorReport`.
+
+- Removed: the free `chain(error)`, a second spelling of `error.chain()`.
+- `ContextError` becomes private, as `MessageError` already is and as
+  anyhow keeps both. Its fields are private, so a program can name the
+  type but read nothing from it.
+- The derive marks a cause with `@source`, while the trait method is
+  `cause()`, the report field is `causes`, and the printed line is
+  `caused by:` (question 3).
+
+**Cost.** `chain()` builds a list of the causes, and `find` and
+`root_cause` build that list before they walk it; a walk over `cause()`
+needs none. `report_of` makes one string per cause, which is its purpose.
+
+## std.task
+
+**Verdict: mostly meets the bar.** `timeout!`, `map_all!` and `race!` are
+Effect's `timeout`, `forEach` with `concurrency`, and `race`, over
+structured suspension: cancelling a call cancels its children. Two names
+are redundant.
+
+```text
+pub data Backoff:
+    pub attempts: usize = 3
+    pub initial: Duration = 100ms
+    pub factor: u32 = 2                      # was i32, and no field had a default
+    pub max: Duration = 10s
+
+pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+pub fn timeout![T, $R](limit: Duration, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock     # unchanged
+pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R           # unchanged
+```
+
+- `retry!` and `retry_with!` merge into one `retry!` that takes its
+  policy as data, as Effect's `Effect.retry(effect, schedule)`, the
+  backoff crate's `retry(backoff, op)` and Python's tenacity do.
+  `Backoff { attempts: 5 }` is the common call, and an immediate retry is
+  `initial: 0ms`. The price is `Clock` in every call's row (question 1).
+- Removed: `all_list!`. A list of closures is awkward to build, and
+  `map_all!(items, items.len(), work)` runs every input at once, as
+  Effect's `forEach` does with unbounded concurrency. It stays as
+  `map_all!`'s private engine.
+- `factor` becomes a `u32`, since a negative factor is no policy.
+- `TimedOut` stays a data type, as tokio's `Elapsed` is: the module
+  fails in one way.
+- Not proposed: jitter, which would put `Random` in the row, and a
+  fail-fast `map_all!` like Go's `errgroup`; a deploy that stops at the
+  first failure is a loop with `?`.
+
+**Cost.** `retry!` allocates nothing per attempt beyond the attempt's own
+frame, and `timeout!` is one race and one timer. `map_all!` fills one
+list of slots, then copies it into a second. Under it, `all_list!` nests
+one `all!` frame per worker, so with `limit` equal to n items each round
+of polls is O(n²); the flat `all_frame` intrinsic already exists.
+
+## std.testing
+
+**Verdict: meets the bar, with one fixed combination.** Table tests,
+property tests with shrinking and derived `Arbitrary`, inline and file
+snapshots, per-case temporary directories and integration runs cover
+what Go's `testing`, Rust's proptest and insta, and pytest give.
+
+```text
+pub fn hd_run!(command: Command) -> ProcessOutput $ Process       # was (name, args, stdin) -> RunOutput
+
+impl Choices:
+    pub fn int[N < Integer](mut self, range: Range[N]) -> N        # was (lo, hi)
+    pub fn float[F < Float](mut self, range: Range[F]) -> F        # was (lo, hi)
+```
+
+- `hd_run!` takes job 1's `Command`, as Rust's `assert_cmd` builds a
+  `std::process::Command` from `cargo_bin`, so a test sets arguments,
+  stdin, environment and directory as a program does. Any exit status is
+  data, and a program that does not start panics, as today.
+- Removed: `RunOutput`, which was `ProcessOutput` under a second name.
+- `Choices.int` takes a range, as `Rng.int` does after the data group's
+  generic `int`, so `c.int(1..=6)` reads the same in a generator and in a
+  program.
+- Later: `TestRunner.report_timeout(millis: i64)` should take a
+  `Duration`, and `TestRunner.temp_dir()` return a `Path`. Only std calls
+  the trait, so the host change can wait for a language-tier batch.
+
+**Cost.** A draw records one integer through the runner. Today `wide`
+converts each drawn integer to `i64` by printing and parsing it, which
+the data group's `Integer` conversions remove. `Choices.string` joins a
+list of one-character strings where `push_char` would do.
+
+## std.structure, std.annotation and std.inspect
+
+**Verdict: the protocol meets the bar; one sentinel breaks principle 8.**
+`Walker`, `Describer` and `Source` play the roles of serde's
+`Serializer`, a schema walk and `Deserializer`, and every typed derive is
+plain hd over them. The facts and the downcasts need no change.
+
+```text
+pub trait Source[S]:
+    fn next(mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]   # .None ends; was an end key
+
+impl[HdS] Members[HdS]:
+    pub fn at(self, position: usize) -> Key[HdS]?                            # was i32, giving the end key
+    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]?              # was the end key on no match
+```
+
+- Today the end is a `Key` with an `is_end` flag and a made-up `Member`
+  at position -1. An optional key shows the end in the type, removes
+  `Members.end()`, and lets `Member.position` and `VariantInfo.index` be
+  `usize`, like every other index in std (question 2).
+
+**Cost.** A template reads a member's facts once per type. But
+`Members.find` takes a predicate, so a format that reads keys by name
+scans every member per key, O(m²) for a value with m members; serde's
+derive matches the name in generated code. A per-type name index from the
+compiler, behind a lookup by name, would remove it. `TypeId` equality
+compares two strings on every `downcast_val`, where one integer per type
+would do.
+
+## std.ops, std.convert, std.function and std.resource
+
+**Verdict: `ops`, `convert` and `function` meet the bar; `resource` adds
+a layer.** The operator traits, the ranges and `Default` are Rust's
+`std::ops` and `Default`. `From` is Rust's, and text goes through
+`Parse`. `Tuple` is a sealed marker. None of these change a name.
+
+`std.resource.ResourceError[E]` wraps each handle error as `Operation(E)`
+or `Disposed`, so `stream.read!(n)?` does not convert into a function's
+`NetError`. Go's `net.ErrClosed` puts "closed" inside the module's error.
+Proposal: `NetError.Closed`, and the module removed (question 2).
+
+**Cost.** Slicing a list with `xs[a..b]` copies by contract, and `view`
+does not. Today the copy pushes one element at a time, where one bulk
+copy of a known size would do. Each integer type's range iterator builds
+a closure.
+
+## The Prelude
+
+**Verdict: nearly right.** Four names serve implementers only, and every
+test file imports the same two names.
+
+- `Poll`, `PollContext` and `Waker` serve hand-written suspensions, which
+  only std writes, and `Hasher` serves hand-written `Hash` impls. Rust's
+  2021 prelude has `Future` but not `Poll`, `Context`, `Waker` or
+  `Hasher`. Proposal: these four leave the prelude, and `Suspend` stays,
+  since `race!` takes it.
+- Every `tests:` block starts with `use std.testing.{assert,
+  assert_equal}`, and the missing import is a row in the write-hd mistakes
+  table. Rust's prelude has `assert!` and `assert_eq!`. Proposal: `assert`
+  and `assert_equal` join `it` in the test prelude.
+
+The prelude is language tier (question 2). A prelude name costs nothing
+at run time.
+
+## Structure Scenarios
+
+Each program uses only the proposed surface of all three groups and
+parses with `scripts/hd-conformance.sh parse`. None checks today.
+
+**1. A link checker**: a breadth-first crawl with a queue and a seen set,
+eight requests at a time, a timeout around retries of transient
+failures, and a status summary.
+
+```text
+use std.collections.{Deque, Set, counts}
+use std.http.{Client, Http, HttpError, Request}
+use std.task.{Backoff, map_all, retry, timeout}
+use std.time.{Clock, ms, s}
+use std.error.Error
+
+data Link:
+    url: string
+    status: u16 = 0                        # 0 when no response came back
+    problem: string? = .None
+
+fn transient(error: HttpError) -> bool:
+    error.is_transient()
+
+fn hrefs(page: string, site: string) -> List[string]:
+    pieces := page.split("href=\"").iter().skip(1)
+    paths := pieces.flat_map(fn(piece: string) -> string?: piece.split_once("\"").map(fn(pair: (string, string)) -> string: pair._0))
+    paths.filter(fn(path: string) -> bool: path.starts_with("/")).map(fn(path: string) -> string: "$site$path").collect()
+
+fn visit!(client: mut Client, url: string) -> (Link, string) $ Http + Clock:
+    outcome := timeout!(20s):
+        retry!(Backoff { attempts: 3, initial: 200ms }, when=transient):
+            client.send!(Request::get(url))
+    match outcome:
+        .Ok(.Ok(response)) => (Link { url: url, status: response.status }, response.text())
+        .Ok(.Err(.Status(response))) => (Link { url: url, status: response.status }, "")
+        .Ok(.Err(error)) => (Link { url: url, problem: .Some("$error") }, "")
+        .Err(late) => (Link { url: url, problem: .Some("$late") }, "")
+
+pub fn crawl!(client: mut Client, site: string, limit: usize) -> List[Link] $ Http + Clock:
+    let seen: mut Set[string] = Set::new()
+    let queue: mut Deque[string] = Deque::new()
+    queue.push_back("$site/")
+    seen.insert("$site/")
+    let found: mut List[Link] = []
+    while !queue.is_empty() && found.len() < limit:
+        let batch: mut List[string] = []
+        while batch.len() < 32:
+            match queue.pop_front():
+                .Some(url) => batch.push(url)
+                .None => break
+        for (link, page) in map_all!(batch, 8, fn!(url: string) -> (Link, string) $ Http + Clock: visit!(client, url)):
+            found.push(link)
+            for next in hrefs(page, site):
+                if seen.insert(next):
+                    queue.push_back(next)
+    found
+
+pub fn main!() -> Result[void, dyn Error] $ Console + Http + Clock:
+    let mut client = Client::new().header("User-Agent", "linkcheck/1.0")
+    links := crawl!(client, "https://docs.example.com", 2000)
+    for (status, count) in counts(links.map(fn(link: Link) -> u16: link.status)).most_common(5):
+        println("$count  HTTP $status")
+    broken := links.filter(fn(link: Link) -> bool: link.status >= 400 || link.problem.is_some())
+    for link in broken.sorted_by_key(fn(link: Link) -> string: link.url):
+        println("broken: ${link.url} ${link.problem.unwrap_or("HTTP ${link.status}")}")
+    .Ok(())
+
+```
+
+**2. A log report**: typed lines with the bad ones dropped, a setting
+layered from a flag, a variable and a default, an index built with
+`get_or_insert`, and spikes found over sliding windows.
+
+```text
+use std.cli.{Cli, positional}
+use std.collections.{Set, counts}
+use std.fs.{FsRead, read_text}
+use std.host.{Args, Env, env_as}
+use std.path.Path
+use std.error.{Error, message}
+
+## Summarize an access log: who visits most, and where traffic spikes.
+@derive(Cli)
+data Report:
+    ## Requests per minute that count as a spike; SPIKE_RPM when absent.
+    spike: u32?
+    ## How many users to list.
+    top: usize = 5
+    ## The log, one "minute user path millis" line per request.
+    @positional
+    log: Path
+
+data Hit:
+    minute: u32
+    user: string
+    path: string
+    millis: u32
+
+fn parse_hit(line: string) -> Hit?:
+    fields := line.split(" ")
+    if fields.len() != 4:
+        return .None
+    minute := fields[0].parse::[u32]().ok()?
+    millis := fields[3].parse::[u32]().ok()?
+    .Some(Hit { minute: minute, user: fields[1], path: fields[2], millis: millis })
+
+pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + FsRead:
+    report := Report::parse_args()?
+    spike := usize(report.spike.or(env_as::[u32]("SPIKE_RPM")?).unwrap_or(600))
+    hits := read_text!(report.log)?.lines().iter().flat_map(parse_hit).collect()
+    if hits.is_empty():
+        return .Err(message("no request lines in ${report.log}"))
+
+    let paths: mut Map[string, mut Set[string]] = {}
+    for hit in hits:
+        paths.get_or_insert(hit.user, Set::new()).insert(hit.path)
+    ranked := paths.entries().sorted_by_key(fn(entry: (string, mut Set[string])) -> usize: entry._1.len()).reversed()
+    for (user, seen) in ranked.take(report.top):
+        println("$user visited ${seen.len()} distinct paths")
+
+    minutes := hits.map(fn(hit: Hit) -> u32: hit.minute)
+    tally := counts(minutes)
+    first := minutes.min().unwrap_or(0)
+    rpm := [for minute in first..=minutes.max().unwrap_or(0) => tally.get(minute).unwrap_or(0)]
+    for (index, window) in rpm.windows(5).iter().enumerate():
+        total := window.iter().sum()
+        if total > 5 * spike:
+            println("spike: ${total / 5} requests a minute from minute ${first + u32(index)}")
+    .Ok(())
+
+```
+
+**3. A command-line filter and its tests**: a table test, a property
+test over a derived `Arbitrary` type, and an integration test that runs
+the built program with an environment, a working directory and stdin.
+
+```text
+use std.console.{ConsoleInput, read_all}
+use std.host.{Args, Env, args, env}
+use std.error.{Error, message}
+
+pub fn slug(title: string, separator: string) -> string:
+    title.lower().split_whitespace().join(separator)
+
+pub fn main!() -> Result[void, dyn Error] $ Console + ConsoleInput + Args + Env:
+    if !args().is_empty():
+        return .Err(message("slug takes no arguments; it reads standard input"))
+    separator := env("SLUG_SEPARATOR").unwrap_or("-")
+    for line in read_all!()?.lines():
+        println(slug(line, separator))
+    .Ok(())
+
+tests:
+    use std.testing.{Arbitrary, Choices, arbitrary, assert_equal, it_each, it_prop}
+
+    @derive(Arbitrary, Debug)
+    data Title:
+        @arbitrary.with(fn(c: mut Choices) -> List[string]: c.list(4, fn(d: mut Choices) -> string: d.choose(["Tea", "Ünïcode", "a1", ""])))
+        words: List[string]
+        @arbitrary.with(fn(c: mut Choices) -> usize: c.int(1..=3))
+        gap: usize
+
+    it_each("slugs", [("Hello World", "hello-world"), ("  Trim  me ", "trim-me"), ("", "")], body=fn!(row: (string, string)):
+        assert_equal(slug(row._0, "-"), row._1, reason="slug of ${row._0}")
+    )
+
+    it_prop("runs of spaces are one separator", prop=fn!(title: Title):
+        tight := slug(title.words.join(" "), "-")
+        loose := slug(title.words.join(" ".repeat(title.gap)), "-")
+        assert_equal(loose, tight, reason="spacing never changes the slug")
+    )
+```
+
+The integration test module, `tests/cli.hd`:
+
+```text
+use std.path.Path
+use std.process.Command
+use std.testing.{assert_equal, hd_run, snapshot}
+
+it("reads stdin, honours the environment and the directory"):
+    slug := Command::new("slug").env("SLUG_SEPARATOR", "_").current_dir(Path("tests/data")).stdin("Hello World\nTea Time\n")
+    output := hd_run!(slug)
+    assert_equal(output.status, +0, reason="success")
+    snapshot(output.stdout, expect="hello_world\ntea_time\n")
+
+it("reads a failure as data"):
+    output := hd_run!(Command::new("slug").arg("--bogus"))
+    assert_equal(output.status, +1, reason="an error exit")
+    assert_equal(output.stderr.contains("takes no arguments"), true, reason="the message")
+```
+
+## Structure Public Names
+
+Counted as in the other groups. Each `context` method is counted with its
+file, `std.error`. "Before" is `lib/std` at `9c418be27`.
+
+| Module | Before | After | Removed | Added |
+| --- | --- | --- | --- | --- |
+| `std.collections` | 72 | 72 | `Map.get_or` | `Map.get_or_insert` |
+| `std.iter` | 23 | 23 | none | none (the `T?` impl is not a name) |
+| `std.option` | 7 | 8 | none | `or` |
+| `std.result` | 9 | 9 | none | none |
+| `std.error` | 12 | 10 | free `chain`, `ContextError` (made private) | none |
+| `std.task` | 9 | 7 | `retry_with!`, `all_list!` | none |
+| `std.testing` | 33 | 32 | `RunOutput` | none |
+| `std.structure` | 29 | 28 | `Members.end` | none |
+| `std.ops` | 45 | 45 | none | none |
+| `std.annotation`, `std.inspect` | 8 | 8 | none | none |
+| `std.convert`, `std.function`, `std.resource` | 4 | 4 | none (question 2 would remove `ResourceError`) | none |
+| **Total** | **251** | **246** | **7** | **2** |
+
+The two added atoms each replace a nested `match` in real programs. The
+removals are duplicates (`chain`, `get_or`, `RunOutput`), a merged pair
+(`retry_with!`), an atom another covers (`all_list!`), a type no program
+can read (`ContextError`), and a sentinel (`Members.end`).
+
+## Across The Three Groups
+
+The three groups agree on the main shapes. A builder is plain data with
+bare-noun setters that take `mut self` (`Request`, `Client`, `Command`,
+`ArgParser`), and its terminal is one bang call (`send!`, `run!`). A
+policy is a literal with defaults (`Backoff`). Text reads into a type
+through `Parse`, `Deserialize` or `Cli`, and the string-keyed layer stays
+underneath. Every fake has one of four prefixes and is built with `new`,
+and answering fakes share `reply` and `received`. Six places still break
+a rule:
+
+1. **`with`.** `with_x` copies a value with one part replaced
+   (`Path.with_extension`), and a `_with` suffix takes a function
+   (`it_prop_with`). `$.with` and `arbitrary.with` are language forms.
+   `retry_with!` took a policy value and fit neither; it is merged above.
+2. **Chaining.** `Request.header`, `Command.arg`, `ArgParser.arg` and
+   `Sha256.update` return the value, but `StringBuilder.push` and
+   `push_char` return `void`, though each feeds a value to one terminal
+   (`build`, `finish`). Recommendation: one rule, "a value with a
+   terminal call chains", so `push` returns `mut StringBuilder`, as Java's
+   `append` does. Containers keep theirs (`List.push`, `Set.insert`).
+   Statements are unaffected: only a `Result`, a `T?` or a suspension
+   must be used.
+3. **Parse error names.** `ParseNumberError`, `ParseBoolError` and
+   `ParseCharError` name the operation first; `TimeParseError` does not.
+   Recommendation: `ParseTimeError`, as Rust's `ParseIntError` reads.
+4. **One error enum per module.** `std.host` will hold `EnvError` and the
+   moved `SysError`; recommendation: one `HostError`. `ConsoleError` has
+   only `Closed`, with no `NotGranted` or `Other`; recommendation: add
+   both when `write!` lands. `ResourceError[E]` wraps instead of joining
+   (question 2). Pure modules may name an error for the operation that
+   several modules share (`DecodeError`, the `Parse` errors, `TimedOut`).
+5. **Timeouts.** `connect_timeout!` goes because `timeout!` composes, but
+   `Request.timeout` stays, though the same argument covers it.
+   `Client.timeout`, a default for every call, is what `timeout!` cannot
+   say, and `set_timeout` on a socket bounds each read. Recommendation:
+   drop `Request.timeout` and keep the other two.
+6. **Smaller rules.** Bounds are ranges (`Rng.int`, now `Choices.int`),
+   sizes are `usize` (member positions and `Backoff.factor` are fixed
+   above), spans are `Duration` (`report_timeout` waits), and each
+   host-trait method has a free helper except `Sys` and the runner
+   traits. Each exception left is named above.
+
+| Group | Before | After |
+| --- | --- | --- |
+| I/O and host | 204 | 246 |
+| Data | 239 | 247 |
+| Structures and control | 251 | 246 |
+| **Total** | **694** | **739** |
+
+The "before" counts use three commits; `lib/std` changed between them by
+one line, which moved no name. The whole library grows by 45 names, 6%.
+The growth is in HTTP, processes, the typed command line and digests,
+where the old surface could not express a realistic program; elsewhere
+the count falls.
+
+## Structure Questions For The Owner
+
+1. **One `retry!`.** The merge puts `Clock` in the row of every retry,
+   an immediate one included, so its test supplies a `ManualClock`.
+   Keeping both keeps a retry for code with no clock, under a name that
+   breaks the `with` rule. Recommendation: merge, as Effect's `retry`
+   takes one schedule; retrying I/O at once is rarely right.
+2. **Language-tier changes in this group.** (a) `Poll`, `PollContext`,
+   `Waker` and `Hasher` leave the prelude, and `assert` and
+   `assert_equal` join the test prelude. (b) `Source.next`,
+   `Members.at` and `Members.find` return `Key?`, and member positions
+   become `usize`. (c) A `Closed` variant in each handle module's error
+   replaces `std.resource.ResourceError`. Recommendation: approve all
+   three; (b) touches each derive template once, all in std.
+3. **One word for a cause.** The derive marker is `@source`, while the
+   method is `cause()`, the report field `causes`, and the printed line
+   `caused by:`. Recommendation: rename the marker to `@cause`; adopting
+   Rust's `source` would rename four things instead of one.
+4. **The cross-module fixes.** Apply items 2 to 5 of the pass above,
+   which touch the I/O and data proposals. Recommendation: apply all; each
+   removes an exception to a rule the other groups already follow.
