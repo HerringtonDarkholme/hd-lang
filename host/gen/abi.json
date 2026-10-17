@@ -162,7 +162,8 @@
       { "name": "NotFound", "fields": [{ "name": "program", "type": "string" }] },
       { "name": "PermissionDenied", "fields": [{ "name": "program", "type": "string" }] },
       { "name": "NotGranted", "fields": [] },
-      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Exited", "fields": [{ "name": "status", "type": "i32" }, { "name": "stderr", "type": "string" }] }
     ] },
     "ProcessOutput": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "stdout", "type": "string" }, { "name": "stderr", "type": "string" }, { "name": "status", "type": "i32" }] },
     "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },

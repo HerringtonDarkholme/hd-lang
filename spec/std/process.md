@@ -7,7 +7,7 @@ ordinary hd over the language tier:
 
 - the `Display` text of `ProcessError`;
 - the traits of `ExitCode` and `ProcessOutput`;
-- the free helper `run!`;
+- the free helpers `run!` and `output!`;
 - the test provider `ScriptedProcess`;
 - what a child process inherits, the status a signal leaves, and what
   cancelling `run!` does.
@@ -36,12 +36,16 @@ fn explain(error: ProcessError) -> string:
 | r[std-process.error.display.permission-named] Permission | `PermissionDenied(program)` | `permission denied: PROGRAM` |
 | r[std-process.error.display.not-granted] Not granted | `NotGranted` | `program not granted; run with --cap Process=PROGRAM` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
+| r[std-process.error.display.exited] Exited | `Exited(status, stderr)` | `program exited with status STATUS: STDERR` |
 
-1. r[std-process.error.debug-fields] Its `Debug` writes the qualified variant and its argument, as `ProcessError.NotFound(program="git")` and `ProcessError.Other(message="x")`, and `NotGranted` alone, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
+1. r[std-process.error.debug-fields] Its `Debug` writes the qualified variant and its argument, as `ProcessError.NotFound(program="git")` and `ProcessError.Other(message="x")`, `ProcessError.Exited(status=2, stderr="boom")`, and `NotGranted` alone, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
 2. r[std-process.error.equal] Two `ProcessError` values are equal when they are the same variant and their arguments, if any, are equal.
 3. r[std-process.error.error] `ProcessError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
-> **Why.** The host's message is the whole text of `Other`, as `FsError`
+> **Why.** `Exited` is added after `Other`, so the host's variant tags
+> keep their numbers. The host never returns it; `output!` produces it
+> from a `ProcessOutput` whose status is not 0. The host's message is the
+> whole text of `Other`, as `FsError`
 > keeps it. `NotFound` and `PermissionDenied` name the program, as
 > `FsError.NotFound(path)` names its path, so a message such as
 > `program not found: git` needs no caller to add the name.
@@ -87,6 +91,29 @@ fn commit!() -> Result[string, ProcessError] $ Process:
 > **Why.** Go's `exec.Command(...).Output()` and Python's `subprocess.run`
 > take no stdin by default. A non-zero status stays `.Ok`, as
 > [`module.process.nonzero-ok`](../lang/10-modules.md#r-module.process.nonzero-ok) says.
+
+## Output Helper
+
+`output!` runs a program and reads its standard output as one call:
+
+```text
+use std.process.{Process, ProcessError, output}
+
+fn branch!() -> Result[string, ProcessError] $ Process:
+    text := output!("git", ["branch", "--show-current"])?
+    .Ok(text.trim())
+```
+
+1. r[std-process.helper.output] `std.process` declares `pub fn output!(program: string, args: List[string]) -> Result[string, ProcessError] $ Process`, which calls `run!(program, args)` and returns `.Ok(stdout)` when the status is 0.
+2. r[std-process.helper.output-exited] When the status is not 0, `output!` returns `.Err(ProcessError.Exited(status, stderr))`, with the status and the standard error text of the `ProcessOutput`.
+3. r[std-process.helper.output-start] A program that does not start gives the `ProcessError` that `run!` returned, unchanged.
+4. r[std-process.helper.output-row] The helper's row is exactly `Process`, and it passes no standard input.
+
+> **Why.** Go's `exec.Command(...).Output()` returns an `ExitError` that
+> carries the stderr for a non-zero exit, and Rust's `Command::output`
+> leaves the status to the caller. Most callers want the text or a
+> failure, so `output!` does that; `run!` stays for a caller that reads a
+> non-zero status as data.
 
 ## Scripted Process
 

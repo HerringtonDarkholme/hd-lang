@@ -737,6 +737,11 @@ its own issue.
   A child that exits or closes its stdin before reading all of `stdin`
   drops the rest and the call still returns `.Ok` (`std-process.stdin.unread`,
   #401; Go's `exec` does the same).
+  `std.process.output!(program, args) -> Result[string, ProcessError]`
+  (#379) returns stdout on status 0 and `.Err(ProcessError.Exited(status,
+  stderr))` otherwise. The variant is added after `Other` and is produced
+  only in std, so the host codec and its tags are unchanged
+  (`std-process.helper.output`, `std-process.error.display.exited`).
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
   `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`. Applied
@@ -842,8 +847,7 @@ its own issue.
   `MapSys` are now `ScriptedArgs`, `ScriptedEnv` and `ScriptedSys`, and
   `BufferConsole` is `MemoryConsole`; `token_hex(count)` and the `Rng`
   secrets note. Eight were fixed already (#364 to #371). Still open:
-  `Process.output!` with `ProcessError.Exited` (a new variant and a
-  return-type choice), `Duration` in nanoseconds (changes `Clock`), and the
+  `Duration` in nanoseconds (changes `Clock`), and the
   two language-tier ones (the `r` prefix, `it_each` and `it_prop` blocks).
 - **Zero-copy JSON strings** (#360). A parsed string with no escape
   shares the input's bytes, so the whole input stays alive while any

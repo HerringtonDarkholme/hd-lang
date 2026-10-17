@@ -54,6 +54,7 @@ pub enum ProcessError:
     PermissionDenied(program: string)
     NotGranted
     Other(message: string)
+    Exited(status: i32, stderr: string)
 
 ## The host capability to start a program with arguments and standard input, and wait for it to exit.
 ## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
@@ -67,6 +68,17 @@ pub trait Process:
 pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process:
     let mut process = $.use(Process)
     process.run!(program, args, stdin)
+
+# Runs a program and returns its standard output
+# (spec/std/process.md#r-std-process.helper.output).
+## Starts `program` with `args`, and returns its standard output when it exits with status 0.
+## See [std-process.helper.output](../../spec/std/process.md#r-std-process.helper.output).
+pub fn output!(program: string, args: List[string]) -> Result[string, ProcessError] $ Process:
+    let output = run!(program, args)?
+    if output.status == 0:
+        .Ok(output.stdout)
+    else:
+        .Err(.Exited(output.status, output.stderr))
 
 # Answers each program with the output scripted for it
 # (r-std-process.scripted.decl).
@@ -104,6 +116,7 @@ impl Eq for ProcessError:
             (.PermissionDenied(left), .PermissionDenied(right)) => left == right
             (.NotGranted, .NotGranted) => true
             (.Other(left), .Other(right)) => left == right
+            (.Exited(left_status, left_stderr), .Exited(right_status, right_stderr)) => left_status == right_status && left_stderr == right_stderr
             _ => false
 
 # The text of each variant (r-std-process.error.display.other and its rows).
@@ -114,6 +127,7 @@ impl Display for ProcessError:
             .PermissionDenied(program) => "permission denied: ${program}"
             .NotGranted => "program not granted; run with --cap Process=PROGRAM"
             .Other(message) => message
+            .Exited(status, stderr) => "program exited with status ${status}: ${stderr}"
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
 impl Error for ProcessError
@@ -139,6 +153,7 @@ impl Debug for ProcessError:
             .PermissionDenied(program) => out.debug_tuple("ProcessError.PermissionDenied").named_field("program", program).finish()
             .NotGranted => out.write("ProcessError.NotGranted")
             .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
+            .Exited(status, stderr) => out.debug_tuple("ProcessError.Exited").named_field("status", status).named_field("stderr", stderr).finish()
 
 impl Debug for ScriptedProcess:
     fn debug(self, out: mut DebugWriter) -> void:

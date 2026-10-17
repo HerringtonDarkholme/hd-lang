@@ -100,6 +100,7 @@ export const ProcessError = variants({
   PermissionDenied: { program: str },
   NotGranted: {},
   Other: { message: str },
+  Exited: { status: signed, stderr: str },
 });
 export const ProcessOutput = data({
   stdout: str,
