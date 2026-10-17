@@ -47,7 +47,7 @@ pub trait Ord < PartialOrd:
     fn cmp(self, other: Self) -> Ordering
 
 # The smaller of two values; `a` when they are equal (r-std-cmp.min-max.tie).
-## The smaller of the two; the second on a tie.
+## The smaller of the two; the first on a tie.
 ## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn min[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
@@ -56,7 +56,7 @@ pub fn min[T < Ord](a: T, b: T) -> T:
 
 # The larger of two values; `a` when they are equal, so `min` and `max`
 # both give the first of equal values, as Python's do.
-## The larger of the two; the second on a tie.
+## The larger of the two; the first on a tie.
 ## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn max[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
