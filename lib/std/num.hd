@@ -361,20 +361,24 @@ pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
 
 # Reads the digits toward the sign, so the minimum value parses. Each step
 # checks the bound first, so the arithmetic stays inside `low` to `high`.
+# It reads the text's UTF-8 bytes: a non-ASCII byte is no digit, and every
+# byte before the first invalid one is ASCII, so the byte index is the
+# reported position.
 fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberError]:
-    scalars := text.split("")
-    if scalars.len() == 0:
+    size := text.len()
+    if size == 0:
         return .Err(ParseNumberError.Empty)
-    negative := scalars[0] == "-"
-    let index: usize = if negative || scalars[0] == "+": 1 else: 0
+    negative := text[0] == 45
+    let index: usize = if negative || text[0] == 43: 1 else: 0
     # A lone sign ends where a digit must follow: the end-of-text index.
-    if index == scalars.len():
+    if index == size:
         return .Err(ParseNumberError.InvalidDigit(index))
     let value: i64 = 0
-    while index < scalars.len():
-        digit := match digit_value(scalars[index]):
-            .Some(found) => i64(found)
-            .None => return .Err(ParseNumberError.InvalidDigit(index))
+    while index < size:
+        byte := text[index]
+        if byte < 48 || byte > 57:
+            return .Err(ParseNumberError.InvalidDigit(index))
+        digit := i64(byte - 48)
         # Division truncates toward zero, so each bound is exact.
         if negative:
             if value < (low + digit) / 10:
@@ -411,17 +415,18 @@ pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
         .Err(error) => .Err(error)
 
 fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
-    scalars := text.split("")
-    if scalars.len() == 0:
+    size := text.len()
+    if size == 0:
         return .Err(ParseNumberError.Empty)
-    let index: usize = if scalars[0] == "+": 1 else: 0
-    if index == scalars.len():
+    let index: usize = if text[0] == 43: 1 else: 0
+    if index == size:
         return .Err(ParseNumberError.InvalidDigit(index))
     let value: u64 = 0
-    while index < scalars.len():
-        digit := match digit_value(scalars[index]):
-            .Some(found) => u64(found)
-            .None => return .Err(ParseNumberError.InvalidDigit(index))
+    while index < size:
+        byte := text[index]
+        if byte < 48 || byte > 57:
+            return .Err(ParseNumberError.InvalidDigit(index))
+        digit := u64(byte - 48)
         # Division truncates, so the bound is exact and the product cannot overflow.
         if value > (high - digit) / 10:
             return .Err(ParseNumberError.OutOfRange)
@@ -437,75 +442,78 @@ fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
 ## Reads `text` as an `f64`, or the first error.
 ## See [std-num.parse-f64](../../spec/std/num.md#r-std-num.parse-f64).
 pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
-    scalars := text.split("")
-    if scalars.len() == 0:
+    size := text.len()
+    if size == 0:
         return .Err(ParseNumberError.Empty)
-    negative := scalars[0] == "-"
-    let start: usize = if negative || scalars[0] == "+": 1 else: 0
-    if start == scalars.len():
+    negative := text[0] == 45
+    let start: usize = if negative || text[0] == 43: 1 else: 0
+    if start == size:
         return .Err(ParseNumberError.InvalidDigit(start))
-    first := scalars[start]
+    first := text[start]
     let magnitude = 0.0
-    if first == "n" || first == "N" || first == "i" || first == "I":
-        match word_error(scalars, start):
+    # `n`, `N`, `i`, `I`: a special word.
+    if first == 110 || first == 78 || first == 105 || first == 73:
+        match word_error(text, start):
             .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
             .None => pass
-        magnitude = if first == "n" || first == "N": 0.0 / 0.0 else: 1.0 / 0.0
+        magnitude = if first == 110 || first == 78: 0.0 / 0.0 else: 1.0 / 0.0
     else:
-        match decimal_error(scalars, start):
+        match decimal_error(text, start):
             .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
             .None => pass
         # The sign is one ASCII byte, so the unsigned text starts at byte 1.
-        magnitude = host_parse_f64(if start == 0: text else: text.slice(1, text.len()))
+        magnitude = host_parse_f64(if start == 0: text else: text.slice(1, size))
     if negative: .Ok(-magnitude) else: .Ok(magnitude)
 
-# Where `scalars` from `start` first breaks a decimal number
-# (r-std-num.parse-f64.decimal): the index of the scalar no continuation
+# Where the bytes of `text` from `start` first break a decimal number
+# (r-std-num.parse-f64.decimal): the offset of the byte no continuation
 # allows, or the text's length when it ends where more must follow.
-# `.None` when all of it matches.
-fn decimal_error(scalars: List[string], start: usize) -> usize?:
-    size := scalars.len()
-    let at = after_digits(scalars, start)
+# `.None` when all of it matches. Every byte before the first invalid one
+# is ASCII, so the byte offset is the position the spec reports.
+fn decimal_error(text: string, start: usize) -> usize?:
+    size := text.len()
+    let at = after_digits(text, start)
     let digits = at > start
-    if at < size && scalars[at] == ".":
-        fraction := after_digits(scalars, at + 1)
+    if at < size && text[at] == 46:
+        fraction := after_digits(text, at + 1)
         digits = digits || fraction > at + 1
         at = fraction
     # Either side of the point may be empty, but not both.
     if !digits:
         return .Some(at)
-    if at < size && (scalars[at] == "e" || scalars[at] == "E"):
+    if at < size && (text[at] == 101 || text[at] == 69):
         at = at + 1
-        if at < size && (scalars[at] == "+" || scalars[at] == "-"):
+        if at < size && (text[at] == 43 || text[at] == 45):
             at = at + 1
         if at >= size:
             return .Some(size)
-        if digit_value(scalars[at]).is_none():
+        if text[at] < 48 || text[at] > 57:
             return .Some(at)
-        at = after_digits(scalars, at)
+        at = after_digits(text, at)
     if at < size: .Some(at) else: .None
 
-# Where `scalars` from `start` first breaks the word `nan`, `inf`, or
-# `infinity`, each letter in either case (r-std-num.parse-f64.special): the
-# index of the scalar no word allows, or the text's length when it ends
+# Where the bytes of `text` from `start` first break the word `nan`, `inf`,
+# or `infinity`, each letter in either case (r-std-num.parse-f64.special):
+# the offset of the byte no word allows, or the text's length when it ends
 # inside a word. `.None` when the rest is one whole word.
-fn word_error(scalars: List[string], start: usize) -> usize?:
-    nan := scalars[start] == "n" || scalars[start] == "N"
-    lower := if nan: ["n", "a", "n"] else: ["i", "n", "f", "i", "n", "i", "t", "y"]
-    upper := if nan: ["N", "A", "N"] else: ["I", "N", "F", "I", "N", "I", "T", "Y"]
+fn word_error(text: string, start: usize) -> usize?:
+    nan := text[start] == 110 || text[start] == 78
+    word := if nan: "nan" else: "infinity"
+    size := text.len()
     let index: usize = 0
-    while start + index < scalars.len():
-        scalar := scalars[start + index]
-        if index >= lower.len() || (scalar != lower[index] && scalar != upper[index]):
+    while start + index < size:
+        byte := text[start + index]
+        # An upper-case letter is 32 below its lower-case letter.
+        if index >= word.len() || (byte != word[index] && byte != word[index] - 32):
             return .Some(start + index)
         index = index + 1
     # `inf` is a whole word as well as the start of `infinity`.
-    if index == lower.len() || (!nan && index == 3): .None else: .Some(scalars.len())
+    if index == word.len() || (!nan && index == 3): .None else: .Some(size)
 
-# The index after the run of decimal digits that starts at `at`.
-fn after_digits(scalars: List[string], at: usize) -> usize:
+# The offset after the run of decimal digits that starts at `at`.
+fn after_digits(text: string, at: usize) -> usize:
     let index = at
-    while index < scalars.len() && digit_value(scalars[index]).is_some():
+    while index < text.len() && text[index] >= 48 && text[index] <= 57:
         index = index + 1
     index
 
@@ -551,20 +559,6 @@ fn fit(n: i64, low: i64, high: i64) -> i64:
 # `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:
     9223372036854775807
-
-fn digit_value(scalar: string) -> i32?:
-    match scalar:
-        "0" => .Some(0)
-        "1" => .Some(1)
-        "2" => .Some(2)
-        "3" => .Some(3)
-        "4" => .Some(4)
-        "5" => .Some(5)
-        "6" => .Some(6)
-        "7" => .Some(7)
-        "8" => .Some(8)
-        "9" => .Some(9)
-        _ => .None
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

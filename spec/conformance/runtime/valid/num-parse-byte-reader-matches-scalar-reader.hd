@@ -1,0 +1,210 @@
+# test: the byte-reading integer and float parsers give the results of the one-character-string readers they replaced
+# Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.invalid-digit-byte, std-num.parse.end-of-text-bytes, std-num.parse.out-of-range, std-num.parse.unsigned; Float Parsing: std-num.parse-f64.invalid-digit-byte (issue 358).
+use std.num.{parse_f64, parse_i32, parse_i64, parse_u32, parse_u64, parse_usize, ParseNumberError}
+use std.testing.{assert_equal, Choices, it_prop_with}
+
+# The old readers: the text as a list of one-character strings, each tested
+# against "0" to "9". They stay here as the reference.
+fn old_digit(scalar: string) -> i32?:
+    match scalar:
+        "0" => .Some(0)
+        "1" => .Some(1)
+        "2" => .Some(2)
+        "3" => .Some(3)
+        "4" => .Some(4)
+        "5" => .Some(5)
+        "6" => .Some(6)
+        "7" => .Some(7)
+        "8" => .Some(8)
+        "9" => .Some(9)
+        _ => .None
+
+fn old_signed(text: string, low: i64, high: i64) -> Result[i64, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    negative := scalars[0] == "-"
+    let index: usize = if negative || scalars[0] == "+": 1 else: 0
+    if index == scalars.len():
+        return .Err(ParseNumberError.InvalidDigit(index))
+    let value: i64 = 0
+    while index < scalars.len():
+        digit := match old_digit(scalars[index]):
+            .Some(found) => i64(found)
+            .None => return .Err(ParseNumberError.InvalidDigit(index))
+        if negative:
+            if value < (low + digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 - digit
+        else:
+            if value > (high - digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 + digit
+        index = index + 1
+    .Ok(value)
+
+fn old_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    let index: usize = if scalars[0] == "+": 1 else: 0
+    if index == scalars.len():
+        return .Err(ParseNumberError.InvalidDigit(index))
+    let value: u64 = 0
+    while index < scalars.len():
+        digit := match old_digit(scalars[index]):
+            .Some(found) => u64(found)
+            .None => return .Err(ParseNumberError.InvalidDigit(index))
+        if value > (high - digit) / 10:
+            return .Err(ParseNumberError.OutOfRange)
+        value = value * 10 + digit
+        index = index + 1
+    .Ok(value)
+
+fn old_after_digits(scalars: List[string], at: usize) -> usize:
+    let index = at
+    while index < scalars.len() && old_digit(scalars[index]).is_some():
+        index = index + 1
+    index
+
+fn old_decimal_error(scalars: List[string], start: usize) -> usize?:
+    size := scalars.len()
+    let at = old_after_digits(scalars, start)
+    let digits = at > start
+    if at < size && scalars[at] == ".":
+        fraction := old_after_digits(scalars, at + 1)
+        digits = digits || fraction > at + 1
+        at = fraction
+    if !digits:
+        return .Some(at)
+    if at < size && (scalars[at] == "e" || scalars[at] == "E"):
+        at = at + 1
+        if at < size && (scalars[at] == "+" || scalars[at] == "-"):
+            at = at + 1
+        if at >= size:
+            return .Some(size)
+        if old_digit(scalars[at]).is_none():
+            return .Some(at)
+        at = old_after_digits(scalars, at)
+    if at < size: .Some(at) else: .None
+
+fn old_word_error(scalars: List[string], start: usize) -> usize?:
+    nan := scalars[start] == "n" || scalars[start] == "N"
+    lower := if nan: ["n", "a", "n"] else: ["i", "n", "f", "i", "n", "i", "t", "y"]
+    upper := if nan: ["N", "A", "N"] else: ["I", "N", "F", "I", "N", "I", "T", "Y"]
+    let index: usize = 0
+    while start + index < scalars.len():
+        scalar := scalars[start + index]
+        if index >= lower.len() || (scalar != lower[index] && scalar != upper[index]):
+            return .Some(start + index)
+        index = index + 1
+    if index == lower.len() || (!nan && index == 3): .None else: .Some(scalars.len())
+
+# The old float grammar check: the error, or `.None` when the text is a number.
+fn old_float_error(text: string) -> ParseNumberError?:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Some(ParseNumberError.Empty)
+    negative := scalars[0] == "-"
+    let start: usize = if negative || scalars[0] == "+": 1 else: 0
+    if start == scalars.len():
+        return .Some(ParseNumberError.InvalidDigit(start))
+    first := scalars[start]
+    found := if first == "n" || first == "N" || first == "i" || first == "I": old_word_error(scalars, start) else: old_decimal_error(scalars, start)
+    match found:
+        .Some(position) => .Some(ParseNumberError.InvalidDigit(position))
+        .None => .None
+
+fn show[T < Display](result: Result[T, ParseNumberError]) -> string:
+    match result:
+        .Ok(value) => "ok $value"
+        .Err(.Empty) => "empty"
+        .Err(.InvalidDigit(position)) => "invalid digit at $position"
+        .Err(.OutOfRange) => "out of range"
+
+fn old_i32(text: string) -> Result[i32, ParseNumberError]:
+    match old_signed(text, -2147483648, 2147483647):
+        .Ok(value) => .Ok(i32(value))
+        .Err(error) => .Err(error)
+
+fn old_i64(text: string) -> Result[i64, ParseNumberError]:
+    old_signed(text, -9223372036854775807 - 1, 9223372036854775807)
+
+fn old_u32(text: string) -> Result[u32, ParseNumberError]:
+    match old_unsigned(text, 4294967295):
+        .Ok(value) => .Ok(u32(value))
+        .Err(error) => .Err(error)
+
+fn old_u64(text: string) -> Result[u64, ParseNumberError]:
+    old_unsigned(text, 18446744073709551615)
+
+fn old_usize(text: string) -> Result[usize, ParseNumberError]:
+    match old_unsigned(text, 4294967295):
+        .Ok(value) => .Ok(usize(value))
+        .Err(error) => .Err(error)
+
+# One line of output per reader, so a failure shows the text and the reader.
+fn disagreement(text: string) -> string:
+    checks := [
+        ("i32", show(parse_i32(text)), show(old_i32(text))),
+        ("i64", show(parse_i64(text)), show(old_i64(text))),
+        ("u32", show(parse_u32(text)), show(old_u32(text))),
+        ("u64", show(parse_u64(text)), show(old_u64(text))),
+        ("usize", show(parse_usize(text)), show(old_usize(text))),
+    ]
+    for (name, now, before) in checks:
+        if now != before:
+            return "$name: new $now, old $before"
+    expected := old_float_error(text)
+    let actual: ParseNumberError? = .None
+    match parse_f64(text):
+        .Ok(_) => pass
+        .Err(error) => actual = .Some(error)
+    if expected != actual:
+        return "f64: error differs"
+    ""
+
+# Boundary texts of every width, plus the odd ones.
+EDGES := [
+    "", "+", "-", "0", "-0", "+0", "00", "007", "-007",
+    "127", "128", "-128", "-129", "255", "256", "32767", "32768", "65535", "65536",
+    "2147483647", "2147483648", "-2147483648", "-2147483649", "+2147483647", "+2147483648",
+    "4294967295", "4294967296", "-4294967295", "4294967299", "42949672950",
+    "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
+    "18446744073709551615", "18446744073709551616", "18446744073709551619", "184467440737095516150",
+    "99999999999999999999999", "-99999999999999999999999",
+    "٣", "1٣", "-٣", "+٣", "１２", "é", "12é", "٣12", "1\u{0301}", "\u{1F600}", "1\u{1F600}2",
+    "2147483648x", "99999999999x", "1 ", " 1", "1_0", "0x10", "1e5", "1.5", ".5", "5.", ".", "1e", "1e+", "e5",
+    "+.5e-3", "-1.e2", "nan", "NaN", "inf", "-Infinity", "INFINITY", "infinit", "infinityx", "nanx", "na", "iNf", "n", "i", "in",
+    "1.5.2", "1ee5", "--1", "+-1", "1e5.5", "١.٥", "1.٥", "1e٥", "nаn",
+]
+
+PIECES := [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "9", "9", "+", "-", ".", "e", "E", "_", " ",
+    "x", "n", "a", "i", "f", "y", "٣", "é", "\u{1F600}",
+]
+
+fn text_gen(c: mut Choices) -> string:
+    if c.int(0, 3) == 0:
+        return c.choose(EDGES)
+    parts := c.list(24, fn(inner: mut Choices) -> string: inner.choose(PIECES))
+    parts.join("")
+
+# Digits only, up to 22 of them with an optional sign: reaches every width's range.
+fn number_gen(c: mut Choices) -> string:
+    sign := c.choose(["", "", "+", "-"])
+    digits := c.list(22, fn(inner: mut Choices) -> string: "${inner.int(0, 9)}")
+    "$sign${digits.join("")}"
+
+tests:
+    it("the edge texts match the old readers"):
+        for text in EDGES:
+            assert_equal(disagreement(text), "", reason="edge text ${debug(text)}")
+
+    it_prop_with("random texts match the old readers", gen=text_gen, cases=300, prop=fn!(text: string):
+        assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+    )
+
+    it_prop_with("random digit runs match the old readers", gen=number_gen, cases=300, prop=fn!(text: string):
+        assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+    )

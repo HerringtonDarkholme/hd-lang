@@ -2661,6 +2661,7 @@ typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#
 typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
 runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned
+runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/num.md#r-std-num.parse.invalid-digit-byte
 runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
 runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
 runtime/valid/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum
