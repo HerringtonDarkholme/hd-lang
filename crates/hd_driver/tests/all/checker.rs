@@ -1075,6 +1075,40 @@ fn top_level_bindings_are_read_in_order() {
     }
 }
 
+/// Each name a top-level pattern binds is initialized at its statement:
+/// later statements and functions declared after it read it, and a read
+/// before it, direct or through a function, is an error
+/// (`grammar.stmt.let-pattern`, `names.exec.visible`,
+/// `names.exec.not-before`, `names.init.required`).
+#[test]
+fn pattern_bindings_are_read_in_order() {
+    const DECLS: &str = "data Point:\n    x: i32\n    y: i32\n\
+        fn find() -> i32?:\n    .Some(+4)\n";
+    const BINDS: &str = "let (a, (b, _)) = (+1, (+2, +3))\n\
+        let Point { x, y: far } = Point { x: +5, y: +6 }\n\
+        let .Some(found) = find() else:\n    panic(\"none\")\n";
+    const READER: &str = "fn total() -> i32:\n    a + b + x + far + found\n";
+    let ok = format!("{DECLS}{BINDS}{READER}sum := total()\nlater := a + far\n");
+    assert_eq!(item_codes(&ok), [], "{ok}");
+    for bad in [
+        format!("{DECLS}sum := total()\n{BINDS}{READER}"),
+        format!("{DECLS}early := far\n{BINDS}"),
+        format!("{DECLS}early := found\n{BINDS}"),
+    ] {
+        assert_eq!(
+            item_codes(&bad),
+            [Code::TopLevelReadBeforeInitialization],
+            "{bad}"
+        );
+    }
+    let before = format!("{DECLS}fn early() -> i32:\n    b\n\n{BINDS}");
+    assert_eq!(
+        item_codes(&before),
+        [Code::BindingNotYetVisible],
+        "{before}"
+    );
+}
+
 /// A top-level method call reaches the method's body, as a function call
 /// does: an inherent method, a method of a generic type, an associated
 /// function, an operator's impl and a trait's default body each read

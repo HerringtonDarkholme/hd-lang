@@ -23,6 +23,14 @@ use crate::body::{
 
 type Set = hd_base::HashSet<hd_base::LocalId>;
 
+/// A top-level `let`'s pattern, annotation, value and `else` clause.
+type LetParts<'t> = (
+    NodeRef<'t>,
+    Option<NodeRef<'t>>,
+    NodeRef<'t>,
+    Option<NodeRef<'t>>,
+);
+
 /// A top-level binding: its item, type and the statement that initializes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Global {
@@ -383,30 +391,54 @@ fn poison_bindings(cx: &BodyCx<'_>, module: &str, stmts: &[NodeRef<'_>]) {
             let mut kids = n.children();
             let (pat, rhs) = (kids.next(), kids.last());
             node = rhs.filter(|r| r.kind() == SyntaxKind::BindingExpr);
-            let Some(pat) = pat.filter(|p| {
-                p.kind() == SyntaxKind::BindingPattern && p.children().next().is_none()
-            }) else {
-                continue;
-            };
-            let Some(t) = pat.direct_tokens().find(|t| {
+            for name in pat.map(|p| pattern_names(cx, p)).unwrap_or_default() {
+                let def = cx.names.item(module, cx.names.text(name));
+                init.globals.entry(name).or_insert_with(|| Global {
+                    def,
+                    ty: Ty::POISON,
+                    stmt: i,
+                    at: cx.src.span(*s).lo,
+                    short: s.kind() == SyntaxKind::ExprStmt,
+                });
+            }
+        }
+    }
+}
+
+/// The names a top-level binding's pattern binds, read from its syntax
+/// for the statements the check has not reached: a binding name, a named
+/// spread, a data field's shorthand name, and those of every nested
+/// pattern. The statement itself binds them through the pattern check.
+fn pattern_names(cx: &BodyCx<'_>, pat: NodeRef<'_>) -> Vec<Symbol> {
+    let name_of = |n: NodeRef<'_>| {
+        n.direct_tokens()
+            .find(|t| {
                 matches!(
                     cx.src.tkind(*t),
                     Some(TokenKind::Ident | TokenKind::RawIdent)
                 )
-            }) else {
-                continue;
-            };
-            let text = cx.src.text(t);
-            let name = cx.names.syms.intern(text);
-            init.globals.entry(name).or_insert_with(|| Global {
-                def: cx.names.item(module, text),
-                ty: Ty::POISON,
-                stmt: i,
-                at: cx.src.span(*s).lo,
-                short: s.kind() == SyntaxKind::ExprStmt,
-            });
+            })
+            .map(|t| cx.names.syms.intern(cx.src.text(t)))
+    };
+    let mut out = Vec::new();
+    let mut todo = vec![pat];
+    while let Some(p) = todo.pop() {
+        match p.kind() {
+            SyntaxKind::BindingPattern
+            | SyntaxKind::SpreadPattern
+            | SyntaxKind::DataPatternField
+                if p.children().next().is_none() =>
+            {
+                out.extend(name_of(p));
+            }
+            SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {}
+            _ => {
+                let kids: Vec<NodeRef<'_>> = p.children().collect();
+                todo.extend(kids.into_iter().rev());
+            }
         }
     }
+    out
 }
 
 fn init_steps(
@@ -454,7 +486,7 @@ fn init_steps(
     // unknown name.
     for (i, s) in stmts.iter().enumerate() {
         ck.declare_annotated(i, *s);
-        if let Some(name) = ck.binding_name(*s) {
+        for name in ck.binding_names(*s) {
             ck.later_names.entry(name).or_insert(i);
             let module = ck.module_init.clone().unwrap_or_default();
             let def = cx.names.item(&module, cx.names.text(name));
@@ -562,32 +594,22 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
+    /// The names a top-level statement binds: those of its pattern.
+    fn binding_names(&self, s: NodeRef<'_>) -> Vec<Symbol> {
+        let first = s.children().next();
+        let pat = match (s.kind(), first) {
+            (SyntaxKind::LetStmt, Some(p)) => Some(p),
+            (SyntaxKind::ExprStmt, Some(b)) if b.kind() == SyntaxKind::BindingExpr => {
+                b.children().next()
+            }
+            _ => None,
+        };
+        pat.map(|p| pattern_names(self.cx, p)).unwrap_or_default()
+    }
+
     /// Declares statement `i`'s binding ahead of its statement when it is
     /// a simple `let` with a type annotation that resolves without error;
     /// the statement declares it again when it runs.
-    /// The name a top-level statement binds, for a plain `name` pattern.
-    fn binding_name(&mut self, s: NodeRef<'_>) -> Option<Symbol> {
-        let first = s.children().next()?;
-        let pat = match s.kind() {
-            SyntaxKind::LetStmt => first,
-            SyntaxKind::ExprStmt if first.kind() == SyntaxKind::BindingExpr => {
-                first.children().next()?
-            }
-            _ => return None,
-        };
-        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
-            return None;
-        }
-        let nt = pat.direct_tokens().find(|t| {
-            matches!(
-                self.cx.src.tkind(*t),
-                Some(TokenKind::Ident | TokenKind::RawIdent)
-            )
-        })?;
-        let text = self.cx.src.text(nt).to_owned();
-        Some(self.cx.names.syms.intern(&text))
-    }
-
     fn declare_annotated(&mut self, i: usize, s: NodeRef<'_>) {
         if s.kind() != SyntaxKind::LetStmt {
             return;
@@ -669,13 +691,13 @@ impl Ck<'_, '_> {
                     .copied()
                     .skip(1)
                     .find(|k| !k.kind().is_type() && k.kind() != SyntaxKind::ElseClause);
-                pat.zip(rhs).map(|(p, r)| (p, ty_node, r))
+                pat.zip(rhs).map(|(p, r)| (p, ty_node, r, s))
             }
             SyntaxKind::ExprStmt => match kids.first() {
                 Some(b) if b.kind() == SyntaxKind::BindingExpr => {
                     let bk: Vec<NodeRef<'_>> = b.children().collect();
                     match bk.as_slice() {
-                        [p, r] => Some((*p, None, *r)),
+                        [p, r] => Some((*p, None, *r, *b)),
                         _ => None,
                     }
                 }
@@ -683,11 +705,72 @@ impl Ck<'_, '_> {
             },
             _ => None,
         };
-        let Some((pat, ty_node, rhs)) = binding else {
+        let Some((pat, ty_node, rhs, at)) = binding else {
             self.stmt(s, false)?;
             return Ok(());
         };
-        self.top_binding(s, pat, ty_node, rhs).map(|_| ())
+        let els = kids
+            .iter()
+            .copied()
+            .find(|k| k.kind() == SyntaxKind::ElseClause);
+        if pat.kind() == SyntaxKind::BindingPattern
+            && pat.children().next().is_none()
+            && els.is_none()
+        {
+            return self.top_binding(s, pat, ty_node, rhs).map(|_| ());
+        }
+        self.top_pattern(s, (pat, ty_node, rhs, els), at)
+    }
+
+    /// A top-level binding with a pattern, or with an `else`
+    /// (`grammar.stmt.let-pattern`): the pattern is checked as a body's
+    /// `let` pattern is, evaluating the value once, then each name it
+    /// binds becomes a global set at this statement (`names.exec.visible`,
+    /// `names.init.required`).
+    fn top_pattern(
+        &mut self,
+        s: NodeRef<'_>,
+        (pat, ty_node, rhs, els): LetParts<'_>,
+        at: NodeRef<'_>,
+    ) -> StageResult<()> {
+        // The names are the init body's locals while the pattern is
+        // checked, in a scope of their own; the statement hands each to
+        // its global, and later statements read the global.
+        let users = self.user_locals.len();
+        self.scopes.push(HashMap::default());
+        let checked = self.let_pattern(pat, ty_node, rhs, els, at);
+        let scope = self.scopes.pop().unwrap_or_default();
+        self.user_locals.truncate(users);
+        checked?;
+        let mut bound: Vec<(Symbol, hd_base::LocalId)> = scope.into_iter().collect();
+        bound.sort_by_key(|(_, l)| l.idx());
+        let module = self.module_init.clone().unwrap_or_default();
+        for (name, l) in bound {
+            let text = self.cx.names.text(name).to_owned();
+            let by = self.cx.init.borrow().declared_by.get(&name).cloned();
+            if let Some(by) = by {
+                let msg = format!(
+                    "`{text}` is already declared by {by}; give it another name, or bind a `let` and assign it"
+                );
+                self.err(Code::DuplicateBinding, pat, &msg);
+            }
+            let t = self.b.local_ty(l);
+            let v = self.b.get(l, t, at.index());
+            let def = self.cx.names.item(&module, &text);
+            self.cx.init.borrow_mut().globals.insert(
+                name,
+                Global {
+                    def,
+                    ty: t,
+                    stmt: self.init_stmt,
+                    at: self.cx.src.span(s).lo,
+                    short: s.kind() == SyntaxKind::ExprStmt,
+                },
+            );
+            let a = self.b.refs_record(&[Ref(def.raw())]);
+            self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
+        }
+        Ok(())
     }
 
     /// One top-level binding: a global set from its initializer. A chain
@@ -1113,6 +1196,12 @@ impl Ck<'_, '_> {
             return Some(self.poison_value(n));
         }
         self.fact_read(g.def);
+        // A binding whose initializer or pattern reported an error has a
+        // poison type; reading it reports nothing further, as reading a
+        // poisoned local does.
+        if self.pool().has_poison(g.ty) {
+            self.read_poison_name = true;
+        }
         let a = self.b.refs_record(&[Ref(g.def.raw())]);
         Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty))
     }

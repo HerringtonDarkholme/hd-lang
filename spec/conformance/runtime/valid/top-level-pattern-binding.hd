@@ -1,0 +1,49 @@
+# test: a top-level let with a pattern binds each name for later statements and later functions
+# Spec 02 Let Statements: grammar.stmt.let-pattern, grammar.stmt.let-pattern.mut;
+# Spec 03 Module Execution Scope: names.exec.visible, names.exec.access; Spec 06 Let Patterns: flow.let.bind.
+# expect-stdout: shelf 3x4 holds 12
+# expect-stdout: origin 1,2 near 7,8
+# expect-stdout: Ada has 10 and tea
+# expect-stdout: Bo ordered 2 items
+# expect-stdout: the dot sits at 9
+# expect-stdout: the shelf widens to 4
+data Point:
+    x: i32
+    y: i32
+
+data Cart:
+    owner: string
+    items: mut List[string]
+
+enum Shape:
+    Dot(Point)
+    Pair(Point, Point)
+
+let (width, height) = (+3, +4)
+area := width * height
+println("shelf ${width}x${height} holds ${area}")
+
+let (origin, label) = (Point { x: +1, y: +2 }, "origin")
+let Point { x, y } = origin
+let (_, Point { x: far_x, y: far_y }) = (origin, Point { x: +7, y: +8 })
+println("$label $x,$y near $far_x,$far_y")
+
+let ((left, _), (name, _)) = ((+10, "unused"), ("Ada", +0))
+let Cart { owner, mut items } = Cart { owner: "Bo", items: ["tea"] }
+let .Dot(dot) = Shape.Dot(Point { x: +9, y: +9 }) else:
+    panic("a dot was built")
+println(greet())
+println("$owner ordered ${order("jam")} items")
+println("the dot sits at ${dot.x}")
+widen()
+println("the shelf widens to $width")
+
+fn greet() -> string:
+    "$name has $left and ${items[0]}"
+
+fn order(item: string) -> usize:
+    items.push(item)
+    items.len()
+
+fn widen() -> void:
+    width = width + 1

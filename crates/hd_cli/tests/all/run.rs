@@ -338,7 +338,7 @@ fn unsupported_error_names_its_file() {
     let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
-        "let (a, b) = (+1, +2)\n\npub fn main() -> void:\n    pass\n",
+        "enum E:\n    A(i32, i32)\n\nfn f(e: E) -> i32:\n    match e:\n        .A(a, _...) => a\n\npub fn main() -> void:\n    pass\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -348,8 +348,22 @@ fn unsupported_error_names_its_file() {
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("pattern.hd:"), "{err}");
-    assert!(err.contains("a top-level binding with a pattern"), "{err}");
+    assert!(err.contains("a variant pattern with a rest"), "{err}");
     assert!(!err.contains(":0..0"), "{err}");
+}
+
+/// A top-level `let` with a pattern binds each name for `main`
+/// (`grammar.stmt.let-pattern`, `names.exec.visible`).
+#[test]
+fn top_level_pattern_binding_runs() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-top-pattern");
+    let file = dir.join("pattern.hd");
+    std::fs::write(
+        &file,
+        "let (a, b) = (1, 2)\n\npub fn main() -> void $ Console:\n    println(\"$a $b\")\n",
+    )
+    .expect("write");
+    assert_eq!(hd_run(&cache("hd-cache-top-pattern"), &file), "1 2\n");
 }
 
 fn scratch(name: &str) -> Scratch {

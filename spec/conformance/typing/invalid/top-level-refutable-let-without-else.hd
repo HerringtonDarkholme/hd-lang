@@ -1,0 +1,6 @@
+# test: a refutable top-level let pattern without an else block is an error
+# Spec 06 Let Patterns: flow.let.refutable.else; Spec 02 Let Statements: grammar.stmt.let-pattern.
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+let .Some(value) = find(0)  # diagnostic: refutable-let-pattern
