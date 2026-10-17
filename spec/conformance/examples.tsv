@@ -802,7 +802,8 @@ std/fs.md	3	type-fragment	-
 std/fs.md	4	accept	runtime/valid/fs-helpers.hd
 std/fs.md	5	accept	runtime/valid/fs-helpers.hd
 std/fs.md	6	type-fragment	-
-std/fs.md	7	accept	runtime/valid/memory-fs.hd
+std/fs.md	7	accept	runtime/valid/fs-walk.hd|runtime/valid/fs-glob.hd
+std/fs.md	8	accept	runtime/valid/memory-fs.hd
 std/path.md	1	accept	typing/valid/path-newtype.hd
 std/path.md	2	accept	runtime/valid/path-operations.hd
 std/process.md	1	accept	runtime/valid/process-error-display.hd

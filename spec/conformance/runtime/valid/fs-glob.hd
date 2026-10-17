@@ -1,0 +1,141 @@
+# test: glob! matches *, ?, [...] inside a component and ** across directories, sorted
+# Spec std/fs Walking And Globbing: std-fs.glob.decl, std-fs.glob.components,
+# std-fs.glob.star, std-fs.glob.one, std-fs.glob.class, std-fs.glob.deep,
+# std-fs.glob.deep-last, std-fs.glob.directories, std-fs.glob.relative,
+# std-fs.glob.absolute, std-fs.glob.result, std-fs.glob.none,
+# std-fs.glob.symlinks, std-fs.glob.row, and std-fs.memory.current-dir.
+# expect: test
+use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, glob, walk}
+use std.path.Path
+
+# A provider with a symlink, to show that glob! reports it and stays out.
+data LinkFs:
+    unused: i32
+
+impl FsRead for LinkFs:
+    fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
+        .Err(FsError.NotFound(path=path))
+
+    fn read_text!(self, path: Path) -> Result[string, FsError]:
+        .Err(FsError.NotFound(path=path))
+
+    fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
+        match "${path}":
+            "top" => .Ok([
+                Entry { path: Path("top/link"), kind: EntryKind.Symlink, size: 0 },
+                Entry { path: Path("top/real"), kind: EntryKind.Directory, size: 0 },
+            ])
+            "top/real" => .Ok([Entry { path: Path("top/real/f.md"), kind: EntryKind.File, size: 1 }])
+            _ => .Err(FsError.Other(message="the glob looked into a symlink: ${path}"))
+
+    fn stat!(self, path: Path) -> Result[Entry?, FsError]:
+        match "${path}":
+            "top" => .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0 }))
+            "top/link" => .Ok(.Some(Entry { path: path, kind: EntryKind.Symlink, size: 0 }))
+            _ => .Ok(.None)
+
+fn tree!() -> mut MemoryFs:
+    let mut files = MemoryFs::new()
+    for name in ["tree/a.md", "tree/b.txt", "tree/ab.md", "tree/c1.md", "tree/c2.md", "tree/cx.md", "tree/.hidden.md", "tree/docs/guide.md", "tree/docs/deep/notes.md", "tree/docs/deep/data.json", "tree/src/main.hd"]:
+        _ := files.write_text!(Path(name), "x")
+    _ := files.create_dir_all!(Path("tree/empty"))
+    files
+
+fn markdown!(root: Path) -> Result[List[Path], FsError] $ FsRead:
+    let found: mut List[Path] = []
+    for entry in walk!(root)?:
+        if entry.kind == EntryKind.File && entry.path.extension() == .Some("md"):
+            found.push(entry.path)
+    .Ok(found)
+
+fn markdown_again!() -> Result[List[Path], FsError] $ FsRead:
+    glob!("tree/docs/**/*.md")
+
+fn texts(found: Result[List[Path], FsError]) -> List[string]:
+    found.unwrap_or([]).map(fn(path: Path) -> string: "${path}")
+
+tests:
+    use std.testing.assert_equal
+
+    it("* matches any run of characters inside one component"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/*.md")), ["tree/.hidden.md", "tree/a.md", "tree/ab.md", "tree/c1.md", "tree/c2.md", "tree/cx.md"], reason="the files of one directory, a leading dot included")
+            assert_equal(texts(glob!("tree/a*")), ["tree/a.md", "tree/ab.md"], reason="a star at the end")
+            assert_equal(texts(glob!("tree/*/guide.md")), ["tree/docs/guide.md"], reason="a star component names one directory level")
+
+    it("? matches one character"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/c?.md")), ["tree/c1.md", "tree/c2.md", "tree/cx.md"], reason="one character")
+            assert_equal(texts(glob!("tree/a?.md")), ["tree/ab.md"], reason="a.md has no character there")
+
+    it("a class matches one character of a set or a range, and ! negates it"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/c[12].md")), ["tree/c1.md", "tree/c2.md"], reason="a set")
+            assert_equal(texts(glob!("tree/c[0-9].md")), ["tree/c1.md", "tree/c2.md"], reason="a range")
+            assert_equal(texts(glob!("tree/c[!0-9].md")), ["tree/cx.md"], reason="a negated range")
+            assert_equal(texts(glob!("tree/[ab]*.md")), ["tree/a.md", "tree/ab.md"], reason="a class then a star")
+            assert_equal(texts(glob!("tree/c[a-]*.md")), [], reason="a dash before the bracket is a character")
+
+    it("** matches any number of directories, none included"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/**/*.md")), ["tree/.hidden.md", "tree/a.md", "tree/ab.md", "tree/c1.md", "tree/c2.md", "tree/cx.md", "tree/docs/deep/notes.md", "tree/docs/guide.md"], reason="every level")
+            assert_equal(texts(glob!("tree/**/notes.md")), ["tree/docs/deep/notes.md"], reason="a literal name below")
+            assert_equal(texts(glob!("tree/**/deep/*.json")), ["tree/docs/deep/data.json"], reason="a directory name after **")
+            assert_equal(texts(glob!("tree/**/**/guide.md")), ["tree/docs/guide.md"], reason="two ** list a path once")
+
+    it("a ** last matches every entry below, directories included"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/docs/**")), ["tree/docs/deep", "tree/docs/deep/data.json", "tree/docs/deep/notes.md", "tree/docs/guide.md"], reason="the directory itself is left out")
+
+    it("a directory matches the last component like a file"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree/*")), ["tree/.hidden.md", "tree/a.md", "tree/ab.md", "tree/b.txt", "tree/c1.md", "tree/c2.md", "tree/cx.md", "tree/docs", "tree/empty", "tree/src"], reason="files and directories")
+            assert_equal(texts(glob!("tree/e*/*")), [], reason="an empty directory has nothing under it")
+
+    it("glob! finds what a walk! with a filter finds"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(markdown_again!(), markdown!(Path("tree/docs")), reason="the same files, in the same order")
+
+    it("a pattern that starts with / is absolute and keeps the /"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.write_text!(Path("/srv/app/a.log"), "x"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("/srv/b.log"), "x"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("/srv/**/*.log")), ["/srv/app/a.log", "/srv/b.log"], reason="absolute results")
+            assert_equal(texts(glob!("srv/*.log")), [], reason="a relative pattern does not look at /srv")
+
+    it("a pattern with no match gives an empty list, not an error"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(glob!("tree/*.rs"), .Ok([]), reason="no file ends in .rs")
+            assert_equal(glob!("nothing/*.md"), .Ok([]), reason="a missing directory matches nothing")
+            assert_equal(glob!("tree/a.md/*"), .Ok([]), reason="a file has nothing under it")
+            assert_equal(glob!(""), .Ok([]), reason="an empty pattern has no component")
+
+    it("empty components are ignored and a literal pattern names one path"):
+        let mut files = tree!()
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("tree//docs/*.md")), ["tree/docs/guide.md"], reason="the double slash is one slash")
+            assert_equal(texts(glob!("tree/a.md")), ["tree/a.md"], reason="a literal path that exists")
+
+    it("a symlink matches the last component and is never looked into"):
+        $.with(FsRead=LinkFs { unused: 0 }):
+            assert_equal(texts(glob!("top/*")), ["top/link", "top/real"], reason="the link is one match")
+            assert_equal(texts(glob!("top/**/*.md")), ["top/real/f.md"], reason="** stays out of the link")
+            assert_equal(texts(glob!("top/link/*")), [], reason="a literal link is not looked into either")
+
+    it("a relative pattern with no directory finds files at the root of a MemoryFs"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.write_text!(Path("a.md"), "x"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("b.txt"), "x"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("d/c.md"), "x"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(texts(glob!("*.md")), ["a.md"], reason="the root's files")
+            assert_equal(texts(glob!("**/*.md")), ["a.md", "d/c.md"], reason="every level from the root")

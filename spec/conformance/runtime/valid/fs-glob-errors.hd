@@ -1,0 +1,28 @@
+# test: glob! rejects a malformed pattern before it touches the file system
+# Spec std/fs Walking And Globbing: std-fs.glob.error and std-fs.glob.error.first.
+# expect: test
+use std.fs.{FsError, FsRead, MemoryFs, glob}
+
+tests:
+    use std.testing.assert_equal
+
+    it("an unclosed class is an error"):
+        let files = MemoryFs::new()
+        $.with(FsRead=files):
+            assert_equal(glob!("tree/[ab"), .Err(FsError.Other(message="invalid glob pattern tree/[ab: unclosed [")), reason="no closing bracket")
+
+    it("an empty class is an error"):
+        let files = MemoryFs::new()
+        $.with(FsRead=files):
+            assert_equal(glob!("tree/[]"), .Err(FsError.Other(message="invalid glob pattern tree/[]: empty class")), reason="[] holds no item")
+            assert_equal(glob!("tree/[!]"), .Err(FsError.Other(message="invalid glob pattern tree/[!]: empty class")), reason="[!] holds no item")
+
+    it("a backwards range is an error"):
+        let files = MemoryFs::new()
+        $.with(FsRead=files):
+            assert_equal(glob!("[z-a]"), .Err(FsError.Other(message="invalid glob pattern [z-a]: range z-a runs backwards")), reason="z comes after a")
+
+    it("a bad component is an error even where an earlier component matches nothing"):
+        let files = MemoryFs::new()
+        $.with(FsRead=files):
+            assert_equal(glob!("nothing/[a"), .Err(FsError.Other(message="invalid glob pattern nothing/[a: unclosed [")), reason="checked before any listing")

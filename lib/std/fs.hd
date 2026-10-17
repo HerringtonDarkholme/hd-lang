@@ -161,10 +161,200 @@ pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite:
     let mut files = $.use(FsWrite)
     files.rename!(from, to)
 
+# Walking and globbing, plain hd over the covering `FsRead` provider
+# (spec/std/fs.md#walking-and-globbing).
+## Returns every entry below `root`, depth first, each directory's entries ordered by path text and a directory before its contents.
+## See [std-fs.walk.order](../../spec/std/fs.md#r-std-fs.walk.order).
+pub fn walk!(root: Path) -> Result[List[Entry], FsError] $ FsRead:
+    let found: mut List[Entry] = []
+    walk_into!(root, found)?
+    .Ok(found)
+
+fn walk_into!(dir: Path, found: mut List[Entry]) -> Result[void, FsError] $ FsRead:
+    for entry in sorted_entries!(dir)?:
+        found.push(entry)
+        if entry.kind == EntryKind.Directory:
+            walk_into!(entry.path, found)?
+    .Ok(())
+
+fn sorted_entries!(dir: Path) -> Result[List[Entry], FsError] $ FsRead:
+    .Ok(list_dir!(dir)?.sorted_by(fn(a: Entry, b: Entry) -> Ordering: "${a.path}".cmp("${b.path}")))
+
+# One piece of a glob component's pattern. Each piece but `Many` matches one
+# character (r-std-fs.glob.star, r-std-fs.glob.class).
+enum GlobPiece:
+    Literal(char)
+    One
+    Many
+    Class(negated: bool, ranges: List[(char, char)])
+
+## Returns the paths that match `pattern`, ordered by path text, with `*`, `?`, `[...]` inside a component and `**` for any number of directories.
+## See [std-fs.glob.decl](../../spec/std/fs.md#r-std-fs.glob.decl).
+pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
+    let components: mut List[string] = []
+    for component in pattern.split("/"):
+        if component != "":
+            components.push(component)
+    # Every component is checked before any file system access
+    # (r-std-fs.glob.error).
+    for component in components:
+        match parse_glob_component(component):
+            .Ok(_) => pass
+            .Err(reason) => return .Err(FsError.Other(message="invalid glob pattern ${pattern}: ${reason}"))
+    let found: mut List[Path] = []
+    if components.len() > 0:
+        glob_from!(if pattern.starts_with("/"): "/" else: "", components, 0, found)?
+    let texts: mut List[string] = []
+    for path in found:
+        texts.push("${path}")
+    let sorted = texts.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b))
+    let result: mut List[Path] = []
+    let previous: string? = .None
+    for text in sorted:
+        if previous != .Some(text):
+            result.push(Path(text))
+        previous = .Some(text)
+    .Ok(result)
+
+fn glob_has_meta(component: string) -> bool:
+    component.contains("*") || component.contains("?") || component.contains("[")
+
+# Matches `components[index..]` below the directory `base`, whose text is ""
+# for the current directory (r-std-fs.glob.relative).
+fn glob_from!(base: string, components: List[string], index: usize, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
+    component := components[index]
+    last := index + 1 == components.len()
+    if component == "**":
+        if !last:
+            glob_from!(base, components, index + 1, found)?
+        for entry in sorted_entries!(glob_dir(base))?:
+            name := entry.path.file_name().unwrap_or("")
+            child := Path(base).join(name)
+            if last:
+                found.push(child)
+            if entry.kind == EntryKind.Directory:
+                glob_from!("${child}", components, index, found)?
+        return .Ok(())
+    if !glob_has_meta(component):
+        child := Path(base).join(component)
+        match stat!(child)?:
+            .Some(entry) => glob_step!(entry, "${child}", components, index, found)?
+            .None => pass
+        return .Ok(())
+    pieces := parse_glob_component(component).unwrap_or([])
+    for entry in sorted_entries!(glob_dir(base))?:
+        name := entry.path.file_name().unwrap_or("")
+        if glob_component_matches(pieces, name):
+            glob_step!(entry, "${Path(base).join(name)}", components, index, found)?
+    .Ok(())
+
+# A matched entry ends the pattern, or is a directory the next component
+# looks into; a symlink is never looked into (r-std-fs.glob.symlinks).
+fn glob_step!(entry: Entry, text: string, components: List[string], index: usize, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
+    if index + 1 == components.len():
+        found.push(Path(text))
+    else if entry.kind == EntryKind.Directory:
+        glob_from!(text, components, index + 1, found)?
+    .Ok(())
+
+fn glob_dir(base: string) -> Path:
+    if base == "": Path(".") else: Path(base)
+
+fn parse_glob_component(component: string) -> Result[List[GlobPiece], string]:
+    let chars: mut List[char] = []
+    for c in component.chars():
+        chars.push(c)
+    let pieces: mut List[GlobPiece] = []
+    let at: usize = 0
+    while at < chars.len():
+        c := chars[at]
+        at = at + 1
+        if c == '*':
+            pieces.push(.Many)
+        else if c == '?':
+            pieces.push(.One)
+        else if c == '[':
+            let negated = false
+            if at < chars.len() && chars[at] == '!':
+                negated = true
+                at = at + 1
+            let ranges: mut List[(char, char)] = []
+            let closed = false
+            while at < chars.len() && !closed:
+                low := chars[at]
+                if low == ']' && ranges.len() > 0:
+                    closed = true
+                    at = at + 1
+                else if low == ']':
+                    return .Err("empty class")
+                else if at + 2 < chars.len() && chars[at + 1] == '-' && chars[at + 2] != ']':
+                    high := chars[at + 2]
+                    if low > high:
+                        return .Err("range ${low}-${high} runs backwards")
+                    ranges.push((low, high))
+                    at = at + 3
+                else:
+                    ranges.push((low, low))
+                    at = at + 1
+            if !closed:
+                return .Err("unclosed [")
+            pieces.push(.Class(negated=negated, ranges=ranges))
+        else:
+            pieces.push(.Literal(c))
+    .Ok(pieces)
+
+fn glob_piece_matches(piece: GlobPiece, c: char) -> bool:
+    match piece:
+        .Literal(expected) => expected == c
+        .One => true
+        .Many => false
+        .Class(negated, ranges) =>
+            let inside = false
+            for (low, high) in ranges:
+                if c >= low && c <= high:
+                    inside = true
+            inside != negated
+
+# Greedy matching with one backtrack point, the usual linear scheme for
+# patterns whose pieces but `*` take one character.
+fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
+    let chars: mut List[char] = []
+    for c in name.chars():
+        chars.push(c)
+    let at: usize = 0
+    let in_pattern: usize = 0
+    let star: usize? = .None
+    let mark: usize = 0
+    while at < chars.len():
+        let is_many = false
+        if in_pattern < pieces.len():
+            match pieces[in_pattern]:
+                .Many => is_many = true
+                _ => pass
+        if is_many:
+            star = .Some(in_pattern)
+            mark = at
+            in_pattern = in_pattern + 1
+        else if in_pattern < pieces.len() && glob_piece_matches(pieces[in_pattern], chars[at]):
+            in_pattern = in_pattern + 1
+            at = at + 1
+        else:
+            match star:
+                .Some(from) =>
+                    in_pattern = from + 1
+                    mark = mark + 1
+                    at = mark
+                .None => return false
+    while in_pattern < pieces.len():
+        match pieces[in_pattern]:
+            .Many => in_pattern = in_pattern + 1
+            _ => return false
+    true
+
 # The deterministic file system (spec/std/fs.md#memory-file-system). A
 # file's key is its path's text, as written. A directory is a key that
 # `create_dir_all!` made, or the text before a `/` in another key
-# (r-std-fs.memory.dirs).
+# (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.current-dir).
 ## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
 ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
 pub data MemoryFs:
@@ -182,6 +372,8 @@ impl MemoryFs:
 
     # A made directory, or a prefix of a file or a made directory.
     fn dir_at(self, key: string) -> bool:
+        if key == ".":
+            return true
         under := "${key}/"
         for made in self.dirs:
             if made == key || made.starts_with(under):
@@ -235,7 +427,7 @@ impl FsRead for MemoryFs:
             .None => pass
         if !self.dir_at(key):
             return .Err(FsError.NotFound(path=path))
-        under := "${key}/"
+        under := if key == ".": "" else: "${key}/"
         let names: mut List[string] = []
         for made in self.dirs:
             match made.strip_prefix(under):
@@ -248,6 +440,9 @@ impl FsRead for MemoryFs:
         let entries: mut List[Entry] = []
         let seen: mut Map[string, bool] = {}
         for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
+            # A file written as "./x" has the name "." here, which is no entry.
+            if name == ".":
+                continue
             match seen.get(name):
                 .Some(_) => pass
                 .None =>

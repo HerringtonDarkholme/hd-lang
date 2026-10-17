@@ -1,0 +1,87 @@
+# test: walk! lists every entry below a root, depth first, each directory in path order
+# Spec std/fs Walking And Globbing: std-fs.walk.decl, std-fs.walk.entries,
+# std-fs.walk.order, std-fs.walk.symlinks, std-fs.walk.empty,
+# std-fs.walk.error, std-fs.walk.row, and std-fs.memory.current-dir.
+# expect: test
+use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, list_dir, stat, walk}
+use std.path.Path
+
+# A provider with a symlink, to show that walk! reports it and stays out.
+data LinkFs:
+    unused: i32
+
+impl FsRead for LinkFs:
+    fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
+        .Err(FsError.NotFound(path=path))
+
+    fn read_text!(self, path: Path) -> Result[string, FsError]:
+        .Err(FsError.NotFound(path=path))
+
+    fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
+        match "${path}":
+            "top" => .Ok([
+                Entry { path: Path("top/link"), kind: EntryKind.Symlink, size: 0 },
+                Entry { path: Path("top/real"), kind: EntryKind.Directory, size: 0 },
+            ])
+            "top/real" => .Ok([Entry { path: Path("top/real/f.txt"), kind: EntryKind.File, size: 1 }])
+            _ => .Err(FsError.Other(message="the walk followed a symlink: ${path}"))
+
+    fn stat!(self, path: Path) -> Result[Entry?, FsError]:
+        .Ok(.None)
+
+fn names!(root: Path) -> Result[List[string], FsError] $ FsRead:
+    .Ok(walk!(root)?.map(fn(entry: Entry) -> string: "${entry.path}"))
+
+tests:
+    use std.testing.assert_equal
+
+    it("a nested tree comes depth first, a directory before its contents"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.write_text!(Path("tree/b.txt"), "b"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("tree/a/z.txt"), "z"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("tree/a/deep/y.txt"), "yy"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("tree/c.txt"), "c"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(names!(Path("tree")), .Ok(["tree/a", "tree/a/deep", "tree/a/deep/y.txt", "tree/a/z.txt", "tree/b.txt", "tree/c.txt"]), reason="depth first, in path order, root left out")
+
+    it("entries carry their kind and size"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.create_dir_all!(Path("t/d")), .Ok(()), reason="made")
+        assert_equal(files.write_text!(Path("t/f"), "abc"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(walk!(Path("t")), .Ok([
+                Entry { path: Path("t/d"), kind: EntryKind.Directory, size: 0 },
+                Entry { path: Path("t/f"), kind: EntryKind.File, size: 3 },
+            ]), reason="a directory and a file")
+
+    it("empty directories are entries with nothing under them, and an empty root gives an empty list"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.create_dir_all!(Path("t/empty")), .Ok(()), reason="made")
+        assert_equal(files.create_dir_all!(Path("bare")), .Ok(()), reason="made")
+        $.with(FsRead=files):
+            assert_equal(names!(Path("t")), .Ok(["t/empty"]), reason="the empty directory is listed")
+            assert_equal(names!(Path("bare")), .Ok([]), reason="nothing below")
+
+    it("a missing root and a file root fail as list_dir! does"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.write_text!(Path("f.txt"), "x"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(walk!(Path("nothing")), .Err(FsError.NotFound(path=Path("nothing"))), reason="missing root")
+            assert_equal(walk!(Path("f.txt")), .Err(FsError.NotADirectory(path=Path("f.txt"))), reason="a file is not a directory")
+
+    it("a symlink is reported and not followed"):
+        $.with(FsRead=LinkFs { unused: 0 }):
+            assert_equal(walk!(Path("top")), .Ok([
+                Entry { path: Path("top/link"), kind: EntryKind.Symlink, size: 0 },
+                Entry { path: Path("top/real"), kind: EntryKind.Directory, size: 0 },
+                Entry { path: Path("top/real/f.txt"), kind: EntryKind.File, size: 1 },
+            ]), reason="the link is one entry")
+
+    it("walk! and list_dir! of . start at the root of a MemoryFs"):
+        let mut files = MemoryFs::new()
+        assert_equal(files.write_text!(Path("a.md"), "x"), .Ok(()), reason="seeded")
+        assert_equal(files.write_text!(Path("d/b.md"), "xy"), .Ok(()), reason="seeded")
+        $.with(FsRead=files):
+            assert_equal(names!(Path(".")), .Ok(["a.md", "d", "d/b.md"]), reason="paths are just names")
+            assert_equal(list_dir!(Path(".")).unwrap_or([]).len(), 2, reason="two entries at the root")
+            assert_equal(stat!(Path(".")), .Ok(.Some(Entry { path: Path("."), kind: EntryKind.Directory, size: 0 })), reason="the root is a directory")

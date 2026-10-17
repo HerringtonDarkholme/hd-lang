@@ -3242,3 +3242,6 @@ typing/invalid/top-level-refutable-let-without-else.hd	type	reject:refutable-let
 runtime/valid/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.exists
 runtime/valid/process-run-helper.hd	runtime	accept	std/process.md#r-std-process.helper.run
 runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.display
+runtime/valid/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
+runtime/valid/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
+runtime/valid/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error

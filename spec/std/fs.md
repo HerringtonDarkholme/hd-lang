@@ -8,6 +8,7 @@ over the language tier:
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` data that describes a file;
 - a free helper for each method of `FsRead` and `FsWrite`, and `exists!`;
+- `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
 
 Paths are [`Path`](path.md) values. Which provider a command binds is CLI
@@ -41,7 +42,7 @@ pub data Entry:
 
 1. r[std-fs.error.decl] `std.fs` declares `FsError`, `EntryKind`, and `Entry` as above. Code imports them, as in `use std.fs.{Entry, FsError}`.
 2. r[std-fs.error.one-enum] Every method of `FsRead` and `FsWrite` reports its failure as an `FsError`.
-3. r[std-fs.error.other] `Other` holds a failure that no other variant names, with the host's message.
+3. r[std-fs.error.other] `Other` holds a failure that no other variant names, with the host's message, or the message of a std call such as an invalid [glob](#walking-and-globbing) pattern.
 4. r[std-fs.error.traits] `FsError`, `EntryKind`, and `Entry` implement `Eq`, and `FsError` implements `Display`.
 5. r[std-fs.entry.size] An `Entry`'s `size` is the file's length in bytes.
 6. r[std-fs.error.not-granted] `NotGranted(path)` reports that the program's capability grant does not cover `path`, by [Partial Deny](../cli/command-line.md#partial-deny).
@@ -159,6 +160,67 @@ fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
 > hide as "missing". Rust's `Path::try_exists` returns `io::Result<bool>`
 > for the same reason, and Go's `os.Stat` keeps the error beside the answer.
 
+## Walking And Globbing
+
+```text
+use std.fs.{EntryKind, FsError, FsRead, glob, walk}
+use std.path.Path
+
+fn markdown!(root: Path) -> Result[List[Path], FsError] $ FsRead:
+    let found: mut List[Path] = []
+    for entry in walk!(root)?:
+        if entry.kind == EntryKind.File && entry.path.extension() == .Some("md"):
+            found.push(entry.path)
+    .Ok(found)
+
+fn markdown_again!() -> Result[List[Path], FsError] $ FsRead:
+    glob!("docs/**/*.md")
+```
+
+`walk!` lists a whole tree and `glob!` lists the paths that fit a
+pattern. Both read only through `list_dir!` and `stat!` of the covering
+`FsRead` provider.
+
+1. r[std-fs.walk.decl] `std.fs` declares `pub fn walk!(root: Path) -> Result[List[Entry], FsError] $ FsRead`.
+2. r[std-fs.walk.entries] `walk!` returns one `Entry` for every entry below `root`, at any depth, and none for `root` itself. Each `Entry` is the one `list_dir!` returns for it.
+3. r[std-fs.walk.order] The order is depth first: the entries of one directory come in the byte order of their path text, and a directory's entry comes directly before the entries under it.
+4. r[std-fs.walk.symlinks] A symlink is one entry, with the kind `Symlink`. `walk!` does not look into it.
+5. r[std-fs.walk.empty] A directory with no entries adds only its own entry, and an empty `root` gives an empty list.
+6. r[std-fs.walk.error] When a `list_dir!` call fails, `walk!` returns that call's `.Err` and no list. So a missing `root` is `NotFound(root)`, and a file as `root` is `NotADirectory(root)` on a provider that reports it.
+7. r[std-fs.glob.decl] `std.fs` declares `pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead`.
+8. r[std-fs.glob.components] `glob!` splits `pattern` at `/` into components and ignores empty ones. A pattern with no component matches nothing.
+9. r[std-fs.glob.star] Within a component, `*` matches any run of characters, the empty run included.
+10. r[std-fs.glob.one] `?` matches exactly one character.
+11. r[std-fs.glob.class] `[` starts a class that ends at the next `]` and matches one character: one of the listed characters, or one in a range `low-high`. A `!` right after `[` makes the class match any character it does not list. A `-` is a range only between two characters, and is a plain character first or last in the class.
+12. r[std-fs.glob.literal] Any other character matches itself, and there is no escape. To match `*`, `?`, or `[` itself, write it in a class, as in `[*]`.
+13. r[std-fs.glob.dot] `*`, `?`, and a class match a leading `.` of a name like any other character.
+14. r[std-fs.glob.deep] A component that is exactly `**` matches zero or more directories. The pieces `**` inside a longer component are two `*`.
+15. r[std-fs.glob.deep-last] A `**` as the last component matches every entry below the directory before it, at any depth, and not that directory itself.
+16. r[std-fs.glob.directories] A component before the last matches only a directory. The last component matches a file, a directory, or a symlink.
+17. r[std-fs.glob.symlinks] No component, `**` included, looks into a symlink.
+18. r[std-fs.glob.relative] A pattern that does not start with `/` is relative: `glob!` matches below the current directory, and its results do not start with `/`.
+19. r[std-fs.glob.absolute] A pattern that starts with `/` is absolute: `glob!` matches below `/`, and its results start with `/`.
+20. r[std-fs.glob.result] Each result is the matched components and entry names joined by `/`. The list is in the byte order of the path text, with no path twice.
+21. r[std-fs.glob.none] A pattern that matches nothing gives `.Ok([])`. A directory that is missing or is a file matches nothing, and is not an error.
+22. r[std-fs.glob.error] A pattern with an unclosed `[`, an empty class (`[]` or `[!]`), or a range whose low end is after its high end is `.Err(FsError.Other(message))`, where `message` is `invalid glob pattern PATTERN: REASON`. `REASON` is `unclosed [`, `empty class`, or `range LOW-HIGH runs backwards`.
+23. r[std-fs.glob.error.first] `glob!` checks every component before it reads the file system, so a bad pattern fails even when an earlier component matches nothing. A `list_dir!` or `stat!` failure ends `glob!` with that call's `.Err`.
+24. r[std-fs.glob.row] `walk!` and `glob!` have the row `FsRead`, and they are bang functions by [`std-fs.helper.suspends`](#r-std-fs.helper.suspends).
+
+> **Why.** The tree walk is the loop every file tool writes by hand, and
+> a pattern is how people name a set of files. Both build on `FsRead`, so
+> `MemoryFs` tests them with no host support. Go's `filepath.WalkDir`
+> and Rust's `walkdir` also visit a directory before its contents. A fixed
+> order makes the result the same on every host.
+>
+> **Why symlinks stay closed.** A symlink to a parent directory would make
+> a walk run forever. `walkdir` follows links only on request,
+> and Go's `WalkDir` never follows them. A program that wants links followed reads
+> the `Symlink` entry and walks its target.
+>
+> **Why `glob!` is relative to the current directory.** Python's `glob`
+> and the `glob` crate resolve a relative pattern the same way, and `!`
+> negates a class in both.
+
 ## Memory File System
 
 `MemoryFs` is the deterministic provider of `FsRead` and `FsWrite`. It
@@ -189,8 +251,9 @@ tests:
 5. r[std-fs.memory.create-dir-all] `create_dir_all!` records `path` and every directory above it, so each stays after the entries inside it are removed.
 6. r[std-fs.memory.entry] A file's `Entry` has the kind `File` and its length in bytes. A directory's has the kind `Directory` and the size 0. No entry is a `Symlink`.
 7. r[std-fs.memory.list-order] `list_dir!` returns the entries directly inside the directory, in the byte order of their path text. Each entry's path is the directory's path, `/`, and the entry's name.
-8. r[std-fs.memory.rename] `rename!` of a directory moves every entry under it as well.
-9. r[std-fs.memory.no-host] A `MemoryFs` never reads or changes the host's file system.
+8. r[std-fs.memory.current-dir] The path `.` names the root directory: it always exists, `stat!` returns a `Directory` entry for it, and `list_dir!(Path("."))` lists the entries whose keys have no `/`, each with a path that is just its name, as in `a.md`. So a relative pattern such as `glob!("*.md")` finds files written at the top.
+9. r[std-fs.memory.rename] `rename!` of a directory moves every entry under it as well.
+10. r[std-fs.memory.no-host] A `MemoryFs` never reads or changes the host's file system.
 
 Its failures are these, and it reports no other. Each error holds the
 path that fails, which for a rename is `to` unless `from` is missing:

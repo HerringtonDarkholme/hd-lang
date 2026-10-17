@@ -138,35 +138,26 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead:
     .Ok(())
 ```
 
-**3. Walk and glob.** Every tree walk repeats this recursion, and
+**3. Walk and glob.** Every tree walk repeated a hand recursion, and
 `Entry` has no modified time. `walk!` is the atom (Go's
 `filepath.WalkDir`), `glob!` the shortcut (Python's
 `glob.glob("tree/**/*.md", recursive=True)`); both are plain hd over
-`list_dir!`.
+`list_dir!` and `stat!` (added in #367).
 
 ```hd
-use std.fs.{FsRead, FsError, EntryKind, list_dir}
+use std.fs.{EntryKind, FsError, FsRead, walk}
 use std.path.Path
 
-fn walk!(dir: Path, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
-    for entry in list_dir!(dir)?:
-        match entry.kind:
-            .Directory => walk!(entry.path, found)?
-            .File => found.push(entry.path)
-            .Symlink => pass
-    .Ok(())
-
 pub fn main!() -> Result[void, FsError] $ Console + FsRead:
-    let files: mut List[Path] = []
-    walk!(Path("tree"), files)?
-    for file in files:
-        if file.extension() == .Some("md"):
-            println(file)
+    for entry in walk!(Path("tree"))?:
+        if entry.kind == EntryKind.File && entry.path.extension() == .Some("md"):
+            println(entry.path)
     .Ok(())
 ```
 
 ```hd
-# proposed
+use std.fs.{FsError, FsRead, glob}
+
 pub fn main!() -> Result[void, FsError] $ Console + FsRead:
     for file in glob!("tree/**/*.md")?:
         println(file)

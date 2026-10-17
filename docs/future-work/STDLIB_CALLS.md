@@ -736,7 +736,16 @@ its own issue.
   `rename!` and `write_bytes!` also got helpers.
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
   `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
-- **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`.
+- **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`. Applied
+  in #367: `walk!` returns `List[Entry]` depth first, each directory in path
+  order, directories before their contents, symlinks reported and not
+  followed; `glob!` takes `*`, `?`, `[...]` (with `!` to negate) and `**`,
+  returns sorted paths, and is relative to the current directory unless
+  absolute. A bad pattern is `FsError.Other(message)` ("invalid glob
+  pattern ..."): no `FsError` variant fits a pattern error, and a variant
+  would change the host ABI codec, so the existing catch-all carries it.
+  `MemoryFs` treats `.` as its root (`std-fs.memory.current-dir`), so a
+  relative pattern such as `glob!("*.md")` works on it as on the real host.
 - **Collection and text atoms.** `Set` from `collect()`, `Map.entries()`,
   `max_by_key`/`min_by_key`, `dedup`, `most_common`, `rfind`, `splitn`.
 - **Concurrency helpers.** `std.task.timeout!`, `map_all!` with a
