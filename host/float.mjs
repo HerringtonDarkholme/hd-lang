@@ -130,11 +130,28 @@ export function shortest(value, width) {
   if (value !== value) return "NaN";
   if (value === Infinity) return "inf";
   if (value === -Infinity) return "-inf";
-  const parts = split(value, width);
-  const sign = parts.negative ? "-" : "";
-  if (parts.f === 0n) return `${sign}0.0`;
-  const { digits: ds, k } = digits(parts);
-  const exponent = k - 1;
+  const negative = value < 0 || Object.is(value, -0);
+  const sign = negative ? "-" : "";
+  if (value === 0) return `${sign}0.0`;
+  if (width === 64) {
+    // `toExponential()` with no argument writes the shortest digits that
+    // read back as the same `f64`, closest to the value, an exact tie going
+    // to the even digit: `d.ddde+N`.
+    const text = Math.abs(value).toExponential();
+    const e = text.indexOf("e");
+    const mantissa = text.slice(0, e);
+    const ds = mantissa.length > 1 ? mantissa[0] + mantissa.slice(2) : mantissa;
+    const exponent = Number(text.slice(e + 1));
+    return layout(sign, ds, exponent);
+  }
+  const { digits: ds, k } = digits(split(value, width));
+  return layout(sign, ds, k - 1);
+}
+
+// The Display text of the digits `ds` with the decimal exponent `exponent`
+// of the first digit: fixed notation for an exponent in [-6, 21), lowercase
+// scientific notation otherwise.
+function layout(sign, ds, exponent) {
   if (exponent >= -6 && exponent < 21) {
     if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
     const whole =
@@ -172,24 +189,29 @@ export function fixed(value, places) {
 // but not both), then an optional exponent.
 const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/;
 
-function bitLength(n) {
-  return n === 0n ? 0 : n.toString(2).length;
-}
-
 // The `f64` nearest the unsigned decimal number `text`, a tie going to the
 // even significand: positive infinity past the range and `0.0` below it
 // (the `parse_f64` primitive, spec/std/README.md#standard-library-
-// primitives). The value is the exact rational `digits * 10^exponent`, so
-// the result owes nothing to `Number` or `parseFloat`, which may round
-// after the twentieth digit. Text outside the grammar is a bug in std.
+// primitives). `Number` rounds correctly up to twenty significant digits
+// (ECMA-262, StringToNumber); past that the exact rational is rounded
+// by `parseExact`. Text outside the grammar is a bug in std.
 export function parse(text) {
   const m = DECIMAL.exec(text);
   if (m === null) throw new Error(`parse_f64: text outside the grammar: ${text}`);
   const whole = m[1] ?? "";
   const fraction = m[2] ?? m[3] ?? "";
-  const digits = (whole + fraction).replace(/^0+/, "");
-  if (digits === "") return 0;
-  const exponent = BigInt(m[4] ?? "0") - BigInt(fraction.length);
+  const significant = (whole + fraction).replace(/^0+/, "");
+  if (significant.length <= 20) return Number(text);
+  return parseExact(significant, BigInt(m[4] ?? "0") - BigInt(fraction.length));
+}
+
+function bitLength(n) {
+  return n === 0n ? 0 : n.toString(2).length;
+}
+
+// The value `digits * 10^exponent` (digits non-empty, no leading zero) as
+// the nearest `f64`, computed on the exact rational.
+function parseExact(digits, exponent) {
   // The value is in [10^(n-1+exponent), 10^(n+exponent)).
   const magnitude = BigInt(digits.length) + exponent;
   if (magnitude > 310n) return Infinity;

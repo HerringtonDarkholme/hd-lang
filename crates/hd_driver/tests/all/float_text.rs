@@ -611,6 +611,189 @@ fn parse_matches_rust() {
     }
 }
 
+/// Runs the host's `float.mjs` and the exact reference `float_exact.mjs`
+/// (the `BigInt` printer and parser the host used before it took the
+/// engine's native ones) side by side on one request per line (`s32 BITS`,
+/// `s64 BITS`, `parse TEXT`) and returns the requests where they differ.
+fn reference_mismatches(requests: &[String]) -> Vec<String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let host = hd_run::canonicalize(dir.join("../../host/float.mjs")).expect("float.mjs");
+    let exact = hd_run::canonicalize(dir.join("tests/all/float_exact.mjs")).expect("float_exact");
+    let script = r#"const host = await import(process.argv[1]);
+const exact = await import(process.argv[2]);
+import { readFileSync } from "node:fs";
+const view = new DataView(new ArrayBuffer(8));
+const bits = (x) => { view.setFloat64(0, x); return view.getBigUint64(0); };
+const bad = [];
+for (const line of readFileSync(0, "utf8").split("\n")) {
+  if (!line) continue;
+  const [kind, arg] = line.split(" ");
+  let a;
+  let b;
+  if (kind === "parse") {
+    a = bits(host.parse(arg));
+    b = bits(exact.parse(arg));
+  } else if (kind === "s32") {
+    view.setUint32(0, Number("0x" + arg));
+    const x = view.getFloat32(0);
+    a = host.shortest(x, 32);
+    b = exact.shortest(x, 32);
+  } else {
+    view.setBigUint64(0, BigInt("0x" + arg));
+    const x = view.getFloat64(0);
+    a = host.shortest(x, 64);
+    b = exact.shortest(x, 64);
+  }
+  if (a !== b) bad.push(`${line}: host ${a}, reference ${b}`);
+}
+process.stdout.write(bad.join("\n") + "\n");
+"#;
+    let mut child = Command::new("node")
+        .args(["--input-type=module", "-e", script])
+        .arg(&host)
+        .arg(&exact)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("node");
+    let input = requests.join("\n") + "\n";
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(input.as_bytes())
+        .expect("write requests");
+    let out = child.wait_with_output().expect("node output");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout)
+        .expect("utf8")
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The float text the hosts take from the engine's own printing and
+/// parsing equals the exact `BigInt` reference on every sample: random bit
+/// patterns of every class, powers of two and their neighbors, binary
+/// fractions where a value sits exactly halfway between two shortest
+/// strings, short decimals, random and halfway decimal texts, long
+/// mantissas and the conformance float values.
+#[test]
+fn native_float_text_equals_the_exact_reference() {
+    let mut rng = Rng(0x0123_4567_89ab_cdef);
+    let mut requests: Vec<String> = Vec::new();
+    for x in edge_f64() {
+        requests.push(format!("s64 {:x}", x.to_bits()));
+    }
+    for x in edge_f32() {
+        requests.push(format!("s32 {:x}", x.to_bits()));
+    }
+    for _ in 0..100_000 {
+        requests.push(format!("s64 {:x}", rng.next()));
+        requests.push(format!("s32 {:x}", rng.next() >> 32));
+    }
+    // Binary fractions at every magnitude: exact ties between shortest
+    // strings happen here.
+    for _ in 0..100_000 {
+        let bits = 1 + rng.next() % 52;
+        let whole = (rng.next() % (1u64 << bits))
+            .to_string()
+            .parse::<f64>()
+            .expect("a number");
+        let places = rng.next() % 9;
+        let odd = f64::from(u32::try_from(rng.next() % (1 << places)).expect("small"));
+        let x = whole + odd / f64::from(1u32 << places);
+        requests.push(format!("s64 {:x}", x.to_bits()));
+        requests.push(format!("s64 {:x}", (-x).to_bits()));
+    }
+    // Short decimals and integers, where the digits stop early.
+    for _ in 0..50_000 {
+        let n = i32::try_from(rng.next() % 2_000_000).expect("small") - 1_000_000;
+        let x = f64::from(n) / 10f64.powi(i32::try_from(rng.next() % 9).expect("small"));
+        requests.push(format!("s64 {:x}", x.to_bits()));
+        let y = format!("{n}e-{}", rng.next() % 9)
+            .parse::<f32>()
+            .expect("a decimal");
+        requests.push(format!("s32 {:x}", y.to_bits()));
+    }
+    // Decimal texts of 1 to 40 digits, with a point and an exponent, and
+    // the shortest and long texts of random doubles.
+    for _ in 0..150_000 {
+        let n = 1 + usize::try_from(rng.next() % 40).expect("small");
+        let digits: String = (0..n)
+            .map(|_| char::from(b'0' + u8::try_from(rng.next() % 10).expect("digit")))
+            .collect();
+        let point =
+            usize::try_from(rng.next() % u64::try_from(n + 1).expect("small")).expect("small");
+        let exponent = i32::try_from(rng.next() % 700).expect("small") - 350;
+        requests.push(format!(
+            "parse {}.{}e{exponent}",
+            &digits[..point],
+            &digits[point..]
+        ));
+        requests.push(format!("parse {digits}"));
+    }
+    for _ in 0..50_000 {
+        let x = f64::from_bits(rng.next() & 0x7fff_ffff_ffff_ffff);
+        if x.is_finite() {
+            requests.push(format!("parse {x:e}"));
+            requests.push(format!("parse {x:.30e}"));
+        }
+    }
+    // Exact ties between two doubles, and just past them.
+    for _ in 0..30_000 {
+        let n = (1u128 << 53) | u128::from(rng.next() >> 11) | 1;
+        let j = u32::try_from(rng.next() % 30).expect("small");
+        let scaled = (n * 5u128.pow(j)).to_string();
+        let split = scaled.len() - j as usize;
+        let tie = format!("{}.{}", &scaled[..split], &scaled[split..]);
+        requests.push(format!("parse {tie}"));
+        requests.push(format!("parse {tie}0000000000000000000000001"));
+        requests.push(format!("parse {}", tie.trim_end_matches('.')));
+    }
+    // Twenty and twenty-one digit boundaries, and the extremes.
+    for text in [
+        "0",
+        "0.0",
+        ".5",
+        "5.",
+        "1e400",
+        "1e-400",
+        "0e99999999999999999999",
+        "1e99999999999999999999",
+        "12345678901234567890",
+        "123456789012345678901",
+        "9007199254740993",
+        "9007199254740992.5",
+        "2.2250738585072014e-308",
+        "2.2250738585072011e-308",
+        "4.9406564584124654e-324",
+        "2.4703282292062327e-324",
+        "2.4703282292062328e-324",
+        "1.7976931348623157e308",
+        "1.7976931348623158e308",
+        "1.7976931348623159e308",
+        "00000000000000000000000000001",
+        "0.00000000000000000001",
+    ] {
+        requests.push(format!("parse {text}"));
+    }
+    let bad = reference_mismatches(&requests);
+    assert!(
+        bad.is_empty(),
+        "{} of {} differ, first: {:?}",
+        bad.len(),
+        requests.len(),
+        &bad[..bad.len().min(10)]
+    );
+}
+
 /// The UTF-8 bytes of `text` in hex.
 fn hex(text: &str) -> String {
     use std::fmt::Write as _;

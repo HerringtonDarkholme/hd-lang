@@ -143,6 +143,7 @@ impl Big {
     }
 
     /// `self - other`, with `self >= other`.
+    #[cfg(test)]
     fn sub_assign(&mut self, other: &Big) {
         let mut borrow = 0i64;
         for i in 0..self.0.len() {
@@ -202,15 +203,12 @@ fn low32(v: u64) -> u32 {
     u32::try_from(v & 0xffff_ffff).unwrap_or(0)
 }
 
-/// A finite float's parts: its sign, its significand `f` (an integer),
-/// its exponent `e` (the value is `f * 2^e`), the smallest exponent `min`
-/// of its width, which the subnormals share, and the hidden bit.
+/// A finite float's parts: its sign, its significand `f` (an integer) and
+/// its exponent `e` (the value is `f * 2^e`).
 struct Parts {
     negative: bool,
     f: u64,
     e: i32,
-    min: i32,
-    hidden: u64,
 }
 
 fn split(raw: u64, mantissa: u32, exp_bits: u32, bias: i32) -> Parts {
@@ -218,146 +216,41 @@ fn split(raw: u64, mantissa: u32, exp_bits: u32, bias: i32) -> Parts {
     let biased = i32::try_from((raw >> mantissa) & ((1u64 << exp_bits) - 1)).unwrap_or(0);
     let negative = (raw >> (mantissa + exp_bits)) != 0;
     let mantissa_i = i32::try_from(mantissa).unwrap_or(0);
-    let min = 1 - bias - mantissa_i;
-    let hidden = 1u64 << mantissa;
     if biased == 0 {
         Parts {
             negative,
             f: fraction,
-            e: min,
-            min,
-            hidden,
+            e: 1 - bias - mantissa_i,
         }
     } else {
         Parts {
             negative,
-            f: fraction | hidden,
+            f: fraction | (1u64 << mantissa),
             e: biased - bias - mantissa_i,
-            min,
-            hidden,
         }
-    }
-}
-
-/// The shortest digits that read back as `f * 2^e`, and `k`, with the
-/// value near `0.DIGITS * 10^k` (float.mjs `digits`).
-fn digits(p: &Parts) -> (String, i32) {
-    let Parts {
-        f, e, min, hidden, ..
-    } = *p;
-    let narrow = f == hidden && e != min;
-    let fb = Big::from_u64(f);
-    let (mut r, mut s, mut up, mut down);
-    if e >= 0 {
-        let scale = Big::from_u64(1).shl(e.unsigned_abs());
-        if narrow {
-            r = fb.shl(e.unsigned_abs() + 2);
-            s = Big::from_u64(4);
-            up = scale.shl(1);
-            down = scale;
-        } else {
-            r = fb.shl(e.unsigned_abs() + 1);
-            s = Big::from_u64(2);
-            up = scale.clone();
-            down = scale;
-        }
-    } else if narrow {
-        r = fb.shl(2);
-        s = Big::from_u64(1).shl(e.unsigned_abs() + 2);
-        up = Big::from_u64(2);
-        down = Big::from_u64(1);
-    } else {
-        r = fb.shl(1);
-        s = Big::from_u64(1).shl(e.unsigned_abs() + 1);
-        up = Big::from_u64(1);
-        down = Big::from_u64(1);
-    }
-    let closed = f & 1 == 0;
-    let reaches = |r: &Big, up: &Big, s: &Big| {
-        let o = r.add(up).cmp(s);
-        if closed {
-            o != Ordering::Less
-        } else {
-            o == Ordering::Greater
-        }
-    };
-    let fits = |r: &Big, up: &Big, s: &Big| {
-        let mut t = r.add(up);
-        t.mul_small(10);
-        let o = t.cmp(s);
-        if closed {
-            o == Ordering::Less
-        } else {
-            o != Ordering::Greater
-        }
-    };
-    // A first estimate of `k`: the value is below `2^(e + bits)`, and
-    // 78913 / 2^18 is just under log10(2). The loops below correct it.
-    let bits = 64 - i32::try_from(f.leading_zeros()).unwrap_or(0);
-    let mut k = ((e + bits) * 78_913).div_euclid(1 << 18);
-    if k >= 0 {
-        s.mul_pow10(k.unsigned_abs());
-    } else {
-        r.mul_pow10(k.unsigned_abs());
-        up.mul_pow10(k.unsigned_abs());
-        down.mul_pow10(k.unsigned_abs());
-    }
-    while reaches(&r, &up, &s) {
-        s.mul_small(10);
-        k += 1;
-    }
-    while fits(&r, &up, &s) {
-        r.mul_small(10);
-        up.mul_small(10);
-        down.mul_small(10);
-        k -= 1;
-    }
-    let mut out = String::new();
-    loop {
-        r.mul_small(10);
-        up.mul_small(10);
-        down.mul_small(10);
-        let mut d = 0u8;
-        while r.cmp(&s) != Ordering::Less {
-            r.sub_assign(&s);
-            d += 1;
-        }
-        let low = match r.cmp(&down) {
-            Ordering::Less => true,
-            Ordering::Equal => closed,
-            Ordering::Greater => false,
-        };
-        let high = reaches(&r, &up, &s);
-        if !low && !high {
-            out.push(char::from(b'0' + d));
-            continue;
-        }
-        if low && high {
-            let twice = r.shl(1);
-            match twice.cmp(&s) {
-                Ordering::Greater => d += 1,
-                Ordering::Equal if d & 1 == 1 => d += 1,
-                _ => {}
-            }
-        } else if high {
-            d += 1;
-        }
-        out.push(char::from(b'0' + d));
-        return (out, k);
     }
 }
 
 /// The Display text of an `f64`.
 #[must_use]
 pub fn shortest_f64(value: f64) -> String {
-    special(value).unwrap_or_else(|| shortest(&split(value.to_bits(), 52, 11, 1023)))
+    if let Some(text) = special(value) {
+        return text;
+    }
+    let parts = split(value.to_bits(), 52, 11, 1023);
+    let a = value.abs();
+    native(&parts, &format!("{a:e}"), |s| s.parse::<f64>() == Ok(a))
 }
 
 /// The Display text of an `f32`, with its own `f32` digits.
 #[must_use]
 pub fn shortest_f32(value: f32) -> String {
-    special(f64::from(value))
-        .unwrap_or_else(|| shortest(&split(u64::from(value.to_bits()), 23, 8, 127)))
+    if let Some(text) = special(f64::from(value)) {
+        return text;
+    }
+    let parts = split(u64::from(value.to_bits()), 23, 8, 127);
+    let a = value.abs();
+    native(&parts, &format!("{a:e}"), |s| s.parse::<f32>() == Ok(a))
 }
 
 /// The text of a NaN or an infinity.
@@ -371,13 +264,51 @@ fn special(value: f64) -> Option<String> {
     }
 }
 
-/// The Display text of a finite float.
-fn shortest(parts: &Parts) -> String {
+/// The Display text of a finite float from Rust's own shortest printing
+/// (`text_e`, the `{:e}` text of its magnitude), which is the shortest
+/// digits that read back, closest to the value. Where the value is
+/// exactly halfway between the two closest shortest strings Rust takes
+/// the larger; Display takes the one with an even last digit, unless that
+/// one does not read back (`reads_back`).
+fn native(parts: &Parts, text_e: &str, reads_back: impl Fn(&str) -> bool) -> String {
     let sign = if parts.negative { "-" } else { "" };
     if parts.f == 0 {
         return format!("{sign}0.0");
     }
-    let (ds, k) = digits(parts);
+    let (mantissa, exponent) = text_e.split_once('e').unwrap_or((text_e, "0"));
+    let exponent: i32 = exponent.parse().unwrap_or(0);
+    let mut ds: Vec<u8> = mantissa.bytes().filter(u8::is_ascii_digit).collect();
+    if ds.last().is_some_and(|d| d % 2 == 1) && halfway(parts, ds.len()) {
+        let last = ds.len() - 1;
+        ds[last] -= 1;
+        let places = exponent - i32::try_from(last).unwrap_or(0);
+        let lower = format!("{}e{places}", String::from_utf8_lossy(&ds));
+        if !reads_back(&lower) {
+            ds[last] += 1;
+        }
+    }
+    layout(sign, &String::from_utf8_lossy(&ds), exponent + 1)
+}
+
+/// Whether the exact value of `parts` has `n + 1` significant digits, the
+/// last a 5: then it is halfway between two `n`-digit strings. A value
+/// `f * 2^e` with `e < 0` and `f` odd has exactly `-e` fractional digits,
+/// and as many as `f * 5^-e` has digits; past 25 of them the expansion is
+/// longer than any shortest text, so no tie is possible there.
+fn halfway(parts: &Parts, n: usize) -> bool {
+    let shift = parts.f.trailing_zeros();
+    let places = -i64::from(parts.e) - i64::from(shift);
+    if places <= 0 || places > 25 {
+        return false;
+    }
+    let exact = u128::from(parts.f >> shift) * 5u128.pow(u32::try_from(places).unwrap_or(0));
+    usize::try_from(exact.ilog10()).unwrap_or(0) == n
+}
+
+/// The Display text of the digits `ds` whose first digit has the decimal
+/// exponent `k - 1`: fixed notation for an exponent in [-6, 21),
+/// lowercase scientific notation otherwise.
+fn layout(sign: &str, ds: &str, k: i32) -> String {
     let exponent = k - 1;
     if (-6..21).contains(&exponent) {
         if exponent < 0 {
@@ -396,7 +327,7 @@ fn shortest(parts: &Parts) -> String {
     let mantissa = if ds.len() > 1 {
         format!("{}.{}", &ds[..1], &ds[1..])
     } else {
-        ds
+        ds.to_owned()
     };
     format!(
         "{sign}{mantissa}e{}{}",
@@ -502,7 +433,252 @@ pub fn upper(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Big, fixed, parse, shortest_f32, shortest_f64};
+    use super::{Big, Parts, fixed, layout, parse, shortest_f32, shortest_f64, special, split};
+    use std::cmp::Ordering;
+
+    /// The shortest digits that read back as `f * 2^e`, and `k`, with the
+    /// value near `0.DIGITS * 10^k` (the reference the native printing is held to).
+    fn digits(p: &Parts, mantissa: u32, min: i32) -> (String, i32) {
+        let Parts { f, e, .. } = *p;
+        let hidden = 1u64 << mantissa;
+        let narrow = f == hidden && e != min;
+        let fb = Big::from_u64(f);
+        let (mut r, mut s, mut up, mut down);
+        if e >= 0 {
+            let scale = Big::from_u64(1).shl(e.unsigned_abs());
+            if narrow {
+                r = fb.shl(e.unsigned_abs() + 2);
+                s = Big::from_u64(4);
+                up = scale.shl(1);
+                down = scale;
+            } else {
+                r = fb.shl(e.unsigned_abs() + 1);
+                s = Big::from_u64(2);
+                up = scale.clone();
+                down = scale;
+            }
+        } else if narrow {
+            r = fb.shl(2);
+            s = Big::from_u64(1).shl(e.unsigned_abs() + 2);
+            up = Big::from_u64(2);
+            down = Big::from_u64(1);
+        } else {
+            r = fb.shl(1);
+            s = Big::from_u64(1).shl(e.unsigned_abs() + 1);
+            up = Big::from_u64(1);
+            down = Big::from_u64(1);
+        }
+        let closed = f & 1 == 0;
+        let reaches = |r: &Big, up: &Big, s: &Big| {
+            let o = r.add(up).cmp(s);
+            if closed {
+                o != Ordering::Less
+            } else {
+                o == Ordering::Greater
+            }
+        };
+        let fits = |r: &Big, up: &Big, s: &Big| {
+            let mut t = r.add(up);
+            t.mul_small(10);
+            let o = t.cmp(s);
+            if closed {
+                o == Ordering::Less
+            } else {
+                o != Ordering::Greater
+            }
+        };
+        // A first estimate of `k`: the value is below `2^(e + bits)`, and
+        // 78913 / 2^18 is just under log10(2). The loops below correct it.
+        let bits = 64 - i32::try_from(f.leading_zeros()).unwrap_or(0);
+        let mut k = ((e + bits) * 78_913).div_euclid(1 << 18);
+        if k >= 0 {
+            s.mul_pow10(k.unsigned_abs());
+        } else {
+            r.mul_pow10(k.unsigned_abs());
+            up.mul_pow10(k.unsigned_abs());
+            down.mul_pow10(k.unsigned_abs());
+        }
+        while reaches(&r, &up, &s) {
+            s.mul_small(10);
+            k += 1;
+        }
+        while fits(&r, &up, &s) {
+            r.mul_small(10);
+            up.mul_small(10);
+            down.mul_small(10);
+            k -= 1;
+        }
+        let mut out = String::new();
+        loop {
+            r.mul_small(10);
+            up.mul_small(10);
+            down.mul_small(10);
+            let mut d = 0u8;
+            while r.cmp(&s) != Ordering::Less {
+                r.sub_assign(&s);
+                d += 1;
+            }
+            let low = match r.cmp(&down) {
+                Ordering::Less => true,
+                Ordering::Equal => closed,
+                Ordering::Greater => false,
+            };
+            let high = reaches(&r, &up, &s);
+            if !low && !high {
+                out.push(char::from(b'0' + d));
+                continue;
+            }
+            if low && high {
+                let twice = r.shl(1);
+                match twice.cmp(&s) {
+                    Ordering::Greater => d += 1,
+                    Ordering::Equal if d & 1 == 1 => d += 1,
+                    _ => {}
+                }
+            } else if high {
+                d += 1;
+            }
+            out.push(char::from(b'0' + d));
+            return (out, k);
+        }
+    }
+
+    /// The Display text by Steele and White free-format printing on exact
+    /// integers, which the native printing replaced.
+    fn reference(parts: &Parts, mantissa: u32, min: i32) -> String {
+        let sign = if parts.negative { "-" } else { "" };
+        if parts.f == 0 {
+            return format!("{sign}0.0");
+        }
+        let (ds, k) = digits(parts, mantissa, min);
+        layout(sign, &ds, k)
+    }
+
+    fn reference_f64(value: f64) -> String {
+        special(value)
+            .unwrap_or_else(|| reference(&split(value.to_bits(), 52, 11, 1023), 52, -1074))
+    }
+
+    fn reference_f32(value: f32) -> String {
+        special(f64::from(value))
+            .unwrap_or_else(|| reference(&split(u64::from(value.to_bits()), 23, 8, 127), 23, -149))
+    }
+
+    fn exact(n: u64) -> f64 {
+        n.to_string().parse().unwrap_or(0.0)
+    }
+
+    /// A xorshift generator, so the samples are the same on every run.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+    }
+
+    #[test]
+    fn native_printing_matches_the_exact_reference_f64() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut values = vec![
+            0.0,
+            -0.0,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+            f64::from_bits(0x000f_ffff_ffff_ffff),
+            f64::EPSILON,
+        ];
+        for e in -1074..=1023 {
+            let p = 2f64.powi(e);
+            if p > 0.0 {
+                values.extend([p, -p, f64::from_bits(p.to_bits() + 1)]);
+                if p.to_bits() > 1 {
+                    values.push(f64::from_bits(p.to_bits() - 1));
+                }
+            }
+        }
+        values.extend((0..200_000).map(|_| f64::from_bits(rng.next())));
+        // Short decimals and integers, where the digits stop early.
+        values.extend((0..20_000).map(|_| {
+            let n = i32::try_from(rng.next() % 2_000_000).unwrap_or(0) - 1_000_000;
+            f64::from(n) / 10f64.powi(i32::try_from(rng.next() % 9).unwrap_or(0))
+        }));
+        // Exact binary fractions at every magnitude, where the value can
+        // sit exactly halfway between two shortest strings.
+        values.extend((0..200_000).map(|_| {
+            let whole = rng.next() % (1u64 << (1 + rng.next() % 52));
+            let places = rng.next() % 8;
+            let odd = u32::try_from(rng.next() % (1 << places)).unwrap_or(0);
+            exact(whole) + f64::from(odd) / f64::from(1u32 << places)
+        }));
+        for x in values {
+            assert_eq!(shortest_f64(x), reference_f64(x), "bits {:x}", x.to_bits());
+        }
+    }
+
+    #[test]
+    fn native_printing_matches_the_exact_reference_f32() {
+        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        let mut values = vec![
+            0.0,
+            -0.0,
+            f32::NAN,
+            f32::INFINITY,
+            f32::MAX,
+            f32::MIN_POSITIVE,
+        ];
+        for e in -149..=127 {
+            let p = 2f32.powi(e);
+            if p > 0.0 {
+                values.extend([p, -p, f32::from_bits(p.to_bits() + 1)]);
+                if p.to_bits() > 1 {
+                    values.push(f32::from_bits(p.to_bits() - 1));
+                }
+            }
+        }
+        values.extend(
+            (0..200_000).map(|_| f32::from_bits(u32::try_from(rng.next() >> 32).unwrap_or(0))),
+        );
+        values.extend((0..200_000).map(|_| {
+            let whole = rng.next() % (1u64 << (1 + rng.next() % 24));
+            let places = rng.next() % 8;
+            let odd = u32::try_from(rng.next() % (1 << places)).unwrap_or(0);
+            format!(
+                "{}",
+                exact(whole) + f64::from(odd) / f64::from(1u32 << places)
+            )
+            .parse()
+            .unwrap_or(0.0)
+        }));
+        for x in values {
+            assert_eq!(shortest_f32(x), reference_f32(x), "bits {:x}", x.to_bits());
+        }
+    }
+
+    fn exact_text(text: &str) -> f64 {
+        text.parse().unwrap_or(0.0)
+    }
+
+    #[test]
+    fn halfway_values_take_the_even_digit() {
+        // 123456789012345.125 is exactly between 123456789012345.12 and
+        // 123456789012345.13, both of which read back.
+        assert_eq!(
+            shortest_f64(exact_text("123456789012345.125")),
+            "123456789012345.12"
+        );
+        assert_eq!(
+            shortest_f64(exact_text("123456789012345.375")),
+            "123456789012345.38"
+        );
+    }
 
     #[test]
     fn big_arithmetic() {
