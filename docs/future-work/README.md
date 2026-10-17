@@ -22,9 +22,6 @@ action at a distance.
   Rust-model design for #163: `own` at the use site, `^` borrows, lifetimes
   named by variables, `DropOwn`. Fully decided by the owner (2026-10-17);
   not yet in the spec.
-- [Unified Deserialize Stress Test](UNIFIED_DESERIALIZE_STRESS_TEST.md): one
-  `Deserialize` model for CLI, env, JSON, HTTP, TOML/YAML and SQL rows,
-  tried on 23 cases; 14 ranked questions for the owner.
 - [Ownership Prototype Plan](OWNERSHIP_PROTOTYPE.md): 23 hour-sized
   slices to prototype the design behind an opt-in.
 - [Ownership Adversarial Review](OWNERSHIP_STRESS_TEST.md): twelve cases
@@ -49,9 +46,6 @@ action at a distance.
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
   owner did not make explicitly, kept for the stdlib audit.
-- [Outcomes And Exit Status](OUTCOMES_AND_EXIT_STATUS.md): whether
-  `send!` and `run!` fail a non-success outcome by default, and how an
-  error chooses the process exit status (#350).
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).

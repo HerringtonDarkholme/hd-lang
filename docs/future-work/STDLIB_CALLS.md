@@ -712,8 +712,8 @@ method to the same two files.
 
 ## Stdlib audit calls (2026-10-17, #350)
 
-From [the common-tasks audit](../audit/stdlib-audit-2026-10-17.md) and
-[the implementation review](../audit/stdlib-impl-review-2026-10-17.md).
+From the common-tasks audit (`git show 2816e1f48:docs/audit/stdlib-audit-2026-10-17.md`) and
+the implementation review (`git show 2816e1f48:docs/audit/stdlib-impl-review-2026-10-17.md`).
 Each call below is a std change in plain hd, with its spec text, and has
 its own issue.
 

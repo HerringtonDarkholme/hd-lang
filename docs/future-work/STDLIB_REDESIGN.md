@@ -2431,3 +2431,30 @@ the count falls.
 4. **The cross-module fixes.** Apply items 2 to 5 of the pass above,
    which touch the I/O and data proposals. Recommendation: apply all; each
    removes an exception to a rule the other groups already follow.
+
+## Decisions From The Follow-Up Studies
+
+Two studies settled questions this redesign left open; the studies
+themselves are in git history (`git show 2816e1f48:docs/future-work/OUTCOMES_AND_EXIT_STATUS.md`
+and `git show 2816e1f48:docs/future-work/UNIFIED_DESERIALIZE_STRESS_TEST.md`).
+
+**Non-success outcomes and exit status.** (1) A5: `send!` fails for status 400 to 599 and `run!` for any non-zero exit, the error carries the whole response or output, and a builder setter (placeholder name `ok_status`) accepts an expected status. (2) B1: `Error` gains `exit_code()` with default 1 and `Termination` reads it; `CliError.Help` reports 0 on stdout, every other `CliError` 2. (3) An error may choose exit status 0, with the test-runner guard: a test whose result holds `.Err` fails. (4) std adds `impl Error for string`.
+
+**One data model or several.** Not fully unified: a hybrid. `Deserialize` (and `Serialize`) serve the document formats (JSON, YAML, TOML, HTTP payloads, SQL rows, binary formats); the command line and environment keep their own derives, `Cli` and `EnvConfig`; `Validate` is its own derive. Each concern is configured in its own derivation block, `impl Cli for T by Structure: field = [facts]` (UD8). UD1 to UD5 are therefore moot. Answers to the rest:
+- UD6: a shared `rename` / `rename_all` in the `Deserialize`/`Serialize` block, read by every document format (a format may override in its own block); `Cli` and `EnvConfig` never read it.
+- UD7: an untagged fact; the derived template buffers the value once and tries each variant in order.
+- UD9: checked readers: an entry that requires `T < Deserialize & Validate` and validates while reading, so validation cannot be forgotten on that path.
+- UD10: a std helper (`read_parsed`) for the three-line `impl Deserialize` of a `Parse` leaf.
+- UD11: `ValidationError` carries a member path that each reader maps to its own name (`$.port`, `--port`, `APP_PORT`).
+- UD12: `flatten` and `rest` facts.
+- UD13: a bytes kind in `Serializer`/`Deserializer`; JSON writes base64.
+- UD14: scalar-form facts in a format's block (e.g. unix seconds), newtypes otherwise.
+- UD6: a shared `rename` / `rename_all` in the `Deserialize`/`Serialize` block, read by every document format (a format may override in its own block); `Cli` and `EnvConfig` never read it.
+- UD7: an untagged fact; the derived template buffers the value once and tries each variant in order.
+- UD9: checked readers: an entry that requires `T < Deserialize & Validate` and validates while reading, so validation cannot be forgotten on that path.
+- UD10: a std helper (`read_parsed`) for the three-line `impl Deserialize` of a `Parse` leaf.
+- UD11: `ValidationError` carries a member path that each reader maps to its own name (`$.port`, `--port`, `APP_PORT`).
+- UD12: `flatten` and `rest` facts.
+- UD13: a bytes kind in `Serializer`/`Deserializer`; JSON writes base64.
+- UD14: scalar-form facts in a format's block (e.g. unix seconds), newtypes otherwise.
+
