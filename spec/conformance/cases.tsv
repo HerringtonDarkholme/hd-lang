@@ -211,6 +211,7 @@ typing/warnings/unreachable-code.hd	type	warn:unreachable-code	lang/06-control-f
 typing/warnings/unused-local-binding.hd	type	warn:unused-local-binding	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
+runtime/valid/ownership/plain-copy-aliases.hd	runtime	accept	lang/13-ownership.md#r-own.mode.plain
 typing/valid/annotations.hd	type	accept	lang/14-annotations.md#member-metadata
 typing/valid/data-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators
 typing/valid/embedded-field-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators

@@ -37,6 +37,7 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
   ["10-modules", "Modules"],
   ["11-requirements-and-suspension", "Requirements and Suspension"],
   ["12-variadic-generics", "Variadic Generics"],
+  ["13-ownership", "Ownership and Borrows"],
   ["14-annotations", "Annotations"],
 ];
 

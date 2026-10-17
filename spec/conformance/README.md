@@ -38,6 +38,9 @@ outside `spec/` to run the suite.
 - `runtime/panic`: must parse and type-check, then panic with the category in
   an inline `# panic: CODE` comment on the triggering source line.
 
+An area may group its fixtures one level deeper, as
+`parse/valid/ownership/` holds the ownership cases of each phase directory.
+
 The directory is informative. A case's phase and expectation come from
 `cases.tsv`, and the two must agree.
 

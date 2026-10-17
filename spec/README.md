@@ -23,6 +23,7 @@ versioned subsets.
 | [Modules](lang/10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](lang/11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](lang/12-variadic-generics.md) | none: hd has no packs; where arity-generic code lives instead |
+| [Ownership and Borrows](lang/13-ownership.md) | modes: plain, owned, and borrowed values |
 | [Annotations](lang/14-annotations.md) | decorators, function facts, member metadata, typed derivation, error derivation |
 
 These chapters are the language tier. The stdlib tier, std APIs that
@@ -246,6 +247,7 @@ The stdlib chapters' terms are in the
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](lang/03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](lang/03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](lang/07-functions.md#method-references). |
+| **mode** | How a position holds its value: plain, owned, or borrowed, written on the type at the position as `mut` is. See [Modes](lang/13-ownership.md#modes). |
 | **module cycle** | A strongly connected component of the use graph: modules that use each other, or one module alone as a trivial cycle, initialized together. See [`module.init.cycle`](lang/10-modules.md#r-module.init.cycle). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](lang/10-modules.md#version-selection). |
 | **module names** | The name category of top-level types, traits, functions, and names introduced by use declarations. See [`names.category.module`](lang/03-names-and-scopes.md#r-names.category.module). |

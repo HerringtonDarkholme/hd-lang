@@ -1,0 +1,15 @@
+# test: a type without a mark is plain, so a copy of its value is an alias
+data Counter:
+    hits: mut List[i32]
+
+fn record(c: mut Counter) -> void:
+    c.hits.push(+1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a plain copy aliases the same object"):
+        let first: mut Counter = Counter { hits: [] }
+        let second: mut Counter = first
+        record(second)
+        assert_equal(first.hits.len(), 1, reason="both names reach one object")
