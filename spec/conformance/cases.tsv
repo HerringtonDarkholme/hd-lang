@@ -2842,7 +2842,11 @@ typing/invalid/anyval-user-impl.hd	type	reject:sealed-trait-implementation	lang/
 typing/invalid/private-type-leak-data-field.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
 typing/invalid/private-type-leak-enum-payload.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
 typing/invalid/private-type-leak-trait-bound.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
+typing/invalid/private-type-leak-assoc-binding.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
+typing/invalid/private-type-leak-assoc-binding-nested.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
 typing/valid/private-type-in-public-body.hd	type	accept	lang/10-modules.md#r-module.vis.body
+typing/valid/public-assoc-binding.hd	type	accept	lang/10-modules.md#r-module.vis.signature.coverage
+typing/valid/private-target-assoc-binding.hd	type	accept	lang/10-modules.md#r-module.vis.signature.coverage
 runtime/valid/console-error-line-override.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error-line
 runtime/valid/entry-suspending-main.hd	runtime	accept	lang/10-modules.md#r-module.entry.suspending
 parse/valid/use-group-trailing-comma.hd	parse	accept	lang/10-modules.md#r-module.use.trailing-comma

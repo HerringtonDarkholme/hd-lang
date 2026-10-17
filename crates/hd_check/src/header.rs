@@ -358,6 +358,7 @@ impl<'a> ItemCheck<'_, 'a> {
         if exposed {
             self.header_leaks(it);
         }
+        self.impl_bindings_leak(it);
         // Where the signature's row keys start in `tys`.
         let mut keys_from = usize::MAX;
         let tys: Vec<Ty> = match &it.data {
@@ -510,6 +511,36 @@ impl<'a> ItemCheck<'_, 'a> {
                 _ => false,
             },
             _ => it.public,
+        }
+    }
+
+    /// An implementation of a public trait for a public target is visible
+    /// to other modules, so a type it binds to an associated type may not
+    /// reach a module-private declaration (`module.vis.signature.coverage`).
+    /// An impl whose trait, trait arguments or target is private stays
+    /// unchecked.
+    fn impl_bindings_leak(&mut self, it: &Item) {
+        let ItemData::Impl {
+            trait_,
+            trait_args,
+            self_ty,
+            assoc,
+            kind,
+            ..
+        } = &it.data
+        else {
+            return;
+        };
+        if *trait_ == DefId::NONE || !kind.is_impl() || self.is_private(*trait_) {
+            return;
+        }
+        let pool = self.pool();
+        let open = pool.list_items(*trait_args).iter().chain([self_ty]);
+        if open.into_iter().any(|&t| self.private_in(t).is_some()) {
+            return;
+        }
+        for (slot, &(_, t)) in (1u32..).zip(assoc) {
+            self.leak(t, slot);
         }
     }
 

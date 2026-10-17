@@ -1796,7 +1796,7 @@ data User:
 ### Public Signatures
 
 1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration. Error: `private-type-leak`.
-2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, data fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key.
+2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, data fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key. An implementation whose trait and target are both public is covered too: the type each associated type binds, nested types included, must not be module-private. An implementation with a private trait or a private target is not covered.
 3. r[module.vis.body] A private implementation detail may occur in a public function body but not in its public typed interface.
 
 ```text

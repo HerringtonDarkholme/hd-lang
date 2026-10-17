@@ -298,3 +298,20 @@ fn a_public_use_of_a_public_type_in_another_module_is_no_leak() {
     ]);
     assert!(!out.diags.has_errors(), "{}", out.render());
 }
+
+const MAKE: &str = "pub trait Make:\n    type Out\n    fn make(self) -> Self::Out\n\npub data Maker:\n    k: i32\n\n";
+
+#[test]
+fn a_public_impls_associated_type_binding_is_a_position() {
+    let body = format!(
+        "{MAKE}impl Make for Maker:\n    type Out = List[Hidden]\n    fn make(self) -> List[Hidden]: []\n"
+    );
+    assert_eq!(leaks(&body), [(9, 16)]);
+}
+
+#[test]
+fn an_impl_with_a_private_target_may_bind_a_private_type() {
+    accepts(&format!(
+        "{MAKE}data Inner:\n    k: i32\n\nimpl Make for Inner:\n    type Out = Hidden\n    fn make(self) -> Hidden: Hidden {{ n: self.k }}\n"
+    ));
+}

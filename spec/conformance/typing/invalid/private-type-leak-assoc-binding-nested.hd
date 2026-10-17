@@ -1,0 +1,16 @@
+# test: a private type nested in an associated type binding is a leak
+# Spec 10 Public Signatures: module.vis.signature.coverage.
+data Hidden:
+    n: i32
+
+pub trait Make:
+    type Out
+    fn make(self) -> Self::Out
+
+pub data Maker:
+    k: i32
+
+impl Make for Maker:
+    type Out = List[Hidden]  # diagnostic: private-type-leak
+    fn make(self) -> List[Hidden]:
+        []

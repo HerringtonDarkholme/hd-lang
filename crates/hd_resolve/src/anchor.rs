@@ -103,6 +103,30 @@ impl<'t> Ctx<'_, 't> {
         }
     }
 
+    /// An impl's bound types, at slots 1.. in the order of its `assoc`: the
+    /// bindings written in the trait reference, then the block's
+    /// `type` lines.
+    fn bindings(&mut self, def: DefId, imp: NodeRef<'t>, block: Option<NodeRef<'t>>) {
+        let mut tys = imp.children().filter(|c| c.kind().is_type());
+        let (Some(tr), Some(_)) = (tys.next(), tys.next()) else {
+            return;
+        };
+        let written = Src::child(tr, SyntaxKind::TypeArgumentList)
+            .into_iter()
+            .flat_map(NodeRef::children)
+            .filter(|c| c.kind() == SyntaxKind::AssociatedTypeBinding)
+            .chain(
+                block
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|c| c.kind() == SyntaxKind::AssociatedTypeDecl),
+            );
+        for (slot, b) in (1u32..).zip(written) {
+            let a = self.at(imp, 0, Src::type_child(b).unwrap_or(b), false);
+            self.push(def, slot, a);
+        }
+    }
+
     /// The fields held by a block or parameter list, in `fields` order.
     fn fields(
         &mut self,
@@ -217,6 +241,9 @@ pub(crate) fn collect(
             }
             HeadKind::Impl | HeadKind::Trait => {
                 let block = Src::child(n, SyntaxKind::Block);
+                if h.kind == HeadKind::Impl {
+                    cx.bindings(h.def, n, block);
+                }
                 for (i, f) in block.iter().flat_map(|b| b.children()).enumerate() {
                     if f.kind() != SyntaxKind::FnDecl {
                         continue;
