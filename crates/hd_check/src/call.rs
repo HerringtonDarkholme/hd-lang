@@ -3,7 +3,7 @@
 //! trait methods, static members, conversions, function values, bang calls
 //! and the row check of a callee's requirements.
 
-use hd_base::HashMap;
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
@@ -32,20 +32,30 @@ impl MethodIndex {
     #[must_use]
     pub fn build(lookup: &hd_resolve::Lookup<'_>) -> Self {
         let mut ix = MethodIndex::default();
-        let mut add = |it: &hd_resolve::Item| match &it.data {
-            ItemData::Impl {
-                trait_, methods, ..
-            } if *trait_ == DefId::NONE => {
-                for (n, m) in methods {
-                    ix.inherent.entry(*n).or_default().push((it.def, *m));
-                }
+        // A module's folder interface holds the module's own public items
+        // again, after those of the folder's earlier modules: each
+        // declaration adds its methods once, so one trait is never two
+        // candidates of a call (#346).
+        let mut seen: HashSet<DefId> = HashSet::default();
+        let mut add = |it: &hd_resolve::Item| {
+            if !seen.insert(it.def) {
+                return;
             }
-            ItemData::Trait(t) => {
-                for (n, m) in &t.methods {
-                    ix.traits.entry(*n).or_default().push((it.def, *m));
+            match &it.data {
+                ItemData::Impl {
+                    trait_, methods, ..
+                } if *trait_ == DefId::NONE => {
+                    for (n, m) in methods {
+                        ix.inherent.entry(*n).or_default().push((it.def, *m));
+                    }
                 }
+                ItemData::Trait(t) => {
+                    for (n, m) in &t.methods {
+                        ix.traits.entry(*n).or_default().push((it.def, *m));
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         };
         for it in lookup.own {
             add(it);
@@ -55,12 +65,6 @@ impl MethodIndex {
             for it in f.items.impls().chain(f.items.traits()) {
                 add(it);
             }
-        }
-        for v in ix.inherent.values_mut() {
-            v.dedup();
-        }
-        for v in ix.traits.values_mut() {
-            v.dedup();
         }
         ix
     }

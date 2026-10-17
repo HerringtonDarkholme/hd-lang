@@ -2474,7 +2474,10 @@ trait in `traits`, in order, and returns every candidate; a trait the
 receiver does not implement adds nothing. The trait list comes from the
 module's method index (`hd_check::MethodIndex`), which maps a name to the
 available traits that declare it, so one goal is asked per trait with
-that name, not per available trait. Inherent methods and the unavailable
+that name, not per available trait. A module's own items reach the index
+twice, as its own and again through its folder's interface; each
+declaration enters it once, so one trait is never two candidates (#346).
+Inherent methods and the unavailable
 traits for the `use` hint are the checker's.
 
 ### 6.6 Choosing Among Several Traits

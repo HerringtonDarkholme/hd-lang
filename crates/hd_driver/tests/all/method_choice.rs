@@ -187,6 +187,35 @@ pub fn main() -> void:
     accepts(&[("shelf.hd", SHELF), ("main.hd", src)]);
 }
 
+/// Issue #346: a module's own trait sits in its folder's interface too.
+/// When an earlier module of the folder declares another trait with the
+/// same method name, that trait lands between the two copies, and the
+/// one impl used to be counted twice.
+#[test]
+fn a_module_s_own_trait_is_one_candidate_beside_a_namesake_in_its_folder() {
+    let before = "\
+pub trait Costed0:
+    fn cost(self) -> i64
+";
+    let mine = "\
+pub data Item1:
+    pub price: i64
+
+pub trait Costed1:
+    fn cost(self) -> i64
+
+impl Costed1 for Item1:
+    fn cost(self) -> i64: self.price
+
+pub fn total1(item: Item1) -> i64:
+    item.cost()
+
+pub fn main() -> void:
+    pass
+";
+    accepts(&[("a.hd", before), ("b.hd", mine)]);
+}
+
 /// Runs the program's `tests:` block on the Node host; every test must pass.
 fn run_tests(name: &str, files: &[(&str, &str)]) {
     let out = build_files(
