@@ -296,6 +296,42 @@ impl string:
     pub fn find(self, needle: string) -> usize?:
         byte_find(self, needle, 0)
 
+    # The byte offset of the last `needle`; an empty needle is at the end.
+    ## Returns the byte offset of the last occurrence of `needle`, in `.Some`, or `.None`.
+    ## See [std-text.rfind](../../spec/std/text.md#r-std-text.rfind).
+    pub fn rfind(self, needle: string) -> usize?:
+        byte_rfind(self, needle)
+
+    # At most `n` pieces: the first `n - 1` that `split` gives, then the
+    # rest of the string.
+    ## Splits at the first `n - 1` occurrences of `separator`; the last piece holds the rest.
+    ## See [std-text.splitn](../../spec/std/text.md#r-std-text.splitn).
+    pub fn splitn(self, separator: string, n: usize) -> List[string]:
+        let pieces: mut List[string] = []
+        if n == 0:
+            return pieces
+        size := bytes_len(self)
+        let start: usize = 0
+        if bytes_len(separator) == 0:
+            while pieces.len() + 1 < n && start < size:
+                end := scalar_end(self, start)
+                pieces.push(bytes_slice(self, start, end))
+                start = end
+            if start < size:
+                pieces.push(bytes_slice(self, start, size))
+            return pieces
+        finder := searcher(separator)
+        let searching = true
+        while searching && pieces.len() + 1 < n:
+            match search_from(finder, self, start):
+                .Some(found) =>
+                    pieces.push(bytes_slice(self, start, found))
+                    start = found + bytes_len(separator)
+                .None =>
+                    searching = false
+        pieces.push(bytes_slice(self, start, size))
+        pieces
+
     # The pieces between separators, keeping empty ones. An empty separator
     # splits into one-scalar strings.
     ## Splits the string around each occurrence of `separator`, in order.
@@ -608,6 +644,40 @@ fn bytes_match(text: string, needle: string, start: usize) -> bool:
 # The byte position of the first `needle` at or after byte `from`.
 fn byte_find(text: string, needle: string, from: usize) -> usize?:
     search_from(searcher(needle), text, from)
+
+# The byte position of the last `needle`, by Knuth-Morris-Pratt over both
+# strings read backwards: O(n + m) time, O(m) space. `fail[i]` is the
+# length of the longest proper border of the reversed needle's first
+# `i + 1` bytes.
+fn byte_rfind(text: string, needle: string) -> usize?:
+    size := bytes_len(needle)
+    end := bytes_len(text)
+    if size > end:
+        return .None
+    if size == 0:
+        return .Some(end)
+    let fail: mut List[usize] = [0]
+    let matched: usize = 0
+    let index: usize = 1
+    while index < size:
+        while matched > 0 && bytes_at(needle, size - 1 - index) != bytes_at(needle, size - 1 - matched):
+            matched = fail[matched - 1]
+        if bytes_at(needle, size - 1 - index) == bytes_at(needle, size - 1 - matched):
+            matched = matched + 1
+        fail.push(matched)
+        index = index + 1
+    matched = 0
+    let at: usize = 0
+    while at < end:
+        byte := bytes_at(text, end - 1 - at)
+        while matched > 0 && byte != bytes_at(needle, size - 1 - matched):
+            matched = fail[matched - 1]
+        if byte == bytes_at(needle, size - 1 - matched):
+            matched = matched + 1
+        at = at + 1
+        if matched == size:
+            return .Some(end - at)
+    .None
 
 # Every substring search goes through a Searcher: Two-Way (Crochemore and
 # Perrin 1991), as Rust's `str::find` and glibc's `memmem`. The needle is

@@ -3245,3 +3245,7 @@ runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.d
 runtime/valid/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
 runtime/valid/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
 runtime/valid/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error
+runtime/valid/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.first
+runtime/valid/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.ties
+runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect
+runtime/valid/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty

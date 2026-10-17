@@ -1,0 +1,21 @@
+# test: collect builds a Set of the distinct items in first-seen order, and an empty iterator gives an empty set
+# Spec std/collections Set: std-collections.set.collect.
+use std.collections.Set
+
+fn distinct(words: List[string]) -> Set[string]:
+    words.iter().collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("collects distinct items in first-seen order"):
+        found := distinct(["b", "a", "b", "c", "a"])
+        assert_equal(found.len(), 3, reason="three distinct")
+        assert_equal(found.iter().collect::[List[string]](), ["b", "a", "c"], reason="first-seen order")
+    it("an empty iterator gives an empty set"):
+        found := distinct([])
+        assert_equal(found.len(), 0, reason="empty")
+    it("collects with an explicit target"):
+        found := [3, 1, 3].iter().collect::[Set[i32]]()
+        assert_equal(found.contains(1), true, reason="contains 1")
+        assert_equal(found.len(), 2, reason="two distinct")

@@ -1,0 +1,40 @@
+# test: min_by_key and max_by_key keep the first of equal keys, dedup cuts runs of equal neighbours, and unique keeps first occurrences
+# Spec std/collections List Helpers: std-collections.helper.by-key.first, .dedup, and .unique.
+data Order:
+    customer: string
+    cents: i64
+
+fn customer(order: Order?) -> string:
+    match order:
+        .Some(found) => found.customer
+        .None => "none"
+
+tests:
+    use std.testing.assert_equal
+
+    it("by key picks the first of equal keys"):
+        orders := [Order { customer: "bo", cents: 300 }, Order { customer: "al", cents: 50 }, Order { customer: "cy", cents: 300 }, Order { customer: "di", cents: 50 }]
+        assert_equal(customer(orders.max_by_key(fn(o: Order) -> i64: o.cents)), "bo", reason="the first largest")
+        assert_equal(customer(orders.min_by_key(fn(o: Order) -> i64: o.cents)), "al", reason="the first smallest")
+    it("by key on an empty list gives .None"):
+        let none: List[Order] = []
+        assert_equal(customer(none.max_by_key(fn(o: Order) -> i64: o.cents)), "none", reason="max")
+        assert_equal(customer(none.min_by_key(fn(o: Order) -> i64: o.cents)), "none", reason="min")
+    it("by key calls key once per element"):
+        let calls = 0
+        words := ["bb", "a", "ccc"]
+        longest := words.max_by_key(fn(w: string) -> usize:
+            calls = calls + 1
+            w.len()
+        )
+        assert_equal(longest, .Some("ccc"), reason="the longest")
+        assert_equal(calls, 3, reason="once each")
+    it("dedup cuts only adjacent duplicates"):
+        assert_equal(["a", "a", "b", "a", "a", "a"].dedup(), ["a", "b", "a"], reason="runs, not the whole list")
+        assert_equal([1, 2, 3].dedup(), [1, 2, 3], reason="no duplicates")
+        let empty: List[i32] = []
+        assert_equal(empty.dedup(), [], reason="empty")
+    it("unique keeps first occurrences"):
+        assert_equal(["b", "a", "b", "c", "a"].unique(), ["b", "a", "c"], reason="first occurrences in order")
+        let empty: List[i32] = []
+        assert_equal(empty.unique(), [], reason="empty")

@@ -79,8 +79,8 @@ and its row.
 | 15 | Table, decimals, digit groups | 23 | 16 | 6 | `pad_start`, `pad_end`, `to_fixed`, `slice` | no grouping | `format_grouped` (nice) |
 | 16 | Build a string | 9 | 14 | 2 | `StringBuilder`, `join` | nothing | none |
 | 17 | Extract fields with a regex | 11 | 16 | 6 | `Regex`, `captures_all`, `r` | `r"..."` needs an import | owner question |
-| 18 | Word frequency, top 3 | 10 | 22 | 3 | `counts`, `sorted_by`, `take` | pairs by hand | `entries`, `most_common` (atom) |
-| 19 | Group, sort by key, dedupe | 17 | 28 | 10 | `group_by`, `sorted_by_key`, `sum`, `Set` | dedupe by hand | `dedup` (atom) |
+| 18 | Word frequency, top 3 | 6 | 22 | 3 | `counts`, `most_common` | nothing (was pairs by hand) | `entries`, `most_common` (applied, #368) |
+| 19 | Group, sort by key, dedupe | 12 | 28 | 10 | `group_by`, `min_by_key`, `sum`, `unique` | nothing (was dedupe by hand) | `min_by_key`, `unique` (applied, #368) |
 | 20 | Top k with a heap | 12 | 30 | 3 | `Heap`, `Reverse` | nothing | `top_k` (nice) |
 | 21 | Time a block | 12 | 12 | 6 | `$.use(Clock).monotonic()`, `since` | ms resolution; no helper | `elapsed`, ns (shortcut, atom) |
 | 22 | Format today's date | 7 | 8 | 3 | `now`, `date`, `pad_start` | `Date` has no text form | `to_iso8601`, `format` (shortcut) |
@@ -95,7 +95,7 @@ and its row.
 | 31 | Table test, property test | 14 | 30 | 14 | `it_each`, `it_prop`, `assert_equal` | named `body=` with the row type | owner question |
 | 32 | Test with a fake clock | 15 | 25 | 12 | `ManualClock`, `$.with`, `Timestamp` | nothing | none |
 
-Totals: hd 406 lines, Go about 620, Python about 215. hd beats Go where
+Totals: hd 397 lines, Go about 620, Python about 215. hd beats Go where
 Go spends lines on `if err != nil` and `container/heap`. hd loses where a
 one-call battery exists: Go's `time.ParseDuration` and `text/tabwriter`,
 Python's `glob`, `Counter.most_common`, `heapq.nlargest` and format specs.
@@ -505,9 +505,9 @@ pub fn main() -> Result[void, RegexError] $ Console:
 
 ### Collections
 
-**18. Word frequency.** `Map` has no `entries()`, so sorting builds
-pairs by hand. Proposed: `for (word, n) in most_common(tally, 3):`,
-Python's `Counter.most_common`. Go: a pair slice and `sort.Slice`.
+**18. Word frequency.** `most_common` on the tally replaces the hand-built
+pairs and the sort (`Map.entries()` gives the pairs when a program needs
+them). Python: `Counter.most_common`. Go: a pair slice and `sort.Slice`.
 
 ```hd
 use std.collections.counts
@@ -515,22 +515,17 @@ use std.collections.counts
 pub fn main() -> void $ Console:
     text := "the cat and the hat and the bat"
     tally := counts(text.split_whitespace())
-    let pairs: mut List[(string, usize)] = []
-    for (word, n) in tally:
-        pairs.push((word, n))
-    top := pairs.sorted_by(fn(a, b): b._1.cmp(a._1)).take(3)
-    for (word, n) in top:
+    for (word, n) in tally.most_common(3):
         println("$word $n")
 ```
 
-**19. Group, sort, dedupe.** `group_by` and `sorted_by_key` read well;
-dedupe is a hand loop, and `Set` cannot be built by `collect()`.
-Proposed: `names.dedup()`, `orders.min_by_key(fn(o): o.cents)`. Python:
-`dict.fromkeys(names)`.
+**19. Group, sort, dedupe.** `group_by` and `sorted_by_key` read well.
+`min_by_key` replaces the sort for the cheapest order, and `unique()`
+replaces the dedupe loop. The task needs whole-list uniqueness (the
+repeated customer is not adjacent), which is `unique`; `dedup` is
+Rust's adjacent-only `Vec::dedup`. Python: `dict.fromkeys(names)`.
 
 ```hd
-use std.collections.Set
-
 data Order:
     customer: string
     cents: i64
@@ -540,14 +535,10 @@ pub fn main() -> void $ Console:
     by_customer := orders.group_by(fn(o): o.customer)
     for (name, list) in by_customer:
         println("$name: ${list.map(fn(o): o.cents).sum()}")
-    cheapest_first := orders.sorted_by_key(fn(o): o.cents)
-    println(cheapest_first[0].customer)
-    let seen: mut Set[string] = Set::new()
-    let unique: mut List[string] = []
-    for o in orders:
-        if seen.insert(o.customer):
-            unique.push(o.customer)
-    println(unique.join(","))
+    match orders.min_by_key(fn(o): o.cents):
+        .Some(cheapest) => println(cheapest.customer)
+        .None => pass
+    println(orders.map(fn(o): o.customer).unique().join(","))
 ```
 
 **20. Top k.** 12 lines with `Heap` and `Reverse`, against 30 for Go's

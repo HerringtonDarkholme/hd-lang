@@ -1,0 +1,26 @@
+# test: entries lists the pairs in the map's order, and most_common orders a tally by count with ties in first-seen order
+# Spec std/collections Map Methods: std-collections.map.entries and std-collections.map.most-common.
+use std.collections.counts
+
+tests:
+    use std.testing.assert_equal
+
+    it("entries follow the map's order"):
+        stock := {"tea": 3, "milk": 1, "jam": 2}
+        assert_equal(stock.entries(), [("tea", 3), ("milk", 1), ("jam", 2)], reason="insertion order")
+        let empty: Map[string, i32] = {}
+        assert_equal(empty.entries(), [], reason="empty")
+    it("entries is a snapshot"):
+        let stock: mut Map[string, i32] = {"tea": 3}
+        pairs := stock.entries()
+        stock["milk"] = 1
+        assert_equal(pairs, [("tea", 3)], reason="unchanged")
+    it("most_common orders by count, ties by first occurrence"):
+        tally := counts("the cat and the hat and the bat".split_whitespace())
+        assert_equal(tally.most_common(3), [("the", 3), ("and", 2), ("cat", 1)], reason="count, then first seen")
+    it("most_common clamps n"):
+        tally := counts(["x", "y", "x"])
+        assert_equal(tally.most_common(10), [("x", 2), ("y", 1)], reason="every entry")
+        assert_equal(tally.most_common(0), [], reason="none")
+        let empty: Map[string, usize] = {}
+        assert_equal(empty.most_common(2), [], reason="empty tally")

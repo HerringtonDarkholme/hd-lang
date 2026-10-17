@@ -130,12 +130,20 @@ fn has_long(tasks: List[Task]) -> bool:
 
 fn steps(readings: List[i32]) -> List[List[i32]]:
     readings.windows(2)  # [[1, 4], [4, 9]] for [1, 4, 9]
+
+fn shortest(tasks: List[Task]) -> Task?:
+    tasks.min_by_key(fn(task: Task) -> i32: task.hours)  # the first of equal hours
+
+fn owners(tasks: List[Task]) -> List[string]:
+    tasks.map(fn(task: Task) -> string: task.owner).unique()  # ["bo", "al"] for bo, al, bo
 ```
 
 | Receiver | Methods |
 | --- | --- |
 | `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: usize) -> List[List[T]]` |
-| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?` |
+| `List[T]` | `min_by_key[K < Ord](self, key: fn(T) -> K) -> T?`; `max_by_key[K < Ord](self, key: fn(T) -> K) -> T?` |
+| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
+| `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
 | `List[T]`, when `T < Ord` | `sorted(self) -> List[T]`; `min(self) -> T?`; `max(self) -> T?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
 
@@ -159,6 +167,9 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
+21. r[std-collections.helper.by-key.first] `min_by_key(key)` returns the first element whose `key` is smallest by `Ord`, and `max_by_key(key)` the first whose `key` is largest, each in `.Some`, so equal keys give the earlier element, as `min` and `max` do. An empty list gives `.None`.
+22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
+23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
 
 | Call | Result |
 | --- | --- |
@@ -168,6 +179,9 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |
+| `["bb", "a", "cc"].max_by_key(fn(w: string) -> usize: w.len())` | `.Some("bb")` |
+| `[1, 1, 2, 1].dedup()` | `[1, 2, 1]` |
+| `[1, 1, 2, 1].unique()` | `[1, 2]` |
 | `[1, 2, 3].sum()` | `6` |
 | `[0.5, 0.25].sum()` | `0.75` |
 | `[]` of `i64`, `.sum()` | `0` |
@@ -185,6 +199,10 @@ fn paged(items: List[i32]) -> List[List[i32]]:
 > covers both. `sum` is Python's `sum` and Rust's `Iterator::sum`; a list
 > has it as a method beside `min` and `max`, since a list is not an
 > iterator.
+>
+> `dedup` is `Vec::dedup`, which removes every duplicate only
+> from a sorted list; `unique` is what Python's `dict.fromkeys` gives for
+> a list that is not sorted. The names differ because the results differ.
 
 ### Counts
 
@@ -210,13 +228,20 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V`; `is_empty(self) -> bool` |
+| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
+| `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
 
 ```text
 fn summary(stock: Map[string, i32]) -> string:
     if stock.contains_key("tea"):
         return "${stock.keys().len()} items"
     "no tea"
+
+fn top_words(words: List[string]) -> List[(string, usize)]:
+    counts(words).most_common(2)  # [("a", 2), ("b", 1)] for ["a", "b", "a", "c"]
+
+fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
+    stock.entries()  # [("tea", 3), ("milk", 1)] for {"tea": 3, "milk": 1}
 ```
 
 1. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
@@ -225,6 +250,14 @@ fn summary(stock: Map[string, i32]) -> string:
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
 5. r[std-collections.map.get-or] `get_or(key, fallback)` returns the value of the entry whose key equals `key`, or `fallback` when there is none.
 6. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
+7. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
+8. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
+9. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+
+> **Why.** `entries` is a list snapshot like `keys` and `values`, since a
+> loop that sorts or indexes the pairs needs a list. `most_common` is
+> Python's `Counter.most_common`; a stable sort over the map's order gives
+> its tie rule with no extra bookkeeping.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 
@@ -242,6 +275,9 @@ fn unique(words: List[string]) -> List[string]:
         if seen.insert(word):
             kept.push(word)
     kept  # ["b", "a"] for ["b", "a", "b"]
+
+fn distinct(words: List[string]) -> Set[string]:
+    words.iter().collect()
 ```
 
 `Set[T < Eq & Hash]` has this surface:
@@ -253,6 +289,7 @@ fn unique(words: List[string]) -> List[string]:
 | `contains` | `contains(self, value: T) -> bool` |
 | `insert`, `remove` | `insert(mut self, value: T) -> bool`, and the same for `remove` |
 | iteration | `Iterable[T]` |
+| `collect` | `FromIterator[T]` |
 | equality | `Eq` |
 | `Debug` | when `T < Debug` |
 
@@ -265,6 +302,7 @@ fn unique(words: List[string]) -> List[string]:
 7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).
 8. r[std-collections.set.invalidate] An `insert` or `remove` that changes the set invalidates its iterators, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for a map. Panic: `iterator-invalidated`.
 9. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
+10. r[std-collections.set.collect] A set implements `FromIterator[T]`. Collecting inserts each item in order, so the set holds each distinct item once, in the order of its first occurrence, and an empty iterator gives an empty set.
 
 > **Note.** `lib/std` builds a set over a `Map` whose values carry no
 > meaning, so `insert`, `remove`, and `contains` take expected constant

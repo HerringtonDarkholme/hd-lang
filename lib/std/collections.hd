@@ -5,6 +5,7 @@
 # unchanged. `Deque` and `Heap` are generic, so a program that names
 # neither compiles none of their code.
 use std.num.Num
+use std.iter.FromIterator
 use std.ops.Index
 use std.format.{DebugList, DebugWriter}
 
@@ -308,6 +309,19 @@ impl[T < Eq] List[T]:
             index = index + 1
         .None
 
+    # Drops each element equal to the one just before it, as Rust's `Vec::dedup`.
+    ## Returns the list with each run of equal neighbours cut to its first element.
+    ## See [std-collections.helper.dedup](../../spec/std/collections.md#r-std-collections.helper.dedup).
+    pub fn dedup(self) -> List[T]:
+        let kept: mut List[T] = []
+        for item in self:
+            match kept.last():
+                .Some(previous) =>
+                    if previous != item:
+                        kept.push(item)
+                .None => kept.push(item)
+        kept
+
 # The total of the elements, in order (r-std-collections.helper.sum).
 impl[T < Num] List[T]:
     ## Returns the sum of the elements, left to right.
@@ -349,6 +363,54 @@ impl[T < Ord] List[T]:
                     if before(current, item):
                         best = .Some(item)
                 .None => best = .Some(item)
+        best
+
+impl[T < Eq & Hash] List[T]:
+    ## Returns the list with each element after its first occurrence dropped, in list order.
+    ## See [std-collections.helper.unique](../../spec/std/collections.md#r-std-collections.helper.unique).
+    pub fn unique(self) -> List[T]:
+        let seen: mut Set[T] = Set::new()
+        let kept: mut List[T] = []
+        for item in self:
+            if seen.insert(item):
+                kept.push(item)
+        kept
+
+# The by-key extremes keep the first of equal keys, as `min` and `max` do
+# (r-std-collections.helper.by-key.first).
+impl[T] List[T]:
+    ## Returns the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
+    pub fn min_by_key[K < Ord](self, key: fn(T) -> K) -> T?:
+        let best: T? = .None
+        let best_key: K? = .None
+        for item in self:
+            item_key := key(item)
+            match best_key:
+                .Some(current) =>
+                    if before(item_key, current):
+                        best = .Some(item)
+                        best_key = .Some(item_key)
+                .None =>
+                    best = .Some(item)
+                    best_key = .Some(item_key)
+        best
+
+    ## Returns the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
+    pub fn max_by_key[K < Ord](self, key: fn(T) -> K) -> T?:
+        let best: T? = .None
+        let best_key: K? = .None
+        for item in self:
+            item_key := key(item)
+            match best_key:
+                .Some(current) =>
+                    if before(current, item_key):
+                        best = .Some(item)
+                        best_key = .Some(item_key)
+                .None =>
+                    best = .Some(item)
+                    best_key = .Some(item_key)
         best
 
 # Whether `left` orders before `right`.
@@ -407,6 +469,23 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
     pub fn is_empty(self) -> bool:
         self.len() == 0
+
+# The entries of a map, and the most frequent ones of a tally
+# (spec/std/collections.md#map-methods).
+impl[K < Eq & Hash, V] Map[K, V]:
+    ## A new list of the `(key, value)` pairs, in the map's iteration order.
+    ## See [std-collections.map.entries](../../spec/std/collections.md#r-std-collections.map.entries).
+    pub fn entries(self) -> List[(K, V)]:
+        let found: mut List[(K, V)] = []
+        for (key, value) in self:
+            found.push((key, value))
+        found
+
+impl[K < Eq & Hash] Map[K, usize]:
+    ## Returns the `n` pairs with the largest counts, largest first; equal counts keep the map's order.
+    ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
+    pub fn most_common(self, n: usize) -> List[(K, usize)]:
+        self.entries().sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(left._1)).take(n)
 
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds the list, not a copy, so an
@@ -667,6 +746,17 @@ impl[T < Eq & Hash] Set[T]:
 impl[T < Eq & Hash] Iterable[T] for Set[T]:
     fn iter(self) -> mut Iterator[T]:
         self.entries.iter().map(fn(entry: (T, bool)) -> T: entry._0)
+
+# A set of the distinct items, in the order each first appears
+# (r-std-collections.set.collect).
+impl[T < Eq & Hash] FromIterator[T] for Set[T]:
+    fn from_iter(items: mut Iterator[T]) -> Set[T]:
+        let collected: mut Set[T] = Set::new()
+        while true:
+            match items.next():
+                .Some(item) => _ := collected.insert(item)
+                .None => break
+        collected
 
 # The same elements, in any order (r-std-collections.set.eq).
 impl[T < Eq & Hash] Eq for Set[T]:

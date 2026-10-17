@@ -95,7 +95,7 @@ PANIC src/lib.hd:23: runs out
     repro: hd test src/lib.hd --filter \"runs out\"
 PANIC src/lib.hd:26: drops past the end
     panic: index-out-of-bounds: list remove_at index 5 out of bounds for length 2
-    <std>/collections.hd:49 std.collections.List.remove_at
+    <std>/collections.hd:50 std.collections.List.remove_at
     src/lib.hd:14 shop.drop_far
     src/lib.hd:28 test \"drops past the end\"
     repro: hd test src/lib.hd --filter \"drops past the end\"

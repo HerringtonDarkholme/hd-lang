@@ -1,0 +1,36 @@
+# test: rfind gives the byte offset of the last match, splitn splits at the first n - 1 separators, both with non-ASCII text and empty arguments
+# Spec std/text: std-text.rfind, std-text.rfind.empty, std-text.splitn, std-text.splitn.few, std-text.splitn.small, and std-text.splitn.empty-separator.
+tests:
+    use std.testing.assert_equal
+
+    it("rfind finds the last occurrence"):
+        assert_equal("a/b/c".rfind("/"), .Some(3), reason="the last slash")
+        assert_equal("abcabc".rfind("abc"), .Some(3), reason="the last match")
+        assert_equal("aaaa".rfind("aa"), .Some(2), reason="overlapping matches")
+        assert_equal("abab".rfind("aba"), .Some(0), reason="a border-heavy needle")
+        assert_equal("abc".rfind("d"), .None, reason="absent")
+        assert_equal("ab".rfind("abc"), .None, reason="needle longer than text")
+        assert_equal("".rfind("a"), .None, reason="empty text")
+    it("rfind counts bytes in non-ASCII text"):
+        assert_equal("héllo wörld héllo".rfind("héllo"), .Some(14), reason="byte offset")
+        assert_equal("日本語日本".rfind("日本"), .Some(9), reason="three bytes per scalar")
+    it("rfind with an empty needle gives the length"):
+        assert_equal("abc".rfind(""), .Some(3), reason="end of text")
+        assert_equal("é".rfind(""), .Some(2), reason="byte length")
+        assert_equal("".rfind(""), .Some(0), reason="empty text")
+    it("splitn keeps the rest in the last piece"):
+        assert_equal("a=b=c".splitn("=", 2), ["a", "b=c"], reason="two pieces")
+        assert_equal("a=b=c".splitn("=", 3), ["a", "b", "c"], reason="three pieces")
+        assert_equal("a=b=c".splitn("=", 9), ["a", "b", "c"], reason="n above the pieces")
+        assert_equal("a==b".splitn("=", 3), ["a", "", "b"], reason="an empty piece")
+        assert_equal("abc".splitn(",", 2), ["abc"], reason="separator absent")
+        assert_equal("".splitn(",", 2), [""], reason="empty text")
+        assert_equal("→a→b".splitn("→", 2), ["", "a→b"], reason="non-ASCII separator")
+        assert_equal("é,ü,ö".splitn(",", 2), ["é", "ü,ö"], reason="non-ASCII pieces")
+    it("splitn with a small n"):
+        assert_equal("a=b".splitn("=", 1), ["a=b"], reason="one piece is the whole string")
+        assert_equal("a=b".splitn("=", 0), [], reason="zero pieces")
+    it("splitn with an empty separator splits scalars"):
+        assert_equal("héy".splitn("", 2), ["h", "éy"], reason="one scalar, then the rest")
+        assert_equal("abc".splitn("", 9), ["a", "b", "c"], reason="as split")
+        assert_equal("".splitn("", 2), [], reason="empty text")

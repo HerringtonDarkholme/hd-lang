@@ -748,6 +748,29 @@ its own issue.
   relative pattern such as `glob!("*.md")` works on it as on the real host.
 - **Collection and text atoms.** `Set` from `collect()`, `Map.entries()`,
   `max_by_key`/`min_by_key`, `dedup`, `most_common`, `rfind`, `splitn`.
+  Applied in #368, all plain hd:
+  - `Set[T]` implements `FromIterator[T]` (first occurrence order).
+  - `Map.entries()` returns a snapshot list of pairs in the map's order.
+  - `min_by_key`/`max_by_key` take the first element on equal keys, the
+    rule of `min`/`max`; Rust's `max_by_key` takes the last.
+  - Both `dedup` and `unique`. The audit's task 19 (a repeated customer
+    that is not adjacent) needs whole-list uniqueness, so `unique()`
+    (`T < Eq & Hash`, first occurrences) is the call that task uses. `dedup()`
+    (`T < Eq`) stays Rust's `Vec::dedup`, adjacent runs only, as the issue
+    names it. The two names differ because the results differ.
+  - `most_common(n)` is a method of `Map[K, usize]`, the type `counts`
+    returns, not of `List`; `counts(items).most_common(n)` covers a list.
+    Largest count first, ties in the map's order (first occurrence), as
+    Python's `Counter.most_common`; `n` of 0 gives `[]`.
+  - `string.rfind` returns a byte offset; an empty needle gives the byte
+    length, as Rust. It reads both strings backwards with
+    Knuth-Morris-Pratt (O(n + m), no quadratic loop), because the
+    Two-Way searcher of #352 has no reverse form.
+  - `string.splitn(separator, n)` returns the first `n - 1` pieces of
+    `split`, then the rest. `n` of 0 gives `[]`, `n` of 1 the whole
+    string. An empty separator takes one scalar per piece, as `split`
+    does here (Rust's would yield a leading empty piece).
+  - `rsplit_once`, named in the audit's change 6, is not part of #368.
 - **Concurrency helpers.** `std.task.timeout!`, `map_all!` with a
   concurrency limit, and a `when` predicate on `retry!`/`retry_with!`.
 - **Time helpers** that need no host change: free `monotonic()` and

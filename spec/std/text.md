@@ -60,14 +60,17 @@ fn rule(width: usize) -> string:
 
 ## Splitting And Padding
 
-`std` also gives `string` methods that split text once, split it into
-words, pad it to a width, and count matches:
+`std` also gives `string` methods that split text a bounded number of
+times, split it into words, pad it to a width, and count matches:
 
 ```text
 fn setting(line: string) -> string:
     match line.split_once("="):
         .Some((key, value)) => "$key is $value"  # "port is 80=x" for "port=80=x"
         .None => "no setting"
+
+fn first_two(path: string) -> List[string]:
+    path.splitn("/", 2)  # ["a", "b/c"] for "a/b/c"
 
 fn cell(text: string) -> string:
     text.pad_start(6)  # "    42" for "42"
@@ -78,31 +81,37 @@ fn word_count(text: string) -> usize:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `split_once(self, separator: string) -> (string, string)?`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: usize, fill: char = ' ') -> string`; `pad_end(self, width: usize, fill: char = ' ') -> string`; `count(self, needle: string) -> usize` |
+| `string` | `split_once(self, separator: string) -> (string, string)?`; `splitn(self, separator: string, n: usize) -> List[string]`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: usize, fill: char = ' ') -> string`; `pad_end(self, width: usize, fill: char = ' ') -> string`; `count(self, needle: string) -> usize` |
 
 1. r[std-text.split-once] `split_once(separator)` returns `.Some((before, after))`, with the text before and after the first occurrence of `separator`.
 2. r[std-text.split-once.absent] It returns `.None` when `separator` does not occur, so `"".split_once("=")` is `.None`.
 3. r[std-text.split-once.empty] An empty separator occurs at offset 0, so `"ab".split_once("")` is `.Some(("", "ab"))`.
-4. r[std-text.split-whitespace] `split_whitespace` returns, in order, each maximal run of scalar values that lack the Unicode `White_Space` property.
-5. r[std-text.split-whitespace.no-empty] It returns no empty piece, so an empty string, or one of whitespace only, gives `[]`.
-6. r[std-text.pad.length] `pad_start` and `pad_end` measure a string's length in scalar values, not in bytes or display columns.
-7. r[std-text.pad.start] `pad_start(width, fill)` puts copies of `fill` before the string until its length is `width`.
-8. r[std-text.pad.end] `pad_end(width, fill)` puts the copies after the string instead.
-9. r[std-text.pad.width-at-most-length] A `width` at or below the string's length gives the string unchanged.
-10. r[std-text.pad.fill-default] `fill` defaults to the space U+0020, so `"7".pad_end(3)` is `"7  "`.
-11. r[std-text.count] `count(needle)` returns the number of non-overlapping matches of `needle`, found from left to right, so `"aaaa".count("aa")` is 2.
-12. r[std-text.count.empty] An empty needle matches at every scalar boundary, so it gives the number of scalar values plus one, and `"".count("")` is 1.
+4. r[std-text.splitn] `splitn(separator, n)` returns the first `n - 1` pieces that `split(separator)` returns, followed by the rest of the string after the last of those separators as the final piece.
+5. r[std-text.splitn.few] A string with at most `n - 1` separators gives the pieces of `split(separator)`, so `"a=b".splitn("=", 5)` is `["a", "b"]`.
+6. r[std-text.splitn.small] An `n` of 1 gives the whole string as one piece, and an `n` of 0 gives `[]`.
+7. r[std-text.splitn.empty-separator] An empty separator takes one scalar value per piece, as `split` does, so `"héy".splitn("", 2)` is `["h", "éy"]` and `"".splitn("", 2)` is `[]`.
+8. r[std-text.split-whitespace] `split_whitespace` returns, in order, each maximal run of scalar values that lack the Unicode `White_Space` property.
+9. r[std-text.split-whitespace.no-empty] It returns no empty piece, so an empty string, or one of whitespace only, gives `[]`.
+10. r[std-text.pad.length] `pad_start` and `pad_end` measure a string's length in scalar values, not in bytes or display columns.
+11. r[std-text.pad.start] `pad_start(width, fill)` puts copies of `fill` before the string until its length is `width`.
+12. r[std-text.pad.end] `pad_end(width, fill)` puts the copies after the string instead.
+13. r[std-text.pad.width-at-most-length] A `width` at or below the string's length gives the string unchanged.
+14. r[std-text.pad.fill-default] `fill` defaults to the space U+0020, so `"7".pad_end(3)` is `"7  "`.
+15. r[std-text.count] `count(needle)` returns the number of non-overlapping matches of `needle`, found from left to right, so `"aaaa".count("aa")` is 2.
+16. r[std-text.count.empty] An empty needle matches at every scalar boundary, so it gives the number of scalar values plus one, and `"".count("")` is 1.
 
 | Call | Result |
 | --- | --- |
 | `"a=b=c".split_once("=")` | `.Some(("a", "b=c"))` |
 | `"abc".split_once(",")` | `.None` |
+| `"a=b=c".splitn("=", 2)` | `["a", "b=c"]` |
+| `"a=b".splitn("=", 0)` | `[]` |
 | `" a  b ".split_whitespace()` | `["a", "b"]` |
 | `"é".pad_start(3, '.')` | `"..é"`, since `é` is one scalar value |
 | `"abc".pad_end(2)` | `"abc"` |
 | `"héllo".count("")` | 6 |
 
-> **Why.** The names and results are Rust's `split_once` and
+> **Why.** The names and results are Rust's `splitn`, `split_once` and
 > `split_whitespace`, Python's `str.count`, and JavaScript's `padStart`
 > and `padEnd`. A width in scalar values is the unit `chars` yields;
 > display columns would need the East Asian Width tables. An empty needle
@@ -207,6 +216,11 @@ specifies how a prefixed string calls its prefix function.
 `std` also gives `string` methods that test, search, and trim text:
 
 ```text
+fn extension(name: string) -> string?:
+    match name.rfind("."):
+        .Some(at) => .Some(name.slice(at + 1, name.len()))  # "gz" for "a.tar.gz"
+        .None => .None
+
 fn header(line: string) -> string?:
     if line.is_empty() || !line.contains(":"):
         return .None
@@ -217,15 +231,18 @@ fn header(line: string) -> string?:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `is_empty(self) -> bool`; `ends_with(self, suffix: string) -> bool`; `contains(self, needle: string) -> bool`; `find(self, needle: string) -> usize?`; `trim_start(self) -> string`; `trim_end(self) -> string`; `upper(self) -> string`; `strip_prefix(self, prefix: string) -> string?`; `strip_suffix(self, suffix: string) -> string?` |
+| `string` | `is_empty(self) -> bool`; `ends_with(self, suffix: string) -> bool`; `contains(self, needle: string) -> bool`; `find(self, needle: string) -> usize?`; `rfind(self, needle: string) -> usize?`; `trim_start(self) -> string`; `trim_end(self) -> string`; `upper(self) -> string`; `strip_prefix(self, prefix: string) -> string?`; `strip_suffix(self, suffix: string) -> string?` |
 
 1. r[std-text.more.is-empty] `is_empty` is true exactly when the string has no bytes.
 2. r[std-text.more.ends-with] `ends_with` compares scalar sequences exactly, as `starts_with` does.
 3. r[std-text.more.contains] `contains(needle)` is true when `needle` occurs in the string. An empty `needle` occurs in every string.
 4. r[std-text.more.find] `find(needle)` returns the byte offset of the first occurrence of `needle` in `.Some`, or `.None`. An empty `needle` is found at 0.
-5. r[std-text.more.trim-ends] `trim_start` removes the Unicode `White_Space` property at the start only, and `trim_end` at the end only.
-6. r[std-text.more.upper] `upper` uses Unicode Default Case Conversion with full mappings, as `lower` does.
-7. r[std-text.more.strip] `strip_prefix(prefix)` returns the rest of the string after `prefix` in `.Some` when the string starts with it, and `.None` otherwise. `strip_suffix` does the same at the end.
+5. r[std-text.rfind] `rfind(needle)` returns the byte offset of the last occurrence of `needle` in `.Some`, or `.None`. Occurrences may overlap, so `"aaaa".rfind("aa")` is `.Some(2)`.
+6. r[std-text.rfind.empty] An empty `needle` is found at the length of the string in bytes, as in Rust, so `"abc".rfind("")` is `.Some(3)`.
+7. r[std-text.rfind.linear] `rfind` takes time linear in the lengths of the string and the needle together.
+8. r[std-text.more.trim-ends] `trim_start` removes the Unicode `White_Space` property at the start only, and `trim_end` at the end only.
+9. r[std-text.more.upper] `upper` uses Unicode Default Case Conversion with full mappings, as `lower` does.
+10. r[std-text.more.strip] `strip_prefix(prefix)` returns the rest of the string after `prefix` in `.Some` when the string starts with it, and `.None` otherwise. `strip_suffix` does the same at the end.
 
 | Call | Result |
 | --- | --- |
