@@ -45,20 +45,23 @@ export interface ThreadControl {
   readonly name: string;
   readonly args: (threads: number) => string[];
   readonly env: (threads: number) => Record<string, string>;
+  /** The control to use when this one is a flag the hd rejects. */
+  readonly fallback?: ThreadControl;
 }
 
 /**
- * The documented thread control of `hd check`: an `HD_THREADS`, `HD_JOBS` or
- * `HD_PARALLELISM` variable named in any help text, else a `--jobs`,
- * `--threads` or `-j` flag in `hd help check`. The variable comes first
- * because help text can list a flag that a command does not accept; an
- * environment variable never makes a run fail. Undefined when none is
- * documented.
+ * The documented thread control of `hd check`: a `--jobs`, `--threads` or
+ * `-j` flag in `hd help check`, else an `HD_THREADS`, `HD_JOBS` or
+ * `HD_PARALLELISM` variable named in any help text. The flag comes first
+ * because it is the documented command-line control; an older hd lists a
+ * flag it rejects, so the variable stays as `fallback`. Undefined when none
+ * is documented.
  */
 export function findThreadControl(checkHelp: string, allHelp: string): ThreadControl | undefined {
-  const variable = /\b(HD_(?:THREADS|JOBS|PARALLELISM|NUM_THREADS))\b/.exec(allHelp)?.[1];
-  if (variable)
-    return { name: variable, args: () => [], env: (threads) => ({ [variable]: String(threads) }) };
+  const name = /\b(HD_(?:THREADS|JOBS|PARALLELISM|NUM_THREADS))\b/.exec(allHelp)?.[1];
+  const variable: ThreadControl | undefined = name
+    ? { name, args: () => [], env: (threads) => ({ [name]: String(threads) }) }
+    : undefined;
   const named = (pattern: string) =>
     new RegExp(`(?:^|\\s)(${pattern})(?=[\\s=,]|$)`, "m").exec(checkHelp)?.[1];
   const flag = named("--jobs|--threads") ?? named("-j");
@@ -67,8 +70,9 @@ export function findThreadControl(checkHelp: string, allHelp: string): ThreadCon
       name: flag,
       args: (threads) => (flag === "-j" ? [`-j${threads}`] : [`${flag}=${threads}`]),
       env: () => ({}),
+      ...(variable ? { fallback: variable } : {}),
     };
-  return undefined;
+  return variable;
 }
 
 /**

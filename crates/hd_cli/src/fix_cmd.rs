@@ -82,10 +82,9 @@ struct Outcome {
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
-    let jobs = match jobs_flag(args) {
-        Ok(j) => j,
-        Err(e) => return fail(&e),
-    };
+    if let Err(e) = jobs_flags(args) {
+        return fail(&e);
+    }
     let cwd = match std::env::current_dir() {
         Ok(c) => c,
         Err(e) => return fail(&e.to_string()),
@@ -121,7 +120,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
                     program.sources.set_text(&files[shown].0, text);
                 }
             }
-            check_cmd::check_package(program, jobs)
+            check_cmd::check_package(program)
         }
         Err(e) => vec![Diag::error(None, &e)],
     };
@@ -167,34 +166,27 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
     }
 }
 
-/// `--jobs N` or `--jobs=N` (`cli.jobs`), the one option of `hd fix`.
-fn jobs_flag(args: &[OsString]) -> Result<Option<usize>, String> {
-    let mut jobs = None;
-    let mut words = args.iter();
-    while let Some(a) = words.next() {
-        let text = a.to_string_lossy();
-        let value = if text == "--jobs" {
-            let v = words.next().ok_or("`--jobs` needs a value")?;
-            v.to_string_lossy().into_owned()
-        } else if let Some(v) = text.strip_prefix("--jobs=") {
-            v.to_owned()
-        } else if text.starts_with('-') {
-            return Err(format!("`hd fix` has no option `{text}`"));
-        } else {
-            return Err(format!(
-                "`hd fix` takes no FILE; it fixes the whole package, so run it without `{text}`"
-            ));
-        };
-        match value.parse::<usize>() {
-            Ok(n) if n >= 1 => jobs = Some(n),
-            _ => {
-                return Err(format!(
-                    "`--jobs {value}`: N is a whole number of at least 1"
-                ));
-            }
+/// `--jobs N` or `--jobs=N` (`cli.jobs`), the one option of `hd fix`; it
+/// sets the thread count.
+fn jobs_flags(args: &[OsString]) -> Result<(), String> {
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(jobs) = crate::jobs_flag(args, i) {
+            let (n, used) = jobs?;
+            crate::set_jobs(n);
+            i += used;
+            continue;
         }
+        let text = args[i].to_string_lossy();
+        return Err(if text.starts_with('-') {
+            format!("`hd fix` has no option `{text}`")
+        } else {
+            format!(
+                "`hd fix` takes no FILE; it fixes the whole package, so run it without `{text}`"
+            )
+        });
     }
-    Ok(jobs)
+    Ok(())
 }
 
 /// Replaces the file at `path` with `text`, through a temporary file

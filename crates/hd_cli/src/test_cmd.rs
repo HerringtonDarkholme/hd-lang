@@ -92,6 +92,13 @@ fn parse_with_engine(
             i += used;
             continue;
         }
+        if let Some(jobs) = crate::jobs_flag(args, i) {
+            let (n, used) = jobs?;
+            o.jobs = n;
+            crate::set_jobs(n);
+            i += used;
+            continue;
+        }
         if let Some(limit) = crate::engine::time_limit_flag(args, i) {
             let (ms, used) = limit?;
             o.limits.wall_ms = Some(ms);
@@ -143,13 +150,6 @@ fn parse_with_engine(
                     .filter(|n| *n >= 0)
                     .ok_or_else(|| format!("`--seed {v}`: N is a whole number"))?,
             );
-        } else if text == "--jobs" || text.starts_with("--jobs=") {
-            let v = value("--jobs")?;
-            o.jobs = v
-                .parse::<usize>()
-                .ok()
-                .filter(|n| *n >= 1)
-                .ok_or_else(|| format!("`--jobs {v}`: N is a whole number of at least 1"))?;
         } else if text.starts_with('-') {
             return Err(format!("`hd test` has no option `{text}`"));
         } else if o.file.is_some() {

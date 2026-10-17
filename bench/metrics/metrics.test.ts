@@ -288,8 +288,9 @@ describe("pillar 2 helpers", () => {
     const variable = findThreadControl("flags:\n  --tests\n", "HD_THREADS sets the thread count");
     assert.deepEqual(variable?.env(2), { HD_THREADS: "2" });
     const both = findThreadControl("  --jobs N  use N threads\n", "the default is HD_JOBS");
-    assert.deepEqual(both?.env(3), { HD_JOBS: "3" });
-    assert.deepEqual(both?.args(3), []);
+    assert.deepEqual(both?.args(3), ["--jobs=3"]);
+    assert.deepEqual(both?.fallback?.env(3), { HD_JOBS: "3" });
+    assert.deepEqual(both?.fallback?.args(3), []);
     assert.equal(findThreadControl("  -p, --package NAME\n", "HD_CACHE"), undefined);
     assert.equal(findCacheCap("HD_CACHE_MAX_BYTES caps the cache"), "HD_CACHE_MAX_BYTES");
     assert.equal(findCacheCap("Fetched versions go to HD_CACHE when it is set."), undefined);

@@ -14,17 +14,21 @@ use crate::{HD_FAILURE, disk, fail};
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
     let mut check = false;
     let mut file: Option<PathBuf> = None;
-    let mut words = args.iter();
-    while let Some(a) = words.next() {
-        let text = a.to_string_lossy();
+    let mut i = 0;
+    while i < args.len() {
         // `cli.jobs` is accepted; files are formatted one by one.
-        let jobs = text == "--jobs" || text.starts_with("--jobs=");
+        if let Some(jobs) = crate::jobs_flag(args, i) {
+            match jobs {
+                Ok((_, used)) => i += used,
+                Err(e) => return fail(&e),
+            }
+            continue;
+        }
+        let a = &args[i];
+        i += 1;
+        let text = a.to_string_lossy();
         if text == "--check" {
             check = true;
-        } else if jobs {
-            if text == "--jobs" && words.next().is_none() {
-                return fail("`--jobs` needs a value");
-            }
         } else if text.starts_with('-') {
             return fail(&format!("`hd fmt` has no option `{text}`"));
         } else if file.replace(PathBuf::from(a)).is_some() {

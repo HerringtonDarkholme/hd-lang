@@ -1036,3 +1036,54 @@ fn a_warm_check_prints_before_it_publishes() {
     assert_eq!(child.wait().expect("wait").code(), Some(101));
     assert!(entries(&dir.cache()) > before, "the edit's entries follow");
 }
+
+/// `cli.jobs.result`: the thread count changes no output, with or without
+/// diagnostics.
+#[test]
+fn jobs_change_no_output() {
+    for (name, source) in [("hd-check-jobs-ok", CLEAN), ("hd-check-jobs-bad", BROKEN)] {
+        let dir = package(name, source);
+        let one = check(&dir, &["--jobs", "1"]);
+        let eight = check(&dir, &["--jobs=8"]);
+        assert_eq!(one.code, eight.code, "{}", eight.err);
+        assert_eq!(one.out, eight.out);
+        assert_eq!(one.err, eight.err);
+        let plain = check(&dir, &[]);
+        assert_eq!(one.err, plain.err);
+    }
+}
+
+/// `hd build --jobs N` builds the module like `hd build` does.
+#[test]
+fn build_accepts_jobs() {
+    let dir = package("hd-build-jobs", CLEAN);
+    let cache = dir.cache();
+    let built = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", cache)
+        .current_dir(&dir)
+        .args(["build", "--jobs", "2"])
+        .output()
+        .expect("run hd");
+    assert_eq!(built.status.code(), Some(0), "{:?}", built.stderr);
+    assert!(dir.join("build/debug/shop.wasm").is_file());
+}
+
+/// `--jobs 0` and `--jobs many` are the usage error `hd test` gives.
+#[test]
+fn bad_jobs_is_the_same_usage_error_everywhere() {
+    let dir = package("hd-jobs-bad", CLEAN);
+    for value in ["0", "many"] {
+        let message = format!("`--jobs {value}`: N is a whole number of at least 1");
+        for command in ["check", "build", "test", "fmt", "fix"] {
+            let out = Command::new(env!("CARGO_BIN_EXE_hd"))
+                .env("HD_CACHE", dir.cache())
+                .current_dir(&dir)
+                .args([command, "--jobs", value])
+                .output()
+                .expect("run hd");
+            let err = String::from_utf8_lossy(&out.stderr);
+            assert_ne!(out.status.code(), Some(0), "{command}: {err}");
+            assert!(err.contains(&message), "{command}: {err}");
+        }
+    }
+}

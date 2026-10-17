@@ -272,9 +272,42 @@ fn warn_cache_write(root: &Path, error: &std::io::Error) {
     });
 }
 
-/// The thread count (`cli.jobs.env`, `cli.jobs.default`): `HD_JOBS`, else
-/// the number of cores, at most 8.
+/// The `--jobs N` the command line gave (`cli.jobs`); 0 when none did.
+static JOBS_FLAG: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `--jobs N` or `--jobs=N` at `args[i]` (`cli.jobs`): N, at least 1, and the
+/// words used. Every command that compiles or tests reads it here, so they
+/// all give the same error. [`set_jobs`] makes it the thread count.
+pub(crate) fn jobs_flag(args: &[OsString], i: usize) -> Option<Result<(usize, usize), String>> {
+    let text = args.get(i)?.to_string_lossy();
+    let (value, used) = if text == "--jobs" {
+        match args.get(i + 1) {
+            Some(v) => (v.to_string_lossy().into_owned(), 2),
+            None => return Some(Err("`--jobs` needs a value".to_owned())),
+        }
+    } else {
+        (text.strip_prefix("--jobs=")?.to_owned(), 1)
+    };
+    Some(match value.parse::<usize>() {
+        Ok(n) if n >= 1 => Ok((n, used)),
+        _ => Err(format!(
+            "`--jobs {value}`: N is a whole number of at least 1"
+        )),
+    })
+}
+
+/// Makes `n` the thread count of this run, over `HD_JOBS` and the cores.
+pub(crate) fn set_jobs(n: usize) {
+    JOBS_FLAG.store(n, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The thread count (`cli.jobs`, `cli.jobs.env`, `cli.jobs.default`): the
+/// flag, else `HD_JOBS`, else the number of cores, at most 8.
 pub(crate) fn default_jobs() -> usize {
+    let flag = JOBS_FLAG.load(std::sync::atomic::Ordering::Relaxed);
+    if flag >= 1 {
+        return flag;
+    }
     std::env::var("HD_JOBS")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
@@ -605,6 +638,12 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
+        if let Some(jobs) = jobs_flag(args, i) {
+            let (n, used) = jobs?;
+            set_jobs(n);
+            i += used;
+            continue;
+        }
         // `cli.profile.release.file`: the release profile, and wasmtime's
         // optimized pipeline (`cli.profile.pipeline.release`).
         if args[i] == "--release" {
@@ -797,6 +836,12 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             let (kind, used) = e?;
             w.engine = kind;
             engine_flag = true;
+            i += used;
+            continue;
+        }
+        if let Some(jobs) = jobs_flag(args, i) {
+            let (n, used) = jobs?;
+            set_jobs(n);
             i += used;
             continue;
         }

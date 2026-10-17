@@ -6,11 +6,12 @@
 // check of 50k lines times out, the 10k package is used instead.
 // The speedup is the 1-thread wall time over the all-threads wall time.
 // Target (Pillar 2): ≥ 0.6 × cores, for up to 8 cores.
-// n/a: when no help text documents a thread count variable or flag.
+// n/a: when no help text documents a thread count flag or variable.
+// The flag (`--jobs`) is used when hd accepts it; HD_JOBS is the fallback.
 
 import { availableParallelism } from "node:os";
 
-import { findThreadControl, helpText } from "../lib/capability.ts";
+import { findThreadControl, helpText, type ThreadControl } from "../lib/capability.ts";
 import type { SizeName } from "../lib/gen.ts";
 import { copyPackage, freshCache, materialize, runProblem } from "../lib/fixture.ts";
 import { runHd } from "../lib/hd.ts";
@@ -29,11 +30,12 @@ export const parallelSpeedup: Metric = {
     const target = `≥ ${limit.toFixed(2)}x`;
     const label = (size: string) => `speedup, ${size} lines, ${cores} threads vs 1`;
     const help = await helpText(context.hd);
-    const control = findThreadControl(help.check, help.all);
-    if (!control)
+    const found = findThreadControl(help.check, help.all);
+    if (!found)
       return [
         notApplicable(NAME, label("50k"), target, "no documented thread count flag or variable"),
       ];
+    let control: ThreadControl = found;
     let problem = "";
     for (const size of ["50k", "10k"] as const satisfies readonly SizeName[]) {
       const { dir: source } = materialize(size, NAME);
@@ -44,7 +46,12 @@ export const parallelSpeedup: Metric = {
           timeoutMs: TIMEOUT_MS,
         });
       context.log(`${NAME}: ${size}, 1 thread, then ${cores}, by ${control.name}`);
-      const one = await check(1);
+      let one = await check(1);
+      // An older hd lists a flag it rejects: use its variable instead.
+      if (one.status !== 0 && /has no option/.test(one.stderr) && control.fallback) {
+        control = control.fallback;
+        one = await check(1);
+      }
       problem = runProblem(one, TIMEOUT_MS, `the 1-thread check of ${size}`) ?? "";
       if (one.timedOut && size === "50k") continue;
       if (problem) return [failed(NAME, label(size), target, problem)];

@@ -31,9 +31,6 @@ struct Options {
     all: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
-    /// The thread count of `hd fix --jobs N` (`cli.jobs`); `None` for the
-    /// default.
-    jobs: Option<usize>,
 }
 
 fn options(args: &[OsString]) -> Result<Options, String> {
@@ -43,6 +40,12 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             o.json = json;
+            i += used;
+            continue;
+        }
+        if let Some(jobs) = crate::jobs_flag(args, i) {
+            let (n, used) = jobs?;
+            crate::set_jobs(n);
             i += used;
             continue;
         }
@@ -205,12 +208,12 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, o, store, lib_sources, &Goal::Analyze, &[]);
+    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[]);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
-        let (more, names) = check_role(&t, o, store, &t.program.sources, &Goal::CheckTests, &docs);
+        let (more, names) = check_role(&t, store, &t.program.sources, &Goal::CheckTests, &docs);
         for x in more {
             if !shown.contains(&x) {
                 shown.push(x);
@@ -231,7 +234,6 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
 /// relocated to their source, and the modules whose bodies it checked.
 fn check_role(
     t: &Target,
-    o: &Options,
     store: &dyn CacheStore,
     sources: &disk::DiskSources,
     goal: &Goal,
@@ -243,7 +245,7 @@ fn check_role(
         sources,
         store,
         clock: &clock,
-        executor: o.jobs.map_or_else(executor, crate::executor_of),
+        executor: executor(),
     };
     // `hd check FILE` checks only FILE's module, its doc tests and what
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
@@ -265,19 +267,20 @@ fn check_role(
 }
 
 /// The diagnostics of a whole-package check of `program`, as `hd check`
-/// with no flag reports them (`cli.check.default`), on `jobs` threads or
-/// the default; `hd fix` runs it (`cli.fix.command`).
-pub(crate) fn check_package(program: disk::Program, jobs: Option<usize>) -> Vec<Diag> {
+/// with no flag reports them (`cli.check.default`); `hd fix` runs it
+/// (`cli.fix.command`).
+pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
     let t = Target {
         program,
         only: None,
         member: None,
     };
-    let o = Options {
-        jobs,
-        ..Options::default()
-    };
-    check_one(t, &o, &DeferredStore::new(crate::disk_store())).0
+    check_one(
+        t,
+        &Options::default(),
+        &DeferredStore::new(crate::disk_store()),
+    )
+    .0
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
