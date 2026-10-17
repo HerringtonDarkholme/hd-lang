@@ -501,6 +501,7 @@ runtime/valid/while-else-exhaustion-value.hd	runtime	accept	lang/06-control-flow
 runtime/valid/infinite-loop-return.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.never
 runtime/valid/infinite-loop-nested-break.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.exit
 runtime/valid/infinite-loop-else.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.else
+runtime/valid/loop-break-join-rows.hd	runtime	accept	lang/06-control-flow.md#r-flow.loop.else.type
 typing/invalid/infinite-loop-break-missing-return.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.exit
 typing/invalid/infinite-loop-variable-condition.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.literal
 typing/warnings/unreachable-after-infinite-loop.hd	type	warn:unreachable-code	lang/06-control-flow.md#r-flow.unreachable.infinite-loop

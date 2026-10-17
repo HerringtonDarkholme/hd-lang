@@ -2633,10 +2633,12 @@ impl Ck<'_, '_> {
 
     /// `types.literal.local.class.open`: a literal class that met no type
     /// by the end of its statement takes its default type. A class that
-    /// reached the result join of an open function or closure stays open
-    /// until the join (`types.literal.local.form.join-open`): its return
-    /// paths join across statements
-    /// (`types.literal.local.form.function-return.statements`).
+    /// reached the result join of an open function or closure, or the
+    /// values of an enclosing loop, stays open until the join
+    /// (`types.literal.local.form.join-open`): its return paths and
+    /// `break` values join across statements
+    /// (`types.literal.local.form.function-return.statements`,
+    /// `types.literal.local.form.closure-return.statements`).
     pub(crate) fn close_literals(&mut self, start: usize) {
         self.close_literals_but(start, &[]);
     }
@@ -2648,6 +2650,7 @@ impl Ck<'_, '_> {
         let joins: Vec<Ty> = self
             .rets
             .iter()
+            .chain(self.loops.iter().filter_map(|(_, r)| r.as_ref()))
             .map(|r| self.infer.shallow(pool, *r))
             .collect();
         for (t, k) in self.infer.open_literals_since(pool, start) {

@@ -2215,6 +2215,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 | Map literal | the keys, and the values | [Expressions](05-expressions.md#list-and-map-expressions) |
 | Value-producing `if` | the branches | [Control Flow](06-control-flow.md#conditional-expressions) |
 | Value-producing `match` | the arm results | [Control Flow](06-control-flow.md#match-expressions) |
+| Value-producing `while` or `for` | the `break` values and the `else` value | [Control Flow](06-control-flow.md#break-continue-and-loop-else) |
 | Closure whose result type is inferred | the final value and `return` operands | [Functions](07-functions.md#closures) |
 | Non-public function whose result type is omitted | the final value and `return` operands | [Functions](07-functions.md#declarations) |
 

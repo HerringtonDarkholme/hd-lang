@@ -1,0 +1,91 @@
+# test: a loop's break values and its else value join like the branches of an if
+# Spec 06 Loop Values: flow.loop.else.type; spec 04 Least Common Type: types.lct.row-union-every-site, types.lct.optional.
+# expect: test
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn status() -> string: "ok"
+
+# The break value and the else value differ in rows.
+fn pick_route(stop: i32) -> string $ Db + Clock:
+    let i = +0
+    route := while i < 3:
+        i = i + 1
+        if i == stop:
+            break orders
+    else:
+        health
+    route()
+
+# Two break values and an else value, each with its own row.
+fn pick_by_name(names: List[string], wanted: string) -> string $ Db + Clock:
+    route := for name in names:
+        if name == wanted:
+            break orders
+        if name == "status":
+            break status
+    else:
+        health
+    route()
+
+# A plain break value joins an optional else value by injection.
+fn first_even(values: List[i32]) -> i32?:
+    let fallback: i32? = .None
+    found := for v in values:
+        if v % 2 == 0:
+            break v
+    else:
+        fallback
+    found
+
+# A literal break value takes the type of the else value, here i64.
+fn first_hit(stop: i32, limit: i64) -> i64:
+    let i = +0
+    hit := while i < 10:
+        i = i + 1
+        if i == stop:
+            break 100
+    else:
+        limit
+    hit * 3000000000
+
+tests:
+    use std.testing.assert_equal
+
+    it("a break value with one row and an else value with another both run"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            assert_equal(pick_route(2), "db", reason="the break value")
+            assert_equal(pick_route(5), "noon", reason="the else value")
+
+    it("a for loop joins every break value with its else value"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            assert_equal(pick_by_name(["a", "orders"], "orders"), "db", reason="the first break")
+            assert_equal(pick_by_name(["status"], "orders"), "ok", reason="the second break")
+            assert_equal(pick_by_name(["a"], "orders"), "noon", reason="the else value")
+
+    it("a plain break value joins an optional else value"):
+        assert_equal(first_even([1, 4, 5]), .Some(4), reason="the break value, injected")
+        assert_equal(first_even([1, 3]), .None, reason="the else value")
+
+    it("a literal break value joins an else value of another integer type"):
+        assert_equal(first_hit(3, 7), 300000000000, reason="the literal break, as i64")
+        assert_equal(first_hit(20, 7), 21000000000, reason="the else value")

@@ -2524,13 +2524,21 @@ impl Ck<'_, '_> {
 
     /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.
     fn while_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        self.loop_site(e, want, |this, els| this.while_loop(e, els))
+    }
+
+    /// A `while` loop whose `else` suite, if any, is `els`.
+    fn while_loop(
+        &mut self,
+        e: NodeRef<'_>,
+        els: Option<(hd_base::NodeIdx, Ty)>,
+    ) -> StageResult<(Ref, Ty)> {
         let Some(cond) = e.children().next() else {
             return unsupported("a `while` without a condition");
         };
         let Some(body) = Src::child(e, SyntaxKind::Block) else {
             return unsupported("a `while` without a block");
         };
-        let els = self.loop_else_of(e, want)?;
         let result = els.map(|(_, t)| t);
         // `flow.while.infinite`: `while true`, or `while (true)`, without
         // a `break` never completes.
@@ -2573,25 +2581,24 @@ impl Ck<'_, '_> {
         Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
     }
 
-    /// A loop's `else` suite (`flow.loop.else.value`) and the loop's
-    /// result type.
-    fn loop_else_of(
+    /// Checks loop `e` with `run`, which gets the loop's `else` suite and
+    /// result type (`flow.loop.else.value`), or none for a loop without
+    /// `else`. A loop with `else` is a least-common-type site like a value
+    /// `if`: its `break` values and its `else` value join by the same rules
+    /// and take the same conversions (`flow.loop.else.type`, `types.lct`).
+    fn loop_site(
         &mut self,
         e: NodeRef<'_>,
         want: Option<Ty>,
-    ) -> StageResult<Option<(hd_base::NodeIdx, Ty)>> {
+        run: impl FnOnce(&mut Self, Option<(hd_base::NodeIdx, Ty)>) -> StageResult<(Ref, Ty)>,
+    ) -> StageResult<(Ref, Ty)> {
         let Some(clause) = Src::child(e, SyntaxKind::ElseClause) else {
-            return Ok(None);
+            return run(self, None);
         };
         let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
             return unsupported("a loop `else` without a block");
         };
-        let pool = self.pool();
-        let t = match want {
-            Some(w) => w,
-            None => self.infer.fresh(pool, VarKind::General),
-        };
-        Ok(Some((blk.index(), t)))
+        self.join_site(want, |this, result| run(this, Some((blk.index(), result))))
     }
 
     /// `flow.for.pattern.irrefutable`: a `for` pattern must always match.
@@ -2638,15 +2645,17 @@ impl Ck<'_, '_> {
     /// is already an `Iterator`), then a loop around `next` and a match on
     /// its option (`crates/hd_tir/DESIGN.md` "What The Checker Desugars").
     fn for_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        self.loop_else = self.loop_else_of(e, want)?;
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         let (Some(pat), Some(src), Some(body)) =
             (kids.first(), kids.get(1), Src::child(e, SyntaxKind::Block))
         else {
             return unsupported("a `for` shape");
         };
-        self.iterate(*pat, *src, e, &mut |me: &mut Self| {
-            me.block_value(body, Some(Ty::VOID)).map(|_| ())
+        self.loop_site(e, want, |this, els| {
+            this.loop_else = els;
+            this.iterate(*pat, *src, e, &mut |me: &mut Self| {
+                me.block_value(body, Some(Ty::VOID)).map(|_| ())
+            })
         })
     }
 

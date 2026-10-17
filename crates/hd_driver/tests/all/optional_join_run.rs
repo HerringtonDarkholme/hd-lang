@@ -162,6 +162,44 @@ pub fn main() -> void $ Console:
     assert_eq!(output_of("list", main), "3\nok\n");
 }
 
+/// A loop's `break` values and its `else` value join as `if` branches
+/// do (spec 06 `flow.loop.else.type`): a plain `break` value before an
+/// optional `else` value takes `.Some`, and so does a plain `else` value
+/// after an optional `break` value, in `while` and `for` alike.
+#[test]
+fn loop_values_join_a_value_and_an_optional() {
+    let main = "\
+fn break_first(stop: i32, found: i32?):
+    let i = +0
+    while i < 3:
+        i = i + 1
+        if i == stop:
+            break i
+    else:
+        found
+
+fn optional_break(items: List[i32], found: i32?):
+    for v in items:
+        if v > 2:
+            break found
+    else:
+        +7
+
+fn show(v: i32?) -> string:
+    match v:
+        .Some(n) => \"some ${n}\"
+        .None => \"none\"
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    println(show(break_first(2, none)))
+    println(show(break_first(9, none)))
+    println(show(optional_break([5], none)))
+    println(show(optional_break([1], none)))
+";
+    assert_eq!(output_of("loop", main), "some 2\nnone\nnone\nsome 7\n");
+}
+
 /// Injection adds one layer: an `i32` and an `i32??` have no common type.
 #[test]
 fn two_layers_still_have_no_common_type() {
