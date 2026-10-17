@@ -216,6 +216,7 @@ The stdlib chapters' terms are in the
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
 | **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
+| **generic call cycle** | A chain of calls that passes a type parameter on to the callee's type parameters until it reaches itself again. See [`types.generic.call-cycle`](lang/04-type-system.md#r-types.generic.call-cycle). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
 | **hidden item** | An item in a package interface that only the code of an instantiated template may name. See [`module.interface.hidden-item`](lang/10-modules.md#r-module.interface.hidden-item). |

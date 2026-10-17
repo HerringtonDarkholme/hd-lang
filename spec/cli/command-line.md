@@ -552,13 +552,13 @@ hd test src/billing.hd    # the tests of module billing
 10. r[cli.build.output.file] `hd build FILE` writes FILE's module to `build/debug/files/STEM.wasm`, or to `build/release/files/STEM.wasm` with `--release`. STEM is FILE's name without its `.hd` extension.
 11. r[cli.build.library-only] A whole-package `hd build` of a package with no executable, such as a library-only package, checks the package and writes no `.wasm` file.
 12. r[cli.build.library-only.cache] It still writes the package's interface and its entries in the [compiled cache](#compiled-cache), so a dependent's next command reuses them.
-13. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: `instantiation-too-deep`.
-14. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report `instantiation-too-deep`. A package that `hd check` accepts may still fail `hd build`.
+13. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: the [instantiation limit](../lang/04-type-system.md#r-types.generic.instantiation-depth.error)'s `instantiation-too-deep`.
+14. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report the instantiation limit. It does report a [generic call cycle](../lang/04-type-system.md#r-types.generic.polymorphic-recursion) that grows. A package that `hd check` accepts may still fail `hd build`.
 15. r[cli.build.facts-at-run-time] Checking or building a program evaluates no fact. A fact's panic is the runtime panic `fact-evaluation-failed` of the running program that reads it.
 
 ```sh
 hd check     # 0: checking compiles no instantiation
-hd build     # 101 with instantiation-too-deep, for polymorphic recursion
+hd build     # 101 with instantiation-too-deep, past the instantiation limit
 ```
 
 > **Why.** The `files` directory keeps a FILE's module apart from the

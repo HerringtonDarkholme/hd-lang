@@ -28,6 +28,7 @@ pub use facts::{FactSource, FactTarget, check_decl_facts, check_fact_list, check
 mod fnref;
 pub mod header;
 pub mod init;
+pub mod inst_cycles;
 mod join;
 mod literals;
 mod local;

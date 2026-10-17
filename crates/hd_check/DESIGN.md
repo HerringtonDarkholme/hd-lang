@@ -1450,6 +1450,7 @@ Other limits:
 | trait resolution depth | 64 | solver | `trait-resolution-depth` |
 | nesting depth | 256 | parser; the checker relies on it | `nesting-too-deep` |
 | instantiation depth of row keys | 32 | M1 row solve | `instantiation-too-deep` |
+| growing generic call cycle | none: any growth on a cycle | after a module's bodies (`inst_cycles`) | `instantiation-too-deep` |
 
 Planned, not built: a type size limit at interning (`type-too-large`)
 and `match-too-complex`.

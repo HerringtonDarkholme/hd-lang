@@ -5222,6 +5222,9 @@ impl Run<'_> {
                 }
             }
         }
+        // A generic call cycle of the module's own bodies whose type
+        // arguments grow (spec 04 `types.generic.polymorphic-recursion`).
+        hd_check::inst_cycles::growing_cycles(&cx, &bodies, &mut diags);
         // The method bodies of the implementations `@error` generates
         // (spec 14 `annot.error.generates`, `crates/hd_mono/DESIGN.md` §13.14).
         for h in heads.iter().filter(|h| {

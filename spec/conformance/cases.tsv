@@ -3310,3 +3310,7 @@ runtime/valid/process-output.hd	runtime	accept	std/process.md#r-std-process.help
 typing/invalid/match-variant-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate
 typing/invalid/enum-header-duplicate-parameter.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.field.unique
 typing/invalid/variant-duplicate-payload-name.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.shared.payload-names
+typing/invalid/polymorphic-recursion-list.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.polymorphic-recursion
+typing/invalid/polymorphic-recursion-mutual.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle
+typing/invalid/polymorphic-recursion-tuple.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle.grows
+typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.step

@@ -1,7 +1,9 @@
 //! `types.generic.instantiation-depth.error` and `cli.build.depth-error`:
 //! collection stops at the instantiation depth limit (`crates/hd_mono/DESIGN.md` §13.4)
 //! with `instantiation-too-deep` on the call that would exceed it, and a
-//! check builds no program, so it reports nothing. Instance keys hash the
+//! check builds no program, so it reports no depth limit. A generic call
+//! cycle whose type arguments grow is found by checking
+//! (`types.generic.polymorphic-recursion`). Instance keys hash the
 //! pool's shared types, never their trees, so a type that doubles per call
 //! stops as fast as one that grows a level.
 
@@ -40,8 +42,9 @@ fn codes(out: &Output) -> Vec<&str> {
     out.diags.code.iter().map(|c| c.as_str()).collect()
 }
 
-/// Each call nests `T` one tuple deeper: `i32`, `(i32, i32)`,
-/// `((i32, i32), i32)`, and so on, with no end.
+/// Each call nests `T` one tuple deeper: a generic call cycle whose type
+/// argument grows (`types.generic.polymorphic-recursion`), which checking
+/// finds from the calls alone.
 const GROWING: &str = "\
 fn wrap[T](value: T, depth: i32) -> i32:
     if depth == 0: return depth
@@ -52,7 +55,24 @@ pub fn main() -> void:
 ";
 
 #[test]
-fn polymorphic_recursion_stops_at_the_depth_limit() {
+fn a_check_reports_a_growing_call_cycle() {
+    let checked = run(GROWING, &Goal::Analyze);
+    assert_eq!(
+        codes(&checked),
+        ["instantiation-too-deep"],
+        "{}",
+        checked.render()
+    );
+    // On the growing call, line 3.
+    let text = checked.render();
+    let call = GROWING.find("wrap((value").expect("the call");
+    assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
+    assert!(text.contains("passes `(T, i32)` for `T`"), "{text}");
+    assert!(text.contains("cycle `wrap -> wrap`"), "{text}");
+}
+
+#[test]
+fn a_build_reports_the_cycle_before_instantiating() {
     let program = run(GROWING, &whole_program());
     assert_eq!(
         codes(&program),
@@ -61,29 +81,76 @@ fn polymorphic_recursion_stops_at_the_depth_limit() {
         program.render()
     );
     assert!(program.wasm.is_none());
-    // On the growing call, line 3.
+    assert!(program.render().contains("generic call cycle"));
+}
+
+/// Each round boxes the receiver once more through a call with no fixed
+/// callee, `value.grow` through the bound: no generic call cycle shows
+/// it, so only the depth limit stops it.
+const BOUND_GROWTH: &str = "\
+trait Grow:
+    fn grow(self, depth: i32) -> i32
+
+data Box[T]:
+    value: T
+
+impl[T] Grow for Box[T]:
+    fn grow(self, depth: i32) -> i32:
+        if depth == 0: return depth
+        deeper(Box { value: self }, depth - 1)
+
+fn deeper[G < Grow](value: G, depth: i32) -> i32:
+    value.grow(depth)
+
+pub fn main() -> void:
+    _ := deeper(Box { value: +1 }, +3)
+";
+
+#[test]
+fn growth_through_a_bound_stops_at_the_depth_limit() {
+    let program = run(BOUND_GROWTH, &whole_program());
+    assert_eq!(
+        codes(&program),
+        ["instantiation-too-deep"],
+        "{}",
+        program.render()
+    );
+    assert!(program.wasm.is_none());
+    // On the growing call, line 10.
     let text = program.render();
-    let call = GROWING.find("wrap((value").expect("the call");
+    let call = BOUND_GROWTH
+        .find("deeper(Box { value: self }")
+        .expect("the call");
     assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
     assert!(text.contains("33 deep, past the limit of 32"), "{text}");
 }
 
 #[test]
 fn a_check_reports_no_depth_error() {
-    let checked = run(GROWING, &Goal::Analyze);
+    let checked = run(BOUND_GROWTH, &Goal::Analyze);
     assert!(!checked.diags.has_errors(), "{}", checked.render());
 }
 
-/// Each call pairs `T` with itself: the instance at depth `d` has a tree
-/// of 2^d leaves, but only `d + 1` distinct types (the CLI case
-/// `build-instantiation-too-deep`).
+/// Each round pairs the receiver with itself: the instance at depth `d`
+/// has a tree of 2^d leaves, but only `d + 1` distinct types.
 const DOUBLING: &str = "\
-fn nest[T](value: T, depth: i32) -> i32:
-    if depth == 0: return depth
-    nest((value, value), depth - 1)
+trait Grow:
+    fn grow(self, depth: i32) -> i32
+
+data Pair[A, B]:
+    a: A
+    b: B
+
+impl[A, B] Grow for Pair[A, B]:
+    fn grow(self, depth: i32) -> i32:
+        if depth == 0: return depth
+        deeper(Pair { a: self, b: self }, depth - 1)
+
+fn deeper[G < Grow](value: G, depth: i32) -> i32:
+    value.grow(depth)
 
 pub fn main() -> void:
-    _ := nest(+1, +3)
+    _ := deeper(Pair { a: +1, b: +2 }, +3)
 ";
 
 #[test]
@@ -105,8 +172,10 @@ fn a_doubling_type_stops_without_exponential_work() {
     assert!(text.contains("33 deep, past the limit of 32"), "{text}");
     // The chain's first instances in full, the last one's 2^33-leaf
     // argument cut short.
-    assert!(text.contains("main/nest[(i32, i32)]`"), "{text}");
-    assert!(text.contains("((i32, i32), (i32, i32))"), "{text}");
+    assert!(
+        text.contains("main/deeper[mut app.main.Pair[i32, i32]]`"),
+        "{text}"
+    );
     assert!(text.contains("...]`"), "{text}");
     assert!(text.len() < 1000, "{text}");
 }
@@ -154,21 +223,48 @@ fn a_warm_rebuild_of_shared_types_emits_nothing() {
     assert_eq!(warm.wasm, cold.wasm);
 }
 
-/// Each call wraps `T` in one more list: the concrete types grow through
-/// reference layouts that classify alike, so no depth limit trips on its
-/// own (`types.generic.polymorphic-recursion`).
-const ERASED_GROWTH: &str = "\
-fn eat[T](xs: List[T], depth: i32) -> i32:
+/// Each round wraps `T` in one more list, through a generic call cycle
+/// that spans two files, which checking one module at a time does not
+/// see: the concrete types grow through reference layouts that classify
+/// alike, so no depth limit trips on its own, and collection stops the
+/// cycle (`types.generic.polymorphic-recursion`).
+const ERASED_A: &str = "\
+use pkg.b.{eat}
+
+pub fn bite[T](xs: List[T], depth: i32) -> i32:
     if depth == 0: 0
     else: eat([xs], depth - 1) + 1
+";
+
+const ERASED_B: &str = "\
+use pkg.a.{bite}
+
+pub fn eat[T](xs: List[T], depth: i32) -> i32:
+    bite(xs, depth)
+";
+
+const ERASED_MAIN: &str = "\
+use pkg.a.{bite}
 
 pub fn main() -> void:
-    _ := eat([1], 3)
+    _ := bite([1], 3)
 ";
 
 #[test]
 fn polymorphic_recursion_through_erasure_stops() {
-    let program = run(ERASED_GROWTH, &whole_program());
+    let mut src = MemorySources::default();
+    src.insert("main.hd", ERASED_MAIN);
+    src.insert("a.hd", ERASED_A);
+    src.insert("b.hd", ERASED_B);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let program = build(&host, "app", &whole_program());
     assert_eq!(
         codes(&program),
         ["instantiation-too-deep"],
@@ -178,9 +274,6 @@ fn polymorphic_recursion_through_erasure_stops() {
     assert!(program.wasm.is_none());
     let text = program.render();
     assert!(text.contains("grow through reference layouts"), "{text}");
-    // On the growing call, line 3.
-    let call = ERASED_GROWTH.find("eat([xs]").expect("the call");
-    assert!(text.contains(&format!("main.hd:{call}..")), "{text}");
 }
 
 /// Recursion that passes its erased parameter through unchanged shares

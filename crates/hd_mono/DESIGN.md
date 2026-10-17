@@ -815,9 +815,14 @@ growing type) has no finite instance set.
   three and the last instance of the chain, with types printed in full.
 - This is a build error, reported by `hd build`, `hd run` and `hd test`,
   with no boxed fallback. `hd check` does not report it, since it does
-  not collect. The one exception is a private row that grows by
-  polymorphic recursion: the checker reports the same code
-  ([crates/hd_check/DESIGN.md (type checking) §5.5](../hd_check/DESIGN.md#55-private-rows-and-the-m3-fixpoint)).
+  not collect. Two checks report the same code earlier: a private row
+  that grows by polymorphic recursion
+  ([crates/hd_check/DESIGN.md (type checking) §5.5](../hd_check/DESIGN.md#55-private-rows-and-the-m3-fixpoint)),
+  and a generic call cycle of one module whose type arguments grow
+  (`types.generic.polymorphic-recursion`, `hd_check::inst_cycles`). So the
+  limit, and the stop when an instance re-enters an ancestor through
+  reference layouts, are left with growth through a bound or a trait
+  value, and with cycles that span files.
 
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 

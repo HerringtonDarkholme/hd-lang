@@ -1,0 +1,12 @@
+# test: two generic functions whose calls lead a parameter back to itself, one call wrapping it in an option, are a growing generic call cycle
+# Spec 04 Generic Representation: types.generic.polymorphic-recursion, types.generic.call-cycle.
+fn even[T](value: T, n: i32) -> i32:
+    if n == 0: 0
+    else: odd(value, n - 1)
+
+fn odd[T](value: T, n: i32) -> i32:
+    if n == 0: 1
+    else: even(.Some(value), n - 1)  # diagnostic: instantiation-too-deep
+
+pub fn main() -> void:
+    _ := even(+1, +3)

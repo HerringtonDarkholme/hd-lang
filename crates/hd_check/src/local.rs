@@ -283,6 +283,12 @@ impl Ck<'_, '_> {
             }
             let index = self.next_gen;
             self.next_gen = self.next_gen.saturating_add(1);
+            // Messages name it as written (`show_ty`).
+            self.cx.names.paths.set_param_name(
+                hd_base::PathId::from_raw(self.gen_owner.raw()),
+                index,
+                src.text(gt),
+            );
             let p = pool.intern_ty(&TyData::Param(ParamRef {
                 owner: self.gen_owner,
                 index,

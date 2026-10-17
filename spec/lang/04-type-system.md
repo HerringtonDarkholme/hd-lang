@@ -1768,9 +1768,15 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 3. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
 4. r[types.generic.instantiation-depth] An implementation may limit how deeply generic instantiations nest, where each instantiation is reached from the one that calls it. The limit is implementation-defined.
 5. r[types.generic.instantiation-depth.error] A program whose instantiations exceed that limit is an error, reported on the call that would exceed it. Error: `instantiation-too-deep`.
-6. r[types.generic.polymorphic-recursion] So polymorphic recursion, in which a generic function calls itself with ever larger type arguments, is always an error under any limit.
-7. r[types.limit.type-size] An implementation may limit the size of one type, counted in the types it is built from. The limit is implementation-defined.
-8. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
+6. r[types.generic.call-cycle.step] A call passes type parameter `P` of its body to parameter `Q` of its callee when its type argument for `Q` holds `P`.
+7. r[types.generic.call-cycle] A **generic call cycle** is a chain of such steps that leads a type parameter back to itself.
+8. r[types.generic.call-cycle.grows] A step grows when its type argument is larger than `P`, such as `List[P]`, `(P, P)`, or `P?`. A `mut P` argument counts as `P`.
+9. r[types.generic.polymorphic-recursion] A generic call cycle with a step that grows is an error, reported on that step's call. Neither the instantiation limit nor how bodies are shared changes this. Error: `instantiation-too-deep`.
+10. r[types.generic.call-cycle.fixed-callee] Only a call whose callee is fixed where it is written makes a step. That is a call of a function, a local function, a method, or a trait method whose implementation the receiver's type selects. A call through a bound or a trait value makes none.
+11. r[types.generic.call-cycle.impl-params] Each method of an implementation has its own copy of the implementation's type parameters.
+12. r[types.generic.call-cycle.projection] A type argument does not hold a type parameter that occurs only inside a projection, such as `P.Item`.
+13. r[types.limit.type-size] An implementation may limit the size of one type, counted in the types it is built from. The limit is implementation-defined.
+14. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
 
 ```hd
 fn first[T](items: List[T]) -> T?:
@@ -1785,8 +1791,13 @@ fn nest[T](value: T, depth: i32) -> i32:
 ```
 
 > **Why.** Each instantiation chain then ends, so an implementation may
-> compile generic code per concrete type with no fallback path. The fix
-> is a trait value or a non-generic helper.
+> compile generic code per concrete type with no fallback path. The
+> check reads only the calls, as Go's instantiation cycle check does, so
+> whether a program compiles never depends on how bodies are laid out.
+> The fix is a trait value or a non-generic helper.
+
+> **Note.** A chain that grows through a call with no fixed callee, such
+> as a call through a bound, still meets the instantiation limit.
 
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.
@@ -2394,7 +2405,7 @@ stays possible:
 | --- | --- |
 | [`types.generic.sharing`](#r-types.generic.sharing) | whether instantiations share a body |
 | [`types.generic.identity`](#r-types.generic.identity) | identity on a type that might be a value type |
-| [`types.generic.polymorphic-recursion`](#r-types.generic.polymorphic-recursion) | the number of instantiations, which is always finite |
+| [`types.generic.polymorphic-recursion`](#r-types.generic.polymorphic-recursion) | whether a growing call cycle could share one body |
 | [Dynamic Safety](09-traits.md#dynamic-safety) | the body behind a trait value's method, which is one per implementation |
 
 A method of a trait value has one body per implementation, so a
