@@ -3124,6 +3124,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let (kr, kt) = self.expr(key, None)?;
         let set = self.cx.names.known.index_set;
+        self.tuple_key_choice(set, bt, kt)?;
         if !self.op_fits(set, bt, Some(kt))? {
             self.err(
                 Code::InvalidAssignmentTarget,

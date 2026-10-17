@@ -1,0 +1,19 @@
+# test: a generic container indexed by (usize, usize) reads as the implementation's Out, used as T and as f64
+# Spec 05 Index Traits: expr.index.trait.read-other, the literal tuple key resolved before Out is read.
+use std.ops.Index
+
+data Grid[T]:
+    width: usize
+    cells: List[T]
+
+impl[T] Index[(usize, usize)] for Grid[T]:
+    type Out = T
+    fn index(self, at: (usize, usize)) -> T:
+        self.cells[at._0 * self.width + at._1]
+
+fn corner[T](grid: Grid[T]) -> T:
+    grid[(1, 1)]
+
+fn total(grid: Grid[f64]) -> f64:
+    let first: f64 = grid[(0, 1)]
+    first + grid[(1, 0)] + corner(grid)

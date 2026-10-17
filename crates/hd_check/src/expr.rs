@@ -1018,6 +1018,130 @@ impl Ck<'_, '_> {
             .map(Some)
     }
 
+    /// The instantiation choice for a tuple key with unsuffixed literal
+    /// elements (`expr.index.trait.choice`, `trait.resolve.literal-arg`),
+    /// made element by element, so the key's type is known before the
+    /// chosen implementation's `Out` is projected
+    /// (`expr.index.trait.read-other`). A single implementation whose key
+    /// fits gives the literals their types by context. Signed literals,
+    /// written as `i32` values, narrow the candidates next. The other
+    /// literals take their default type only to break a remaining tie.
+    /// `tr` is `Index` or `IndexSet`, whose first argument is the key.
+    pub(crate) fn tuple_key_choice(&mut self, tr: DefId, at: Ty, kt: Ty) -> StageResult<()> {
+        let pool = self.pool();
+        let key = self.infer.resolve(pool, self.strip_mut(kt));
+        if !matches!(pool.get(key), TyData::Tuple { .. }) {
+            return Ok(());
+        }
+        let mut lits = Vec::new();
+        self.open_tuple_literals(key, &mut lits);
+        if lits.is_empty() {
+            return Ok(());
+        }
+        let t = self.strip_mut(at);
+        // A parameter or trait value has bounds, not implementations.
+        if matches!(
+            pool.get(self.infer.resolve(pool, t)),
+            TyData::Param(_) | TyData::TraitValue { .. }
+        ) {
+            return Ok(());
+        }
+        let goal = hd_types::solver::Goal::Instantiations {
+            self_ty: t,
+            trait_: tr,
+            mut_: false,
+        };
+        let Answer::Candidates(cands) = self.solve_goal(&goal)? else {
+            return Ok(());
+        };
+        let all: Vec<usize> = (0..cands.len()).collect();
+        let mut fits = self.fitting_keys(&cands, &all, key);
+        for signed in [true, false] {
+            if fits.len() < 2 {
+                break;
+            }
+            for &l in &lits {
+                let Some(k) = self.infer.kind_of(pool, l) else {
+                    continue;
+                };
+                if (k == VarKind::SignedIntLit) != signed {
+                    continue;
+                }
+                if let Some(d) = k.literal_default() {
+                    self.note_fallback(l, k);
+                    let _ = self.infer.unify(pool, l, d);
+                }
+            }
+            fits = self.fitting_keys(&cands, &fits, key);
+        }
+        if let [one] = fits[..]
+            && let Some(k) = self.candidate_key(&cands[one])
+        {
+            let _ = self.infer.unify(pool, k, key);
+        }
+        Ok(())
+    }
+
+    /// The open literal classes among a tuple's elements, nested tuples
+    /// included.
+    fn open_tuple_literals(&self, t: Ty, out: &mut Vec<Ty>) {
+        let pool = self.pool();
+        let t = self.infer.shallow(pool, t);
+        match pool.get(t) {
+            TyData::Infer(_) => {
+                let open = self
+                    .infer
+                    .kind_of(pool, t)
+                    .and_then(VarKind::literal_default)
+                    .is_some();
+                if open && !out.contains(&t) {
+                    out.push(t);
+                }
+            }
+            TyData::Tuple { elems, .. } => {
+                for &e in pool.list_items(elems) {
+                    self.open_tuple_literals(e, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The candidates among `which` whose key unifies with `key`, each
+    /// tried without a trace left behind.
+    fn fitting_keys(
+        &mut self,
+        cands: &[hd_types::solver::Candidate],
+        which: &[usize],
+        key: Ty,
+    ) -> Vec<usize> {
+        let pool = self.pool();
+        let mut fits = Vec::new();
+        for &i in which {
+            let mark = self.infer.trial_mark();
+            let fit = self
+                .candidate_key(&cands[i])
+                .is_some_and(|k| self.infer.unify(pool, k, key).is_ok());
+            self.infer.rollback_trial(mark);
+            if fit {
+                fits.push(i);
+            }
+        }
+        fits
+    }
+
+    /// A candidate's key, the trait's first argument, with a fresh
+    /// variable for each implementation parameter the receiver left open.
+    fn candidate_key(&mut self, c: &hd_types::solver::Candidate) -> Option<Ty> {
+        let pool = self.pool();
+        let def = self.cx.impl_table(c.row.module)?.def[c.row.row as usize];
+        let first = *pool.list_items(c.args).first()?;
+        let vars: Vec<Ty> = (0..pool.list_items(c.impl_args).len())
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        Some(crate::call::subst_owner(pool, def, &vars, first))
+    }
+
     /// `a op b` as the operator trait's method (`expr.op.desugar`), once
     /// the built-in rules do not type it.
     fn operator_trait_call(
@@ -1647,6 +1771,7 @@ impl Ck<'_, '_> {
             ));
         }
         let index = self.cx.names.known.index;
+        self.tuple_key_choice(index, bt, kt)?;
         // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
             let msg = format!(
