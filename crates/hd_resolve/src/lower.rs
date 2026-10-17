@@ -52,6 +52,7 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
     ("std.iter", &["Iterator", "Iterable"]),
     ("std.console", &["Console", "ConsoleError", "println"]),
     ("std.task", &["Suspend", "Poll", "PollContext", "Waker"]),
+    ("std.ownership", &["OwnOnly", "DropOwn"]),
 ];
 
 /// The prelude names of test code (`module.prelude.test-only`): bound only

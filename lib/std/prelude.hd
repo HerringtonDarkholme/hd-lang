@@ -19,6 +19,7 @@ pub use std.hash.{Hash, Hasher}
 pub use std.iter.{Iterator, Iterable}
 pub use std.console.{Console, ConsoleError, println}
 pub use std.task.{Suspend, Poll, PollContext, Waker}
+pub use std.ownership.{OwnOnly, DropOwn}
 
 # Postfix `?` converts an error through the standard `From`
 # (module.prelude.question-from).

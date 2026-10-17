@@ -1,0 +1,2 @@
+# test: an impl OwnOnly is declared with its target type
+impl OwnOnly for i32  # diagnostic: orphan-impl

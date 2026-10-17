@@ -81,6 +81,8 @@ pub struct KnownItems {
     pub iterable: DefId,
     pub from: DefId,
     pub error: DefId,
+    // std.ownership
+    pub own_only: DefId,
     // std.task
     pub suspend: DefId,
     pub block_on: DefId,
@@ -194,6 +196,7 @@ impl KnownItems {
             bit_xor: item("std.ops", "BitXor"),
             shl: item("std.ops", "Shl"),
             shr: item("std.ops", "Shr"),
+            own_only: item("std.ownership", "OwnOnly"),
             eq: item("std.cmp", "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),

@@ -1,0 +1,8 @@
+# test: a plain self receiver of an OwnOnly type is own-type-plain
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+impl File:
+    fn describe(self) -> string: "file"  # diagnostic: own-type-plain

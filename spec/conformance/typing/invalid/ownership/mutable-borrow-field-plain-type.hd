@@ -1,0 +1,6 @@
+# test: a ^mut field needs an OwnOnly holder
+data File:
+    fd: i32
+
+data Flusher[^f]:
+    out: ^{f} mut File  # diagnostic: own-field-plain-type

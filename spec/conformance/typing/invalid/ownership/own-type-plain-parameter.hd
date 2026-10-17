@@ -1,0 +1,7 @@
+# test: a plain parameter of an OwnOnly type is own-type-plain
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn describe(f: File) -> string: "file"  # diagnostic: own-type-plain

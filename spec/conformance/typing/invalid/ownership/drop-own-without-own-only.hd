@@ -1,0 +1,6 @@
+# test: only an OwnOnly type implements DropOwn
+data Plain:
+    fd: i32
+
+impl DropOwn for Plain:  # diagnostic: missing-supertrait-implementation
+    fn drop(^mut self) -> void: pass

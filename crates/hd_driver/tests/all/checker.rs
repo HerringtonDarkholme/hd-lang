@@ -86,19 +86,19 @@ fn build_program(main: &str, store: &dyn CacheStore) -> Output {
 }
 
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
-/// trait default bodies among the bodies.
+/// trait default bodies among the bodies: 41 modules.
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {
     let out = analyze_std(&[]);
     let body = out.report.tally(Stage::Body);
     assert_eq!(
         (body.ok, body.not_implemented, body.blocked),
-        (40, 0, 0),
+        (41, 0, 0),
         "{}\n{:?}",
         out.report.render(),
         out.report.body_failures
     );
-    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 40);
+    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 41);
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
     assert_eq!(out.diags.len(), 0, "{}", out.render());

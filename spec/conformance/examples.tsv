@@ -644,6 +644,9 @@ lang/13-ownership.md	7	accept	parse/valid/ownership/owned-bounds.hd
 lang/13-ownership.md	8	accept	typing/valid/ownership/header-modes.hd|typing/valid/ownership/lifetime-parameters.hd
 lang/13-ownership.md	9	mixed	typing/invalid/ownership/own-on-value.hd|typing/invalid/ownership/own-on-type-parameter.hd|typing/invalid/ownership/mark-in-fn-constructor.hd
 lang/13-ownership.md	10	mixed	typing/invalid/ownership/bare-borrow-in-field.hd|typing/invalid/ownership/missing-lifetime-argument.hd|typing/invalid/ownership/ambiguous-lifetime.hd|typing/invalid/ownership/private-field-path.hd|typing/invalid/ownership/unknown-lifetime-name.hd
+lang/13-ownership.md	11	accept	typing/valid/ownership/own-only-positions.hd
+lang/13-ownership.md	12	accept	typing/valid/ownership/own-only-positions.hd
+lang/13-ownership.md	13	mixed	typing/invalid/ownership/own-field-plain-type.hd|typing/invalid/ownership/drop-own-without-own-only.hd|typing/invalid/ownership/own-type-plain-parameter.hd|typing/invalid/ownership/own-type-plain-type-argument.hd|typing/invalid/ownership/own-only-orphan.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

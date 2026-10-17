@@ -68,7 +68,7 @@ every fixture. They are the items a numbered chapter specifies:
 - the harness from `std.testing`: `it`, `assert`, `assert_equal`, and a
   literal `snapshot`, and the functions of the test registration calls
   `it_each`, `it_prop`, and `it_prop_with`;
-- the lang items and traits of `std.task`, `std.resource`, `std.convert`,
+- the lang items and traits of `std.task`, `std.ownership`, `std.resource`, `std.convert`,
   `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
   `std.num`, `std.structure`, `std.annotation`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and

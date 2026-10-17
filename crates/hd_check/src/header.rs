@@ -401,14 +401,18 @@ impl<'a> ItemCheck<'_, 'a> {
         let skip_self = matches!(&it.data, ItemData::Method { sig, .. }
             if sig.params.first().is_some_and(|p| self.cx.names.text(p.0) == "self"));
         for (i, t) in tys.into_iter().enumerate() {
-            if skip_self && i == 0 {
-                continue;
-            }
             let slot = if positional {
                 u32::try_from(i + 1).unwrap_or(0)
             } else {
                 0
             };
+            // A receiver is a position too (`own.own-only.plain`).
+            if !matches!(it.data, ItemData::Impl { .. } | ItemData::Alias(_)) {
+                self.own_only(it, t, slot)?;
+            }
+            if skip_self && i == 0 {
+                continue;
+            }
             if i >= keys_from {
                 self.check_key(t, slot);
             }
@@ -858,6 +862,78 @@ impl<'a> ItemCheck<'_, 'a> {
             self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
         }
         Ok(matches!(answer, Answer::Fails(_)))
+    }
+
+    /// `own.own-only.plain`: no position writes an `OwnOnly` type plain.
+    /// `own.own-only.field`: an `own` or `^mut` field needs an `OwnOnly`
+    /// holder. Written declarations only: a derived or delegated method
+    /// has the signature its trait gives it.
+    fn own_only(&mut self, it: &Item, t: Ty, slot: u32) -> StageResult<()> {
+        let pool = self.pool();
+        if let ItemData::Method { owner, .. } = &it.data
+            && let Some(ItemData::Impl { kind, .. }) = self.cx.lookup.item(*owner).map(|o| &o.data)
+            && *kind != ImplKind::Written
+        {
+            return Ok(());
+        }
+        let own_only = pool.intern_ty(&TyData::TraitValue {
+            def: self.cx.names.known.own_only,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let mut plain = Vec::new();
+        crate::own::plain_positions(pool, t, false, &mut plain);
+        for p in plain {
+            // A poisoned type was reported already, and a proof out of fuel
+            // proves nothing.
+            if pool.has_poison(p) || self.fails(p, own_only, slot)? || self.too_complex {
+                continue;
+            }
+            {
+                let dyn_ = if matches!(pool.get(p), TyData::TraitValue { .. }) {
+                    "dyn "
+                } else {
+                    ""
+                };
+                let shown = format!("{dyn_}{}", self.show(p));
+                let message = format!(
+                    "{shown} implements `OwnOnly`, so each use writes `own {shown}` or `^{shown}`"
+                );
+                self.report(slot, Code::OwnTypePlain, message);
+                return Ok(());
+            }
+        }
+        let mut top = t;
+        while let TyData::Option(i) = pool.get(top) {
+            top = i;
+        }
+        let exclusive = matches!(
+            pool.get(top),
+            TyData::Own(_) | TyData::Borrow { mutable: true, .. }
+        );
+        if exclusive && matches!(it.data, ItemData::Data(_) | ItemData::Enum { .. }) {
+            let args: Vec<Ty> = (0..it.generics.len())
+                .map(|i| {
+                    let index = u16::try_from(i).unwrap_or(u16::MAX);
+                    pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: it.def,
+                        index,
+                    }))
+                })
+                .collect();
+            let holder = pool.intern_ty(&TyData::Adt {
+                def: it.def,
+                args: pool.list(&args),
+            });
+            if self.fails(holder, own_only, slot)? {
+                let name = self.cx.names.display_name(it.def);
+                let message = format!(
+                    "an `own` or `^mut` field needs an `OwnOnly` holder: add `impl OwnOnly for {name}`"
+                );
+                self.report(slot, Code::OwnFieldPlainType, message);
+            }
+        }
+        Ok(())
     }
 
     /// A written requirement key may not be `Inspectable` or extend it

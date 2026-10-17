@@ -1,0 +1,5 @@
+# test: a trait that extends DropOwn makes its trait value OwnOnly
+trait Socket < DropOwn:
+    fn sent(^self) -> usize
+
+fn report(s: dyn Socket) -> void: pass  # diagnostic: own-type-plain

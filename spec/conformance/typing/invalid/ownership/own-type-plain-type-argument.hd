@@ -1,0 +1,7 @@
+# test: a plain type argument of an OwnOnly type is own-type-plain
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+fn count(files: ^List[File]) -> usize: 0  # diagnostic: own-type-plain

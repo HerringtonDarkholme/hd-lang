@@ -290,3 +290,68 @@ fn named(u: ^User) -> ^{w} string: panic("stub")        # error: unknown-name
 > argument", which is what a caller checks. A field path borrows only part of
 > an argument, and keeping it to `pub` fields means a signature never shows
 > a private field to another module.
+
+## Ownership Traits
+
+The module `std.ownership` declares two traits that the compiler knows by
+name. Both are prelude names
+([Prelude](10-modules.md#prelude)).
+
+```text
+pub trait OwnOnly
+
+pub trait DropOwn < OwnOnly:
+    fn drop(^mut self) -> void
+```
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void: pass
+
+data Pool:
+    idle: own List[own File]
+    first: own File?
+
+impl OwnOnly for Pool
+
+fn open(path: string) -> own File: panic("stub")
+
+fn size(f: ^File) -> usize: 0
+```
+
+1. r[own.own-only.marker] `OwnOnly` is a marker trait with no members. A type that implements it is always owned or borrowed.
+2. r[own.own-only.plain] A plain position, that is one that no `own` or `^` wraps directly, of a type that implements `OwnOnly` is an error. A receiver is a position, so `self` and `mut self` count. Error: `own-type-plain`.
+3. r[own.own-only.written] Only a written declaration's positions are checked; a derived or delegated method has the signature its trait gives it.
+4. r[own.own-only.field] A data type or an enum with a field or payload written `own T` or `^mut T`, under any number of `?`, must implement `OwnOnly`. Error: `own-field-plain-type`.
+5. r[own.own-only.module] An `impl OwnOnly` is declared in the module that declares its target type. Elsewhere in the target's package it is an error. Error: `nonlocal-impl`. In another package it is an error. Error: `orphan-impl`.
+6. r[own.own-only.unconditional] A written `impl OwnOnly for Box[T]` makes every instance of `Box` implement `OwnOnly`, whatever `T` is.
+7. r[own.drop-own.trait] `DropOwn` extends `OwnOnly`, so only an `OwnOnly` type implements it; an `impl DropOwn` for any other type is `missing-supertrait-implementation`. Its `drop` takes `^mut self` and returns `void`.
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+data Holder:
+    file: own File                       # error: own-field-plain-type
+
+data Plain:
+    fd: i32
+
+impl DropOwn for Plain:                  # error: missing-supertrait-implementation
+    fn drop(^mut self) -> void: pass
+
+fn bad(f: File) -> void: pass            # error: own-type-plain
+fn many(fs: ^List[File]) -> void: pass   # error: own-type-plain
+impl OwnOnly for i32                     # error: orphan-impl
+```
+
+> **Why.** A plain value may already have aliases, so a plain `File` could
+> be read after its owner dropped it. Requiring `own` or `^` at every use of
+> an `OwnOnly` type means no producer hands out a plain one.

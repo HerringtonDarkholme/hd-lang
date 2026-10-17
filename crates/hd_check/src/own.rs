@@ -33,6 +33,32 @@ pub(crate) fn parts(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
     }
 }
 
+/// The plain positions of `t` that hold a named type: those that no
+/// `own` or `^` wraps directly (`own.own-only.plain`).
+pub(crate) fn plain_positions(pool: Types<'_>, t: Ty, marked: bool, out: &mut Vec<Ty>) {
+    let kids = |l: hd_types::TyList, out: &mut Vec<Ty>| {
+        for &x in pool.list_items(l) {
+            plain_positions(pool, x, false, out);
+        }
+    };
+    match pool.get(t) {
+        TyData::Own(i) | TyData::Borrow { ty: i, .. } => plain_positions(pool, i, true, out),
+        TyData::Mut(i) | TyData::Option(i) => plain_positions(pool, i, false, out),
+        TyData::Adt { args: l, .. } | TyData::TraitValue { args: l, .. } => {
+            if !marked {
+                out.push(t);
+            }
+            kids(l, out);
+        }
+        TyData::Tuple { elems, .. } => kids(elems, out),
+        TyData::Fn { params, result, .. } => {
+            kids(params, out);
+            plain_positions(pool, result, false, out);
+        }
+        _ => {}
+    }
+}
+
 /// `own.header.field-path`: each field of a lifetime's field path exists and
 /// is `pub`, so a signature names no private field.
 pub(crate) fn field_paths(
