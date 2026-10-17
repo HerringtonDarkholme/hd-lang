@@ -12,7 +12,9 @@ pub fn sha256(bytes: List[u8]) -> Digest:
 # A SHA-256 computation that takes its input in pieces (r-std-digest.sha256.decl).
 # The fields are the eight state words, the bytes of the partial block
 # (always fewer than 64 between calls), the message length in bytes, and
-# the constants and the message schedule the rounds reuse.
+# the constants and the message schedule the rounds reuse. `outer` is empty
+# for a plain hasher; `hmac` sets it to the key block XOR 0x5c, which
+# `finish` hashes ahead of the inner digest (RFC 2104).
 ## A SHA-256 computation fed in pieces: `update` adds bytes and `finish` returns the digest.
 ## See [std-digest.sha256.decl](../../spec/std/digest.md#r-std-digest.sha256.decl).
 pub data Sha256:
@@ -21,6 +23,7 @@ pub data Sha256:
     length: u64
     rounds: List[u32]
     schedule: mut List[u32]
+    outer: mut List[u8]
 
 impl Sha256:
     ## Returns a hasher that has seen no bytes.
@@ -29,7 +32,31 @@ impl Sha256:
         let schedule: mut List[u32] = []
         for _ in 0..64:
             schedule.push(0)
-        Sha256 { state: initial_state(), block: [], length: 0, rounds: round_constants(), schedule: schedule }
+        Sha256 { state: initial_state(), block: [], length: 0, rounds: round_constants(), schedule: schedule, outer: [] }
+
+    ## Returns a hasher whose `finish` gives HMAC-SHA256 of the message under `key`.
+    ## See [std-digest.hmac](../../spec/std/digest.md#r-std-digest.hmac).
+    pub fn hmac(key: List[u8]) -> mut Sha256:
+        # A key longer than the 64-byte block is hashed first; a shorter one
+        # is padded with zeros to the block (RFC 2104, section 2).
+        let block_key: mut List[u8] = []
+        if key.len() > 64:
+            for byte in sha256(key).bytes:
+                block_key.push(byte)
+        else:
+            for byte in key:
+                block_key.push(byte)
+        while block_key.len() < 64:
+            block_key.push(0)
+        let inner_pad: mut List[u8] = []
+        let outer_pad: mut List[u8] = []
+        for byte in block_key:
+            inner_pad.push(byte ^ 0x36)
+            outer_pad.push(byte ^ 0x5c)
+        let hasher: mut Sha256 = Sha256::new()
+        hasher.update(inner_pad)
+        hasher.outer = outer_pad
+        hasher
 
     ## Adds `bytes` to the message and returns the hasher, so calls chain.
     ## See [std-digest.sha256.update](../../spec/std/digest.md#r-std-digest.sha256.update).
@@ -42,9 +69,16 @@ impl Sha256:
                 self.block.clear()
         self
 
-    ## Returns the digest of every byte added so far. The hasher is unchanged, so it can take more bytes.
+    ## Returns the digest of every byte added so far, or the HMAC-SHA256 under the key of `hmac`. The hasher is unchanged, so it can take more bytes.
     ## See [std-digest.sha256.finish](../../spec/std/digest.md#r-std-digest.sha256.finish).
     pub fn finish(self) -> Digest:
+        inner := self.finish_plain()
+        if self.outer.len() == 0:
+            return inner
+        Sha256::new().update(self.outer).update(inner.bytes).finish()
+
+    # The digest of the bytes hashed so far, ignoring any HMAC key.
+    fn finish_plain(self) -> Digest:
         let state: mut List[u32] = []
         for word in self.state:
             state.push(word)

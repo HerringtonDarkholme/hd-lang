@@ -7,6 +7,7 @@ over the language tier:
 
 - `Digest`, the result of a hash, with constant-time equality;
 - `Sha256`, a SHA-256 computation that takes its input in pieces;
+- `Sha256::hmac`, the same hasher keyed for HMAC-SHA256;
 - `sha256`, the SHA-256 digest of bytes in one call.
 
 Nothing in it is language tier. The 32-bit word arithmetic uses the
@@ -81,7 +82,7 @@ fn same_content(left: List[u8], right: List[u8]) -> bool:
 2. r[std-digest.sha256.length] The result's `bytes` holds 32 bytes: the eight words of the final hash value in order, each written high byte first.
 3. r[std-digest.sha256.hex] So `sha256(bytes).to_hex()` returns 64 lowercase hex digits.
 4. r[std-digest.sha256.oneshot] `sha256(bytes)` returns the same digest as `Sha256::new().update(bytes).finish()`, and does not copy `bytes`.
-5. r[std-digest.no-panic] `sha256`, `Sha256::new`, `update`, `finish`, `to_hex` and `==` on digests do not panic.
+5. r[std-digest.no-panic] `sha256`, `Sha256::new`, `Sha256::hmac`, `update`, `finish`, `to_hex` and `==` on digests do not panic.
 
 | Message | `to_hex` gives |
 | --- | --- |
@@ -133,5 +134,41 @@ fn digest_of_chunks(chunks: List[List[u8]]) -> Digest:
 > **Why.** `sha256` needs the whole message in memory. Streaming lets a
 > script hash a file larger than memory. Keeping the hasher usable after
 > `finish` is what Go's `Sum` does.
+
+## HMAC
+
+`Sha256::hmac` keys the hasher, as BLAKE3's `Hasher::new_keyed` does.
+Webhooks and signed tokens carry an HMAC-SHA256 of the body; the receiver
+computes the same MAC under the shared secret and compares.
+
+```text
+impl Sha256:
+    pub fn hmac(key: List[u8]) -> mut Sha256
+```
+
+```text
+use std.digest.{Digest, Sha256}
+use std.encoding.hex_decode
+
+fn signature_ok(secret: string, body: string, sent_hex: string) -> bool:
+    match hex_decode(sent_hex):
+        .Ok(sent) =>
+            expected := Sha256::hmac(secret.bytes().collect()).update(body.bytes().collect()).finish()
+            expected == Digest { bytes: sent }
+        .Err(_) => false
+```
+
+1. r[std-digest.hmac] `Sha256::hmac(key: List[u8]) -> mut Sha256` returns a hasher that has seen no message bytes. Its `finish` returns HMAC-SHA256 of the message under `key`, as RFC 2104 defines it with SHA-256 as the hash.
+2. r[std-digest.hmac.key] A key longer than 64 bytes is replaced by its SHA-256 digest first; a key of up to 64 bytes is used as given. The result is padded with zero bytes to 64 bytes. An empty key is allowed.
+3. r[std-digest.hmac.finish] `update`, and `finish` leaving the hasher unchanged, behave as for a plain hasher ([`update`](#r-std-digest.sha256.update), [`finish`](#r-std-digest.sha256.finish)): the split of the message across calls does not change the MAC.
+4. r[std-digest.hmac.result] The result is a `Digest` of 32 bytes. Checking a received MAC is `expected == sent`, constant time by [`==`](#r-std-digest.digest.eq.constant-time).
+5. r[std-digest.hmac.vectors] The MACs of RFC 4231 test cases 1 to 7 are the values that RFC lists for HMAC-SHA-256 (case 5 in full, not truncated).
+
+> **Cost.** A keyed hasher compresses three more 64-byte blocks than a
+> plain one: the inner key block, the outer key block, and the block that
+> holds the inner digest.
+
+> **Why.** Hashing `key || message` is not a MAC: an attacker who sees
+> the digest can extend it. HMAC's two nested hashes avoid that.
 
 See also: [Encoding](encoding.md), [Hash](hash.md).
