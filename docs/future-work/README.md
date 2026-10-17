@@ -43,6 +43,9 @@ action at a distance.
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
   owner did not make explicitly, kept for the stdlib audit.
+- [Outcomes And Exit Status](OUTCOMES_AND_EXIT_STATUS.md): whether
+  `send!` and `run!` fail a non-success outcome by default, and how an
+  error chooses the process exit status (#350).
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
