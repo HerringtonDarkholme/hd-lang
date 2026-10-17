@@ -1,5 +1,5 @@
 # test: join, as a function and a List[string] method, puts the separator between parts, and StringBuilder joins pushed text in order
-# Spec std/text Joining And Building: std-text.join.result, std-text.join.method, std-text.builder.new, .push, .build.
+# Spec std/text Joining And Building: std-text.join.result, std-text.join.method, std-text.builder.new, .push, .push-char, .build.
 use std.text.{StringBuilder, join}
 fn csv(cells: List[string]) -> string:
     cells.join(",")
@@ -10,7 +10,7 @@ fn dotted(parts: List[string]) -> string:
 fn report(names: List[string]) -> string:
     let mut out = StringBuilder::new()
     for name in names:
-        out.push("- ${name}\n")
+        out.push("- ").push(name).push_char('\n')
     out.build()
 
 tests:
@@ -32,3 +32,13 @@ tests:
         empty.push("x")
         assert_equal(empty.build(), "x", reason="build leaves it unchanged")
         assert_equal(empty.build(), "x", reason="twice")
+
+    it("chains and pushes characters"):
+        assert_equal(StringBuilder::new().push("a").push_char('b').build(), "ab", reason="push chains into push_char")
+        let mut out = StringBuilder::new()
+        out.push_char('a').push_char('\u{e9}').push_char('\u{20ac}').push_char('\u{1f600}').push("!")
+        assert_equal(out.build(), "a\u{e9}\u{20ac}\u{1f600}!", reason="1-, 2-, 3- and 4-byte scalars")
+        assert_equal(out.build().len(), 11, reason="ten bytes of scalars and one of text")
+        out.push_char('z').push("y").push_char('x')
+        assert_equal(out.build().slice(11, 14), "zyx", reason="characters and texts keep push order")
+        assert_equal(StringBuilder::new().push_char('q').build(), "q", reason="characters alone")

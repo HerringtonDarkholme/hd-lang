@@ -336,7 +336,7 @@ fn dotted(parts: List[string]) -> string:
 fn report(names: List[string]) -> string:
     let mut out = StringBuilder::new()
     for name in names:
-        out.push("- ${name}\n")
+        out.push("- ").push(name).push_char('\n')
     out.build()
 ```
 
@@ -344,9 +344,10 @@ fn report(names: List[string]) -> string:
 2. r[std-text.join.result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
 3. r[std-text.builder.decl] `std.text` declares `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new] `StringBuilder::new() -> mut StringBuilder` returns an empty builder.
-5. r[std-text.builder.push] `b.push(text: string) -> void` appends `text`; it takes `mut self`.
-6. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
-7. r[std-text.join.method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`, which returns what `join(self, separator)` returns. Calling it needs no import.
+5. r[std-text.builder.push] `b.push(text: string) -> mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
+6. r[std-text.builder.push-char] `b.push_char(c: char) -> mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `mut self`.
+7. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
+8. r[std-text.join.method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`, which returns what `join(self, separator)` returns. Calling it needs no import.
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
 > in usability probes. The free function stays, since existing code imports it
