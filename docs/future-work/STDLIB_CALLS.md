@@ -709,3 +709,42 @@ wasmtime: `local_addr()` on the tokio listener and on the UDP socket
 do it. The three entries share one implementation issue if the owner
 orders them together, since each adds a `NetError`, trait, or handle
 method to the same two files.
+
+## Stdlib audit calls (2026-10-17, #350)
+
+From [the common-tasks audit](../audit/stdlib-audit-2026-10-17.md) and
+[the implementation review](../audit/stdlib-impl-review-2026-10-17.md).
+Each call below is a std change in plain hd, with its spec text, and has
+its own issue.
+
+- **HTTP status as an error.** `Response.ok() -> Result[Response, HttpError]`
+  returns `HttpError.Status(status, url)` for a status outside 200-299.
+  `get_text!(url)`, `Response.json::[T]()` and `post_json!(url, value)`
+  call it, so the one-line fetch fails on a 404 instead of printing the
+  error page.
+- **A free helper for every host-trait method** in `std.fs` and
+  `std.process`, as `read_text!` already has: `list_dir!`, `stat!`,
+  `read_bytes!`, `append_text!`, `exists!`, and
+  `std.process.run!(program, args, stdin = "")`.
+- **One-off errors.** `std.error.message(text) -> dyn Error` and
+  `Option.context(text) -> Result[T, dyn Error]`.
+- **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`.
+- **Collection and text atoms.** `Set` from `collect()`, `Map.entries()`,
+  `max_by_key`/`min_by_key`, `dedup`, `most_common`, `rfind`, `splitn`.
+- **Concurrency helpers.** `std.task.timeout!`, `map_all!` with a
+  concurrency limit, and a `when` predicate on `retry!`/`retry_with!`.
+- **Time helpers** that need no host change: free `monotonic()` and
+  `elapsed()`, `Duration::parse`, `Date.to_iso8601()`, `Timestamp.format`.
+- **JSON.** Decoding uses a member's declared default for a missing key,
+  as serde's `default` and Go's zero values do; this replaces
+  `std-json.derive.from-json.no-default`. Also `Json.pointer`,
+  `Json.as_i64` and `encode_pretty`.
+- **A `Parse` trait** with `string.parse::[T]()`, as Rust's `FromStr`,
+  used by `cli` `value_as::[T]` and `env_as::[T]`.
+- **Integer and float math in hd:** integer `abs` and `pow`; float
+  `floor`, `round`, `abs`. (`sqrt` waits for the owner: it needs an
+  intrinsic.)
+- **The 16 design findings** of the audit: drop the duplicate
+  `Rng::from_seed`, fix the `CliError` doc, name the program in
+  `ProcessError.NotFound`, one naming scheme for test providers, and the
+  rest as listed there.
