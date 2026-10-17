@@ -16,7 +16,7 @@ use hd_run::Grants;
 
 use crate::codec::Enc;
 use crate::host::Stop;
-use crate::reactor::Done;
+use crate::runtime::reactor::Done;
 
 use super::connector::Cancel;
 use super::request::{HttpError, Request, Response, encode, send};
@@ -119,7 +119,7 @@ mod tests {
         bounded_accept, finished, offload, read_request, request, response, send, server,
         write_response,
     };
-    use crate::reactor::Reactor;
+    use crate::runtime::reactor::Reactor;
     use hd_run::Grants;
     use std::io::Read;
     use std::net::TcpListener;

@@ -1,5 +1,5 @@
 use super::{offload, request, run};
-use crate::reactor::Reactor;
+use crate::runtime::reactor::Reactor;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -217,20 +217,4 @@ fn child_cwd_is_instance_local_and_arguments_are_not_shell_syntax() {
     let (out, _, _) = in_cwd(&args);
     assert_eq!(out, argument.as_bytes());
     assert_eq!(std::env::current_dir().unwrap(), parent);
-}
-
-/// `Sys.hostname` reads the same name `hostname(1)` prints.
-#[test]
-fn sys_hostname_matches_hostname_1() {
-    let printed = std::process::Command::new("hostname")
-        .output()
-        .expect("runs hostname(1)");
-    let name = String::from_utf8(printed.stdout).unwrap();
-    let mut expected = crate::codec::Enc::default();
-    expected.leb(0).str(name.trim_end());
-    let grants = hd_run::Grants::default();
-    assert_eq!(
-        crate::core::sys::sys("hostname", &grants).done(),
-        expected.done()
-    );
 }

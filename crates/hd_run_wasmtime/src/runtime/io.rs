@@ -1,11 +1,11 @@
-//! The process-wide runtime that offloaded host operations run on
+//! The process-wide runtime that offloaded host operations run on.
 //! One current-thread tokio runtime, driven
 //! by `Runtime::block_on` on a dedicated `hd-io` thread, since only
 //! `block_on` drives a current-thread runtime's I/O and timer drivers.
 //! Program threads spawn tasks through its `Handle`; each task delivers
 //! its result into its instance's reactor inbox (`reactor.rs`).
 //!
-//! It starts lazily, as the `hd-epochs` ticker does (`deadline.rs`): the
+//! It starts lazily, as the `hd-epochs` ticker does (`epochs.rs`): the
 //! first offloaded operation starts it, so a program that makes none
 //! starts no thread.
 

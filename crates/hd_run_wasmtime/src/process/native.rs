@@ -24,7 +24,7 @@ use tokio::process::{Child, ChildStdin, Command};
 
 use crate::abi::{ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
-use crate::reactor::Done;
+use crate::runtime::reactor::Done;
 
 /// The most bytes one read of an output pipe takes.
 const PIPE_CHUNK: usize = 8192;
@@ -111,7 +111,7 @@ pub(crate) fn finish(ran: Ran) -> Enc {
             stderr: String::from_utf8_lossy(&err).into_owned(),
             status,
         })),
-        Err(err) => failed(match crate::native_io::error_kind(&err) {
+        Err(err) => failed(match crate::runtime::native_io::error_kind(&err) {
             io::ErrorKind::NotFound => ProcessError::NotFound,
             io::ErrorKind::PermissionDenied => ProcessError::PermissionDenied,
             _ => ProcessError::Other {
@@ -296,7 +296,7 @@ impl Drop for Group {
         self.tree.kill(&mut child);
         // Reap it rather than leave it to tokio's best-effort orphan reaper.
         // The runtime started before this child did.
-        if let Ok(runtime) = crate::io_runtime::handle() {
+        if let Ok(runtime) = crate::runtime::io::handle() {
             runtime.spawn(async move {
                 let _ = child.wait().await;
             });

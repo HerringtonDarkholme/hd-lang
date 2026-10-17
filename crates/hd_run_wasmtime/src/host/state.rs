@@ -7,7 +7,7 @@ use wasmtime::Memory;
 
 use super::{Control, Stop};
 use crate::net;
-use crate::reactor::{Done, Reactor, Work};
+use crate::runtime::reactor::{Done, Reactor, Work};
 
 /// Where a run's standard streams go: the process's own, or buffers a
 /// caller reads afterwards.

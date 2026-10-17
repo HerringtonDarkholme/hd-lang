@@ -92,7 +92,7 @@ impl TestEngine {
             .allocation_strategy(InstanceAllocationStrategy::Pooling(allocator));
         let code = crate::code_cache::configure(&mut base);
         let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
-        crate::deadline::register(&engine)?;
+        crate::runtime::epochs::register(&engine)?;
         Ok(Self(Arc::new(Inner {
             cache: crate::cache::ModuleCache::new(&engine, code),
             engine,

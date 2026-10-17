@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn an_aborted_lookup_does_not_wait_for_the_os_resolver() {
         // The `hd-io` runtime, which its own thread drives.
-        let runtime = crate::io_runtime::handle().unwrap();
+        let runtime = crate::runtime::io::handle().unwrap();
         let (ready, arrived) = mpsc::channel();
         let (release, released) = mpsc::channel::<()>();
         let (finished, completion) = mpsc::channel();

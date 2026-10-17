@@ -2,11 +2,16 @@
 //! Their boundary values match `host/profiles.mjs`; the ordinary
 //! Console provider already supplies the `pending-write` behavior. The
 //! `disposed-file` and `pending-gate` providers follow the spec's Runtime
-//! Profiles (`spec/conformance/README.md`) too.
+//! Profiles (`spec/conformance/README.md`) too. `call` is their provider;
+//! `State` is one instance's fixture state.
 
 use std::collections::BTreeMap;
 
+use wasmtime::{Caller, Val};
+
 use crate::codec::Enc;
+use crate::host::{Host, Ret, Stop, handle, int_arg};
+use crate::runtime::reactor::Work;
 
 /// An explicitly selected conformance fixture runtime profile.
 /// These providers are for fixtures, not additional default capabilities.
@@ -61,6 +66,75 @@ impl RuntimeProfile {
         };
         Some((method, finish))
     }
+}
+
+/// A fixture method's one call, or its `.start`, or its `.finish` when
+/// `finish`. A waiting method's `.start` is a reactor operation that
+/// completes at once (`disposed-file`) or never (`pending-gate`), and its
+/// `.finish` decides the result from the instance's `State`.
+pub(crate) fn call(
+    method: Method,
+    finish: bool,
+    caller: &mut Caller<'_, Host>,
+    params: &[Val],
+) -> wasmtime::Result<Ret> {
+    if finish {
+        let h = handle(int_arg(params, 0)?);
+        let Some(op) = caller.data_mut().reactor.remove(h) else {
+            return Err(
+                Stop::Contract("a finish of an operation that is not pending".into()).into(),
+            );
+        };
+        let bytes = match (method, op.work) {
+            (Method::FilesOpen, Work::FixtureOpen) => {
+                let id = caller.data_mut().fixture.open_file();
+                let mut encoded = Enc::default();
+                encoded.leb(u64::try_from(id).unwrap_or(u64::MAX));
+                encoded.into_bytes()
+            }
+            (Method::FileHandleRead, Work::FixtureRead { file }) => caller
+                .data_mut()
+                .fixture
+                .read_file(file)
+                .map_err(Stop::Contract)?,
+            _ => {
+                return Err(Stop::Contract(
+                    "a finish of an operation that is not completed".into(),
+                )
+                .into());
+            }
+        };
+        return Ok(Ret::bytes(bytes));
+    }
+    Ok(match method {
+        Method::FilesOpen => Ret::pair(1, caller.data_mut().reactor.fixture_open()),
+        Method::FileHandleRead => {
+            let file = handle(int_arg(params, 0)?);
+            Ret::pair(1, caller.data_mut().reactor.fixture_read(file))
+        }
+        Method::FileHandleClose => {
+            let file = handle(int_arg(params, 0)?);
+            Ret::bytes(
+                caller
+                    .data_mut()
+                    .fixture
+                    .close_file(file)
+                    .map_err(Stop::Contract)?,
+            )
+        }
+        Method::GateWait => Ret::pair(1, caller.data_mut().reactor.gate()),
+        Method::GaugeLevel | Method::SensorReading | Method::VaultKeep => {
+            let length = if matches!(method, Method::VaultKeep) {
+                int_arg(params, 0)?
+            } else {
+                0
+            };
+            match caller.data_mut().fixture.call(method, length) {
+                Reply::Encoded(encoded) => Ret::encoded(encoded),
+                Reply::EchoLength(length) => Ret::int(length),
+            }
+        }
+    })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -175,7 +249,7 @@ impl State {
                 unreachable!("waiting fixture methods run as .start/.finish, never one call")
             }
             Method::FileHandleClose => {
-                unreachable!("`close` takes its handle number, so `call.rs` runs it")
+                unreachable!("`close` takes its handle number, so `call` runs it")
             }
         }
         Reply::Encoded(encoded)

@@ -24,7 +24,7 @@ use super::CHUNK;
 use super::client::NetError;
 use super::socket::{Bound, End, Stream, Udp, bind, connect_attempts, resolve, socket_error};
 use super::validate::ip_literal;
-use crate::reactor::Reactor;
+use crate::runtime::reactor::Reactor;
 
 /// An operation that `.start` checked and that now waits.
 pub(crate) enum Job {
@@ -115,7 +115,7 @@ const OWNER: &str = "Net";
 /// (`std-net.close.pending`).
 pub(crate) fn dispose(reactor: &mut Reactor, handle: i64) {
     reactor.dispose_owned((OWNER, handle), || {
-        crate::reactor::Done::Net(Done {
+        crate::runtime::reactor::Done::Net(Done {
             resource: true,
             result: Ok(Got::Disposed),
         })
@@ -146,10 +146,9 @@ impl Job {
     /// Runs the job as a task of the reactor, owned by its handle.
     pub(crate) fn offload(self, reactor: &mut Reactor) -> Result<i32, String> {
         let owner = self.handle().map(|handle| (OWNER, handle));
-        reactor.offload_for(
-            owner,
-            async move { crate::reactor::Done::Net(self.run().await) },
-        )
+        reactor.offload_for(owner, async move {
+            crate::runtime::reactor::Done::Net(self.run().await)
+        })
     }
 
     /// Runs the operation.

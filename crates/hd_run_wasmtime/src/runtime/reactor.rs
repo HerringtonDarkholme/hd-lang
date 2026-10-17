@@ -4,7 +4,7 @@
 //! `Console.write_line`) or when another thread delivers its result into
 //! the inbox: a line of standard input (`ConsoleInput.read_line`, read by
 //! a thread of its own), or the `Done` of an operation offloaded to the
-//! `hd-io` runtime (`io_runtime.rs`). So the program never blocks inside a
+//! `hd-io` runtime (`io.rs`). So the program never blocks inside a
 //! host call. The driver and `hd:rt` `block` wait here for the next
 //! completion: a timer's deadline or a delivery, whichever comes first.
 
@@ -37,7 +37,7 @@ pub type Line = Result<Option<String>, ()>;
 /// Each capability that moves onto the `hd-io` runtime adds its variant.
 pub enum Done {
     /// `Process.run!`: how the child's run ended.
-    Process(crate::core::process::Ran),
+    Process(crate::process::native::Ran),
     /// `Process.run!` of a test case's named child, run on a thread of its
     /// own: the encoded result, or `None` for the time-limit trap.
     Child(Option<crate::codec::Enc>),
@@ -276,7 +276,7 @@ impl Reactor {
     where
         F: Future<Output = Done> + Send + 'static,
     {
-        let runtime = crate::io_runtime::handle()?;
+        let runtime = crate::runtime::io::handle()?;
         let h = self.start(None, Work::Offloaded(None));
         if let Some(op) = self.ops.get_mut(&h) {
             op.owner = owner;

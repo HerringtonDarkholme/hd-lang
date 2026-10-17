@@ -7,7 +7,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 use hd_run::Grants;
 
 use crate::codec::{Dec, Enc, Wire};
-use crate::reactor::{Done, Reactor, Work};
+use crate::runtime::reactor::{Done, Reactor, Work};
 
 use super::Headers;
 use super::client::{Job, Sent, Start, finish, start};

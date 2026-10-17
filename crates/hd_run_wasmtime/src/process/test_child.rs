@@ -5,13 +5,13 @@ use std::time::Instant;
 
 use tokio::sync::oneshot;
 
-use super::engine::TestEnvironment;
+use super::native::failed;
 use crate::Shared;
 use crate::abi::{ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
-use crate::core::process::failed;
 use crate::host::{Host, HostIo};
-use crate::reactor::Done;
+use crate::runtime::reactor::Done;
+use crate::test_engine::TestEnvironment;
 use hd_run::{Grants, Instance, Outcome};
 
 /// `Process.run!` of a named test child: refused at once, or running.

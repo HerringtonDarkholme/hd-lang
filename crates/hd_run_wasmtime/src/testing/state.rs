@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use super::case::TestCase;
 use crate::abi::PropertyCase;
-use crate::property::{Plan, Property};
-use crate::testing_files::{Files, load_regression};
+use crate::testing::files::{Files, load_regression};
+use crate::testing::property::{Plan, Property};
 
 #[derive(Clone, Default)]
 pub(crate) struct BodyState {

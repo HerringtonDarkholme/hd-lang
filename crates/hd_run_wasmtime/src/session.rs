@@ -54,7 +54,7 @@ use crate::engine::{EngineConfig, WasmtimeEngine, new_store};
 use crate::host::{Host, HostIo, Stop, define_session, supported, unsupported_message};
 use crate::instance::WasmtimeInstance;
 use crate::profiles::RuntimeProfile;
-use crate::reactor::Waker;
+use crate::runtime::reactor::Waker;
 use crate::{cache, limits};
 
 #[path = "session_rebuild.rs"]
@@ -136,7 +136,7 @@ impl WasmtimeEngine {
         );
         let flag = Arc::new(AtomicBool::new(false));
         host.interrupt = Some(Arc::clone(&flag));
-        let execution = crate::core::random(16)
+        let execution = crate::sys::random(16)
             .ok()
             .and_then(|b| <[u8; 16]>::try_from(b).ok())
             .map_or(0, u128::from_le_bytes);
