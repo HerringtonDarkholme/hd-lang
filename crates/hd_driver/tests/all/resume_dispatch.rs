@@ -7,15 +7,15 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// A loop of three waits, so its body list holds three states.
-const MAIN: &str = "use std.time.{Clock, Duration, sleep}\n\n\
+const MAIN: &str = "use std.time.{Clock, ms, sleep}\n\n\
 pub fn main!() -> void $ Console + Clock:\n    \
     let i: i32 = 0\n    \
     while i < 3:\n        \
-        sleep!(Duration::milliseconds(1))\n        \
+        sleep!(ms(1))\n        \
         println(\"a\")\n        \
-        sleep!(Duration::milliseconds(1))\n        \
+        sleep!(ms(1))\n        \
         println(\"b\")\n        \
-        sleep!(Duration::milliseconds(1))\n        \
+        sleep!(ms(1))\n        \
         i += 1\n";
 
 #[test]

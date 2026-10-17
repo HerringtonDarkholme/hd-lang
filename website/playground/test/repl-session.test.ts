@@ -129,9 +129,9 @@ test("a rebuild serves every host call from the journal and prints nothing", asy
   const repl = new Repl();
   await repl.start();
   for (const source of [
-    "use std.time.{now, sleep, Duration}\n",
+    "use std.time.{now, sleep, ms}\n",
     "started := now().unix_milliseconds()\n",
-    "sleep!(Duration.milliseconds(+1))\n",
+    "sleep!(ms(+1))\n",
     'println("slept")\n',
   ]) {
     assert.equal(await repl.input(source), 0);
@@ -216,11 +216,10 @@ impl[T] Columns for T by Structure:
 test("a stop cancels a waiting input; a rebuild skips it and drops from the first divergence", async () => {
   const repl = new Repl();
   await repl.start();
-  assert.equal(await repl.input("use std.time.{sleep, Duration}\n"), 0);
+  assert.equal(await repl.input("use std.time.{sleep, s}\n"), 0);
   assert.equal(await repl.input("let kept = 7\n"), 0);
   // Its `defer` suite runs on the cancel, and its change stays.
-  const nap =
-    "fn nap!() -> void:\n    defer:\n        kept = 8\n    sleep!(Duration.seconds(+30))\n\nnap!()\n";
+  const nap = "fn nap!() -> void:\n    defer:\n        kept = 8\n    sleep!(s(+30))\n\nnap!()\n";
   const started = performance.now();
   const status = await repl.input(nap, (session) => setTimeout(() => session.stop(), 50));
   assert.equal(status, 3);

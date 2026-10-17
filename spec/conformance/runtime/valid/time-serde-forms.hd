@@ -2,7 +2,7 @@
 # Spec std/time Serialization: std-time.serde.impls, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read.
 use std.json.{encode, decode, JsonError}
 use std.serde.{Serialize, Deserialize}
-use std.time.{Duration, Timestamp, Instant}
+use std.time.{Duration, Timestamp, Instant, s, ms}
 @derive(Serialize, Deserialize)
 data Lease:
     holder: string
@@ -11,7 +11,7 @@ data Lease:
     checked: Instant
 
 fn lease() -> Lease:
-    Lease { holder: "ada", granted_at: Timestamp::from_unix_milliseconds(1700000000000), term: Duration::seconds(30), checked: Instant::from_milliseconds(5) }
+    Lease { holder: "ada", granted_at: Timestamp::from_unix_milliseconds(1700000000000), term: s(30), checked: Instant::from_milliseconds(5) }
 
 fn stamp() -> Timestamp:
     Timestamp::from_unix_milliseconds(1700000000000)
@@ -21,7 +21,7 @@ tests:
 
     it("durations and instants write milliseconds, timestamps RFC 3339 text"):
         assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}", reason="forms")
-        assert_equal(encode(Duration::milliseconds(-1500)), "-1500", reason="a negative duration")
+        assert_equal(encode(ms(-1500)), "-1500", reason="a negative duration")
 
     it("each time type reads its form back"):
         match decode::[Lease](encode(lease())):

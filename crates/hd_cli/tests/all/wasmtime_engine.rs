@@ -373,13 +373,13 @@ pub fn main() -> void $ Console:
 fn a_suspending_entry_sleeps_and_reads_the_clock() {
     let dir = program(
         "clock",
-        "use std.time.{Clock, Duration, now, sleep}
+        "use std.time.{Clock, ms, now, sleep}
 
 pub fn main!() -> void $ Console + Clock:
     clock := $.use(Clock)
     start := clock.monotonic()
     println(\"sleeping\")
-    sleep!(Duration.milliseconds(30))
+    sleep!(ms(30))
     println(clock.monotonic().since(start).as_milliseconds() >= 30)
     println(now().unix_milliseconds() > 1700000000000)
 ",

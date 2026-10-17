@@ -65,11 +65,11 @@ fn output_of(name: &str, main: &str) -> String {
 fn program(body: &str) -> String {
     format!(
         "\
-use std.time.{{Clock, Duration, sleep}}
+use std.time.{{Clock, ms, sleep}}
 use std.task.{{all, race}}
 
-fn nap!(ms: i64) -> void $ Clock:
-    sleep!(Duration::milliseconds(ms))
+fn nap!(millis: i64) -> void $ Clock:
+    sleep!(ms(millis))
 
 pub fn main!() -> void $ Console + Clock:
     {body}"
@@ -182,11 +182,11 @@ fn race_cancels_a_losing_closure_and_runs_its_defer() {
     let main = program(
         "\
     let log: mut List[string] = []
-    guarded := fn!(n: i32, ms: i64) -> i32 $ Clock:
+    guarded := fn!(n: i32, millis: i64) -> i32 $ Clock:
         log.push(\"start $n\")
         defer:
             log.push(\"cleanup $n\")
-        nap!(ms)
+        nap!(millis)
         log.push(\"done $n\")
         n
     w := race!(guarded(2, 2), guarded(3, 500))

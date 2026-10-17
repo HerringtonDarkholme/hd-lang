@@ -333,7 +333,7 @@ and a clear failure when the two deploys disagree.
 ```text
 use std.remote.{Caller, Remote, RemoteError, remote}
 use std.task.race
-use std.time.{Clock, Duration, sleep}
+use std.time.{Clock, ms, sleep}
 
 # Inventory service: its own package and deploy schedule.
 @remote
@@ -359,7 +359,7 @@ fn hold!(order: string, sku: string) -> Result[void, CheckoutError] $ Remote + C
     .Err(.Unavailable)
 
 fn deadline!() -> Result[Result[void, ReserveError], RemoteError] $ Clock:
-    sleep!(Duration::milliseconds(300))
+    sleep!(ms(300))
     .Err(.OutcomeUnknown)
 ```
 

@@ -1,19 +1,19 @@
-use std.time.{Clock, Duration, sleep}
+use std.time.{Clock, ms, sleep}
 use std.task.{all, race}
 
 # Logs its start, sleeps on the host timer, then logs its end; its
 # cleanup runs on completion and on cancellation alike.
-fn work!(n: i32, ms: i64, log: mut List[string]) -> i32 $ Clock:
+fn work!(n: i32, millis: i64, log: mut List[string]) -> i32 $ Clock:
     log.push("start $n")
     defer:
         log.push("cleanup $n")
-    sleep!(Duration::milliseconds(ms))
+    sleep!(ms(millis))
     log.push("done $n")
     n * 10
 
 pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
-    sleep!(Duration::milliseconds(2))
+    sleep!(ms(2))
     println("slept")
     # The 245ms gap keeps task 2 first even when timer wakes coalesce
     # under load; a 15ms gap reordered the log (issue #55).

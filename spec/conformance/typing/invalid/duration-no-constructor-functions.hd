@@ -1,0 +1,6 @@
+# test: Duration has no milliseconds or seconds constructor; the suffix functions ms and s build one
+# Spec std/time Duration: std-time.suffix.std.duration-api.
+use std.time.Duration
+
+fn invalid() -> Duration:
+    Duration::milliseconds(5)  # diagnostic: unknown-method

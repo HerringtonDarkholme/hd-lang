@@ -67,14 +67,14 @@ fn output_of(name: &str, main: &str) -> String {
 fn program(rest: &str) -> String {
     format!(
         "\
-use std.time.{{Clock, Duration, sleep}}
+use std.time.{{Clock, ms, sleep}}
 use std.function.{{Fn, SuspendFn}}
 
 fn plus!(by: i32) -> i32:
     by + 1
 
 fn tick!(by: i32) -> i32 $ Clock:
-    sleep!(Duration::milliseconds(1))
+    sleep!(ms(1))
     by + 1
 
 fn ticker(by: i32) -> mut Suspend[i32] $ Clock:

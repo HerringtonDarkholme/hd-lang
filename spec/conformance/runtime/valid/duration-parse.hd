@@ -40,11 +40,11 @@ tests:
 
     it("the whole range of Duration parses"):
         assert_equal(millis_of("9223372036854775807ms"), 9223372036854775807, reason="the largest")
-        assert_equal(timeout_of("-9223372036854775808ms"), .Ok(Duration::milliseconds(-9223372036854775807 - 1)), reason="the most negative")
-        assert_equal(timeout_of("-2562047788015h12min55.808s"), .Ok(Duration::milliseconds(-9223372036854775807 - 1)), reason="its Display text")
+        assert_equal(timeout_of("-9223372036854775808ms"), .Ok(ms(-9223372036854775807 - 1)), reason="the most negative")
+        assert_equal(timeout_of("-2562047788015h12min55.808s"), .Ok(ms(-9223372036854775807 - 1)), reason="its Display text")
 
     it("the text of a duration parses back"):
         let values: List[i64] = [0, 1, -1, 500, 999, 1000, 1005, 1050, 59999, 60000, 3600000, 3605000, 3723500, -90000, -3723500, 9223372036854775807, -9223372036854775807 - 1]
         for value in values:
-            duration := Duration::milliseconds(value)
+            duration := ms(value)
             assert_equal(Duration::parse(duration.to_string()), .Ok(duration), reason="round trip of ${duration}")

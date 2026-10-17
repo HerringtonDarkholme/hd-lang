@@ -479,7 +479,7 @@ fn an_input_may_make_bang_calls_at_top_level() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
-    let text = "use std.time.{sleep, Duration}\n\nsleep!(Duration.milliseconds(+1))\n";
+    let text = "use std.time.{sleep, ms}\n\nsleep!(ms(+1))\n";
     repl.input(1, text);
     let mut src = MemorySources::default();
     src.insert("src/main.hd", text);

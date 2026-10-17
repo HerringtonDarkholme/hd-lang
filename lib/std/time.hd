@@ -4,7 +4,7 @@
 # (spec/std/time.md).
 # A `Duration` is a whole number of
 # milliseconds in an `i64` (r-std-time.suffix.std.duration), and its public API is
-# `milliseconds`, `seconds`, and `as_milliseconds` (r-std-time.suffix.std.duration-api);
+# `as_milliseconds` (r-std-time.suffix.std.duration-api);
 # the `millis` field is the prototype's own. Each suffix scales its literal by
 # checked `i64` multiplication, so an overflow panics (r-std-time.suffix.std.overflow).
 # Each suffix is a function marked `@num_suffix` (r-std-time.suffix.std.fn).
@@ -21,16 +21,6 @@ pub data Duration:
     millis: i64
 
 impl Duration:
-    ## Returns a `Duration` of that many milliseconds.
-    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
-    pub fn milliseconds(count: i64) -> Duration:
-        Duration { millis: count }
-
-    ## Returns a `Duration` of that many seconds.
-    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
-    pub fn seconds(count: i64) -> Duration:
-        Duration { millis: count * 1000 }
-
     ## The milliseconds since the origin that the instant holds.
     ## See [std-time.instant.as-milliseconds](../../spec/std/time.md#r-std-time.instant.as-milliseconds).
     pub fn as_milliseconds(self) -> i64:
@@ -138,25 +128,25 @@ impl Ord for Duration:
 ## The `ms` suffix: a `Duration` of that many milliseconds, as in `250ms`.
 ## See [std-time.suffix.std.ms](../../spec/std/time.md#r-std-time.suffix.std.ms).
 pub fn ms(count: i64) -> Duration:
-    Duration::milliseconds(count)
+    Duration { millis: count }
 
 @num_suffix
 ## The `s` suffix: a `Duration` of that many seconds, as in `5s`.
 ## See [std-time.suffix.std.s](../../spec/std/time.md#r-std-time.suffix.std.s).
 pub fn s(count: i64) -> Duration:
-    Duration::seconds(count)
+    Duration { millis: count * 1000 }
 
 @num_suffix
 ## The `min` suffix: a `Duration` of that many minutes, as in `90min`.
 ## See [std-time.suffix.std.min](../../spec/std/time.md#r-std-time.suffix.std.min).
 pub fn min(count: i64) -> Duration:
-    Duration::seconds(count * 60)
+    Duration { millis: count * 60000 }
 
 @num_suffix
 ## The `h` suffix: a `Duration` of that many hours, as in `2h`.
 ## See [std-time.suffix.std.h](../../spec/std/time.md#r-std-time.suffix.std.h).
 pub fn h(count: i64) -> Duration:
-    Duration::seconds(count * 3600)
+    Duration { millis: count * 3600000 }
 
 # The host capability that reads time and waits (spec/std/time.md#clock).
 # `sleep!` takes `mut self`, so a provider may advance its own time
@@ -219,7 +209,7 @@ impl Timestamp:
     ## The time from `earlier` to the timestamp, negative when `earlier` is the later one.
     ## See [std-time.timestamp.since](../../spec/std/time.md#r-std-time.timestamp.since).
     pub fn since(self, earlier: Timestamp) -> Duration:
-        Duration::milliseconds(self.millis - earlier.millis)
+        Duration { millis: self.millis - earlier.millis }
 
     # The UTC calendar date (r-std-time.date.of-timestamp).
     ## The calendar day of the timestamp in UTC.
@@ -562,7 +552,7 @@ impl Instant:
     ## The time from `earlier` to the instant.
     ## See [std-time.instant.api-milliseconds](../../spec/std/time.md#r-std-time.instant.api-milliseconds).
     pub fn since(self, earlier: Instant) -> Duration:
-        Duration::milliseconds(self.millis - earlier.millis)
+        Duration { millis: self.millis - earlier.millis }
 
 # An `Instant` debugs as its milliseconds, as `Instant(5ms)`
 # (r-std-format.debug.std-types.time).

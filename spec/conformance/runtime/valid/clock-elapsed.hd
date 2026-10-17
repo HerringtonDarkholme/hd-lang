@@ -21,7 +21,7 @@ tests:
     it("a block that does not sleep takes no virtual time"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
         $.with(Clock=clock):
-            assert_equal(timed_sum(), Duration::milliseconds(0), reason="no sleep, no time")
+            assert_equal(timed_sum(), ms(0), reason="no sleep, no time")
 
     it("elapsed is the total slept since the start"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
