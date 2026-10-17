@@ -828,7 +828,7 @@ its own issue.
   place on rare inputs.
 - **Integer and float math in hd:** integer `abs` and `pow`; float
   `floor`, `round`, `abs`. (`sqrt` waits for the owner: it needs an
-  intrinsic.)
+  intrinsic.) Applied in #373, with float `ceil` and `trunc` added.
 - **The 16 design findings** of the audit: drop the duplicate
   `Rng::from_seed`, fix the `CliError` doc, name the program in
   `ProcessError.NotFound`, one naming scheme for test providers, and the

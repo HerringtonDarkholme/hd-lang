@@ -868,6 +868,9 @@ std/num.md	10	accept	runtime/valid/num-parse-trait.hd
 std/num.md	11	accept	runtime/valid/num-parse-f64-errors.hd
 std/num.md	12	accept	runtime/valid/num-to-fixed.hd
 std/num.md	13	accept	runtime/valid/num-rotate.hd
+std/num.md	14	accept	runtime/valid/num-abs.hd
+std/num.md	15	accept	runtime/valid/num-pow.hd
+std/num.md	16	accept	runtime/valid/num-float-round.hd
 std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	2	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	3	accept	runtime/valid/encoding-base64-vectors.hd

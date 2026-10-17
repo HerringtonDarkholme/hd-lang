@@ -1,0 +1,8 @@
+# test: pow overflows as multiplication does when u8 cannot hold the power
+# Spec std/num Powers: std-num.pow.overflow.
+fn power(base: u8, exp: u32) -> u8:
+    base.pow(exp)  # panic: integer-overflow
+
+tests:
+    it("overflows"):
+        _ := power(2, 8)

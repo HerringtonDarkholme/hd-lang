@@ -1,0 +1,9 @@
+# test: abs of the smallest i8 overflows as negation does
+# Spec std/num Absolute Value: std-num.abs.min.
+fn magnitude(value: i8) -> i8:
+    value.abs()  # panic: integer-overflow
+
+tests:
+    it("overflows on the minimum"):
+        let lowest: i8 = -128
+        _ := magnitude(lowest)

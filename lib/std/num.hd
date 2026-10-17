@@ -260,6 +260,25 @@ impl[N < Integer] N:
             return self
         self.rotate_left(width - shift)
 
+# `pow` multiplies by squaring, so it uses `*` and overflows as `*` does:
+# a panic in a debug or test build, wrapping in a release build. The base
+# is squared only while exponent bits remain, so a squaring past the last
+# needed one never overflows on its own (r-std-num.pow.overflow).
+impl[N < Integer] N:
+    ## The value raised to the power `exp`; `exp` of 0 gives 1.
+    ## See [std-num.pow.value](../../spec/std/num.md#r-std-num.pow.value).
+    pub fn pow(self, exp: u32) -> N:
+        let result = N::one()
+        let base = self
+        let rest = exp
+        while rest != 0:
+            if rest & 1 == 1:
+                result = result * base
+            rest = rest >> 1
+            if rest != 0:
+                base = base * base
+        result
+
 # `abs_diff` returns the unsigned type of the same width, a mapping that
 # `Integer` cannot name, so each width declares it. A narrow signed
 # difference is exact in `i64`, and the cast keeps the distance.
@@ -292,6 +311,31 @@ impl i64:
         if low >= 0 || high < 0:
             return u64(high - low)
         u64(high) + u64(-(low + 1)) + 1
+
+# `abs` is `-self` for a negative value, so the minimum overflows as `Neg` does.
+impl i8:
+    ## The absolute value; the minimum value overflows as `-self` does.
+    ## See [std-num.abs.i8](../../spec/std/num.md#r-std-num.abs.i8).
+    pub fn abs(self) -> i8:
+        if self < 0: -self else: self
+
+impl i16:
+    ## The absolute value; the minimum value overflows as `-self` does.
+    ## See [std-num.abs.i16](../../spec/std/num.md#r-std-num.abs.i16).
+    pub fn abs(self) -> i16:
+        if self < 0: -self else: self
+
+impl i32:
+    ## The absolute value; the minimum value overflows as `-self` does.
+    ## See [std-num.abs.i32](../../spec/std/num.md#r-std-num.abs.i32).
+    pub fn abs(self) -> i32:
+        if self < 0: -self else: self
+
+impl i64:
+    ## The absolute value; the minimum value overflows as `-self` does.
+    ## See [std-num.abs.i64](../../spec/std/num.md#r-std-num.abs.i64).
+    pub fn abs(self) -> i64:
+        if self < 0: -self else: self
 
 impl u8:
     ## The absolute difference of the two values.
@@ -344,6 +388,85 @@ impl f64:
         if digits > 100:
             panic("to_fixed: digits must be from 0 to 100")
         host_format_f64_fixed(self, digits)
+
+# Rounding without a bit cast: below 2^52 every f64 is within an `i64`, so
+# `f64(i64(x))` is the exact truncation. At 2^52 and above every f64 is an
+# integer, and NaN fails the `<` test, so both come back unchanged. A zero
+# result takes the sign of the input (r-std-num.float-round.zero-sign).
+impl f64:
+    ## The absolute value; `-0.0` gives `0.0` and NaN stays NaN.
+    ## See [std-num.float-abs](../../spec/std/num.md#r-std-num.float-abs).
+    pub fn abs(self) -> f64:
+        if self < 0.0:
+            return -self
+        if self == 0.0:
+            return 0.0
+        self
+
+    ## The integer part, toward zero.
+    ## See [std-num.float-round.trunc](../../spec/std/num.md#r-std-num.float-round.trunc).
+    pub fn trunc(self) -> f64:
+        if !(self.abs() < 4503599627370496.0) || self == 0.0:
+            return self
+        whole := f64(i64(self))
+        if whole == 0.0 && self < 0.0:
+            return -0.0
+        whole
+
+    ## The largest integer not above the value.
+    ## See [std-num.float-round.floor](../../spec/std/num.md#r-std-num.float-round.floor).
+    pub fn floor(self) -> f64:
+        whole := self.trunc()
+        if whole > self: whole - 1.0 else: whole
+
+    ## The smallest integer not below the value.
+    ## See [std-num.float-round.ceil](../../spec/std/num.md#r-std-num.float-round.ceil).
+    pub fn ceil(self) -> f64:
+        whole := self.trunc()
+        if whole < self: whole + 1.0 else: whole
+
+    ## The nearest integer, with a tie rounded away from zero.
+    ## See [std-num.float-round.round](../../spec/std/num.md#r-std-num.float-round.round).
+    pub fn round(self) -> f64:
+        if !(self.abs() < 4503599627370496.0) || self == 0.0:
+            return self
+        size := self.abs()
+        whole := size.trunc()
+        # `size - whole` is exact, so the tie test never misreads 0.49999999999999994.
+        up := if size - whole >= 0.5: whole + 1.0 else: whole
+        if self < 0.0: -up else: up
+
+# The `f32` methods round through `f64`: the widening is exact, and every
+# result is an integer below 2^24 or the input itself, so narrowing is exact.
+impl f32:
+    ## The absolute value; `-0.0` gives `0.0` and NaN stays NaN.
+    ## See [std-num.float-abs](../../spec/std/num.md#r-std-num.float-abs).
+    pub fn abs(self) -> f32:
+        if self < 0.0:
+            return -self
+        if self == 0.0:
+            return 0.0
+        self
+
+    ## The integer part, toward zero.
+    ## See [std-num.float-round.trunc](../../spec/std/num.md#r-std-num.float-round.trunc).
+    pub fn trunc(self) -> f32:
+        f32(f64(self).trunc())
+
+    ## The largest integer not above the value.
+    ## See [std-num.float-round.floor](../../spec/std/num.md#r-std-num.float-round.floor).
+    pub fn floor(self) -> f32:
+        f32(f64(self).floor())
+
+    ## The smallest integer not below the value.
+    ## See [std-num.float-round.ceil](../../spec/std/num.md#r-std-num.float-round.ceil).
+    pub fn ceil(self) -> f32:
+        f32(f64(self).ceil())
+
+    ## The nearest integer, with a tie rounded away from zero.
+    ## See [std-num.float-round.round](../../spec/std/num.md#r-std-num.float-round.round).
+    pub fn round(self) -> f32:
+        f32(f64(self).round())
 
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
 # Every scalar before the first invalid one is ASCII, so the scalar index

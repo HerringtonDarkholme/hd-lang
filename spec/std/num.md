@@ -11,6 +11,8 @@ ordinary hd over the language tier:
 - the bit counts `count_ones` and `leading_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f64`;
+- `abs` on the signed integers and the floats, and `pow` on the integers;
+- `trunc`, `floor`, `ceil`, and `round` on the floats;
 - integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
   `parse_usize`, and `ParseNumberError`;
 - float parsing: `parse_f64`;
@@ -413,3 +415,101 @@ fn swap_nibbles(byte: u8) -> u8:
 
 > **Why.** The names and the `u32` count are Rust's `rotate_left` and
 > `rotate_right`.
+
+## Absolute Value
+
+`abs` returns the magnitude of a signed integer:
+
+```text
+fn distance_from_zero(offset: i32) -> i32:
+    offset.abs()
+```
+
+| Rule | Method |
+| --- | --- |
+| r[std-num.abs.i8] On `i8` | `fn abs(self) -> i8` |
+| r[std-num.abs.i16] On `i16` | `fn abs(self) -> i16` |
+| r[std-num.abs.i32] On `i32` | `fn abs(self) -> i32` |
+| r[std-num.abs.i64] On `i64` | `fn abs(self) -> i64` |
+
+1. r[std-num.abs.value] `x.abs()` returns `x` when `x` is not negative, and `-x` otherwise.
+2. r[std-num.abs.widths] `abs` exists on the signed integer types only. An unsigned value is its own magnitude, so `abs` on an unsigned type is an unknown method. Error: `unknown-method`.
+3. r[std-num.abs.min] The smallest value of a width has no positive twin, so its `abs` overflows exactly as `-x` does, by [`types.arith.checked`](../lang/04-type-system.md#r-types.arith.checked). It panics in a debug or test build and wraps to the smallest value in a release build. Panic: `integer-overflow`.
+
+> **Why.** Rust's `i32::abs` behaves the same way. `abs_diff` is the call
+> that never overflows, since its result is unsigned.
+
+## Powers
+
+`pow` raises an integer to a `u32` exponent:
+
+```text
+fn cube(side: i32) -> i32:
+    side.pow(3)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.pow.decl] `pow` | `fn pow(self, exp: u32) -> N` | `self` multiplied by itself `exp` times |
+
+1. r[std-num.pow.widths] `pow` exists on every integer type, `i8` to `i64` and `u8` to `u64` and `usize`, and returns the receiver's type.
+2. r[std-num.pow.value] `x.pow(n)` is the product of `n` copies of `x`, computed with the `*` operator of `N`.
+3. r[std-num.pow.zero-exponent] `x.pow(0)` is 1 for every `x`, so `0.pow(0)` is 1.
+4. r[std-num.pow.overflow] A power that `N` cannot hold overflows as `*` does. It panics in a debug or test build and wraps in a release build. Panic: `integer-overflow`.
+5. r[std-num.pow.no-early-overflow] A power that `N` holds never overflows, whatever the exponent's bits. So `(-2).pow(7)` is the smallest `i8`.
+
+| Call | Result |
+| --- | --- |
+| `2.pow(10)` | `1024` |
+| the `i8` value `-2`, `pow(7)` | `-128` |
+| the `u8` value `3`, `pow(5)` | `243` |
+| the `i32` value `5`, `pow(0)` | `1` |
+| the `i8` value `-2`, `pow(8)` | panics in a debug or test build, since 256 is out of range |
+
+> **Why.** Rust's `pow` takes a `u32` exponent and overflows like `*`.
+
+## Float Rounding
+
+`trunc`, `floor`, `ceil`, and `round` turn a float into a whole-valued
+float of the same type. `abs` returns its magnitude:
+
+```text
+fn sale_price(price: f64) -> f64:
+    price.round()
+
+fn whole_boxes(items: f64, per_box: f64) -> f64:
+    (items / per_box).ceil()
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.float-abs] `abs` | `fn abs(self) -> F` | the magnitude of `self` |
+| r[std-num.float-round.trunc] `trunc` | `fn trunc(self) -> F` | the whole part, toward zero |
+| r[std-num.float-round.floor] `floor` | `fn floor(self) -> F` | the largest whole value not above `self` |
+| r[std-num.float-round.ceil] `ceil` | `fn ceil(self) -> F` | the smallest whole value not below `self` |
+| r[std-num.float-round.round] `round` | `fn round(self) -> F` | the nearest whole value, a tie going away from zero |
+
+In this section, `F` is `f32` or `f64`.
+
+1. r[std-num.float-round.widths] The five methods exist on `f32` and on `f64`, and return the receiver's type.
+2. r[std-num.float-round.exact] Each result is exact: the value an infinitely precise computation gives, with no rounding error. So `0.49999999999999994.round()` is `0.0`, and `2.5.round()` is `3.0`.
+3. r[std-num.float-round.unchanged] `trunc`, `floor`, `ceil`, and `round` return a NaN, an infinity, and a finite value of magnitude at least 2 to the power 52 unchanged. For `f32` the power is 23. Those values are already whole, and a NaN stays a NaN.
+4. r[std-num.float-round.zero-sign] A zero result takes the sign of the value that produced it, and a zero input is returned as is. So `(-0.4).round()`, `(-0.5).ceil()`, `(-0.2).trunc()`, and `(-0.0).floor()` are `-0.0`, and `0.4.round()` is `0.0`.
+5. r[std-num.float-round.tie] `round` sends a tie to the whole value of larger magnitude, as Rust's `f64::round` does. So `(-2.5).round()` is `-3.0` and `(-0.5).round()` is `-1.0`.
+6. r[std-num.float-abs.value] `abs` returns `-x` for a negative `x`, `0.0` for either zero, and `x` otherwise. So `(-0.0).abs()` is `0.0`, a NaN stays a NaN, and the infinities give positive infinity.
+7. r[std-num.float-round.no-panic] None of the five methods panics.
+
+| Call | Result |
+| --- | --- |
+| `2.7.floor()`, `(-2.1).floor()` | `2.0`, `-3.0` |
+| `2.1.ceil()`, `(-2.7).ceil()` | `3.0`, `-2.0` |
+| `7.9.trunc()`, `(-7.9).trunc()` | `7.0`, `-7.0` |
+| `2.4.round()`, `2.5.round()`, `3.5.round()` | `2.0`, `3.0`, `4.0` |
+| `(-2.5).round()` | `-3.0` |
+| `(-0.0).abs()` | `0.0` |
+
+> **Why.** The methods and their edge cases are Rust's. Each needs only
+> the saturating `f64` to `i64` cast
+> ([`types.cast.saturate`](../lang/04-type-system.md#r-types.cast.saturate))
+> below 2 to the power 52, where every `f64` fits an `i64`, so no new
+> primitive is needed. `sqrt` is not here: no float operation builds it.

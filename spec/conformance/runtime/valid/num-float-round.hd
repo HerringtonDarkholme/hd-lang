@@ -1,0 +1,90 @@
+# test: floor, ceil, round, trunc, and abs on floats keep NaN, infinities, signed zeros, and values from 2^52 up exactly
+# Spec std/num Float Rounding: std-num.float-abs, std-num.float-round.floor, std-num.float-round.ceil, std-num.float-round.trunc, std-num.float-round.round, std-num.float-round.exact, std-num.float-round.zero-sign, std-num.float-round.widths, std-num.float-round.unchanged, std-num.float-round.tie, std-num.float-abs.value.
+fn sale_price(price: f64) -> f64:
+    price.round()
+
+fn negative_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value < 0.0
+
+fn positive_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value > 0.0
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("floor and ceil"):
+        assert_equal(2.7.floor(), 2.0, reason="floor of a positive")
+        assert_equal((-2.1).floor(), -3.0, reason="floor of a negative goes down")
+        assert_equal(2.1.ceil(), 3.0, reason="ceil of a positive")
+        assert_equal((-2.7).ceil(), -2.0, reason="ceil of a negative goes up")
+        assert_equal(5.0.floor(), 5.0, reason="an integer is unchanged")
+        assert_equal((-0.5).floor(), -1.0, reason="floor below zero")
+        assert_equal(0.5.ceil(), 1.0, reason="ceil above zero")
+        assert(negative_zero((-0.5).ceil()), "ceil of a small negative is -0.0")
+        assert(negative_zero((-0.0).floor()), "floor of -0.0 is -0.0")
+        assert(negative_zero((-0.0).ceil()), "ceil of -0.0 is -0.0")
+        assert(positive_zero(0.0.floor()), "floor of 0.0 is 0.0")
+        assert(positive_zero(0.5.floor()), "floor of a small positive is 0.0")
+
+    it("trunc"):
+        assert_equal(7.9.trunc(), 7.0, reason="toward zero")
+        assert_equal((-7.9).trunc(), -7.0, reason="toward zero from below")
+        assert(negative_zero((-0.2).trunc()), "a small negative truncates to -0.0")
+        assert(positive_zero(0.2.trunc()), "a small positive truncates to 0.0")
+        assert(negative_zero((-0.0).trunc()), "-0.0 is kept")
+
+    it("round"):
+        assert_equal(2.5.round(), 3.0, reason="a tie goes away from zero")
+        assert_equal((-2.5).round(), -3.0, reason="a negative tie goes away from zero")
+        assert_equal(3.5.round(), 4.0, reason="not to even")
+        assert_equal(2.4.round(), 2.0, reason="below the tie")
+        assert_equal(2.6.round(), 3.0, reason="above the tie")
+        assert_equal((-0.5).round(), -1.0, reason="the tie at one half")
+        assert_equal(0.49999999999999994.round(), 0.0, reason="the largest f64 below one half")
+        assert_equal(4503599627370495.5.round(), 4503599627370496.0, reason="the last representable half")
+        assert_equal(sale_price(19.99), 20.0, reason="a price")
+        assert(negative_zero((-0.4).round()), "a small negative rounds to -0.0")
+        assert(positive_zero(0.4.round()), "a small positive rounds to 0.0")
+        assert(negative_zero((-0.0).round()), "-0.0 is kept")
+
+    it("values that are already integers or not finite"):
+        let nan = 0.0 / 0.0
+        let infinity = 1.0 / 0.0
+        assert(nan.floor().is_nan(), "floor of NaN")
+        assert(nan.ceil().is_nan(), "ceil of NaN")
+        assert(nan.round().is_nan(), "round of NaN")
+        assert(nan.trunc().is_nan(), "trunc of NaN")
+        assert(nan.abs().is_nan(), "abs of NaN")
+        assert_equal(infinity.floor(), infinity, reason="floor of inf")
+        assert_equal((-infinity).ceil(), -infinity, reason="ceil of -inf")
+        assert_equal(infinity.round(), infinity, reason="round of inf")
+        assert_equal((-infinity).trunc(), -infinity, reason="trunc of -inf")
+        let big = 4503599627370496.0
+        assert_equal(big.floor(), big, reason="2^52")
+        assert_equal((big + 1.0).round(), big + 1.0, reason="2^52 + 1")
+        assert_equal(1e300.floor(), 1e300, reason="a huge value")
+        assert_equal((-1e300).ceil(), -1e300, reason="a huge negative")
+        assert_equal(1.7976931348623157e308.round(), 1.7976931348623157e308, reason="the largest f64")
+        assert_equal(1e300.trunc(), 1e300, reason="trunc of a huge value")
+
+    it("abs"):
+        assert_equal((-2.5).abs(), 2.5, reason="negative")
+        assert_equal(2.5.abs(), 2.5, reason="positive")
+        assert(positive_zero((-0.0).abs()), "-0.0 gives 0.0")
+        assert(positive_zero(0.0.abs()), "0.0 gives 0.0")
+        let infinity = 1.0 / 0.0
+        assert_equal((-infinity).abs(), infinity, reason="-inf")
+        assert_equal((-1.7976931348623157e308).abs(), 1.7976931348623157e308, reason="the most negative f64")
+
+    it("f32"):
+        assert_equal(f32(2.5).round(), f32(3.0), reason="f32 tie")
+        assert_equal(f32(-2.5).round(), f32(-3.0), reason="f32 negative tie")
+        assert_equal(f32(-2.1).floor(), f32(-3.0), reason="f32 floor")
+        assert_equal(f32(2.1).ceil(), f32(3.0), reason="f32 ceil")
+        assert_equal(f32(-7.9).trunc(), f32(-7.0), reason="f32 trunc")
+        assert_equal(f32(-2.5).abs(), f32(2.5), reason="f32 abs")
+        assert(negative_zero(f64(f32(-0.4).round())), "f32 round keeps the sign of zero")
+        assert(positive_zero(f64(f32(-0.0).abs())), "f32 abs of -0.0")
+        assert_equal(f32(8388608.5).round(), f32(8388608.0), reason="f32 value from 2^23 is already an integer")
+        let nan: f32 = f32(0.0 / 0.0)
+        assert(nan.floor() != nan.floor(), "f32 NaN stays NaN")

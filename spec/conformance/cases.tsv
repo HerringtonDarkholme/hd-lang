@@ -3264,3 +3264,15 @@ runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.tr
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.decl
+runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
+runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
+runtime/panic/num-abs-min-i16.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
+runtime/panic/num-abs-min-i32.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
+runtime/panic/num-abs-min-i64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
+runtime/valid/num-pow.hd	runtime	accept	std/num.md#r-std-num.pow.value
+runtime/panic/num-pow-overflow-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
+runtime/panic/num-pow-overflow-u8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
+runtime/panic/num-pow-overflow-u32.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
+runtime/panic/num-pow-overflow-i64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
+runtime/panic/num-pow-overflow-u64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
+runtime/valid/num-float-round.hd	runtime	accept	std/num.md#r-std-num.float-round.round

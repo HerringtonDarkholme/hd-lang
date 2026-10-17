@@ -1,0 +1,58 @@
+# test: pow raises every integer width to a u32 exponent, reaching the largest and smallest values without a spurious overflow
+# Spec std/num Powers: std-num.pow.value, std-num.pow.widths, std-num.pow.zero-exponent, std-num.pow.overflow.
+fn cube(side: i32) -> i32:
+    side.pow(3)
+
+tests:
+    use std.testing.assert_equal
+
+    it("small cases"):
+        assert_equal(cube(-3), -27, reason="an odd power keeps the sign")
+        let ten: i64 = 10
+        assert_equal(ten.pow(0), 1, reason="exponent 0")
+        let zero: i32 = 0
+        assert_equal(zero.pow(0), 1, reason="0 to the power 0")
+        assert_equal(zero.pow(5), 0, reason="zero base")
+        let one: u64 = 1
+        assert_equal(one.pow(4294967295), 1, reason="one to the largest exponent")
+        let minus_one: i32 = -1
+        assert_equal(minus_one.pow(4294967295), -1, reason="an odd exponent")
+        assert_equal(minus_one.pow(4294967294), 1, reason="an even exponent")
+
+    it("signed bounds"):
+        let two8: i8 = 2
+        assert_equal(two8.pow(6), 64, reason="i8 largest power of two")
+        let minus8: i8 = -2
+        assert_equal(minus8.pow(7), -128, reason="i8 minimum")
+        let seven: i8 = 7
+        assert_equal(seven.pow(2), 49, reason="no squaring past the last bit: 49 squared does not fit")
+        let two16: i16 = 2
+        assert_equal(two16.pow(14), 16384, reason="i16")
+        let minus16: i16 = -2
+        assert_equal(minus16.pow(15), -32768, reason="i16 minimum")
+        let two32: i32 = 2
+        assert_equal(two32.pow(30), 1073741824, reason="i32")
+        let minus32: i32 = -2
+        assert_equal(minus32.pow(31), -2147483648, reason="i32 minimum")
+        let two64: i64 = 2
+        assert_equal(two64.pow(62), 4611686018427387904, reason="i64")
+        let minus64: i64 = -2
+        assert_equal(minus64.pow(63), -9223372036854775807 - 1, reason="i64 minimum")
+        let third: i64 = 3
+        assert_equal(third.pow(39), 4052555153018976267, reason="i64 3 to the 39")
+
+    it("unsigned bounds"):
+        let two8: u8 = 2
+        assert_equal(two8.pow(7), 128, reason="u8")
+        let three8: u8 = 3
+        assert_equal(three8.pow(5), 243, reason="u8, no squaring past the last bit")
+        let two16: u16 = 2
+        assert_equal(two16.pow(15), 32768, reason="u16")
+        let two32: u32 = 2
+        assert_equal(two32.pow(31), 2147483648, reason="u32")
+        let two64: u64 = 2
+        assert_equal(two64.pow(63), 9223372036854775808, reason="u64")
+        let size: usize = 2
+        assert_equal(size.pow(31), 2147483648, reason="usize")
+        let ten: u64 = 10
+        assert_equal(ten.pow(19), 10000000000000000000, reason="u64 power of ten")

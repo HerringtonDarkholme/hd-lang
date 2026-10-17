@@ -1,0 +1,34 @@
+# test: abs returns the magnitude of every signed width, and leaves the largest value and zero unchanged
+# Spec std/num Absolute Value: std-num.abs.value, std-num.abs.widths, std-num.abs.i8, std-num.abs.i16, std-num.abs.i32, std-num.abs.i64.
+fn distance_from_zero(offset: i32) -> i32:
+    offset.abs()
+
+tests:
+    use std.testing.assert_equal
+
+    it("i8"):
+        let lowest: i8 = -127
+        let highest: i8 = 127
+        let zero: i8 = 0
+        assert_equal(lowest.abs(), 127, reason="the smallest value that has a positive twin")
+        assert_equal(highest.abs(), 127, reason="the largest value")
+        assert_equal(zero.abs(), 0, reason="zero")
+
+    it("i16"):
+        let lowest: i16 = -32767
+        let highest: i16 = 32767
+        assert_equal(lowest.abs(), 32767, reason="negative")
+        assert_equal(highest.abs(), 32767, reason="largest")
+
+    it("i32"):
+        let lowest: i32 = -2147483647
+        let highest: i32 = 2147483647
+        assert_equal(lowest.abs(), 2147483647, reason="negative")
+        assert_equal(highest.abs(), 2147483647, reason="largest")
+        assert_equal(distance_from_zero(-12), 12, reason="a call from a function")
+
+    it("i64"):
+        let lowest: i64 = -9223372036854775807
+        let highest: i64 = 9223372036854775807
+        assert_equal(lowest.abs(), 9223372036854775807, reason="negative")
+        assert_equal(highest.abs(), 9223372036854775807, reason="largest")

@@ -44,7 +44,7 @@ spec section; L needs an owner decision, a host hook or an intrinsic.
 | 1 | HTTP status as an error: `Response.ok() -> Result[Response, HttpError]` with `HttpError.Status(status, url)`, plus `get_text!(url)`, `Response.json::[T]()` and `post_json!(url, value)` | shortcut | S | 4, 5, 6, 28 |
 | 2 | A free helper for every host-trait method: `list_dir!`, `stat!`, `read_bytes!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, `exists!`, and `std.process.run!(program, args, stdin = "")` | shortcut | S | 1, 2, 3, 10, 30 |
 | 3 | `std.error.message(text) -> dyn Error` for one-off errors, and `Option.context(message)` | shortcut | S | 5, 24 |
-| 4 | Number math: integer `abs`, `pow`, `signum`; float `abs`, `floor`, `ceil`, `round`, `trunc`, `min`, `max`, `sqrt`, `PI` | atom | M; L for `sqrt` | every numeric program |
+| 4 | Number math: integer `abs`, `pow`, `signum`; float `abs`, `floor`, `ceil`, `round`, `trunc`, `min`, `max`, `sqrt`, `PI` (`abs`, `pow`, `floor`, `ceil`, `round`, `trunc` applied, #373) | atom | M; L for `sqrt` | every numeric program |
 | 5 | `std.fs.walk!(dir)` and `glob!(pattern)` | atom, shortcut | S | 3 |
 | 6 | Collection and text atoms: `Set` collects, `Map.entries()`, `max_by_key`, `min_by_key`, `dedup`, `most_common(n)`, `string.rfind`, `splitn`, `rsplit_once` | atom | S | 18, 19, 20 |
 | 7 | `std.task.timeout!(after, task)`, `map_all!(items, limit, f)`, and a `when` predicate on `retry!` and `retry_with!` | atom | S to M | 26, 27, 28 |
@@ -508,6 +508,25 @@ pub fn main() -> Result[void, RegexError] $ Console:
         println("$date: $msg")
     println(Regex::new(r"\s+")?.replace_all("a   b \t c", " "))
     .Ok(())
+```
+
+### Numbers
+
+**Number math (change 4, applied in #373).** Integer `abs` and `pow`
+and float `abs`, `trunc`, `floor`, `ceil`, and `round` are plain hd in
+`std.num`, with no import and no host hook. `sqrt` still waits for the
+owner. Before, every program wrote its own helpers. Go: `math.Floor`,
+`math.Round`. Python: `round`, `math.ceil`, `abs`, `**`. This program
+checks and runs, and prints `20.0 11.0 42 -7.0 -8.0` and `1099511627776`.
+
+```hd
+pub fn main() -> void $ Console:
+    price := 19.99
+    boxes := (130.0 / 12.0).ceil()
+    let gap: i32 = -42
+    println("${price.round()} ${boxes} ${gap.abs()} ${(-7.5).trunc()} ${(-7.5).floor()}")
+    let two: u64 = 2
+    println("${two.pow(40)}")
 ```
 
 ### Collections
