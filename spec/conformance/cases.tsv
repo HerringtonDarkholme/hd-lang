@@ -2311,6 +2311,7 @@ runtime/valid/regex-replace.hd	runtime	accept	std/regex.md#replacing-and-splitti
 runtime/valid/regex-split.hd	runtime	accept	std/regex.md#replacing-and-splitting
 runtime/valid/regex-captures-linear-time.hd	runtime	accept	std/regex.md#time-bound
 runtime/valid/regex-pike-vm-matches-old-engine.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost-first
+runtime/valid/regex-prefilter-matches-plain-vm.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost
 runtime/valid/test-registration-renamed-import.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.spellings
 runtime/valid/test-registration-qualified-call.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.all
 runtime/valid/test-registration-qualified-prop.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.all

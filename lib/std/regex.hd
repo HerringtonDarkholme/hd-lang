@@ -3,7 +3,9 @@
 # program for a Pike VM. The VM runs every thread in step over the text and
 # keeps at most one thread per instruction, so a search takes time
 # proportional to the program size times the text length, with no
-# backtracking (r-std-regex.time.linear).
+# backtracking (r-std-regex.time.linear). A prefilter taken from the tree
+# lets a search start threads only where a match could start and jump over
+# the text between.
 use std.format.DebugWriter
 use std.error.Error
 
@@ -14,6 +16,7 @@ use std.error.Error
 pub data Regex:
     text: string
     program: Program
+    filter: Prefilter
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
@@ -82,7 +85,7 @@ impl Regex:
         let program: mut List[Inst] = []
         compile(parsed.node, program)
         program.push(Inst.Done)
-        .Ok(Regex { text: pattern, program: lower(program), names: names })
+        .Ok(Regex { text: pattern, program: lower(program), filter: prefilter(parsed.node), names: names })
 
     # The pattern as written.
     ## The pattern the regex was compiled from.
@@ -95,7 +98,7 @@ impl Regex:
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(self, text: string) -> bool:
-        let vm: mut Vm = new_vm(self.program, text, 0)
+        let vm: mut Vm = new_vm(self, text, 0)
         run(vm, 0, true)
 
     # The leftmost match, and among those that start there, the one the
@@ -103,14 +106,14 @@ impl Regex:
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(self, text: string) -> Match?:
-        let vm: mut Vm = new_vm(self.program, text, 2)
+        let vm: mut Vm = new_vm(self, text, 2)
         if run(vm, 0, false): .Some(vm.whole()) else: .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(self, text: string) -> List[Match]:
-        let vm: mut Vm = new_vm(self.program, text, 2)
+        let vm: mut Vm = new_vm(self, text, 2)
         let found: mut List[Match] = []
         while advance(vm):
             found.push(vm.whole())
@@ -120,7 +123,7 @@ impl Regex:
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(self, text: string) -> Captures?:
-        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        let vm: mut Vm = new_vm(self, text, self.slot_count())
         if run(vm, 0, false): .Some(vm.groups(self.names)) else: .None
 
     # The groups of each match that `find_all` returns
@@ -128,7 +131,7 @@ impl Regex:
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(self, text: string) -> List[Captures]:
-        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        let vm: mut Vm = new_vm(self, text, self.slot_count())
         let found: mut List[Captures] = []
         while advance(vm):
             found.push(vm.groups(self.names))
@@ -138,7 +141,7 @@ impl Regex:
     ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(self, text: string, replacement: string) -> string:
-        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        let vm: mut Vm = new_vm(self, text, self.slot_count())
         if !run(vm, 0, false):
             return text
         template := Pattern::of(replacement)
@@ -150,7 +153,7 @@ impl Regex:
     ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(self, text: string, replacement: string) -> string:
-        let vm: mut Vm = new_vm(self.program, text, self.slot_count())
+        let vm: mut Vm = new_vm(self, text, self.slot_count())
         template := Pattern::of(replacement)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
@@ -168,7 +171,7 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(self, text: string) -> List[string]:
-        let vm: mut Vm = new_vm(self.program, text, 2)
+        let vm: mut Vm = new_vm(self, text, 2)
         let pieces: mut List[string] = []
         let last: usize = 0
         while advance(vm):
@@ -747,6 +750,307 @@ fn lower(program: List[Inst]) -> Program:
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
 
+# The prefilter, as RE2 and Rust's `regex` use literal prefilters. Every
+# match that starts at byte s holds `literal` at a byte from s + `lo` up
+# to s + `hi` (`hi` -1 when there is no bound), unless `literal` is "".
+# `firsts` is the set of bytes a match can start with, 256 bits in four
+# words, or empty when it would skip too little. A search starts threads
+# only where both allow a match to start. That leaves the matches as they
+# were: a thread that starts elsewhere never reaches `Done`, and a thread
+# that never reaches `Done` changes no other thread's result.
+data Prefilter:
+    literal: string
+    lo: usize
+    hi: i64
+    firsts: List[u64]
+
+# What every match of a piece of the tree has, in bytes: at least `min`
+# and at most `max` of them (`max` -1 for no bound); `exact`, its text when
+# it can match no other; `prefix`, the text it starts with; `literal`, a
+# text it holds from `lo` up to `hi` bytes after its start (`hi` -1 for no
+# bound), or ""; and `firsts`, the first bytes of its nonempty matches.
+# Each claim holds of every match, so a piece that never matches may
+# claim anything.
+data Summary:
+    min: i64
+    max: i64
+    exact: string?
+    prefix: string
+    literal: string
+    lo: i64
+    hi: i64
+    firsts: List[u64]
+
+fn prefilter(node: Node) -> Prefilter:
+    summary := summarize(node)
+    if summary.min == 0:
+        # An empty match holds no literal and has no first byte.
+        return Prefilter { literal: "", lo: 0, hi: 0, firsts: [] }
+    let firsts: List[u64] = summary.firsts
+    if count_bits(firsts) >= 128:
+        # A set this full skips too little to pay for testing each byte.
+        firsts = []
+    Prefilter { literal: summary.literal, lo: usize(summary.lo), hi: summary.hi, firsts: firsts }
+
+fn summarize(node: Node) -> Summary:
+    match node:
+        .Empty => exact_summary("", no_bytes())
+        .Begin => exact_summary("", no_bytes())
+        .End => exact_summary("", no_bytes())
+        .Literal(value) =>
+            text := "$value"
+            lead := i32(bytes_at(text, 0))
+            let firsts: mut List[u64] = no_bytes()
+            add_bytes(firsts, lead, lead)
+            exact_summary(text, firsts)
+        .AnyChar =>
+            # Any scalar but a newline.
+            let firsts: mut List[u64] = no_bytes()
+            add_bytes(firsts, 0, 9)
+            add_bytes(firsts, 11, 127)
+            add_bytes(firsts, 192, 255)
+            open_summary(1, 4, firsts)
+        .Class(items, negated) => class_summary(class_ranges(items), negated)
+        .Group(body, _) => summarize(body)
+        .Concat(items) => concat_summary(items)
+        .Alternate(branches) => alternate_summary(branches)
+        .Repeat(body, min, max, _) => repeat_summary(summarize(body), min, max)
+
+fn exact_summary(text: string, firsts: List[u64]) -> Summary:
+    size := i64(bytes_len(text))
+    Summary { min: size, max: size, exact: .Some(text), prefix: text, literal: text, lo: 0, hi: 0, firsts: firsts }
+
+fn open_summary(min: i64, max: i64, firsts: List[u64]) -> Summary:
+    Summary { min: min, max: max, exact: .None, prefix: "", literal: "", lo: 0, hi: 0, firsts: firsts }
+
+# A class's first bytes are the UTF-8 first bytes of the scalars in its
+# ranges. For a negated class they are every first byte but the ASCII
+# ones the ranges name, which is all its non-ASCII first bytes and some
+# more.
+fn class_summary(ranges: List[i32], negated: bool) -> Summary:
+    let firsts: mut List[u64] = no_bytes()
+    if negated:
+        let byte = +0
+        while byte < 128:
+            if !in_class(ranges, byte):
+                add_bytes(firsts, byte, byte)
+            byte = byte + 1
+        add_bytes(firsts, 192, 255)
+        return open_summary(1, 4, firsts)
+    let min: i64 = 4
+    let max: i64 = 1
+    let index: usize = 0
+    while index < ranges.len():
+        low := ranges[index]
+        high := ranges[index + 1]
+        if scalar_bytes(low) < min:
+            min = scalar_bytes(low)
+        if scalar_bytes(high) > max:
+            max = scalar_bytes(high)
+        if low < 128:
+            add_bytes(firsts, low, if high < 127: high else: +127)
+        add_leads(firsts, low, high, 128, 2047, 64, 192)
+        add_leads(firsts, low, high, 2048, 65535, 4096, 224)
+        add_leads(firsts, low, high, 65536, 1114111, 262144, 240)
+        index = index + 2
+    open_summary(min, max, firsts)
+
+fn in_class(ranges: List[i32], point: i32) -> bool:
+    let index: usize = 0
+    while index < ranges.len():
+        if point >= ranges[index] && point <= ranges[index + 1]:
+            return true
+        index = index + 2
+    false
+
+# The first bytes of the scalars from `low` to `high` that UTF-8 writes
+# with the same length, those from `first` to `last`: `base` plus the
+# scalar divided by `unit`.
+fn add_leads(set: mut List[u64], low: i32, high: i32, first: i32, last: i32, unit: i32, base: i32) -> void:
+    from := if low > first: low else: first
+    to := if high < last: high else: last
+    if from <= to:
+        add_bytes(set, base + from / unit, base + to / unit)
+
+# The length of a scalar's UTF-8 form.
+fn scalar_bytes(point: i32) -> i64:
+    if point < 128:
+        return 1
+    if point < 2048:
+        return 2
+    if point < 65536: 3 else: 4
+
+# Items in sequence: the starts of the items after the first come later by
+# the lengths before them; a run of exact items and the prefix of the item
+# after it form one literal.
+fn concat_summary(items: List[Node]) -> Summary:
+    let min: i64 = 0
+    let max: i64 = 0
+    let literal = ""
+    let lo: i64 = 0
+    let hi: i64 = 0
+    let run: mut List[string] = []
+    let run_lo: i64 = 0
+    let run_hi: i64 = 0
+    let head: mut List[string] = []
+    let open = true
+    let exact = true
+    let firsts: List[u64] = no_bytes()
+    for item in items:
+        summary := summarize(item)
+        if min == 0:
+            firsts = union(firsts, summary.firsts)
+        if summary.literal != "" && prefer(summary.literal, plus(max, summary.hi), literal, hi):
+            literal = summary.literal
+            lo = min + summary.lo
+            hi = plus(max, summary.hi)
+        match summary.exact:
+            .Some(text) =>
+                run.push(text)
+                if open:
+                    head.push(text)
+            .None =>
+                exact = false
+                run.push(summary.prefix)
+                joined := run.join("")
+                if prefer(joined, run_hi, literal, hi):
+                    literal = joined
+                    lo = run_lo
+                    hi = run_hi
+                if open:
+                    head.push(summary.prefix)
+                    open = false
+                run = []
+                run_lo = min + summary.min
+                run_hi = plus(max, summary.max)
+        min = min + summary.min
+        max = plus(max, summary.max)
+    joined := run.join("")
+    if prefer(joined, run_hi, literal, hi):
+        literal = joined
+        lo = run_lo
+        hi = run_hi
+    prefix := head.join("")
+    let whole: string? = if exact: .Some(prefix) else: .None
+    Summary { min: min, max: max, exact: whole, prefix: prefix, literal: literal, lo: lo, hi: hi, firsts: firsts }
+
+# Alternatives: a literal is required only when every alternative holds
+# it, and the alternatives' common prefix is one too.
+fn alternate_summary(branches: List[Node]) -> Summary:
+    first := summarize(branches[0])
+    let min = first.min
+    let max = first.max
+    let exact = first.exact
+    let prefix = first.prefix
+    let literal = first.literal
+    let lo = first.lo
+    let hi = first.hi
+    let firsts = first.firsts
+    let index: usize = 1
+    while index < branches.len():
+        other := summarize(branches[index])
+        if other.min < min:
+            min = other.min
+        max = if max < 0 || other.max < 0: -1 else if other.max > max: other.max else: max
+        exact = same_text(exact, other.exact)
+        prefix = common_prefix(prefix, other.prefix)
+        if literal != "" && literal == other.literal:
+            if other.lo < lo:
+                lo = other.lo
+            hi = if hi < 0 || other.hi < 0: -1 else if other.hi > hi: other.hi else: hi
+        else:
+            literal = ""
+        firsts = union(firsts, other.firsts)
+        index = index + 1
+    if prefer(prefix, 0, literal, hi):
+        literal = prefix
+        lo = 0
+        hi = 0
+    Summary { min: min, max: max, exact: exact, prefix: prefix, literal: literal, lo: lo, hi: hi, firsts: firsts }
+
+fn same_text(left: string?, right: string?) -> string?:
+    match left:
+        .Some(a) =>
+            match right:
+                .Some(b) => if a == b: .Some(a) else: .None
+                .None => .None
+        .None => .None
+
+# The longest common prefix that ends at a scalar boundary.
+fn common_prefix(left: string, right: string) -> string:
+    let size: usize = 0
+    while size < bytes_len(left) && size < bytes_len(right) && bytes_at(left, size) == bytes_at(right, size):
+        size = size + 1
+    while size > 0 && size < bytes_len(left) && continuation(bytes_at(left, size)):
+        size = size - 1
+    bytes_slice(left, 0, size)
+
+# A repetition: with at least one copy, the first copy's literal at the
+# start, or all the required copies of an exact body.
+fn repeat_summary(body: Summary, min: usize, max: usize?) -> Summary:
+    low := body.min * i64(min)
+    let high: i64 = -1
+    match max:
+        .Some(count) =>
+            if count == 0 || body.max == 0:
+                high = 0
+            else if body.max > 0:
+                high = body.max * i64(count)
+        .None =>
+            if body.max == 0:
+                high = 0
+    if min == 0:
+        return open_summary(low, high, body.firsts)
+    match body.exact:
+        .Some(text) =>
+            whole := text.repeat(min)
+            let exact: string? = .None
+            match max:
+                .Some(count) =>
+                    if count == min:
+                        exact = .Some(whole)
+                .None => pass
+            Summary { min: low, max: high, exact: exact, prefix: whole, literal: whole, lo: 0, hi: 0, firsts: body.firsts }
+        .None => Summary { min: low, max: high, exact: .None, prefix: body.prefix, literal: body.literal, lo: body.lo, hi: body.hi, firsts: body.firsts }
+
+# Whether `literal`, within `hi` bytes of a match's start, makes a better
+# prefilter than `best` within `best_hi`: a bounded place first, since it
+# lets a search jump, then the longer.
+fn prefer(literal: string, hi: i64, best: string, best_hi: i64) -> bool:
+    if literal == "":
+        return false
+    if best == "":
+        return true
+    if (hi >= 0) != (best_hi >= 0):
+        return hi >= 0
+    bytes_len(literal) > bytes_len(best)
+
+# A sum of lengths, -1 when either has no bound.
+fn plus(left: i64, right: i64) -> i64:
+    if left < 0 || right < 0: -1 else: left + right
+
+fn no_bytes() -> mut List[u64]:
+    [u64(0), u64(0), u64(0), u64(0)]
+
+fn add_bytes(set: mut List[u64], low: i32, high: i32) -> void:
+    let byte = low
+    while byte <= high:
+        word := usize(byte / 64)
+        set[word] = set[word] | (u64(1) << u64(byte % 64))
+        byte = byte + 1
+
+fn union(left: List[u64], right: List[u64]) -> mut List[u64]:
+    [left[0] | right[0], left[1] | right[1], left[2] | right[2], left[3] | right[3]]
+
+fn count_bits(set: List[u64]) -> u32:
+    let total: u32 = 0
+    for word in set:
+        total = total + word.count_ones()
+    total
+
+fn continuation(byte: u8) -> bool:
+    byte >= 128 && byte < 192
+
 # One thread list: the instructions reached at one text position, as a
 # sparse set (Briggs and Torczon, as RE2 uses it) that keeps them in the
 # order they were added, so clearing it and testing or adding a member each
@@ -800,10 +1104,22 @@ data Vm:
     from: usize
     last_end: i64
     finished: bool
+    # The prefilter, whether it has anything to skip with, and the last
+    # search for its literal: the first one at or after byte `hit_from` is
+    # at byte `hit`, or there is none when `hit` is -1. The literal lets a
+    # match start at the bytes from `near_from` to `near_until`.
+    filter: Prefilter
+    filtered: bool
+    hit_from: usize
+    hit: i64
+    near_from: i64
+    near_until: i64
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than size + 1.
-fn new_vm(program: Program, text: string, slot_count: usize) -> mut Vm:
+fn new_vm(regex: Regex, text: string, slot_count: usize) -> mut Vm:
+    program := regex.program
+    filter := regex.filter
     size := program.ops.len()
     Vm {
         program: program,
@@ -819,6 +1135,12 @@ fn new_vm(program: Program, text: string, slot_count: usize) -> mut Vm:
         from: 0,
         last_end: -1,
         finished: false,
+        filter: filter,
+        filtered: bytes_len(filter.literal) > 0 || filter.firsts.len() > 0,
+        hit_from: bytes_len(text) + 1,
+        hit: -1,
+        near_from: 0,
+        near_until: -1,
     }
 
 impl Vm:
@@ -874,6 +1196,8 @@ fn advance(vm: mut Vm) -> bool:
 # `from`. When it finds a match, it returns true with the match's slots in
 # `vm.found`, slot 0 its start and slot 1 its end. With `earliest`, as
 # `is_match` asks, it returns true as soon as any thread reaches `Done`.
+# A new thread starts only where the prefilter lets a match start, and
+# when no thread is alive the search jumps to the next such byte.
 fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
     ops := vm.program.ops
     points := vm.program.points
@@ -887,13 +1211,19 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
     let scratch: mut List[i64] = vm.scratch
     let current: mut Threads = vm.first
     let next: mut Threads = vm.second
+    filtered := vm.filtered
     current.count = 0
-    restart(scratch, slot_count, from)
-    add_thread(vm, current, 0, from)
+    let at = from
+    if filtered:
+        start := next_start(vm, from)
+        if start < 0:
+            return false
+        at = usize(start)
+    restart(scratch, slot_count, at)
+    add_thread(vm, current, 0, at)
     if earliest && current.has(done):
         return true
     let matched = false
-    let at = from
     while true:
         next.count = 0
         let point: i32 = -1
@@ -953,16 +1283,129 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
             break
         at = after
         if !matched:
-            restart(scratch, slot_count, at)
-            add_thread(vm, next, 0, at)
-            if earliest && next.has(done):
-                return true
+            let seed = i64(at)
+            if filtered:
+                seed = start_from(vm, at, next.count > 0)
+            if seed >= 0:
+                at = usize(seed)
+                restart(scratch, slot_count, at)
+                add_thread(vm, next, 0, at)
+                if earliest && next.has(done):
+                    return true
+            else if next.count == 0:
+                break
         else if next.count == 0:
             break
         let held: mut Threads = current
         current = next
         next = held
     matched
+
+# The first byte at or after `at` where the prefilter lets a match start,
+# or -1 when none can start there or later. `firsts` holds no UTF-8
+# continuation byte, and a literal starts at a scalar boundary, so every
+# byte this returns starts a scalar.
+fn next_start(vm: mut Vm, at: usize) -> i64:
+    filter := vm.filter
+    text := vm.text
+    size := vm.size
+    width := bytes_len(filter.literal)
+    firsts := filter.firsts
+    let position = at
+    while true:
+        if width > 0 && !literal_near(vm, position):
+            if position + filter.lo + width > size || vm.hit < 0:
+                return -1
+            # The next literal is more than `hi` bytes ahead, and a match
+            # starts at most that far before it: go there, backed up to
+            # the first byte of a scalar.
+            let earliest = usize(vm.hit) - usize(filter.hi)
+            while continuation(bytes_at(text, earliest)):
+                earliest = earliest - 1
+            position = earliest
+        if firsts.len() == 0:
+            return i64(position)
+        let next = position
+        while next < size:
+            byte := bytes_at(text, next)
+            if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 != 0:
+                break
+            next = next + 1
+        if next >= size:
+            return -1
+        if next == position || width == 0:
+            return i64(next)
+        # Past a first byte the literal may now be too far ahead.
+        position = next
+
+# Where the search starts its next thread, at byte `at` or later, or -1
+# for nowhere. While threads are `alive` it cannot jump over them, so that
+# is `at` itself when the prefilter lets a match start there.
+fn start_from(vm: mut Vm, at: usize, alive: bool) -> i64:
+    if !alive:
+        return next_start(vm, at)
+    firsts := vm.filter.firsts
+    if firsts.len() > 0:
+        if at >= vm.size:
+            return -1
+        byte := bytes_at(vm.text, at)
+        if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 == 0:
+            return -1
+    # A literal with no bound on its place is tested only where the
+    # search jumps: testing it at every byte costs more than the threads
+    # it saves.
+    if vm.filter.hi >= 0 && bytes_len(vm.filter.literal) > 0 && !literal_near(vm, at):
+        return -1
+    i64(at)
+
+# Whether the prefilter's literal is close enough after byte `at` for a
+# match to start there, or may be. Each literal found marks the bytes it
+# is close enough to, so most calls need no search. A literal with no
+# bound on its place only rejects a text with none ahead: once one is
+# found, every byte may start a match, since searching again past each
+# one would cost a search per match and could never make the search jump.
+fn literal_near(vm: mut Vm, at: usize) -> bool:
+    if i64(at) >= vm.near_from && i64(at) <= vm.near_until:
+        return true
+    want := at + vm.filter.lo
+    if want + bytes_len(vm.filter.literal) > vm.size:
+        return false
+    if vm.hit_from > want || (vm.hit >= 0 && usize(vm.hit) < want):
+        vm.hit_from = want
+        vm.hit = find_literal(vm.text, vm.filter.literal, want)
+        if vm.hit >= 0:
+            if vm.filter.hi < 0:
+                vm.near_from = i64(at)
+                vm.near_until = i64(vm.size)
+            else:
+                vm.near_from = vm.hit - vm.filter.hi
+                vm.near_until = vm.hit - i64(vm.filter.lo)
+    vm.hit >= 0 && (vm.filter.hi < 0 || usize(vm.hit) <= at + usize(vm.filter.hi))
+
+# The first `literal` at or after byte `from`, or -1. A longer literal
+# goes to std.text's Two-Way search through `find` on the text from `from`,
+# a slice that shares the bytes, unless it is right at `from`. A one-byte
+# literal is a plain byte scan, which is what that search does for one
+# byte. Both shortcuts save building the searcher on each call.
+fn find_literal(text: string, literal: string, from: usize) -> i64:
+    size := bytes_len(text)
+    width := bytes_len(literal)
+    if width == 1:
+        byte := bytes_at(literal, 0)
+        let at = from
+        while at < size:
+            if bytes_at(text, at) == byte:
+                return i64(at)
+            at = at + 1
+        return -1
+    let index: usize = 0
+    while index < width && from + index < size && bytes_at(text, from + index) == bytes_at(literal, index):
+        index = index + 1
+    if index == width:
+        return i64(from)
+    match bytes_slice(text, from, size).find(literal):
+        .Some(offset) => i64(from + offset)
+        .None => -1
 
 # Sets the scratch slots for a thread that starts at byte `at`.
 fn restart(scratch: mut List[i64], slot_count: usize, at: usize) -> void:
