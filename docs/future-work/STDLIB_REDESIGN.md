@@ -183,6 +183,10 @@ impl ScriptedHttp:
   `Response.ok()`.
 - Host change: `Request.redirects` reaches the provider. Status checks,
   query encoding, forms, JSON and cookies are plain hd.
+- Scope, decided by the owner on 2026-10-17: a Retrofit-style typed
+  endpoint derive was considered and rejected ("it is almost a http
+  framework"). `std.http` stays at typed bodies and the builder, and
+  frameworks belong to packages.
 
 **Cost.** Each setter appends to one list in place. The query is encoded
 once, into one `StringBuilder`. `form` is one walk of the value into one
@@ -372,12 +376,96 @@ and `env_as` composes the `Parse` trait. Proposal: move `Sys`,
 beside `os.Getenv` and Rust keeps `env::consts::OS` in `std::env`. No
 name changes, and `Sys` keeps no free helpers, since its reads are rare.
 
-`env_as::[T]` is the typed read of one variable. A service configured
-only from the environment derives `Cli` and marks each field with
-`@from_env`, as clap's `env` setting serves both. That needs no second
-derive. `args()` stays the untyped list beneath `parse_args`.
+`env_as::[T]` is the typed read of one variable. `args()` stays the
+untyped list beneath `parse_args`. The owner ruled on 2026-10-17 that
+the command-line derive does not read the environment ("i don't like
+mixing Args with Env"), and that a typed environment is "another thing",
+which the next subsection proposes.
 
 **Cost.** Each read is one host call with no copy in std.
+
+### Typed Environment Config
+
+A service configured from environment variables reads them into one
+data type, as Go's `envconfig`, Rust's `envy` and pydantic-settings do.
+Two shapes were compared:
+
+- **A source for `Deserialize`.** It reuses `@serde(rename)` and the
+  serde defaults, but a serde value is typed by the format, and every
+  environment value is text. A `u16` field would need a coercion rule
+  that no other format has, and a list needs a separator that serde's
+  data model cannot carry.
+- **Its own derive,** in the shape of `Cli`, over `std.structure`. Each
+  field reads through `Parse`, as `env_as` does, so a number, a
+  `Duration` and a `Path` need no extra rule.
+
+Recommendation: the second, a trait `EnvConfig`. It needs no host change
+and no compiler support beyond the traversals serde already uses.
+
+```text
+pub trait EnvConfig:
+    fn load() -> Result[Self, EnvError] $ Env
+
+@annotate::[F](.Field)
+pub data EnvName[F]:
+    pub name: string
+pub fn env_name[F](name: string) -> EnvName[F]
+```
+
+```text
+@derive(EnvConfig)
+data Settings:
+    deploy_token: string            # DEPLOY_TOKEN, required
+    port: u16 = 8080                # PORT, the default when unset
+    proxy: string?                  # HTTP_PROXY, .None when unset
+    @env_name("REGIONS")
+    zones: List[string]             # REGIONS="eu-west,us-east"; unset is []
+```
+
+- A field `deploy_token` reads `DEPLOY_TOKEN`: the field name in upper
+  snake case. `@env_name(name)` replaces it. A prefix for a whole type
+  is not proposed.
+- A field with no default and not `T?` is required. An unset required
+  variable is `EnvError.Missing(name)`; a default stands in for an unset
+  one; `T?` is `.None`.
+- A field type is a `Parse` type, `T?`, or `List[T]` over a `Parse`
+  type. Any other field type, a nested data type included, is a compile
+  error at the `@derive` line.
+- Every value reads through `T::parse`. A refused value is the existing
+  `EnvError.InvalidValue(name, reason)`, so every error names its
+  variable.
+- A `List[T]` splits the text on commas and parses each item. Items are
+  not trimmed, and an empty variable is an empty list.
+- `load` reads only the names the type declares, never `Env.names()`, so
+  its row is `$ Env` and nothing else.
+
+```text
+tests:
+    use std.host.{Env, ScriptedEnv}
+    use std.testing.assert_equal
+
+    it("reads defaults, optional values and lists"):
+        env := ScriptedEnv::new({"DEPLOY_TOKEN": "t0k", "REGIONS": "eu-west,us-east"})
+        $.with(Env=env):
+            match Settings::load():
+                .Ok(settings) =>
+                    assert_equal(settings.port, 8080, reason="the default")
+                    assert_equal(settings.proxy, .None, reason="optional")
+                    assert_equal(settings.zones, ["eu-west", "us-east"], reason="split on commas")
+                .Err(error) => panic("unexpected $error")
+
+    it("names the variable that is missing or does not parse"):
+        $.with(Env=ScriptedEnv::new({})):
+            assert_equal(Settings::load().err(), .Some(EnvError.Missing("DEPLOY_TOKEN")), reason="required")
+        $.with(Env=ScriptedEnv::new({"DEPLOY_TOKEN": "t", "PORT": "x"})):
+            assert_equal(Settings::load().err().map(fn(e: EnvError) -> bool: e.to_string().contains("PORT")), .Some(true), reason="the name")
+```
+
+Names: `EnvError` gains a `Missing(name)` variant, which is not counted.
+
+**Cost.** `load` makes one host call per declared field and one parse
+per value, with the fields traversed once per type. A list allocates
+once per variable.
 
 ## std.cli
 
@@ -438,8 +526,7 @@ Each field's type decides how it reads:
 - `-h` and `--help` are always declared. Either one stops parsing with
   `CliError.Help(usage)`, which holds the help text of the command it
   appeared under.
-- Three facts configure a field: `@short(letter)`, `@from_env(name)` and
-  `@positional`. Each is a typed fact over `F < Cli`, so a fact on a
+- Two facts configure a field: `@short(letter)` and `@positional`. Each is a typed fact over `F < Cli`, so a fact on a
   field the derive cannot read is a compile error.
 - Every field type must implement `Cli`, which the derived bounds check
   at the `@derive` line. std implements it for `bool`, `string`, `char`,
@@ -461,19 +548,20 @@ pub trait Cli:
     fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]
     fn parser() -> mut ArgParser: ...                              # the type's declaration, built once per call
     fn parse(arguments: List[string]) -> Result[Self, CliError]: ...   # parser().parse, then read
-    fn parse_args() -> Result[Self, CliError] $ Args + Env: ...        # the host's arguments and @from_env variables
+    fn parse_args() -> Result[Self, CliError] $ Args: ...              # the host's arguments
 
 @annotate::[F](.Field)
 pub data Short[F < Cli]:
     pub letter: char
 pub fn short[F < Cli](letter: char) -> Short[F]
-...                                       # FromEnv with from_env(name), Positional with positional()
+...                                       # Positional with positional()
 ```
 
 `parse` is the pure call that tests use. `parse_args` takes the program
-name from `Args` and reads only the variables that `@from_env` facts
-name, never `Env.names()`. Its row names `Env` even for a type with no
-`@from_env` field, because the row is fixed per call, not per type.
+name and the arguments from `Args`, and its row is `$ Args` only. The
+environment is not an input of the derive: a value that may come from a
+variable is read through `EnvConfig` and merged by the program (scenario
+6).
 
 ### How The Derive Is Built
 
@@ -544,7 +632,6 @@ pub data Arg:
     pub kind: ArgKind = ArgKind.Option        # Flag, Option, Positional
     pub short: char? = .None
     pub help: string = ""
-    pub env: string? = .None                  # the variable read when the argument is absent
     pub choices: List[string] = []            # the only values allowed, when not empty
     pub repeated: bool = false
     pub required: bool = false
@@ -554,7 +641,7 @@ impl ArgParser:
     pub fn arg(mut self, arg: Arg) -> mut ArgParser
     pub fn command(mut self, name: string, parser: ArgParser) -> mut ArgParser
     pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]
-    pub fn parse_args(self) -> Result[Parsed, CliError] $ Args + Env
+    pub fn parse_args(self) -> Result[Parsed, CliError] $ Args
     pub fn usage(self) -> string
 
 impl Parsed:                                  # fields become private
@@ -615,7 +702,7 @@ Today every argument scans every option, and every flag scans the flags
 already seen. `read` is one `build` with one map lookup per member, and a
 `List[T]` element reads through a one-value view in O(1). `usage` writes
 one `StringBuilder`, where today it joins with `+`, quadratic in the
-entries. `parse_args` makes one host call per `@from_env` name.
+entries. `parse_args` makes one host call.
 
 ## std.time
 
@@ -913,15 +1000,16 @@ pub fn main!() -> Result[void, dyn Error] $ Console + ConsoleInput:
     .Ok(())
 ```
 
-**6. A deploy tool** with repeated options, an option that falls back
-to an environment variable, a `Duration` option with a default, and a
-field of the program's own type with `Parse`; its test supplies the
-arguments and the environment through scripted providers.
+**6. A deploy tool** with repeated options, a token that comes from an
+option or from an environment variable, a `Duration` option with a
+default, and a field of the program's own type with `Parse`. The program
+merges the option and the typed environment config itself; its test
+supplies the arguments and the environment through scripted providers.
 
 ```text
-use std.cli.{Arg, ArgParser, Cli, CliError, Parsed, from_env, positional, short}
+use std.cli.{Arg, ArgParser, Cli, CliError, Parsed, positional, short}
 use std.http.{Client, Http, Request}
-use std.host.{Args, Env}
+use std.host.{Args, Env, EnvConfig}
 use std.serde.Serialize
 use std.text.Parse
 use std.time.{Duration, min}
@@ -952,8 +1040,7 @@ impl Cli for Label:
 @derive(Cli)
 data Deploy:
     ## The API token; DEPLOY_TOKEN when the option is absent.
-    @from_env("DEPLOY_TOKEN")
-    token: string
+    token: string? = .None
     ## A region to deploy to; repeatable; every region when absent.
     @short('r')
     region: List[string]
@@ -968,6 +1055,11 @@ data Deploy:
     @positional
     service: string
 
+## The variables the tool reads.
+@derive(EnvConfig)
+data DeployEnv:
+    deploy_token: string?
+
 @derive(Serialize)
 data Release:
     service: string
@@ -976,8 +1068,10 @@ data Release:
 
 pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + Http:
     deploy := Deploy::parse_args()?
+    env := DeployEnv::load()?
+    token := deploy.token.or(env.deploy_token).context("set --token or DEPLOY_TOKEN")?
     let mut api = Client::new().base_url("https://deploy.example").timeout(deploy.timeout)
-    api.header("Authorization", "Bearer ${deploy.token}")
+    api.header("Authorization", "Bearer $token")
     let labels: mut Map[string, string] = {}
     for label in deploy.label:
         labels[label.key] = label.value
@@ -995,13 +1089,13 @@ tests:
     use std.host.{ScriptedArgs, ScriptedEnv}
     use std.testing.assert_equal
 
-    it("takes the token from the environment and keeps every repeated value"):
+    it("keeps every repeated value and leaves the token to the environment"):
         args := ScriptedArgs::new("deploy", ["-r", "eu-west", "-r", "us-east", "-l", "team=pay", "--dry-run", "billing"])
         env := ScriptedEnv::new({"DEPLOY_TOKEN": "t0k"})
         $.with(Args=args, Env=env):
             match Deploy::parse_args():
                 .Ok(deploy) =>
-                    assert_equal(deploy.token, "t0k", reason="the environment fallback")
+                    assert_equal(deploy.token, .None, reason="the option is absent")
                     assert_equal(deploy.region, ["eu-west", "us-east"], reason="every value, in order")
                     assert_equal(deploy.label[0].value, "pay", reason="a typed label")
                     assert_equal(deploy.timeout, 10min, reason="the default")
@@ -1010,6 +1104,10 @@ tests:
     it("names the option whose value does not parse"):
         bad := Deploy::parse(["--token", "t", "--label", "team", "billing"])
         assert_equal(bad.err(), .Some(CliError.InvalidValue("label", "expected key=value, got team")), reason="the Parse error")
+
+    it("reads the token from the typed environment"):
+        $.with(Env=ScriptedEnv::new({"DEPLOY_TOKEN": "t0k"})):
+            assert_equal(DeployEnv::load().ok().map(fn(e: DeployEnv) -> string?: e.deploy_token), .Some(.Some("t0k")), reason="DEPLOY_TOKEN")
 ```
 
 **7. A report generator** with two enum options, an optional number,
@@ -1121,17 +1219,17 @@ trait methods included. Fields and variants are not counted. "Before" is
 | `std.path` | 5 | 7 | none | `file_stem`, `with_extension` |
 | `std.process` | 11 | 19 | free `run!`, `output!` | `Command` and its 7 methods; `reply`, `received` |
 | `std.console` | 15 | 19 | none | `read_all!` (method and free), `write!`, `print` |
-| `std.host` with `std.sys` | 22 | 22 | the module `std.sys` | none |
-| `std.cli` | 13 | 28 | the builder `Cli` and its `new`, `flag`, `option`, `positional`, `parse`, `parse_args`, `usage` | the trait `Cli` and its `declare`, `read`, `parser`, `parse`, `parse_args`; `Short`, `short`, `FromEnv`, `from_env`, `Positional`, `positional`; `ArgParser` and its `new`, `arg`, `command`, `parse`, `parse_args`, `usage`; `Arg`, `ArgKind`; `Parsed.values`, `command` |
+| `std.host` with `std.sys` | 22 | 26 | the module `std.sys` | the trait `EnvConfig` and its `load`; `EnvName`, `env_name` |
+| `std.cli` | 13 | 26 | the builder `Cli` and its `new`, `flag`, `option`, `positional`, `parse`, `parse_args`, `usage` | the trait `Cli` and its `declare`, `read`, `parser`, `parse`, `parse_args`; `Short`, `short`, `Positional`, `positional`; `ArgParser` and its `new`, `arg`, `command`, `parse`, `parse_args`, `usage`; `Arg`, `ArgKind`; `Parsed.values`, `command` |
 | `std.time` | 35 | 30 | `Duration::milliseconds`, `seconds`, `parse`, `ParseDurationError`, `Timestamp::parse_rfc3339` | none (the `Parse` impls are not names) |
-| **Total** | **204** | **246** | **25** | **67** |
+| **Total** | **204** | **248** | **25** | **69** |
 
 The growth is in HTTP, processes and the CLI. Today's HTTP and process
 surface could not express auth, cookies, queries, forms, a working
-directory or an environment. In `std.cli`, 12 names are the typed layer
-(the trait, its methods and the three facts), and 16 are the untyped
-layer it is built on, which also gains subcommands, choices, required
-options and environment fallbacks. Most added names appear in a
+directory or an environment. In `std.cli`, 10 names are the typed layer
+(the trait, its methods and the two facts), and 16 are the untyped
+layer it is built on, which also gains subcommands, choices and required
+options. The 4 names in `std.host` are the typed environment config. Most added names appear in a
 scenario above; the rest (`body`, `redirects`, the free net helpers,
 `copy!`, `file_stem`, `print`) each close a gap the bar names. Each
 removed name is a fixed combination, a duplicate, an inherent parse
