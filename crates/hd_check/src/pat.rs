@@ -785,6 +785,9 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ let
 
     pub(crate) fn let_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
+        if let Some(mark) = Src::child(s, SyntaxKind::ModeMark) {
+            return self.gap(mark, crate::ty::OWNERSHIP_GAP);
+        }
         let Some(pat) = kids.first().copied() else {
             return unsupported("a `let` without a pattern");
         };

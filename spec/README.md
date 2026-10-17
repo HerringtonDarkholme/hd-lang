@@ -236,6 +236,7 @@ The stdlib chapters' terms are in the
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](lang/03-names-and-scopes.md#r-names.member.known-impl). |
 | **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](lang/02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
+| **lifetime** | How long a borrow lasts, named by a variable, `self`, a path, a requirement key, or `static`, as in `^{a} T`. See [Lifetimes](lang/13-ownership.md#lifetimes). |
 | **literal function** | A function marked `@num_suffix` or `@str_prefix`, which a suffixed literal or prefixed string calls. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
 | **literal class** | Unsuffixed literals with no expected type that meet one another; they take one width. See [`types.literal.local.class`](lang/04-type-system.md#r-types.literal.local.class). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](lang/01-lexical-structure.md#literal-suffixes). |
@@ -247,6 +248,7 @@ The stdlib chapters' terms are in the
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](lang/03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](lang/03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](lang/07-functions.md#method-references). |
+| **mark** | The `own` or `^` that writes a mode on a type, a binding, a receiver, or a bound. See [Mark Syntax](lang/13-ownership.md#mark-syntax). |
 | **mode** | How a position holds its value: plain, owned, or borrowed, written on the type at the position as `mut` is. See [Modes](lang/13-ownership.md#modes). |
 | **module cycle** | A strongly connected component of the use graph: modules that use each other, or one module alone as a trivial cycle, initialized together. See [`module.init.cycle`](lang/10-modules.md#r-module.init.cycle). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](lang/10-modules.md#version-selection). |

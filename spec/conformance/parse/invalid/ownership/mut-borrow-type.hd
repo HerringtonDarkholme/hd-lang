@@ -1,0 +1,5 @@
+# test: a type takes one mark, so mut ^T combines two
+data File:
+    fd: i32
+
+fn keep(f: mut ^File) -> void: pass  # diagnostic: syntax-error

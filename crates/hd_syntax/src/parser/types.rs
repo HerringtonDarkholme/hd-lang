@@ -3,6 +3,9 @@
 use hd_diag::Code;
 
 use super::{Done, Parser, REST_ELSEWHERE};
+
+/// own.syntax.one-mark
+const ONE_MARK: &str = "a type takes one mark: 'mut', 'own', or a borrow '^'";
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -33,7 +36,10 @@ impl Parser<'_> {
             return self.ty_function(rows);
         }
         let marker = self.start();
-        let mut done = if self.at(TokenKind::KwMut) {
+        let mut done = if self.at(TokenKind::Caret) || self.at_own_type() {
+            self.abandon(marker);
+            self.ty_marked(rows)
+        } else if self.at(TokenKind::KwMut) {
             self.bump();
             if self.at(TokenKind::KwFn)
                 || self.at(TokenKind::LParen) && self.nth(1) == Some(TokenKind::KwFn)
@@ -41,7 +47,13 @@ impl Parser<'_> {
                 // grammar.type.mut.no-function
                 self.error(Code::SyntaxError, "'mut' cannot directly precede 'fn'");
             }
-            self.ty_reference(rows);
+            if self.at(TokenKind::Caret) || self.at_own_type() {
+                // own.syntax.one-mark
+                self.error(Code::SyntaxError, ONE_MARK);
+                self.ty_marked(rows);
+            } else {
+                self.ty_reference(rows);
+            }
             self.complete(marker, SyntaxKind::MutType)
         } else {
             self.abandon(marker);
@@ -53,6 +65,133 @@ impl Parser<'_> {
             done = self.complete(marker, SyntaxKind::OptionalType);
         }
         done
+    }
+
+    /// `own` as a mark: the contextual word directly before a type on its
+    /// line (own.syntax.contextual). Elsewhere `own` names a type.
+    fn at_own_type(&mut self) -> bool {
+        self.at_word("own")
+            && !self.nth_line_first(1)
+            && matches!(
+                self.nth(1),
+                Some(
+                    TokenKind::Ident
+                        | TokenKind::RawIdent
+                        | TokenKind::KwSelfType
+                        | TokenKind::KwDyn
+                        | TokenKind::KwFn
+                        | TokenKind::LParen
+                        | TokenKind::KwMut
+                        | TokenKind::Caret
+                )
+            )
+    }
+
+    /// `own T`, `^T`, `^mut T`, `^{a, b} mut T` (own.syntax.own,
+    /// own.syntax.borrow). A `?` after it wraps the marked type
+    /// (own.syntax.optional), as the caller's loop does for `mut T?`.
+    fn ty_marked(&mut self, rows: bool) -> Done {
+        let marker = self.start();
+        let kind = if self.at(TokenKind::Caret) {
+            self.bump();
+            if self.at(TokenKind::LBrace) {
+                self.lifetime_set();
+            }
+            self.eat(TokenKind::KwMut);
+            if self.at(TokenKind::LBrace) {
+                // own.syntax.borrow-lifetime
+                self.error(
+                    Code::SyntaxError,
+                    "the lifetime set comes right after '^': write '^{a} mut T'",
+                );
+                self.lifetime_set();
+            }
+            SyntaxKind::BorrowType
+        } else {
+            self.bump(); // own
+            if self.at(TokenKind::KwMut) {
+                // own.syntax.no-own-mut
+                self.error(
+                    Code::SyntaxError,
+                    "'own' already grants mutation: write 'own T', not 'own mut T'",
+                );
+                self.bump();
+            }
+            SyntaxKind::OwnType
+        };
+        if self.at(TokenKind::Caret) || self.at_own_type() || self.at(TokenKind::KwMut) {
+            // own.syntax.one-mark
+            self.error(Code::SyntaxError, ONE_MARK);
+            self.ty_inner(rows);
+        } else if self.at(TokenKind::KwFn) {
+            self.ty_function(rows);
+        } else {
+            self.ty_reference(rows);
+        }
+        self.complete(marker, kind)
+    }
+
+    /// `{ lifetime, ... }` after `^` (own.lifetime.set).
+    pub(crate) fn lifetime_set(&mut self) -> Done {
+        let marker = self.start();
+        self.bump(); // {
+        if self.at(TokenKind::RBrace) {
+            // own.lifetime.set
+            self.error(
+                Code::SyntaxError,
+                "a lifetime set names at least one lifetime",
+            );
+        }
+        while !self.at(TokenKind::RBrace) && self.current().is_some() {
+            let before = self.pos();
+            self.lifetime();
+            if !self.eat(TokenKind::Comma) || self.pos() == before {
+                break;
+            }
+        }
+        self.expect(TokenKind::RBrace, "'}'");
+        self.complete(marker, SyntaxKind::LifetimeSet)
+    }
+
+    /// A lifetime name: a variable, `self`, a path such as `xs.T`, a
+    /// requirement key such as `$K`, or `static` (own.lifetime.name).
+    fn lifetime(&mut self) -> Done {
+        let marker = self.start();
+        if self.eat(TokenKind::Dollar) {
+            self.expect_name("a requirement key after '$'");
+        } else if !self.eat(TokenKind::KwSelfValue) {
+            self.expect_name("a lifetime name");
+        }
+        while self.at(TokenKind::Dot)
+            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+        {
+            self.bump();
+            self.bump();
+        }
+        self.complete(marker, SyntaxKind::Lifetime)
+    }
+
+    /// Whether the `^` here starts a lifetime argument, `^` or `^{...}`
+    /// before `,` or `]`, rather than a borrowed type argument
+    /// (own.lifetime-arg.vs-borrow).
+    pub(crate) fn at_lifetime_argument(&mut self) -> bool {
+        if !self.at(TokenKind::Caret) {
+            return false;
+        }
+        let mut n = 1;
+        if self.nth(1) == Some(TokenKind::LBrace) {
+            n = 2;
+            loop {
+                match self.nth(n) {
+                    Some(TokenKind::RBrace) => break,
+                    None => return false,
+                    Some(kind) if kind.opens() || kind.closes() => return false,
+                    Some(_) => n += 1,
+                }
+            }
+            n += 1;
+        }
+        matches!(self.nth(n), Some(TokenKind::Comma | TokenKind::RBracket))
     }
 
     fn ty_reference(&mut self, rows: bool) -> Done {
@@ -146,9 +285,25 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // [
         let mut saw_binding = false;
+        let mut saw_lifetime = false;
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
             let before = self.pos();
-            if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
+            if self.at_lifetime_argument() {
+                if saw_binding {
+                    // own.lifetime-arg.last
+                    self.error(
+                        Code::SyntaxError,
+                        "lifetime arguments come before the bindings",
+                    );
+                }
+                saw_lifetime = true;
+                let argument = self.start();
+                self.bump(); // ^
+                if self.at(TokenKind::LBrace) {
+                    self.lifetime_set();
+                }
+                self.complete(argument, SyntaxKind::LifetimeArgument);
+            } else if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {
                 if !bindings {
@@ -170,6 +325,12 @@ impl Parser<'_> {
                     self.error(
                         Code::SyntaxError,
                         "bindings follow every positional type argument",
+                    );
+                } else if saw_lifetime {
+                    // own.lifetime-arg.last
+                    self.error(
+                        Code::SyntaxError,
+                        "lifetime arguments follow every type argument",
                     );
                 }
                 self.ty_argument();

@@ -1,0 +1,2 @@
+# test: a bound list takes own or mut, not both
+fn keep[T < own mut Any](x: T) -> T: x  # diagnostic: syntax-error

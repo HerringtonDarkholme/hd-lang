@@ -163,10 +163,10 @@ simple_statement = let_statement
                  | expression_statement
                  ;
 
-let_statement = "let", pattern, [ ":", type ], "=",
+let_statement = "let", [ "own" ], pattern, [ ":", type ], "=",
                 closed_expression ;
 
-let_else_statement = "let", pattern, [ ":", type ], "=",
+let_else_statement = "let", [ "own" ], pattern, [ ":", type ], "=",
                      closed_expression, "else", ":", suite_body ;
 
 discard_statement = "_", ":=", closed_expression ;
@@ -470,7 +470,7 @@ value_parameter = identifier, ":", type, [ "=", expression ]
                 | identifier, "...", ":", type
                 ;
 
-receiver_parameter = "self" | "mut", "self" ;
+receiver_parameter = [ "mut" | "own" | "^", [ "mut" ] ], "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
@@ -662,9 +662,12 @@ See also: [Row Aliases](11-requirements-and-suspension.md#row-aliases).
 ## Generic Parameters And Bounds
 
 ```ebnf
-type_params = "[", type_parameter, { ",", type_parameter }, [ "," ], "]" ;
-generic_params = "[", generic_parameter,
-                 { ",", generic_parameter }, [ "," ], "]" ;
+type_params = "[", type_parameter, { ",", type_parameter },
+              { ",", lifetime_parameter }, [ "," ], "]"
+            | "[", lifetime_parameter, { ",", lifetime_parameter }, [ "," ], "]" ;
+generic_params = "[", generic_parameter, { ",", generic_parameter },
+                 { ",", lifetime_parameter }, [ "," ], "]"
+               | "[", lifetime_parameter, { ",", lifetime_parameter }, [ "," ], "]" ;
 function_generic_params = "[", function_generic_parameter,
                           { ",", function_generic_parameter }, [ "," ], "]" ;
 
@@ -677,11 +680,15 @@ row_parameter_decl = "$", identifier ;
 function_generic_parameter = generic_parameter, [ type_default ] ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
+lifetime_parameter = "^", identifier ;
 
-trait_bounds = [ "mut" ], bound_trait_type, { "&", bound_trait_type } ;
+trait_bounds = [ "mut" | "own" ], bound_trait_type, { "&", bound_trait_type } ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = type_argument, { ",", type_argument },
+                           { ",", lifetime_argument },
+                           { ",", associated_type_binding }
+                         | lifetime_argument, { ",", lifetime_argument },
                            { ",", associated_type_binding }
                          | associated_type_binding,
                            { ",", associated_type_binding }
@@ -787,10 +794,15 @@ See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-res
 
 ```ebnf
 type = reference_access_type, { "?" }
-     | function_type
+     | [ type_mode ], function_type
      ;
 
-reference_access_type = [ "mut" ], reference_type ;
+reference_access_type = [ "mut" | type_mode ], reference_type ;
+type_mode = "own"
+          | "^", [ lifetime_set ], [ "mut" ] ;
+lifetime_set = "{", lifetime, { ",", lifetime }, [ "," ], "}" ;
+lifetime = ( identifier | "self" ), { ".", identifier }
+         | "$", qualified_name ;
 
 reference_type = named_type
                | dyn_type
@@ -803,8 +815,10 @@ reference_type = named_type
 
 named_type = qualified_name, [ bound_type_arguments ] ;
 dyn_type = "dyn", bound_trait_type ;
-type_arguments = "[", type_argument,
-                 { ",", type_argument }, [ "," ], "]" ;
+type_arguments = "[", type_argument, { ",", type_argument },
+                 { ",", lifetime_argument }, [ "," ], "]"
+               | "[", lifetime_argument, { ",", lifetime_argument }, [ "," ], "]" ;
+lifetime_argument = "^", [ lifetime_set ] ;
 type_argument = type
               | row_type_argument
               ;
@@ -825,7 +839,7 @@ type_list = type, { ",", type }, [ ",", rest_type ], [ "," ]
           ;
 
 result_type = reference_access_type, { "?" }
-            | result_function_type
+            | [ type_mode ], result_function_type
             ;
 result_function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                        "->", result_type ;
@@ -841,6 +855,9 @@ requirement_row = requirement_list
 requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = bound_trait_type ;
 ```
+
+`type_mode`, `lifetime_parameter`, and `lifetime_argument` write ownership
+marks, which [Mark Syntax](13-ownership.md#mark-syntax) specifies.
 
 ### Requirement Clauses
 

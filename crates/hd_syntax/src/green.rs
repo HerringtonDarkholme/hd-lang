@@ -126,6 +126,15 @@ pub enum SyntaxKind {
     RestType,
     InferType,
     RequirementRow,
+    // Ownership marks (13-ownership.md: Mark Syntax).
+    OwnType,
+    BorrowType,
+    LifetimeSet,
+    Lifetime,
+    LifetimeParameter,
+    LifetimeArgument,
+    /// `own` before a pattern or a bound, `own`, `^` or `^mut` before `self`.
+    ModeMark,
     Error,
     SkippedBody,
 }
@@ -558,6 +567,13 @@ ast_nodes! {
     RestType => RestType,
     InferType => InferType,
     RequirementRow => RequirementRow,
+    OwnType => OwnType,
+    BorrowType => BorrowType,
+    LifetimeSet => LifetimeSet,
+    Lifetime => Lifetime,
+    LifetimeParameter => LifetimeParameter,
+    LifetimeArgument => LifetimeArgument,
+    ModeMark => ModeMark,
     ErrorNode => Error,
     SkippedBody => SkippedBody,
 }
@@ -677,6 +693,8 @@ impl SyntaxKind {
                 | Self::RestType
                 | Self::InferType
                 | Self::RequirementRow
+                | Self::OwnType
+                | Self::BorrowType
         )
     }
 

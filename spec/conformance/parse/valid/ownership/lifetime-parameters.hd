@@ -1,0 +1,31 @@
+# test: a data type, enum, trait, type declaration, or implementation declares lifetime parameters after its type parameters
+data Document:
+    lines: List[string]
+
+data File:
+    fd: i32
+
+data Parser[^doc]:
+    source: ^{doc} Document
+    at: usize
+
+data Pair[A, B, ^a]:
+    left: ^{a} A
+    right: B
+
+data Export[^doc, ^out]:
+    out: ^{out} mut File
+    source: ^{doc} Document
+
+enum LinkError[^c]:
+    Broken(conn: ^{c} File)
+
+trait Cursor[T, ^items]:
+    fn next(^mut self) -> ^{items} T?
+
+type View[^d] = Parser[^{d}]
+
+impl[^doc, ^out] OwnOnly for Export[^{doc}, ^{out}]
+
+impl[^doc] Parser[^{doc}]:
+    fn line(^self) -> usize: self.at

@@ -1,0 +1,24 @@
+# test: a lifetime set names variables, self, paths, requirement keys, and static
+trait Store:
+    fn get(self) -> string
+
+data Settings:
+    name: string
+
+let CONFIG: Settings = Settings { name: "app" }
+
+fn settings() -> ^{static} Settings:
+    let s: ^Settings = CONFIG
+    s
+
+fn pair(a: ^Settings, b: ^Settings) -> ^{a, b,} Settings: a
+
+fn stored(items: ^List[Settings]) -> ^{items.T} Settings: items.at(0)
+
+fn keyed() -> ^{$Store} Settings $ Store: settings()
+
+data Holder:
+    s: Settings
+
+impl Holder:
+    fn name(^self) -> ^{self} Settings: self.s

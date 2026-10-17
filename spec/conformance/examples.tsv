@@ -635,6 +635,12 @@ lang/11-requirements-and-suspension.md	53	accept	typing/valid/row-extension-enta
 lang/11-requirements-and-suspension.md	54	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
 lang/13-ownership.md	1	accept	runtime/valid/ownership/plain-copy-aliases.hd
+lang/13-ownership.md	2	accept	parse/valid/ownership/owned-types.hd|parse/valid/ownership/borrowed-types.hd
+lang/13-ownership.md	3	mixed	parse/invalid/ownership/own-mut-type.hd|parse/invalid/ownership/own-borrow-type.hd|parse/invalid/ownership/lifetime-after-mut.hd
+lang/13-ownership.md	4	accept	parse/valid/ownership/owned-bindings.hd|parse/valid/ownership/receivers.hd
+lang/13-ownership.md	5	accept	parse/valid/ownership/lifetime-parameters.hd|parse/valid/ownership/lifetime-arguments.hd
+lang/13-ownership.md	6	mixed	parse/invalid/ownership/lifetime-parameter-before-type.hd|parse/invalid/ownership/function-lifetime-parameter.hd
+lang/13-ownership.md	7	accept	parse/valid/ownership/owned-bounds.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

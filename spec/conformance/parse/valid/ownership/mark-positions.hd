@@ -1,0 +1,25 @@
+# test: a mark may be written on the type of a parameter, result, local, field, enum payload, type argument, tuple element, and function type
+data File:
+    fd: i32
+
+data Holder:
+    file: own File
+    view: ^File
+    files: own List[own File]
+
+enum Outcome:
+    Done(file: own File)
+    Seen(^File)
+
+fn parameter(f: own File, g: ^File, h: ^mut File) -> void: pass
+
+fn result() -> own File: File { fd: 1 }
+
+fn tuple() -> (own File, ^File, i32): (result(), result(), 0)
+
+fn callback(run: fn(^File) -> own File, done: own fn() -> void) -> fn(own File) -> ^File: run
+
+fn local(f: own File) -> void:
+    let view: ^File = f
+    let pair: (own File, i32) = (result(), 0)
+    let back: Option[own File] = .None

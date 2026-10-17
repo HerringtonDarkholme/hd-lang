@@ -25,6 +25,13 @@ pub(crate) enum Owner {
     TraitImpl,
 }
 
+/// own.lifetime-param.plain
+const LIFETIME_PARAMETER_PLAIN: &str =
+    "a lifetime parameter takes no variance marker, bound, or default";
+
+/// own.bound.one-mark
+const BOUND_ONE_MARK: &str = "a bound list takes 'own' or 'mut', not both";
+
 /// Which generic parameter list a declaration takes.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Generics {
@@ -368,13 +375,34 @@ impl Parser<'_> {
     pub(crate) fn generic_params(&mut self, mode: Generics) {
         let marker = self.start();
         self.bump(); // [
+        let mut saw_lifetime = false;
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
             let before = self.pos();
             let param = self.start();
-            if matches!(self.current(), Some(TokenKind::Plus | TokenKind::Minus))
-                && mode == Generics::Type
-            {
+            let variance = matches!(self.current(), Some(TokenKind::Plus | TokenKind::Minus))
+                && mode == Generics::Type;
+            if variance {
                 self.bump();
+            }
+            if self.at(TokenKind::Caret) {
+                self.lifetime_parameter(mode, variance);
+                saw_lifetime = true;
+                self.complete(param, SyntaxKind::LifetimeParameter);
+                if !self.eat(TokenKind::Comma) {
+                    if !self.at(TokenKind::RBracket) {
+                        self.expected("',' or ']'");
+                        self.skip_to_list_end(TokenKind::RBracket);
+                    }
+                    break;
+                }
+                continue;
+            }
+            if saw_lifetime {
+                // own.lifetime-param.last
+                self.error(
+                    Code::SyntaxError,
+                    "lifetime parameters follow every type parameter",
+                );
             }
             let row = self.eat(TokenKind::Dollar);
             self.expect_name("a generic parameter name");
@@ -422,11 +450,63 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
-    /// `< [mut] Bound & Bound ...` as a `BoundList`.
+    /// `^name` in a generic parameter list (own.lifetime-param.declare):
+    /// no variance, bound, or default, and never a function's.
+    fn lifetime_parameter(&mut self, mode: Generics, variance: bool) {
+        if mode == Generics::Function {
+            // own.lifetime-param.function
+            self.error(
+                Code::SyntaxError,
+                "a function declares no lifetime parameter; it names lifetimes by its parameters, as '^{x}'",
+            );
+        }
+        if variance {
+            // own.lifetime-param.plain
+            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
+        }
+        self.bump(); // ^
+        self.expect_name("a lifetime parameter name");
+        if self.at(TokenKind::Lt) {
+            // own.lifetime-param.plain
+            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
+            self.bound_list();
+        }
+        if self.at(TokenKind::Eq) {
+            // own.lifetime-param.plain
+            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
+            self.bump();
+            self.ty_argument();
+        }
+    }
+
+    /// `own` at the start of a bound list, before a trait name
+    /// (own.bound.own).
+    fn at_own_bound(&mut self) -> bool {
+        self.at_word("own")
+            && !self.nth_line_first(1)
+            && matches!(
+                self.nth(1),
+                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwMut)
+            )
+    }
+
+    /// `< [mut | own] Bound & Bound ...` as a `BoundList`.
     pub(crate) fn bound_list(&mut self) {
         let marker = self.start();
         self.bump(); // <
-        self.eat(TokenKind::KwMut);
+        let mutable = self.eat(TokenKind::KwMut);
+        if self.at_own_bound() {
+            if mutable {
+                // own.bound.one-mark
+                self.error(Code::SyntaxError, BOUND_ONE_MARK);
+            }
+            self.token_node(SyntaxKind::ModeMark);
+            if self.at(TokenKind::KwMut) {
+                // own.bound.one-mark
+                self.error(Code::SyntaxError, BOUND_ONE_MARK);
+                self.bump();
+            }
+        }
         self.ty_bound_trait(true);
         loop {
             if self.eat(TokenKind::Amp) {
@@ -464,6 +544,17 @@ impl Parser<'_> {
             self.bump();
         }
         self.complete(marker, SyntaxKind::Error);
+    }
+
+    /// `own self`, `own mut self`, `^self`, or `^mut self` ahead.
+    fn at_receiver_mark(&mut self) -> bool {
+        let first = self.at(TokenKind::Caret) || self.at_word("own");
+        first
+            && match self.nth(1) {
+                Some(TokenKind::KwSelfValue) => true,
+                Some(TokenKind::KwMut) => self.nth(2) == Some(TokenKind::KwSelfValue),
+                _ => false,
+            }
     }
 
     /// A parenthesized parameter list.
@@ -506,6 +597,25 @@ impl Parser<'_> {
             Params::Function => {
                 if self.at(TokenKind::KwSelfValue) {
                     self.bump();
+                } else if self.at_receiver_mark() {
+                    // own.receiver.forms
+                    let mark = self.start();
+                    if self.at(TokenKind::Caret) {
+                        self.bump();
+                        self.eat(TokenKind::KwMut);
+                    } else {
+                        self.bump(); // own
+                        if self.at(TokenKind::KwMut) {
+                            // own.syntax.no-own-mut
+                            self.error(
+                                Code::SyntaxError,
+                                "'own' already grants mutation: write 'own self', not 'own mut self'",
+                            );
+                            self.bump();
+                        }
+                    }
+                    self.complete(mark, SyntaxKind::ModeMark);
+                    self.bump(); // self
                 } else if self.at(TokenKind::KwMut) {
                     self.bump();
                     if !self.eat(TokenKind::KwSelfValue) {

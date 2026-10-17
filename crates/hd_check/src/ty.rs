@@ -12,6 +12,10 @@ use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, Ty, TyData, VarKind};
 
 use crate::body::{Ck, unsupported};
 
+/// What a body with an ownership mark gets until the ownership
+/// prototype's later slices check marks (13-ownership.md, issue #163).
+pub(crate) const OWNERSHIP_GAP: &str = "an ownership mark (`own`, `^`, or a lifetime argument)";
+
 /// What a (possibly qualified) name in a body reaches.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Named {
@@ -230,6 +234,8 @@ impl Ck<'_, '_> {
                         let name = self.cx.src.text(t).to_owned();
                         bound.push((name, self.ty_node(ty)?));
                     }
+                } else if a.kind() == SyntaxKind::LifetimeArgument {
+                    return self.gap(a, OWNERSHIP_GAP);
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
                     arg_nodes.push(a);
@@ -768,6 +774,7 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
+            SyntaxKind::OwnType | SyntaxKind::BorrowType => return self.gap(n, OWNERSHIP_GAP),
             // A row in a row slot, as an explicit argument for a row
             // parameter (`req.row.slot.list`).
             SyntaxKind::RequirementRow => {

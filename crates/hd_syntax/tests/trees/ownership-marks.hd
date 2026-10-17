@@ -1,0 +1,14 @@
+data Parser[T, ^doc]:
+    source: ^{doc} Document
+    items: own List[own T]?
+
+impl[^doc] Parser[Item, ^{doc}]:
+    fn take(own self, xs: ^mut List[^Item]) -> ^{self, xs.T, $Log, static} mut Item: pass
+    fn peek(^self) -> own fn() -> Parser[Item, ^]: pass
+    fn swap(^mut self, d: Suspend[^{d} Doc], e: Pair[^, ^{e}]) -> void: pass
+
+fn pick[T < own Any](a: own dyn Show, own: i32) -> (own T, ^T?): pass
+
+fn body() -> void:
+    let own x = make()
+    let own: i32 = x ^ 1

@@ -58,6 +58,10 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
 /// in test code, but no declaration of a module may take their place.
 const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
 
+/// What a header with an ownership mark gets until the ownership
+/// prototype's later slices check marks (13-ownership.md, issue #163).
+const OWNERSHIP_GAP: &str = "an ownership mark (`own`, `^`, or a lifetime parameter or argument)";
+
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
 pub fn is_prelude_name(name: &str) -> bool {
@@ -1646,6 +1650,7 @@ impl Lower<'_, '_, '_> {
                         row = Some(r);
                         args.push(self.names.pool.intern_ty(&TyData::Row(r)));
                     }
+                    SyntaxKind::LifetimeArgument => self.gap(OWNERSHIP_GAP),
                     k if k.is_type() => args.push(self.ty(Some(a), gn)),
                     _ => {}
                 }
@@ -2337,6 +2342,10 @@ impl Lower<'_, '_, '_> {
                 })
             }
             SyntaxKind::InferType => Ty::POISON,
+            SyntaxKind::OwnType | SyntaxKind::BorrowType => {
+                self.gap(OWNERSHIP_GAP);
+                Ty::POISON
+            }
             SyntaxKind::RequirementRow => {
                 self.gap("a requirement row in type position");
                 Ty::POISON
@@ -2381,6 +2390,9 @@ impl Lower<'_, '_, '_> {
         gn: &mut Gen,
     ) -> Vec<Generic> {
         let Some(gl) = gl else { return Vec::new() };
+        if Src::child(gl, SyntaxKind::LifetimeParameter).is_some() {
+            self.gap(OWNERSHIP_GAP);
+        }
         let params: Vec<NodeRef<'_>> = gl
             .children()
             .filter(|c| c.kind() == SyntaxKind::GenericParameter)
@@ -2445,6 +2457,9 @@ impl Lower<'_, '_, '_> {
             self.generic_default_rules(&params, position, row, &mut defaulted);
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
+                if Src::child(bl, SyntaxKind::ModeMark).is_some() {
+                    self.gap(OWNERSHIP_GAP);
+                }
                 g.mut_bound = bl
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
@@ -2671,6 +2686,9 @@ impl Lower<'_, '_, '_> {
             self.parameter_default_order(&nodes, true);
             self.vararg_final(&nodes);
             for (i, p) in nodes.into_iter().enumerate() {
+                if Src::child(p, SyntaxKind::ModeMark).is_some() {
+                    self.gap(OWNERSHIP_GAP);
+                }
                 let toks = &self.src.parse.tokens;
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
@@ -3880,6 +3898,9 @@ impl Lower<'_, '_, '_> {
     fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> Vec<Ty> {
         let mut supers = Vec::new();
         if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
+            if Src::child(bl, SyntaxKind::ModeMark).is_some() {
+                self.gap(OWNERSHIP_GAP);
+            }
             for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                 if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
                     // A supertrait bound lists a trait once

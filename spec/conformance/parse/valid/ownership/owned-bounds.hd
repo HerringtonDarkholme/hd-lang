@@ -1,0 +1,16 @@
+# test: own before a bound admits owned type arguments, where mut may stand
+trait Named:
+    fn name(^self) -> string
+
+fn take_first[T < own Any](xs: own List[T]) -> Option[T]: xs.pop()
+
+fn pick[T < own Any](a: T, b: T, first: bool) -> T:
+    if first: a else: b
+
+fn label[T < own Named & Any](x: ^T) -> string: x.name()
+
+data Box[T]:
+    value: T
+
+impl[T < own Any] Box[T]:
+    fn get(own self) -> T: self.value

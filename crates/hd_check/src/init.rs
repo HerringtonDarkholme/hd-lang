@@ -9,7 +9,7 @@ use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{ImplKind, ItemData};
+use hd_resolve::{ImplKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
@@ -680,6 +680,9 @@ impl Ck<'_, '_> {
                 return Ok(());
             }
             _ => {}
+        }
+        if let Some(mark) = Src::child(s, SyntaxKind::ModeMark) {
+            return self.gap(mark, crate::ty::OWNERSHIP_GAP);
         }
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         let binding = match s.kind() {

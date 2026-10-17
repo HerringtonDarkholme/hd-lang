@@ -1,0 +1,5 @@
+# test: a function names lifetimes by its parameters and declares no lifetime parameter
+data Conn:
+    fd: i32
+
+fn pick[^a](c: ^Conn) -> ^{a} Conn: c  # diagnostic: syntax-error

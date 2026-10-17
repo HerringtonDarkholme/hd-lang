@@ -1,0 +1,3 @@
+# test: lifetime parameters follow every type parameter
+data Pair[^a, A]:  # diagnostic: syntax-error
+    left: ^{a} A

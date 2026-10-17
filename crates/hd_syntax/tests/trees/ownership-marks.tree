@@ -1,0 +1,121 @@
+Root
+  DataDecl data Parser :
+    GenericParameterList [ , ]
+      GenericParameter T
+      LifetimeParameter ^ doc
+    Block
+      DataField source :
+        BorrowType ^
+          LifetimeSet { }
+            Lifetime doc
+          NamedType Document
+      DataField items :
+        OptionalType ?
+          OwnType own
+            NamedType List
+              TypeArgumentList [ ]
+                OwnType own
+                  NamedType T
+  ImplDecl impl :
+    GenericParameterList [ ]
+      LifetimeParameter ^ doc
+    NamedType Parser
+      TypeArgumentList [ , ]
+        NamedType Item
+        LifetimeArgument ^
+          LifetimeSet { }
+            Lifetime doc
+    Block
+      FnDecl fn take -> :
+        ParameterList ( , )
+          Parameter self
+            ModeMark own
+          Parameter xs :
+            BorrowType ^ mut
+              NamedType List
+                TypeArgumentList [ ]
+                  BorrowType ^
+                    NamedType Item
+        BorrowType ^ mut
+          LifetimeSet { , , , }
+            Lifetime self
+            Lifetime xs . T
+            Lifetime $ Log
+            Lifetime static
+          NamedType Item
+        Block
+          ExprStmt
+            LiteralExpr pass
+      FnDecl fn peek -> :
+        ParameterList ( )
+          Parameter self
+            ModeMark ^
+        OwnType own
+          FunctionType fn ( ) ->
+            NamedType Parser
+              TypeArgumentList [ , ]
+                NamedType Item
+                LifetimeArgument ^
+        Block
+          ExprStmt
+            LiteralExpr pass
+      FnDecl fn swap -> :
+        ParameterList ( , , )
+          Parameter self
+            ModeMark ^ mut
+          Parameter d :
+            NamedType Suspend
+              TypeArgumentList [ ]
+                BorrowType ^
+                  LifetimeSet { }
+                    Lifetime d
+                  NamedType Doc
+          Parameter e :
+            NamedType Pair
+              TypeArgumentList [ , ]
+                LifetimeArgument ^
+                LifetimeArgument ^
+                  LifetimeSet { }
+                    Lifetime e
+        NamedType void
+        Block
+          ExprStmt
+            LiteralExpr pass
+  FnDecl fn pick -> :
+    GenericParameterList [ ]
+      GenericParameter T
+        BoundList <
+          ModeMark own
+          NamedType Any
+    ParameterList ( , )
+      Parameter a :
+        OwnType own
+          DynType dyn
+            NamedType Show
+      Parameter own :
+        NamedType i32
+    TupleType ( , )
+      OwnType own
+        NamedType T
+      OptionalType ?
+        BorrowType ^
+          NamedType T
+    Block
+      ExprStmt
+        LiteralExpr pass
+  FnDecl fn body -> :
+    ParameterList ( )
+    NamedType void
+    Block
+      LetStmt let =
+        ModeMark own
+        BindingPattern x
+        CallExpr
+          NameExpr make
+          ArgumentList ( )
+      LetStmt let : =
+        BindingPattern own
+        NamedType i32
+        BitwiseXorExpr ^
+          NameExpr x
+          LiteralExpr 1

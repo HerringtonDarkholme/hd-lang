@@ -126,6 +126,7 @@ mod numeric_widen_fix;
 mod operator_fn_left_exact;
 mod operator_left_primitive_run;
 mod optional_join_run;
+mod ownership_marks;
 mod parallel_bodies;
 mod payloadless_variants;
 mod pipe_bare_steps;
