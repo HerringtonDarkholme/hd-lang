@@ -53,6 +53,8 @@ mod pipeline;
 mod positions;
 mod report;
 mod skims;
+#[cfg(test)]
+mod strip_comments;
 
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 

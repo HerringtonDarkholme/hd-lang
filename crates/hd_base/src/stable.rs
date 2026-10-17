@@ -6,18 +6,12 @@
 use crate::Hash128;
 
 /// 128-bit streaming hasher: xxh3-128.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct StableHasher(xxhash_rust::xxh3::Xxh3);
 
 impl core::fmt::Debug for StableHasher {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("StableHasher")
-    }
-}
-
-impl Default for StableHasher {
-    fn default() -> Self {
-        Self(xxhash_rust::xxh3::Xxh3::new())
     }
 }
 

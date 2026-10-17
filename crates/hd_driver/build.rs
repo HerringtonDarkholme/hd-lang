@@ -5,6 +5,9 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+#[path = "src/strip_comments.rs"]
+mod strip_comments;
+
 fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -32,15 +35,25 @@ fn main() {
     let mut code = String::from(
         "/// `lib/std`'s files: (relative path, text).\npub static STD_FILES: &[(&str, &str)] = &[\n",
     );
+    let out = std::env::var("OUT_DIR").unwrap_or_default();
+    // The embedded text carries no plain `#` comments: neither the compiler
+    // nor `hd doc` reads them, and they are a third of the browser build's
+    // download (#363).
+    let stripped = Path::new(&out).join("std");
     for (rel, abs) in &files {
+        let text = std::fs::read_to_string(abs).unwrap_or_default();
+        let dest = stripped.join(rel);
+        if let Some(dir) = dest.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&dest, strip_comments::strip_plain_comments(&text));
         let _ = writeln!(
             code,
             "    ({rel:?}, include_str!({:?})),",
-            abs.display().to_string()
+            dest.display().to_string()
         );
     }
     code.push_str("];\n");
-    let out = std::env::var("OUT_DIR").unwrap_or_default();
     let _ = std::fs::write(Path::new(&out).join("std_files.rs"), code);
     build_id(&manifest);
 }

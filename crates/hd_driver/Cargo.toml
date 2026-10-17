@@ -35,6 +35,9 @@ hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
 hd_wasm = { path = "../hd_wasm" }
 
+[build-dependencies]
+hd_syntax = { path = "../hd_syntax" }
+
 [lints]
 workspace = true
 
