@@ -1,0 +1,389 @@
+# test: encode writes the same text as the compact text of to_json, and Display and pretty match the byte-by-byte renderer they replaced
+# Spec std/json Encode And Decode, Compact Text, Pretty Text: std-json.encode, std-json.display.text, std-json.display.escapes, std-json.pretty.layout, std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.std.float-special (issue 359).
+use std.json.{encode, to_json, Json, JsonObject, Number}
+use std.serde.{Serialize, Serializer}
+use std.structure.{Member, VariantInfo, Facts, SelfRef}
+use std.testing.{assert_equal, Choices, it_prop_with}
+
+# The old renderer: every byte pushed onto a list, one at a time, and the
+# list checked as UTF-8 at the end. It stays here as the reference.
+fn old_render(value: Json, out: mut List[u8], spaced: bool, depth: usize) -> void:
+    match value:
+        .Null => old_push(out, "null")
+        .Bool(flag) => old_push(out, if flag: "true" else: "false")
+        .Number(number) => old_push(out, "$number")
+        .Text(text) => old_quoted(out, text)
+        .Array(items) =>
+            if items.len() == 0:
+                old_push(out, "[]")
+                return
+            out.push(91)
+            let first = true
+            for item in items:
+                if !first:
+                    out.push(44)
+                first = false
+                old_break(out, spaced, depth + 1)
+                old_render(item, out, spaced, depth + 1)
+            old_break(out, spaced, depth)
+            out.push(93)
+        .Object(fields) =>
+            if fields.len() == 0:
+                old_push(out, "{}")
+                return
+            out.push(123)
+            let first = true
+            for entry in fields:
+                if !first:
+                    out.push(44)
+                first = false
+                old_break(out, spaced, depth + 1)
+                old_quoted(out, entry._0)
+                out.push(58)
+                if spaced:
+                    out.push(32)
+                old_render(entry._1, out, spaced, depth + 1)
+            old_break(out, spaced, depth)
+            out.push(125)
+
+fn old_break(out: mut List[u8], spaced: bool, depth: usize) -> void:
+    if !spaced:
+        return
+    out.push(10)
+    let count = depth * 2
+    while count > 0:
+        out.push(32)
+        count = count - 1
+
+fn old_push(out: mut List[u8], text: string) -> void:
+    for byte in text.bytes():
+        out.push(byte)
+
+fn old_quoted(out: mut List[u8], text: string) -> void:
+    out.push(34)
+    for byte in text.bytes():
+        if byte == 34:
+            old_push(out, "\\\"")
+        else if byte == 92:
+            old_push(out, "\\\\")
+        else if byte == 8:
+            old_push(out, "\\b")
+        else if byte == 12:
+            old_push(out, "\\f")
+        else if byte == 10:
+            old_push(out, "\\n")
+        else if byte == 13:
+            old_push(out, "\\r")
+        else if byte == 9:
+            old_push(out, "\\t")
+        else if byte < 32:
+            old_push(out, "\\u00")
+            out.push(old_hex(byte >> 4))
+            out.push(old_hex(byte & 15))
+        else:
+            out.push(byte)
+    out.push(34)
+
+fn old_hex(value: u8) -> u8:
+    if value < 10: 48 + value else: 87 + value
+
+fn old_text(value: Json, spaced: bool) -> string:
+    let out: mut List[u8] = []
+    old_render(value, out, spaced, 0)
+    match string::from_utf8(out):
+        .Ok(text) => text
+        .Err(_) => panic("the old renderer wrote invalid UTF-8")
+
+# The old encode: the compact text of the tree.
+fn old_encode[T < Serialize](value: T) -> string:
+    old_text(to_json(value), false)
+
+# Where encode, Display, or pretty differ from the old renderer, or "".
+fn disagreement[T < Serialize](value: T) -> string:
+    tree := to_json(value)
+    expected := old_text(tree, false)
+    now := encode(value)
+    if now != expected:
+        return "encode: new ${debug(now)}, old ${debug(expected)}"
+    shown := "$tree"
+    if shown != expected:
+        return "display: new ${debug(shown)}, old ${debug(expected)}"
+    pretty := tree.pretty()
+    old_pretty := old_text(tree, true)
+    if pretty != old_pretty:
+        return "pretty: new ${debug(pretty)}, old ${debug(old_pretty)}"
+    ""
+
+@derive(Serialize, Debug)
+enum Shape:
+    Circle(radius: u32)
+    Rect(width: i32, height: i32)
+    Point(i32, i32)
+    Labeled(label: string, inner: Shape?)
+    Empty
+
+@derive(Serialize, Debug)
+data Numbers:
+    small: i8
+    short: i16
+    medium: i32
+    wide: i64
+    byte: u8
+    ushort: u16
+    umedium: u32
+    uwide: u64
+    size: usize
+    single: f32
+    double: f64
+
+@derive(Serialize, Debug)
+data Item:
+    name: string
+    letter: char
+    flag: bool
+    numbers: Numbers
+    note: string?
+    nested: i64??
+    tags: List[string]
+    attrs: Map[string, i32]
+    shape: Shape
+    raw: Json
+    children: List[Item]
+
+# Every escape class, the characters next to them, and non-ASCII text.
+PIECES := [
+    "\"", "\\", "/", "\u{8}", "\u{c}", "\n", "\u{d}", "\t", "\0", "\u{1}", "\u{1f}", "\u{1b}",
+    " ", "\u{7f}", "a", "Z", "key", "é", "\u{2028}", "\u{20ac}", "\u{1f600}", "\u{10ffff}", "",
+]
+
+fn text_gen(c: mut Choices) -> string:
+    parts := c.list(8, fn(inner: mut Choices) -> string: inner.choose(PIECES))
+    parts.join("")
+
+fn float_gen(c: mut Choices) -> f64:
+    if c.int(0, 2) == 0:
+        return c.float(-1000000.0, 1000000.0)
+    zero := 0.0
+    c.choose([0.0, -0.0, 0.5, -2.25, 1.0 / 3.0, 1e21, 1e-7, 123456789.125, 1.7976931348623157e308, 5e-324, zero / zero, 1.0 / zero, -1.0 / zero])
+
+fn numbers_gen(c: mut Choices) -> Numbers:
+    Numbers {
+        small: c.int(i8(-128), i8(127)),
+        short: c.int(i16(-32768), i16(32767)),
+        medium: c.int(-2147483648, 2147483647),
+        wide: c.choose([-9223372036854775807 - 1, 9223372036854775807, 0, -1, c.int(-1000000000000, 1000000000000)]),
+        byte: c.int(u8(0), u8(255)),
+        ushort: c.int(u16(0), u16(65535)),
+        umedium: c.int(u32(0), u32(4294967295)),
+        uwide: c.choose([u64(0), u64(18446744073709551615), u64(9223372036854775808), c.int(u64(0), u64(1000000000000))]),
+        size: c.int(usize(0), usize(4294967295)),
+        single: f32(float_gen(c)),
+        double: float_gen(c),
+    }
+
+fn shape_gen(c: mut Choices, depth: i32) -> Shape:
+    pick := c.int(0, if depth < 2: 4 else: 3)
+    match pick:
+        0 => Shape.Circle(c.int(u32(0), u32(4294967295)))
+        1 => Shape.Rect(c.int(-5, 5), c.int(-5, 5))
+        2 => Shape.Point(c.int(-5, 5), c.int(-5, 5))
+        3 => Shape.Empty
+        _ =>
+            let inner: Shape? = if c.bool(): .Some(shape_gen(c, depth + 1)) else: .None
+            Shape.Labeled(text_gen(c), inner)
+
+fn json_gen(c: mut Choices, depth: i32) -> Json:
+    pick := c.int(0, if depth < 2: 7 else: 5)
+    match pick:
+        0 => Json.Null
+        1 => Json.Bool(c.bool())
+        2 => Json.Number(Number::from_i64(c.int(-1000000, 1000000)))
+        3 =>
+            match Number::from_f64(float_gen(c)):
+                .Some(number) => Json.Number(number)
+                .None => Json.Number(Number::from_u64(u64(18446744073709551615)))
+        4 => Json.Text(text_gen(c))
+        5 => Json.Array([])
+        6 =>
+            let items: mut List[Json] = []
+            for _ in 0..c.int(0, 4):
+                items.push(json_gen(c, depth + 1))
+            Json.Array(items)
+        _ =>
+            let fields: mut JsonObject = JsonObject::new()
+            for key in c.list(4, text_gen):
+                fields.set(key, json_gen(c, depth + 1))
+            Json.Object(fields)
+
+fn item_gen(c: mut Choices, depth: i32) -> Item:
+    let nested: i64?? = match c.int(0, 2):
+        0 => .None
+        1 => .Some(.None)
+        _ => .Some(.Some(c.int(-9, 9)))
+    let children: mut List[Item] = []
+    if depth < 2:
+        for _ in 0..c.int(0, 3):
+            children.push(item_gen(c, depth + 1))
+    Item {
+        name: text_gen(c),
+        letter: c.choose(['a', '"', '\\', '\n', '\u{1}', 'é', '\u{1f600}']),
+        flag: c.bool(),
+        numbers: numbers_gen(c),
+        note: if c.bool(): .Some(text_gen(c)) else: .None,
+        nested: nested,
+        tags: c.list(4, text_gen),
+        attrs: c.map(20, text_gen, fn(inner: mut Choices) -> i32: inner.int(-100, 100)),
+        shape: shape_gen(c, 0),
+        raw: json_gen(c, 0),
+        children: children,
+    }
+
+# A hand-written Serialize that replays a script of writer calls and
+# ignores every error, so the walks that derived code never makes are
+# tried too: a missing, stale, or repeated key, a key outside an object, a
+# second top-level value, an end that does not match, and a frame left open.
+@derive(Debug)
+enum Step:
+    Null
+    Int(value: i64)
+    Text(value: string)
+    Key(key: string)
+    Field(name: string)
+    BeginList
+    BeginMap
+    BeginVariant(name: string, of_data: bool)
+    EndList
+    EndMap
+    EndVariant
+
+@derive(Debug)
+data Script:
+    steps: List[Step]
+
+fn member_named(name: string) -> Member:
+    Member { name: name, position: +0, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }
+
+fn variant_named(name: string, of_data: bool) -> VariantInfo:
+    VariantInfo { name: name, index: +0, facts: Facts { items: [] }, doc: .None, of_data: of_data, shared: [], self_ref: SelfRef.Absent }
+
+impl Serialize for Script:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        for step in self.steps:
+            _ := match step:
+                .Null => out.null()
+                .Int(value) => out.int(value)
+                .Text(value) => out.text(value)
+                .Key(key) => out.key(key)
+                .Field(name) => out.member(member_named(name))
+                .BeginList => out.begin_list(0)
+                .BeginMap => out.begin_map(0)
+                .BeginVariant(name, of_data) => out.begin_variant(Facts { items: [] }, variant_named(name, of_data))
+                .EndList => out.end_list()
+                .EndMap => out.end_map()
+                .EndVariant => out.end_variant()
+        .Ok(())
+
+KEYS := ["a", "b", "ab", "ba", "a\"", "é"]
+
+# Random steps that never end more frames than they open, since the tree
+# writer panics on an end with no open frame.
+fn script_gen(c: mut Choices) -> Script:
+    let steps: mut List[Step] = []
+    let depth = 0
+    count := c.int(0, 24)
+    let index = 0
+    while index < count:
+        index = index + 1
+        pick := c.int(0, 10)
+        if pick == 0:
+            steps.push(Step.Null)
+        else if pick == 1:
+            steps.push(Step.Int(c.int(-3, 3)))
+        else if pick == 2:
+            steps.push(Step.Text(c.choose(KEYS)))
+        else if pick == 3:
+            steps.push(Step.Key(c.choose(KEYS)))
+        else if pick == 4:
+            steps.push(Step.Field(c.choose(KEYS)))
+        else if pick == 5:
+            steps.push(Step.BeginList)
+            depth = depth + 1
+        else if pick == 6:
+            steps.push(Step.BeginMap)
+            depth = depth + 1
+        else if pick == 7:
+            steps.push(Step.BeginVariant(c.choose(KEYS), c.bool()))
+            depth = depth + 1
+        else if depth > 0:
+            steps.push(c.choose([Step.EndList, Step.EndMap, Step.EndVariant]))
+            depth = depth - 1
+    Script { steps: steps }
+
+# A map of `count` entries; from entry `repeat_at` on, each key repeats
+# the key `back` entries earlier.
+data Wide:
+    count: i32
+    repeat_at: i32
+    back: i32
+
+impl Serialize for Wide:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.begin_map(0)?
+        let index = +0
+        while index < self.count:
+            key := if index >= self.repeat_at: index - self.back else: index
+            out.key("k$key")?
+            out.int(i64(index))?
+            index = index + 1
+        out.end_map()
+
+fn steps(list: List[Step]) -> Script:
+    Script { steps: list }
+
+tests:
+    it("the shapes of the spec encode as before"):
+        for shape in [Shape.Empty, Shape.Circle(7), Shape.Rect(2, 3), Shape.Point(4, 5), Shape.Labeled("x", .Some(Shape.Empty)), Shape.Labeled("", .None)]:
+            assert_equal(disagreement(shape), "", reason=debug(shape))
+        assert_equal(encode(Shape.Labeled("q\"", .Some(Shape.Empty))), "{\"Labeled\":{\"label\":\"q\\\"\",\"inner\":\"Empty\"}}", reason="nested variant")
+
+    it("standard values encode as before"):
+        assert_equal(disagreement(""), "", reason="empty string")
+        assert_equal(disagreement("\"\\/\u{8}\u{c}\n\u{d}\t\0\u{1f}\u{7f}é\u{1f600}"), "", reason="every escape class")
+        assert_equal(encode("\u{1}a\u{1f}"), "\"\\u0001a\\u001f\"", reason="lowercase hex")
+        let empty: List[i32] = []
+        assert_equal(disagreement(empty), "", reason="empty list")
+        let no_keys: Map[string, bool] = {}
+        assert_equal(disagreement(no_keys), "", reason="empty map")
+        let none: string? = .None
+        assert_equal(disagreement(none), "", reason="none")
+        zero := 0.0
+        assert_equal(encode([zero / zero, 1.0 / zero, -0.0, 0.1]), "[null,null,-0.0,0.1]", reason="floats")
+        assert_equal(disagreement([zero / zero, 1.0 / zero, -0.0, 0.1]), "", reason="floats against the tree")
+        assert_equal(disagreement(Json.Null), "", reason="a Json")
+
+    it("a map past 16 keys encodes as before, with and without a repeated key"):
+        assert_equal(disagreement(Wide { count: 40, repeat_at: 40, back: 0 }), "", reason="40 distinct keys")
+        assert_equal(disagreement(Wide { count: 40, repeat_at: 30, back: 30 }), "", reason="a repeat of one of the first 16 keys")
+        assert_equal(disagreement(Wide { count: 40, repeat_at: 25, back: 5 }), "", reason="a repeat of a key added after the 16th")
+        assert_equal(disagreement(Wide { count: 12, repeat_at: 8, back: 8 }), "", reason="a repeat among the first 16")
+        assert_equal(disagreement(Wide { count: 17, repeat_at: 16, back: 16 }), "", reason="the 17th key repeats the first")
+        assert_equal(encode(Wide { count: 3, repeat_at: 2, back: 2 }), "{\"k0\":2,\"k1\":1}", reason="the last value at the first place")
+
+    it("walks that derived code never makes encode as the tree defines them"):
+        assert_equal(encode(steps([])), "null", reason="no value")
+        assert_equal(encode(steps([Step.Int(1), Step.Int(2)])), "2", reason="the last top-level value")
+        assert_equal(encode(steps([Step.BeginMap, Step.Key("a"), Step.Int(1), Step.Int(2), Step.EndMap])), "{\"a\":2}", reason="a stale key")
+        assert_equal(encode(steps([Step.BeginMap, Step.Key("a"), Step.Key("b"), Step.Int(1), Step.EndMap])), "{\"b\":1}", reason="two keys, one value")
+        assert_equal(encode(steps([Step.BeginList, Step.Key("a"), Step.Int(1), Step.EndList])), "[1]", reason="a key in a list")
+        assert_equal(encode(steps([Step.BeginList, Step.Int(1), Step.Int(2), Step.EndMap])), "{\"\":2}", reason="a list ended as a map")
+        assert_equal(encode(steps([Step.BeginList, Step.Int(1)])), "null", reason="a frame left open")
+        assert_equal(encode(steps([Step.BeginVariant("V", false), Step.Field("a"), Step.Int(1), Step.Field("a"), Step.Int(2), Step.EndVariant])), "{\"V\":{\"a\":2}}", reason="a repeated member")
+        assert_equal(encode(steps([Step.BeginVariant("V", false), Step.EndVariant])), "\"V\"", reason="a unit variant")
+
+    it_prop_with("random items encode as before", gen=fn(c: mut Choices) -> Item: item_gen(c, 0), cases=200, prop=fn!(item: Item):
+        assert_equal(disagreement(item), "", reason="item")
+    )
+
+    it_prop_with("random scripts encode as the tree defines them", gen=script_gen, cases=300, prop=fn!(script: Script):
+        assert_equal(disagreement(script), "", reason="script")
+    )
