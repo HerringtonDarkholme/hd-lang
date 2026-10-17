@@ -57,9 +57,12 @@ impl[T, E] Result[T, E]:
             .Ok(value) => value
             .Err(_) => fallback
 
-    ## The value of an `.Ok`; for an `.Err` it panics with `message` alone; the error is not shown.
+# `expect` needs the error's text, so it sits in its own impl with the bound
+# (r-std-result.expect.bound).
+impl[T, E < Display] Result[T, E]:
+    ## The value of an `.Ok`; for an `.Err` it panics with `message: error`.
     ## See [std-result.expect](../../spec/std/result.md#r-std-result.expect).
     pub fn expect(self, message: string) -> T:
         match self:
             .Ok(value) => value
-            .Err(_) => panic(message)
+            .Err(error) => panic("${message}: ${error}")

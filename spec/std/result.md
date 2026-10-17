@@ -134,13 +134,19 @@ fn configured_port(text: string) -> i32:
 | r[std-result.err] `err` | `fn err(self) -> E?` | `.None` for `.Ok(_)`, and `.Some(error)` for `.Err(error)` |
 | r[std-result.is-ok] `is_ok` | `fn is_ok(self) -> bool` | `true` for `.Ok(_)`, and `false` for `.Err(_)` |
 | r[std-result.is-err] `is_err` | `fn is_err(self) -> bool` | `false` for `.Ok(_)`, and `true` for `.Err(_)` |
-| r[std-result.expect] `expect` | `fn expect(self, message: string) -> T` | `value` for `.Ok(value)`, and a panic for `.Err(_)` |
+| r[std-result.expect] `expect` | `fn expect(self, message: string) -> T` for `E < Display` | `value` for `.Ok(value)`, and a panic for `.Err(error)` |
 
 1. r[std-result.tests.inherent] The five are inherent methods that `std` declares on `Result[T, E]` as well, so they need no `use` either.
-2. r[std-result.expect.panic] `expect` on `.Err(_)` calls `panic(message)`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-3. r[std-result.tests.non-suspending] None of the five suspends.
+2. r[std-result.expect.bound] `expect` is available when `E < Display`, as `std` declares it in an impl with that bound. Every `Error` is `Display`, so every `Result[T, E]` with `E < Error` has it.
+3. r[std-result.expect.panic] `expect` on `.Err(error)` panics with the text `message: error`: `message`, a colon and a space, then the `Display` text of `error`. Its category is `explicit-panic`. Panic: `explicit-panic`.
+4. r[std-result.tests.non-suspending] None of the five suspends.
 
 > **Note.** `message` is an ordinary argument, so it is evaluated before
-> the call, even when the result is `.Ok`.
+> the call, even when the result is `.Ok`. The text of `error` is built on
+> the panic path only.
+
+> **Why.** `expect` shows the error beside the message, as Rust's
+> `Result::expect` does, so a panic report names both what the caller
+> assumed and what failed.
 
 See also: [Option](option.md), [Error Context](error.md#error-context), [List And Optional Map](iter.md#list-and-optional-map), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).

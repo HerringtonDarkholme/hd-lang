@@ -1,0 +1,5 @@
+# `Result.expect` on an `.Err` panics with the message, a colon and a space,
+# and the `Display` text of the error.
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"expect shows the message and the error","outcome":"failed","message":"panic: explicit-panic: reading config: file not found"},{"kind":"summary","passed":0,"failed":1,"status":1}]

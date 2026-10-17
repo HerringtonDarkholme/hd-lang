@@ -1,0 +1,4 @@
+tests:
+    it("expect shows the message and the error"):
+        let result: Result[i32, string] = .Err("file not found")
+        _ := result.expect("reading config")
