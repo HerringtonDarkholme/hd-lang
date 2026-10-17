@@ -1,0 +1,5 @@
+# test: a return in a top-level if suite is return-outside-function
+
+flag := true
+if flag:
+    return  # diagnostic: return-outside-function

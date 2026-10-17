@@ -1,0 +1,5 @@
+# test: a return in a top-level loop body is return-outside-function
+
+for item in [1, 2]:
+    if item > 1:
+        return  # diagnostic: return-outside-function

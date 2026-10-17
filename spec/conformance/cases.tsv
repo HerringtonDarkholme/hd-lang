@@ -117,6 +117,11 @@ runtime/valid/associated-type-bindings.hd	runtime	accept	lang/09-traits.md#assoc
 typing/valid/traits.hd	type	accept	lang/09-traits.md
 typing/invalid/break-value-without-else.hd	type	reject:break-value-context	lang/06-control-flow.md#break-continue-and-loop-else
 typing/invalid/top-level-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
+typing/invalid/top-level-nested-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
+typing/invalid/top-level-loop-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
+typing/invalid/top-level-match-arm-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
+typing/invalid/top-level-let-else-return.hd	type	reject:return-outside-function	lang/06-control-flow.md#return
+typing/valid/top-level-closure-return.hd	type	accept	lang/06-control-flow.md#return
 typing/invalid/reassign-short-binding.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#local-bindings
 typing/invalid/possibly-uninitialized-binding.hd	type	reject:possibly-uninitialized-binding	lang/03-names-and-scopes.md#binding-expressions
 typing/invalid/readonly-mutation.hd	type	reject:readonly-root	lang/04-type-system.md#mutable-paths

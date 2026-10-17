@@ -1,0 +1,5 @@
+# test: a return in a top-level let-else block is return-outside-function
+
+let maybe: i32? = .Some(1)
+let .Some(_m) = maybe else:
+    return  # diagnostic: return-outside-function

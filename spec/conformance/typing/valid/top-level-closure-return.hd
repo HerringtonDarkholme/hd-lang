@@ -1,0 +1,7 @@
+# test: a closure's return stays valid in top-level code
+
+pick := fn(x: i32) -> i32:
+    if x > 1:
+        return x
+    return 0
+println(pick(2))

@@ -2805,6 +2805,17 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
             SyntaxKind::ReturnStmt => {
+                // `flow.return.outside`: the module init body is not a
+                // function, at any nesting depth; a closure or local
+                // function pushes its own result type.
+                if self.module_init.is_some() && self.rets.len() == 1 {
+                    self.err(
+                        Code::ReturnOutsideFunction,
+                        s,
+                        "`return` needs a function or closure",
+                    );
+                    return Ok(Ty::NEVER);
+                }
                 if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
                     self.err(Code::DeferControlFlow, s, "a `defer` suite cannot `return`");
                 }

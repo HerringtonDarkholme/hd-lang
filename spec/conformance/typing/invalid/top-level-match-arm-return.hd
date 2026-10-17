@@ -1,0 +1,7 @@
+# test: a return in a top-level match arm is return-outside-function
+
+let maybe: i32? = .Some(1)
+match maybe:
+    .Some(_n) =>
+        return  # diagnostic: return-outside-function
+    .None => println("none")
