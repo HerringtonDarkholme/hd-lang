@@ -761,8 +761,10 @@ This section states each rule from the tour once, grouped by topic.
     may be owned only if the type derives ownership from its structure,
     `impl OwnOnly for Box[T] by Structure` (or `@derive(OwnOnly)`); an
     instance is then `OwnOnly` exactly when some field's type is, after
-    substitution. An `own U` argument counts as `OwnOnly`. Otherwise
-    `Box[own Conn]` is `own-in-plain-type`.
+    substitution. A hand-written, unconditional `impl OwnOnly for Box[T]`
+    also admits owned arguments, since it makes every instance owned. An
+    `own U` argument counts as `OwnOnly`. Otherwise `Box[own Conn]` is
+    `own-in-plain-type`.
 13. `OwnOnly` by `Structure` is a compiler-known rule, not a std
     template: `OwnOnly` has no members to generate. A type owned when
     either of two arguments is, as `Outcome[A, B]`, needs only the one
@@ -798,7 +800,11 @@ This section states each rule from the tour once, grouped by topic.
 6. No general `replace` exists for an owned place behind a `^mut`. A
    replaceable owner is an `Option[own T]` field, swapped with the
    built-in `take()`; `pop`, `take`, and `into_iter` are the only ways to
-   remove an owner from a container.
+   remove an owner from a container. After `take()` the field holds
+   `None` until something is put back, and a cancelled bang call between
+   the two leaves it so. Code that must keep the field full prepares the
+   replacement before taking the old value, or handles `None` in later
+   methods and in `drop`.
 
 ### 4.3 Borrows
 
@@ -873,15 +879,20 @@ This section states each rule from the tour once, grouped by topic.
    runs exactly once.
 5. `drop` takes `^mut self`, must not suspend, and cannot be called
    directly; std's `drop(x)` moves `x` in and ends it.
-6. A panic runs no `drop`. It poisons the instance, and the host releases
+6. Top-level owned bindings drop at the end of the instance in reverse
+   dependency order: the initialization-order analysis also follows the
+   functions each binding's `drop` can reach, so a global that another
+   global's `drop` uses is dropped after it. A cycle, where two globals'
+   drops each reach the other, is `global-drop-cycle`.
+7. A panic runs no `drop`. It poisons the instance, and the host releases
    what the instance held.
-7. A type that implements `DropOwn` never appears in a plain position
+8. A type that implements `DropOwn` never appears in a plain position
    (4.1), so every value of it is dropped exactly once.
-8. An owned temporary that is not bound is dropped at the end of its
+9. An owned temporary that is not bound is dropped at the end of its
    statement.
-9. `defer: body` means `guard := on_exit(fn(): body)`. Its body runs
-   with no requirement row; a call that needs one is
-   `defer-needs-row`.
+10. `defer: body` means `guard := on_exit(fn(): body)`. Its body runs
+    with no requirement row; a call that needs one is
+    `defer-needs-row`.
 
 ### 4.6 Generics, `dyn`, Closures, And Frames
 
