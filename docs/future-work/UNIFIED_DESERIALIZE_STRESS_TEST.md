@@ -13,6 +13,16 @@ The protocol under test is
 [The `std.structure` Module](../../spec/lang/14-annotations.md#the-stdstructure-module).
 Nothing here is accepted behavior.
 
+**Decided by the owner, 2026-10-17.** Not fully unified: a hybrid. `Deserialize` (and `Serialize`) serve the document formats (JSON, YAML, TOML, HTTP payloads, SQL rows, binary formats); the command line and environment keep their own derives, `Cli` and `EnvConfig`; `Validate` is its own derive. Each concern is configured in its own derivation block, `impl Cli for T by Structure: field = [facts]` (UD8). UD1 to UD5 are therefore moot. Answers to the rest:
+- UD6: a shared `rename` / `rename_all` in the `Deserialize`/`Serialize` block, read by every document format (a format may override in its own block); `Cli` and `EnvConfig` never read it.
+- UD7: an untagged fact; the derived template buffers the value once and tries each variant in order.
+- UD9: checked readers: an entry that requires `T < Deserialize & Validate` and validates while reading, so validation cannot be forgotten on that path.
+- UD10: a std helper (`read_parsed`) for the three-line `impl Deserialize` of a `Parse` leaf.
+- UD11: `ValidationError` carries a member path that each reader maps to its own name (`$.port`, `--port`, `APP_PORT`).
+- UD12: `flatten` and `rest` facts.
+- UD13: a bytes kind in `Serializer`/`Deserializer`; JSON writes base64.
+- UD14: scalar-form facts in a format's block (e.g. unix seconds), newtypes otherwise.
+
 ## Contents
 
 - [Verdict Summary](#verdict-summary)
