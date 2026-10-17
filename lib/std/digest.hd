@@ -6,7 +6,7 @@ use std.encoding.hex_encode
 # The 32-byte SHA-256 digest of `bytes` (r-std-digest.sha256).
 ## The 32-byte SHA-256 digest of `bytes`, as FIPS 180-4 defines it.
 ## See [std-digest.sha256](../../spec/std/digest.md#r-std-digest.sha256).
-pub fn sha256(bytes: List[u8]) -> List[u8]:
+pub fn sha256(bytes: List[u8]) -> Digest:
     rounds := round_constants()
     let state: mut List[u32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
     message := padded(bytes)
@@ -62,13 +62,31 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
         digest.push(u8(word >> 16))
         digest.push(u8(word >> 8))
         digest.push(u8(word))
-    digest
+    Digest { bytes: digest }
 
-# The digest as 64 lowercase hex digits (r-std-digest.sha256-hex).
-## The SHA-256 digest of `bytes` as lowercase hex text.
-## See [std-digest.sha256-hex](../../spec/std/digest.md#r-std-digest.sha256-hex).
-pub fn sha256_hex(bytes: List[u8]) -> string:
-    hex_encode(sha256(bytes))
+# A hash result: the bytes of a digest (r-std-digest.digest).
+## The result of a hash, as bytes. Compare digests with `==`, which takes the same time wherever they differ.
+## See [std-digest.digest](../../spec/std/digest.md#r-std-digest.digest).
+pub data Digest:
+    pub bytes: List[u8]
+
+impl Digest:
+    ## The digest as lowercase hex text, two digits per byte.
+    ## See [std-digest.digest.to-hex](../../spec/std/digest.md#r-std-digest.digest.to-hex).
+    pub fn to_hex(self) -> string:
+        hex_encode(self.bytes)
+
+# Constant time over the bytes (r-std-digest.digest.eq): the loop never
+# exits early and no branch reads a byte value. The lengths are compared
+# first, because a length is not secret.
+impl Eq for Digest:
+    fn eq(self, other: Digest) -> bool:
+        if self.bytes.len() != other.bytes.len():
+            return false
+        let difference: u8 = 0
+        for index in 0..self.bytes.len():
+            difference = difference | (self.bytes[index] ^ other.bytes[index])
+        difference == 0
 
 fn rotate_right(word: u32, count: u32) -> u32:
     (word >> count) | (word << (32 - count))

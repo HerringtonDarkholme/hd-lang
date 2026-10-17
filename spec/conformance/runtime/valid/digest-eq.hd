@@ -1,0 +1,38 @@
+# test: Digest equality compares every byte, wherever two digests differ, and digests of different lengths are unequal
+# Spec std/digest Digest: std-digest.digest, std-digest.digest.eq, std-digest.digest.eq.constant-time, std-digest.digest.eq.length, std-digest.digest.eq.scope (task #473).
+# The constant-time property is not observable by a test; this fixture checks the result at each difference position.
+use std.digest.{Digest, sha256}
+use std.encoding.hex_decode
+
+fn signature_matches(body: List[u8], sent_hex: string) -> bool:
+    match hex_decode(sent_hex):
+        .Ok(sent) => sha256(body) == Digest { bytes: sent }
+        .Err(_) => false
+
+tests:
+    use std.testing.assert
+
+    it("equal digests"):
+        assert(Digest { bytes: [1, 2, 3] } == Digest { bytes: [1, 2, 3] }, reason="same bytes")
+        assert(Digest { bytes: [] } == Digest { bytes: [] }, reason="both empty")
+        assert(sha256([97, 98, 99]) == sha256([97, 98, 99]), reason="same message")
+
+    it("a difference in any position is unequal"):
+        assert(Digest { bytes: [1, 2, 3] } != Digest { bytes: [9, 2, 3] }, reason="first byte")
+        assert(Digest { bytes: [1, 2, 3] } != Digest { bytes: [1, 9, 3] }, reason="middle byte")
+        assert(Digest { bytes: [1, 2, 3] } != Digest { bytes: [1, 2, 9] }, reason="last byte")
+        assert(Digest { bytes: [0, 0, 0] } != Digest { bytes: [128, 0, 0] }, reason="one high bit")
+        assert(!(sha256([97, 98, 99]) == sha256([97, 98, 100])), reason="different messages")
+
+    it("different lengths are unequal"):
+        assert(Digest { bytes: [1, 2, 3] } != Digest { bytes: [1, 2] }, reason="shorter")
+        assert(Digest { bytes: [1, 2] } != Digest { bytes: [1, 2, 3] }, reason="longer")
+        assert(Digest { bytes: [] } != Digest { bytes: [0] }, reason="empty against one byte")
+
+    it("a received signature"):
+        good := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        last := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ae"
+        assert(signature_matches([97, 98, 99], good), reason="the digest of abc")
+        assert(!signature_matches([97, 98, 99], last), reason="differs only in the last byte")
+        assert(!signature_matches([97, 98, 99], "ba78"), reason="a short signature")
+        assert(!signature_matches([97, 98, 99], "zz"), reason="not hex")

@@ -894,7 +894,9 @@ std/encoding.md	5	accept	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	6	accept	runtime/valid/encoding-decode-errors.hd
 std/encoding.md	7	type-fragment	-
 std/digest.md	1	accept	runtime/valid/digest-sha256-vectors.hd
-std/digest.md	2	accept	runtime/valid/digest-sha256-vectors.hd
+std/digest.md	2	type-fragment	-
+std/digest.md	3	accept	runtime/valid/digest-eq.hd
+std/digest.md	4	accept	runtime/valid/digest-sha256-vectors.hd
 std/json.md	1	type-fragment	-
 std/json.md	2	type-fragment	-
 std/json.md	3	type-fragment	-
