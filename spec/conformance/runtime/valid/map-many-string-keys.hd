@@ -1,0 +1,58 @@
+# Thousands of string keys of every length up to 40 bytes, ASCII and not,
+# all found with their values after the map grows; removal leaves the rest
+# found. However the map buckets a key, lookup follows key equality alone.
+fn key(n: usize) -> string:
+    let text: mut List[string] = []
+    let rest = n % 41
+    while rest > 0:
+        text.push(if rest % 7 == 0: "é" else: "k")
+        rest = rest - 1
+    "${text.join("")}$n"
+
+fn keys_of(values: Map[string, usize]) -> List[string]:
+    let result: mut List[string] = []
+    for (k, _) in values:
+        result.push(k)
+    result
+
+tests:
+    use std.testing.assert_equal
+
+    it("every string key is found with its value"):
+        let values: mut Map[string, usize] = {}
+        let n: usize = 0
+        while n < 3000:
+            values[key(n)] = n
+            n = n + 1
+        assert_equal(values.len(), 3000, reason="each key once")
+        n = 0
+        let found: usize = 0
+        while n < 3000:
+            if values.get(key(n)) == .Some(n):
+                found = found + 1
+            n = n + 1
+        assert_equal(found, 3000, reason="each key maps to its value")
+        assert_equal(values.get(""), .None, reason="an absent key")
+        assert_equal(values.get("k3000"), .None, reason="a key never inserted")
+
+    it("removing keys leaves the others found"):
+        let values: mut Map[string, usize] = {}
+        let n: usize = 0
+        while n < 2000:
+            values[key(n)] = n
+            n = n + 1
+        n = 0
+        while n < 2000:
+            if n % 2 == 0:
+                _ := values.remove(key(n))
+            n = n + 1
+        assert_equal(values.len(), 1000, reason="half removed")
+        n = 0
+        let found: usize = 0
+        while n < 2000:
+            let want: usize? = if n % 2 == 0: .None else: .Some(n)
+            if values.get(key(n)) == want:
+                found = found + 1
+            n = n + 1
+        assert_equal(found, 2000, reason="removed keys gone, the rest found")
+        assert_equal(keys_of(values), keys_of(values), reason="a deterministic order")

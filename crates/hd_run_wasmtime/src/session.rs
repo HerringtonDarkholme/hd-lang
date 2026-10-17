@@ -79,8 +79,9 @@ pub struct WasmtimeSession {
     hosts: HashSet<(String, String)>,
     /// Whether `linker` holds the session's memory.
     memory: bool,
-    /// The runtime globals every input shares (`hd_wasm::rt`), once the
-    /// input that defines them has ended with status 0.
+    /// The runtime globals every input shares (`hd_wasm::rt`) but the map
+    /// hash key, which `reset` sets back, once the input that defines
+    /// them has ended with status 0.
     runtime: Vec<Global>,
     config: EngineConfig,
     profile: RuntimeProfile,
@@ -396,9 +397,13 @@ impl WasmtimeSession {
     /// Every input exports the memory; the first one's is the session's.
     fn add(&mut self, instance: wasmtime::Instance) -> Result<(), String> {
         let store = &mut self.run.store;
+        // The map hash key is never reset: a map an earlier input built
+        // must still be found after an input panics.
+        let seed = global_key(&hd_wasm::rt::hash_seed_global());
         let runtime: Vec<String> = hd_wasm::rt::runtime_globals()
             .iter()
             .map(global_key)
+            .filter(|k| *k != seed)
             .collect();
         let exports: Vec<(String, Extern)> = instance
             .exports(&mut *store)

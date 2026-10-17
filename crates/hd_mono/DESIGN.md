@@ -1546,7 +1546,12 @@ when the table fills.
 substituted key type's `Hash` impl and compare with its `Eq` impl on
 a hash match (`types.map.eq-hash`). Collection pushes those impl
 method instances as it does `Bound` choices (§13.2 step 4); the
-integer and string inline paths stay as specializations. The stored
+integer inline paths stay as specializations. A string key compares
+inline but hashes through `std.hash.string_bucket_hash`, the
+HalfSipHash-1-3 keyed by the run's seed (the `map_hash_seed` primitive,
+the `hd:rt` `hash_seed` import), so keys chosen to collide cannot be
+chosen without the seed (`std-hash.map.bucket-hash`); collection pushes
+that instance as `Target::MapString`. The stored
 `hashes` array keeps stale-key behavior (`types.map.stale`): a key
 mutated after insertion keeps its entry, unreachable by a fresh
 lookup. Footprint per `(K, V)` is one step function plus the iterator

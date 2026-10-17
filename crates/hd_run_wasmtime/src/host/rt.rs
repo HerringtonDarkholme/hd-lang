@@ -1,5 +1,5 @@
 //! The runtime imports, which no host trait owns: `hd:rt`'s `block`,
-//! `abort`, `stderr`, `stdout`, `panic` and `fact`, and the `hd:prim` primitives,
+//! `abort`, `stderr`, `stdout`, `panic`, `fact` and `hash_seed`, and the `hd:prim` primitives,
 //! whose text and float work is `prim.rs`.
 
 use wasmtime::{Caller, Val};
@@ -59,6 +59,15 @@ pub(super) fn rt(
             let h = int_arg(params, 0)?;
             caller.data_mut().control(Control::Abort(handle(h)));
             Ret::void()
+        }
+        // The run's map hash key: 64 random bits. The instance asks once
+        // and keeps it in a runtime global; a session's journal records
+        // the call, so a rebuild hashes with the same key.
+        Rt::HashSeed => {
+            let bytes = crate::sys::random(8)?;
+            let mut seed = [0u8; 8];
+            seed.copy_from_slice(&bytes);
+            Ret::int(i64::from_le_bytes(seed))
         }
     })
 }

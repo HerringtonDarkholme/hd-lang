@@ -260,3 +260,40 @@ pub fn main() -> void:
         out.render()
     );
 }
+
+/// Keys that collide under the fixed FNV-1a-32 the map once bucketed
+/// strings by (#353): each key picks one 6-letter block of each pair, and
+/// both blocks of a pair lead from the same FNV state to the same state, so
+/// all 2^16 keys had one bucket hash and every insertion probed all the
+/// earlier ones, about 4 * 10^9 key comparisons. Keyed by the run's seed
+/// (`std.hash.string_bucket_hash`), they spread, and the program ends in
+/// well under the bound; the old hash took over ten seconds.
+#[test]
+fn keys_chosen_to_collide_under_a_fixed_hash_stay_fast() {
+    let main = "\
+PAIRS := [(\"etyryl\", \"mjidmt\"), (\"ufefyz\", \"ibubif\"), (\"olixgb\", \"gryfkj\"), (\"gdcnyr\", \"shsbin\"), (\"wjuped\", \"arsrez\"), (\"encval\", \"qbsjqp\"), (\"slinwp\", \"wjsbuf\"), (\"ohapah\", \"slqlqt\"), (\"apynmn\", \"yjityv\"), (\"cncvaj\", \"wbsjqv\"), (\"krsraz\", \"choder\"), (\"ctchqd\", \"whstax\"), (\"cvifmj\", \"wryzuv\"), (\"wvyfyh\", \"cjibit\"), (\"yrylsh\", \"mvihct\"), (\"wvwbyv\", \"czgfij\")]
+
+pub fn main() -> void $ Console:
+    let m: mut Map[string, usize] = {}
+    let mask: usize = 0
+    while mask < 65536:
+        let parts: mut List[string] = []
+        let b: usize = 0
+        while b < 16:
+            pair := PAIRS[b]
+            parts.push(if (mask >> b) & 1 == 1: pair._1 else: pair._0)
+            b = b + 1
+        m[parts.join(\"\")] = mask
+        mask = mask + 1
+    println(m.len())
+    println(m.get(\"etyrylufefyzolixgbgdcnyrwjupedencvalslinwpohapahapynmncncvajkrsrazctchqdcvifmjwvyfyhyrylshwvwbyv\").unwrap_or(1))
+    println(m.get(\"mjidmtibubifgryfkjshsbinarsrezqbsjqpwjsbufslqlqtyjityvwbsjqvchoderwhstaxwryzuvcjibitmvihctczgfij\").unwrap_or(1))
+";
+    let start = std::time::Instant::now();
+    assert_eq!(output_of("collide", main), "65536\n0\n65535\n");
+    let took = start.elapsed();
+    assert!(
+        took < std::time::Duration::from_secs(8),
+        "65,536 colliding keys took {took:?}"
+    );
+}

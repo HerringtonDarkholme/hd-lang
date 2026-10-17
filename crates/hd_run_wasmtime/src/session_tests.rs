@@ -1106,6 +1106,46 @@ fn a_rebuilt_session_repeats_no_host_call() {
     let _ = std::fs::remove_file(&path);
 }
 
+/// The map's string hash key (#353, `std-hash.map.bucket-hash`) is asked
+/// of the host once and kept in a runtime global the inputs share. A map
+/// an earlier input built is found after an input panics, which resets the
+/// other runtime globals, and after a rebuild, which serves the key from
+/// the journal and asks the host for nothing.
+#[test]
+fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
+    let inputs = [
+        "let m: mut Map[string, i32] = {}\n",
+        "m[\"tea\"] = +1\n",
+        "m[\"cake\"] = +2\nlost := [+1][3]\n",
+        "println(m.get(\"tea\").unwrap_or(+0) * 10 + m.get(\"cake\").unwrap_or(+0))\n",
+    ];
+    let show = "println(\"${m.len()} ${m.get(\"tea\").unwrap_or(+0)} ${m.get(\"cake\").unwrap_or(+0)}\")\n";
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        let codes: Vec<Outcome> = inputs.iter().map(|input| repl.input(input)).collect();
+        assert_eq!(
+            codes,
+            [
+                Outcome::Exit(0),
+                Outcome::Exit(0),
+                Outcome::Exit(3),
+                Outcome::Exit(0)
+            ],
+            "{}",
+            text(&io.err)
+        );
+        assert_eq!(text(&io.out), "12\n");
+        let _ = text(&io.err);
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert!(rebuilt.dropped.is_empty(), "{rebuilt:?}");
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(text(&io.out), "");
+        assert_eq!(repl.input(show), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), "2 1 2\n");
+    });
+}
+
 /// `cli.repl.rebuild.stopped` and `.prefix`: a rebuild skips a stopped
 /// and a cancelled input, so the stopped input's change to `kept` is lost.
 /// The first input that then asks the host for something else, the one

@@ -9603,6 +9603,9 @@ impl ProgramEnv for Env<'_> {
         let method = t.methods.first()?.1;
         Some((eq, method, self.run.known.hash_of))
     }
+    fn string_bucket_hash(&self) -> DefId {
+        self.run.known.string_bucket_hash
+    }
     fn build_profile(&self) -> BuildProfile {
         self.run.build_profile
     }

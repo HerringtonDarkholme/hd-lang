@@ -261,6 +261,10 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     abort: (h) => {
       st.ops.delete(h);
     },
+    // The run's map hash key: 64 random bits. The instance asks once and
+    // keeps it in a runtime global; a session's journal records the call,
+    // so a rebuild hashes with the same key.
+    hash_seed: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
   };
 }
 
@@ -762,7 +766,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
 // `MEMORY_KEY`).
 const SESSION_MODULE = "hd.s";
 const MEMORY_KEY = "hd.x";
-// The runtime globals every input shares (`hd_wasm::rt::runtime_globals`).
+// The runtime globals every input shares (`hd_wasm::rt::runtime_globals`)
+// that a failed input sets back; never the map hash key `rt.hseed`, so a
+// map an earlier input built is still found.
 const RUNTIME_GLOBALS = new Set(["rt.wake", "rt.forbid", "rt.root", "rt.owner"]);
 
 // Whether an input's export is a session key (`hd_wasm::is_session_key`):

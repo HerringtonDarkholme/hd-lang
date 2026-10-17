@@ -383,6 +383,7 @@ typing/valid/numeric-corners.hd	type	accept	lang/04-type-system.md#numeric-conve
 runtime/panic/signed-min-division-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 typing/valid/composite-ordering.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/map-iteration-order.hd	runtime	accept	lang/05-expressions.md#list-and-map-expressions
+runtime/valid/map-many-string-keys.hd	runtime	accept	std/hash.md#r-std-hash.map.bucket-hash
 typing/invalid/unbounded-generic-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#generics
 typing/valid/reference-generic-identity.hd	type	accept	lang/04-type-system.md#generics
 typing/invalid/tuple-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators

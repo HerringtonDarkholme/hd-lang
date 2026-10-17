@@ -140,7 +140,7 @@ fn bucket(key: string) -> u64:
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
 6. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
 7. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
-8. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it must be the same in every run.
+8. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.
 
 > **Why.** FNV-1a is a few lines of hd that need only XOR and one
 > wrapping multiplication. SipHash-1-3 mixes better, but its strength is
@@ -149,7 +149,17 @@ fn bucket(key: string) -> u64:
 
 > **Note.** A fixed algorithm makes hash values reproducible, so a test
 > may assert one. It also means that keys chosen to collide stay
-> colliding.
+> colliding, so the built-in `Map` does not bucket strings by it.
+
+> **Why.** Keys chosen to collide make every insertion probe the whole
+> table, and a map built from untrusted JSON takes its keys from the
+> sender. So the reference implementation buckets a string key by
+> HalfSipHash-1-3 under a random key that the host draws once per run,
+> as Rust keys SipHash-1-3 per process and Go seeds its hash per map. A
+> REPL session's journal records the key, so a rebuild replays exactly.
+> Iteration order does not depend on the hash
+> ([`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic)),
+> so the key changes no output.
 
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
 [Lookup And Order](../lang/04-type-system.md#lookup-and-order),

@@ -154,8 +154,14 @@ wasmtime, never enabled by the default host.
 | scalars only, never waits | one function with Wasm parameters and results | `hd:Clock` `now() -> i64` |
 | structured values, never waits | `(len: i32) -> i32`: arguments in the exchange buffer, result length back | `hd:Env` `get` |
 | may wait | `name.start(len) -> (i32 status, i32 value)`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
-| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()`, `fact(len)` | |
+| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()`, `fact(len)`, `hash_seed() -> i64` | |
 | host primitive | `hd:prim` `name`, no receiver, never waits | `format_f64` |
+
+`hash_seed()` returns 64 random bits: the key of the map's string hash
+(`std-hash.map.bucket-hash`). The instance asks once, on the first string
+key it hashes, and keeps the answer in the runtime global `rt.hseed`,
+which a session's inputs share and never reset. A session's journal
+records the call as a `Call` row, so a rebuild hashes with the same key.
 
 `fact(len)` marks where a facts body runs: it is called as the body
 starts, with the body's label in the buffer, and with `-1` as it ends.

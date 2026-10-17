@@ -23,7 +23,7 @@ use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
     Selection, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
 use crate::layout::{
@@ -132,6 +132,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
     /// names `Self`) and `std.hash.hash_of`.
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
+    /// `std.hash.string_bucket_hash`, the keyed hash a map buckets a
+    /// string key by (`crates/hd_mono/DESIGN.md` §13.12).
+    fn string_bucket_hash(&self) -> DefId;
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
     fn build_profile(&self) -> BuildProfile;
@@ -241,6 +244,10 @@ pub enum Target {
         hash: CallTarget,
         eq: CallTarget,
     },
+    /// A map operation on a `string` key: the keyed bucket hash
+    /// `std.hash.string_bucket_hash` (`crates/hd_mono/DESIGN.md` §13.12);
+    /// equality stays inline.
+    MapString(CallTarget),
     /// An open instruction of an erased body (`crates/hd_mono/DESIGN.md` §13.5.1): it
     /// calls thunk `k` of the witness the body was passed.
     Open(u32),
@@ -2105,8 +2112,9 @@ impl Cx<'_> {
     }
 
     /// The key operations of a map of type `map` (`crates/hd_mono/DESIGN.md` §13.12):
-    /// `None` for an inline key, else `hash_of` and `Eq.eq` at the key
-    /// type, selected here so the TIR carries only the key type.
+    /// `None` for an inline integer key, the keyed bucket hash for a
+    /// string key, else `hash_of` and `Eq.eq` at the key type, selected
+    /// here so the TIR carries only the key type.
     fn map_key(
         &mut self,
         map: Ty,
@@ -2125,7 +2133,13 @@ impl Cx<'_> {
             return err("a map type without a key");
         };
         if layout::inline_map_key(pool, self.env, key) {
-            return Ok(None);
+            let stripped = layout::strip_newtype(pool, self.env, key);
+            if !matches!(pool.get(stripped), TyData::Prim(Prim::String)) {
+                return Ok(None);
+            }
+            let hash = self.target(self.env.string_bucket_hash(), TyList::EMPTY, parent)?;
+            self.hash_target(&hash, reps);
+            return Ok(Some(Target::MapString(hash)));
         }
         let Some((eq_trait, eq_method, hash_of)) = self.env.map_key_items() else {
             return err("an `Eq` trait without its method");

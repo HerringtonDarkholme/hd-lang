@@ -238,10 +238,31 @@ pub fn owner_global() -> GSym {
     GSym::Rt("owner".into(), VT::I32)
 }
 
+/// The run's map hash key (`map_hash_seed`): 0 until the first string
+/// key is hashed, which asks the host's `hash_seed` import. It is a
+/// runtime global, so the inputs of a session share one key and a map
+/// built by one input is found by the next.
+#[must_use]
+pub fn hash_seed_global() -> GSym {
+    GSym::Rt("hseed".into(), VT::I64)
+}
+
+/// The host runtime's `hash_seed` import: 64 random bits, drawn once per
+/// run (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
+#[must_use]
+pub fn hash_seed_import() -> Sym {
+    Sym::Import {
+        module: "hd:rt".into(),
+        name: "hash_seed".into(),
+        params: vec![],
+        results: vec![VT::I64],
+    }
+}
+
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 9] {
+pub fn runtime_globals() -> [GSym; 10] {
     [
         wake_table(),
         forbid_global(),
@@ -252,6 +273,7 @@ pub fn runtime_globals() -> [GSym; 9] {
         wakers_global(),
         wake_regs(),
         all_polls(),
+        hash_seed_global(),
     ]
 }
 
@@ -282,8 +304,10 @@ pub enum KeyOps {
     I32,
     /// A 64-bit integer.
     I64,
-    /// A string: its viewed bytes.
-    Str,
+    /// A string: a call of the keyed bucket hash
+    /// `std.hash.string_bucket_hash` over its viewed bytes; equality is
+    /// `StrEq`.
+    Str(Box<Sym>),
     /// Calls of the key type's `hash_of` and `Eq.eq` instances, which take
     /// the key's values as `params`.
     Call {
@@ -561,7 +585,10 @@ impl KeyOps {
         match self {
             KeyOps::I32 => w.u8(0),
             KeyOps::I64 => w.u8(1),
-            KeyOps::Str => w.u8(2),
+            KeyOps::Str(hash) => {
+                w.u8(2);
+                hash.encode(w);
+            }
             KeyOps::Call { hash, eq, params } => {
                 w.u8(3);
                 hash.encode(w);
@@ -574,7 +601,7 @@ impl KeyOps {
         Some(match r.u8() {
             0 => KeyOps::I32,
             1 => KeyOps::I64,
-            2 => KeyOps::Str,
+            2 => KeyOps::Str(Box::new(Sym::decode(r)?)),
             _ => KeyOps::Call {
                 hash: Box::new(Sym::decode(r)?),
                 eq: Box::new(Sym::decode(r)?),

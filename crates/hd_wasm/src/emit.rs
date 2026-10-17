@@ -2927,6 +2927,25 @@ impl Em<'_> {
                 self.store(i)
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
+            // The run's map hash key: the runtime global, filled from the
+            // host's `hash_seed` import on first use. A host that draws 0
+            // is asked again, and answers 0 again.
+            "map_hash_seed" => {
+                let g = crate::rt::hash_seed_global();
+                let seed = self.a.local(VT::I64);
+                self.a.global_get(g.clone());
+                self.a.set(seed);
+                self.a.get(seed);
+                self.a.s().i64_eqz();
+                self.a.if_();
+                self.a.call(crate::rt::hash_seed_import());
+                self.a.set(seed);
+                self.a.get(seed);
+                self.a.global_set(g);
+                self.a.end();
+                self.a.get(seed);
+                self.store(i)
+            }
             // The bit casts between a float and the integer of its width:
             // one reinterpret instruction, which keeps every bit, a NaN's
             // sign and payload included.
@@ -4066,10 +4085,17 @@ impl Em<'_> {
     }
 
     /// How instruction `i`'s map hashes and compares keys of type `kt`
-    /// (`crates/hd_mono/DESIGN.md` §13.12): inline for an integer, `bool`, `char` or
-    /// `string`, else through the `hash_of` and `Eq.eq` instances that
-    /// collection selected at the key type.
+    /// (`crates/hd_mono/DESIGN.md` §13.12): inline for an integer, `bool` or `char`;
+    /// for a `string`, through the keyed bucket hash collection selected
+    /// and an inline comparison; else through the `hash_of` and `Eq.eq`
+    /// instances that collection selected at the key type.
     fn key_ops(&self, i: u32, kt: Ty, key: &[VT]) -> StageResult<KeyOps> {
+        if let Some(Target::MapString(hash)) = self.calls.get(&i) {
+            if self.key_params(hash, 0)? != key || self.vts(hash.ret)? != [VT::I32] {
+                return unsupported("a string bucket hash that takes or returns other values");
+            }
+            return Ok(KeyOps::Str(Box::new(Sym::Inst(hash.key))));
+        }
         if let Some(Target::MapKey { hash, eq }) = self.calls.get(&i) {
             let params = self.key_params(hash, 0)?;
             if params.len() != key.len()
@@ -4092,7 +4118,9 @@ impl Em<'_> {
         Ok(match key {
             [VT::I32] => KeyOps::I32,
             [VT::I64] => KeyOps::I64,
-            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => KeyOps::Str,
+            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => {
+                return unsupported("a string map key without its bucket hash");
+            }
             _ => return unsupported("an inline map key of another layout"),
         })
     }

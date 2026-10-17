@@ -30,6 +30,7 @@ pub(crate) enum Rt {
     Stdout,
     Panic,
     Fact,
+    HashSeed,
 }
 
 /// An `hd:prim` import (`rt.rs`, over `prim.rs`).
@@ -193,6 +194,7 @@ impl Kind {
             ("hd:rt", "stdout") => Kind::Rt(Rt::Stdout),
             ("hd:rt", "panic") => Kind::Rt(Rt::Panic),
             ("hd:rt", "fact") => Kind::Rt(Rt::Fact),
+            ("hd:rt", "hash_seed") => Kind::Rt(Rt::HashSeed),
             ("hd:prim", "format_f64") => Kind::Prim(Prim::FormatF64),
             ("hd:prim", "format_f32") => Kind::Prim(Prim::FormatF32),
             ("hd:prim", "format_f64_fixed") => Kind::Prim(Prim::FormatFixed),

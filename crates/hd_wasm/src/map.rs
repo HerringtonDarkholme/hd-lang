@@ -62,8 +62,9 @@ fn mask_of(a: &mut Asm, idx: u32, mask: u32) {
 }
 
 /// `(key...) -> i32`: the bucket hash, the key's 32 bits mixed into a
-/// non-negative `i32`. Integers and strings hash inline; any other key
-/// through its `hash_of` instance.
+/// non-negative `i32`. Integers hash inline; a string through the keyed
+/// `std.hash.string_bucket_hash`, whose output needs no further mixing;
+/// any other key through its `hash_of` instance.
 pub fn hash_code(key: &[VT], ops: &KeyOps) -> StageResult<Code> {
     let mut a = Asm::new(key.to_vec());
     let hv = a.local(VT::I32);
@@ -75,42 +76,13 @@ pub fn hash_code(key: &[VT], ops: &KeyOps) -> StageResult<Code> {
             a.i64(32);
             a.s().i64_shr_u().i64_xor().i32_wrap_i64();
         }
-        KeyOps::Str => {
-            // FNV-1a over the viewed bytes.
-            let (start, len, k) = (a.local(VT::I32), a.local(VT::I32), a.local(VT::I32));
-            a.get(1);
-            a.s().i32_wrap_i64();
-            a.set(start);
-            a.get(1);
-            a.i64(32);
-            a.s().i64_shr_u().i32_wrap_i64();
-            a.set(len);
-            a.i32(0x811C_9DC5_u32.cast_signed());
-            a.set(hv);
-            a.block();
-            a.loop_();
-            a.get(k);
-            a.get(len);
-            a.s().i32_ge_u();
-            a.br_if(1);
-            a.get(hv);
+        KeyOps::Str(hash) => {
             a.get(0);
-            a.get(start);
-            a.get(k);
-            a.s().i32_add();
-            a.array_get(&WTy::Bytes);
-            a.s().i32_xor();
-            a.i32(0x0100_0193);
-            a.s().i32_mul();
-            a.set(hv);
-            a.get(k);
-            a.i32(1);
-            a.s().i32_add();
-            a.set(k);
-            a.br(0);
-            a.end();
-            a.end();
-            a.get(hv);
+            a.get(1);
+            a.call((**hash).clone());
+            a.i32(0x7FFF_FFFF);
+            a.s().i32_and();
+            return Ok(a.finish(vec![VT::I32]));
         }
         KeyOps::Call { hash, params, .. } => {
             if params.len() != key.len() {
@@ -160,7 +132,7 @@ fn key_eq(a: &mut Asm, map: &WTy, key: &[VT], ops: &KeyOps, e: u32, k0: u32) {
             a.get(k0);
             a.s().i64_eq();
         }
-        KeyOps::Str => {
+        KeyOps::Str(_) => {
             stored(a, 0);
             a.s().ref_as_non_null();
             stored(a, 1);

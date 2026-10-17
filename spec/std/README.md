@@ -94,6 +94,7 @@ raises with a category other than `explicit-panic`.
 | `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
 | `parse_f64` | `(text: string) -> f64` | the correctly rounded `f64` of an unsigned decimal number text, which needs arbitrary-precision arithmetic |
 | `format_f64_fixed` | `(value: f64, digits: usize) -> string` | the correctly rounded fixed-point text of a float, which needs arbitrary-precision arithmetic |
+| `map_hash_seed` | `() -> u64` | the run's random key for the map's string hash ([`std-hash.map.bucket-hash`](hash.md#r-std-hash.map.bucket-hash)); a program has no other source of randomness that needs no capability |
 | `snapshot_update` | `(text: string) -> bool` | the update run's side of [`snapshot`](testing.md#r-std-testing.snapshot.update): in an update run of an `it` test case it records `text` and the call's place and returns true, else it returns false; only `std.testing` calls it |
 
 A host primitive takes and returns each `f32` and `f64` as a raw IEEE
