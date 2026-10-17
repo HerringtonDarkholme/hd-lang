@@ -981,7 +981,7 @@ adds a few of its own. Each rejects code the old design accepted:
 **Decided by the owner, 2026-10-17:**
 - 6.1 Iteration: `for x in xs` lends an owned list (each `x` is a `^T`); `xs.into_iter()` is the one consuming loop. `Iterator` gains a lifetime parameter, as Rust's `slice::Iter<'a, T>`.
 - 6.2 Maps: keys stay plain; only values may be owned.
-- 6.3 Copying: a std `Clone` trait now (not only per-type methods): `clone(^self) -> own Self`, derivable, and a derived clone deep-copies everything, plain fields included, so the copy is fully independent and fresh.
+- 6.3 Copying: a std `Clone` trait now (not only per-type methods): `clone(^self) -> own Self`, derivable. In general, cloning a value whose type is annotated `own` deep-copies everything, plain fields included, so the copy shares nothing with the original and is fresh (owner: "if the type is annotated as `own`, deep clone everything and keep even plain field cloned").
 - 6.4 Drop in generic code: how compiled code finds `drop` is a compiler choice outside the spec; types without a destructor keep sharing one body, each type with a destructor gets its own instance and drop flags.
 - 6.5 Higher-order functions: owned lists reach `map`, `filter` and `fold` through `iter()` and `into_iter()`, plus `retain`; no owned twins on `List`.
 - 6.6 Migration: bottom up: language, traits, containers, handles with streaming, then the rest of std by lint.
