@@ -7,62 +7,121 @@ use std.encoding.hex_encode
 ## The 32-byte SHA-256 digest of `bytes`, as FIPS 180-4 defines it.
 ## See [std-digest.sha256](../../spec/std/digest.md#r-std-digest.sha256).
 pub fn sha256(bytes: List[u8]) -> Digest:
-    rounds := round_constants()
-    let state: mut List[u32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
-    message := padded(bytes)
-    let schedule: mut List[u32] = []
-    for _ in 0..64:
-        schedule.push(0)
-    let block: usize = 0
-    while block < message.len():
-        for t in usize(0)..usize(16):
-            at := block + 4 * t
-            schedule[t] = (u32(message[at]) << 24) | (u32(message[at + 1]) << 16) | (u32(message[at + 2]) << 8) | u32(message[at + 3])
-        for t in usize(16)..usize(64):
-            low := schedule[t - 15]
-            high := schedule[t - 2]
-            s0 := rotate_right(low, 7) ^ rotate_right(low, 18) ^ (low >> 3)
-            s1 := rotate_right(high, 17) ^ rotate_right(high, 19) ^ (high >> 10)
-            schedule[t] = schedule[t - 16].wrapping_add(s0).wrapping_add(schedule[t - 7]).wrapping_add(s1)
-        let a = state[0]
-        let b = state[1]
-        let c = state[2]
-        let d = state[3]
-        let e = state[4]
-        let f = state[5]
-        let g = state[6]
-        let h = state[7]
-        for t in usize(0)..usize(64):
-            sum1 := rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25)
-            choice := (e & f) ^ (~e & g)
-            first := h.wrapping_add(sum1).wrapping_add(choice).wrapping_add(rounds[t]).wrapping_add(schedule[t])
-            sum0 := rotate_right(a, 2) ^ rotate_right(a, 13) ^ rotate_right(a, 22)
-            majority := (a & b) ^ (a & c) ^ (b & c)
-            second := sum0.wrapping_add(majority)
-            h = g
-            g = f
-            f = e
-            e = d.wrapping_add(first)
-            d = c
-            c = b
-            b = a
-            a = first.wrapping_add(second)
-        state[0] = state[0].wrapping_add(a)
-        state[1] = state[1].wrapping_add(b)
-        state[2] = state[2].wrapping_add(c)
-        state[3] = state[3].wrapping_add(d)
-        state[4] = state[4].wrapping_add(e)
-        state[5] = state[5].wrapping_add(f)
-        state[6] = state[6].wrapping_add(g)
-        state[7] = state[7].wrapping_add(h)
-        block = block + 64
-    let digest: mut List[u8] = []
-    for word in state:
-        digest.push(u8(word >> 24))
-        digest.push(u8(word >> 16))
-        digest.push(u8(word >> 8))
-        digest.push(u8(word))
-    Digest { bytes: digest }
+    Sha256::new().update(bytes).finish()
+
+# A SHA-256 computation that takes its input in pieces (r-std-digest.sha256.decl).
+# The fields are the eight state words, the bytes of the partial block
+# (always fewer than 64 between calls), the message length in bytes, and
+# the constants and the message schedule the rounds reuse.
+## A SHA-256 computation fed in pieces: `update` adds bytes and `finish` returns the digest.
+## See [std-digest.sha256.decl](../../spec/std/digest.md#r-std-digest.sha256.decl).
+pub data Sha256:
+    state: mut List[u32]
+    block: mut List[u8]
+    length: u64
+    rounds: List[u32]
+    schedule: mut List[u32]
+
+impl Sha256:
+    ## Returns a hasher that has seen no bytes.
+    ## See [std-digest.sha256.new](../../spec/std/digest.md#r-std-digest.sha256.new).
+    pub fn new() -> mut Sha256:
+        let schedule: mut List[u32] = []
+        for _ in 0..64:
+            schedule.push(0)
+        Sha256 { state: initial_state(), block: [], length: 0, rounds: round_constants(), schedule: schedule }
+
+    ## Adds `bytes` to the message and returns the hasher, so calls chain.
+    ## See [std-digest.sha256.update](../../spec/std/digest.md#r-std-digest.sha256.update).
+    pub fn update(mut self, bytes: List[u8]) -> mut Sha256:
+        self.length = self.length.wrapping_add(u64(bytes.len()))
+        for byte in bytes:
+            self.block.push(byte)
+            if self.block.len() == 64:
+                compress(self.state, self.block, 0, self.rounds, self.schedule)
+                self.block.clear()
+        self
+
+    ## Returns the digest of every byte added so far. The hasher is unchanged, so it can take more bytes.
+    ## See [std-digest.sha256.finish](../../spec/std/digest.md#r-std-digest.sha256.finish).
+    pub fn finish(self) -> Digest:
+        let state: mut List[u32] = []
+        for word in self.state:
+            state.push(word)
+        let schedule: mut List[u32] = []
+        for _ in 0..64:
+            schedule.push(0)
+        # The partial block, a 1 bit, zeros up to 56 bytes past a multiple of
+        # 64, then the message length in bits as a big-endian u64 (FIPS
+        # 180-4, section 5.1.1). At most two blocks.
+        let last: mut List[u8] = []
+        for byte in self.block:
+            last.push(byte)
+        last.push(128)
+        while last.len() % 64 != 56:
+            last.push(0)
+        bits := self.length << 3
+        for index in 0..8:
+            last.push(u8(bits >> u32(56 - 8 * index)))
+        let at: usize = 0
+        while at < last.len():
+            compress(state, last, at, self.rounds, schedule)
+            at = at + 64
+        let digest: mut List[u8] = []
+        for word in state:
+            digest.push(u8(word >> 24))
+            digest.push(u8(word >> 16))
+            digest.push(u8(word >> 8))
+            digest.push(u8(word))
+        Digest { bytes: digest }
+
+# The initial hash value: the first 32 bits of the fractional parts of the
+# square roots of the first eight primes (FIPS 180-4, section 5.3.3).
+fn initial_state() -> mut List[u32]:
+    [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
+
+# Folds the 64 bytes of `block` from `at` into `state` (FIPS 180-4, section 6.2.2).
+fn compress(state: mut List[u32], block: List[u8], at: usize, rounds: List[u32], schedule: mut List[u32]) -> void:
+    for t in usize(0)..usize(16):
+        index := at + 4 * t
+        schedule[t] = (u32(block[index]) << 24) | (u32(block[index + 1]) << 16) | (u32(block[index + 2]) << 8) | u32(block[index + 3])
+    for t in usize(16)..usize(64):
+        low := schedule[t - 15]
+        high := schedule[t - 2]
+        s0 := rotate_right(low, 7) ^ rotate_right(low, 18) ^ (low >> 3)
+        s1 := rotate_right(high, 17) ^ rotate_right(high, 19) ^ (high >> 10)
+        schedule[t] = schedule[t - 16].wrapping_add(s0).wrapping_add(schedule[t - 7]).wrapping_add(s1)
+    let a = state[0]
+    let b = state[1]
+    let c = state[2]
+    let d = state[3]
+    let e = state[4]
+    let f = state[5]
+    let g = state[6]
+    let h = state[7]
+    for t in usize(0)..usize(64):
+        sum1 := rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25)
+        choice := (e & f) ^ (~e & g)
+        first := h.wrapping_add(sum1).wrapping_add(choice).wrapping_add(rounds[t]).wrapping_add(schedule[t])
+        sum0 := rotate_right(a, 2) ^ rotate_right(a, 13) ^ rotate_right(a, 22)
+        majority := (a & b) ^ (a & c) ^ (b & c)
+        second := sum0.wrapping_add(majority)
+        h = g
+        g = f
+        f = e
+        e = d.wrapping_add(first)
+        d = c
+        c = b
+        b = a
+        a = first.wrapping_add(second)
+    state[0] = state[0].wrapping_add(a)
+    state[1] = state[1].wrapping_add(b)
+    state[2] = state[2].wrapping_add(c)
+    state[3] = state[3].wrapping_add(d)
+    state[4] = state[4].wrapping_add(e)
+    state[5] = state[5].wrapping_add(f)
+    state[6] = state[6].wrapping_add(g)
+    state[7] = state[7].wrapping_add(h)
 
 # A hash result: the bytes of a digest (r-std-digest.digest).
 ## The result of a hash, as bytes. Compare digests with `==`, which takes the same time wherever they differ.
@@ -90,21 +149,6 @@ impl Eq for Digest:
 
 fn rotate_right(word: u32, count: u32) -> u32:
     (word >> count) | (word << (32 - count))
-
-# The message, then a 1 bit, then zeros up to 56 bytes past a multiple of
-# 64, then the message length in bits as a big-endian u64 (FIPS 180-4,
-# section 5.1.1).
-fn padded(bytes: List[u8]) -> List[u8]:
-    let message: mut List[u8] = []
-    for byte in bytes:
-        message.push(byte)
-    message.push(128)
-    while message.len() % 64 != 56:
-        message.push(0)
-    length := u64(bytes.len()) * 8
-    for index in 0..8:
-        message.push(u8(length >> u32(56 - 8 * index)))
-    message
 
 # The first 32 bits of the fractional parts of the cube roots of the first
 # 64 primes (FIPS 180-4, section 4.2.2).

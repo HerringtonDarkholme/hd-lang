@@ -897,6 +897,8 @@ std/digest.md	1	accept	runtime/valid/digest-sha256-vectors.hd
 std/digest.md	2	type-fragment	-
 std/digest.md	3	accept	runtime/valid/digest-eq.hd
 std/digest.md	4	accept	runtime/valid/digest-sha256-vectors.hd
+std/digest.md	5	type-fragment	-
+std/digest.md	6	accept	runtime/valid/digest-sha256-stream.hd
 std/json.md	1	type-fragment	-
 std/json.md	2	type-fragment	-
 std/json.md	3	type-fragment	-

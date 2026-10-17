@@ -6,13 +6,14 @@ This chapter defines `std.digest`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - `Digest`, the result of a hash, with constant-time equality;
-- `sha256`, the SHA-256 digest of bytes.
+- `Sha256`, a SHA-256 computation that takes its input in pieces;
+- `sha256`, the SHA-256 digest of bytes in one call.
 
 Nothing in it is language tier. The 32-bit word arithmetic uses the
 wrapping methods of [Num](num.md#wrapping-arithmetic) and the shifts of
 [Shifts](../lang/05-expressions.md#shifts).
 
-1. r[std-digest.import] `std.digest` declares `Digest` and `sha256`. Neither is a prelude name; code imports them, as in `use std.digest.sha256`.
+1. r[std-digest.import] `std.digest` declares `Digest`, `Sha256` and `sha256`. None is a prelude name; code imports them, as in `use std.digest.sha256`.
 
 ```text
 use std.digest.sha256
@@ -79,7 +80,8 @@ fn same_content(left: List[u8], right: List[u8]) -> bool:
 1. r[std-digest.sha256.fips] The digest is SHA-256 as FIPS 180-4 defines it, of the message that `bytes` holds in order.
 2. r[std-digest.sha256.length] The result's `bytes` holds 32 bytes: the eight words of the final hash value in order, each written high byte first.
 3. r[std-digest.sha256.hex] So `sha256(bytes).to_hex()` returns 64 lowercase hex digits.
-4. r[std-digest.no-panic] `sha256`, `to_hex` and `==` on digests do not panic.
+4. r[std-digest.sha256.oneshot] `sha256(bytes)` returns the same digest as `Sha256::new().update(bytes).finish()`, and does not copy `bytes`.
+5. r[std-digest.no-panic] `sha256`, `Sha256::new`, `update`, `finish`, `to_hex` and `==` on digests do not panic.
 
 | Message | `to_hex` gives |
 | --- | --- |
@@ -95,5 +97,41 @@ fn same_content(left: List[u8], right: List[u8]) -> bool:
 > **Why.** SHA-256 covers what a script needs: checksums, content
 > addresses, and comparison with other tools. MD5 and SHA-1 are broken for
 > collisions and are left out.
+
+## Streaming
+
+`Sha256` hashes input that arrives in pieces, as Go's `hash.Hash` and
+Rust's `Digest` do: `new`, then `update` for each piece, then `finish`.
+A reader of a large file or a socket feeds each chunk to `update` and
+never holds the whole message.
+
+```text
+pub data Sha256: ...
+
+impl Sha256:
+    pub fn new() -> mut Sha256
+    pub fn update(mut self, bytes: List[u8]) -> mut Sha256
+    pub fn finish(self) -> Digest
+```
+
+```text
+use std.digest.{Digest, Sha256}
+
+fn digest_of_chunks(chunks: List[List[u8]]) -> Digest:
+    let hasher: mut Sha256 = Sha256::new()
+    for chunk in chunks:
+        hasher.update(chunk)
+    hasher.finish()
+```
+
+1. r[std-digest.sha256.decl] `Sha256` is a data type with private fields. Code cannot build one except with `Sha256::new`.
+2. r[std-digest.sha256.new] `Sha256::new() -> mut Sha256` returns a hasher that has seen no bytes.
+3. r[std-digest.sha256.update] `h.update(bytes: List[u8]) -> mut Sha256` adds `bytes` to the end of the message and returns `h`, so calls chain; it takes `mut self`. The message is the bytes of all calls in call order, so how it is split across calls does not change the digest.
+4. r[std-digest.sha256.finish] `h.finish() -> Digest` returns the digest of the message added so far, as [`sha256`](#r-std-digest.sha256) defines it. It takes `self`, so it leaves `h` as it was: `h` takes more `update` calls, and a second `finish` returns the same digest.
+5. r[std-digest.sha256.memory] `Sha256` keeps at most one partial block of the message, fewer than 64 bytes. `update` hashes each full block as it arrives, and `finish` pads only the last block.
+
+> **Why.** `sha256` needs the whole message in memory. Streaming lets a
+> script hash a file larger than memory. Keeping the hasher usable after
+> `finish` is what Go's `Sum` does.
 
 See also: [Encoding](encoding.md), [Hash](hash.md).
