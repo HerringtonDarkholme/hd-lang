@@ -57,7 +57,7 @@ impl[T, E] Result[T, E]:
             .Ok(value) => value
             .Err(_) => fallback
 
-    ## The value of an `.Ok`; for an `.Err` it panics, showing `message` and the error.
+    ## The value of an `.Ok`; for an `.Err` it panics with `message` alone; the error is not shown.
     ## See [std-result.expect](../../spec/std/result.md#r-std-result.expect).
     pub fn expect(self, message: string) -> T:
         match self:

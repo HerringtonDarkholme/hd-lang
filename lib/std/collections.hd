@@ -293,8 +293,8 @@ impl[T] List[T]:
         runs
 
 impl[T < Eq] List[T]:
-    ## True exactly when the set has an element equal to `value`.
-    ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
+    ## True exactly when the list has an element equal to `value`.
+    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
     pub fn contains(self, value: T) -> bool:
         self.index_of(value).is_some()
 
