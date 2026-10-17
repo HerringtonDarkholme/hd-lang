@@ -15,7 +15,7 @@ tests:
     it("follows arithmetic and parsing"):
         later := Timestamp::from_unix_milliseconds(1000) + s(2)
         assert_equal(later.unix_milliseconds(), 3000, reason="1000 ms plus two seconds")
-        match Timestamp::parse_rfc3339("1970-01-01T00:00:01.250Z"):
+        match "1970-01-01T00:00:01.250Z".parse::[Timestamp]():
             .Ok(stamp) => assert_equal(stamp.unix_milliseconds(), 1250, reason="the parsed instant")
             .Err(_) => assert(false, reason="the text is valid RFC 3339")
 

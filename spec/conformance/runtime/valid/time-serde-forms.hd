@@ -41,7 +41,7 @@ tests:
             .Err(error) => panic("decode failed: $error")
 
     it("a value that is not the form names the time type"):
-        assert_equal(decode::[Duration]("\"30s\""), .Err(JsonError.WrongType("$", "Duration")), reason="text")
+        assert_equal(decode::[Duration]("1.5"), .Err(JsonError.WrongType("$", "Duration")), reason="number")
         assert_equal(decode::[Timestamp]("1.5"), .Err(JsonError.WrongType("$", "Timestamp")), reason="number")
 
     it("a bad timestamp string is a decode error naming Timestamp"):

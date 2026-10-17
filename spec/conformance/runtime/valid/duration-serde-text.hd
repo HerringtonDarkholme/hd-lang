@@ -1,0 +1,21 @@
+# test: a Duration reads duration text or whole milliseconds, and writes whole milliseconds
+# Spec std/time Serialization: std-time.serde.duration-text-read, std-time.serde.int-read, std-time.serde.int-form.
+use std.json.{encode, decode, JsonError}
+use std.time.{Duration, ms, s, min}
+
+tests:
+    use std.testing.assert_equal
+
+    it("a duration also reads duration text, and still reads whole milliseconds"):
+        assert_equal(decode::[Duration]("\"30s\""), .Ok(30s), reason="text")
+        assert_equal(decode::[Duration]("\"1h30min\""), .Ok(90min), reason="a longer text")
+        assert_equal(decode::[Duration]("30000"), .Ok(30s), reason="whole milliseconds")
+
+    it("a bad text or a float is a decode error naming Duration"):
+        assert_equal(decode::[Duration]("\"soon\""), .Err(JsonError.WrongType("$", "Duration")), reason="bad text")
+        assert_equal(decode::[Duration]("1.5"), .Err(JsonError.WrongType("$", "Duration")), reason="number")
+
+    it("a duration writes whole milliseconds even when it read text"):
+        match decode::[Duration]("\"30s\""):
+            .Ok(duration) => assert_equal(encode(duration), "30000", reason="written as an int")
+            .Err(error) => panic("decode failed: $error")

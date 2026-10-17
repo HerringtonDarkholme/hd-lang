@@ -8,7 +8,7 @@ ordinary hd over the language tier:
 - the `Duration` type, its public API, its arithmetic, and its `Display`
   text;
 - the duration suffixes `ms`, `s`, `min`, and `h`;
-- `Duration::parse`, which reads Go-style duration text;
+- `impl Parse for Duration`, which reads Go-style duration text, and `impl Parse for Timestamp`, which reads RFC 3339 text;
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
   it returns, and the helpers `now`, `monotonic`, `elapsed`, and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
@@ -115,13 +115,13 @@ fn waited() -> string:
 
 ### Duration Parsing
 
-`Duration::parse` reads the text form of Go's `time.ParseDuration`:
+`impl Parse for Duration` reads the text form of Go's `time.ParseDuration`, so `"1h30m".parse::[Duration]()` calls it:
 
 ```text
 use std.time.{Duration, ParseTimeError}
 
 fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:
-    Duration::parse(text)  # "1h30m" is 5400000 milliseconds
+    text.parse::[Duration]()  # "1h30m" is 5400000 milliseconds
 ```
 
 The text is an optional sign, then one or more components. A component
@@ -133,15 +133,15 @@ is a number and a unit:
 | number | one or more digits, then optionally `.` and one or more digits |
 | unit | `h`, `min`, `m`, `s`, `ms`, `us`, `µs`, `μs`, or `ns` |
 
-1. r[std-time.duration.parse] `std.time` declares `Duration::parse(text: string) -> Result[Duration, ParseTimeError]`. It returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
+1. r[std-time.duration.parse] `std.time` declares `impl Parse for Duration` with `type Error = ParseTimeError`, and no inherent parse function. `text.parse::[Duration]()` returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
 2. r[std-time.duration.parse.grammar] `text` must hold the sign, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
 3. r[std-time.duration.parse.units] `h` is 3600 seconds. `min` and `m` are 60 seconds. `s` is one second, and `ms` is a millisecond. `us`, `µs` (U+00B5), and `μs` (U+03BC) are a microsecond. `ns` is a nanosecond.
 4. r[std-time.duration.parse.sum] The duration is the sum of its components, negated when the sign is `-`. A component's value is its number times its unit, with the fraction exact.
 5. r[std-time.duration.parse.exact] A component whose value is not a whole number of milliseconds gives `Inexact`. Nothing is rounded, so `1.5ms` and `500us` are errors, and `2000us` and `1.005s` are not.
 6. r[std-time.duration.parse.zero] The text `0`, with an optional sign and no unit, is the zero duration. No other number is valid without a unit.
 7. r[std-time.duration.parse.range] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The most negative duration is in range, so `-9223372036854775808ms` parses.
-8. r[std-time.duration.parse.round-trip] For every duration `d`, `Duration::parse(d.to_string())` is `.Ok(d)`.
-9. r[std-time.duration.parse.no-panic] `parse` never panics.
+8. r[std-time.duration.parse.round-trip] For every duration `d`, `d.to_string().parse::[Duration]()` is `.Ok(d)`.
+9. r[std-time.duration.parse.no-panic] The `Parse` impl of `Duration` never panics.
 
 | Text | `parse` gives the milliseconds |
 | --- | --- |
@@ -243,7 +243,7 @@ pub trait Clock:
 ### Timestamps And Instants
 
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
-2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the three methods of [Dates](#dates): `date`, `to_rfc3339`, and `Timestamp::parse_rfc3339`.
+2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Reading RFC 3339 text is [`impl Parse for Timestamp`](#parsing-rfc-3339).
 3. r[std-time.timestamp.unix-milliseconds] `t.unix_milliseconds()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_milliseconds(m).unix_milliseconds()` is `m` for every `m`.
 4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
 5. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
@@ -422,7 +422,7 @@ not zero, then `Z`:
 | `253402300800000` | `10000-01-01T00:00:00Z` |
 
 > **Note.** RFC 3339 allows only the years 0000 to 9999. So the text of
-> a year outside them is not RFC 3339, and `parse_rfc3339` rejects it.
+> a year outside them is not RFC 3339, and parsing it as a `Timestamp` rejects it.
 > Go's `time.Format` writes such a year the same way.
 
 > **Why.** Whole seconds stay short, and a fraction shows every
@@ -476,14 +476,14 @@ fn clock_text(millis: i64) -> string:
 
 ### Parsing RFC 3339
 
-`Timestamp::parse_rfc3339` reads the `date-time` form of RFC 3339,
-section 5.6:
+`impl Parse for Timestamp` reads the `date-time` form of RFC 3339,
+section 5.6, the text its `Display` writes:
 
 ```text
 use std.time.{ParseTimeError, Timestamp}
 
 fn read_stamp(text: string) -> Timestamp?:
-    match Timestamp::parse_rfc3339(text):  # "2026-10-03T12:34:56.789+05:30"
+    match text.parse::[Timestamp]():  # "2026-10-03T12:34:56.789+05:30"
         .Ok(stamp) => .Some(stamp)
         .Err(_) => .None
 ```
@@ -500,17 +500,17 @@ fn read_stamp(text: string) -> Timestamp?:
 | fraction | optional: `.` and one or more digits | any |
 | offset | `Z`, `z`, or `+` or `-`, two hour digits, `:`, and two minute digits | hours `00` to `23`, minutes `00` to `59` |
 
-1. r[std-time.rfc3339.parse] `std.time` declares `Timestamp::parse_rfc3339(text: string) -> Result[Timestamp, ParseTimeError]`. It returns `.Ok` of the instant that `text` names, or `.Err` of the first error.
+1. r[std-time.rfc3339.parse] `std.time` declares `impl Parse for Timestamp` with `type Error = ParseTimeError`, and no inherent parse function. `text.parse::[Timestamp]()` returns `.Ok` of the instant that `text` names, or `.Err` of the first error.
 2. r[std-time.rfc3339.parse.grammar] `text` must hold the parts in the table above, in order, each in its range, and nothing before or after them.
 3. r[std-time.rfc3339.parse.case] The separator may be `T` or `t`, and the UTC offset `Z` or `z`.
 4. r[std-time.rfc3339.parse.offset] A numeric offset is the local time's offset from UTC, so the instant is the local time minus the offset. `-00:00` and `+00:00` mean UTC, as `Z` does.
 5. r[std-time.rfc3339.parse.fraction] The fraction may have any number of digits. Its digits after the third are ignored, so the time is truncated to the millisecond.
 6. r[std-time.rfc3339.parse.leap-day] February 29 is in range only in a leap year: a year divisible by 4, except one divisible by 100 but not by 400.
 7. r[std-time.rfc3339.parse.leap-second] Second `60` is out of range.
-8. r[std-time.rfc3339.parse.round-trip] For every timestamp `t` whose year is 0 to 9999, `Timestamp::parse_rfc3339(t.to_rfc3339())` is `.Ok(t)`.
-9. r[std-time.rfc3339.parse.no-panic] `parse_rfc3339` never panics.
+8. r[std-time.rfc3339.parse.round-trip] For every timestamp `t` whose year is 0 to 9999, `t.to_string().parse::[Timestamp]()` is `.Ok(t)`.
+9. r[std-time.rfc3339.parse.no-panic] The `Parse` impl of `Timestamp` never panics.
 
-| Text | `parse_rfc3339` gives the milliseconds |
+| Text | Parsed as a `Timestamp`, gives the milliseconds |
 | --- | --- |
 | `1970-01-01T00:00:00Z` | `0` |
 | `2000-02-29t00:00:00z` | `951782400000` |
@@ -547,7 +547,7 @@ pub enum ParseTimeError:
 7. r[std-time.parse-error.traits] `ParseTimeError` implements `Eq`, `Debug`, `Display`, and `Error`.
 8. r[std-time.parse-error.duration-variants] `MissingUnit`, `UnknownUnit`, and `Inexact` come only from duration text, as [Duration Parse Errors](#duration-parse-errors) says. A timestamp parse gives only `InvalidCharacter`, `OutOfRange`, and `TooShort`.
 
-| Text | `parse_rfc3339` gives |
+| Text | Parsed as a `Timestamp`, gives |
 | --- | --- |
 | `""` | `.Err(TooShort(0))` |
 | `"2026-10-03"` | `.Err(TooShort(10))` |
@@ -586,8 +586,9 @@ fn record(lease: Lease) -> string:
 1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
 2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
 3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
-4. r[std-time.serde.int-read] A `Duration` and an `Instant` each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.
-5. r[std-time.serde.text-read] A `Timestamp` reads one text with `"Timestamp"` as `expected`, and holds what [`Timestamp::parse_rfc3339`](#parsing-rfc-3339) accepts. A text the parser rejects is a decode error naming `Timestamp`.
+4. r[std-time.serde.int-read] An `Instant`, and a `Duration` whose value is a number, each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.
+5. r[std-time.serde.text-read] A `Timestamp` reads one text with `"Timestamp"` as `expected`, and holds what [`Parse` for `Timestamp`](#parsing-rfc-3339) accepts. A text the parser rejects is a decode error naming `Timestamp`.
+6. r[std-time.serde.duration-text-read] A `Duration` whose value is text reads one text with `"Duration"` as `expected`, and holds what [`Parse` for `Duration`](#duration-parsing) accepts, as `"30s"`. A text the parser rejects is a decode error naming `Duration`. Writing stays whole milliseconds, so a `Duration` reads both forms and writes one.
 
 > **Why.** A timestamp reads the way it displays, so JSON carries the same
 > text a log line does. Durations and instants stay integers of

@@ -12,6 +12,7 @@
 # (r-std-time.suffix.std.duration-neg).
 use std.format.DebugWriter
 use std.error.Error
+use std.text.Parse
 use std.ops.{Add, Neg, Sub, num_suffix}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 
@@ -36,9 +37,12 @@ impl Duration:
     pub fn as_milliseconds(self) -> i64:
         self.millis
 
-    ## Reads Go-style duration text such as `1h30m` or `250ms`.
-    ## See [std-time.duration.parse](../../spec/std/time.md#r-std-time.duration.parse).
-    pub fn parse(text: string) -> Result[Duration, ParseTimeError]:
+# Go's `time.ParseDuration` text, such as `1h30m` or `250ms`
+# (r-std-time.duration.parse).
+impl Parse for Duration:
+    type Error = ParseTimeError
+
+    fn parse(text: string) -> Result[Duration, ParseTimeError]:
         parse_duration_text(text)
 
 impl Neg for Duration:
@@ -275,11 +279,6 @@ impl Timestamp:
             text = text + "%"
         text
 
-    ## Reads RFC 3339 text into a timestamp.
-    ## See [std-time.rfc3339.parse](../../spec/std/time.md#r-std-time.rfc3339.parse).
-    pub fn parse_rfc3339(text: string) -> Result[Timestamp, ParseTimeError]:
-        parse_byte_codes(byte_codes(text))
-
     # Whole days since the epoch, rounded toward negative infinity, so the
     # time of day is never negative. Adjusting the truncated quotient and
     # remainder, never multiplying back, keeps the most negative timestamp
@@ -296,6 +295,13 @@ impl Add[Duration] for Timestamp:
     type Out = Timestamp
     fn add(self, rhs: Duration) -> Timestamp:
         Timestamp { millis: self.millis + rhs.as_milliseconds() }
+
+# RFC 3339 text, the text `Display` writes (r-std-time.rfc3339.parse).
+impl Parse for Timestamp:
+    type Error = ParseTimeError
+
+    fn parse(text: string) -> Result[Timestamp, ParseTimeError]:
+        parse_byte_codes(byte_codes(text))
 
 # The RFC 3339 text, as Go's `Time.String` (r-std-time.timestamp.display).
 impl Display for Timestamp:
@@ -647,7 +653,13 @@ impl Serialize for Duration:
 
 impl Deserialize for Duration:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Duration, R::Error]:
-        .Ok(Duration { millis: input.int("Duration")? })
+        match input.peek()?:
+            .Text =>
+                text := input.text("Duration")?
+                match Duration::parse(text):
+                    .Ok(duration) => .Ok(duration)
+                    .Err(_) => .Err(input.invalid("Duration"))
+            _ => .Ok(Duration { millis: input.int("Duration")? })
 
 impl Serialize for Timestamp:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
@@ -656,7 +668,7 @@ impl Serialize for Timestamp:
 impl Deserialize for Timestamp:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Timestamp, R::Error]:
         text := input.text("Timestamp")?
-        match Timestamp::parse_rfc3339(text):
+        match Timestamp::parse(text):
             .Ok(stamp) => .Ok(stamp)
             .Err(_) => .Err(input.invalid("Timestamp"))
 

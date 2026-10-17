@@ -4,12 +4,12 @@ use std.time.{Duration, ParseTimeError, Timestamp}
 use std.error.Error
 
 fn both(duration: string, stamp: string) -> Result[void, ParseTimeError]:
-    _ := Duration::parse(duration)?
-    _ := Timestamp::parse_rfc3339(stamp)?
+    _ := duration.parse::[Duration]()?
+    _ := stamp.parse::[Timestamp]()?
     .Ok(())
 
 fn erased(duration: string) -> Result[Duration, dyn Error]:
-    .Ok(Duration::parse(duration)?)
+    .Ok(duration.parse::[Duration]()?)
 
 tests:
     use std.testing.{assert, assert_equal}

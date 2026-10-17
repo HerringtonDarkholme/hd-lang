@@ -3,7 +3,7 @@
 use std.time.{Duration, ParseTimeError}
 
 fn parsed(text: string) -> Result[Duration, ParseTimeError]:
-    Duration::parse(text)
+    text.parse::[Duration]()
 
 tests:
     use std.testing.{assert, assert_equal}

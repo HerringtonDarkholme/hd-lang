@@ -584,7 +584,7 @@ tests:
     use std.testing.{assert_equal, it}
 
     it("reads and writes RFC 3339 text"):
-        at := Timestamp::parse_rfc3339("2026-10-06T12:00:00Z").expect("valid")
+        at := "2026-10-06T12:00:00Z".parse::[Timestamp]().expect("valid")
         assert_equal(at.to_rfc3339(), "2026-10-06T12:00:00Z", reason="round trip")
         assert_equal(deadline(at).to_rfc3339(), "2026-10-06T12:00:30Z", reason="30s later")
 

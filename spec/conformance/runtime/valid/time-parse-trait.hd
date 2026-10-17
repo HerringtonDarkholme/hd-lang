@@ -1,0 +1,29 @@
+# test: Duration and Timestamp implement Parse, so a generic reader, string.parse, and a round trip with Display all work
+# Spec std/time Duration Parsing and Parsing RFC 3339: std-time.duration.parse, std-time.rfc3339.parse.
+use std.text.Parse
+use std.time.{Duration, ParseTimeError, Timestamp, ms, min}
+
+fn read_as[T < Parse](text: string) -> Result[T, T::Error]:
+    T::parse(text)
+
+tests:
+    use std.testing.assert_equal
+
+    it("string.parse reads a Duration and a Timestamp"):
+        assert_equal("1h30m".parse::[Duration](), .Ok(90min), reason="Go duration text")
+        assert_equal("250ms".parse::[Duration](), .Ok(250ms), reason="milliseconds")
+        assert_equal("2026-10-17T09:00:00Z".parse::[Timestamp](), .Ok(Timestamp::from_unix_milliseconds(1792227600000)), reason="RFC 3339 text")
+
+    it("a generic reader parses both through the trait"):
+        assert_equal(read_as::[Duration]("1.5s"), .Ok(1500ms), reason="a Duration")
+        assert_equal(read_as::[Timestamp]("1970-01-01T00:00:01Z"), .Ok(Timestamp::from_unix_milliseconds(1000)), reason="a Timestamp")
+
+    it("Display text parses back to the same value"):
+        duration := 3723500ms
+        assert_equal(duration.to_string().parse::[Duration](), .Ok(duration), reason="Duration round trip")
+        stamp := Timestamp::from_unix_milliseconds(1700000000500)
+        assert_equal(stamp.to_string().parse::[Timestamp](), .Ok(stamp), reason="Timestamp round trip")
+
+    it("a bad text is a ParseTimeError with a position"):
+        assert_equal("1x".parse::[Duration](), .Err(ParseTimeError.UnknownUnit(1)), reason="bad duration")
+        assert_equal("2026-10-17".parse::[Timestamp](), .Err(ParseTimeError.TooShort(10)), reason="bad timestamp")
