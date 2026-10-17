@@ -1,8 +1,8 @@
 # Serializable Closures And Remote Calls: Design Study
 
-This is the design study for issue #166. Nothing in it is accepted
-behavior, and the spec is frozen. Every spelling, std name, and
-diagnostic name is a placeholder. It builds on the boundary rules of
+This is the design study for issue #166. Nothing in it is in the spec
+yet. Spellings, std names, and diagnostic names not listed under
+[Decisions So Far](#decisions-so-far) are placeholders. It builds on the boundary rules of
 [Modules](../../spec/lang/10-modules.md), the requirement rows of
 [Requirements And Suspension](../../spec/lang/11-requirements-and-suspension.md),
 and the borrows and owned values of
@@ -42,11 +42,15 @@ run is a separate study. Portable closures are same-build only, so an
 identity a later build lacks fails with `Incompatible`. Durable and
 cross-deploy work uses named `@remote` functions.
 
-The owner also proposed that requirement rows decide placement, and the
-draft adopts it. On 2026-10-17 the owner settled nine more points:
+The owner also proposed that requirement rows decide where code may
+run, and the draft adopts it: a place must bind a function's row. On
+2026-10-17 the owner settled these points:
 
 - State a home hands out and expects back has two strategies, sealed values and server-side references, and a program picks one by choosing an impl of one std trait.
-- A remote call is a plain call, `f!(args)`, which becomes a stub wherever the caller's place cannot bind `f`'s row, as in Next.js.
+- A call that may cross places is written `remote!(f, args)`. It returns `Result[T, RemoteError]`, where `T` is `f`'s own result, so `f`'s signature never changes and the failure belongs to the call.
+- `remote!` means "may cross" and is valid where the call stays local too. The deployment configuration decides at build which calls cross, and a plain `f!(args)` to a function whose module it maps to another place is a build error that names `remote!`. Moving a module between places never silently changes behaviour; at worst the build points at call sites to mark.
+- The configuration wins: a call to a module it maps to another place always crosses, even when the caller could bind `f`'s row itself.
+- There is no implicit pipelining. Each remote call waits for its result, and a program that wants to save round trips sends one portable closure that runs the chain at home.
 - Binding a sealed value to its caller is a setting of the sealed-value strategy, off by default, and a function with a sensitive seal opts in.
 - One `Remote` key reaches every place; deployment configuration maps modules to places, and code never names a place.
 - A place serves exactly the modules the deployment configuration maps to it, and nothing else is reachable from outside.
@@ -54,10 +58,10 @@ draft adopts it. On 2026-10-17 the owner settled nine more points:
 - A portable closure is spelled with the intrinsic `portable(fn ...)`.
 - A call identity uses an exact signature fingerprint; any change makes a new identity, and the old function stays beside the new until callers move.
 - `Caller.principal()` returns one enum: `.User(u)`, `.Service(s)`, or `.Anonymous`.
+- The names are `Opaque[T]` and `opaque(value)`, the trait `OpaqueStore` with the impls `SealedValues` and `ServerRefs`, the `[places]` keys `serves` and `opaque`, and the seal setting `bind_caller=true`. The diagnostics `remote-no-place`, `portable-not-own`, and `opaque-invalid` keep their names.
 
-Everything else here, including the names `Opaque`, `OpaqueStore`,
-`SealedValues`, and `ServerRefs`, is the draft's proposal and needs the
-owner's review. [Open Points](#8-open-points) lists what is undecided.
+Everything else here is the draft's proposal and needs the owner's
+review. [Open Points](#8-open-points) lists what is undecided.
 The full discussion, with the owner's words, is in this file's git
 history.
 
@@ -98,7 +102,7 @@ place to a called one, and each edge has its own trust. A function fits
 a place when the place's profile binds every key of its row.
 
 ```text
-use std.remote.{Caller, Remote, RemoteError}
+use std.remote.{Caller, Remote, remote}
 
 pub data Message:
     pub author: string
@@ -106,7 +110,6 @@ pub data Message:
 
 pub enum ChatError:
     NotSignedIn
-    Remote(error: RemoteError)         # a failed hop arrives here
 
 # Fits only the server: the browser cannot bind the message store.
 @query
@@ -121,29 +124,30 @@ pub fn post!(room: string, text: string) -> Result[void, ChatError] $ MessageWri
     $.use(MessageWrite).append!(room, Message { author: user, text: text })
     .Ok()
 
-# Runs in the browser: its row has Remote, not MessageWrite, so the call crosses.
+# Runs in the browser; [places] maps post's module to the server.
 fn send!(room: string, text: string) -> string $ Remote:
-    match post!(room, text):
-        .Ok() => "sent"
-        .Err(.NotSignedIn) => "please sign in"
-        .Err(.Remote(_)) => "offline; try again"
+    match remote!(post, room, text):
+        .Ok(.Ok()) => "sent"
+        .Ok(.Err(.NotSignedIn)) => "please sign in"
+        .Err(_) => "offline; try again"
 ```
 
-`send!` calls `post!` as if it were local. Its row cannot cover
-`MessageWrite + Caller`, so the build turns the call into a stub, and
-the deployment configuration routes it to the place that serves `post`'s
-module. That place binds `MessageWrite` and `Caller` for each call, so
-no authority travels. No line names HTTP, a route, or a decoder.
+`send!` marks its call with `remote!`, because the deployment
+configuration maps `post`'s module to the server. The build turns the
+call into a stub that routes there. That place binds `MessageWrite` and
+`Caller` for each call, so no authority travels. No line names HTTP, a
+route, or a decoder.
 
-The call site does not show the hop; rows and places do. A function
-with `Remote` in its row may make remote calls, and `[places]` says
-where each module runs. A failed hop arrives in `post`'s own error type
-as `.Err(.Remote(...))`, the draft of an open point.
+`post`'s own result arrives inside `.Ok`, and a failed hop arrives as
+`.Err` of a `RemoteError`. The failure belongs to the call, so `post`'s
+signature stays the same wherever its module runs. A plain
+`post!(room, text)` in browser code is a build error that names
+`remote!`.
 
 | Piece | What it does | Spelling |
 | --- | --- | --- |
 | `@remote` | Exposes a module-level function to other places | `@remote pub fn post!(...)` |
-| A plain call | Becomes a stub where the caller's row cannot cover the callee's | `post!(room, text)` |
+| `remote!(f, args)` | Marks a call that may cross places; returns `Result[T, RemoteError]` | `remote!(post, room, text)` |
 | `@query` | Marks a read-only remote function whose result the home caches and pushes | `@query pub fn recent!(...)` |
 | `Opaque[T]` | Data a home hands to another place and gets back unchanged | `opaque(DocVersion { value: 7 })` |
 | `OpaqueStore` | The interface behind `Opaque[T]`, with two std strategies | `opaque = "SealedValues"` |
@@ -172,7 +176,7 @@ that is a route, an encoder, a `fetch`, a decoder, and two copies of
 the types. Here it is one function and one call.
 
 ```text
-use std.remote.{Caller, Remote}
+use std.remote.{Caller, Remote, remote}
 
 pub data Profile:
     pub name: string
@@ -187,11 +191,11 @@ pub fn my_profile!() -> Result[Profile, ProfileError] $ UserRead + Caller:
 
 # Browser code: the transport is the Remote provider's business.
 fn greeting!() -> string $ Remote:
-    match my_profile!():
-        .Ok(profile) => "Hello, ${profile.name}"
-        .Err(.NotSignedIn) => "Please sign in"
-        .Err(.NotFound) => "No profile yet"
-        .Err(.Remote(_)) => "Offline; try again"
+    match remote!(my_profile):
+        .Ok(.Ok(profile)) => "Hello, ${profile.name}"
+        .Ok(.Err(.NotSignedIn)) => "Please sign in"
+        .Ok(.Err(.NotFound)) => "No profile yet"
+        .Err(_) => "Offline; try again"
 ```
 
 The browser decodes `Profile` from its declared type, so a payload of
@@ -199,9 +203,10 @@ another shape never reaches user code. The server decodes arguments the
 same way, which gives Telefunc's run-time `shield()` without a second
 declaration.
 
-Only marked functions can be reached. Only an `@remote` function turns
-into a stub, so a browser call to an unmarked function that needs
-`UserRead` is the ordinary `missing-requirement` at build time. A
+Only marked functions can be reached. `remote!` takes only an
+`@remote` function or a portable value, and a plain browser call to an
+unmarked function that needs `UserRead` is the ordinary
+`missing-requirement` at build time. A
 hand-made request that names one finds no table entry and gets
 `Incompatible`.
 
@@ -267,7 +272,7 @@ Proto does.
 | After a restart or reload | Still valid while the key is kept | Gone |
 | Shared links and cached pages | Work | Do not work |
 | Replay by another user | Possible unless the function opts in to caller binding | Not possible: a reference works only on its own connection |
-| Pipelining and callbacks | No | Yes |
+| Callbacks to a closure the caller keeps | No | Yes |
 
 Either way, a tampered or unknown value fails as it is decoded, so
 `publish!` never runs. A sealed value may carry an expiry. Caller
@@ -275,17 +280,18 @@ binding is a `SealedValues` setting, off by default so shared links and
 cached pages work. A function with a sensitive seal, such as a reset
 ticket, opts in with `opaque(ticket, bind_caller=true)`.
 
-Under `ServerRefs`, a call may pass a reference an earlier call has not
-yet returned, so a chain costs one round trip. Home can also call back a
-portable closure the caller passes and keeps. How pipelining shows in
-plain-call code is an open point.
+Under `ServerRefs`, home can call back a portable closure the caller
+passes and keeps. There is no implicit pipelining under either
+strategy: each remote call waits for its result. A program that wants
+one round trip for a chain sends one portable closure that runs the
+chain at home.
 
 The same form can carry a closure instead. The page holds the publish
 action itself, and the browser runs it at the server without seeing
 what it captured:
 
 ```text
-use std.remote.{Caller, Portable, Remote, portable}
+use std.remote.{Caller, Portable, Remote, portable, remote}
 
 pub data Page:
     pub title: string
@@ -298,15 +304,14 @@ pub fn open_page!(id: string) -> Result[Page, PublishError] $ Docs:
     action := portable(fn!() -> Result[void, PublishError] $ Docs + Caller: publish_if!(id, seen))
     .Ok(Page { title: docs.title!(id), publish: action })
 
-# Browser code: the row lacks Docs + Caller, so the call goes home.
+# Browser code: remote! sends the closure home to run.
 fn on_publish!(page: Page) -> string $ Remote:
-    publish := page.publish
-    match publish!():
-        .Ok() => "published"
-        .Err(.Changed) => "someone edited it; reload"
-        .Err(.Forbidden) => "not allowed"
-        .Err(.Remote(.Incompatible)) => "the site was updated; reload"
-        .Err(.Remote(_)) => "offline; try again"
+    match remote!(page.publish):
+        .Ok(.Ok()) => "published"
+        .Ok(.Err(.Changed)) => "someone edited it; reload"
+        .Ok(.Err(.Forbidden)) => "not allowed"
+        .Err(.Incompatible) => "the site was updated; reload"
+        .Err(_) => "offline; try again"
 ```
 
 `publish_if!` is a plain function, not `@remote`. It is reachable only
@@ -326,7 +331,7 @@ deploys on its own schedule. The call needs a deadline, safe retries,
 and a clear failure when the two deploys disagree.
 
 ```text
-use std.remote.{Caller, Remote}
+use std.remote.{Caller, Remote, RemoteError, remote}
 use std.task.race
 use std.time.{Clock, Duration, sleep}
 
@@ -337,25 +342,25 @@ pub fn reserve!(r: Reservation) -> Result[void, ReserveError] $ Stock + Caller:
         .Service(_) => $.use(Stock).reserve!(r)
         _ => .Err(.NotAService)
 
-# Checkout service: its row has Remote and no Stock, so the call crosses.
+# Checkout service: [places] maps reserve's module to inventory.
 fn hold!(order: string, sku: string) -> Result[void, CheckoutError] $ Remote + Clock:
     r := Reservation { sku: sku, count: 1, key: "hold-$order" }
     let tries = 0
     while tries < 3:
         tries = tries + 1
-        match race!(reserve(r), deadline()):
-            .Ok() => return .Ok()
-            .Err(.OutOfStock) => return .Err(.SoldOut)
-            .Err(.NotAService) => return .Err(.Misconfigured)
-            .Err(.Remote(.Incompatible)) => return .Err(.Misconfigured)
-            .Err(.Remote(.Unreachable)) => continue
-            .Err(.Remote(.OutcomeUnknown)) => continue     # the same key makes a retry safe
+        match race!(remote(reserve, r), deadline()):
+            .Ok(.Ok()) => return .Ok()
+            .Ok(.Err(.OutOfStock)) => return .Err(.SoldOut)
+            .Ok(.Err(_)) => return .Err(.Misconfigured)
+            .Err(.Incompatible) => return .Err(.Misconfigured)
+            .Err(.Unreachable) => continue
+            .Err(.OutcomeUnknown) => continue     # the same key makes a retry safe
             .Err(_) => return .Err(.Unavailable)
     .Err(.Unavailable)
 
-fn deadline!() -> Result[void, ReserveError] $ Clock:
+fn deadline!() -> Result[Result[void, ReserveError], RemoteError] $ Clock:
     sleep!(Duration::milliseconds(300))
-    .Err(.Remote(.OutcomeUnknown))
+    .Err(.OutcomeUnknown)
 ```
 
 On a service edge, `Caller.principal()` is `.Service(s)`, naming the
@@ -363,8 +368,9 @@ calling service, which the transport authenticates, as Dapr does with
 mutual TLS. Code that matches only `.User(u)` refuses services until it
 adds a `.Service` arm.
 
-Deadlines and retries stay ordinary code. When the timer wins, `race!`
-cancels the call, and the transport carries the cancel to inventory. A
+Deadlines and retries stay ordinary code. Written without `!`,
+`remote(reserve, r)` is the suspended call that `race!` takes, as with
+any bang call. When the timer wins, `race!` cancels the call, and the transport carries the cancel to inventory. A
 retry reuses the key, and the transport adds a request ID.
 
 Now inventory adds a field to `Reservation` and deploys first. The
@@ -489,7 +495,10 @@ sends = ["Workers"]            # Workers.map! sends portable closures here
 
 The `serves` lists are the deployment configuration. They route calls,
 and a place serves nothing outside its list. Code never names a place,
-and one `Remote` key reaches them all. A call whose function no place
+and one `Remote` key reaches them all. The lists also decide which
+calls cross: a call to a module another place serves always crosses
+and is written with `remote!`, even where the caller could bind the
+row itself. A call whose function no place
 serves, or whose serving place cannot bind its row, is
 `remote-no-place`. A closure sent to a pool that cannot bind its row
 fails too:
@@ -515,12 +524,13 @@ the `recent` query of [section 2](#2-the-design-on-one-page):
 
 ```text
 # Browser code. `watch` is a library call over Remote: each `next!`
-# completes when the query's result changes.
+# completes when the query's result changes, or with .Err on a failed hop.
 fn follow!(room: string) -> void $ Remote + Console:
     let feed: mut Watch[Result[List[Message], ChatError]] = watch(recent, room)
     while true:
         match feed.next!():
-            .Ok(messages) => println("${messages.len()} messages")
+            .Ok(.Ok(messages)) => println("${messages.len()} messages")
+            .Ok(.Err(_)) => println("cannot read this room")
             .Err(_) => println("offline")
 ```
 
@@ -547,11 +557,9 @@ query, which is coarser than Skip.
 
 ### 3.8 Failure And Durability
 
-Every remote call can fail in ways a local call cannot. A plain call
-has no spot at the call site for such a failure, so the draft carries
-it in the function's own error type. A remote function's error type
-implements `From[RemoteError]`, the conversion `?` already uses, and a
-stub turns a failed hop into `.Err(E::from(error))`:
+Every remote call can fail in ways a local call cannot. `remote!`
+carries that failure in its own result, `Result[T, RemoteError]`, so
+the function's error type, if it has one, never mentions the network:
 
 ```text
 pub enum RemoteError:
@@ -560,14 +568,7 @@ pub enum RemoteError:
     Incompatible                # the receiver has no function or closure with this identity
     Rejected(message: string)   # the receiver refused the arguments
     Panicked(category: string)  # the remote run panicked
-
-impl From[RemoteError] for ChatError:
-    fn from(value: RemoteError) -> ChatError:
-        .Remote(value)
 ```
-
-So every remote function declares an error type, even one that cannot
-fail at home, as Java RMI asks for `RemoteException`.
 
 A remote panic reaches the caller as `Panicked` and does not poison it.
 Cancelling the caller cancels the call. A retry carries a request ID or
@@ -643,37 +644,44 @@ This section states each rule from the tour once, grouped by piece.
    the signature is `remote-signature-not-boundary-safe`.
 3. A remote function has no type parameters (`remote-generic`). A
    receiver cannot compile instantiations it never saw.
-4. Draft: a remote function's result is `Result[T, E]`, where `E`
-   implements `From[RemoteError]`. Otherwise it is
-   `remote-error-not-carried`.
-5. Arguments from an untrusted edge are untrusted. They are decoded by
+4. Arguments from an untrusted edge are untrusted. They are decoded by
    the declared parameter types only.
-6. Authorization is ordinary code in the function. The language
+5. Authorization is ordinary code in the function. The language
    guarantees exposure and typed arguments, not ownership checks.
 
 ### 4.3 Calls And The Caller
 
-1. A call to a remote function is a plain call, `f!(args)`, checked
-   against `f`'s parameters like any call. No call-site form marks it.
-2. For `f` with row `R`, the call is local where the caller's row covers
-   `R`. Otherwise the caller's row must hold `Remote`, and the build
-   makes the call a stub.
-3. A call to an unmarked function never becomes a stub. If the caller's
-   row cannot cover its row, it is the ordinary `missing-requirement`.
-4. A stub routes by the `serves` lists to the place that serves `f`'s
-   module, which binds `R`. When that is the caller's own place, the
-   stub runs in process. Code never names a place.
-5. Draft: a failed hop reaches the caller as `f`'s own error,
-   `.Err(E::from(error))`.
-6. `Remote` is a host capability trait. Its provider picks the transport
+1. A call that may cross places is written `remote!(f, args)`. `f` is an
+   `@remote` function or a portable value, and `args` are checked
+   against `f`'s parameters like any call. Any other `f` is
+   `remote-no-place`.
+2. `remote!(f, args)` returns `Result[T, RemoteError]`, where `T` is
+   `f`'s own result. A failed hop is `.Err(error)`, and `f`'s signature
+   never names the hop.
+3. The caller's row must hold `Remote`. The build makes the call a stub
+   that routes by the `serves` lists to the place that serves `f`'s
+   module, which binds `f`'s row. Code never names a place.
+4. A call to `f` whose module another place serves always crosses, even
+   when the caller's row covers `f`'s row.
+5. A plain `f!(args)` to such an `f` is a build error that names
+   `remote!`. Moving a module therefore never silently changes what a
+   call does.
+6. `remote!` is valid where the call stays local. When the place that
+   serves `f`'s module is the caller's own, it runs `f` in process.
+7. A plain call to a function no other place serves is an ordinary
+   call. If the caller's row cannot cover its row, it is the ordinary
+   `missing-requirement`.
+8. Each remote call waits for its result. There is no implicit
+   pipelining.
+9. `Remote` is a host capability trait. Its provider picks the transport
    per edge: HTTP, WebSocket, a worker message, service RPC, or
    in-process for tests.
-7. Cancelling the calling suspension cancels the call. A transport
-   should carry the cancel to the receiver. A deadline is a race against
-   a timer, and a retry repeats the call with the same key.
-8. `Caller` is a requirement trait that the serving transport binds per
-   request. `principal()` returns `.User(u)`, `.Service(s)`, or
-   `.Anonymous`.
+10. Cancelling the calling suspension cancels the call. A transport
+    should carry the cancel to the receiver. A deadline is a race
+    against a timer, and a retry repeats the call with the same key.
+11. `Caller` is a requirement trait that the serving transport binds
+    per request. `principal()` returns `.User(u)`, `.Service(s)`, or
+    `.Anonymous`.
 
 ### 4.4 Identities
 
@@ -733,9 +741,10 @@ This section states each rule from the tour once, grouped by piece.
    closure literal; otherwise it is `portable-not-literal`.
 2. Its result has type `Portable[F]`, where `F` is the closure's
    ordinary function type. No second kind of function type is added.
-3. `Portable[F]` is boundary-safe. A call `p(...)` follows the call
-   rules of 4.3 with `F`'s row. A stub routes by the module of the
-   literal that made `p`.
+3. `Portable[F]` is boundary-safe. `remote!(p, args)` follows the rules
+   of 4.3 with `F`'s row and routes by the module of the literal that
+   made `p`. Draft: a plain call `p(args)` runs in process and needs the
+   caller's row to cover `F`'s row.
 4. Every capture is plain boundary-safe data, never a borrow or an owned
    value. Otherwise it is `portable-capture-not-boundary-safe`.
 5. A portable closure captures no provider; its keys go in its row. One
@@ -785,9 +794,12 @@ This section states each rule from the tour once, grouped by piece.
 The web systems that succeeded name known code and send data. None
 ships code to the server, and hd follows them for both named functions
 and closures. Exposure by an explicit mark, as `"use server"` and
-`.telefunc` files do, becomes `@remote`. The call stays plain, as in
-Next.js, Java RMI, and Swift's distributed actors; the last two add
-the network failure to the method's errors, as hd's draft does.
+`.telefunc` files do, becomes `@remote`. Next.js and Java RMI keep the
+call plain, and Java RMI adds the network failure to the method's
+errors. Swift's distributed actors mark the call with `try await`. hd
+marks it too, as `remote!(f, args)`, and keeps the
+failure in the call's result, so a signature does not change when its
+module moves to another place.
 
 Captured state is the hard part. React's bound arguments are
 client-controlled, and Next.js encrypts captures per build. hd makes
@@ -818,9 +830,9 @@ client's closure under `ServerRefs`, the result is untrusted data,
 decoded by its declared type.
 
 Adding a dependency adds no endpoint, because a place serves exactly
-the modules its `serves` list names. A remote call looks local, so a
-reviewer finds every way in from the `@remote` marks and the `serves`
-lists, never from call sites. The default transport for an untrusted
+the modules its `serves` list names. A reviewer finds every way in from
+the `@remote` marks and the `serves` lists, and every way out from the
+`remote!` calls. The default transport for an untrusted
 edge checks the request's Origin and guards against CSRF. Without those
 checks, "secure by default" does not hold.
 
@@ -849,26 +861,14 @@ callers move. A fan-out provider sends the closure once per worker.
 
 ## 8. Open Points
 
-1. **The type of a remote failure.** A plain `f!(args)` has no spot at
-   the call site for a network error. Draft: a remote function returns
-   `Result[T, E]` with `E` implementing `From[RemoteError]`, and a
-   failed hop arrives as `.Err(E::from(error))`, as Java RMI requires
-   `RemoteException`. A function that cannot fail at home still
-   declares an error. Alternative: a failed hop panics the calling task
-   and signatures stay as written; a supervisor handles it, as an Erlang
-   process exits.
-2. **Pipelining in plain-call code.** A plain call waits for its
-   result, so a chain under `ServerRefs` still costs a trip per call.
-   Draft: a call whose result holds an `Opaque[T]` returns at once with
-   a pending reference, and a failure surfaces at the first call that
-   passes it. Alternative: no implicit pipelining; a program sends one
-   portable closure that makes the chain at home.
-3. **A caller that can bind the row itself.** The rule makes a call a
-   stub only where the caller cannot bind `f`'s row. A caller whose row
-   covers the same keys, such as a second service with its own `Stock`,
-   runs `f` locally even when `serves` maps `f`'s module elsewhere.
-   Draft: local, as the rule says. Alternative: the `serves` lists win,
-   and a call to a module mapped elsewhere always crosses.
+1. **A plain call to a portable value.** A worker runs a closure it
+   received with a plain call, so a plain `p(args)` must run somewhere.
+   Draft: it runs in process wherever the caller's row covers the
+   closure's row, and only `remote!(p, args)` routes by the module of
+   the literal. Alternative: the configuration wins here too, so a plain
+   call is a build error where the literal's module is served
+   elsewhere. The build cannot always tell which literal made `p`, so
+   this would need a flow check.
 
 The draft treats three earlier questions as settled by the goals; the
 owner may reopen any of them. The cache belongs to the language and
@@ -889,9 +889,10 @@ Hole:
 Limits:
 
 - Cache reuse is per query call, coarser than Skip's per entry ([3.7](#37-caching-and-live-queries)).
-- Pipelining and callbacks need `ServerRefs`, which holds state per connection; under `SealedValues` a chain costs a round trip per call, and a pushed query result covers the common callback case ([3.2](#32-a-form-sends-back-server-state)).
-- A call site does not show that it may cross the network; the caller's row and `[places]` do ([2](#2-the-design-on-one-page)).
-- Every remote function declares an error type that can hold a `RemoteError`, even one that cannot fail at home ([3.8](#38-failure-and-durability)).
+- Each remote call waits for its result, so a chain costs a round trip per call unless the program sends one portable closure that runs it at home ([3.2](#32-a-form-sends-back-server-state)).
+- Callbacks need `ServerRefs`, which holds state per connection; a pushed query result covers the common callback case ([3.2](#32-a-form-sends-back-server-state)).
+- Moving a module to another place turns its plain calls into build errors until each is marked with `remote!` ([2](#2-the-design-on-one-page)).
+- A `remote!` result nests `f`'s own result, so a caller matches two layers, such as `.Ok(.Err(...))` ([2](#2-the-design-on-one-page)).
 - Determinism is promised per compiled program, so browser and server may disagree on map order; the server rechecks.
 - Any signature change is a new identity; callers on another deploy work only while the old function stays beside the new ([3.3](#33-a-service-calls-a-service)).
 - Push-down needs a store that runs the same build; nothing is translated to SQL ([3.5](#35-a-predicate-pushed-down-to-a-store)).
@@ -942,9 +943,12 @@ Limits:
 
 ## Parse Log
 
-Every `text` block, 15 in all, was parsed on 2026-10-17 with the
-parser behind `scripts/hd-conformance.sh parse`, and all 15 parse as
-written. No line needed a `# hypothetical syntax` mark. Parsing
+Every `text` block, 15 in all, was parsed again on 2026-10-17 after
+the `remote!(f, args)` rewrite, with the existing parser binary behind
+`scripts/hd-conformance.sh parse`, and all 15 parse as written. No line
+needed a `# hypothetical syntax` mark: `remote!(f, args)` parses as an
+ordinary bang call, and `remote(f, args)` as the same call without
+`!`. Parsing
 checks syntax only. Nothing was type-checked, and the blocks use std
 names and declarations this study only proposes. The `toml` sketch in
 3.6 is hypothetical syntax and was not parsed.
