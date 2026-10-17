@@ -668,17 +668,17 @@ IGNORED tests/cart.hd:28: calls the live service (needs credentials)
 test result: FAILED. 1 passed; 2 failed; 1 ignored
 ```
 
-35. r[cli.test.report.pass] In text output, a passing test case has no result line.
-36. r[cli.test.report.heading] A failed case starts with `FAIL` or `PANIC`, its registration's file and line, and its name.
-37. r[cli.test.report.failure] A `FAIL` block prints the failure message, indented by four spaces.
-38. r[cli.test.report.repro] Each failure block ends with `repro: hd test FILE --filter "NAME"`, indented by four spaces and command-line escaped.
-39. r[cli.test.report.panic] A `PANIC` block prints `panic: CATEGORY: MESSAGE`, indented by four spaces.
-40. r[cli.test.report.frame] Its symbolized frames follow as `FILE:LINE FUNCTION`, indented by four spaces and with the panic site first.
-41. r[cli.test.report.ignored] An ignored case prints `IGNORED`, its registration's file and line, its name, and its reason.
-42. r[cli.test.report.summary] The final line gives the run's verdict and its passed, failed, and ignored counts, including zero counts.
-43. r[cli.test.report.filter] Result blocks and summary counts include only cases selected by `--filter`.
-44. r[cli.test.report.order] Result blocks use file-path order, then registration order, then row-index order, regardless of completion order.
-45. r[cli.test.report.stream] A ready result block is written once every earlier selected case has finished, without waiting for the whole run.
+1. r[cli.test.report.pass] In text output, a passing test case has no result line.
+2. r[cli.test.report.heading] A failed case starts with `FAIL` or `PANIC`, its registration's file and line, and its name.
+3. r[cli.test.report.failure] A `FAIL` block prints the failure message, indented by four spaces.
+4. r[cli.test.report.repro] Each failure block ends with `repro: hd test FILE --filter "NAME"`, indented by four spaces and command-line escaped.
+5. r[cli.test.report.panic] A `PANIC` block prints `panic: CATEGORY: MESSAGE`, indented by four spaces.
+6. r[cli.test.report.frame] Its symbolized frames follow as `FILE:LINE FUNCTION`, indented by four spaces and with the panic site first.
+7. r[cli.test.report.ignored] An ignored case prints `IGNORED`, its registration's file and line, its name, and its reason.
+8. r[cli.test.report.summary] The final line gives the run's verdict and its passed, failed, and ignored counts, including zero counts.
+9. r[cli.test.report.filter] Result blocks and summary counts include only cases selected by `--filter`.
+10. r[cli.test.report.order] Result blocks use file-path order, then registration order, then row-index order, regardless of completion order.
+11. r[cli.test.report.stream] A ready result block is written once every earlier selected case has finished, without waiting for the whole run.
 
 See also: [Machine Output](#machine-output), [Exit Status](#exit-status).
 
@@ -689,12 +689,12 @@ hd test               # every test passes, so each test program's fingerprint is
 hd test --affected    # after an edit to src/billing.hd: only the programs that reach it
 ```
 
-46. r[cli.test.program] A **test program** is a program that `hd test` builds to run test cases: one per module with unit tests or doc tests, and one per integration test module.
-47. r[cli.test.fingerprint] A test program's **fingerprint** changes whenever a change could change its outcome: a source file it reads, a dependency, a manifest setting, the `hd` version, or a test option such as `--seed`.
-48. r[cli.test.affected] `hd test --affected` runs only the test programs whose fingerprint differs from the one recorded when they last passed, or that have no record.
-49. r[cli.test.affected.record] `hd test` records a test program's fingerprint only when every test case of the program ran and passed. A filtered run, or one in which a test case of the program fails, records nothing for it.
-50. r[cli.test.affected.failed] When a test case of a test program fails, `hd test` removes the program's record. So `--affected` runs that program until it passes in full.
-51. r[cli.test.affected.where] The records live in the [build directory](#r-cli.build.directory), so after `hd clean`, `hd test --affected` runs every test program.
+1. r[cli.test.program] A **test program** is a program that `hd test` builds to run test cases: one per module with unit tests or doc tests, and one per integration test module.
+2. r[cli.test.fingerprint] A test program's **fingerprint** changes whenever a change could change its outcome: a source file it reads, a dependency, a manifest setting, the `hd` version, or a test option such as `--seed`.
+3. r[cli.test.affected] `hd test --affected` runs only the test programs whose fingerprint differs from the one recorded when they last passed, or that have no record.
+4. r[cli.test.affected.record] `hd test` records a test program's fingerprint only when every test case of the program ran and passed. A filtered run, or one in which a test case of the program fails, records nothing for it.
+5. r[cli.test.affected.failed] When a test case of a test program fails, `hd test` removes the program's record. So `--affected` runs that program until it passes in full.
+6. r[cli.test.affected.where] The records live in the [build directory](#r-cli.build.directory), so after `hd clean`, `hd test --affected` runs every test program.
 
 > **Why.** An agent edits one module and wants its feedback in seconds.
 > A record is written only for a whole pass, so a test that failed or
@@ -710,19 +710,19 @@ file lies:
 | a [unit test](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | none | not reachable | not reachable | not reachable |
 | an integration test case, or a doc test | the default profile, `TestRunner`, and the test runner's `Process` | the test grant | the package directory | none | closed |
 
-52. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
-53. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names. It binds them as `hd run` does, except as this list says.
-54. r[cli.test.env.cwd] Such a test case runs with the package directory, the directory of its `hd.toml`, as its working directory. A relative path such as `fixtures/orders.csv` then names a file of the package.
-55. r[cli.test.env.args] Its `Args` provider holds no program arguments, so `list` returns an empty list.
-56. r[cli.test.env.args.program] Its `Args.program` returns the path of the test case's file relative to the package directory, such as `tests/report.hd`.
-57. r[cli.test.env.stdin] Its standard input is closed, so every `read_line!` returns `.Ok(.None)`, as at the end of input.
-58. r[cli.test.env.temp-dir] `hd test` gives each test case its own fresh, empty temporary directory, which [`temp_dir`](../std/testing.md#temporary-directories) returns. No other test case shares it, in the same run or in another run at the same time.
-59. r[cli.test.env.temp-dir.removed] `hd test` removes that directory and everything in it once the test case ends, whether it passed or failed.
-60. r[cli.test.env.grant] An integration test case or a doc test gets the **test grant**, which [Grant Precedence](#grant-precedence) builds from `[test.capabilities]` and the flags of `hd test`.
-61. r[cli.test.env.grant.table] `[test.capabilities]` in `hd.toml` takes the keys and values of `[capabilities]`, and `[capabilities]` itself does not apply to a test case.
-62. r[cli.test.env.grant.fs-read] When neither the table nor a flag names `FsRead`, it covers the package directory and the test case's temporary directory.
-63. r[cli.test.env.grant.fs-write] When neither the table nor a flag names `FsWrite`, it covers the test case's temporary directory.
-64. r[cli.test.env.grant.fs-added] When they give `FsRead` or `FsWrite` a list, the entries of the two rules above are added to it.
+1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
+2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names. It binds them as `hd run` does, except as this list says.
+3. r[cli.test.env.cwd] Such a test case runs with the package directory, the directory of its `hd.toml`, as its working directory. A relative path such as `fixtures/orders.csv` then names a file of the package.
+4. r[cli.test.env.args] Its `Args` provider holds no program arguments, so `list` returns an empty list.
+5. r[cli.test.env.args.program] Its `Args.program` returns the path of the test case's file relative to the package directory, such as `tests/report.hd`.
+6. r[cli.test.env.stdin] Its standard input is closed, so every `read_line!` returns `.Ok(.None)`, as at the end of input.
+7. r[cli.test.env.temp-dir] `hd test` gives each test case its own fresh, empty temporary directory, which [`temp_dir`](../std/testing.md#temporary-directories) returns. No other test case shares it, in the same run or in another run at the same time.
+8. r[cli.test.env.temp-dir.removed] `hd test` removes that directory and everything in it once the test case ends, whether it passed or failed.
+9. r[cli.test.env.grant] An integration test case or a doc test gets the **test grant**, which [Grant Precedence](#grant-precedence) builds from `[test.capabilities]` and the flags of `hd test`.
+10. r[cli.test.env.grant.table] `[test.capabilities]` in `hd.toml` takes the keys and values of `[capabilities]`, and `[capabilities]` itself does not apply to a test case.
+11. r[cli.test.env.grant.fs-read] When neither the table nor a flag names `FsRead`, it covers the package directory and the test case's temporary directory.
+12. r[cli.test.env.grant.fs-write] When neither the table nor a flag names `FsWrite`, it covers the test case's temporary directory.
+13. r[cli.test.env.grant.fs-added] When they give `FsRead` or `FsWrite` a list, the entries of the two rules above are added to it.
 
 ```sh
 hd test                    # tests/report.hd reads fixtures/orders.csv from the package
@@ -756,10 +756,10 @@ hd test --cap Http=true    # this run reaches every host
 
 ### Testing Tasks
 
-65. r[cli.test.tasks] A whole-package `hd test` also runs the test cases of the `tests:` blocks in the package's [tasks](#tasks) and shared task modules. They are unit tests.
-66. r[cli.test.tasks.file] `hd test tasks/NAME.hd` runs the test cases of task `NAME`, by [`cli.package.file`](#r-cli.package.file).
-67. r[cli.test.tasks.no-tests] A whole-package `hd test` compiles no test build of a task, or of an executable's entry module, that holds no `tests:` block.
-68. r[cli.test.tasks.run] An integration test runs a task with [`hd_run!`](../std/testing.md#running-executables), by [`cli.test.process.tasks`](#r-cli.test.process.tasks).
+1. r[cli.test.tasks] A whole-package `hd test` also runs the test cases of the `tests:` blocks in the package's [tasks](#tasks) and shared task modules. They are unit tests.
+2. r[cli.test.tasks.file] `hd test tasks/NAME.hd` runs the test cases of task `NAME`, by [`cli.package.file`](#r-cli.package.file).
+3. r[cli.test.tasks.no-tests] A whole-package `hd test` compiles no test build of a task, or of an executable's entry module, that holds no `tests:` block.
+4. r[cli.test.tasks.run] An integration test runs a task with [`hd_run!`](../std/testing.md#running-executables), by [`cli.test.process.tasks`](#r-cli.test.process.tasks).
 
 ```sh
 hd test                    # also the tests: block of tasks/seed.hd
