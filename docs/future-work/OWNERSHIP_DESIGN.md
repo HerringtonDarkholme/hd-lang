@@ -66,7 +66,9 @@ value, unless some function borrows it, which makes it immovable. A
 `^mut` of a top-level binding is not allowed; code that needs a
 global mutable queue uses plain values. A cleanup that must suspend or
 can fail is an explicit method called before the drop. A move has no
-mark at the call site. Rust's known false alarms are accepted as
+mark at the call site. A guarded `match` arm takes ownership only after
+its guard succeeds. There is no general `replace`; an owner that must be
+swapped out lives in an `Option[own T]` and leaves through `take()`. Rust's known false alarms are accepted as
 limits.
 
 A closure that captures a value exclusively, an owned value or a `^mut`
@@ -788,6 +790,15 @@ This section states each rule from the tour once, grouped by topic.
    private field moves out only in its type's module. A type that
    implements `DropOwn` cannot be taken apart this way, since its
    `drop` must see a whole value.
+5. In a `match` arm with a guard, the names the pattern binds are shared
+   borrows inside the guard; the arm takes ownership only when the guard
+   succeeds and its body runs, as Rust has done since 1.39. A false
+   guard leaves the subject whole for the next arm. Moving a binding
+   inside a guard is `move-in-guard`.
+6. No general `replace` exists for an owned place behind a `^mut`. A
+   replaceable owner is an `Option[own T]` field, swapped with the
+   built-in `take()`; `pop`, `take`, and `into_iter` are the only ways to
+   remove an owner from a container.
 
 ### 4.3 Borrows
 
