@@ -2,6 +2,7 @@
 # (spec/std/path.md). The prototype's std loader does not list this module
 # yet (src/checker/standard-sources.ts).
 use std.format.DebugWriter
+use std.text.Parse
 
 # Holds its text as written, without checks or normalization
 # (r-std-path.text).
@@ -94,6 +95,13 @@ impl Path:
                 kept := text.slice(0, text.len() - (name.len() - stem.len()))
                 Path(if extension == "": kept else: kept + "." + extension)
             _ => self
+
+# Reads a path from any text, never failing (r-std-path.parse).
+impl Parse for Path:
+    type Error = never
+
+    fn parse(text: string) -> Result[Path, never]:
+        .Ok(Path(text))
 
 fn components(text: string) -> List[string]:
     let found: mut List[string] = []

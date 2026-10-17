@@ -1,0 +1,26 @@
+# test: Path implements Parse with Error never, so any text parses and env_as reads a path
+# Spec std/path Paths: std-path.parse, std-path.parse.text.
+use std.host.{Env, ScriptedEnv, env_as}
+use std.path.Path
+
+fn output_dir() -> Path $ Env:
+    match env_as::[Path]("OUT_DIR"):
+        .Ok(.Some(dir)) => dir
+        _ => Path("target")
+
+tests:
+    use std.testing.assert_equal
+
+    it("parse wraps the text"):
+        assert_equal("a/b".parse::[Path](), .Ok(Path("a/b")), reason="a relative path")
+        assert_equal("/srv/a.txt".parse::[Path](), .Ok(Path("/srv/a.txt")), reason="an absolute path")
+        assert_equal("".parse::[Path](), .Ok(Path("")), reason="empty text parses")
+        assert_equal("a//b/./".parse::[Path](), .Ok(Path("a//b/./")), reason="no normalization")
+
+    it("env_as reads a path"):
+        vars := ScriptedEnv::new({"OUT_DIR": "build/out", "EMPTY": ""})
+        $.with(Env=vars):
+            assert_equal(env_as::[Path]("OUT_DIR"), .Ok(.Some(Path("build/out"))), reason="set")
+            assert_equal(env_as::[Path]("EMPTY"), .Ok(.Some(Path(""))), reason="empty is set")
+            assert_equal(env_as::[Path]("MISSING"), .Ok(.None), reason="unset")
+            assert_equal(output_dir(), Path("build/out"), reason="a typed read")

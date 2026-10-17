@@ -6,6 +6,7 @@ This chapter defines `std.path`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the `Path` type that the file system traits take;
+- the `Parse` implementation that reads a `Path` from text;
 - the text operations `join`, `parent`, `file_name`, `extension`, `file_stem`, and `with_extension`.
 
 ## Paths
@@ -21,7 +22,9 @@ fn notes() -> Path:
 
 1. r[std-path.decl] `std.path` declares `pub type Path(string)`. Code imports it, as in `use std.path.Path`.
 2. r[std-path.text] A `Path` holds its text as written. Constructing one neither checks nor normalizes it.
-3. r[std-path.traits] `Path` implements `Eq`, which compares the text, and `Display`, which shows the text.
+3. r[std-path.traits] `Path` implements `Eq`, which compares the text, `Display`, which shows the text, and `Parse`, which wraps it.
+4. r[std-path.parse] `Path` implements `Parse` with `Error` set to `never`. `parse` returns `.Ok(Path(text))` for every text, so `"a/b".parse::[Path]()` is `.Ok(Path("a/b"))`.
+5. r[std-path.parse.text] The implementation neither checks nor normalizes the text, as `Path(text)` does, and adds no public name. So a `Path` is a typed command-line field, an `env_as::[Path]` read, or a regex group.
 
 > **Why.** Go's `path/filepath` works on plain strings. A newtype keeps
 > that cost and still tells a path from other text in a signature.
