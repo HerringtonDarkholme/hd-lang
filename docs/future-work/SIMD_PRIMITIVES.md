@@ -19,7 +19,8 @@ asked for SIMD-speed string copies; the probe covers them (section 3).
 - [7. Engine Support](#7-engine-support)
 - [8. Footprint](#8-footprint)
 - [9. Testing](#9-testing)
-- [10. Open Points](#10-open-points)
+- [10. Probe Results (2026-10-17)](#10-probe-results-2026-10-17)
+- [11. Open Points](#11-open-points)
 
 ## 1. Motivation
 
@@ -339,8 +340,8 @@ could.
   SIMD.
 - **Whole-module effect.** A module that contains one SIMD instruction
   fails to validate on an engine without SIMD128. With both targets
-  supporting it, no feature gate is needed; section 10 asks the owner to
-  confirm.
+  supporting it, no feature gate is needed, and the owner chose to emit
+  SIMD bodies unconditionally if they measure faster.
 
 ## 8. Footprint
 
@@ -395,7 +396,42 @@ reference body returns.
 - **Benchmarks.** Rows in `pnpm run metrics` for find, the JSON escape
   scan, and validation on 1 MB inputs, as #428 asks, on both engines.
 
-## 10. Open Points
+## 10. Probe Results (2026-10-17)
+
+Hand-written Wasm kernels on an Apple M3 Max, Node 24 (V8 13.6) and
+wasmtime 49.0.2 with the repository's configuration, median of 9 warm
+calls. Every variant returned the same result. "Today" is
+`(array i8)` read one byte at a time; "v128" is `(array v128)` with
+`i8x16.eq`, four lanes per step, `any_true` in the loop and a bitmask
+only on a hit.
+
+| Kernel | V8 today | V8 v128 | wasmtime today | wasmtime v128 |
+| --- | --- | --- | --- | --- |
+| find a byte, 1 MiB (ns/byte) | 0.448 | 0.020 (22x) | 1.26 | 0.030 (41x) |
+| find a byte, 64 B (ns/call) | 25.1 | 4.1 (6x) | 78.1 | 7.3 (10x) |
+| 1 MiB unaligned concat (ns/byte) | 0.017 | 0.038 (2.3x slower) | 0.013 | 0.104 (8x slower) |
+| sequential `bytes_at` (ns/byte) | 0.33 | 0.60 (1.8x slower) | 0.97 | 1.19 (1.2x slower) |
+| 1 MiB string to the host (ns/byte) | 0.250 | 0.026 (9.5x) | 0.371 | 0.060 (6x) |
+| heap object of a 3-byte string | 32 B | 40 B | 32 B | 48 B |
+
+What the numbers say:
+
+- Scans clear #428's 4x target on both engines. SWAR over `(array i64)`
+  gets 8x to 9x and pays nearly the same layout costs.
+- Step 1 (native loops on today's layout) gains almost nothing: V8
+  already removes the view check, and wasmtime gains about 10%.
+- Copies already run at SIMD speed: both engines lower `array.copy` on
+  an `i8` array to a native memmove above a small size (wasmtime's
+  `emit_raw_array_or_table_copy`, V8's `wasm_array_copy`). A v128 layout
+  makes unaligned concatenation slower, not faster.
+- Byte reads, which every lexer and parser loop makes, get 1.2x to 1.8x
+  slower, and short strings take 4 to 12 more bytes on average.
+- The host-boundary copy is the one copy that gains, 6x to 10x.
+
+The kernels and runners are kept outside the repository; the probe can
+be rerun from them on request.
+
+## 11. Open Points
 
 1. When to land step 1 (native loops); deferred by the owner.
 2. The string layout, decided after the probe's numbers.
