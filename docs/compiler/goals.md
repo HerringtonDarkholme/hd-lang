@@ -52,8 +52,11 @@ checking.
   10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact
   `hd.names` for backtraces.
-- NonEscapable types come after the first release; see #163. `defer`
-  stays, and a `defer` suite still cannot make a bang call.
+- Ownership and borrows (`own`, `^`, `OwnOnly`, `DropOwn`) come after the
+  first release; the design is
+  [docs/future-work/OWNERSHIP_DESIGN.md](../future-work/OWNERSHIP_DESIGN.md)
+  (#163). `defer` stays, and a `defer` suite still cannot make a bang
+  call.
 - No serializable closures in the first release; see #166.
 - Suspension lowering reserves no-op observability and replay hook points
   (crates/hd_wasm/DESIGN.md §14.7).

@@ -136,6 +136,33 @@ blocks, and `@error`.
   can touch, and tests swap providers instead of patching globals.
 - **Sandboxed.** Wasm GC, with host access only through requirements.
 
+## Built for agents: three pillars
+
+hd is judged by three pillars for agentic development, compared side by
+side rather than folded into one score
+([goals](docs/compiler/goals.md#how-it-is-judged-the-agentic-programming-language-arena)).
+Correctness is a gate, not a pillar.
+
+1. **Cheap for one agent to get right.** Every signature is explicit, so
+   an agent reads a function's header, never a dependency's body.
+   Diagnostics are compact, and `hd check --format json` carries exact-edit
+   fix-its that `hd fix` applies. Checking is incremental, and output is
+   deterministic. Tests sit in the same file under `tests:`, and providers
+   turn a fake clock or mailer into one line.
+2. **Many agents on one machine.** Check results and compiled code are
+   cached by content and shared across processes, and std is checked in
+   advance and built into the binary. A program reaches the host only
+   through the capabilities it is granted, with a time limit, so agents can
+   run untrusted code side by side.
+3. **Artifacts that are correct, then fast.** The portable conformance
+   suite passes on two engines, V8 and wasmtime, with the same behaviour.
+   Time, randomness and I/O sit behind capabilities, so a test can fix
+   them. Property tests shrink failures, and only reachable code is
+   compiled into the Wasm module.
+
+The goal metrics are scripts under [bench/metrics](bench/metrics/README.md)
+(`pnpm run metrics`). Their first recorded baseline is tracked in #344.
+
 ## What hd borrows
 
 - **Rust:** traits, `Result` and `?`, exhaustive `match`, explicit `mut`.
