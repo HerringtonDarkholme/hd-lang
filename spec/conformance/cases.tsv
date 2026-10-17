@@ -2236,6 +2236,8 @@ runtime/valid/num-wrapping-mul.hd	runtime	accept	std/num.md#r-std-num.wrapping.m
 runtime/valid/num-bit-counts.hd	runtime	accept	std/num.md#bit-counts
 runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/num-float-bits.hd	runtime	accept	std/num.md#r-std-num.float-bits.to
+runtime/valid/num-float-total-cmp.hd	runtime	accept	std/num.md#r-std-num.float-total-cmp.order
+runtime/valid/num-f32-classify.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending
 runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on
 typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-std-num.bits.count-ones-u32

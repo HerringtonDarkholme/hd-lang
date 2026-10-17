@@ -3,6 +3,7 @@
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 use std.format.DebugWriter
+use std.cmp.Ordering
 use std.text.Parse
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
@@ -460,6 +461,42 @@ impl f32:
     ## See [std-num.float-bits.from](../../spec/std/num.md#r-std-num.float-bits.from).
     pub fn from_bits(bits: u32) -> f32:
         f32_from(bits)
+
+# `total_cmp` is the IEEE 754 totalOrder: a pattern with the sign bit set
+# is flipped whole, so a more negative value gets a smaller key, and any
+# other pattern gets the sign bit set, above every negative one. The keys
+# then compare as unsigned integers (r-std-num.float-total-cmp.order).
+impl f64:
+    ## The IEEE 754 total order of two values, which orders NaNs and the zeros.
+    ## See [std-num.float-total-cmp.order](../../spec/std/num.md#r-std-num.float-total-cmp.order).
+    pub fn total_cmp(self, other: f64) -> Ordering:
+        left := self.to_bits()
+        right := other.to_bits()
+        let sign: u64 = 9223372036854775808
+        left_key := if left >= sign: ~left else: left | sign
+        right_key := if right >= sign: ~right else: right | sign
+        left_key.cmp(right_key)
+
+impl f32:
+    ## The IEEE 754 total order of two values, which orders NaNs and the zeros.
+    ## See [std-num.float-total-cmp.order](../../spec/std/num.md#r-std-num.float-total-cmp.order).
+    pub fn total_cmp(self, other: f32) -> Ordering:
+        left := self.to_bits()
+        right := other.to_bits()
+        let sign: u32 = 2147483648
+        left_key := if left >= sign: ~left else: left | sign
+        right_key := if right >= sign: ~right else: right | sign
+        left_key.cmp(right_key)
+
+    ## True when the value is NaN.
+    ## See [std-num.is-nan](../../spec/std/num.md#r-std-num.is-nan).
+    pub fn is_nan(self) -> bool:
+        self != self
+
+    ## True when the value is neither NaN nor an infinity.
+    ## See [std-num.is-finite](../../spec/std/num.md#r-std-num.is-finite).
+    pub fn is_finite(self) -> bool:
+        self - self == 0.0
 
 impl f64:
     ## True when the value is NaN.

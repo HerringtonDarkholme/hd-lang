@@ -1,0 +1,75 @@
+# test: total_cmp orders every float by the IEEE 754 totalOrder, NaNs and signed zeros included
+# Spec std/num Float Total Order: std-num.float-total-cmp.order, std-num.float-total-cmp.sequence, std-num.float-total-cmp.nan-payload, std-num.float-total-cmp.equal (issue #478).
+fn sorted(times: List[f64]) -> List[f64]:
+    times.sorted_by(fn(a: f64, b: f64) -> Ordering: a.total_cmp(b))
+
+fn position_order(at: usize, other: usize) -> Ordering:
+    if at < other:
+        return .Less
+    if at == other:
+        return .Equal
+    .Greater
+
+tests:
+    use std.testing.assert_equal
+
+    it("f64 sequence"):
+        negative_nan := f64::from_bits(18444492273895866368)
+        positive_nan := f64::from_bits(9221120237041090560)
+        infinity := 1.0 / 0.0
+        # The expected order, least to greatest.
+        ordered := [negative_nan, -infinity, -2.5, -0.0, 0.0, 2.5, infinity, positive_nan]
+        let at: usize = 0
+        while at < ordered.len():
+            let other: usize = 0
+            while other < ordered.len():
+                expected := position_order(at, other)
+                assert_equal(ordered[at].total_cmp(ordered[other]), expected, reason="position " + at.to_string() + " against " + other.to_string())
+                other = other + 1
+            at = at + 1
+
+    it("f64 sort"):
+        nan := 0.0 / 0.0
+        infinity := 1.0 / 0.0
+        result := sorted([nan, 1.0, -0.0, 0.0, -infinity, infinity])
+        assert_equal(result[0], -infinity, reason="negative infinity first")
+        assert_equal(result[1].to_bits(), 9223372036854775808, reason="negative zero before zero")
+        assert_equal(result[2].to_bits(), 0, reason="zero")
+        assert_equal(result[3], 1.0, reason="one")
+        assert_equal(result[4], infinity, reason="infinity")
+        assert_equal(result[5].is_nan(), true, reason="a positive NaN last")
+        negative_nan := f64::from_bits(18444492273895866368)
+        with_negative := sorted([nan, 1.0, negative_nan, -infinity])
+        assert_equal(with_negative[0].to_bits(), 18444492273895866368, reason="a negative NaN first")
+        assert_equal(with_negative[1], -infinity, reason="then negative infinity")
+
+    it("f64 payloads"):
+        low := f64::from_bits(9221120237041090560)
+        high := f64::from_bits(9221120237041090561)
+        assert_equal(low.total_cmp(high), .Less, reason="a larger payload is greater")
+        assert_equal(low.total_cmp(low), .Equal, reason="the same bits are equal")
+        negative_low := f64::from_bits(18444492273895866368)
+        negative_high := f64::from_bits(18444492273895866369)
+        assert_equal(negative_high.total_cmp(negative_low), .Less, reason="negative payloads reverse")
+        assert_equal((-0.0).total_cmp(0.0), .Less, reason="negative zero is below zero")
+        assert_equal(1.0.total_cmp(1.0), .Equal, reason="equal values")
+        assert_equal((-3.0).total_cmp(-2.0), .Less, reason="negative values by magnitude")
+
+    it("f32 sequence"):
+        negative_nan := f32::from_bits(4290772992)
+        positive_nan := f32::from_bits(2143289344)
+        let infinity: f32 = 1.0 / 0.0
+        let negative_infinity: f32 = -1.0 / 0.0
+        let negative_zero: f32 = -0.0
+        let zero: f32 = 0.0
+        let small: f32 = -2.5
+        let large: f32 = 2.5
+        ordered := [negative_nan, negative_infinity, small, negative_zero, zero, large, infinity, positive_nan]
+        let at: usize = 0
+        while at < ordered.len():
+            let other: usize = 0
+            while other < ordered.len():
+                expected := position_order(at, other)
+                assert_equal(ordered[at].total_cmp(ordered[other]), expected, reason="position " + at.to_string() + " against " + other.to_string())
+                other = other + 1
+            at = at + 1

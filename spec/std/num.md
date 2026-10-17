@@ -10,7 +10,8 @@ ordinary hd over the language tier:
 - `abs_diff`, the distance between two integers;
 - the bit counts `count_ones` and `leading_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
-- `is_nan` and `is_finite` on `f64`;
+- `is_nan` and `is_finite` on `f32` and `f64`;
+- `total_cmp`, the total order of floats;
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
 - `abs` on the signed integers and the floats, and `pow` on the integers;
 - `trunc`, `floor`, `ceil`, and `round` on the floats;
@@ -171,8 +172,8 @@ fn bounded(ratio: f64) -> bool:
     ratio.is_finite()
 ```
 
-1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f64`. It returns `true` exactly when `self` is a NaN.
-2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
+1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is a NaN.
+2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
 
 ## Float Bit Patterns
 
@@ -199,6 +200,30 @@ In this section, `F` is `f64` with `U` as `u64`, or `F` is `f32` with `U` as `u3
 > **Why.** Rust has the same pair. No float operation reveals the sign of a
 > NaN, so `total_cmp` needs the bits. Each method is one reinterpret
 > instruction on Wasm.
+
+## Float Total Order
+
+Floats are not `Ord`, since NaN is unordered. `total_cmp` orders every float, so a list of floats sorts:
+
+```text
+fn sorted(times: List[f64]) -> List[f64]:
+    times.sorted_by(fn(a: f64, b: f64) -> Ordering: a.total_cmp(b))
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.float-total-cmp.order] `total_cmp` | `fn total_cmp(self, other: F) -> Ordering` | the IEEE 754 totalOrder of `self` and `other` |
+
+In this section, `F` is `f32` or `f64`.
+
+1. r[std-num.float-total-cmp.widths] `total_cmp` exists on `f32` and on `f64`, and takes `other` of the receiver's type.
+2. r[std-num.float-total-cmp.sequence] The order is, from least to greatest: a negative NaN, negative infinity, the negative finite values, `-0.0`, `0.0`, the positive finite values, positive infinity, a positive NaN. A NaN's sign is the sign bit of its [bit pattern](#r-std-num.float-bits.to).
+3. r[std-num.float-total-cmp.nan-payload] Among NaNs of one sign, the order follows the payload bits read as an unsigned integer, reversed for a negative NaN. So two NaNs with the same bits are `.Equal`.
+4. r[std-num.float-total-cmp.equal] `a.total_cmp(b)` is `.Equal` exactly when `a` and `b` have the same bit pattern. So `-0.0` and `0.0` are not equal here, although `==` finds them equal.
+5. r[std-num.float-total-cmp.no-panic] `total_cmp` never panics.
+
+> **Why.** This is Rust's `f64::total_cmp`. It compares the bit patterns
+> as sign-magnitude integers, which needs no allocation.
 
 ## Integer Parsing
 
