@@ -42,6 +42,7 @@ action at a distance.
 - [Ownership Adversarial Review 6](OWNERSHIP_STRESS_TEST_6.md): retests the
   fifth round's repairs, then probes global cleanup dependencies,
   cancellation around optional extraction, and always-owned generics.
+- [Streaming Design](STREAMING_DESIGN.md): one owned reader and writer shape for HTTP bodies, process pipes, files and `TcpStream` (#350).
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
