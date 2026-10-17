@@ -872,3 +872,11 @@ Questions the stdlib audit (#350) raised that were the owner's to answer.
 - **Kept as they are**: float text stays a host primitive; the raw-string
   prefix `r` stays an import; `it_each` and `it_prop` stay closure-only;
   `Duration` stays in milliseconds for now.
+- **Duration constructors** (owner, 2026-10-17): both forms stay.
+  `ms(500)`, `s(30)` and the other suffix functions read as literals;
+  `Duration::milliseconds(n)` and `Duration::seconds(n)` build a
+  duration from a variable. The redesign's removal of the named
+  constructors (#460) is withdrawn. `Duration` also becomes
+  non-negative, as Rust's (#507). A literal suffix, `500ms` and `30s`,
+  becomes the preferred spelling of a literal duration (#508); the
+  functions and constructors stay.
