@@ -1,0 +1,78 @@
+# test: wrapping_mul keeps the low bits of the exact product at the minimum and maximum of every width
+# Spec std/num Wrapping Arithmetic: std-num.wrapping.mul, std-num.wrapping.result, std-num.wrapping.no-panic (issue #476).
+fn hash_step(state: u32, byte: u8) -> u32:
+    (state ^ u32(byte)).wrapping_mul(16777619)
+
+tests:
+    use std.testing.assert_equal
+
+    it("i8"):
+        let low: i8 = -128
+        let high: i8 = 127
+        assert_equal(low.wrapping_mul(-1), -128, reason="the minimum times -1 is the minimum")
+        assert_equal(low.wrapping_mul(low), 0, reason="2^14 wraps to zero")
+        assert_equal(high.wrapping_mul(high), 1, reason="16129 wraps to 1")
+        assert_equal(high.wrapping_mul(2), -2, reason="254 wraps to -2")
+        assert_equal(low.wrapping_mul(0), 0, reason="zero")
+        let three: i8 = -3
+        assert_equal(three.wrapping_mul(5), -15, reason="no wrap")
+
+    it("i16"):
+        let low: i16 = -32768
+        let high: i16 = 32767
+        assert_equal(low.wrapping_mul(-1), -32768, reason="the minimum times -1")
+        assert_equal(high.wrapping_mul(high), 1, reason="the maximum squared")
+        assert_equal(high.wrapping_mul(2), -2, reason="65534 wraps to -2")
+
+    it("i32"):
+        let low: i32 = -2147483648
+        let high: i32 = 2147483647
+        assert_equal(low.wrapping_mul(-1), -2147483648, reason="the minimum times -1")
+        assert_equal(low.wrapping_mul(low), 0, reason="2^62 wraps to zero")
+        assert_equal(high.wrapping_mul(high), 1, reason="the maximum squared")
+        assert_equal(high.wrapping_mul(2), -2, reason="the maximum doubled")
+
+    it("i64"):
+        let low: i64 = -9223372036854775808
+        let high: i64 = 9223372036854775807
+        assert_equal(low.wrapping_mul(-1), low, reason="the minimum times -1")
+        assert_equal(low.wrapping_mul(low), 0, reason="2^126 wraps to zero")
+        assert_equal(high.wrapping_mul(high), 1, reason="the maximum squared")
+        assert_equal(high.wrapping_mul(2), -2, reason="the maximum doubled")
+        assert_equal(high.wrapping_mul(-1), -high, reason="negation of the maximum")
+        let seven: i64 = -7
+        assert_equal(seven.wrapping_mul(6), -42, reason="no wrap")
+
+    it("u8"):
+        let top: u8 = 255
+        assert_equal(top.wrapping_mul(2), 254, reason="510 wraps to 254")
+        assert_equal(top.wrapping_mul(top), 1, reason="65025 wraps to 1")
+        assert_equal(top.wrapping_mul(0), 0, reason="zero")
+        assert_equal(top.wrapping_mul(1), 255, reason="one")
+
+    it("u16"):
+        let top: u16 = 65535
+        assert_equal(top.wrapping_mul(2), 65534, reason="131070 wraps to 65534")
+        assert_equal(top.wrapping_mul(top), 1, reason="the maximum squared")
+
+    it("u32"):
+        let top: u32 = 4294967295
+        assert_equal(top.wrapping_mul(2), 4294967294, reason="the maximum doubled")
+        assert_equal(top.wrapping_mul(top), 1, reason="the maximum squared")
+        assert_equal(hash_step(2166136261, 97), 3826002220, reason="one FNV-1a step over the byte 97")
+
+    it("u64"):
+        let top: u64 = 18446744073709551615
+        assert_equal(top.wrapping_mul(2), 18446744073709551614, reason="the maximum doubled")
+        assert_equal(top.wrapping_mul(top), 1, reason="the maximum squared")
+        let big: u64 = 4294967296
+        assert_equal(big.wrapping_mul(big), 0, reason="2^64 wraps to zero")
+        let seed: u64 = 6364136223846793005
+        assert_equal(seed.wrapping_mul(seed), 7520897724310334953, reason="a wrapped 64-bit product")
+
+    it("usize"):
+        let one: usize = 1
+        assert_equal(one.wrapping_mul(0), 0, reason="zero")
+        assert_equal(one.wrapping_mul(1), 1, reason="one")
+        let top: usize = 4294967295
+        assert_equal(top.wrapping_mul(top), 1, reason="2^32 - 1 squared wraps to 1 on 32 bits")

@@ -2232,6 +2232,7 @@ runtime/valid/result-tests-conversions.hd	runtime	accept	std/result.md#variant-t
 runtime/panic/result-expect-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.expect.panic
 runtime/valid/num-saturating.hd	runtime	accept	std/num.md#saturating-arithmetic
 runtime/valid/num-every-width.hd	runtime	accept	std/num.md#r-std-num.methods.every-width
+runtime/valid/num-wrapping-mul.hd	runtime	accept	std/num.md#r-std-num.wrapping.mul
 runtime/valid/num-bit-counts.hd	runtime	accept	std/num.md#bit-counts
 runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending

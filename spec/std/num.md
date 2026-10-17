@@ -73,9 +73,10 @@ fn next_ticket(counter: i32) -> i32:
 | --- | --- | --- |
 | r[std-num.wrapping.add] `wrapping_add` | `fn wrapping_add(self, other: N) -> N` | the exact sum, wrapped to `N` |
 | r[std-num.wrapping.sub] `wrapping_sub` | `fn wrapping_sub(self, other: N) -> N` | the exact difference, wrapped to `N` |
+| r[std-num.wrapping.mul] `wrapping_mul` | `fn wrapping_mul(self, other: N) -> N` | the exact product, wrapped to `N` |
 
 1. r[std-num.wrapping.result] A value wrapped to `N` is the low bits of its two's-complement form, read as `N`, as an integer cast reads them by [`types.cast.wrap`](../lang/04-type-system.md#r-types.cast.wrap).
-2. r[std-num.wrapping.no-panic] A wrapping method never panics. So the largest `i32` plus one, wrapped, is the smallest `i32`.
+2. r[std-num.wrapping.no-panic] A wrapping method never panics. So the largest `i32` plus one, wrapped, is the smallest `i32`, and the smallest `i64` times `-1`, wrapped, is the smallest `i64`.
 
 ## Saturating Arithmetic
 

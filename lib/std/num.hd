@@ -279,6 +279,76 @@ impl[N < Integer] N:
                 base = base * base
         result
 
+# `wrapping_mul` cannot use `*`, which panics on overflow in a debug or test
+# build. Every width widens to `u64`: a sign-extended operand has the same low
+# bits as the original, so the low bits of the `u64` product are the wrapped
+# product, and the cast back keeps the low bits (r-std-num.wrapping.result).
+# The `u64` product is built from 32-bit halves, so no step overflows:
+# `low` is below 2^64, and the three high-half terms sum to below 3 * 2^32.
+fn wrapping_mul_u64(a: u64, b: u64) -> u64:
+    let mask: u64 = 4294967295
+    a_low := a & mask
+    b_low := b & mask
+    low := a_low * b_low
+    cross_a := u64(u32((a >> 32) * b_low))
+    cross_b := u64(u32(a_low * (b >> 32)))
+    high := u64(u32((low >> 32) + cross_a + cross_b))
+    (high << 32) | (low & mask)
+
+impl i8:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: i8) -> i8:
+        i8(wrapping_mul_u64(u64(self), u64(other)))
+
+impl i16:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: i16) -> i16:
+        i16(wrapping_mul_u64(u64(self), u64(other)))
+
+impl i32:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: i32) -> i32:
+        i32(wrapping_mul_u64(u64(self), u64(other)))
+
+impl i64:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: i64) -> i64:
+        i64(wrapping_mul_u64(u64(self), u64(other)))
+
+impl u8:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: u8) -> u8:
+        u8(wrapping_mul_u64(u64(self), u64(other)))
+
+impl u16:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: u16) -> u16:
+        u16(wrapping_mul_u64(u64(self), u64(other)))
+
+impl u32:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: u32) -> u32:
+        u32(wrapping_mul_u64(u64(self), u64(other)))
+
+impl usize:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: usize) -> usize:
+        usize(wrapping_mul_u64(u64(self), u64(other)))
+
+impl u64:
+    ## The product, wrapping around the type's range.
+    ## See [std-num.wrapping.mul](../../spec/std/num.md#r-std-num.wrapping.mul).
+    pub fn wrapping_mul(self, other: u64) -> u64:
+        u64(wrapping_mul_u64(u64(self), u64(other)))
+
 # `abs_diff` returns the unsigned type of the same width, a mapping that
 # `Integer` cannot name, so each width declares it. A narrow signed
 # difference is exact in `i64`, and the cast keeps the distance.
