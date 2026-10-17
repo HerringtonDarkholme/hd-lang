@@ -650,6 +650,8 @@ lang/13-ownership.md	13	mixed	typing/invalid/ownership/own-field-plain-type.hd|t
 lang/13-ownership.md	14	accept	typing/valid/ownership/own-only-structure.hd
 lang/13-ownership.md	15	accept	typing/valid/ownership/own-only-structure-cutoffs.hd
 lang/13-ownership.md	16	mixed	typing/invalid/ownership/structure-mutable-borrow-field.hd|typing/invalid/ownership/structure-drop-own.hd|typing/invalid/ownership/own-field-tuple.hd|typing/invalid/ownership/own-in-plain-type.hd|typing/invalid/ownership/own-in-plain-type-map-key.hd|typing/invalid/ownership/own-type-plain-structure.hd|typing/invalid/ownership/own-type-plain-list.hd
+lang/13-ownership.md	17	accept	typing/valid/ownership/body-modes.hd
+lang/13-ownership.md	18	mixed	typing/invalid/ownership/own-upgrade-argument.hd|typing/invalid/ownership/own-upgrade-borrow.hd|typing/invalid/ownership/own-upgrade-fresh-part.hd|typing/invalid/ownership/own-upgrade-store.hd|typing/invalid/ownership/own-upgrade-receiver.hd|typing/invalid/ownership/mutable-upgrade-readonly.hd|typing/invalid/ownership/mutable-upgrade-shared-borrow.hd|typing/invalid/ownership/own-to-plain-argument.hd|typing/invalid/ownership/own-to-plain-receiver.hd|typing/invalid/ownership/own-on-value-let.hd|typing/invalid/ownership/owned-result-not-written.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

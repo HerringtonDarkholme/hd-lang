@@ -11,10 +11,16 @@ owned, or borrowed.
 > implementation diagnoses a program that uses it, as
 > [Specification Status](../README.md#specification-status) requires.
 >
-> So far the chapter checks marks in declarations, and ownership by
-> structure. Bodies are not specified yet: a body that writes a mark is diagnosed, and so is one that holds a
-> value whose type has a mode or is a type parameter with an `own` bound. A
-> lifetime named by a requirement key is diagnosed too.
+> So far the chapter checks marks in declarations, ownership by structure,
+> and the modes values meet in bodies. Moves, drops, and loans are not
+> specified yet.
+>
+> A body is diagnosed when it holds a value of a type parameter with an
+> `own` bound, passes a moded type argument, or names a lifetime. So is a
+> moded value that a closure captures, that a pattern, `for`, or a
+> built-in method reads, or that a deferring or suspending body holds. A
+> borrow in a plain position and a lifetime named by a requirement key are
+> diagnosed too.
 
 ## Modes
 
@@ -475,3 +481,101 @@ fn many(xs: List[own Conn]) -> void: pass              # error: own-type-plain
 > exclusive borrow is always owned on purpose.
 
 See also: [Ownership Traits](#ownership-traits).
+
+## Modes In Bodies
+
+Inside a body, a value meets a position's mode where it is passed,
+returned, bound, or stored. An owned value stays owned, a value is lent to
+a borrowed position, and a plain value stays plain.
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+impl File:
+    fn size(^self) -> i32: self.fd
+    fn reset(^mut self) -> void:
+        self.fd = 0
+
+data Buffer:
+    bytes: List[u8]
+    label: string
+
+fn open(path: string) -> own File: File { fd: 3 }   # a fresh value is owned
+fn size(f: ^File) -> i32: f.fd
+fn archive(f: own File) -> void: pass
+fn fill(b: ^mut Buffer) -> void:
+    b.label = "full"
+
+fn report() -> i32:
+    f := open("app.log")              # `:=` keeps `own`
+    n := size(f)                      # lends `f`
+    f.reset()                         # lends `f` mutably
+    archive(f)                        # gives `f` away
+    n
+
+fn buffers() -> string:
+    let own buf = Buffer { bytes: [], label: "new" }
+    fill(buf)
+    let plain: mut Buffer = Buffer { bytes: [1], label: "old" }
+    fill(plain)                       # a plain place with a `mut` view lends mutably
+    let view: ^Buffer = plain
+    view.label
+```
+
+### Owned Values
+
+1. r[own.body.source] An owned value comes from a fresh value, an `own` result, parameter or local, or an `own` field.
+2. r[own.body.fresh] A **fresh** value is a data literal, a variant construction, a list, map or tuple literal, or a closure, whose every part is fresh or exempt. A primitive, an owned or borrowed value, and an optional or tuple of these are exempt.
+3. r[own.body.upgrade] A plain value where `own T` is expected must be fresh, and becomes owned there; any other plain value is an error, and so is a borrow. Error: `own-upgrade`.
+4. r[own.body.to-plain] An owned value where a plain type is expected is an error, a plain field of a fresh value included. Error: `own-to-plain`.
+5. r[own.body.let-own] `let own x = value` binds an owned local, so the value is owned or fresh, and `let own x: T = value` is `let x: own T = value`. Error: `own-on-value` for a primitive.
+6. r[own.body.infer] `:=`, and `let` without a type, keep an owned initializer owned; a fresh initializer stays plain.
+7. r[own.body.store-fresh] A store into a plain field of an owned value takes a fresh or exempt value. The base is owned when its type is `own T`, or a `^mut` borrow of a type that owns. Error: `own-upgrade`.
+8. r[own.body.result-written] A function whose result is owned or borrowed writes its result type. Error: `missing-result-type`.
+
+### Lending
+
+1. r[own.body.lend] A value where `^T` or `^mut T` is expected is lent to that position: an owned value, a plain value, or a borrow. No expression lends.
+2. r[own.body.mutable-upgrade] `^mut` lends an owned value, a plain value with a `mut` view, or a `^mut` borrow; a readonly plain value and a shared borrow are errors. Error: `mutable-upgrade`.
+3. r[own.body.receiver] A receiver follows the rules of a parameter: `^self` and `^mut self` lend it, `own self` takes an owned or fresh value, and `self` or `mut self` takes a plain value.
+4. r[own.body.field-read] An owned value and a `^mut` borrow give mutable access to their fields, and a shared borrow gives readonly access. A field read through a borrow is borrowed for the same lifetimes, mutably only through `^mut` and for a `mut` or `own` field. A primitive field is copied out, and a borrowed field is read as it is.
+
+```text
+data File:
+    fd: i32
+
+impl File:
+    fn close(own self) -> void: pass
+    fn plain(self) -> i32: self.fd
+
+data Buffer:
+    bytes: List[u8]
+
+fn open() -> own File: File { fd: 3 }
+fn archive(f: own File) -> void: pass
+fn count(f: File) -> i32: f.fd
+fn reset(f: ^mut File) -> void: pass
+
+fn wrong(f: File, b: ^File, xs: List[u8], own_buf: own Buffer) -> void:
+    archive(f)                              # error: own-upgrade
+    archive(b)                              # error: own-upgrade
+    let own buf = Buffer { bytes: xs }      # error: own-upgrade
+    own_buf.bytes = xs                      # error: own-upgrade
+    f.close()                               # error: own-upgrade
+    reset(f)                                # error: mutable-upgrade
+    reset(b)                                # error: mutable-upgrade
+    count(open())                           # error: own-to-plain
+    open().plain()                          # error: own-to-plain
+    let own n = 3                           # error: own-on-value
+
+fn helper(): open()                         # error: missing-result-type
+```
+
+> **Why.** A plain value may already have aliases, so only a fresh value
+> becomes owned: it has no other path yet. Lending marks nothing at the
+> call site, so a call reads the same whether it borrows or not.
+
+See also: [Ownership By Structure](#ownership-by-structure).

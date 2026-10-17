@@ -1,7 +1,7 @@
 //! Ownership marks parse in every program (13-ownership.md, Mark Syntax).
-//! Headers check them (Modes In Declarations); a body that holds a moded
-//! value is `unsupported` until a later section checks bodies (issue #163),
-//! and a program without marks stays clean.
+//! Headers check them (Modes In Declarations), and bodies check modes
+//! (Modes In Bodies); what later sections check stays `unsupported`
+//! (issue #163), and a program without marks stays clean.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -63,22 +63,41 @@ fn header_marks_check() {
     }
 }
 
-/// Bodies check marks from a later section on (the note of 13-ownership.md): a
-/// body mark, a read of a moded value, or a value of an `own`-bounded type
-/// parameter is `unsupported`, with nothing else.
+/// Bodies check modes (Modes In Bodies): lending, owned results, fresh
+/// values, `let own`, and owned and borrowed locals.
 #[test]
-fn body_marks_are_unsupported() {
+fn body_marks_check() {
     let forms = [
         "fn size(f: ^File) -> i32: f.fd\n",
         "fn open() -> own File: File { fd: 1 }\n",
         "fn size(f: ^File) -> i32: 0\n\nfn call(f: File) -> i32: size(f)\n",
+        "fn make() -> i32:\n    let own f = File { fd: 1 }\n    f.fd\n",
+        "fn make() -> i32:\n    let f: own File = File { fd: 1 }\n    f.fd\n",
+        "fn make(f: File) -> i32:\n    let v: ^File = f\n    v.fd\n",
+    ];
+    for form in forms {
+        let program = format!("{PRELUDE}\n{form}");
+        let got = codes(&program);
+        assert_eq!(got, Vec::<Code>::new(), "for:\n{form}");
+    }
+}
+
+/// What later sections check stays `unsupported` (the note of
+/// 13-ownership.md): a value of an `own`-bounded type parameter, owned
+/// type arguments, captures, iteration and patterns over moded values,
+/// top-level owned bindings, and marks in a supertrait list.
+#[test]
+fn later_body_forms_are_unsupported() {
+    let forms = [
         "fn keep[T < own Any](x: T) -> T: x\n",
-        "fn make() -> void:\n    let own f = File { fd: 1 }\n",
-        "fn make() -> void:\n    let f: own File = File { fd: 1 }\n",
-        "fn make(f: File) -> void:\n    let v: ^File = f\n",
         "fn make() -> void:\n    fn inner[T < own Any](x: T) -> T: x\n    pass\n",
         "let own TOP = File { fd: 1 }\n",
         "trait Keeper < own Named:\n    fn keep(self) -> void\n",
+        "fn id[T](x: T) -> T: x\n\nfn make(f: own File) -> i32:\n    g := id(f)\n    g.fd\n",
+        "fn size(f: ^File) -> i32: f.fd\n\nfn make(f: own File) -> i32:\n    g := fn() -> i32: size(f)\n    g()\n",
+        "fn walk(xs: ^List[own File]) -> void:\n    for x in xs:\n        pass\n",
+        "fn pick(f: own File?) -> void:\n    match f:\n        .Some(_) => pass\n        .None => pass\n",
+        "fn plain(f: ^File) -> File: f\n",
     ];
     for form in forms {
         let program = format!("{PRELUDE}\n{form}");

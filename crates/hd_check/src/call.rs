@@ -502,7 +502,8 @@ impl Ck<'_, '_> {
                 self.err(Code::GenericKindMismatch, n, &msg);
             }
         }
-        sig.generics
+        let vars: Vec<Ty> = sig
+            .generics
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -511,7 +512,10 @@ impl Ck<'_, '_> {
                     .copied()
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })
-            .collect()
+            .collect();
+        self.generic_vars
+            .extend(vars.iter().map(|&v| (v, n.index())));
+        vars
     }
 
     /// Records a call's type variables for the end of the body: one
@@ -3346,6 +3350,10 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let rt = self.norm_ty(rt);
+        // `own.body.receiver`: methods are found through a moded
+        // receiver's view, and the receiver then meets `self`'s mode.
+        let orig = self.infer.resolve(pool, rt);
+        let rt = self.mode_view(rt);
         // A receiver whose type an earlier error left unknown adds nothing.
         if matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
             for e in &args.positional {
@@ -3398,10 +3406,12 @@ impl Ck<'_, '_> {
                 cands,
             }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
+                let mut recv = recv;
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
                     self.check_receiver(st, rt, n);
+                    recv = self.receiver_mode(recv, orig, st, n);
                 }
                 self.choose_method(
                     (trait_, method, t),
@@ -3414,10 +3424,12 @@ impl Ck<'_, '_> {
             }
             Some(Hit::Pending { trait_, method }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
+                let mut recv = recv;
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
                     self.check_receiver(st, rt, n);
+                    recv = self.receiver_mode(recv, orig, st, n);
                 }
                 self.trait_method_call(
                     TraitTarget {
@@ -3460,6 +3472,7 @@ impl Ck<'_, '_> {
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 self.check_receiver(params[0].1, rt, n);
+                let recv = self.receiver_mode(recv, orig, params[0].1, n);
                 let mut refs = vec![recv];
                 let mut all = impl_args.clone();
                 all.extend(&vars);
@@ -3500,6 +3513,11 @@ impl Ck<'_, '_> {
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }
             Some(Hit::Builtin { op, params, ret }) => {
+                // A built-in method keeps a plain receiver until std's
+                // containers take modes.
+                if pool.has_mode(orig) {
+                    self.mode_gap.get_or_insert(n.index());
+                }
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
                     let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
                     self.check_receiver(st, rt, n);
@@ -3562,10 +3580,12 @@ impl Ck<'_, '_> {
                     );
                     self.err(Code::GenericMemberCall, n, &msg);
                 }
+                let mut recv = recv;
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
                     self.check_receiver(st, rt, n);
+                    recv = self.receiver_mode(recv, orig, st, n);
                     if choice.0 == ChoiceKind::TraitValue
                         && self.names_self_beyond_receiver(method, trait_)?
                     {

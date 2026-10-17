@@ -1,0 +1,41 @@
+# test: fields read through an owner or a borrow, and fresh stores into an owned value's plain fields
+data File:
+    fd: i32
+    name: string
+
+impl OwnOnly for File
+
+data Buffer:
+    bytes: List[u8]
+    label: string
+
+data Session:
+    file: own File
+    buffer: Buffer
+    count: i32
+
+impl OwnOnly for Session
+
+fn size(f: ^File) -> i32: f.fd
+
+fn label(b: ^Buffer) -> string: b.label
+
+fn read(s: ^Session) -> i32:
+    f := s.file
+    b := s.buffer
+    n := size(f)
+    label(b).len() > 0
+    n + s.count
+
+fn write(s: ^mut Session) -> void:
+    s.count = 2
+    s.buffer = Buffer { bytes: [], label: "fresh" }
+    s.file.fd = 5
+
+fn owned(s: own Session) -> i32:
+    s.count = s.count + 1
+    s.buffer = Buffer { bytes: [1], label: s.file.name }
+    size(s.file)
+
+pub fn main() -> void:
+    pass

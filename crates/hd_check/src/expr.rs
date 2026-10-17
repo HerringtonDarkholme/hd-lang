@@ -1650,6 +1650,15 @@ impl Ck<'_, '_> {
         if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
             bt = self.infer.resolve(pool, bt);
         }
+        // `own.body.field-read`: an owner's fields are read with mutable
+        // access; a borrow's fields are borrowed for its lifetimes.
+        let lent = match pool.get(bt) {
+            TyData::Borrow {
+                mutable, lifetimes, ..
+            } => Some((mutable, lifetimes)),
+            _ => None,
+        };
+        let bt = self.mode_view(bt);
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
             _ => bt,
@@ -1681,7 +1690,10 @@ impl Ck<'_, '_> {
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
-            let ft = self.field_access(bt, &name, ft);
+            let mut ft = self.field_access(bt, &name, ft);
+            if let Some((mutable, lifetimes)) = lent {
+                ft = self.borrowed_field(ft, mutable, lifetimes);
+            }
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n)? {
@@ -2743,6 +2755,10 @@ impl Ck<'_, '_> {
         let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.known.iterator;
         let st_r = self.infer.resolve(pool, st);
+        // Iteration over an owned or borrowed value is a later section's.
+        if pool.has_mode(st_r) {
+            return self.gap(src, crate::ty::OWNERSHIP_GAP);
+        }
         let st_i = match pool.get(st_r) {
             TyData::Mut(i) => i,
             _ => st_r,

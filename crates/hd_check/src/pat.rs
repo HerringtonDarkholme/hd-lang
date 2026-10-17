@@ -785,12 +785,24 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ let
 
     pub(crate) fn let_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
-        if let Some(mark) = Src::child(s, SyntaxKind::ModeMark) {
-            return self.gap(mark, crate::ty::OWNERSHIP_GAP);
-        }
+        let kids: Vec<NodeRef<'_>> = kids
+            .iter()
+            .copied()
+            .filter(|k| k.kind() != SyntaxKind::ModeMark)
+            .collect();
         let Some(pat) = kids.first().copied() else {
             return unsupported("a `let` without a pattern");
         };
+        // `own.body.let-own`: `let own name` binds an owned local; a
+        // pattern takes ownership in a later section.
+        if let Some(mark) = Src::child(s, SyntaxKind::ModeMark) {
+            if pat.kind() != SyntaxKind::BindingPattern
+                || Src::child(s, SyntaxKind::ElseClause).is_some()
+            {
+                return self.gap(mark, crate::ty::OWNERSHIP_GAP);
+            }
+            self.let_own = true;
+        }
         let ty_node = kids.iter().copied().find(|k| k.kind().is_type());
         let els = Src::child(s, SyntaxKind::ElseClause);
         let Some(rhs) = kids
@@ -814,10 +826,18 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
+        let let_own = std::mem::take(&mut self.let_own);
         let annot = match ty_node {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
+        let annot = match annot {
+            Some(a) if let_own => Some(self.own_ty(a, ty_node.unwrap_or(pat))),
+            a => a,
+        };
+        if let_own && rhs.kind() == SyntaxKind::ClosureExpr {
+            return self.gap(rhs, crate::ty::OWNERSHIP_GAP);
+        }
         let name = (pat.kind() == SyntaxKind::BindingPattern && els.is_none())
             .then(|| {
                 pat.direct_tokens().find(|t| {
@@ -869,6 +889,29 @@ impl Ck<'_, '_> {
                 self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),
                 a,
             ),
+            // `let own x = e`: an owned initializer stays owned, and a
+            // fresh one becomes owned.
+            None if let_own => {
+                let rt = self.infer.resolve(pool, t);
+                let lit = self
+                    .infer
+                    .kind_of(pool, rt)
+                    .and_then(VarKind::literal_default);
+                if matches!(pool.get(rt), TyData::Own(_)) {
+                    (r, rt)
+                } else if let Some(d) = lit {
+                    // A literal is a primitive: `own.header.own-on-value`.
+                    (r, self.own_ty(d, rhs))
+                } else if matches!(pool.get(rt), TyData::Infer(_)) {
+                    return self.gap(rhs, crate::ty::OWNERSHIP_GAP);
+                } else {
+                    let want = self.own_ty(self.strip_mut(rt), rhs);
+                    (
+                        self.coerce(r, t, want, rhs, "binding", ExpectPosition::General),
+                        want,
+                    )
+                }
+            }
             None => (r, t),
         };
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
@@ -1080,6 +1123,11 @@ impl Ck<'_, '_> {
     /// Emits, into the open block, the decision tree of `rows` against the
     /// scrutinee `v`; every path ends in `ToArm` or `Unreachable`.
     pub(crate) fn decide(&mut self, rows: &[Row<'_>], v: Ref, t: Ty) -> StageResult<()> {
+        // Patterns over an owned or borrowed value take ownership in a
+        // later section of 13-ownership.md.
+        if self.pool().has_mode(self.infer.resolve(self.pool(), t)) {
+            self.mode_gap.get_or_insert(NodeIdx::NONE);
+        }
         let m = rows
             .iter()
             .enumerate()

@@ -32,6 +32,7 @@ pub mod inst_cycles;
 mod join;
 mod literals;
 mod local;
+mod modes;
 mod own;
 mod pat;
 mod privacy;

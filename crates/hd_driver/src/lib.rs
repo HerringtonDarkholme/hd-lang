@@ -5487,6 +5487,8 @@ impl Run<'_> {
             derived = self.opt_ins(m, &cx, &heads, &impls, &mut diags);
         }
         if let Some(e) = failed {
+            // The module's other reports stand beside the stop.
+            lock(&self.diags).append(&diags);
             self.stage::<()>(Stage::Body, Err(e));
             let _ = self.body[m].set(None);
             return;

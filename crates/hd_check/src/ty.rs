@@ -774,7 +774,25 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
-            SyntaxKind::OwnType | SyntaxKind::BorrowType => return self.gap(n, OWNERSHIP_GAP),
+            SyntaxKind::OwnType => {
+                let t = first(self, n)?;
+                self.own_ty(t, n)
+            }
+            // A named lifetime in a body is checked by a later section.
+            SyntaxKind::BorrowType if Src::child(n, SyntaxKind::LifetimeSet).is_some() => {
+                return self.gap(n, OWNERSHIP_GAP);
+            }
+            SyntaxKind::BorrowType => {
+                let ty = first(self, n)?;
+                let mutable = n
+                    .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
+                    .is_some();
+                pool.intern_ty(&TyData::Borrow {
+                    ty,
+                    mutable,
+                    lifetimes: hd_types::TyList::EMPTY,
+                })
+            }
             // A row in a row slot, as an explicit argument for a row
             // parameter (`req.row.slot.list`).
             SyntaxKind::RequirementRow => {
