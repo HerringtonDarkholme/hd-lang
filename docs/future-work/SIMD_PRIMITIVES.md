@@ -1,10 +1,14 @@
 # SIMD Byte-Scan Primitives: Proposal
 
 This is the proposal for issue #428, under the optimization umbrella #426.
-Nothing in it is in the spec or the compiler. Every name below is a
-placeholder until the owner approves it, since a new std primitive needs
-the owner's approval
-([Standard Library Primitives](../../spec/std/README.md#standard-library-primitives)).
+Nothing in it is in the spec or the compiler.
+
+**Owner decisions (2026-10-17).** The five primitives and their names are
+approved. Landing step 1 (native loops) is deferred. A probe measures
+scans and copies over `(array i8)` and `(array v128)` on both engines
+before any layout decision. If SIMD bodies measure faster, they are
+emitted unconditionally, with no target-feature gate. The owner also
+asked for SIMD-speed string copies; the probe covers them (section 3).
 
 - [1. Motivation](#1-motivation)
 - [2. The Proposal On One Page](#2-the-proposal-on-one-page)
@@ -393,12 +397,5 @@ reference body returns.
 
 ## 10. Open Points
 
-1. Approve the five primitives, or name the ones to drop.
-2. Approve the names: `bytes_index`, `bytes_index_pair`,
-   `bytes_index_json`, `bytes_mismatch`, `utf8_valid_len`.
-3. Approve step 1 (native loops, no layout change) as the first landing,
-   with SIMD bodies deferred.
-4. Should a probe compare scans over `(array i8)` and `(array v128)` on
-   both engines, before any decision on the string layout?
-5. If SIMD bodies land, gate them on a target feature, or emit them
-   unconditionally since both engines support SIMD128?
+1. When to land step 1 (native loops); deferred by the owner.
+2. The string layout, decided after the probe's numbers.
