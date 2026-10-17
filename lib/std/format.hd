@@ -924,3 +924,15 @@ impl[S] Walker[S] for TupleText[S]:
         for item in items:
             self.parts.push("$item")
         .Ok(())
+
+# `never` has no value, so none of these methods ever runs
+# (r-std-text.parse.never-traits).
+impl Display for never:
+    fn to_string(self) -> string:
+        match self:
+            _ => panic("never has no value")
+
+impl Debug for never:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            _ => panic("never has no value")

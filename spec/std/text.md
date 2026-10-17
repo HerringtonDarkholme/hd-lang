@@ -12,6 +12,8 @@ ordinary hd over the language tier:
 - the `char` classification methods and `to_digit`;
 - the UTF-8 conversions `to_utf8` and `string::from_utf8`, and
   `Utf8Error`;
+- the `Parse` trait, `string.parse::[T]()`, and the `Parse` impls of
+  `bool`, `char`, and `string`;
 - the raw-text string prefix `r`.
 
 The language tier keeps the representation of a string and the methods
@@ -188,6 +190,68 @@ fn decode(bytes: List[u8]) -> string:
 > **Note.** So `[0xE2, 0x82]` is `Truncated`, `[0xC3, 0x28]` is
 > `InvalidSequence(0)`, and the overlong `[0xC0, 0xAF]` is
 > `InvalidSequence(0)`.
+
+## Parsing Text
+
+`Parse` is the trait of a type that reads itself from text, as Rust's
+`FromStr`. `string.parse::[T]()` calls it:
+
+```text
+use std.text.Parse
+
+fn port(text: string) -> i32:
+    match text.parse::[i32]():
+        .Ok(value) => value
+        .Err(_) => 8080
+
+fn read[T < Parse](text: string) -> Result[T, T::Error]:
+    T::parse(text)
+
+fn flag(text: string) -> bool:
+    text.parse::[bool]().unwrap_or(false)
+```
+
+The trait and the `bool`, `char`, and `string` impls are declared here.
+The number impls are in [Integer Parsing](num.md#integer-parsing).
+
+```text
+pub trait Parse:
+    type Error
+    fn parse(text: string) -> Result[Self, Self::Error]
+
+pub enum ParseBoolError:
+    Invalid
+
+pub enum ParseCharError:
+    Empty
+    TooMany
+```
+
+1. r[std-text.parse.trait] `std.text` declares the trait `Parse` as above. It is not a prelude name; code imports it, as in `use std.text.Parse`.
+2. r[std-text.parse.whole] `Self::parse(text)` reads the whole of `text`. An impl never trims, skips, or ignores any part of it.
+3. r[std-text.parse.method] `std` gives `string` the method `parse[T < Parse](self) -> Result[T, T::Error]`, which returns `T::parse(self)`. Calling it needs no import, and the call names the type, as in `text.parse::[i32]()`.
+4. r[std-text.parse.string] `string` implements `Parse` with `Error` set to `never`, and `parse` returns `.Ok` of the same text.
+5. r[std-text.parse.bool] `bool` implements `Parse` with `Error` set to `ParseBoolError`. The text `"true"` gives `.Ok(true)`, and `"false"` gives `.Ok(false)`.
+6. r[std-text.parse.bool-other] Any other text gives `.Err(ParseBoolError.Invalid)`. That includes `""`, `"True"`, `"1"`, and text with a space.
+7. r[std-text.parse.bool-error] `std.text` declares `ParseBoolError` as above. It implements `Eq`, `Debug`, `Display`, and `Error`. Its `Display` text is ``provided string was not `true` or `false` ``.
+8. r[std-text.parse.char] `char` implements `Parse` with `Error` set to `ParseCharError`. Text of exactly one Unicode scalar value gives `.Ok` of it.
+9. r[std-text.parse.char-empty] Empty text gives `.Err(ParseCharError.Empty)`.
+10. r[std-text.parse.char-many] Text of two or more scalar values gives `.Err(ParseCharError.TooMany)`.
+11. r[std-text.parse.char-error] `std.text` declares `ParseCharError` as above. It implements `Eq`, `Debug`, `Display`, and `Error`. Its `Display` texts are `cannot parse a character from empty text` for `Empty` and `text has more than one character` for `TooMany`.
+12. r[std-text.parse.never-traits] `never` implements `Eq`, `Debug`, `Display`, and `Error`, so `Result[string, never]` works wherever `Result[T, ParseNumberError]` does, and a generic reader over `T < Parse[Error = E]` and `E < Display` accepts `string`. No value of `never` exists, so none of their methods runs.
+
+| Call | Result |
+| --- | --- |
+| `"true".parse::[bool]()` | `.Ok(true)` |
+| `"yes".parse::[bool]()` | `.Err(ParseBoolError.Invalid)` |
+| `"é".parse::[char]()` | `.Ok('é')` |
+| `"ab".parse::[char]()` | `.Err(ParseCharError.TooMany)` |
+| `"ab".parse::[string]()` | `.Ok("ab")` |
+
+> **Why.** `Parse` is Rust's `FromStr`: one trait gives `std.cli` and
+> `std.host` a typed read without a function per type, and a user type
+> can join it. An impl reads the whole text so that the same text means the
+> same value everywhere, as `parse_i32` does.
 
 ## Raw Text Prefix
 

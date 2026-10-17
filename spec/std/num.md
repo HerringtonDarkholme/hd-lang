@@ -242,6 +242,28 @@ pub enum ParseNumberError:
 > literal syntax. The grammar is Rust's `str::parse` for integers, and
 > Rust's unsigned types reject a leading `-` as an invalid digit too.
 
+### Parse Impls
+
+Every number type implements [`Parse`](text.md#parsing-text), so
+`"42".parse::[u8]()` reads a `u8`:
+
+```text
+fn byte(text: string) -> Result[u8, ParseNumberError]:
+    text.parse::[u8]()
+```
+
+1. r[std-num.parse.trait-impls] `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, and `f64` each implement `Parse` with `Error` set to `ParseNumberError`.
+2. r[std-num.parse.trait-integer] An integer type's `parse` reads the grammar of `parse_i32` for a signed type, and of `parse_u32` for an unsigned one, within that type's range. Its errors and positions are the ones those functions give.
+3. r[std-num.parse.trait-same] For `i32`, `i64`, `u32`, `u64`, and `usize`, `parse(text)` returns what the `parse_` function of that type returns for `text`.
+4. r[std-num.parse.trait-narrow] For `i8`, `i16`, `u8`, and `u16`, a value past the type's range gives `.Err(ParseNumberError.OutOfRange)`, so `"256".parse::[u8]()` and `"-129".parse::[i8]()` fail.
+5. r[std-num.parse.trait-f64] `f64`'s `parse(text)` returns what `parse_f64(text)` returns.
+6. r[std-num.parse.trait-f32] `f32`'s `parse(text)` reads the same grammar, so its errors are `parse_f64`'s, and gives the `f64` value that `parse_f64` returns, rounded to `f32`.
+
+> **Why.** The text of a number is the same whatever the type that reads
+> it, so each width reuses one grammar. Rust parses `f32` text directly, so
+> a few decimals that sit between two `f32` values may round differently
+> here, since the value is rounded twice.
+
 ## Float Parsing
 
 `parse_f64` reads a decimal number, or one of the words `nan`, `inf`, and

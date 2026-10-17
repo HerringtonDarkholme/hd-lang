@@ -361,12 +361,13 @@ pub fn main!() -> Result[void, ProcessError] $ Console + Process:
 **11. Flags and arguments.** The builder and `usage()` work well, but an
 undeclared `--help` is `unknown option --help`, and values are text.
 Proposed: `parsed.value_as::[usize]("max")?`, over change 10. Go: typed
-`flag.Int`, automatic `-h`. Python: `argparse` with `type=int`.
+`flag.Int`, automatic `-h`. Python: `argparse` with `type=int`. Applied in
+#372: the program below checks and runs; `--max x` prints `invalid value for
+--max: invalid digit at position 0`.
 
 ```hd
 use std.cli.{Cli, CliError}
 use std.host.Args
-use std.num.parse_usize
 
 pub fn main() -> Result[void, CliError] $ Console + Args:
     cli := Cli::new("grep-lite").flag("help", .Some('h'), "show help").flag("ignore-case", .Some('i'), "ignore case").option("max", .Some('m'), "stop after N matches").positional("pattern", "text to find")
@@ -374,26 +375,33 @@ pub fn main() -> Result[void, CliError] $ Console + Args:
     if parsed.flag("help"):
         println(cli.usage())
         return .Ok(())
-    max := parsed.value("max").and_then(fn(text): parse_usize(text).ok()).unwrap_or(10)
+    max := parsed.value_as::[usize]("max")?.unwrap_or(10)
     println("pattern=${parsed.positionals[0]} icase=${parsed.flag("ignore-case")} max=$max")
     .Ok(())
 ```
 
-**12. Env and exit code.** Nothing to add. Only `main` picks the code; a
-returned `.Err` exits 1 after the cause chain. Go: `os.Getenv`,
-`os.Exit(2)`. Python: `os.environ.get`, `sys.exit(2)`.
+**12. Env and exit code.** Only `main` picks the code; a returned `.Err`
+exits 1 after the cause chain. Go: `os.Getenv`, `os.Exit(2)`. Python:
+`os.environ.get`, `sys.exit(2)`. With #372, `env_as::[usize]("WORKERS")`
+reads a typed variable: an unset one is `.Ok(.None)`, and `WORKERS=abc`
+prints `invalid value for WORKERS: invalid digit at position 0`. The
+program below checks and runs.
 
 ```hd
 use std.process.ExitCode
-use std.host.{Args, Env, args, env}
+use std.host.{Args, Env, args, env_as}
 use std.console.eprintln
 
 pub fn main() -> ExitCode $ Console + Args + Env:
     if args().is_empty():
         eprintln("usage: tool FILE")
         return ExitCode(2)
-    level := env("LOG_LEVEL").unwrap_or("info")
-    println("file=${args()[0]} level=$level")
+    workers := match env_as::[usize]("WORKERS"):
+        .Ok(found) => found.unwrap_or(4)
+        .Err(error) =>
+            eprintln("${error}")
+            return ExitCode(2)
+    println("file=${args()[0]} workers=$workers")
     ExitCode(0)
 ```
 
@@ -651,12 +659,14 @@ With #366 the one-off error needs no type and no impl: `message` and
 
 **25. A typed error enum.** `@error` with `@from` and `@source` is
 thiserror in hd; the run printed `line 3 is not a number`, `caused by:
-invalid digit at position 0`. Go: a struct and `Unwrap()` per error.
+invalid digit at position 0`. Go: a struct and `Unwrap()` per error. With
+#372 the parse is `line.trim().parse::[i64]()`; the program below checks and
+prints the same two lines.
 
 ```hd
 use std.fs.{FsRead, FsError, read_text}
 use std.path.Path
-use std.num.{ParseNumberError, parse_i64}
+use std.num.ParseNumberError
 
 @error
 pub enum AppError:
@@ -668,7 +678,7 @@ pub enum AppError:
 fn total!(path: Path) -> Result[i64, AppError] $ FsRead:
     let sum: i64 = 0
     for (i, line) in read_text!(path)?.lines().iter().enumerate():
-        sum = sum + parse_i64(line.trim()).map_err(fn(e): AppError.Parse(i + 1, e))?
+        sum = sum + line.trim().parse::[i64]().map_err(fn(e): AppError.Parse(i + 1, e))?
     .Ok(sum)
 
 pub fn main!() -> Result[void, AppError] $ Console + FsRead:

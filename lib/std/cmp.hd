@@ -452,3 +452,9 @@ impl Debug for Ordering:
 impl[T < Debug] Debug for Reverse[T]:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("Reverse").field("value", self.value).finish()
+
+# `never` has no value, so `eq` never runs (r-std-text.parse.never-traits).
+impl Eq for never:
+    fn eq(self, other: never) -> bool:
+        match self:
+            _ => panic("never has no value")

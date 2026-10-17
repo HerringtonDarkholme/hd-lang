@@ -814,7 +814,18 @@ its own issue.
   - `encode_pretty` is `TextWriter` in a spaced layout, falling back to
     `to_json(value).pretty()` for an irregular walk, as `encode` does.
 - **A `Parse` trait** with `string.parse::[T]()`, as Rust's `FromStr`,
-  used by `cli` `value_as::[T]` and `env_as::[T]`.
+  used by `cli` `value_as::[T]` and `env_as::[T]`. Applied in #372:
+  `Parse` and its `bool`, `char`, `string` impls are in
+  [std.text](../../spec/std/text.md#parsing-text), the number impls in
+  [std.num](../../spec/std/num.md#parse-impls), `value_as` in
+  [std.cli](../../spec/std/cli.md#typed-values), and `env_as` in
+  [std.host](../../spec/std/host.md#typed-variables). Calls made there:
+  the trait lives in `std.text`; `ParseBoolError` and `ParseCharError` are
+  new; `value_as` and `env_as` return `Result[T?, _]` (unset is `.Ok(.None)`,
+  unparsable is `InvalidValue(name, reason)` with the parse error's
+  `Display` text); `never` implements `Eq`, `Debug`, `Display`, and `Error`; `f32` rounds the `f64`
+  read, so it can differ from a direct `f32` parse by one unit in the last
+  place on rare inputs.
 - **Integer and float math in hd:** integer `abs` and `pow`; float
   `floor`, `round`, `abs`. (`sqrt` waits for the owner: it needs an
   intrinsic.)

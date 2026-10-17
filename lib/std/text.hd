@@ -161,12 +161,89 @@ impl Display for Utf8Error:
             .InvalidSequence(position) => "invalid UTF-8 sequence at byte $position"
             .Truncated => "incomplete UTF-8 sequence at the end of the bytes"
 
+# The text-reading trait (spec/std/text.md#parsing-text): `T::parse(text)`
+# reads a `T` from the whole of `text`, and `string.parse::[T]()` calls it.
+# It is not a prelude name.
+## A type that reads itself from text: `parse` builds a `Self` from the whole text, or an `Error`.
+## See [std-text.parse.trait](../../spec/std/text.md#r-std-text.parse.trait).
+pub trait Parse:
+    type Error
+    fn parse(text: string) -> Result[Self, Self::Error]
+
+# The error of `bool::parse` (r-std-text.parse.bool).
+## Why `bool` text was refused: it was neither `true` nor `false`.
+## See [std-text.parse.bool](../../spec/std/text.md#r-std-text.parse.bool).
+pub enum ParseBoolError:
+    Invalid
+
+impl Eq for ParseBoolError:
+    fn eq(self, other: ParseBoolError) -> bool:
+        true
+
+impl Display for ParseBoolError:
+    fn to_string(self) -> string:
+        "provided string was not `true` or `false`"
+
+# The error of `char::parse` (r-std-text.parse.char).
+## Why `char` text was refused: it was empty or held more than one character.
+## See [std-text.parse.char](../../spec/std/text.md#r-std-text.parse.char).
+pub enum ParseCharError:
+    Empty
+    TooMany
+
+impl Eq for ParseCharError:
+    fn eq(self, other: ParseCharError) -> bool:
+        match (self, other):
+            (.Empty, .Empty) => true
+            (.TooMany, .TooMany) => true
+            _ => false
+
+impl Display for ParseCharError:
+    fn to_string(self) -> string:
+        match self:
+            .Empty => "cannot parse a character from empty text"
+            .TooMany => "text has more than one character"
+
+impl Parse for bool:
+    type Error = ParseBoolError
+
+    fn parse(text: string) -> Result[bool, ParseBoolError]:
+        if text == "true":
+            return .Ok(true)
+        if text == "false":
+            return .Ok(false)
+        .Err(ParseBoolError.Invalid)
+
+impl Parse for char:
+    type Error = ParseCharError
+
+    fn parse(text: string) -> Result[char, ParseCharError]:
+        let chars: mut Iterator[char] = text.chars()
+        first := match chars.next():
+            .Some(found) => found
+            .None => return .Err(ParseCharError.Empty)
+        match chars.next():
+            .Some(_) => .Err(ParseCharError.TooMany)
+            .None => .Ok(first)
+
+impl Parse for string:
+    type Error = never
+
+    fn parse(text: string) -> Result[string, never]:
+        .Ok(text)
+
 impl string:
     # The number of bytes (spec/lang/04-type-system.md#r-types.string.len-bytes).
     ## Returns the number of bytes in the string.
     ## See [ilt-in-methods](../../spec/lang/10-modules.md#built-in-methods).
     pub fn len(self) -> usize:
         bytes_len(self)
+
+    # Reads the whole text as a `T` (r-std-text.parse.method).
+    ## Reads the whole string as a `T` through `T::parse`.
+    ## See [std-text.parse.method](../../spec/std/text.md#r-std-text.parse.method).
+    pub fn parse[T < Parse](self) -> Result[T, T::Error]:
+        T::parse(self)
 
     # The scalar values in order (spec/lang/10-modules.md#r-module.string.chars).
     ## Iterates the string's characters, one Unicode scalar value at a time.
@@ -1115,6 +1192,16 @@ impl Debug for Utf8Error:
         match self:
             .InvalidSequence(position) => out.debug_tuple("Utf8Error.InvalidSequence").named_field("position", position).finish()
             .Truncated => out.write("Utf8Error.Truncated")
+
+impl Debug for ParseBoolError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("ParseBoolError.Invalid")
+
+impl Debug for ParseCharError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Empty => out.write("ParseCharError.Empty")
+            .TooMany => out.write("ParseCharError.TooMany")
 
 impl Debug for StringBuilder:
     fn debug(self, out: mut DebugWriter) -> void:

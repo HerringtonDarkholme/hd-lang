@@ -3,6 +3,7 @@
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 use std.format.DebugWriter
+use std.text.Parse
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -433,6 +434,86 @@ fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
         value = value * 10 + digit
         index = index + 1
     .Ok(value)
+
+# `Parse` for the numbers (r-std-num.parse.trait-impls): each impl reads the
+# grammar and the range of its type, and the error is `ParseNumberError`.
+impl Parse for i8:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i8, ParseNumberError]:
+        match parse_integer(text, -128, 127):
+            .Ok(value) => .Ok(i8(value))
+            .Err(error) => .Err(error)
+
+impl Parse for i16:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i16, ParseNumberError]:
+        match parse_integer(text, -32768, 32767):
+            .Ok(value) => .Ok(i16(value))
+            .Err(error) => .Err(error)
+
+impl Parse for i32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i32, ParseNumberError]:
+        parse_i32(text)
+
+impl Parse for i64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i64, ParseNumberError]:
+        parse_i64(text)
+
+impl Parse for u8:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u8, ParseNumberError]:
+        match parse_unsigned(text, 255):
+            .Ok(value) => .Ok(u8(value))
+            .Err(error) => .Err(error)
+
+impl Parse for u16:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u16, ParseNumberError]:
+        match parse_unsigned(text, 65535):
+            .Ok(value) => .Ok(u16(value))
+            .Err(error) => .Err(error)
+
+impl Parse for u32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u32, ParseNumberError]:
+        parse_u32(text)
+
+impl Parse for u64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u64, ParseNumberError]:
+        parse_u64(text)
+
+impl Parse for usize:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[usize, ParseNumberError]:
+        parse_usize(text)
+
+impl Parse for f64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[f64, ParseNumberError]:
+        parse_f64(text)
+
+# The `f32` is the `f64` that `parse_f64` reads, rounded to `f32`
+# (r-std-num.parse.trait-f32).
+impl Parse for f32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[f32, ParseNumberError]:
+        match parse_f64(text):
+            .Ok(value) => .Ok(f32(value))
+            .Err(error) => .Err(error)
 
 # Float parsing (spec/std/num.md#float-parsing), in the grammar of Rust's
 # `str::parse::<f64>`. The sign, the grammar, and the words `nan`, `inf`,

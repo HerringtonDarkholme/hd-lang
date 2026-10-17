@@ -1,0 +1,40 @@
+# test: Parsed.value_as reads an option as a Parse type and names the option when it cannot
+# Spec std/cli Typed Values: std-cli.parsed.value-as, std-cli.value-as.absent, std-cli.value-as.present, std-cli.value-as.invalid, std-cli.value-as.display, std-cli.error.declared, std-text.parse.never-traits (task #372).
+use std.cli.{Cli, CliError, Parsed}
+
+fn tool() -> Cli:
+    Cli::new("tail").option("max", 'm', "lines to show").option("name", 'n', "a label").option("on", 'o', "a switch")
+
+fn parsed_from(arguments: List[string]) -> Parsed:
+    match tool().parse(arguments):
+        .Ok(found) => found
+        .Err(_) => panic("the arguments must parse")
+
+tests:
+    use std.testing.assert_equal
+
+    it("an absent option is none"):
+        parsed := parsed_from([])
+        assert_equal(parsed.value_as::[usize]("max"), .Ok(.None), reason="declared, not given")
+        assert_equal(parsed.value_as::[usize]("undeclared"), .Ok(.None), reason="undeclared")
+
+    it("a good value is read as the type"):
+        parsed := parsed_from(["--max", "25", "-n", "log", "--on=true"])
+        assert_equal(parsed.value_as::[usize]("max"), .Ok(.Some(usize(25))), reason="usize")
+        assert_equal(parsed.value_as::[i8]("max"), .Ok(.Some(i8(25))), reason="i8")
+        assert_equal(parsed.value_as::[string]("name"), .Ok(.Some("log")), reason="string")
+        assert_equal(parsed.value_as::[bool]("on"), .Ok(.Some(true)), reason="bool")
+
+    it("a bad value names the option and carries the parse error text"):
+        parsed := parsed_from(["--max", "x1", "--name", "ab", "--on", "yes"])
+        assert_equal(parsed.value_as::[usize]("max"), .Err(CliError.InvalidValue("max", "invalid digit at position 0")), reason="usize")
+        assert_equal(parsed.value_as::[u8]("max"), .Err(CliError.InvalidValue("max", "invalid digit at position 0")), reason="u8")
+        assert_equal(parsed.value_as::[char]("name"), .Err(CliError.InvalidValue("name", "text has more than one character")), reason="char")
+        assert_equal(parsed.value_as::[bool]("on"), .Err(CliError.InvalidValue("on", "provided string was not `true` or `false`")), reason="bool")
+
+    it("out of range is an invalid value"):
+        parsed := parsed_from(["--max", "300"])
+        assert_equal(parsed.value_as::[u8]("max"), .Err(CliError.InvalidValue("max", "number out of range for its type")), reason="u8")
+
+    it("the Display text of InvalidValue"):
+        assert_equal("${CliError.InvalidValue("max", "invalid digit at position 0")}", "invalid value for --max: invalid digit at position 0", reason="text")

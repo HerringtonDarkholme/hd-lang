@@ -48,6 +48,35 @@ pub trait Env:
 > `.None` for a variable outside the grant, and `names` leaves it out
 > ([Environment Grant](../cli/command-line.md#environment-grant)).
 
+### Typed Variables
+
+`env_as` reads a variable as any type that implements
+[`Parse`](text.md#parsing-text):
+
+```text
+use std.host.{Env, EnvError, env_as}
+
+fn workers() -> Result[usize, EnvError] $ Env:
+    .Ok(env_as::[usize]("WORKERS")?.unwrap_or(4))
+```
+
+```text
+pub enum EnvError:
+    InvalidValue(name: string, reason: string)
+```
+
+1. r[std-host.env-as.decl] `std.host` declares `pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, EnvError] $ Env`. The call names the type, as in `env_as::[usize]("WORKERS")`.
+2. r[std-host.env-as.unset] When `env(name)` is `.None`, `env_as` returns `.Ok(.None)`.
+3. r[std-host.env-as.present] When `env(name)` is `.Some(text)` and `T::parse(text)` returns `.Ok(value)`, `env_as` returns `.Ok(.Some(value))`.
+4. r[std-host.env-as.invalid] When `T::parse(text)` returns `.Err(error)`, `env_as` returns `.Err(EnvError.InvalidValue(name, reason))`. `reason` is the `Display` text of `error`.
+5. r[std-host.env-as.error] `std.host` declares `EnvError` as above. It implements `Eq`, `Debug`, `Display`, and `Error`. The `Display` text of `InvalidValue` is `invalid value for NAME: REASON`.
+6. r[std-host.env-as.plain] `env_as` is a plain call, like `env`.
+
+> **Why.** An unset variable is normal, so it is `.Ok(.None)`, as Go's
+> `os.LookupEnv` reports it apart from an empty value. A set variable that
+> does not parse is a mistake the program should show, so it is an error
+> that names the variable, as `strconv` errors name the text.
+
 ## Plain Reads
 
 1. r[std-host.plain-reads] Every method of `Args` and `Env`, and both helpers, are plain calls, not bang calls.

@@ -4,6 +4,7 @@
 use std.format.DebugWriter
 use std.error.Error
 use std.host.Args
+use std.text.Parse
 
 # A command line's declared arguments (r-std-cli.cli.decl). Each builder
 # method returns a new `Cli` with one more declaration, in order.
@@ -205,18 +206,30 @@ impl Parsed:
     pub fn value(self, name: string) -> string?:
         self.values.get(name)
 
+    # `value` read as a `T` (r-std-cli.parsed.value-as).
+    ## The value of the option `name` read as a `T`: `.None` when absent, an error naming the option when unreadable.
+    ## See [std-cli.parsed.value-as](../../spec/std/cli.md#r-std-cli.parsed.value-as).
+    pub fn value_as[T < Parse[Error = E], E < Display](self, name: string) -> Result[T?, CliError]:
+        text := match self.values.get(name):
+            .Some(found) => found
+            .None => return .Ok(.None)
+        match T::parse(text):
+            .Ok(value) => .Ok(.Some(value))
+            .Err(error) => .Err(CliError.InvalidValue(name, error.to_string()))
+
 impl Eq for Parsed:
     fn eq(self, other: Parsed) -> bool:
         self.flags == other.flags && self.values == other.values && self.positionals == other.positionals
 
-# Why `parse` failed (r-std-cli.error.decl).
+# Why `parse` failed (r-std-cli.error.declared).
 ## Why parsing failed: an unknown or repeated argument, a missing value or positional, an unexpected value, or a help request.
-## See [std-cli.error.decl](../../spec/std/cli.md#r-std-cli.error.decl).
+## See [std-cli.error.declared](../../spec/std/cli.md#r-std-cli.error.declared).
 pub enum CliError:
     UnknownOption(text: string)
     MissingValue(name: string)
     UnexpectedValue(name: string)
     MissingPositional(name: string)
+    InvalidValue(name: string, reason: string)
 
 impl Eq for CliError:
     fn eq(self, other: CliError) -> bool:
@@ -225,6 +238,7 @@ impl Eq for CliError:
             (.MissingValue(a), .MissingValue(b)) => a == b
             (.UnexpectedValue(a), .UnexpectedValue(b)) => a == b
             (.MissingPositional(a), .MissingPositional(b)) => a == b
+            (.InvalidValue(a, reason), .InvalidValue(b, other)) => a == b && reason == other
             _ => false
 
 impl Display for CliError:
@@ -234,6 +248,7 @@ impl Display for CliError:
             .MissingValue(name) => "option --${name} needs a value"
             .UnexpectedValue(name) => "flag --${name} takes no value"
             .MissingPositional(name) => "missing argument <${name}>"
+            .InvalidValue(name, reason) => "invalid value for --${name}: ${reason}"
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
 impl Error for CliError
@@ -267,3 +282,4 @@ impl Debug for CliError:
             .MissingValue(name) => out.debug_tuple("CliError.MissingValue").named_field("name", name).finish()
             .UnexpectedValue(name) => out.debug_tuple("CliError.UnexpectedValue").named_field("name", name).finish()
             .MissingPositional(name) => out.debug_tuple("CliError.MissingPositional").named_field("name", name).finish()
+            .InvalidValue(name, reason) => out.debug_tuple("CliError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

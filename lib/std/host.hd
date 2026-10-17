@@ -3,6 +3,8 @@
 # The default profile binds a host `Args` and `Env`
 # (src/commands/default-profile.ts).
 use std.format.DebugWriter
+use std.error.Error
+use std.text.Parse
 
 ## The host capability to read the process's arguments.
 ## See [std-host.args.decl](../../spec/std/host.md#r-std-host.args.decl).
@@ -25,6 +27,37 @@ pub fn args() -> List[string] $ Args:
 ## See [std-host.env.helper](../../spec/std/host.md#r-std-host.env.helper).
 pub fn env(name: string) -> string? $ Env:
     $.use(Env).get(name)
+
+# `env` read as a `T` (r-std-host.env-as.decl): an unset variable is
+# `.Ok(.None)`, and one that `T::parse` refuses is an `EnvError` that names
+# it and carries the parse error's `Display` text.
+## The value of the environment variable `name` read as a `T`: `.None` when unset, an error naming the variable when unreadable.
+## See [std-host.env-as.decl](../../spec/std/host.md#r-std-host.env-as.decl).
+pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, EnvError] $ Env:
+    text := match $.use(Env).get(name):
+        .Some(found) => found
+        .None => return .Ok(.None)
+    match T::parse(text):
+        .Ok(value) => .Ok(.Some(value))
+        .Err(error) => .Err(EnvError.InvalidValue(name, error.to_string()))
+
+## Why `env_as` failed: the variable's text could not be read as the requested type.
+## See [std-host.env-as.error](../../spec/std/host.md#r-std-host.env-as.error).
+pub enum EnvError:
+    InvalidValue(name: string, reason: string)
+
+impl Eq for EnvError:
+    fn eq(self, other: EnvError) -> bool:
+        match (self, other):
+            (.InvalidValue(a, reason), .InvalidValue(b, other_reason)) => a == b && reason == other_reason
+
+impl Display for EnvError:
+    fn to_string(self) -> string:
+        match self:
+            .InvalidValue(name, reason) => "invalid value for ${name}: ${reason}"
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for EnvError
 
 # The deterministic `Args` (spec/std/host.md#map-providers):
 # it returns the program name and the arguments it was made with.
@@ -83,3 +116,8 @@ impl Debug for MapArgs:
 impl Debug for MapEnv:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("MapEnv").field("values", self.values).finish()
+
+impl Debug for EnvError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .InvalidValue(name, reason) => out.debug_tuple("EnvError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

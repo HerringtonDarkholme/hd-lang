@@ -247,6 +247,8 @@ fn width(text: string) -> Result[i32, dyn Error]:
 | --- | --- |
 | `ParseNumberError` | `std.num` |
 | `Utf8Error` | `std.text` |
+| `ParseBoolError` | `std.text` |
+| `ParseCharError` | `std.text` |
 | `ConsoleError` | `std.console` |
 | `DecodeError` | `std.encoding` |
 | `FsError` | `std.fs` |
@@ -254,6 +256,7 @@ fn width(text: string) -> Result[i32, dyn Error]:
 | `JsonError` | `std.json` |
 | `TimeParseError` | `std.time` |
 | `CliError` | `std.cli` |
+| `EnvError` | `std.host` |
 | `RegexError` | `std.regex` |
 | `ResourceError[E]`, when `E < Error` | `std.resource` |
 

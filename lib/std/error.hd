@@ -7,7 +7,7 @@
 use std.inspect.{Inspectable, downcast_val}
 use std.format.DebugWriter
 use std.num.ParseNumberError
-use std.text.Utf8Error
+use std.text.{Utf8Error, ParseBoolError, ParseCharError}
 use std.console.ConsoleError
 
 ## The standard error trait: a displayable, inspectable failure that may name its cause.
@@ -137,7 +137,10 @@ pub fn message(text: string) -> dyn Error:
 # beside their declarations.
 impl Error for ParseNumberError
 impl Error for Utf8Error
+impl Error for ParseBoolError
+impl Error for ParseCharError
 impl Error for ConsoleError
+impl Error for never
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
 # (r-std-error.context.ok, r-std-error.context.err).

@@ -1,0 +1,75 @@
+# test: Parse for bool, char, and string, string.parse::[T](), a generic reader, and a user impl
+# Spec std/text Parsing Text: std-text.parse.trait, std-text.parse.whole, std-text.parse.method, std-text.parse.string, std-text.parse.bool, std-text.parse.bool-other, std-text.parse.bool-error, std-text.parse.char, std-text.parse.char-empty, std-text.parse.char-many, std-text.parse.char-error, std-text.parse.never-traits (task #372).
+use std.text.{Parse, ParseBoolError, ParseCharError}
+use std.num.ParseNumberError
+
+fn read[T < Parse](text: string) -> Result[T, T::Error]:
+    T::parse(text)
+
+fn port(text: string) -> i32:
+    match text.parse::[i32]():
+        .Ok(value) => value
+        .Err(_) => 8080
+
+fn flag(text: string) -> bool:
+    text.parse::[bool]().unwrap_or(false)
+
+@derive(Eq, Debug)
+data Level:
+    value: i32
+
+impl Parse for Level:
+    type Error = string
+
+    fn parse(text: string) -> Result[Level, string]:
+        match text:
+            "low" => .Ok(Level { value: 1 })
+            "high" => .Ok(Level { value: 2 })
+            _ => .Err("unknown level ${text}")
+
+tests:
+    use std.testing.assert_equal
+
+    it("bool reads exactly true and false"):
+        assert_equal("true".parse::[bool](), .Ok(true), reason="true")
+        assert_equal("false".parse::[bool](), .Ok(false), reason="false")
+        assert_equal("".parse::[bool](), .Err(ParseBoolError.Invalid), reason="empty")
+        assert_equal("True".parse::[bool](), .Err(ParseBoolError.Invalid), reason="case")
+        assert_equal("1".parse::[bool](), .Err(ParseBoolError.Invalid), reason="digit")
+        assert_equal(" true".parse::[bool](), .Err(ParseBoolError.Invalid), reason="space")
+        assert_equal("${ParseBoolError.Invalid}", "provided string was not `true` or `false`", reason="display")
+
+    it("char reads exactly one scalar"):
+        assert_equal("a".parse::[char](), .Ok('a'), reason="ascii")
+        assert_equal("é".parse::[char](), .Ok('é'), reason="two bytes")
+        assert_equal("😀".parse::[char](), .Ok('😀'), reason="four bytes")
+        assert_equal("".parse::[char](), .Err(ParseCharError.Empty), reason="empty")
+        assert_equal("ab".parse::[char](), .Err(ParseCharError.TooMany), reason="two")
+        assert_equal("é ".parse::[char](), .Err(ParseCharError.TooMany), reason="no trimming")
+        assert_equal("${ParseCharError.Empty}", "cannot parse a character from empty text", reason="empty display")
+        assert_equal("${ParseCharError.TooMany}", "text has more than one character", reason="many display")
+
+    it("string is the identity"):
+        assert_equal("ab c".parse::[string]().ok(), .Some("ab c"), reason="text")
+        assert_equal("".parse::[string]().ok(), .Some(""), reason="empty")
+
+    it("never has Eq, Debug, and Display, so the result does"):
+        assert_equal("hi".parse::[string](), .Ok("hi"), reason="Eq and Debug of the result")
+        assert_equal("hi".parse::[string]() == "hi".parse::[string](), true, reason="==")
+        assert_equal(debug("hi".parse::[string]()), "Result.Ok(\"hi\")", reason="debug text")
+
+    it("the method is T::parse"):
+        assert_equal("x".parse::[i32](), .Err(ParseNumberError.InvalidDigit(0)), reason="i32 error")
+        assert_equal("42".parse::[i32](), .Ok(42), reason="i32 value")
+        assert_equal(read::[bool]("false"), .Ok(false), reason="generic bool")
+        assert_equal(read::[u8]("7"), .Ok(7), reason="generic u8")
+
+    it("the examples' helpers"):
+        assert_equal(port("9000"), 9000, reason="a number")
+        assert_equal(port("web"), 8080, reason="the fallback")
+        assert_equal(flag("true"), true, reason="true")
+        assert_equal(flag("yes"), false, reason="the fallback")
+
+    it("a user type joins"):
+        assert_equal("high".parse::[Level](), .Ok(Level { value: 2 }), reason="ok")
+        assert_equal("mid".parse::[Level](), .Err("unknown level mid"), reason="error")

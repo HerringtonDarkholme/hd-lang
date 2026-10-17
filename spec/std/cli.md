@@ -115,7 +115,9 @@ fn demo() -> List[string]:
 
 ### Parse Errors
 
-`parse` returns one of four errors:
+`parse` returns one of four errors. `CliError` has a fifth variant,
+`InvalidValue`, which `value_as` returns
+([Typed Values](#typed-values)):
 
 ```text
 pub enum CliError:
@@ -123,6 +125,7 @@ pub enum CliError:
     MissingValue(name: string)
     UnexpectedValue(name: string)
     MissingPositional(name: string)
+    InvalidValue(name: string, reason: string)
 ```
 
 | Rule | Variant | When | `Display` text |
@@ -132,11 +135,11 @@ pub enum CliError:
 | r[std-cli.error.unexpected-value] Unexpected value | `UnexpectedValue` | a flag is written `--name=VALUE` | `flag --NAME takes no value` |
 | r[std-cli.error.missing-positional] Missing positional | `MissingPositional` | fewer positionals are given than declared | `missing argument <NAME>` |
 
-1. r[std-cli.error.decl] `std.cli` declares the enum `CliError` with the four variants above.
+1. r[std-cli.error.declared] `std.cli` declares the enum `CliError` with the five variants above. `parse` returns only the first four.
 2. r[std-cli.error.traits] `CliError` implements `Eq`, `Debug`, and `Display`.
 3. r[std-cli.error.text] `UnknownOption`'s `text` is the argument as written, up to its first `=` when it starts with `--`.
 4. r[std-cli.error.name] The `name` of `MissingValue` and `UnexpectedValue` is the long name of the flag or option. The `name` of `MissingPositional` is the first positional not given.
-5. r[std-cli.error.display] In the `Display` text, `TEXT` and `NAME` stand for the variant's field.
+5. r[std-cli.error.display] In the `Display` text, `TEXT`, `NAME`, and `REASON` stand for the variant's field.
 6. r[std-cli.error.first] `parse` returns the first error in argument order. A missing positional is checked after the last argument.
 7. r[std-cli.error.help] When a flag named `help` is declared and set, `parse` does not check for a missing positional.
 
@@ -165,6 +168,36 @@ pub data Parsed:
 
 > **Note.** A declared positional is required, so `positionals[0]` holds
 > the first one whenever `parse` succeeds.
+
+### Typed Values
+
+`value_as` reads an option's value as any type that implements
+[`Parse`](text.md#parsing-text):
+
+```text
+use std.cli.{Cli, CliError}
+
+fn max_lines(args: List[string]) -> Result[usize, CliError]:
+    parsed := Cli::new("tail").option("max", .None, "lines to show").parse(args)?
+    .Ok(parsed.value_as::[usize]("max")?.unwrap_or(10))
+```
+
+1. r[std-cli.parsed.value-as] `Parsed` has the method `pub fn value_as[T < Parse[Error = E], E < Display](self, name: string) -> Result[T?, CliError]`. The call names the type, as in `parsed.value_as::[usize]("max")`.
+2. r[std-cli.value-as.absent] When `value(name)` is `.None`, `value_as` returns `.Ok(.None)`.
+3. r[std-cli.value-as.present] When `value(name)` is `.Some(text)` and `T::parse(text)` returns `.Ok(value)`, `value_as` returns `.Ok(.Some(value))`.
+4. r[std-cli.value-as.invalid] When `T::parse(text)` returns `.Err(error)`, `value_as` returns `.Err(CliError.InvalidValue(name, reason))`. `reason` is the `Display` text of `error`.
+5. r[std-cli.value-as.display] The `Display` text of `InvalidValue` is `invalid value for --NAME: REASON`.
+
+| `--max` value | `value_as::[usize]("max")` |
+| --- | --- |
+| not given | `.Ok(.None)` |
+| `"25"` | `.Ok(.Some(25))` |
+| `"x1"` | `.Err(CliError.InvalidValue("max", "invalid digit at position 0"))` |
+
+> **Why.** The error names the option, so a program can print it as it
+> is, and carries the text, not the parse error, so `CliError` stays one
+> type for every `T`. An absent option is `.None`, the same as `value`,
+> so `unwrap_or` supplies a default.
 
 ## Usage Text
 
