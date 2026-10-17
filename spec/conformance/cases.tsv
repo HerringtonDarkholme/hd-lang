@@ -3411,3 +3411,4 @@ typing/valid/error-exit-code-usage.hd	type	accept	std/error.md#r-std-error.exit-
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
+runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or

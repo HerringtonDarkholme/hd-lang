@@ -23,6 +23,13 @@ impl[T] T?:
             .Some(value) => value
             .None => fallback
 
+    ## The optional itself for a `.Some`, and `other` for a `.None`.
+    ## See [std-option.or](../../spec/std/option.md#r-std-option.or).
+    pub fn or(self, other: T?) -> T?:
+        match self:
+            .Some(_) => self
+            .None => other
+
     ## `.Ok` of the value for a `.Some`, and `.Err` of `error` for a `.None`.
     ## See [std-option.ok-or](../../spec/std/option.md#r-std-option.ok-or).
     pub fn ok_or[E](self, error: E) -> Result[T, E]:

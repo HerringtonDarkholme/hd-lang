@@ -4,8 +4,8 @@ Status: standard library specification draft.
 
 This chapter defines the part of `std.option` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
-`and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of
-`T?`.
+`and_then`, `unwrap_or`, `or`, `ok_or`, `is_some`, `is_none`, and `expect`
+of `T?`.
 
 The language tier keeps what the compiler knows by name
 ([Optional Types](../lang/04-type-system.md#optional-types)):
@@ -21,7 +21,7 @@ The language tier keeps what the compiler knows by name
 
 ## Optional Methods
 
-`std.option` gives every `T?` two more methods:
+`std.option` gives every `T?` three more methods:
 
 ```text
 fn first_even(values: List[i32]) -> i32?:
@@ -41,18 +41,21 @@ fn quarter_of_first_even(values: List[i32]) -> i32:
 | --- | --- | --- |
 | r[std-option.and-then] `and_then` | `fn and_then[U](self, transform: fn(T) -> U?) -> U?` | `transform(value)` for `.Some(value)`, and `.None` for `.None` |
 | r[std-option.unwrap-or] `unwrap_or` | `fn unwrap_or(self, fallback: T) -> T` | `value` for `.Some(value)`, and `fallback` for `.None` |
+| r[std-option.or] `or` | `fn or(self, other: T?) -> T?` | the optional itself for `.Some(_)`, and `other` for `.None` |
 
-1. r[std-option.methods.inherent] Both are inherent methods that `std` declares on `T?`, so every optional has them without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
+1. r[std-option.methods.inherent] All three are inherent methods that `std` declares on `T?`, so every optional has them without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 2. r[std-option.and-then.once] `and_then` calls `transform` once for `.Some`, and never for `.None`.
 3. r[std-option.and-then.flat] `and_then` adds no optional layer: its result is the `U?` that `transform` returns, not a `U??`.
-4. r[std-option.methods.non-suspending] Neither method suspends. The `transform` callback is a plain function type with the empty row.
+4. r[std-option.methods.non-suspending] No method suspends. The `transform` callback is a plain function type with the empty row.
+5. r[std-option.or.layers] `or` returns an optional, not a `T`, so calls chain: `flag.or(variable).or(fixed)` is `.Some` of the first present value, and `.None` when all are `.None`.
 
-> **Note.** `fallback` is an ordinary argument, so it is evaluated before
-> the call, even when the optional is present.
+> **Note.** `fallback` and `other` are ordinary arguments, so each is
+> evaluated before the call, even when the optional is present.
 
 > **Why.** Postfix `?` works only where the enclosing function or closure
 > returns an optional. `and_then` chains two optional steps in any
-> expression, as Rust's `Option::and_then` does.
+> expression, as Rust's `Option::and_then` does. `or` layers fallbacks, as
+> Rust's `Option::or` does; a costly fallback is a `match`, which is lazy.
 
 ## Variant Tests And Conversions
 
