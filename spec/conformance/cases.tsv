@@ -2878,6 +2878,8 @@ typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-
 typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
 runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
+runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok
+runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
 runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/net-scripted-stream.hd	runtime	accept	std/net.md#scripted-net

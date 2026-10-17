@@ -72,6 +72,7 @@ export function browserSend({ method, url, headers, body, timeout }) {
     status: xhr.status,
     headers: headerPairs(xhr.getAllResponseHeaders()),
     body: new Uint8Array(xhr.response),
+    url: xhr.responseURL || parsed.href,
   };
 }
 

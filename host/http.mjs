@@ -15,7 +15,8 @@
 //   repeats (std-http.headers.pairs); a name arrives in lowercase, and the
 //   values of one name keep their order, grouped at the name's first
 //   appearance (std-http.headers.case, .order). The body is whole
-//   (std-http.bodies).
+//   (std-http.bodies). The response's `url` is the last request's URL
+//   (std-http.response.url).
 // - A request that takes longer than its timeout, or 30 s by default, is
 //   `Timeout` (std-http.send.timeout).
 import http from "node:http";
@@ -140,7 +141,7 @@ async function send(r) {
     const got = await once(u, host, method, r.headers, body, deadline - Date.now());
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
     if (got.error || ![301, 302, 303, 307, 308].includes(got.status) || location === undefined) {
-      return got;
+      return got.error ? got : { ...got, url };
     }
     // A Location outside printable ASCII is no RFC 3986 URL.
     if (!isAsciiUrl(location)) return err("InvalidUrl", location);

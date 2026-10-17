@@ -421,7 +421,7 @@ function testRunnerProvider({ env, st, files }) {
 
 // `hd:Http` over `send`, a client that takes `{ method, url, headers,
 // body, timeout }` (`timeout` milliseconds or `null`) and answers
-// `{ status, headers, body }`, or `{ error, text }` with an `HttpError`
+// `{ status, headers, body, url }`, or `{ error, text }` with an `HttpError`
 // variant's name and text: http.mjs's thread on Node, `browserSend` in the
 // browser (std-http.send.*).
 export function httpProvider(send) {

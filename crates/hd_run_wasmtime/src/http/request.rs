@@ -61,6 +61,7 @@ pub(crate) struct Response {
     status: u16,
     headers: Headers,
     body: Vec<u8>,
+    url: String,
 }
 
 /// A send's encoded result.
@@ -69,6 +70,7 @@ pub(crate) fn encode(response: Result<Response, HttpError>) -> Enc {
         status: r.status,
         headers: r.headers,
         body: r.body,
+        url: r.url,
     }))
 }
 
@@ -93,7 +95,10 @@ pub(crate) fn send(
             .find(|(name, _)| name.eq_ignore_ascii_case("location"))
             .map(|(_, value)| value.as_str());
         if !matches!(got.status, 301 | 302 | 303 | 307 | 308) || location.is_none() {
-            return Ok(got);
+            return Ok(Response {
+                url: request.url,
+                ..got
+            });
         }
         let location = location.unwrap_or_default();
         // A character outside printable ASCII is no RFC 3986 URL
@@ -204,6 +209,7 @@ fn once(
         status,
         headers,
         body,
+        url: String::new(),
     })
 }
 

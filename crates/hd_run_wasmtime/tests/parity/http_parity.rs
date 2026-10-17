@@ -35,8 +35,9 @@ fn request(
 
 /// The expected response. Both hosts deliver a header name in lowercase
 /// (`std-http.headers.case`), so the expectation lowercases the names the
-/// fixture server writes; the values of one name keep their order.
-fn response(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
+/// fixture server writes; the values of one name keep their order. `url`
+/// is the last request's URL (`std-http.response.url`).
+fn response(status: u16, headers: &[(&str, &str)], body: &[u8], url: &str) -> Vec<u8> {
     let mut e = Enc::default()
         .leb(0)
         .leb(u64::from(status))
@@ -44,7 +45,7 @@ fn response(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
     for (name, value) in headers {
         e = e.str(&name.to_ascii_lowercase()).str(value);
     }
-    e.bytes(body).0
+    e.bytes(body).str(url).0
 }
 
 fn error(variant: u64, text: &str) -> Vec<u8> {
@@ -82,7 +83,12 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
             "hd:Http",
             "send",
             request(0, &server.url(&format!("/{status}")), &[], b"", None),
-            response(status, &headers, &[0, 255, 195, 169]),
+            response(
+                status,
+                &headers,
+                &[0, 255, 195, 169],
+                &server.url(&format!("/{status}")),
+            ),
         );
     }
     assert_program(&scratch, p, vec![], || {});
@@ -131,6 +137,7 @@ fn http_values_of_one_name_keep_their_order_across_other_names() {
                 ("content-length", "0"),
             ],
             b"",
+            &server.url("/order"),
         ),
     );
     assert_program(&scratch, p, vec![], || {});
@@ -170,7 +177,12 @@ fn http_all_methods_custom_host_request_pairs_and_framing() {
                 body,
                 None,
             ),
-            response(200, &[("Content-Length", "2")], expected_body),
+            response(
+                200,
+                &[("Content-Length", "2")],
+                expected_body,
+                &server.url("/echo?query=yes#ignored"),
+            ),
         );
     }
     // Explicit body framing must not receive a second Content-Length.
@@ -184,7 +196,12 @@ fn http_all_methods_custom_host_request_pairs_and_framing() {
             b"body",
             None,
         ),
-        response(200, &[("Content-Length", "2")], b"ok"),
+        response(
+            200,
+            &[("Content-Length", "2")],
+            b"ok",
+            &server.url("/framed"),
+        ),
     );
     assert_program(&scratch, p, vec![], || {});
     let seen = server.seen.lock().unwrap();
@@ -235,7 +252,7 @@ fn http_redirect_method_rewrites_and_body_preservation() {
                 b"payload",
                 None,
             ),
-            response(200, &[("Content-Length", "0")], b""),
+            response(200, &[("Content-Length", "0")], b"", &server.url("/final")),
         );
     }
     assert_program(&scratch, p, vec![], || {});
@@ -352,14 +369,21 @@ fn http_short_ipv4_host_is_granted_as_written_and_left_to_the_resolver() {
         }
         Err(_) => false,
     };
-    let ok = response(200, &[("Content-Length", "0")], b"");
+    let ok = |host: &str| {
+        response(
+            200,
+            &[("Content-Length", "0")],
+            b"",
+            &format!("http://{host}:{port}/"),
+        )
+    };
     let mut p = Program::new();
     p.call_waiting(
         "hd:Http",
         "send",
         request(0, &format!("http://127.1:{port}/"), &[], b"", None),
         if resolves {
-            ok.clone()
+            ok("127.1")
         } else {
             error(2, "127.1")
         },
@@ -368,7 +392,7 @@ fn http_short_ipv4_host_is_granted_as_written_and_left_to_the_resolver() {
         "hd:Http",
         "send",
         request(0, &format!("http://LocalHost:{port}/"), &[], b"", None),
-        ok,
+        ok("LocalHost"),
     );
     assert_program(
         &scratch,
@@ -454,7 +478,7 @@ fn http_exactly_ten_redirects_reach_the_successful_response() {
         "hd:Http",
         "send",
         request(0, &server.url("/0"), &[], b"", None),
-        response(200, &[("Content-Length", "0")], b""),
+        response(200, &[("Content-Length", "0")], b"", &server.url("/10")),
     );
     assert_program(&scratch, p, vec![], || {});
     assert_eq!(server.seen.lock().unwrap().len(), 22);
@@ -876,6 +900,7 @@ fn http_chunked_request_response_and_informational_response_are_exact() {
             200,
             &[("Transfer-Encoding", "chunked"), ("X-Final", "retained")],
             &[0, 255, b'a', b'b'],
+            &server.url("/chunked"),
         ),
     );
     assert_program(&scratch, p, vec![], || {});
@@ -907,7 +932,12 @@ fn http_bodyless_statuses_and_redirect_without_location_are_responses() {
             "hd:Http",
             "send",
             request(0, &server.url(&format!("/{status}")), &[], b"", None),
-            response(status, &[("Content-Length", "0")], b""),
+            response(
+                status,
+                &[("Content-Length", "0")],
+                b"",
+                &server.url(&format!("/{status}")),
+            ),
         );
     }
     assert_program(
@@ -974,7 +1004,7 @@ fn http_two_instances_send_at_the_same_time() {
         "hd:Http",
         "send",
         request(0, &url, &[], b"", Some(10_000)),
-        response(200, &[("Content-Length", "0")], b""),
+        response(200, &[("Content-Length", "0")], b"", &url),
     );
     let (wasm, expected) = p.finish(7);
     let instances: Vec<_> = (0..2)

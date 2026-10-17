@@ -177,25 +177,17 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead:
 
 ### HTTP
 
-**4. GET a URL's text.** Already one line; it ran against a local
-server. At a missing path it printed the server's HTML 404 page and
-exited 0. `Response.ok()` should make a status outside 200 to 299 an
-`.Err(HttpError.Status(status, url))`, as reqwest's `error_for_status`;
-then `get_text!(url)` is `get!(url)?.ok()?.text()`. Go: `http.Get`, a
-`StatusCode` check, `io.ReadAll`. Python:
+**4. GET a URL's text.** One line with `get_text!`. Before it, `get!(url)?.text()`
+ran against a local server and, at a missing path, printed the server's
+HTML 404 page and exited 0. Now `Response.ok()` makes a status outside
+200 to 299 an `.Err(HttpError.Status(status, url))`, as reqwest's
+`error_for_status`, and `get_text!(url)` is `get!(url)?.ok()?.text()`.
+Go: `http.Get`, a `StatusCode` check, `io.ReadAll`. Python:
 `urlopen(url).read().decode()`, which raises on 404.
 
 ```hd
-use std.http.{Http, HttpError, get}
+use std.http.{Http, HttpError, get_text}
 
-pub fn main!() -> Result[void, HttpError] $ Console + Http:
-    body := get!("http://127.0.0.1:8765/notes.txt")?.text()
-    println(body)
-    .Ok(())
-```
-
-```hd
-# proposed
 pub fn main!() -> Result[void, HttpError] $ Console + Http:
     println(get_text!("http://127.0.0.1:8765/notes.txt")?)
     .Ok(())
@@ -245,8 +237,22 @@ impl Display for StatusError:
 impl Error for StatusError
 ```
 
+With `post_json!`, `ok()` and `json`:
+
 ```hd
-# proposed
+use std.http.{Http, post_json}
+use std.serde.{Deserialize, Serialize}
+use std.error.Error
+
+@derive(Serialize)
+data NewUser:
+    name: string
+
+@derive(Deserialize)
+data Created:
+    id: i64
+    name: string
+
 pub fn main!() -> Result[void, dyn Error] $ Console + Http:
     response := post_json!("https://api.example.com/users", NewUser { name: "Ada" })?
     created := response.ok()?.json::[Created]()?

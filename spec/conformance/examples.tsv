@@ -809,8 +809,9 @@ std/process.md	3	accept	runtime/valid/scripted-process.hd
 std/http.md	1	type-fragment	-
 std/http.md	2	type-fragment	-
 std/http.md	3	accept	runtime/valid/http-scripted-provider.hd
-std/http.md	4	accept	runtime/valid/http-scripted-provider.hd
-std/http.md	5	accept	runtime/valid/http-scripted-unknown-url.hd
+std/http.md	4	accept	runtime/valid/http-json.hd
+std/http.md	5	accept	runtime/valid/http-scripted-provider.hd
+std/http.md	6	accept	runtime/valid/http-scripted-unknown-url.hd
 std/net.md	1	type-fragment	-
 std/net.md	2	type-fragment	-
 std/net.md	3	type-fragment	-

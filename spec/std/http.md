@@ -5,9 +5,11 @@ Status: standard library specification draft.
 This chapter defines `std.http`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- the host capability trait `Http`, and the helpers `send!` and `get!`;
+- the host capability trait `Http`, and the helpers `send!`, `get!`,
+  `get_text!`, and `post_json!`;
 - the data types `Request` and `Response`, and the enums `Method` and
   `HttpError`;
+- a status outside 200 to 299 as an error, and the JSON calls;
 - which request URLs are valid;
 - `ScriptedHttp`, the deterministic provider of `Http`;
 - what the playground binds for `Http`, and how a `block_on` call waits
@@ -44,6 +46,7 @@ pub data Response:
     pub status: u16
     pub headers: List[(string, string)]
     pub body: List[u8]
+    pub url: string = ""
 ```
 
 1. r[std-http.types.decl] `std.http` declares `Method`, `Request`, and `Response` as above. Code imports them, as in `use std.http.{Request, Response}`.
@@ -55,6 +58,7 @@ pub data Response:
 7. r[std-http.headers.order] In a response, only the values of one name keep their order. Headers of different names may come in any order.
 8. r[std-http.response.header] `Response` has the method `header(self, name: string) -> string?`. It returns the first value whose name equals `name`, ignoring ASCII case.
 9. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
+10. r[std-http.response.url] `Response.url` is the URL of the last request, after every redirect. `ScriptedHttp` sets it to the request's URL, and a response built by hand has `""` unless it names one.
 
 ## URLs
 
@@ -90,6 +94,8 @@ pub enum HttpError:
     Timeout
     TooManyRedirects(url: string)
     Other(message: string)
+    Status(status: u16, url: string)
+    Json(error: JsonError)
 ```
 
 1. r[std-http.error.decl] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
@@ -105,8 +111,12 @@ pub enum HttpError:
 | r[std-http.error.timeout] Timeout | `Timeout` | the request took longer than its timeout |
 | r[std-http.error.redirects] Redirects | `TooManyRedirects(url)` | the response redirected more than 10 times; `url` is the last target |
 | r[std-http.error.other] Other | `Other(message)` | any other failure, with the provider's message |
+| r[std-http.error.status] Status | `Status(status, url)` | `Response.ok` found a status outside 200 to 299; `url` is the response's `url` |
+| r[std-http.error.json] JSON | `Json(error)` | `Response.json` could not decode the body; `error` is the `std.json.JsonError` |
 
 3. r[std-http.error.not-granted.text] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted; run with --cap Http=HOST`, with the host for `HOST`.
+4. r[std-http.error.status.text] The `Display` text of `Status(status, url)` is `HTTP status STATUS for URL`, with the status and the URL, for every URL, an empty one included.
+5. r[std-http.error.json.text] The `Display` text of `Json(error)` is `invalid JSON in the response: ERROR`, with the `Display` text of `error`.
 
 ## Sending
 
@@ -140,6 +150,42 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 > and Go, and as a non-zero exit status is for `Process`. Header pairs
 > keep a repeated header, which a map would lose.
 
+## Status And JSON
+
+A status outside 200 to 299 is an error only when the code asks for it.
+`ok` asks, and `get_text!` asks for the common one-line fetch:
+
+```text
+use std.http.{Http, HttpError, get_text, post_json}
+use std.json.JsonError
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize)
+data NewUser:
+    name: string
+
+@derive(Deserialize)
+data Created:
+    id: i64
+
+fn notes!() -> Result[string, HttpError] $ Http:
+    get_text!("https://example.com/notes.txt")    # a 404 is .Err(HttpError.Status(404, url))
+
+fn create!(name: string) -> Result[Created, HttpError] $ Http:
+    response := post_json!("https://example.com/users", NewUser { name: name })?
+    response.ok()?.json::[Created]()              # a bad body is .Err(HttpError.Json(error))
+```
+
+1. r[std-http.response.ok] `Response` has the method `ok(self) -> Result[Response, HttpError]`. It returns `.Ok(self)` for a `status` from 200 to 299, and `.Err(HttpError.Status(status, url))` for any other, with the response's `status` and `url`.
+2. r[std-http.response.json] `Response` has the method `json::[T < Deserialize](self) -> Result[T, HttpError]`. It decodes `self.text()` with `std.json.decode::[T]`, and returns `.Err(HttpError.Json(error))` for the `JsonError` it fails with. It does not look at `status`.
+3. r[std-http.helper.get-text] `std.http` declares `pub fn get_text!(url: string) -> Result[string, HttpError] $ Http`. It sends `get!(url)`, applies `ok`, and returns `.Ok` of the response's `text()`, or the error of either step.
+4. r[std-http.helper.post-json] `std.http` declares `pub fn post_json![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http`. It sends a `Post` of `url` with the header `("Content-Type", "application/json")` and the body `std.json.encode(value)` as UTF-8 bytes, and returns the response whatever its status.
+
+> **Why.** Reading a page's text must be one call, and it must not return
+> a 404 page as the text. `send!` stays status-neutral
+> ([`std-http.send.status`](#r-std-http.send.status)); `ok` is the opt-in,
+> as reqwest's `error_for_status` is.
+
 ## Scripted Http
 
 `ScriptedHttp` is the deterministic `Http` provider. It answers each URL
@@ -164,7 +210,7 @@ tests:
 
 1. r[std-http.scripted.decl] `std.http` declares `ScriptedHttp`, which implements `Http` and `Debug`, with private fields. Code imports it, as in `use std.http.ScriptedHttp`.
 2. r[std-http.scripted.new] `ScriptedHttp::new(responses: Map[string, Response]) -> mut ScriptedHttp` returns a provider that answers each URL in `responses`.
-3. r[std-http.scripted.send] `send!(request)` returns `.Ok` of the response that `responses` holds for `request.url`, matched by its exact text, whatever the method.
+3. r[std-http.scripted.send] `send!(request)` returns `.Ok` of the response that `responses` holds for `request.url`, matched by its exact text, whatever the method, with `url` set to `request.url`.
 4. r[std-http.scripted.unknown] For a URL that `responses` lacks, `send!` returns `.Err(HttpError.Connect(message))`, and `message` is `ScriptedHttp has no response for URL`, with the URL.
 5. r[std-http.scripted.sent] `sent(self) -> List[Request]` returns every request that the provider received, in order, the unanswered ones included.
 6. r[std-http.scripted.no-host] A `ScriptedHttp` opens no connection.

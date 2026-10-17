@@ -53,6 +53,18 @@ export const FsError = variants({
   InvalidUtf8: { path: Path },
   Other: { message: str },
 });
+export const JsonError = variants({
+  UnexpectedEnd: { position: unsigned },
+  UnexpectedCharacter: { position: unsigned },
+  InvalidEscape: { position: unsigned },
+  LoneSurrogate: { position: unsigned },
+  ControlCharacter: { position: unsigned },
+  NumberOutOfRange: { position: unsigned },
+  NestingTooDeep: { position: unsigned },
+  WrongType: { path: str, expected: str },
+  MissingField: { path: str },
+  UnknownVariant: { path: str, name: str },
+});
 export const HttpError = variants({
   NotGranted: { host: str },
   InvalidUrl: { url: str },
@@ -62,6 +74,8 @@ export const HttpError = variants({
   Timeout: {},
   TooManyRedirects: { url: str },
   Other: { message: str },
+  Status: { status: unsigned, url: str },
+  Json: { error: JsonError },
 });
 export const Method = variants({
   Get: {},
@@ -114,6 +128,7 @@ export const Response = data({
   status: unsigned,
   headers: list(tuple(str, str)),
   body: bytes,
+  url: str,
 });
 export const SysError = variants({
   NotGranted: { name: str },

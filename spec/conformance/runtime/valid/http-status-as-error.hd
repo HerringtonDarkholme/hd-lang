@@ -1,0 +1,50 @@
+# test: Response.ok and get_text! make a status outside 200 to 299 an error that names the status and the URL
+# Spec std/http Status And JSON: std-http.response.ok, std-http.helper.get-text, std-http.error.status, std-http.error.status.text, std-http.response.url.
+# Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.send, std-http.send.status.
+# expect: test
+use std.http.{Http, HttpError, Response, ScriptedHttp, get, get_text}
+
+fn notes!() -> Result[string, HttpError] $ Http:
+    get_text!("https://example.com/notes.txt")
+
+tests:
+    use std.testing.assert_equal
+
+    it("a 200 is its text"):
+        let mut http = ScriptedHttp::new({"https://example.com/notes.txt": Response { status: 200, headers: [], body: [104, 105] }})
+        $.with(Http=http):
+            assert_equal(notes!(), .Ok("hi"), reason="the body text")
+        assert_equal(http.sent().len(), 1, reason="one request")
+
+    it("any status from 200 to 299 is ok"):
+        let mut http = ScriptedHttp::new({"https://example.com/notes.txt": Response { status: 299, headers: [], body: [] }})
+        $.with(Http=http):
+            assert_equal(notes!(), .Ok(""), reason="299 is a success")
+
+    it("a 404 is a Status error with the URL"):
+        let mut http = ScriptedHttp::new({"https://example.com/notes.txt": Response { status: 404, headers: [], body: [110, 111] }})
+        $.with(Http=http):
+            assert_equal(notes!(), .Err(HttpError.Status(404, "https://example.com/notes.txt")), reason="not the error page")
+
+    it("the edges of the range"):
+        assert_equal(Response { status: 199, headers: [], body: [] }.ok(), .Err(HttpError.Status(199, "")), reason="below 200")
+        assert_equal(Response { status: 300, headers: [], body: [], url: "https://example.com/" }.ok(), .Err(HttpError.Status(300, "https://example.com/")), reason="300 and up")
+        assert_equal(Response { status: 200, headers: [], body: [] }.ok(), .Ok(Response { status: 200, headers: [], body: [] }), reason="200")
+
+    it("send keeps a 404 an ordinary response"):
+        let mut http = ScriptedHttp::new({"https://example.com/notes.txt": Response { status: 404, headers: [], body: [] }})
+        $.with(Http=http):
+            match get!("https://example.com/notes.txt"):
+                .Ok(response) => assert_equal(response.status, 404, reason="the status is data")
+                .Err(_) => assert_equal(true, false, reason="send does not check the status")
+
+    it("the scripted response names the request URL"):
+        let mut http = ScriptedHttp::new({"https://example.com/a": Response { status: 200, headers: [], body: [] }})
+        $.with(Http=http):
+            match get!("https://example.com/a"):
+                .Ok(response) => assert_equal(response.url, "https://example.com/a", reason="the url")
+                .Err(_) => assert_equal(true, false, reason="a scripted URL answers")
+
+    it("the Status text is one form"):
+        assert_equal(HttpError.Status(404, "https://example.com/x").to_string(), "HTTP status 404 for https://example.com/x", reason="status and URL")
+        assert_equal(HttpError.Status(500, "").to_string(), "HTTP status 500 for ", reason="an empty URL too")

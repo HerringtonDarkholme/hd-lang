@@ -1,0 +1,62 @@
+# test: Response.json decodes the body into a type, post_json! sends a JSON body with its header, and a bad body is a Json error
+# Spec std/http Status And JSON: std-http.response.json, std-http.helper.post-json, std-http.error.json, std-http.error.json.text.
+# Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.sent.
+# expect: test
+use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, post_json}
+use std.json.JsonError
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize)
+data NewUser:
+    name: string
+
+@derive(Deserialize)
+data Created:
+    id: i64
+    name: string
+
+fn create!(name: string) -> Result[Created, HttpError] $ Http:
+    response := post_json!("https://example.com/users", NewUser { name: name })?
+    response.ok()?.json::[Created]()
+
+tests:
+    use std.testing.assert_equal
+
+    it("decodes a created user and sends the JSON request"):
+        let mut http = ScriptedHttp::new({"https://example.com/users": Response { status: 201, headers: [], body: "{\"id\":7,\"name\":\"Ada\"}".to_utf8() }})
+        $.with(Http=http):
+            match create!("Ada"):
+                .Ok(created) => assert_equal((created.id, created.name), (7, "Ada"), reason="decoded")
+                .Err(_) => assert_equal(true, false, reason="a 201 with JSON decodes")
+        assert_equal(http.sent(), [Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: "{\"name\":\"Ada\"}".to_utf8() }], reason="a POST with the header and the body")
+
+    it("a body that is not JSON is a Json error"):
+        let mut http = ScriptedHttp::new({"https://example.com/users": Response { status: 200, headers: [], body: "oops".to_utf8() }})
+        $.with(Http=http):
+            match create!("Ada"):
+                .Err(.Json(error)) => assert_equal(error, JsonError.UnexpectedCharacter(0), reason="the decode error")
+                _ => assert_equal(true, false, reason="a Json error")
+
+    it("a body of the wrong shape names the path"):
+        let mut http = ScriptedHttp::new({"https://example.com/users": Response { status: 200, headers: [], body: "{\"id\":\"x\",\"name\":\"Ada\"}".to_utf8() }})
+        $.with(Http=http):
+            match create!("Ada"):
+                .Err(.Json(error)) => assert_equal(error.to_string(), "expected i64 at $.id", reason="the path")
+                _ => assert_equal(true, false, reason="a Json error")
+
+    it("a bad status stops before the decode"):
+        let mut http = ScriptedHttp::new({"https://example.com/users": Response { status: 500, headers: [], body: "{\"id\":7,\"name\":\"Ada\"}".to_utf8() }})
+        $.with(Http=http):
+            assert_equal(create!("Ada").is_err(), true, reason="500 is an error")
+            match create!("Ada"):
+                .Err(.Status(status, url)) => assert_equal((status, url), (500, "https://example.com/users"), reason="the status")
+                _ => assert_equal(true, false, reason="a Status error")
+
+    it("json alone ignores the status"):
+        response := Response { status: 404, headers: [], body: "{\"id\":1,\"name\":\"B\"}".to_utf8() }
+        match response.json::[Created]():
+            .Ok(created) => assert_equal(created.id, 1, reason="decoded")
+            .Err(_) => assert_equal(true, false, reason="json does not read the status")
+
+    it("the Json text carries the decode error"):
+        assert_equal(HttpError.Json(JsonError.MissingField("$.id")).to_string(), "invalid JSON in the response: missing field at $.id", reason="one form")

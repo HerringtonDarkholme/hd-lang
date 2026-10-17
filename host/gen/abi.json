@@ -123,7 +123,21 @@
       { "name": "Tls", "fields": [{ "name": "message", "type": "string" }] },
       { "name": "Timeout", "fields": [] },
       { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
-      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Status", "fields": [{ "name": "status", "type": "u16" }, { "name": "url", "type": "string" }] },
+      { "name": "Json", "fields": [{ "name": "error", "type": "JsonError" }] }
+    ] },
+    "JsonError": { "kind": "enum", "module": "lib/std/json.hd", "generics": [], "variants": [
+      { "name": "UnexpectedEnd", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "UnexpectedCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "InvalidEscape", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "LoneSurrogate", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "ControlCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NumberOutOfRange", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NestingTooDeep", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "WrongType", "fields": [{ "name": "path", "type": "string" }, { "name": "expected", "type": "string" }] },
+      { "name": "MissingField", "fields": [{ "name": "path", "type": "string" }] },
+      { "name": "UnknownVariant", "fields": [{ "name": "path", "type": "string" }, { "name": "name", "type": "string" }] }
     ] },
     "Method": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "Get", "fields": [] },
@@ -157,7 +171,7 @@
       { "name": "Operation", "fields": [{ "name": "error", "type": "E" }] },
       { "name": "Disposed", "fields": [] }
     ] },
-    "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }] },
+    "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] },
     "SysError": { "kind": "enum", "module": "lib/std/sys.hd", "generics": [], "variants": [
       { "name": "NotGranted", "fields": [{ "name": "name", "type": "string" }] },
       { "name": "Unsupported", "fields": [{ "name": "name", "type": "string" }] }

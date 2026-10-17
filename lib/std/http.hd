@@ -1,11 +1,13 @@
-# std.http: the host capability trait `Http`, its helpers `send!` and
-# `get!`, the data `Request` and `Response`, `Method`, `HttpError`, and the
-# deterministic provider `ScriptedHttp` (spec/std/http.md). The default
+# std.http: the host capability trait `Http`, its helpers `send!`, `get!`,
+# `get_text!` and `post_json!`, the data `Request` and `Response`, `Method`,
+# `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
 use std.time.Duration
 use std.format.DebugWriter
 use std.error.Error
+use std.json.{JsonError, decode, encode}
+use std.serde.{Deserialize, Serialize}
 
 ## An HTTP method: a standard one, or `Other(name)`.
 ## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
@@ -52,6 +54,9 @@ pub data Response:
     ## The response's whole body.
     ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
     pub body: List[u8]
+    ## The URL that answered, after every redirect; `""` for a response built by hand.
+    ## See [std-http.response.url](../../spec/std/http.md#r-std-http.response.url).
+    pub url: string = ""
 
 impl Response:
     # The first value of the header `name`, ignoring ASCII case
@@ -73,6 +78,24 @@ impl Response:
             .Ok(text) => text
             .Err(_) => lossy_text(self.body)
 
+    # The response itself for a status from 200 to 299, else
+    # `HttpError.Status` (r-std-http.response.ok).
+    ## `.Ok(self)` for a status from 200 to 299, else `.Err(HttpError.Status(status, url))`.
+    ## See [std-http.response.ok](../../spec/std/http.md#r-std-http.response.ok).
+    pub fn ok(self) -> Result[Response, HttpError]:
+        if self.status >= 200 && self.status <= 299:
+            .Ok(self)
+        else:
+            .Err(.Status(self.status, self.url))
+
+    # The body's text decoded as JSON into `T` (r-std-http.response.json).
+    ## Decodes the body text as JSON into `T`; a failure is `.Err(HttpError.Json(error))`.
+    ## See [std-http.response.json](../../spec/std/http.md#r-std-http.response.json).
+    pub fn json[T < Deserialize](self) -> Result[T, HttpError]:
+        match decode::[T](self.text()):
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(.Json(error))
+
 ## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
 ## See [std-http.error.decl](../../spec/std/http.md#r-std-http.error.decl).
 pub enum HttpError:
@@ -84,6 +107,8 @@ pub enum HttpError:
     Timeout
     TooManyRedirects(url: string)
     Other(message: string)
+    Status(status: u16, url: string)
+    Json(error: JsonError)
 
 # The host capability to send a request (r-std-http.trait.decl).
 ## The host capability to send an HTTP request and complete with the whole response.
@@ -104,6 +129,25 @@ pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
 ## See [std-http.helper.get](../../spec/std/http.md#r-std-http.helper.get).
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
     send!(Request { url: url })
+
+# Sends a `Get` of `url` and returns the text of a 2xx response
+# (r-std-http.helper.get-text).
+## Sends a `Get` of `url`; the text of a status from 200 to 299, else the error.
+## See [std-http.helper.get-text](../../spec/std/http.md#r-std-http.helper.get-text).
+pub fn get_text!(url: string) -> Result[string, HttpError] $ Http:
+    response := get!(url)?.ok()?
+    .Ok(response.text())
+
+# Sends a `Post` of `value` as JSON (r-std-http.helper.post-json).
+## Sends a `Post` of `value` encoded as JSON, with `Content-Type: application/json`.
+## See [std-http.helper.post-json](../../spec/std/http.md#r-std-http.helper.post-json).
+pub fn post_json![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http:
+    send!(Request {
+        method: Method.Post,
+        url: url,
+        headers: [("Content-Type", "application/json")],
+        body: encode(value).to_utf8(),
+    })
 
 # The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
 # URL by its exact text, and records every request it receives.
@@ -129,7 +173,7 @@ impl Http for ScriptedHttp:
     fn send!(mut self, request: Request) -> Result[Response, HttpError]:
         self.requests.push(request)
         match self.responses.get(request.url):
-            .Some(response) => .Ok(response)
+            .Some(response) => .Ok(Response { status: response.status, headers: response.headers, body: response.body, url: request.url })
             .None => .Err(.Connect("ScriptedHttp has no response for ${request.url}"))
 
 fn ascii_case_equal(left: string, right: string) -> bool:
@@ -234,7 +278,7 @@ impl Eq for Request:
 
 impl Eq for Response:
     fn eq(self, other: Response) -> bool:
-        self.status == other.status && self.headers == other.headers && self.body == other.body
+        self.status == other.status && self.headers == other.headers && self.body == other.body && self.url == other.url
 
 impl Eq for HttpError:
     fn eq(self, other: HttpError) -> bool:
@@ -247,6 +291,8 @@ impl Eq for HttpError:
             (.Timeout, .Timeout) => true
             (.TooManyRedirects(left), .TooManyRedirects(right)) => left == right
             (.Other(left), .Other(right)) => left == right
+            (.Status(left, url), .Status(right, other)) => left == right && url == other
+            (.Json(left), .Json(right)) => left == right
             _ => false
 
 # The text of each variant; `NotGranted` names the flag that grants the
@@ -262,6 +308,8 @@ impl Display for HttpError:
             .Timeout => "the request timed out"
             .TooManyRedirects(url) => "too many redirects; the last went to ${url}"
             .Other(message) => message
+            .Status(status, url) => "HTTP status ${status} for ${url}"
+            .Json(error) => "invalid JSON in the response: ${error}"
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
 impl Error for HttpError
@@ -290,7 +338,7 @@ impl Debug for Request:
 
 impl Debug for Response:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Response").field("status", self.status).field("headers", self.headers).field("body", self.body).finish()
+        out.debug_struct("Response").field("status", self.status).field("headers", self.headers).field("body", self.body).field("url", self.url).finish()
 
 impl Debug for HttpError:
     fn debug(self, out: mut DebugWriter) -> void:
@@ -303,6 +351,8 @@ impl Debug for HttpError:
             .Timeout => out.write("HttpError.Timeout")
             .TooManyRedirects(url) => out.debug_tuple("HttpError.TooManyRedirects").named_field("url", url).finish()
             .Other(message) => out.debug_tuple("HttpError.Other").named_field("message", message).finish()
+            .Status(status, url) => out.debug_tuple("HttpError.Status").named_field("status", status).named_field("url", url).finish()
+            .Json(error) => out.debug_tuple("HttpError.Json").named_field("error", error).finish()
 
 impl Debug for ScriptedHttp:
     fn debug(self, out: mut DebugWriter) -> void:
