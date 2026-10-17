@@ -476,7 +476,12 @@ writes `CATEGORY: MESSAGE` and a newline through the `hd:rt.stderr`
 import, then executes `unreachable`. There is no category global or
 category id: the host records the report's text from the `panic` call
 to the trap, and the category is that text up to its first `: `, which
-only the compiler writes. Not judged.
+only the compiler writes. A facts body calls the `hd:rt.fact` import as
+it starts, with its label, and as it ends; the host starts every report
+written in between, its own after a trap included, with
+`fact-evaluation-failed` naming the facts
+([`annot.fact.eval.panic-runtime`](../../spec/lang/14-annotations.md#r-annot.fact.eval.panic-runtime);
+crates/hd_run_wasmtime/DESIGN.md §17.2). Not judged.
 
 **Engine traps.** A trap without a stored category is mapped by its trap
 code and its code offset:

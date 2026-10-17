@@ -24,7 +24,10 @@
 //   error; `stdout(len)` holds them with the console's output (the REPL's
 //   value line); `panic()` starts a panic stub's report: it writes
 //   `panic: `, and the standard error written until the trap is the
-//   report, whose category and message a run's result carries.
+//   report, whose category and message a run's result carries;
+//   `fact(len)` marks that a facts body starts, its label in the buffer,
+//   or ends (-1), and a panic report while one runs, the stub's or the
+//   host's own, is `fact-evaluation-failed` naming it (factHead).
 // - Each provider asks the grant before it touches a resource
 //   (cli.host.default-profile.granted); a refused call returns the
 //   method's `NotGranted` result, or `.None` and a notice for `Env.get`
@@ -86,6 +89,19 @@ export const timeLimitReport = (ms) =>
 
 // The panic report of a program that ran past its `--time-limit`.
 export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
+
+// The start of every panic report after its `panic: `, the instance's
+// and the host's own, while the facts labeled `fact` are evaluated, or ""
+// when none are (`fact` null): a panic while a facts body runs is
+// `fact-evaluation-failed`, naming its facts before the original category
+// (annot.fact.eval.panic-runtime).
+export const factHead = (fact) =>
+  fact == null ? "" : `fact-evaluation-failed: the facts of \`${fact}\` panicked with `;
+
+// The host's own panic report `report`, `panic: CATEGORY: MESSAGE` and a
+// newline, as it is written while the facts labeled `fact` are evaluated.
+export const reportIn = (fact, report) =>
+  `panic: ${factHead(fact)}${report.slice("panic: ".length)}`;
 
 // The category and message of a recorded panic report, the text after
 // `panic: `: `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
@@ -216,8 +232,17 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     panic: () => {
       st.reported = true;
       flush();
-      sink.err("panic: ");
-      st.panic = "";
+      const head = factHead(st.facts.at(-1));
+      sink.err(`panic: ${head}`);
+      st.panic = head;
+    },
+    // A facts body starts, with its label in the buffer, or ends (-1). A
+    // supervisor that reports a time limit for the instance hears of it
+    // through `sink.fact`.
+    fact: (len) => {
+      if (len < 0) st.facts.pop();
+      else st.facts.push(decodeUtf8(view(len)));
+      sink.fact?.(st.facts.at(-1) ?? null);
     },
     block: () => {
       for (;;) {
@@ -461,6 +486,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // files, pending operations, output, and noticed names.
   const st = {
     memory: null,
+    // The labels of the facts bodies running, innermost last (`hd:rt`
+    // `fact`): a panic report names the innermost.
+    facts: [],
     reported: false,
     // The panic report being written or written, after its `panic: `.
     panic: null,
@@ -530,10 +558,11 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Writes the host's own panic report `report`, `panic: CATEGORY:
   // MESSAGE` and a newline, and records it.
   const hostPanic = (report) => {
+    const text = reportIn(st.facts.at(-1), report);
     flush();
-    sink.err(report);
+    sink.err(text);
     st.reported = true;
-    st.panic = report.slice("panic: ".length);
+    st.panic = text.slice("panic: ".length);
   };
   const deadlock = () => {
     hostPanic("panic: deadlock: the program waits, but no host operation is pending\n");
@@ -592,6 +621,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // codecs read the exchange buffer through it.
   const prime = (instance) => {
     st.memory = instance.exports["hd.x"] ?? null;
+    // No facts body runs yet, whatever an earlier input left.
+    st.facts = [];
   };
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3
@@ -722,7 +753,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
 const SESSION_MODULE = "hd.s";
 const MEMORY_KEY = "hd.x";
 // The runtime globals every input shares (`hd_wasm::rt::runtime_globals`).
-const RUNTIME_GLOBALS = new Set(["rt.wake", "rt.fact", "rt.forbid", "rt.root", "rt.owner"]);
+const RUNTIME_GLOBALS = new Set(["rt.wake", "rt.forbid", "rt.root", "rt.owner"]);
 
 // Whether an input's export is a session key (`hd_wasm::is_session_key`):
 // the memory, a function or a global; not the entry exports.
@@ -731,9 +762,10 @@ export const isSessionKey = (name) =>
 
 // Which journal row a call of an import writes (`Kind::record` in
 // hd_run_wasmtime): none for `hd:prim`, which answers from its arguments
-// alone, so a replay computes it again.
+// alone, or `hd:rt` `fact`, which only marks where a facts body runs, so a
+// replay makes them again.
 function recordOf(module, name) {
-  if (module === "hd:prim") return "skip";
+  if (module === "hd:prim" || (module === "hd:rt" && name === "fact")) return "skip";
   if (module === "hd:rt" && (name === "block" || name === "abort")) return name;
   return name.endsWith(".finish") ? "finish" : "call";
 }
@@ -1053,6 +1085,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     st.reported = false;
     st.panic = null;
     st.memory = null;
+    st.facts = [];
     recorder = journal;
     replay = null;
     muted = false;

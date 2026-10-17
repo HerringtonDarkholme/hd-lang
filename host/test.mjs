@@ -40,6 +40,7 @@ import {
   nodeFiles,
   panicOfReport,
   PROGRAM_TIME_LIMIT,
+  reportIn,
   timeLimitReport,
 } from "./node.mjs";
 
@@ -111,6 +112,9 @@ async function supervise(module, config) {
       // run's timeout (`at`, `ms`); the earlier of the two stops the run.
       let limitAt = null;
       let timeout = null;
+      // The label of the facts body the run is in, or null: a stop names
+      // its facts (annot.fact.eval.panic-runtime).
+      let fact = null;
       const clear = () => {
         if (timer !== null) clearTimeout(timer);
         timer = null;
@@ -133,7 +137,7 @@ async function supervise(module, config) {
         stoppedWorkers.push(worker);
         const c = config.cases[at.ci];
         const shown = ms ?? config.timeLimitMs;
-        const report = ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms);
+        const report = reportIn(fact, ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms));
         const line = {
           test: c.test,
           status: 3,
@@ -184,7 +188,10 @@ async function supervise(module, config) {
           arm();
         } else if (m.type === "done") {
           timeout = null;
+          fact = null;
           arm();
+        } else if (m.type === "fact") {
+          fact = m.label;
         }
       });
       worker.on("error", fail);

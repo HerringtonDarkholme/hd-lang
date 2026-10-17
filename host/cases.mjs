@@ -60,7 +60,8 @@ const DISCARD = "std.testing: case discarded";
 // - `notify(message)`: what the case loop is doing, for a supervisor that
 //   stops a body running past its timeout: `case` (`ci`), `rows`
 //   (`rows`), `row` (`row`), `limit` (`at`, the end of a `--time-limit`
-//   for the case or row that began), `deadline` (`at`, `ms`) and `done`.
+//   for the case or row that began), `deadline` (`at`, `ms`), `fact`
+//   (`label`, of the facts body that runs, or null) and `done`.
 // - `emit(record)`: one result.
 class Runner {
   constructor({ module, config, createHost, files, notify, emit }) {
@@ -98,6 +99,7 @@ class Runner {
         err: (text) => {
           stderr += text;
         },
+        fact: (label) => this.notify({ type: "fact", label }),
       },
       {
         args: this.config.args,

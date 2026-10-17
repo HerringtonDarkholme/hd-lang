@@ -48,13 +48,14 @@ import {
   httpProvider,
   panicOfReport,
   PROGRAM_TIME_LIMIT,
+  reportIn,
   TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
 import { FsError, METHODS, NetError, Path } from "./gen/abi.mjs";
 import { Err, Ok, variant } from "./wire.mjs";
 
-export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, timeLimitReport };
+export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, reportIn, timeLimitReport };
 
 // A path resolved as the OS resolves it, so no path escapes a granted
 // directory (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the

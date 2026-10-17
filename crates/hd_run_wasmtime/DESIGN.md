@@ -154,8 +154,20 @@ wasmtime, never enabled by the default host.
 | scalars only, never waits | one function with Wasm parameters and results | `hd:Clock` `now() -> i64` |
 | structured values, never waits | `(len: i32) -> i32`: arguments in the exchange buffer, result length back | `hd:Env` `get` |
 | may wait | `name.start(len) -> (i32 status, i32 value)`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
-| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()` | |
+| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()`, `fact(len)` | |
 | host primitive | `hd:prim` `name`, no receiver, never waits | `format_f64` |
+
+`fact(len)` marks where a facts body runs: it is called as the body
+starts, with the body's label in the buffer, and with `-1` as it ends.
+The host keeps the labels, innermost last, and every panic report, a
+panic stub's or the host's own after a trap (`stack-exhausted`,
+`time-limit`, `heap-exhausted`, `host-contract`), is
+`fact-evaluation-failed` naming the innermost label and then the
+original category while one runs (`annot.fact.eval.panic-runtime`). The host never calls into the
+instance for it, so a trapped instance stays poisoned
+(`flow.panic.poison`). On Node, a supervisor that stops a worker at its
+time limit hears of each label from the worker, and names it the same
+way. A journal does not record `fact`.
 
 A `.start` call returns two values. Status `0` means the operation
 finished at once: the result is in the buffer and `value` is its length.

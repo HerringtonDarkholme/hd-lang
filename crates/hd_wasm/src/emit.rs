@@ -2671,7 +2671,7 @@ impl Em<'_> {
             // category, then the message when it is not empty
             // (`flow.panic.report`).
             "panic" => {
-                self.a.call(Sym::Helper(Helper::PanicHead));
+                self.a.call(crate::rt::panic_import());
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::StrToBuf));
                 self.a.call(crate::rt::stderr_import());
@@ -5876,7 +5876,7 @@ fn emit_body(
             results: results.clone(),
             fact,
         });
-    let outer = once.as_ref().map(|cell| cell.enter(&mut em.a));
+    let entered = once.as_ref().map(|cell| cell.enter(&mut em.a));
     let root = b.sub_root[sub as usize];
     em.ctrl.push(Ctl::Plain);
     em.block_into(root, None)?;
@@ -5887,8 +5887,8 @@ fn emit_body(
         }
     } else {
         em.load_as(tail, &results)?;
-        if let (Some(cell), Some(outer)) = (once, outer) {
-            cell.leave(&mut em.a, outer);
+        if let (Some(cell), Some(fact)) = (once, entered) {
+            cell.leave(&mut em.a, fact);
         }
     }
     Ok(em.a.finish(results))
@@ -5916,11 +5916,10 @@ impl OnceCell<'_> {
     }
 
     /// The start of the body: a call after the first returns the stored
-    /// value. Otherwise, for a facts body, the panic reports name its label
-    /// until the body ends (`annot.fact.eval.panic-runtime`), and the
-    /// result is the local that holds the facts being evaluated around
-    /// this body.
-    fn enter(&self, a: &mut Asm) -> Option<u32> {
+    /// value. Otherwise, for a facts body, the host's panic reports name
+    /// its label until the body ends (`annot.fact.eval.panic-runtime`),
+    /// and the result is `true`.
+    fn enter(&self, a: &mut Asm) -> bool {
         a.global_get(self.global(self.results.len()));
         a.if_();
         for (k, v) in self.results.iter().enumerate() {
@@ -5929,21 +5928,19 @@ impl OnceCell<'_> {
         }
         a.s().return_();
         a.end();
-        let label = self.fact?;
-        let outer = a.local(VT::rn(WTy::Bytes));
-        a.global_get(crate::rt::fact_global());
-        a.set(outer);
-        a.lit(label.as_bytes());
-        a.global_set(crate::rt::fact_global());
+        let Some(label) = self.fact else {
+            return false;
+        };
+        crate::rt::write_lit_to(a, label, crate::rt::fact_import());
         // A facts body is a forbidden context (`req.drive.block-on.fact-contexts`).
         crate::rt::forbid_by(a, 1);
-        Some(outer)
+        true
     }
 
     /// The end of the body, with its result on the stack: stores it, and
-    /// for a facts body returns to the facts being evaluated around this
-    /// one, if any.
-    fn leave(&self, a: &mut Asm, outer: Option<u32>) {
+    /// for a facts body (`fact`) tells the host the body has ended, so
+    /// its reports name the facts being evaluated around this one, if any.
+    fn leave(&self, a: &mut Asm, fact: bool) {
         let held: Vec<u32> = self.results.iter().map(|v| a.local(v.clone())).collect();
         for l in held.iter().rev() {
             a.set(*l);
@@ -5954,9 +5951,9 @@ impl OnceCell<'_> {
         }
         a.i32(1);
         a.global_set(self.global(self.results.len()));
-        if let Some(outer) = outer {
-            a.get(outer);
-            a.global_set(crate::rt::fact_global());
+        if fact {
+            a.i32(-1);
+            a.call(crate::rt::fact_import());
             crate::rt::forbid_by(a, -1);
         }
         for l in &held {

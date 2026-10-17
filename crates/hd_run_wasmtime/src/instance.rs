@@ -88,6 +88,8 @@ impl WasmtimeInstance {
     ) -> Result<(), StartError> {
         let store = &mut self.store;
         store.data_mut().memory = instance.get_memory(&mut *store, "hd.x");
+        // No facts body runs yet, whatever an earlier input left.
+        store.data_mut().facts.clear();
         let export = |store: &mut Store<Host>, name: &str| {
             instance
                 .get_func(&mut *store, name)

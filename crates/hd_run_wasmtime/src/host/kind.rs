@@ -29,6 +29,7 @@ pub(crate) enum Rt {
     Stderr,
     Stdout,
     Panic,
+    Fact,
 }
 
 /// An `hd:prim` import (`rt.rs`, over `prim.rs`).
@@ -45,8 +46,9 @@ pub(crate) enum Prim {
 /// Which journal row a call of an import writes (`docs/future-work/live-execution.md` §4.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Record {
-    /// None: the `hd:prim` functions answer from their arguments alone, so
-    /// a replay computes them again.
+    /// None: the `hd:prim` functions answer from their arguments alone,
+    /// and `hd:rt` `fact` only marks where a facts body runs, so a replay
+    /// makes them again.
     Skip,
     Call,
     Finish,
@@ -57,7 +59,7 @@ pub(crate) enum Record {
 impl Kind {
     pub(crate) fn record(self) -> Record {
         match self {
-            Self::Prim(_) => Record::Skip,
+            Self::Prim(_) | Self::Rt(Rt::Fact) => Record::Skip,
             Self::Rt(Rt::Block) => Record::Block,
             Self::Rt(Rt::Abort) => Record::Abort,
             Self::Fixture { finish: true, .. } | Self::Host { finish: true, .. } => Record::Finish,
@@ -108,7 +110,9 @@ impl Kind {
                 (Wait::Never, Codec::Scalar(Scalar::F64)) => matches!(results, [ValType::F64]),
                 (Wait::Never, _) => matches!(results, [value] if integer(value)),
             },
-            Self::Rt(Rt::Abort | Rt::Stderr | Rt::Stdout | Rt::Panic) => results.is_empty(),
+            Self::Rt(Rt::Abort | Rt::Stderr | Rt::Stdout | Rt::Panic | Rt::Fact) => {
+                results.is_empty()
+            }
             Self::Prim(Prim::ParseF64) => matches!(results, [ValType::F64]),
             Self::Fixture { method, finish } if !finish && method.is_waiting() => pair(),
             _ => matches!(results, [value] if integer(value)),
@@ -185,6 +189,7 @@ impl Kind {
             ("hd:rt", "stderr") => Kind::Rt(Rt::Stderr),
             ("hd:rt", "stdout") => Kind::Rt(Rt::Stdout),
             ("hd:rt", "panic") => Kind::Rt(Rt::Panic),
+            ("hd:rt", "fact") => Kind::Rt(Rt::Fact),
             ("hd:prim", "format_f64") => Kind::Prim(Prim::FormatF64),
             ("hd:prim", "format_f32") => Kind::Prim(Prim::FormatF32),
             ("hd:prim", "format_f64_fixed") => Kind::Prim(Prim::FormatFixed),

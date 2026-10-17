@@ -545,6 +545,48 @@ fn stack_exhaustion_is_a_panic() {
     );
 }
 
+/// A panic the host raises while a fact is evaluated is
+/// `fact-evaluation-failed`, naming the facts and the original category
+/// (`annot.fact.eval.panic-runtime`).
+#[test]
+fn a_host_raised_panic_in_a_fact_is_wrapped() {
+    let dir = program(
+        "fact-stack",
+        "use std.annotation.facts_of\n\ndata Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+    );
+    let out = run(hd(&dir), &["--engine", "wasmtime", "main.hd"], "");
+    assert_eq!(out.status.code(), Some(3));
+    assert!(
+        text(&out.stderr).starts_with(
+            "panic: fact-evaluation-failed: the facts of `list_users` panicked with stack-exhausted: "
+        ),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+/// A time limit that ends a fact's evaluation is wrapped the same way.
+#[test]
+fn a_time_limit_in_a_fact_is_wrapped() {
+    let dir = program(
+        "fact-spin",
+        "use std.annotation.facts_of\n\ndata Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+    );
+    let out = run(
+        hd(&dir),
+        &["--engine", "wasmtime", "--time-limit", "200ms", "main.hd"],
+        "",
+    );
+    assert_eq!(out.status.code(), Some(3));
+    assert!(
+        text(&out.stderr).contains(
+            "panic: fact-evaluation-failed: the facts of `list_users` panicked with time-limit: "
+        ),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
 /// `hd build --engine wasmtime` builds for wasmtime (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5),
 /// and `hd FILE.wasm` runs the module on the engine it was tuned for. A
 /// module of one target runs on every engine, so Node runs it too.

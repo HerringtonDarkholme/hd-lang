@@ -189,13 +189,6 @@ pub fn all_polls() -> GSym {
     GSym::Rt("allpolls".into(), VT::I32)
 }
 
-/// The facts being evaluated (`annot.fact.eval.panic-runtime`): the label of
-/// the innermost facts body that runs, or null. A panic report names it.
-#[must_use]
-pub fn fact_global() -> GSym {
-    GSym::Rt("fact".into(), VT::rn(WTy::Bytes))
-}
-
 /// The forbidden-context counter (`crates/hd_wasm/DESIGN.md` §14.9): how many forbidden
 /// contexts are running; `block_on` panics while it is not zero.
 #[must_use]
@@ -248,10 +241,9 @@ pub fn owner_global() -> GSym {
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 10] {
+pub fn runtime_globals() -> [GSym; 9] {
     [
         wake_table(),
-        fact_global(),
         forbid_global(),
         root_global(),
         owner_global(),
@@ -317,10 +309,6 @@ pub enum Helper {
     Panic(String),
     /// `panic(message)`.
     PanicStr,
-    /// The start of a panic report, the `panic` import. A program that evaluates
-    /// facts says first that the panic happened while one was evaluated
-    /// (`annot.fact.eval.panic-runtime`).
-    PanicHead,
     /// The cursor closure of `List.iter()`.
     ListStep {
         code: WTy,
@@ -612,7 +600,6 @@ impl Helper {
                 w.str(m);
             }
             Helper::PanicStr => w.u8(5),
-            Helper::PanicHead => w.u8(36),
             Helper::ListStep {
                 code,
                 env,
@@ -906,7 +893,6 @@ impl Helper {
             3 => Helper::StrToBuf,
             4 => Helper::Panic(r.str().to_owned()),
             5 => Helper::PanicStr,
-            36 => Helper::PanicHead,
             6 => Helper::ListStep {
                 code: dec_wty(r)?,
                 env: dec_wty(r)?,
@@ -1110,6 +1096,22 @@ pub fn panic_import() -> Sym {
     }
 }
 
+/// The host runtime's `fact(len)` import (`annot.fact.eval.panic-runtime`):
+/// a facts body calls it as it starts, with its label's length in the
+/// exchange buffer, and with `-1` as it ends. The host keeps the labels
+/// of the facts bodies that run, and starts every panic report, the
+/// instance's or its own after a trap, with the innermost one, so a panic
+/// while a fact is evaluated is `fact-evaluation-failed`.
+#[must_use]
+pub fn fact_import() -> Sym {
+    Sym::Import {
+        module: "hd:rt".into(),
+        name: "fact".into(),
+        params: vec![VT::I32],
+        results: vec![],
+    }
+}
+
 /// The host runtime's stdout import: the REPL's value line, which needs
 /// no `Console` requirement.
 #[must_use]
@@ -1224,9 +1226,8 @@ pub fn lit_code(pool: u32, index: u32, base: u32, count: u32) -> Code {
     a.finish(vec![VT::r(WTy::Bytes)])
 }
 
-/// The code of a helper. `facts` is whether the program evaluates facts,
-/// so its panic reports name the facts being evaluated.
-pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
+/// The code of a helper.
+pub fn helper_code(h: &Helper) -> StageResult<Code> {
     Ok(match h {
         Helper::Lit => lit_code(0, 0, 0, 0),
         Helper::IntToStr { wide, signed } => {
@@ -1431,46 +1432,14 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         }
         Helper::Panic(msg) => {
             let mut a = Asm::new(vec![]);
-            if facts {
-                a.call(Sym::Helper(Helper::PanicHead));
-            } else {
-                a.call(panic_import());
-            }
+            a.call(panic_import());
             write_lit(&mut a, &format!("{msg}\n"));
             a.s().unreachable();
             a.finish(vec![])
         }
-        Helper::PanicHead => {
-            let mut a = Asm::new(vec![]);
-            a.call(panic_import());
-            if facts {
-                let ctx = fact_global();
-                a.global_get(ctx.clone());
-                a.s().ref_is_null().i32_eqz();
-                a.if_();
-                write_lit(&mut a, "fact-evaluation-failed: the facts of `");
-                a.global_get(ctx.clone());
-                a.s().ref_as_non_null();
-                a.global_get(ctx);
-                a.s().ref_as_non_null();
-                a.array_len();
-                a.s().i64_extend_i32_u();
-                a.i64(32);
-                a.s().i64_shl();
-                a.call(Sym::Helper(Helper::StrToBuf));
-                a.call(stderr_import());
-                write_lit(&mut a, "` panicked with ");
-                a.end();
-            }
-            a.finish(vec![])
-        }
         Helper::PanicStr => {
             let mut a = Asm::new(str_vts());
-            if facts {
-                a.call(Sym::Helper(Helper::PanicHead));
-            } else {
-                a.call(panic_import());
-            }
+            a.call(panic_import());
             write_lit(&mut a, "explicit-panic: ");
             a.get(0);
             a.get(1);
@@ -2841,7 +2810,6 @@ impl Helper {
             Helper::StrToBuf => "str_to_buf".into(),
             Helper::Panic(_) => "panic".into(),
             Helper::PanicStr => "panic_str".into(),
-            Helper::PanicHead => "panic_head".into(),
             Helper::ListStep { .. } => "list_step".into(),
             Helper::MapHash { .. } => "map_hash".into(),
             Helper::MapFind { .. } => "map_find".into(),
@@ -2910,17 +2878,14 @@ mod tests {
         };
         let (base, poll) = crate::layout::suspend_base(&results);
         let report_key = Hash128(2);
-        let code = helper_code(
-            &Helper::EntryPoll {
-                main: Hash128(1),
-                providers: vec![],
-                results: u32::try_from(results.len()).unwrap(),
-                bang: Some((base.clone(), poll.clone())),
-                report: report.then_some((report_key, results)),
-                then: vec![],
-            },
-            false,
-        )
+        let code = helper_code(&Helper::EntryPoll {
+            main: Hash128(1),
+            providers: vec![],
+            results: u32::try_from(results.len()).unwrap(),
+            bang: Some((base.clone(), poll.clone())),
+            report: report.then_some((report_key, results)),
+            then: vec![],
+        })
         .unwrap();
         let poll_at = code
             .relocs
@@ -2991,17 +2956,14 @@ mod tests {
     #[test]
     fn entry_poll_claims_the_root_for_its_context() {
         let (base, poll) = crate::layout::suspend_base(&[]);
-        let code = helper_code(
-            &Helper::EntryPoll {
-                main: Hash128(1),
-                providers: vec![],
-                results: 0,
-                bang: Some((base, poll)),
-                report: None,
-                then: vec![],
-            },
-            false,
-        )
+        let code = helper_code(&Helper::EntryPoll {
+            main: Hash128(1),
+            providers: vec![],
+            results: 0,
+            bang: Some((base, poll)),
+            report: None,
+            then: vec![],
+        })
         .unwrap();
         assert_eq!(code.params, vec![VT::I32]);
         assert!(
@@ -3032,7 +2994,7 @@ mod tests {
         use super::F_CANCEL;
         use crate::layout::{cancel_fn, task_base};
 
-        let code = helper_code(&Helper::EntryCancel, false).unwrap();
+        let code = helper_code(&Helper::EntryCancel).unwrap();
         let base = task_base();
         let mut expected = Asm::new(vec![]);
         let root = expected.local(VT::rn(base.clone()));
@@ -3081,7 +3043,7 @@ mod tests {
     /// its loops come after them.
     #[test]
     fn str_eq_returns_before_the_byte_loop_on_one_view() {
-        let code = helper_code(&Helper::StrEq, false).unwrap();
+        let code = helper_code(&Helper::StrEq).unwrap();
         let body = wasmparser::FunctionBody::new(wasmparser::BinaryReader::new(&code.body, 0));
         let mut ops = body.get_operators_reader().unwrap();
         let start = usize::try_from(ops.original_position()).unwrap();

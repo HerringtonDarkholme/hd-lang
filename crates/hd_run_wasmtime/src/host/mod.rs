@@ -15,7 +15,10 @@
 //!   output (the REPL's value line); `abort(h)` drops an operation;
 //!   `panic()` starts a panic stub's report: it writes `panic: `, and the
 //!   standard error written until the trap is the report a test runner
-//!   reads the category and message of. `hd:prim`: the float text, parsing
+//!   reads the category and message of; `fact(len)` marks that a facts
+//!   body starts, its label in the buffer, or ends (`-1`), and every
+//!   panic report while one runs, the stub's or the host's own, is
+//!   `fact-evaluation-failed` naming it. `hd:prim`: the float text, parsing
 //!   and case mapping of `prim.rs`.
 //! - `reply.rs` reads arguments from and writes results to the exchange
 //!   buffer; `offload.rs` is the `.start` and `.finish` every provider

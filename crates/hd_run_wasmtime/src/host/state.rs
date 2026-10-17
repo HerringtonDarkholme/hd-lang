@@ -41,6 +41,9 @@ pub struct Host {
     /// Standard output not yet written.
     pub(crate) out: Vec<u8>,
     pub memory: Option<Memory>,
+    /// The labels of the facts bodies running, innermost last
+    /// (`hd:rt` `fact`): a panic report names the innermost.
+    pub(crate) facts: Vec<String>,
     /// Whether a panic report or any standard error was written, so a trap
     /// is not also an internal error.
     pub reported: bool,
@@ -96,6 +99,7 @@ impl Host {
             err_stream: io.err,
             out: Vec::new(),
             memory: None,
+            facts: Vec::new(),
             reported: false,
             panic: None,
             reactor: Reactor::new(io.input),
@@ -137,6 +141,7 @@ impl Host {
     pub(crate) fn restart(&mut self, journal: hd_run::journal::Recorder) {
         self.flush();
         self.memory = None;
+        self.facts.clear();
         self.reported = false;
         self.panic = None;
         self.drop_pending();
@@ -168,17 +173,29 @@ impl Host {
         self.report_panic("time-limit", &message);
     }
 
+    /// The start of every panic report after its `panic: `, the guest's
+    /// and the host's own: a panic while a facts body runs is
+    /// `fact-evaluation-failed`, naming the innermost one's facts before
+    /// the original category (`annot.fact.eval.panic-runtime`); any other
+    /// panic's report starts with its category.
+    fn fact_head(&self) -> String {
+        self.facts.last().map_or_else(String::new, |fact| {
+            format!("fact-evaluation-failed: the facts of `{fact}` panicked with ")
+        })
+    }
+
     /// The guest's `hd:rt` `panic` import: writes `panic: ` and records the
     /// standard error that follows until the trap as the report.
     pub(crate) fn begin_panic(&mut self) {
+        let head = self.fact_head();
         self.reported = true;
-        self.err("panic: ");
-        self.panic = Some(String::new());
+        self.err(&format!("panic: {head}"));
+        self.panic = Some(head);
     }
 
     /// Writes the host's own panic report, `panic: CATEGORY: MESSAGE`.
     pub(crate) fn report_panic(&mut self, category: &str, message: &str) {
-        let report = format!("{category}: {message}\n");
+        let report = format!("{}{category}: {message}\n", self.fact_head());
         self.reported = true;
         self.err(&format!("panic: {report}"));
         self.panic = Some(report);

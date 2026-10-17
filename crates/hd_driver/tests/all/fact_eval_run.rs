@@ -330,6 +330,38 @@ pub fn main() -> void $ Console:
     );
 }
 
+/// A panic the host raises after a trap, as `stack-exhausted` for
+/// recursion that never ends, is wrapped like one the program raises.
+#[test]
+fn a_host_raised_panic_in_a_fact_is_wrapped() {
+    let main = "use std.annotation.facts_of
+
+data Route:
+    path: string
+
+fn deep(n: i32) -> i32:
+    deep(n + 1) + 1
+
+fn route(path: string) -> Route:
+    Route { path: \"${deep(+0)}\" }
+
+@route(\"/users\")
+fn list_users() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println(\"start\")
+    _ := facts_of(list_users).find::[Route]()
+";
+    let (out, line) = panic_of("host-trap", main);
+    assert_eq!(out, "start\n");
+    assert_eq!(
+        line,
+        "panic: fact-evaluation-failed: the facts of `list_users` panicked with stack-exhausted: \
+         the call stack ran out; check for recursion that never ends"
+    );
+}
+
 /// A member's metadata is a fact expression too: a panic in it, read through
 /// the member's handle, names the member.
 #[test]

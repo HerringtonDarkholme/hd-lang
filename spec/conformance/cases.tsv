@@ -2928,6 +2928,7 @@ typing/invalid/supertrait-binding-conflict.hd	type	reject:duplicate-associated-b
 parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-result-type
 parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params
 runtime/panic/fact-evaluation-panics-on-read.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
+runtime/panic/fact-evaluation-host-trap.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
 runtime/valid/fact-unread-never-evaluated.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.unread
 runtime/valid/shared-enum-fact-evaluation.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.module-init
 typing/invalid/shared-enum-readonly-collection.hd	type	reject:mutable-receiver-required	lang/08-data-and-enums.md#r-data.shared.readonly

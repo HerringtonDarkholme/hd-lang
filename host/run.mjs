@@ -29,7 +29,7 @@ import {
   Worker,
   workerData,
 } from "node:worker_threads";
-import { createHost, exitPast, PROGRAM_TIME_LIMIT } from "./node.mjs";
+import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
@@ -134,10 +134,14 @@ function supervise(module, config, args, limit) {
     let ended = false;
     // Whether the host already reported the panic.
     let reported = false;
-    // A message is output (`fd`, `text`), a read of an input line, or the
-    // program's status.
+    // The label of the facts body the worker runs, or null: a time limit
+    // that stops it names its facts (annot.fact.eval.panic-runtime).
+    let fact = null;
+    // A message is output (`fd`, `text`), a read of an input line, the
+    // facts body that runs (`fact`), or the program's status.
     const take = (m) => {
-      if (m.read) {
+      if (m.fact !== undefined) fact = m.fact;
+      else if (m.read) {
         input.next((line) => {
           if (ended) return;
           port.postMessage({ line });
@@ -147,7 +151,7 @@ function supervise(module, config, args, limit) {
       } else if (m.fd === undefined) status = m.status;
       else {
         writeSync(m.fd, m.text);
-        if (m.fd === 2 && m.text === PROGRAM_TIME_LIMIT) reported = true;
+        if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) reported = true;
       }
     };
     const end = (s) => {
@@ -165,7 +169,7 @@ function supervise(module, config, args, limit) {
       for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
       if (status !== null) return end(status);
       worker.terminate();
-      if (!reported) writeSync(2, PROGRAM_TIME_LIMIT);
+      if (!reported) writeSync(2, reportIn(fact, PROGRAM_TIME_LIMIT));
       end(3);
     }, limit + GRACE_MS);
     port.on("message", (m) => {
@@ -215,6 +219,7 @@ if (isMainThread) {
     {
       out: (text) => port.postMessage({ fd: 1, text }),
       err: (text) => port.postMessage({ fd: 2, text }),
+      fact: (label) => port.postMessage({ fact: label }),
     },
     deadline,
     readLine,

@@ -1,5 +1,5 @@
 //! The runtime imports, which no host trait owns: `hd:rt`'s `block`,
-//! `abort`, `stderr`, `stdout` and `panic`, and the `hd:prim` primitives,
+//! `abort`, `stderr`, `stdout`, `panic` and `fact`, and the `hd:prim` primitives,
 //! whose text and float work is `prim.rs`.
 
 use wasmtime::{Caller, Val};
@@ -24,6 +24,17 @@ pub(super) fn rt(
         }
         Rt::Panic => {
             caller.data_mut().begin_panic();
+            Ret::void()
+        }
+        // A facts body starts, with its label in the buffer, or ends (-1).
+        Rt::Fact => {
+            let len = int_arg(params, 0)?;
+            if len < 0 {
+                caller.data_mut().facts.pop();
+            } else {
+                let label = text(caller, len)?;
+                caller.data_mut().facts.push(label);
+            }
             Ret::void()
         }
         // Held with `Console`'s output, so a later `stderr` write puts it

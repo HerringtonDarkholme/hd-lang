@@ -1,0 +1,19 @@
+# test: a fact whose evaluation exhausts the stack fails with fact-evaluation-failed, like any other panic in a fact
+# Spec 14 Facts: annot.fact.eval.panic-runtime. Spec 06 Runtime Panics: flow.panic.stack-exhausted.
+use std.annotation.facts_of
+
+data Route:
+    path: string
+
+fn deep(n: i32) -> i32:
+    deep(n + 1) + 1
+
+fn route(path: string) -> Route:
+    Route { path: "${deep(+0)}" }
+
+@route("/users")
+fn list_users() -> void:
+    pass
+
+pub fn main() -> void:
+    _ := facts_of(list_users).find::[Route]()  # panic: fact-evaluation-failed
