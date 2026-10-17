@@ -16,6 +16,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   readSync,
   realpathSync,
   renameSync,
@@ -36,7 +37,7 @@ import {
   platform,
   tmpdir,
 } from "node:os";
-import { dirname, basename, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import {
   createCoreHost,
   createGrant as createCoreGrant,
@@ -55,24 +56,72 @@ import { Err, Ok, variant } from "./wire.mjs";
 
 export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, timeLimitReport };
 
-// A path with `..` and `.` resolved and symbolic links followed as far as
-// it exists, so no path escapes a granted directory
-// (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the Rust side.
+// A path resolved as the OS resolves it, so no path escapes a granted
+// directory (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the
+// Rust side. The longest existing prefix goes to the OS, then each further
+// name follows a symbolic link there (even one whose target does not
+// exist) before the `..` after it, as a write or `create_dir_all` would. A
+// name that does not exist is kept as it is, and a `..` after it removes
+// it. Windows resolves every `..` by its text before it follows any link,
+// so there the path is made lexical first. A relative path is from `cwd`.
 // `realpathSync.native`, like Rust's canonicalize, asks the OS, so on Windows
 // both expand 8.3 short names (RUNNER~1) and agree on the drive letter case.
-export function resolvePath(path) {
-  const rest = [];
-  let base = resolve(path);
-  for (;;) {
-    try {
-      return join(realpathSync.native(base), ...rest.reverse());
-    } catch {
-      const parent = dirname(base);
-      if (parent === base) return resolve(path);
-      rest.push(basename(base));
-      base = parent;
-    }
+export function resolvePath(path, cwd = process.cwd(), links = 0) {
+  const full = sep === "\\" ? resolve(cwd, path) : isAbsolute(path) ? path : `${cwd}/${path}`;
+  const { root } = parse(full);
+  const parts = full
+    .slice(root.length)
+    .split(sep)
+    .filter((p) => p !== "" && p !== ".");
+  let start = parts.length;
+  let out = realOf(root + parts.join(sep));
+  while (out === null && start > 0) {
+    start -= 1;
+    out = realOf(root + parts.slice(0, start).join(sep));
   }
+  out ??= root;
+  // How many names at the end of `out` do not exist.
+  let missing = 0;
+  for (const name of parts.slice(start)) {
+    if (name === "..") {
+      out = dirname(out);
+      missing = Math.max(0, missing - 1);
+      continue;
+    }
+    const next = join(out, name);
+    const resolved = missing === 0 ? linkStep(next, links) : null;
+    if (resolved === null) missing += 1;
+    out = resolved ?? next;
+  }
+  return out;
+}
+
+// How many symbolic links one resolution follows before it stops, as the
+// OS does with `ELOOP`; the access then fails on its own.
+const MAX_LINKS = 40;
+
+// `path` resolved by the OS, or `null` when it does not exist.
+function realOf(path) {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return null;
+  }
+}
+
+// `path`, whose parent is resolved, resolved by the OS, or through the
+// symbolic link it names when the link's target does not exist; `null`
+// when no such file or link exists.
+function linkStep(path, links) {
+  const real = realOf(path);
+  if (real !== null || links >= MAX_LINKS) return real;
+  let target;
+  try {
+    target = readlinkSync(path);
+  } catch {
+    return null;
+  }
+  return resolvePath(target, dirname(path), links + 1);
 }
 
 // Whether `host` is a name or an IP address
@@ -584,7 +633,7 @@ function testRunnerProvider({ env, st }) {
 
 // A relative path is from `cwd` (the process's by default), with `..` and
 // links resolved (cli.cap.scope.path.resolved).
-const resolveTarget = (path, cwd = process.cwd()) => resolvePath(resolve(cwd, path));
+const resolveTarget = (path, cwd = process.cwd()) => resolvePath(path, cwd);
 
 // The grant with Node's path resolution.
 export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget, sep);

@@ -201,13 +201,13 @@ fn a_planted_link_to_outside_is_refused() {
     }
     assert_eq!(fs::read(dir.0.join("outside/a.txt")).unwrap(), b"secret");
     assert_eq!(fs::read_dir(dir.0.join("outside")).unwrap().count(), 1);
-    // `link/..` is resolved by its text, as the grant check compared it:
-    // `granted/outside/a.txt`, which does not exist. By the link it would
-    // be `outside/a.txt`.
+    // `link/..` goes up from where the link leads, as the OS resolves it
+    // (`cli.cap.scope.path.access`): `outside/a.txt`, which no entry
+    // covers, not `granted/outside/a.txt` by its text.
     let through = "granted/dir/../outside/a.txt";
     assert_eq!(
         call("read_text", through, None).done(),
-        error(through, 0).done()
+        error(through, 2).done()
     );
     // A link inside that points inside is followed, and `stat` and
     // `remove` act on the link itself.

@@ -386,6 +386,108 @@ fn filesystem_grants_resolve_symlinks_and_report_symlink_entries() {
     assert!(!outside.join("new").exists());
 }
 
+/// `cli.cap.scope.path.resolved` and `.access`: a `..` after a symbolic
+/// link goes up from where the link leads, as the OS resolves it, so
+/// `granted/link/../x` names `outside/x` when `link` leads to
+/// `outside/deep`. Every method refuses it, and a link that stays in the
+/// grant still works, with its `..` resolved the same way (#399).
+#[cfg(unix)]
+#[test]
+fn filesystem_grants_resolve_a_link_before_the_dot_dot_after_it() {
+    use std::os::unix::fs::symlink;
+    let scratch = Scratch::new();
+    let granted = scratch.at("granted");
+    let outside = scratch.at("outside");
+    fs::create_dir_all(granted.join("sub/deep")).unwrap();
+    fs::create_dir_all(outside.join("deep")).unwrap();
+    fs::write(outside.join("x"), "secret").unwrap();
+    fs::write(granted.join("y"), "granted y").unwrap();
+    fs::write(granted.join("sub/y"), "sub y").unwrap();
+    symlink("../outside/deep", granted.join("link")).unwrap();
+    symlink("sub/deep", granted.join("inlink")).unwrap();
+    symlink("../outside/made", granted.join("broken")).unwrap();
+    let file = granted.join("file");
+    let escaped = granted.join("link").join("..").join("x");
+    let through = granted.join("link").join("new.txt");
+    let up = granted.join("link").join("..");
+    let created = granted.join("missing").join("..").join("link").join("made");
+    let broken = granted.join("broken");
+    let mut p = Program::new();
+    for method in ["read_bytes", "read_text", "stat"] {
+        p.call("hd:FsRead", method, one(&escaped), fs_error(&escaped, 2));
+    }
+    p.call("hd:FsRead", "list_dir", one(&up), fs_error(&up, 2));
+    for method in ["write_bytes", "write_text", "append_text"] {
+        for target in [&escaped, &through, &broken] {
+            p.call(
+                "hd:FsWrite",
+                method,
+                Enc::default().str(path(target)).str("changed").0,
+                fs_error(target, 2),
+            );
+        }
+    }
+    p.call("hd:FsWrite", "remove", one(&escaped), fs_error(&escaped, 2));
+    p.call(
+        "hd:FsWrite",
+        "create_dir_all",
+        one(&created),
+        fs_error(&created, 2),
+    );
+    for to in [&escaped, &through] {
+        p.call(
+            "hd:FsWrite",
+            "rename",
+            Enc::default().str(path(&file)).str(path(to)).0,
+            fs_error(to, 2),
+        );
+    }
+    p.call(
+        "hd:FsRead",
+        "read_text",
+        one(&granted.join("inlink").join("..").join("y")),
+        Enc::default().leb(0).str("sub y").0,
+    );
+    p.call(
+        "hd:FsRead",
+        "read_text",
+        one(&granted.join("sub").join("..").join("y")),
+        Enc::default().leb(0).str("granted y").0,
+    );
+    p.call(
+        "hd:FsWrite",
+        "write_text",
+        Enc::default()
+            .str(path(&granted.join("inlink").join("..").join("new.txt")))
+            .str("written")
+            .0,
+        Enc::default().leb(0).0,
+    );
+    let untouched = || {
+        assert_eq!(fs::read_to_string(outside.join("x")).unwrap(), "secret");
+        assert_eq!(fs::read_dir(outside.join("deep")).unwrap().count(), 0);
+        assert!(!outside.join("made").exists());
+    };
+    assert_program(
+        &scratch,
+        p,
+        vec![
+            ("FsRead", Limit::Entries(vec![path(&granted).into()])),
+            ("FsWrite", Limit::Entries(vec![path(&granted).into()])),
+        ],
+        || {
+            untouched();
+            fs::write(&file, "file").unwrap();
+            let _ = fs::remove_file(granted.join("sub/new.txt"));
+        },
+    );
+    untouched();
+    assert_eq!(
+        fs::read_to_string(granted.join("sub/new.txt")).unwrap(),
+        "written"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn fs_create_dir_broken_symlink_reports_not_found() {

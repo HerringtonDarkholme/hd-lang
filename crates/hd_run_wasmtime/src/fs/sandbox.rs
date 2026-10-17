@@ -139,10 +139,17 @@ impl Sandbox {
             // Fails as not found, as `std::fs` and Node do, touching nothing.
             return Some(Place::Ambient(PathBuf::new()));
         }
-        let lexical = hd_run::lexical_path(path);
-        let target = match (follow, lexical.parent(), lexical.file_name()) {
+        // The path as the OS resolves it (`cli.cap.scope.path.access`): a
+        // `..` after a symbolic link goes up from where the link leads,
+        // except on Windows, which resolves every `..` by its text first.
+        let path = if cfg!(windows) {
+            hd_run::lexical_path(path)
+        } else {
+            path.to_owned()
+        };
+        let target = match (follow, path.parent(), path.file_name()) {
             (false, Some(parent), Some(name)) => hd_run::resolve_path(parent).join(name),
-            _ => hd_run::resolve_path(&lexical),
+            _ => hd_run::resolve_path(&path),
         };
         let entry = entries
             .iter()

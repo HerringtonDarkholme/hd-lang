@@ -56,31 +56,75 @@ pub fn lexical_path(path: &Path) -> PathBuf {
     lexical
 }
 
-/// A path with `..` and `.` resolved and symbolic links followed as far as
-/// the path exists, so no path escapes a granted directory
-/// (`cli.cap.scope.path.resolved`).
+/// A path resolved as the OS resolves it, so no path escapes a granted
+/// directory (`cli.cap.scope.path.resolved`): the longest existing prefix
+/// by the OS, then each further name, following a symbolic link there
+/// (even one whose target does not exist) before the `..` after it, as a
+/// write or `create_dir_all` would. A name that does not exist is kept as
+/// it is, and a `..` after it removes it. Windows resolves every `..` by
+/// its text before it follows any link, so there the path is made lexical
+/// first.
 #[must_use]
 pub fn resolve_path(path: &Path) -> PathBuf {
-    let lexical = lexical_path(path);
-    // Canonicalize the longest existing ancestor, then add the rest.
-    let mut rest = Vec::new();
-    let mut base = lexical.as_path();
-    loop {
-        if let Ok(real) = canonicalize(base) {
-            let mut out = real;
-            for part in rest.iter().rev() {
-                out.push(part);
+    resolve_following(path, 0)
+}
+
+/// How many symbolic links one resolution follows before it stops, as
+/// the OS does with `ELOOP`; the access then fails on its own.
+const MAX_LINKS: u32 = 40;
+
+fn resolve_following(path: &Path, links: u32) -> PathBuf {
+    let lexical;
+    let path = if cfg!(windows) {
+        lexical = lexical_path(path);
+        &lexical
+    } else {
+        path
+    };
+    let parts: Vec<Component> = path.components().collect();
+    let (mut out, start) = (0..=parts.len())
+        .rev()
+        .find_map(|k| {
+            let prefix: PathBuf = parts[..k].iter().collect();
+            canonicalize(&prefix).ok().map(|real| (real, k))
+        })
+        .unwrap_or_default();
+    // How many names at the end of `out` do not exist.
+    let mut missing = 0usize;
+    for c in &parts[start..] {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+                missing = missing.saturating_sub(1);
             }
-            return out;
-        }
-        match (base.parent(), base.file_name()) {
-            (Some(parent), Some(name)) => {
-                rest.push(name.to_owned());
-                base = parent;
+            Component::Normal(name) => {
+                let next = out.join(name);
+                if let Some(resolved) = (missing == 0).then(|| step(&next, links)).flatten() {
+                    out = resolved;
+                } else {
+                    missing += 1;
+                    out = next;
+                }
             }
-            _ => return lexical,
+            other => out.push(other),
         }
     }
+    out
+}
+
+/// `path`, whose parent is resolved, resolved by the OS, or through the
+/// symbolic link it names when the link's target does not exist; `None`
+/// when no such file or link exists.
+fn step(path: &Path, links: u32) -> Option<PathBuf> {
+    if let Ok(real) = canonicalize(path) {
+        return Some(real);
+    }
+    let target = std::fs::read_link(path)
+        .ok()
+        .filter(|_| links < MAX_LINKS)?;
+    let from = path.parent().unwrap_or(Path::new(""));
+    Some(resolve_following(&from.join(target), links + 1))
 }
 
 impl Grants {
@@ -331,6 +375,43 @@ mod tests {
         assert!(g.covers_path("FsWrite", Path::new("out/new/a.txt"), &dir));
         assert!(!g.covers_path("FsWrite", Path::new("out/../top.txt"), &dir));
         assert!(!g.covers_path("FsWrite", Path::new("out-other/a.txt"), &dir));
+    }
+
+    /// A `..` after a symbolic link goes up from where the link leads, as
+    /// the OS resolves it, and a link whose target does not exist yet is
+    /// followed too, as a write through it would be (#399).
+    #[cfg(unix)]
+    #[test]
+    fn resolve_path_follows_each_link_before_the_dot_dot_after_it() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!("hd-grant-links-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("granted/sub/deep")).unwrap();
+        std::fs::create_dir_all(dir.join("outside/deep")).unwrap();
+        let real = hd_base::path::canonicalize(&dir).unwrap();
+        symlink("../outside/deep", dir.join("granted/link")).unwrap();
+        symlink("sub/deep", dir.join("granted/inlink")).unwrap();
+        symlink("../outside/made", dir.join("granted/broken")).unwrap();
+        for (path, resolved) in [
+            ("granted/link/../x", "outside/x"),
+            ("granted/link/new/../../y", "outside/y"),
+            ("granted/inlink/../y", "granted/sub/y"),
+            ("granted/sub/../y", "granted/y"),
+            ("granted/broken", "outside/made"),
+            ("granted/broken/z", "outside/made/z"),
+            ("granted/missing/../link/made", "outside/deep/made"),
+            ("granted/missing/a/../../y", "granted/y"),
+        ] {
+            assert_eq!(
+                super::resolve_path(&dir.join(path)),
+                real.join(resolved),
+                "{path}"
+            );
+        }
+        let g = Grants::resolve(&[kv("FsRead", scopes(&["granted"]))], &dir, &[], &dir);
+        assert!(!g.covers_path("FsRead", Path::new("granted/link/../x"), &dir));
+        assert!(g.covers_path("FsRead", Path::new("granted/inlink/../y"), &dir));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
