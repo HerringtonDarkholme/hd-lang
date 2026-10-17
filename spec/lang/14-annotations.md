@@ -1803,6 +1803,8 @@ pub trait Deserializer:
     fn member(mut self, m: Member) -> Result[void, Self::Error]
     fn end_variant(mut self) -> Result[void, Self::Error]
     fn invalid(mut self, expected: string) -> Self::Error
+    fn is_absent(mut self) -> bool:
+        false
 ```
 
 1. r[annot.serde.module] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).

@@ -1,0 +1,40 @@
+# test: Json.as_i64, as_u64 and as_f64 read a Number as Number's accessors do; a float with no fraction is not an integer, and any other kind is .None
+# Spec std/json Json Values: std-json.value.accessors.i64, std-json.value.accessors.u64, std-json.value.accessors.f64, std-json.value.accessors.integer-exact (issue 371).
+use std.json.{parse, Json}
+
+fn read(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("parse failed for $text")
+
+tests:
+    use std.testing.assert_equal
+
+    it("as_i64 gives the integers in the i64 range"):
+        assert_equal(read("42").as_i64(), .Some(42), reason="small")
+        assert_equal(read("-3").as_i64(), .Some(-3), reason="negative")
+        assert_equal(read("-9223372036854775808").as_i64(), .Some(-9223372036854775808), reason="i64 min")
+        assert_equal(read("9223372036854775807").as_i64(), .Some(9223372036854775807), reason="i64 max")
+        assert_equal(read("9223372036854775808").as_i64(), .None, reason="past i64 max")
+
+    it("as_u64 gives the integers from zero up"):
+        assert_equal(read("18446744073709551615").as_u64(), .Some(18446744073709551615), reason="u64 max")
+        assert_equal(read("0").as_u64(), .Some(0), reason="zero")
+        assert_equal(read("-1").as_u64(), .None, reason="negative")
+
+    it("a float is never an integer, even with no fraction"):
+        assert_equal(read("2.0").as_i64(), .None, reason="2.0")
+        assert_equal(read("1e2").as_i64(), .None, reason="1e2")
+        assert_equal(read("2.0").as_u64(), .None, reason="2.0 as u64")
+        assert_equal(read("18446744073709551616").as_u64(), .None, reason="2^64 is a float")
+
+    it("as_f64 gives every number, an integer as the nearest f64"):
+        assert_equal(read("2.5").as_f64(), .Some(2.5), reason="float")
+        assert_equal(read("-3").as_f64(), .Some(-3.0), reason="integer")
+        assert_equal(read("18446744073709551615").as_f64(), .Some(18446744073709551616.0), reason="nearest")
+
+    it("any other kind is .None"):
+        assert_equal(read("\"2\"").as_i64(), .None, reason="text")
+        assert_equal(read("null").as_u64(), .None, reason="null")
+        assert_equal(read("[1]").as_f64(), .None, reason="array")
+        assert_equal(read("true").as_i64(), .None, reason="bool")

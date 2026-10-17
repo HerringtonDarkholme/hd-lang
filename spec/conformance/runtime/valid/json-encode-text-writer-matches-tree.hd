@@ -1,6 +1,6 @@
-# test: encode writes the same text as the compact text of to_json, and Display and pretty match the byte-by-byte renderer they replaced
-# Spec std/json Encode And Decode, Compact Text, Pretty Text: std-json.encode, std-json.display.text, std-json.display.escapes, std-json.pretty.layout, std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.std.float-special (issue 359).
-use std.json.{encode, to_json, Json, JsonObject, Number}
+# test: encode writes the same text as the compact text of to_json, encode_pretty the same as its pretty text, and Display and pretty match the byte-by-byte renderer they replaced
+# Spec std/json Encode And Decode, Compact Text, Pretty Text: std-json.encode, std-json.encode-pretty, std-json.display.text, std-json.display.escapes, std-json.pretty.layout, std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.std.float-special (issue 359).
+use std.json.{encode, encode_pretty, to_json, Json, JsonObject, Number}
 use std.serde.{Serialize, Serializer}
 use std.structure.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
@@ -112,6 +112,9 @@ fn disagreement[T < Serialize](value: T) -> string:
     old_pretty := old_text(tree, true)
     if pretty != old_pretty:
         return "pretty: new ${debug(pretty)}, old ${debug(old_pretty)}"
+    pretty_now := encode_pretty(value)
+    if pretty_now != old_pretty:
+        return "encode_pretty: new ${debug(pretty_now)}, old ${debug(old_pretty)}"
     ""
 
 @derive(Serialize, Debug)

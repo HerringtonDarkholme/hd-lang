@@ -800,6 +800,19 @@ its own issue.
   as serde's `default` and Go's zero values do; this replaces
   `std-json.derive.from-json.no-default`. Also `Json.pointer`,
   `Json.as_i64` and `encode_pretty`.
+  Applied in #371, all plain hd:
+  - A missing key takes the declared default; with none, a `T?` member
+    reads `.None` and any other member is `MissingField`, as before. A
+    present `null` is read, never defaulted (serde's `#[serde(default)]`).
+    The derive template asks the format through a new `Deserializer`
+    method, `is_absent()`, whose default body answers `false`, and then
+    uses the member handle's `default()`, as `Default`'s template does.
+  - `Json.as_i64`, `as_u64`, `as_f64` read through `Number`'s accessors;
+    a float such as `2.0` is never an integer, as `from_json` reads it.
+  - `Json.pointer` follows RFC 6901; a `~` not followed by `0` or `1`
+    stays as written, as in serde_json.
+  - `encode_pretty` is `TextWriter` in a spaced layout, falling back to
+    `to_json(value).pretty()` for an irregular walk, as `encode` does.
 - **A `Parse` trait** with `string.parse::[T]()`, as Rust's `FromStr`,
   used by `cli` `value_as::[T]` and `env_as::[T]`.
 - **Integer and float math in hd:** integer `abs` and `pow`; float

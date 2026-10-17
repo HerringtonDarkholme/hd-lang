@@ -65,6 +65,7 @@ std.json.parse	std/json.md#parsing
 std.json.to_json	std/json.md#encode-and-decode
 std.json.from_json	std/json.md#encode-and-decode
 std.json.encode	std/json.md#encode-and-decode
+std.json.encode_pretty	std/json.md#encode-and-decode
 std.json.decode	std/json.md#encode-and-decode
 std.cli	std/cli.md#declaring-arguments
 std.regex.Regex	std/regex.md#compiling-a-pattern

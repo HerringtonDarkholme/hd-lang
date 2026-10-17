@@ -76,6 +76,10 @@ pub trait Deserializer:
     fn member(mut self, m: Member) -> Result[void, Self::Error]
     fn end_variant(mut self) -> Result[void, Self::Error]
     fn invalid(mut self, expected: string) -> Self::Error
+    # Whether the member that `member(m)` just positioned has no value at
+    # all, as a missing key (r-std-serde.read.absent). It reads nothing.
+    fn is_absent(mut self) -> bool:
+        false
 
 # ---------------------------------------------------------------------------
 # The templates (spec/std/serde.md#derived-implementations).
@@ -112,7 +116,8 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
 # in declaration order is positioned with `member` and read with its own
-# `deserialize`, then `end_variant` (r-std-serde.derive.deserialize.order).
+# `deserialize`, or given its declared default when absent, then
+# `end_variant` (r-std-serde.derive.deserialize.order).
 impl[T] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: mut R) -> Result[T, R::Error]:
         let source: mut DeserializeSource[T, R] = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
@@ -145,8 +150,14 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
+    # An absent member that declares a default takes it, and is not read
+    # (r-std-serde.derive.deserialize.default).
     fn member[F < Deserialize](mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         self.input.member(h.info)?
+        if h.has_default() && self.input.is_absent():
+            match h.default():
+                .Some(value) => return .Ok(value)
+                .None => pass
         F::deserialize(self.input)
 
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, R::Error]:

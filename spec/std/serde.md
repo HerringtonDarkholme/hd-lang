@@ -66,6 +66,7 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.map] Map | `begin_map()`, then `next_key()` before each entry | `next_key` is the entry's key, or `.None` after the last |
 | r[std-serde.read.variant] Variant | `begin_variant(facts, choices)`, then per member `member(m)` and one value, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
+| r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
 
 1. r[std-serde.read.one-value] A `deserialize` call reads exactly one value.
 2. r[std-serde.read.expected] Each scalar call's `expected` names the type being read, as `"u8"`. A format's error for a value of another kind may report it.
@@ -99,8 +100,9 @@ writer or reader with a value's members. For the `Session` of
 2. r[std-serde.derive.serialize.order] Derived `serialize` calls `begin_variant` for the value's variant first. Then, for each walked member in declaration order, it calls `member(m)` and the member's own `serialize`. Last, it calls `end_variant()`.
 3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
 4. r[std-serde.derive.deserialize.order] Derived `deserialize` calls `begin_variant` with every variant first. Then, for each built member in declaration order, it calls `member(m)` and the member type's `deserialize`. Last, it calls `end_variant()`.
-5. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
-6. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
+5. r[std-serde.derive.deserialize.default] For a member that declares a default, derived `deserialize` asks `is_absent()` after `member(m)`. When it is `true`, the member gets its declared default, and its type's `deserialize` is not called.
+6. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
+7. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
 
 ```text
 use std.serde.{Serialize, Deserialize}

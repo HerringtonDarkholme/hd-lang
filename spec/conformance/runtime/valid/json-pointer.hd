@@ -1,0 +1,45 @@
+# test: pointer follows RFC 6901: "" is the value itself, each /token steps into an object key or an array index, ~1 and ~0 are / and ~, and any miss is .None
+# Spec std/json JSON Pointer: std-json.pointer, std-json.pointer.syntax, std-json.pointer.escapes, std-json.pointer.step, std-json.pointer.index (issue 371).
+use std.json.{parse, Json}
+
+fn read(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("parse failed for $text")
+
+fn doc() -> Json:
+    read("{\"db\":{\"pool\":{\"max\":10},\"hosts\":[\"a\",\"b\"]},\"a/b\":1,\"m~n\":2,\"~1\":3,\"\":{\"\":4},\"x\":null}")
+
+tests:
+    use std.testing.assert_equal
+
+    it("the empty pointer is the whole value"):
+        assert_equal(doc().pointer(""), .Some(doc()), reason="whole")
+        assert_equal(read("5").pointer(""), .Some(read("5")), reason="a scalar too")
+
+    it("each token steps into an object key or an array index"):
+        assert_equal(doc().pointer("/db/pool/max").and_then(fn(found): found.as_i64()), .Some(10), reason="nested object")
+        assert_equal(doc().pointer("/db/hosts/1").and_then(fn(found): found.as_text()), .Some("b"), reason="array item")
+        assert_equal(doc().pointer("/db/hosts/0").and_then(fn(found): found.as_text()), .Some("a"), reason="index 0")
+        assert_equal(doc().pointer("/x"), .Some(Json.Null), reason="a null is found, not missing")
+
+    it("~1 reads as / and ~0 as ~, from the left"):
+        assert_equal(doc().pointer("/a~1b").and_then(fn(found): found.as_i64()), .Some(1), reason="slash")
+        assert_equal(doc().pointer("/m~0n").and_then(fn(found): found.as_i64()), .Some(2), reason="tilde")
+        assert_equal(doc().pointer("/~01").and_then(fn(found): found.as_i64()), .Some(3), reason="~01 is ~1, not /")
+
+    it("an empty token is the key \"\""):
+        assert_equal(doc().pointer("/").and_then(fn(found): found.get("")).and_then(fn(found): found.as_i64()), .Some(4), reason="/")
+        assert_equal(doc().pointer("//").and_then(fn(found): found.as_i64()), .Some(4), reason="//")
+
+    it("a miss is .None"):
+        assert_equal(doc().pointer("db"), .None, reason="no leading slash")
+        assert_equal(doc().pointer("/nope"), .None, reason="missing key")
+        assert_equal(doc().pointer("/db/pool/max/more"), .None, reason="a number has no members")
+        assert_equal(doc().pointer("/db/hosts/2"), .None, reason="past the end")
+        assert_equal(doc().pointer("/db/hosts/01"), .None, reason="leading zero")
+        assert_equal(doc().pointer("/db/hosts/-"), .None, reason="the - token")
+        assert_equal(doc().pointer("/db/hosts/+1"), .None, reason="a sign")
+        assert_equal(doc().pointer("/db/hosts/"), .None, reason="an empty index")
+        assert_equal(doc().pointer("/db/hosts/99999999999999999999999"), .None, reason="a huge index")
+        assert_equal(doc().pointer("/db/0"), .None, reason="an index into an object is a key")

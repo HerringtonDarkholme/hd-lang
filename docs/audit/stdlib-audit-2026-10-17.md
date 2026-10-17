@@ -274,10 +274,10 @@ pub fn main!() -> Result[void, HttpError] $ Console + Http:
 ### JSON
 
 **7. Decode into a type.** One line, and errors name the path (`expected
-u16 at $.port`). But `port: u16 = 8080` still fails with `MissingField`
-when the key is absent, though `Field.default()` exists
-(`lib/std/structure.hd:133`); proposed: decode uses member defaults. Go:
-`json.Unmarshal` into a pre-filled struct. Python: `json.load`.
+u16 at $.port`). A missing key takes the member's declared default, so
+`port: u16 = 8080` reads 8080 when the key is absent (applied in #371;
+it was a `MissingField`). Go: `json.Unmarshal` into a pre-filled struct.
+Python: `json.load`.
 
 ```hd
 use std.fs.{FsRead, read_text}
@@ -289,22 +289,22 @@ use std.error.Error
 @derive(Deserialize)
 data Config:
     name: string
-    port: u16
-    tags: List[string]
-    debug: bool?
+    port: u16 = 8080
+    tags: List[string] = []
+    debug: bool = false
 
 pub fn main!() -> Result[void, dyn Error] $ Console + FsRead:
     config := decode::[Config](read_text!(Path("config.json"))?)?
-    println("${config.name} on ${config.port}, debug=${config.debug.unwrap_or(false)}")
+    println("${config.name} on ${config.port}, debug=${config.debug}")
     .Ok(())
 ```
 
-**8. Encode.** Pretty text takes two calls; proposed
-`encode_pretty(shape)`, serde_json's `to_string_pretty`. Go:
+**8. Encode.** `encode_pretty(shape)` writes the pretty text in one call
+(applied in #371), as serde_json's `to_string_pretty`. Go:
 `json.MarshalIndent`. Python: `json.dumps(v, indent=2)`.
 
 ```hd
-use std.json.{encode, to_json}
+use std.json.{encode, encode_pretty}
 use std.serde.Serialize
 
 @derive(Serialize)
@@ -320,22 +320,21 @@ data Shape:
 pub fn main() -> void $ Console:
     shape := Shape { name: "tri", points: [Point { x: 0, y: 0 }, Point { x: 3, y: 4 }] }
     println(encode(shape))
-    println(to_json(shape).pretty())
+    println(encode_pretty(shape))
 ```
 
-**9. One field of unknown JSON.** A lambda per step, and two hops per
-number. Proposed: `doc.pointer("/db/pool/max").and_then(fn(m):
-m.as_i64())`, RFC 6901 as in serde_json. Go: a type assertion per level.
-Python: `doc["db"]["pool"]["max"]`.
+**9. One field of unknown JSON.** `doc.pointer("/db/pool/max")` and
+`Json.as_i64()` (applied in #371), RFC 6901 as in serde_json. Go: a type
+assertion per level. Python: `doc["db"]["pool"]["max"]`.
 
 ```hd
 use std.json.{JsonError, parse}
 
 pub fn main() -> Result[void, JsonError] $ Console:
     doc := parse("{\"db\":{\"pool\":{\"max\":10}},\"tags\":[\"a\",\"b\"]}")?
-    max := doc.get("db").and_then(fn(d): d.get("pool")).and_then(fn(p): p.get("max")).and_then(fn(m): m.as_number()).and_then(fn(n): n.as_i64())
+    max := doc.pointer("/db/pool/max").and_then(fn(m): m.as_i64())
     println("max = ${max.unwrap_or(0)}")
-    tag := doc.get("tags").and_then(fn(t): t.at(0)).and_then(fn(t): t.as_text())
+    tag := doc.pointer("/tags/0").and_then(fn(t): t.as_text())
     println("tag = ${tag.unwrap_or("")}")
     .Ok(())
 ```
@@ -928,7 +927,7 @@ cost.
    decodes a missing key as `MissingField` (`spec/std/json.md:584` lists
    defaults as open), though `Field.default()` exists
    (`lib/std/structure.hd:133`). Fix: default, then `.None` for a `T?`,
-   then `MissingField`.
+   then `MissingField`. Applied in #371.
 6. **`Rng` has two identical constructors**, `new` and `from_seed`
    (`lib/std/random.hd:78`, `:86`). Pass 89 renamed `from_seed`, but the
    old name stayed public. Fix: make it private or remove it.
@@ -949,6 +948,7 @@ cost.
     `impl[T < Eq & Hash] FromIterator[T] for Set[T]`.
 12. **JSON numbers take two hops**: `Json.as_number()` then `as_i64()`
     (`lib/std/json.hd:212`). Fix: `Json.as_i64()`, `as_u64()`, `as_f64()`.
+    Applied in #371.
 13. **Test providers use six naming schemes:** `Scripted*`
     (`lib/std/http.hd:112`, `lib/std/process.hd:67`,
     `lib/std/console.hd:71`), `MemoryFs` (`lib/std/fs.hd:116`),

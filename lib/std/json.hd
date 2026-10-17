@@ -1,6 +1,6 @@
 # std.json: the untyped JSON value, its parser, and its writers, and
 # typed JSON over the `std.serde` opt-in: `to_json`, `from_json`,
-# `encode`, and `decode` (spec/std/json.md).
+# `encode`, `encode_pretty`, and `decode` (spec/std/json.md).
 use std.format.{DebugWriter, DebugList}
 use std.error.Error
 use std.num.parse_f64
@@ -244,6 +244,51 @@ impl Json:
             .Null => true
             _ => false
 
+    ## The integer of a `Number` that is an integer in the `i64` range; a float, even `1.0`, gives `.None`.
+    ## See [std-json.value.accessors.i64](../../spec/std/json.md#r-std-json.value.accessors.i64).
+    pub fn as_i64(self) -> i64?:
+        match self:
+            .Number(value) => value.as_i64()
+            _ => .None
+
+    ## The integer of a `Number` that is an integer from zero up in the `u64` range; a float gives `.None`.
+    ## See [std-json.value.accessors.u64](../../spec/std/json.md#r-std-json.value.accessors.u64).
+    pub fn as_u64(self) -> u64?:
+        match self:
+            .Number(value) => value.as_u64()
+            _ => .None
+
+    ## The `f64` of any `Number`, an integer converted to the nearest `f64`.
+    ## See [std-json.value.accessors.f64](../../spec/std/json.md#r-std-json.value.accessors.f64).
+    pub fn as_f64(self) -> f64?:
+        match self:
+            .Number(value) => value.as_f64()
+            _ => .None
+
+    # RFC 6901: `""` is the value itself, and every other pointer is `/`
+    # and a token for each step (r-std-json.pointer.syntax). A token is cut
+    # at the next `/` and decoded at once; `/` and `~` are ASCII, so every
+    # cut is on a scalar boundary.
+    ## The value at the JSON Pointer `path` (RFC 6901), such as `/db/pool/0`, or `.None` when no value is there.
+    ## See [std-json.pointer](../../spec/std/json.md#r-std-json.pointer).
+    pub fn pointer(self, path: string) -> Json?:
+        size := bytes_len(path)
+        if size == 0:
+            return .Some(self)
+        if bytes_at(path, 0) != 47:
+            return .None
+        let current = self
+        let start: usize = 1
+        while start <= size:
+            let end = start
+            while end < size && bytes_at(path, end) != 47:
+                end = end + 1
+            match pointer_step(current, pointer_token(path, start, end)):
+                .Some(next) => current = next
+                .None => return .None
+            start = end + 1
+        .Some(current)
+
 impl Eq for Json:
     fn eq(self, other: Json) -> bool:
         match (self, other):
@@ -254,6 +299,58 @@ impl Eq for Json:
             (.Array(left), .Array(right)) => left == right
             (.Object(left), .Object(right)) => left == right
             _ => false
+
+# One pointer step: an object's member named `token`, or an array's item
+# at the index `token` writes (r-std-json.pointer.step).
+fn pointer_step(value: Json, token: string) -> Json?:
+    match value:
+        .Object(fields) => fields.get(token)
+        .Array(items) =>
+            match pointer_index(token, items.len()):
+                .Some(index) => .Some(items[index])
+                .None => .None
+        _ => .None
+
+# The index that `token` writes when it is below `len`: base-ten digits,
+# with no sign and no leading zero (r-std-json.pointer.index).
+fn pointer_index(token: string, len: usize) -> usize?:
+    size := bytes_len(token)
+    if size == 0 || (size > 1 && bytes_at(token, 0) == 48):
+        return .None
+    let value: usize = 0
+    let at: usize = 0
+    while at < size:
+        byte := bytes_at(token, at)
+        if byte < 48 || byte > 57:
+            return .None
+        value = value * 10 + usize(byte - 48)
+        if value >= len:
+            return .None
+        at = at + 1
+    .Some(value)
+
+# The token from `start` up to `end` of `path`, with `~1` read as `/` and
+# `~0` as `~`; any other `~` stays as written (r-std-json.pointer.escapes).
+fn pointer_token(path: string, start: usize, end: usize) -> string:
+    let parts: mut List[string] = []
+    let plain = start
+    let at = start
+    while at + 1 < end:
+        if bytes_at(path, at) == 126:
+            next := bytes_at(path, at + 1)
+            if next == 48 || next == 49:
+                if at > plain:
+                    parts.push(bytes_slice(path, plain, at))
+                parts.push(if next == 48: "~" else: "/")
+                at = at + 2
+                plain = at
+                continue
+        at = at + 1
+    if parts.len() == 0:
+        return bytes_slice(path, start, end)
+    if plain < end:
+        parts.push(bytes_slice(path, plain, end))
+    concat_all(parts)
 
 # Compact JSON text (r-std-json.display.compact).
 impl Display for Json:
@@ -836,11 +933,23 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 ## The compact JSON text of `value`, with no whitespace outside strings.
 ## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
 pub fn encode[T < Serialize](value: T) -> string:
-    let writer: mut TextWriter = TextWriter::new()
+    let writer: mut TextWriter = TextWriter::new(false)
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
         .None => "${to_json(value)}"
+
+# The pretty text of a value's `Json` (r-std-json.encode-pretty), written
+# by `TextWriter` in its spaced layout, or through the tree as `encode`
+# falls back.
+## The pretty JSON text of `value`: `to_json(value).pretty()`.
+## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
+pub fn encode_pretty[T < Serialize](value: T) -> string:
+    let writer: mut TextWriter = TextWriter::new(true)
+    _ := value.serialize(writer)
+    match writer.finish():
+        .Some(text) => text
+        .None => to_json(value).pretty()
 
 # `parse`, then `from_json` (r-std-json.decode).
 ## `parse(text)`, then `from_json` of the parsed value.
@@ -1041,7 +1150,8 @@ enum FrameKind:
 enum Irregular:
     Walk
 
-# Writes the compact text of the `Json` that `JsonWriter` would build, as
+# Writes the compact text of the `Json` that `JsonWriter` would build, or
+# its pretty text when `spaced` is true, as
 # the walk reaches each part, into pieces joined once at the end. It writes
 # the walks that derived and standard implementations make: one value, a
 # key before each value in an object, every key new in its object, and each
@@ -1054,7 +1164,9 @@ enum Irregular:
 # its keys start in `keys`. An object's first 16 keys sit in `keys`, with a
 # cheap print of each in `prints`; a larger object moves its keys into a
 # map on `indexes`. The stacks keep their slots when a frame closes, and
-# the next frame reuses them.
+# the next frame reuses them. `indent` is the nesting level of the pretty
+# text: a list, a map, or a record adds one, and a variant two, for its
+# `{"Variant": {` once a member opens it.
 data TextWriter:
     pub parts: mut List[string]
     pub depth: usize
@@ -1070,10 +1182,12 @@ data TextWriter:
     pub keyed: bool
     pub written: bool
     pub regular: bool
+    pub spaced: bool
+    pub indent: usize
 
 impl TextWriter:
-    fn new() -> mut TextWriter:
-        TextWriter { parts: [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], key_count: 0, keys: [], prints: [], indexes: [], pending: "", keyed: false, written: false, regular: true }
+    fn new(spaced: bool) -> mut TextWriter:
+        TextWriter { parts: [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], key_count: 0, keys: [], prints: [], indexes: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(self) -> string?:
@@ -1104,6 +1218,7 @@ impl TextWriter:
             .Items =>
                 if count > 0:
                     self.parts.push(",")
+                line_break(self.parts, self.spaced, self.indent)
                 return .Ok(())
             _ => pass
         if !self.keyed:
@@ -1112,6 +1227,9 @@ impl TextWriter:
         self.keyed = false
         if !self.add_key(last, count, key):
             return self.give_up()
+        if self.spaced:
+            self.spaced_key(kind, count, self.names[last], key)
+            return .Ok(())
         if count > 0:
             self.parts.push(",\"")
         else:
@@ -1124,6 +1242,24 @@ impl TextWriter:
         push_escaped(self.parts, key)
         self.parts.push("\":")
         .Ok(())
+
+    # The pretty text before a value of an object: a comma after an earlier
+    # entry, a line break, and `"key": `. The first member of a variant
+    # opens `{`, its name, and `: {` first, each on its own line.
+    fn spaced_key(mut self, kind: FrameKind, count: usize, name: string, key: string) -> void:
+        if count > 0:
+            self.parts.push(",")
+        else:
+            match kind:
+                .Tagged =>
+                    self.parts.push("{")
+                    line_break(self.parts, true, self.indent - 1)
+                    push_quoted(self.parts, name)
+                    self.parts.push(": {")
+                _ => pass
+        line_break(self.parts, true, self.indent)
+        push_quoted(self.parts, key)
+        self.parts.push(": ")
 
     # Whether `key` is new among the `count` keys of the object at `frame`;
     # a new key is recorded. A key is compared with the first 16 by its
@@ -1176,6 +1312,7 @@ impl TextWriter:
             self.counts.push(0)
             self.key_starts.push(self.key_count)
         self.depth = at + 1
+        self.indent = self.indent + levels_of(kind)
         .Ok(())
 
     # Ends the innermost frame, which must be of `kind`; `Record` also ends
@@ -1188,15 +1325,27 @@ impl TextWriter:
             return self.give_up()
         last := self.depth - 1
         count := self.counts[last]
+        open_kind := self.kinds[last]
         let keyed_frame = true
-        match (kind, self.kinds[last]):
+        let spaced = self.spaced && count > 0
+        match (kind, open_kind):
             (.Items, .Items) =>
+                line_break(self.parts, spaced, self.indent - 1)
                 self.parts.push("]")
                 keyed_frame = false
-            (.Entries, .Entries) => self.parts.push("}")
-            (.Record, .Record) => self.parts.push("}")
+            (.Entries, .Entries) =>
+                line_break(self.parts, spaced, self.indent - 1)
+                self.parts.push("}")
+            (.Record, .Record) =>
+                line_break(self.parts, spaced, self.indent - 1)
+                self.parts.push("}")
             (.Record, .Tagged) =>
-                if count > 0:
+                if spaced:
+                    line_break(self.parts, true, self.indent - 1)
+                    self.parts.push("}")
+                    line_break(self.parts, true, self.indent - 2)
+                    self.parts.push("}")
+                else if count > 0:
                     self.parts.push("}}")
                 else:
                     push_quoted(self.parts, self.names[last])
@@ -1205,6 +1354,7 @@ impl TextWriter:
             _ := self.indexes.pop()
         self.key_count = self.key_starts[last]
         self.depth = last
+        self.indent = self.indent - levels_of(open_kind)
         .Ok(())
 
     # A key or a member name names the next value of an object.
@@ -1274,6 +1424,13 @@ impl Serializer for TextWriter:
 
     fn end_variant(mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Record)
+
+# The nesting levels a frame adds to the pretty text: a variant's
+# `{"Variant": {` is two.
+fn levels_of(kind: FrameKind) -> usize:
+    match kind:
+        .Tagged => 2
+        _ => 1
 
 # A key's length with its first and last bytes: equal keys have equal
 # prints, and most different keys of one object do not.
@@ -1634,6 +1791,11 @@ impl Deserializer for JsonReader:
 
     fn invalid(mut self, expected: string) -> JsonError:
         self.fail(expected)
+
+    # A missing key is absent, so a member with a declared default takes
+    # it (r-std-json.derive.from-json.default).
+    fn is_absent(mut self) -> bool:
+        !self.present
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler
 # supplies each body. `@intrinsic` is prototype-internal and accepted only

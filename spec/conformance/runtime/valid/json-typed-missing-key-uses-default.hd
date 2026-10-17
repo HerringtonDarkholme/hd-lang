@@ -1,0 +1,62 @@
+# test: a missing key takes the member's declared default, then a T? reads .None, and any other member is a MissingField; a present null is read, not defaulted
+# Spec std/json Derived Deserialize: std-json.derive.from-json.default, std-json.derive.from-json.null-present, std-json.derive.from-json.missing, std-json.derive.from-json.payload (issue 371).
+# Spec std/serde Derived Implementations: std-serde.derive.deserialize.default.
+# Spec 14 Build: annot.build.member.
+use std.json.{decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+data ServerConfig:
+    host: string
+    port: u16 = 8080
+    banner: string? = .Some("welcome")
+    note: string?
+    tags: List[string] = ["main"]
+
+@derive(Serialize, Deserialize)
+data Pool:
+    name: string
+    size: u32 = 4
+
+@derive(Serialize, Deserialize)
+enum Backend:
+    Local
+    Remote(url: string, pool: Pool)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a missing key for a member with a default takes the default"):
+        match decode::[ServerConfig]("{\"host\":\"db1\"}"):
+            .Ok(found) =>
+                assert_equal(found.port, 8080, reason="port declares 8080")
+                assert_equal(found.banner, .Some("welcome"), reason="an optional member's default wins over .None")
+                assert_equal(found.note, .None, reason="an optional member with no default reads .None")
+                assert_equal(found.tags, ["main"], reason="a list default")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a missing key for a member without a default is still a MissingField"):
+        assert_equal(decode::[ServerConfig]("{\"port\":5432}").map(fn(found): found.port), .Err(JsonError.MissingField("$.host")), reason="host has no default")
+
+    it("a present key is read, whatever the default"):
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\",\"port\":5432,\"banner\":\"hi\"}").map(fn(found): "${found.port} ${found.banner.unwrap_or("-")}"), .Ok("5432 hi"), reason="read")
+
+    it("a present null is read, not replaced by the default"):
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\",\"banner\":null}").map(fn(found): found.banner), .Ok(.None), reason="null is .None")
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\",\"port\":null}").map(fn(found): found.port), .Err(JsonError.WrongType("$.port", "u16")), reason="null is not a u16")
+
+    it("data in a list takes its defaults item by item"):
+        match decode::[List[Pool]]("[{\"name\":\"a\"},{\"name\":\"b\",\"size\":9}]"):
+            .Ok(pools) =>
+                assert_equal(pools[0].size, 4, reason="default")
+                assert_equal(pools[1].size, 9, reason="read")
+            .Err(error) => panic("decode failed: $error")
+        assert_equal(decode::[List[Pool]]("[{\"name\":\"a\"},{\"size\":9}]").map(fn(found): found.len()), .Err(JsonError.MissingField("$[1].name")), reason="no default for name")
+
+    it("data in an enum payload takes its defaults"):
+        match decode::[Backend]("{\"Remote\":{\"url\":\"u\",\"pool\":{\"name\":\"p\"}}}"):
+            .Ok(Backend.Remote(url, pool)) =>
+                assert_equal(url, "u", reason="url")
+                assert_equal(pool.size, 4, reason="default inside the payload")
+            _ => panic("not a remote backend")
+        assert_equal(decode::[Backend]("{\"Remote\":{\"url\":\"u\",\"pool\":{}}}").map(fn(found): +0), .Err(JsonError.MissingField("$.Remote.pool.name")), reason="no default for name")

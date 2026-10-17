@@ -2731,7 +2731,11 @@ runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
 runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded
-runtime/valid/json-typed-missing-key-ignores-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.no-default
+runtime/valid/json-typed-missing-key-uses-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.default
+runtime/valid/json-pointer.hd	runtime	accept	std/json.md#r-std-json.pointer
+runtime/valid/json-number-accessors.hd	runtime	accept	std/json.md#r-std-json.value.accessors.i64
+runtime/valid/json-encode-pretty.hd	runtime	accept	std/json.md#r-std-json.encode-pretty
+runtime/valid/serde-derive-read-default.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.default
 runtime/valid/json-encode-text-writer-matches-tree.hd	runtime	accept	std/json.md#r-std-json.encode
 runtime/valid/json-decode-bytes-matches-old.hd	runtime	accept	std/json.md#r-std-json.parse
 typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error

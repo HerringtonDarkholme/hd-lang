@@ -10,13 +10,14 @@ over the language tier:
 - `JsonError`, the error that `parse` and `decode` return;
 - the compact `Display` text of a `Json`, and its `pretty` method;
 - the typed part: JSON as a format over opt-in serialization, with
-  `to_json`, `from_json`, `encode`, and `decode`.
+  `to_json`, `from_json`, `encode`, `encode_pretty`, and `decode`.
 
 Nothing in it is language tier.
 
 1. r[std-json.import.core] `std.json` declares `Json`, `Number`, `JsonError`, and `parse`. None is a prelude name; code imports them, as in `use std.json.parse`.
 2. r[std-json.import.format] `std.json` also declares `to_json`, `from_json`, `encode`, and `decode`. None is a prelude name either.
-3. r[std-json.no-panic] None of these functions panics.
+3. r[std-json.import.pretty] `std.json` also declares `encode_pretty`, which is not a prelude name.
+4. r[std-json.no-panic] None of these functions panics.
 
 ```text
 use std.json.{Json, JsonError, parse}
@@ -56,11 +57,64 @@ The accessors read one kind and give `.None` for any other:
 | r[std-json.value.accessors.bool] `as_bool` | `pub fn as_bool(self) -> bool?` | the value of a `Bool` |
 | r[std-json.value.accessors.number] `as_number` | `pub fn as_number(self) -> Number?` | the `Number` of a `Number` |
 | r[std-json.value.accessors.null] `is_null` | `pub fn is_null(self) -> bool` | `true` exactly for `Null` |
+| r[std-json.value.accessors.i64] `as_i64` | `pub fn as_i64(self) -> i64?` | what [`Number.as_i64`](#r-std-json.number.accessors.i64) gives for a `Number` |
+| r[std-json.value.accessors.u64] `as_u64` | `pub fn as_u64(self) -> u64?` | what [`Number.as_u64`](#r-std-json.number.accessors.u64) gives for a `Number` |
+| r[std-json.value.accessors.f64] `as_f64` | `pub fn as_f64(self) -> f64?` | what [`Number.as_f64`](#r-std-json.number.accessors.f64) gives for a `Number` |
 
 1. r[std-json.value.accessors] These methods are declared on `Json` in `std.json`. A negative `index` gives `.None`.
+2. r[std-json.value.accessors.integer-exact] `as_i64` and `as_u64` give `.None` for a float, even one with no fraction, such as `1.0`, as an integer type's `from_json` does.
 
-> **Note.** The accessors take no path and no default. Chain them with
-> `and_then` ([Option](option.md)).
+| `Json` | `as_i64()` | `as_u64()` | `as_f64()` |
+| --- | --- | --- | --- |
+| `-3` | `.Some(-3)` | `.None` | `.Some(-3.0)` |
+| `18446744073709551615` | `.None` | `.Some(18446744073709551615)` | `.Some` of the nearest `f64`, 2^64 |
+| `2.0` | `.None` | `.None` | `.Some(2.0)` |
+| `"2"` | `.None` | `.None` | `.None` |
+
+```text
+use std.json.Json
+
+fn count(value: Json) -> i64:
+    value.as_i64().unwrap_or(0)   # 0 for 2.0: a float is not an integer
+```
+
+> **Note.** The accessors take no default. Chain them with `and_then`
+> ([Option](option.md)), or reach a nested value with `pointer`.
+
+### JSON Pointer
+
+`pointer` reaches a nested value in one call, by a JSON Pointer
+([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)):
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-json.pointer] `pointer` | `pub fn pointer(self, path: string) -> Json?` | the value that `path` points to from `self`, or `.None` when there is none |
+
+1. r[std-json.pointer.syntax] The path `""` points to `self`. Any other path starts with `/`, and each `/` begins one token, which runs to the next `/` or the end. A path that does not start with `/` gives `.None`.
+2. r[std-json.pointer.escapes] In a token, `~1` reads as `/` and `~0` as `~`, from the left. Any other `~` stays as written, as in `serde_json`.
+3. r[std-json.pointer.step] Each token steps into the current value: an `Object`'s member whose key is the token, or an `Array`'s item. Any other value, or a key that is not there, gives `.None`.
+4. r[std-json.pointer.index] An `Array` token is base-ten digits with no sign and no leading zero, and its value must be below the array's length. Any other token, `-` among them, gives `.None`.
+
+| `pointer` of `{"db":{"pool":[5,6]},"a/b":1,"m~n":2,"":3}` | Result |
+| --- | --- |
+| `""` | `.Some` of the whole value |
+| `"/db/pool/1"` | `.Some(6)` |
+| `"/a~1b"`, `"/m~0n"` | `.Some(1)`, `.Some(2)` |
+| `"/"` | `.Some(3)`: the key `""` |
+| `"/db/pool/01"`, `"/db/pool/2"`, `"/db/pool/-"` | `.None` |
+| `"db"` | `.None`: no leading `/` |
+
+```text
+use std.json.{JsonError, parse}
+
+fn pool_max(text: string) -> Result[i64, JsonError]:
+    doc := parse(text)?
+    .Ok(doc.pointer("/db/pool/max").and_then(fn(found): found.as_i64()).unwrap_or(10))
+```
+
+> **Why.** RFC 6901 is the one path syntax JSON tools share, and
+> `serde_json` and Go's JSON Pointer packages read it. A `.None` for any
+> miss keeps one call for the common lookup, as `get` does.
 
 ## Json Objects
 
@@ -480,6 +534,7 @@ fn load(text: string) -> Result[Session, JsonError]:
 | r[std-json.to-json] `to_json` | `pub fn to_json[T < Serialize](value: T) -> Json` | the `Json` that `value`'s `serialize` writes |
 | r[std-json.from-json] `from_json` | `pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads from `value`, or the first error it finds |
 | r[std-json.encode] `encode` | `pub fn encode[T < Serialize](value: T) -> string` | the [compact text](#compact-text) of `to_json(value)` |
+| r[std-json.encode-pretty] `encode_pretty` | `pub fn encode_pretty[T < Serialize](value: T) -> string` | the [pretty text](#pretty-text) of `to_json(value)`, as `to_json(value).pretty()` gives |
 | r[std-json.decode] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | `parse(text)`, then `from_json` of the parsed value |
 
 1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and reads no value.
@@ -505,8 +560,21 @@ fn load(text: string) -> Result[Plain, JsonError]:
 > serves JSON and every other format alike, as `serde_json` reads serde's
 > `Serialize`.
 
-> **Note.** `encode` writes only the compact layout. For the pretty one,
-> write `to_json(value).pretty()`.
+```text
+use std.json.encode_pretty
+use std.serde.Serialize
+
+@derive(Serialize)
+data Point:
+    x: i32
+    y: i32
+
+fn show(point: Point) -> string:
+    encode_pretty(point)   # "{\n  \"x\": 3,\n  \"y\": 4\n}" for Point { x: 3, y: 4 }
+```
+
+> **Note.** `encode_pretty` differs from `encode` only in whitespace
+> outside strings: the keys, their order, and the escapes are the same.
 
 ### Standard Implementations
 
@@ -581,7 +649,7 @@ enum Shape:
 
 > **Note.** A member omitted with `= pass` in a derivation block writes no
 > key, as [Omitted Members](../lang/14-annotations.md#omitted-members)
-> states. Renames, conditional skips, and defaults per field are open, in
+> states. Renames and conditional skips are open, in
 > [Serialization Formats](../../docs/future-work/OPEN_ISSUES.md#serialization-formats).
 
 > **Why.** The externally tagged form is `serde`'s default. It needs no tag
@@ -605,11 +673,12 @@ JSON reads the form that it writes for a derived `Serialize`:
 3. r[std-json.derive.from-json.member] It reads each member that the derivation builds, in declaration order, from the value of the member's key. The first error ends the read, with the segment `.name` of the member.
 4. r[std-json.derive.from-json.unknown] A key that names no member is ignored.
 5. r[std-json.derive.from-json.missing] A missing key reads as `null`: the member's type reads `Json.Null`. When that read fails, the error is a `MissingField` at the path of the missing key.
-6. r[std-json.derive.from-json.no-default] A member's declared default is not used for a missing key.
-7. r[std-json.derive.from-json.enum] An enum reads a `Text`, or an `Object` with exactly one key. The text or the key is the variant's name. Any other value is a `WrongType`.
-8. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
-9. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
-10. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a data type's do, under that segment.
+6. r[std-json.derive.from-json.default] A missing key of a member that declares a default gives that default, and the member is not read, so it is never a `MissingField`. The serde reader reports the key absent through [`is_absent`](serde.md#r-std-serde.read.absent).
+7. r[std-json.derive.from-json.null-present] A key whose value is `null` is not missing: the member reads `Json.Null` even when it declares a default, so a `T?` member gets `.None`.
+8. r[std-json.derive.from-json.enum] An enum reads a `Text`, or an `Object` with exactly one key. The text or the key is the variant's name. Any other value is a `WrongType`.
+9. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
+10. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
+11. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a data type's do, under that segment.
 
 ```text
 use std.json.{decode, JsonError}
@@ -632,13 +701,41 @@ fn shape_of(text: string) -> string:
         .Err(error) => "$error"
 ```
 
-> **Note.** So a member of type `T?` may be missing, and reads `.None`,
-> and a member of type `Json` reads `null`. A member of any other
-> standard type must be present.
+A missing key takes the member's declared default first. With no default,
+a `T?` member reads `.None`, and any other member is a `MissingField`:
+
+| Text read as a `Server` | Result |
+| --- | --- |
+| `{"host":"db1"}` | `.Ok(Server { host: "db1", port: 8080, banner: .Some("hi"), note: .None })` |
+| `{"host":"db1","port":5432,"banner":null}` | `port` 5432, `banner` `.None` |
+| `{"port":5432}` | `.Err(MissingField("$.host"))` |
+| `{"host":"db1","port":null}` | `.Err(WrongType("$.port", "u16"))` |
+
+```text
+use std.json.{decode, JsonError}
+use std.serde.Deserialize
+
+@derive(Deserialize)
+data Server:
+    host: string
+    port: u16 = 8080
+    banner: string? = .Some("hi")
+    note: string?
+
+fn load(text: string) -> Result[Server, JsonError]:
+    decode::[Server](text)   # {"host":"db1"} gives port 8080
+```
+
+> **Note.** So a member of type `T?` may be missing, and reads `.None`
+> unless it declares a default, and a member of type `Json` reads `null`.
+> A member of any other standard type must be present or declare a
+> default.
 
 > **Why.** `serde` ignores unknown keys by default, so a reader accepts
 > output from a newer writer. A missing optional reads as absent, as
-> `serde`'s `Option` does. A declared default is a value for code, not a
-> wire rule.
+> `serde`'s `Option` does. A missing key with a declared default takes it,
+> as serde's `#[serde(default)]` and Go's `json.Unmarshal` into a filled
+> struct do, so a config file may leave out what the type already
+> settles. A `null` is a value the text wrote, so it is read.
 
 See also: [Encoding](encoding.md#decode-errors), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Serialization](../lang/14-annotations.md#serialization), [Serde](serde.md), [Derived Hashing](hash.md#derived-hashing).

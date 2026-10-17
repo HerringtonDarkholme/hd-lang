@@ -1,0 +1,171 @@
+# test: a derived Deserialize asks is_absent after member for a member with a declared default, and an absent one takes the default without a read; the trait's default is_absent is false
+# Spec std/serde Reading, Derived Implementations: std-serde.read.absent, std-serde.derive.deserialize.default, std-serde.derive.deserialize.order (issue 371).
+# Spec 14 Serialization: annot.serde.module.
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Facts, VariantInfo, Member}
+
+# A reader of `uint` values in order. A member named in `gaps` has no
+# value. It logs each call as a word.
+data Gappy:
+    pub values: List[u64]
+    pub at: usize
+    pub gaps: List[string]
+    pub missing: bool
+    pub log: mut List[string]
+
+# The same reader, without `is_absent`: the trait's default body answers.
+data Plain:
+    pub values: List[u64]
+    pub at: usize
+    pub log: mut List[string]
+
+impl Deserializer for Gappy:
+    type Error = string
+
+    fn peek(mut self) -> Result[ValueKind, string]:
+        .Ok(ValueKind.Uint)
+
+    fn is_null(mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn bool(mut self, expected: string) -> Result[bool, string]:
+        .Err(self.invalid(expected))
+
+    fn int(mut self, expected: string) -> Result[i64, string]:
+        .Err(self.invalid(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, string]:
+        self.log.push("uint")
+        if self.missing || self.at >= self.values.len():
+            return .Err("missing")
+        found := self.values[self.at]
+        self.at = self.at + 1
+        .Ok(found)
+
+    fn float(mut self, expected: string) -> Result[f64, string]:
+        .Err(self.invalid(expected))
+
+    fn text(mut self, expected: string) -> Result[string, string]:
+        .Err(self.invalid(expected))
+
+    fn begin_list(mut self) -> Result[void, string]:
+        .Err("no list")
+
+    fn next_item(mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn begin_map(mut self) -> Result[void, string]:
+        .Err("no map")
+
+    fn next_key(mut self) -> Result[string?, string]:
+        .Ok(.None)
+
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(0)
+
+    fn member(mut self, m: Member) -> Result[void, string]:
+        self.log.push("member:${m.name}")
+        self.missing = self.gaps.contains(m.name)
+        .Ok(())
+
+    fn end_variant(mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> string:
+        "invalid $expected"
+
+    fn is_absent(mut self) -> bool:
+        self.log.push("absent?")
+        self.missing
+
+impl Deserializer for Plain:
+    type Error = string
+
+    fn peek(mut self) -> Result[ValueKind, string]:
+        .Ok(ValueKind.Uint)
+
+    fn is_null(mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn bool(mut self, expected: string) -> Result[bool, string]:
+        .Err(self.invalid(expected))
+
+    fn int(mut self, expected: string) -> Result[i64, string]:
+        .Err(self.invalid(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, string]:
+        self.log.push("uint")
+        if self.at >= self.values.len():
+            return .Err("missing")
+        found := self.values[self.at]
+        self.at = self.at + 1
+        .Ok(found)
+
+    fn float(mut self, expected: string) -> Result[f64, string]:
+        .Err(self.invalid(expected))
+
+    fn text(mut self, expected: string) -> Result[string, string]:
+        .Err(self.invalid(expected))
+
+    fn begin_list(mut self) -> Result[void, string]:
+        .Err("no list")
+
+    fn next_item(mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn begin_map(mut self) -> Result[void, string]:
+        .Err("no map")
+
+    fn next_key(mut self) -> Result[string?, string]:
+        .Ok(.None)
+
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(0)
+
+    fn member(mut self, m: Member) -> Result[void, string]:
+        self.log.push("member:${m.name}")
+        .Ok(())
+
+    fn end_variant(mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> string:
+        "invalid $expected"
+
+@derive(Deserialize)
+data Limits:
+    count: u32
+    retries: u32 = 3
+
+fn gappy(values: List[u64], gaps: List[string]) -> (Result[Limits, string], string):
+    let input: mut Gappy = Gappy { values: values, at: 0, gaps: gaps, missing: false, log: [] }
+    result := Limits::deserialize(input)
+    (result, input.log.join(" "))
+
+fn plain(values: List[u64]) -> (Result[Limits, string], string):
+    let input: mut Plain = Plain { values: values, at: 0, log: [] }
+    result := Limits::deserialize(input)
+    (result, input.log.join(" "))
+
+tests:
+    use std.testing.assert_equal
+
+    it("an absent member with a default takes it, and its type's deserialize is not called"):
+        read := gappy([5], ["retries"])
+        assert_equal(read._1, "member:count uint member:retries absent?", reason="no uint call for retries")
+        assert_equal(read._0.map(fn(found): found.retries), .Ok(3), reason="the default")
+
+    it("a member with a default that is present is read"):
+        read := gappy([5, 7], [])
+        assert_equal(read._1, "member:count uint member:retries absent? uint", reason="asked, then read")
+        assert_equal(read._0.map(fn(found): found.retries), .Ok(7), reason="read")
+
+    it("a member with no default is never asked, so an absent one is read and fails"):
+        read := gappy([], ["count"])
+        assert_equal(read._1, "member:count uint", reason="no absent? for count")
+        assert_equal(read._0.map(fn(found): found.count), .Err("missing"), reason="the reader's error")
+
+    it("the default is_absent is false, so the member is read"):
+        read := plain([5, 7])
+        assert_equal(read._1, "member:count uint member:retries uint", reason="read")
+        assert_equal(read._0.map(fn(found): found.retries), .Ok(7), reason="read")

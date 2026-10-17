@@ -1,0 +1,59 @@
+# test: encode_pretty writes the pretty text of to_json(value), the same keys, order and escapes as encode, for data, lists, maps, and enum variants nested in each other
+# Spec std/json Encode And Decode, Pretty Text: std-json.encode-pretty, std-json.import.pretty, std-json.pretty.layout, std-json.pretty.separator, std-json.pretty.empty, std-json.derive.to-json.enum, std-json.derive.to-json.unit (issue 371).
+use std.json.{encode, encode_pretty, to_json, parse}
+use std.serde.Serialize
+
+@derive(Serialize)
+data Point:
+    x: i32
+    y: i32
+
+@derive(Serialize)
+enum Mark:
+    Dot
+    Label(text: string)
+    Box(corner: Point, size: Point)
+
+@derive(Serialize)
+data Shape:
+    name: string
+    points: List[Point]
+    marks: List[Mark]
+    empty: List[i32]
+    tags: Map[string, bool]
+    note: string?
+
+fn shape() -> Shape:
+    let tags: mut Map[string, bool] = {}
+    tags["solid"] = true
+    Shape { name: "tri \"1\"\n", points: [Point { x: 0, y: 0 }, Point { x: 3, y: -4 }], marks: [Mark.Dot, Mark.Label("a"), Mark.Box(Point { x: 1, y: 2 }, Point { x: 3, y: 4 })], empty: [], tags: tags, note: .None }
+
+tests:
+    use std.testing.assert_equal
+
+    it("a data value is an object with one member per line"):
+        assert_equal(encode_pretty(Point { x: 3, y: 4 }), "{\n  \"x\": 3,\n  \"y\": 4\n}", reason="point")
+
+    it("scalars and empty containers stay on one line"):
+        assert_equal(encode_pretty(5), "5", reason="number")
+        assert_equal(encode_pretty("a\tb"), "\"a\\tb\"", reason="text")
+        let none: List[i32] = []
+        assert_equal(encode_pretty(none), "[]", reason="empty list")
+
+    it("enum variants nest two levels: the name, then the members"):
+        assert_equal(encode_pretty(Mark.Label("a")), "{\n  \"Label\": {\n    \"text\": \"a\"\n  }\n}", reason="label")
+        assert_equal(encode_pretty(Mark.Dot), "\"Dot\"", reason="a variant with no member")
+        assert_equal(encode_pretty([Mark.Dot, Mark.Label("a")]), "[\n  \"Dot\",\n  {\n    \"Label\": {\n      \"text\": \"a\"\n    }\n  }\n]", reason="in a list")
+
+    it("nested values match the pretty text of to_json"):
+        value := shape()
+        assert_equal(encode_pretty(value), to_json(value).pretty(), reason="same as Json.pretty")
+        assert_equal(encode_pretty(value.marks), to_json(value.marks).pretty(), reason="a list of variants")
+
+    it("only whitespace differs from encode"):
+        value := shape()
+        match (parse(encode_pretty(value)), parse(encode(value))):
+            (.Ok(pretty), .Ok(compact)) =>
+                assert_equal("$pretty", "$compact", reason="same compact text after a parse")
+                assert_equal(pretty, compact, reason="equal values")
+            _ => panic("parse failed")
