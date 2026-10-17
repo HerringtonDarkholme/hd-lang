@@ -33,13 +33,15 @@ match_same_arms = "allow"
 [profile.dev]
 opt-level = 1
 
-# The playground's compiler wasm (`cargo build -p hd_web --target
-# wasm32-unknown-unknown --profile web`; scripts/build-web-compiler.js).
-# Only that build selects it (crates/hd_web/DESIGN.md §4).
+# The playground's compiler wasm (scripts/build-web-compiler.js, which
+# also compresses the linker's relocations). Only that build selects it
+# (crates/hd_web/DESIGN.md §4). `opt-level = "z"` cut the gzip download
+# from 1.598 to 1.431 MB against "s", for compiles about 25% slower
+# (cold 185 -> 230 ms, warm 3.4 -> 4.5 ms; #49).
 [profile.web]
 inherits = "release"
 lto = true
 codegen-units = 1
-opt-level = "s"
+opt-level = "z"
 panic = "abort"
 strip = true

@@ -13,7 +13,8 @@ in the browser. The general design is in
 ## 1. Building For wasm32
 
 `hd_web` is a `cdylib` (`--profile web`: release plus LTO, one codegen
-unit, `opt-level = "s"`, `panic = "abort"`, `strip`). It depends on
+unit, `opt-level = "z"`, `panic = "abort"`, `strip`), linked with
+`--compress-relocations` by `scripts/build-web-compiler.js`. It depends on
 `hd_driver` with `default-features = false`, so the driver's `threads`
 feature (which enables `hd_sched/threads` and `Executor::Pool`) and
 rayon stay out of the wasm tree; `hd_cli` turns the feature on.
@@ -190,8 +191,10 @@ extension. All of them predate Wasm GC.
 
 - **Size.** The compiler wasm is gated by
   `scripts/test-web-compiler.js` (raw and gzip ceilings and a raw floor);
-  that script records each raise and its cause. `wasm-opt -Oz` is not
-  run: it made gzip larger and took over a minute.
+  that script records each raise and its cause. The build trades speed
+  for download: `opt-level = "z"` makes compiles about 25% slower than
+  `"s"` and the gzip download 167 KB smaller. `wasm-opt -Oz` is not run:
+  it made gzip larger and took over a minute.
 - **Granularity:** one compile is one call. A playground program
   compiles in a few hundred ms cold, which the page's 15 s run limit
   covers, so the stepping scheduler (crates/hd_sched/DESIGN.md §6.2) can
