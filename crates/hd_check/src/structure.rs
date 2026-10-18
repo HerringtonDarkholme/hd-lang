@@ -702,11 +702,6 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
             });
         }
         ItemData::Enum { shared, variants } => {
-            // Shared data is one global per declared variant, so a
-            // parameter type naming a generic parameter has no one type.
-            if shared.iter().any(|f| pool.has_param(f.ty)) {
-                return unsupported("shared data whose type names a generic parameter");
-            }
             for (k, v) in variants.iter().enumerate() {
                 let members: Vec<Mem> = v
                     .fields

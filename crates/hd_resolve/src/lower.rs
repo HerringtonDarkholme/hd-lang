@@ -2900,6 +2900,31 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// A shared parameter whose type names a type parameter
+    /// (`data.shared.type-parameter`) is an error when `report` is set, and
+    /// its type becomes poison either way, so later stages stay silent.
+    fn shared_type_parameters(
+        &mut self,
+        shared: &mut [Field],
+        shared_node: Option<NodeRef<'_>>,
+        report: bool,
+    ) {
+        for (n, f) in Self::field_nodes(shared_node).zip(shared.iter_mut()) {
+            if !self.names.pool.has_param(f.ty) {
+                continue;
+            }
+            f.ty = Ty::POISON;
+            if report {
+                let name = self.names.text(f.name).to_owned();
+                let msg = format!(
+                    "the shared field `{name}` names a type parameter, but shared data has one copy per variant"
+                );
+                self.diags
+                    .error(Code::SharedDataTypeParameter, self.src.span(n), &msg);
+            }
+        }
+    }
+
     /// An enum's variants are unique (`data.enum.unique`), and a variant's
     /// named payload parameter does not repeat a named shared parameter
     /// (`data.shared.payload-names`).
@@ -4006,10 +4031,11 @@ impl Lower<'_, '_, '_> {
                     .filter(|c| c.kind() == SyntaxKind::Parameter)
                     .collect();
                 self.parameter_default_order(&nodes, false);
-                let shared = self.fields(shared_params, &gn);
+                let mut shared = self.fields(shared_params, &gn);
                 let check = self.r.frozen.is_none();
+                let holder = Src::child(n, SyntaxKind::ParameterList);
+                self.shared_type_parameters(&mut shared, holder, check);
                 if check {
-                    let holder = Src::child(n, SyntaxKind::ParameterList);
                     self.field_variance(h.def, &generics, holder, &shared);
                     self.enum_names(&shared, holder, block);
                 }

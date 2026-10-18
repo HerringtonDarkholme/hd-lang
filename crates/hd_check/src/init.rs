@@ -914,9 +914,6 @@ impl Ck<'_, '_> {
         let ItemData::Enum { shared, variants } = item.data.clone() else {
             return unsupported("shared data outside an enum");
         };
-        if shared.iter().any(|f| self.pool().has_param(f.ty)) {
-            return unsupported("shared data whose type names a generic parameter");
-        }
         let params: Vec<(Symbol, Ty)> = shared.iter().map(|f| (f.name, f.ty)).collect();
         for v in s
             .descendants()
@@ -1090,33 +1087,26 @@ impl Ck<'_, '_> {
         t: Ty,
         name: &str,
         n: NodeRef<'_>,
-    ) -> StageResult<Option<(Ref, Ty)>> {
-        let Some((field, ft)) = self.shared_param(t, name) else {
-            return Ok(None);
-        };
+    ) -> Option<(Ref, Ty)> {
+        let (field, ft) = self.shared_param(t, name)?;
         let pool = self.pool();
         let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
-            return Ok(None);
+            return None;
         };
-        let Some(item) = self.cx.lookup.item(def) else {
-            return Ok(None);
-        };
+        let item = self.cx.lookup.item(def)?;
         let ItemData::Enum { variants, .. } = &item.data else {
-            return Ok(None);
+            return None;
         };
         let name = self.cx.names.text(field).to_owned();
         let name = name.as_str();
-        if self.pool().has_param(ft) {
-            return unsupported("a shared field whose type names a generic parameter");
-        }
         let globals: Vec<DefId> = variants
             .iter()
             .map(|v| shared_global(&self.cx.names, v.def, name))
             .collect();
         if globals.is_empty() {
-            return Ok(None);
+            return None;
         }
-        Ok(Some((self.shared_chain(r, &globals, 0, ft, n), ft)))
+        Some((self.shared_chain(r, &globals, 0, ft, n), ft))
     }
 
     fn shared_chain(&mut self, r: Ref, globals: &[DefId], k: usize, ft: Ty, n: NodeRef<'_>) -> Ref {

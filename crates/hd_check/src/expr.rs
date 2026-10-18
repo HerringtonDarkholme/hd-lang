@@ -1708,7 +1708,7 @@ impl Ck<'_, '_> {
             }
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
-        if let Some(v) = self.shared_field(r, inner, &name, n)? {
+        if let Some(v) = self.shared_field(r, inner, &name, n) {
             return Ok(v);
         }
         if matches!(pool.get(inner), TyData::Infer(_)) {

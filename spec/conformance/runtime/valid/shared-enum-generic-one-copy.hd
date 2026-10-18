@@ -1,0 +1,15 @@
+# test: a generic enum's shared data is one copy per variant of the declaration
+# Spec 08 Shared Enum Constructor Data: data.shared.generic-copy.
+
+enum Tagged[T](label: string):
+    Item(value: T) -> Tagged("item")
+    Nothing -> Tagged("nothing")
+
+tests:
+    use std.testing.assert_equal
+
+    it("every instantiation reads the variant's one copy"):
+        let a: Tagged[i32] = Tagged.Item(1)
+        let b: Tagged[string] = Tagged.Item("x")
+        assert_equal(a.label, "item", reason="i32 instantiation")
+        assert_equal(b.label, "item", reason="string instantiation")

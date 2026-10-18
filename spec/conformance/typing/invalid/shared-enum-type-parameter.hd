@@ -1,0 +1,5 @@
+# test: a shared parameter whose type names a type parameter is an error
+# Spec 08 Shared Enum Constructor Data: data.shared.type-parameter.
+enum Box[T](items: List[T]):  # diagnostic: shared-data-type-parameter
+    Empty -> Box([])
+    Full(value: T) -> Box([])
