@@ -1,0 +1,14 @@
+use pkg.open_listener
+use std.testing.assert
+
+it("disposes its listener with using"):
+    using listener = open_listener!().expect("a listener")
+    assert(listener.local_address().is_ok(), reason="bound")
+
+it("closes its listener explicitly"):
+    let mut listener = open_listener!().expect("a listener")
+    assert(listener.close().is_ok(), reason="closed")
+
+it("leaves its listener open"):
+    listener := open_listener!().expect("a listener")
+    assert(listener.local_address().is_ok(), reason="bound")

@@ -44,6 +44,8 @@ export interface Host {
   run(instance: WebAssembly.Instance, init: string, poll: string): Promise<RunResult>;
   prime(instance: WebAssembly.Instance): void;
   close(): void;
+  /** The host handles still open, as nonzero `[kind, count]` pairs. */
+  leaks(): [string, number][];
   args: string[];
   program: string;
   grant: unknown;

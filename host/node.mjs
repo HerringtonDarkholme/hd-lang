@@ -223,6 +223,8 @@ const syncClient = (file) => {
     client = null;
   };
   return {
+    // Whether the thread has started, so it may hold something open.
+    started: () => client !== null,
     call: (request, left = () => Infinity) => {
       if (left() <= 0) throw new TimeLimit();
       if (client === null) {
@@ -686,6 +688,16 @@ const nodeLayer = {
         "hd:TestRunner": testRunner.provider,
       },
       tempDir: testRunner.tempDir,
+      // The sockets still open, by kind (cli.test.leak).
+      leaks: () => {
+        if (!net.started()) return [];
+        const counts = net.call({ op: "open" }).ok ?? {};
+        return [
+          ["TcpStream", counts.stream ?? 0],
+          ["TcpListener", counts.listener ?? 0],
+          ["UdpSocket", counts.udp ?? 0],
+        ].filter(([, n]) => n > 0);
+      },
       // Removes a directory the host made for itself, and closes its
       // sockets.
       close: () => {

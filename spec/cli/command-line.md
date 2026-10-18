@@ -311,6 +311,7 @@ profile**, which binds these traits:
 6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
 7. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
 8. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
+9. r[cli.host.handles.exit] A **host handle** is a value that a default profile provider opens and keeps in the host, such as a `Net` socket. When the program of `hd FILE`, `hd run`, or a task ends, `hd` closes every host handle it left open, and writes nothing about them.
 
 ```sh
 cat src/main.hd
@@ -328,6 +329,11 @@ hd run        # the default profile binds Console: prints hello
 > values. So control has two levels. The row says at compile time which
 > traits a function may use. The [capability grant](#capability-grants)
 > says at run time which resources those traits may touch.
+
+> **Why.** The operating system closes a process's descriptors when it
+> exits, and programs rely on that. A note on standard error for each
+> handle left open would add noise to every such program, so `hd run`
+> closes them silently, and `hd test` reports them.
 
 > **Note.** A program that `Process` starts runs with the operating
 > system's authority of `hd`, and no grant limits what it does. A
@@ -638,6 +644,10 @@ hd test --seed 42                 # every property test starts from seed 42
 31. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
 32. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
 33. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
+34. r[cli.test.leak] A test case whose run otherwise passes fails when a host handle that the run opened is still open at its end.
+35. r[cli.test.leak.message] Its failure message names each kind of handle left open, such as `TcpListener`, with its count.
+36. r[cli.test.leak.closed] `hd test` closes those handles once the run ends, so a later test case never sees them.
+37. r[cli.test.leak.runs] Each run of a test case counts alone: a row of an `it_each` test case, and each case of a property test case.
 
 | Part | Value |
 | --- | --- |
@@ -653,6 +663,10 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently.
+
+> **Why.** A handle left open is reported from the host's own table of
+> handles, never by a finalizer, so the test case that opened it fails,
+> next to its cause. A `using` binding or an explicit close fixes it.
 
 #### Text Report
 

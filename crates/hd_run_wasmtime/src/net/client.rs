@@ -64,6 +64,22 @@ pub(crate) enum Outcome {
 }
 
 impl Client {
+    /// The sockets still open, by kind: streams, listeners, UDP sockets
+    /// (`cli.test.leak`).
+    pub(crate) fn open_counts(&self) -> [(&'static str, usize); 3] {
+        let mut counts = [("TcpStream", 0), ("TcpListener", 0), ("UdpSocket", 0)];
+        for entry in self.handles.values() {
+            let slot = match entry {
+                Entry::Stream(_) => 0,
+                Entry::Listener(_) => 1,
+                Entry::Udp(_) => 2,
+                Entry::Closed => continue,
+            };
+            counts[slot].1 += 1;
+        }
+        counts
+    }
+
     /// Closes every socket: the instance has ended. A stream's both
     /// directions shut first, so its peer reads the end even while an
     /// aborted task still holds it.

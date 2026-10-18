@@ -224,6 +224,7 @@ The stdlib chapters' terms are in the
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
 | **hidden item** | An item in a package interface that only the code of an instantiated template may name. See [`module.interface.hidden-item`](lang/10-modules.md#r-module.interface.hidden-item). |
 | **hides** | A member hides every member with the same name at a greater depth, in the same namespace. See [`names.hide.depth`](lang/03-names-and-scopes.md#r-names.hide.depth). |
+| **host handle** | A value that a default profile provider opens and keeps in the host, such as a `Net` socket; `hd run` closes the ones a program leaves open, and `hd test` reports them. See [`cli.host.handles.exit`](cli/command-line.md#r-cli.host.handles.exit). |
 | **infinite loop** | A `while` loop whose condition is the literal `true`. It completes normally only through a `break` that targets it. See [`flow.while.infinite`](lang/06-control-flow.md#r-flow.while.infinite). |
 | **inherent associated function** | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. See [Inherent Members](lang/09-traits.md#inherent-members). |
 | **inherent method** | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. See [Inherent Members](lang/09-traits.md#inherent-members). |

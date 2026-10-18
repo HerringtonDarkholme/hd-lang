@@ -121,18 +121,27 @@ class Runner {
     );
     const t0 = performance.now();
     const instance = await WebAssembly.instantiate(this.module, host.imports);
-    const { status, trapped, ended, frames, panic } = await host.run(
-      instance,
-      `hd.init.${c.init}`,
-      `hd.test.${c.test}`,
-    );
+    const ran = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
+    const { trapped, ended, frames, panic } = ran;
     this.notify({ type: "done" });
+    // A run that ends with a host handle still open fails, naming each
+    // kind and its count; closing the host closes the handles
+    // (cli.test.leak).
+    const leaks = host.leaks?.() ?? [];
+    const leaked = !trapped && ran.status === 0 && leaks.length > 0;
+    const status = leaked ? 1 : ran.status;
+    if (leaked) stderr += leakReport(leaks);
     host.close();
     if (dir) this.files.remove(dir);
     const us = Math.round((performance.now() - t0) * 1000);
     return { status, trapped, ended, stdout, stderr, us, frames, panic: panic ?? null, updates };
   }
 }
+
+// The failure message of a run that left host handles open: each kind
+// with its count (cli.test.leak.message).
+export const leakReport = (leaks) =>
+  `the test case ended with open handles: ${leaks.map(([kind, n]) => `${n} ${kind}`).join(", ")}\n`;
 
 // A trapped run's record adds its Wasm frames, [function, offset] pairs
 // innermost first, when the trap had any.

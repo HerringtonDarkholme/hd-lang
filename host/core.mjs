@@ -741,6 +741,10 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // scratch directory).
   const close = () => platform?.close?.();
 
+  // The host handles the program left open, as `[kind, count]` pairs with
+  // a nonzero count, for the leak report of `hd test` (cli.test.leak).
+  const leaks = () => platform?.leaks?.() ?? [];
+
   // What a REPL session reaches past the import object: the instance
   // state, the result writer, the deadlock report and the output.
   const core = { st, put, deadlock, flush };
@@ -750,6 +754,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     run,
     prime,
     close,
+    leaks,
     args,
     program,
     grant,

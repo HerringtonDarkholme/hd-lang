@@ -1,0 +1,6 @@
+# An integration test case that ends with a host handle it opened still
+# open fails, and the handle is closed after it; one that disposes or
+# closes its handles passes.
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"disposes its listener with using","outcome":"passed"},{"kind":"test","name":"closes its listener explicitly","outcome":"passed"},{"kind":"test","name":"leaves its listener open","outcome":"failed","message":null},{"kind":"summary","passed":2,"failed":1,"status":1}]

@@ -142,12 +142,34 @@ impl BodyRunner for NativeBodyRunner {
         // property's discard), never the standard error text.
         let panic = instance.store.data_mut().take_panic().filter(|_| trapped);
         let ended = state.ended();
+        let mut stderr = String::from_utf8_lossy(&self.err.take()).into_owned();
+        // A run that ends with a host handle still open fails, naming each
+        // kind and its count; dropping the instance closes the handles
+        // (`cli.test.leak`).
+        let mut status = status;
+        if !trapped && status == 0 {
+            let open: Vec<String> = instance
+                .store
+                .data()
+                .net
+                .open_counts()
+                .iter()
+                .filter(|(_, n)| *n > 0)
+                .map(|(kind, n)| format!("{n} {kind}"))
+                .collect();
+            if !open.is_empty() {
+                status = 1;
+                stderr.push_str("the test case ended with open handles: ");
+                stderr.push_str(&open.join(", "));
+                stderr.push('\n');
+            }
+        }
         let result = BodyResult {
             status,
             trapped,
             ended,
             stdout: String::from_utf8_lossy(&self.out.take()).into_owned(),
-            stderr: String::from_utf8_lossy(&self.err.take()).into_owned(),
+            stderr,
             us: u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX),
             panic,
             frames,
