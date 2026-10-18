@@ -124,13 +124,6 @@ pub fn list_dir!(path: Path) -> Result[List[Entry], FsError] $ FsRead:
 pub fn stat!(path: Path) -> Result[Entry?, FsError] $ FsRead:
     $.use(FsRead).stat!(path)
 
-## Returns whether anything is at `path`.
-## See [std-fs.helper.exists](../../spec/std/fs.md#r-std-fs.helper.exists).
-pub fn exists!(path: Path) -> Result[bool, FsError] $ FsRead:
-    match $.use(FsRead).stat!(path)?:
-        .Some(_) => .Ok(true)
-        .None => .Ok(false)
-
 ## Creates the file at `path` from `bytes`, or replaces its whole content.
 ## See [std-fs.helper.write-bytes](../../spec/std/fs.md#r-std-fs.helper.write-bytes).
 pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite:

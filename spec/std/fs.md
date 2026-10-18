@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` data that describes a file;
-- a free helper for each method of `FsRead` and `FsWrite`, and `exists!`;
+- a free helper for each method of `FsRead` and `FsWrite`;
 - `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
 
@@ -126,22 +126,21 @@ fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
 4. r[std-fs.helper.read-bytes] `std.fs` declares `pub fn read_bytes!(path: Path) -> Result[List[u8], FsError] $ FsRead`, which calls `read_bytes!(path)` on the covering `FsRead` provider.
 5. r[std-fs.helper.list-dir] `std.fs` declares `pub fn list_dir!(path: Path) -> Result[List[Entry], FsError] $ FsRead`, which calls `list_dir!(path)` on the covering `FsRead` provider.
 6. r[std-fs.helper.stat] `std.fs` declares `pub fn stat!(path: Path) -> Result[Entry?, FsError] $ FsRead`, which calls `stat!(path)` on the covering `FsRead` provider.
-7. r[std-fs.helper.exists] `std.fs` declares `pub fn exists!(path: Path) -> Result[bool, FsError] $ FsRead`, which returns `.Ok(true)` when `stat!(path)` is `.Ok(.Some(_))`, `.Ok(false)` when it is `.Ok(.None)`, and the same `.Err` otherwise.
-8. r[std-fs.helper.write-bytes] `std.fs` declares `pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite`, which calls `write_bytes!(path, bytes)` on the covering `FsWrite` provider.
-9. r[std-fs.helper.append-text] `std.fs` declares `pub fn append_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite`, which calls `append_text!(path, text)` on the covering `FsWrite` provider.
-10. r[std-fs.helper.create-dir-all] `std.fs` declares `pub fn create_dir_all!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `create_dir_all!(path)` on the covering `FsWrite` provider.
-11. r[std-fs.helper.remove] `std.fs` declares `pub fn remove!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `remove!(path)` on the covering `FsWrite` provider.
-12. r[std-fs.helper.rename] `std.fs` declares `pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite`, which calls `rename!(from, to)` on the covering `FsWrite` provider.
-13. r[std-fs.helper.row] A helper's row names exactly the capability of the method it calls: `FsRead` for `read_text!`, `read_bytes!`, `list_dir!`, `stat!`, and `exists!`, and `FsWrite` for the others.
+7. r[std-fs.helper.write-bytes] `std.fs` declares `pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite`, which calls `write_bytes!(path, bytes)` on the covering `FsWrite` provider.
+8. r[std-fs.helper.append-text] `std.fs` declares `pub fn append_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite`, which calls `append_text!(path, text)` on the covering `FsWrite` provider.
+9. r[std-fs.helper.create-dir-all] `std.fs` declares `pub fn create_dir_all!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `create_dir_all!(path)` on the covering `FsWrite` provider.
+10. r[std-fs.helper.remove] `std.fs` declares `pub fn remove!(path: Path) -> Result[void, FsError] $ FsWrite`, which calls `remove!(path)` on the covering `FsWrite` provider.
+11. r[std-fs.helper.rename] `std.fs` declares `pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite`, which calls `rename!(from, to)` on the covering `FsWrite` provider.
+12. r[std-fs.helper.row] A helper's row names exactly the capability of the method it calls: `FsRead` for `read_text!`, `read_bytes!`, `list_dir!`, and `stat!`, and `FsWrite` for the others.
 
 ```text
-use std.fs.{FsError, append_text, exists, list_dir}
+use std.fs.{FsError, append_text, list_dir, stat}
 use std.fs.{EntryKind, FsRead, FsWrite}
 use std.path.Path
 
 fn log_line!(path: Path, line: string) -> Result[bool, FsError] $ FsRead + FsWrite:
     append_text!(path, "${line}\n")?
-    exists!(path)
+    .Ok(stat!(path)?.is_some())
 
 fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
     let mut count: usize = 0
@@ -154,11 +153,9 @@ fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
 > **Why.** A non-suspending wrapper would give each file operation two
 > spellings. A program that reads files declares `main!`.
 >
-> **Why `exists!` returns a `Result`.** `stat!` already answers a missing
-> path with `.None`, so `exists!` needs no `NotFound` case. Its `FsError`
-> is for a failed check, such as a denied path, which a plain `bool` would
-> hide as "missing". Rust's `Path::try_exists` returns `io::Result<bool>`
-> for the same reason, and Go's `os.Stat` keeps the error beside the answer.
+> **No `exists!`.** `stat!` already answers a missing path with `.None`, so
+> `stat!(path)?.is_some()` says whether anything is there, and keeps a failed
+> check, such as a denied path, apart from "missing". One atom, not two.
 
 ## Walking And Globbing
 

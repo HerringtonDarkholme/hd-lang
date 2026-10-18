@@ -1,11 +1,11 @@
 # test: every FsRead and FsWrite method has a free bang helper over the covering provider
 # Spec std/fs File Helpers: std-fs.helper.read-bytes, std-fs.helper.list-dir,
-# std-fs.helper.stat, std-fs.helper.exists, std-fs.helper.write-bytes,
+# std-fs.helper.stat, std-fs.helper.write-bytes,
 # std-fs.helper.append-text, std-fs.helper.create-dir-all,
 # std-fs.helper.remove, std-fs.helper.rename, and std-fs.helper.row.
 # expect: test
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs}
-use std.fs.{append_text, create_dir_all, exists, list_dir, read_bytes, read_text, remove, rename, stat, write_bytes, write_text}
+use std.fs.{append_text, create_dir_all, list_dir, read_bytes, read_text, remove, rename, stat, write_bytes, write_text}
 use std.path.Path
 
 fn log_twice!(path: Path) -> Result[string, FsError] $ FsRead + FsWrite:
@@ -14,7 +14,7 @@ fn log_twice!(path: Path) -> Result[string, FsError] $ FsRead + FsWrite:
     read_text!(path)
 
 fn probe!(path: Path) -> Result[bool, FsError] $ FsRead:
-    exists!(path)
+    .Ok(stat!(path)?.is_some())
 
 tests:
     use std.testing.assert_equal
@@ -30,21 +30,19 @@ tests:
             assert_equal(write_bytes!(Path("blob"), [1, 2, 3]), .Ok(()), reason="written")
             assert_equal(read_bytes!(Path("blob")), .Ok([1, 2, 3]), reason="read back")
 
-    it("stat! and exists! tell a file from nothing"):
+    it("stat! tells a file from nothing"):
         let mut files = MemoryFs::new()
         $.with(FsRead=files, FsWrite=files):
             assert_equal(write_text!(Path("a.txt"), "tea"), .Ok(()), reason="seeded")
-            assert_equal(exists!(Path("a.txt")), .Ok(true), reason="present")
-            assert_equal(exists!(Path("b.txt")), .Ok(false), reason="missing is not an error")
-            assert_equal(stat!(Path("b.txt")), .Ok(.None), reason="no entry")
+            assert_equal(stat!(Path("b.txt")), .Ok(.None), reason="missing is not an error")
             assert_equal(stat!(Path("a.txt")), .Ok(.Some(Entry { path: Path("a.txt"), kind: EntryKind.File, size: 3 })), reason="a file of 3 bytes")
             assert_equal(probe!(Path("a.txt")), .Ok(true), reason="a row of FsRead alone")
 
-    it("exists! is false below a file"):
+    it("stat! is .None below a file"):
         let mut files = MemoryFs::new()
         $.with(FsRead=files, FsWrite=files):
             assert_equal(write_text!(Path("f"), "x"), .Ok(()), reason="seeded")
-            assert_equal(exists!(Path("f/g")), .Ok(false), reason="below a file is just missing")
+            assert_equal(stat!(Path("f/g")), .Ok(.None), reason="below a file is just missing")
 
     it("create_dir_all!, list_dir!, rename! and remove! change and show the tree"):
         let mut files = MemoryFs::new()
@@ -55,7 +53,7 @@ tests:
             names := list_dir!(Path("d")).unwrap_or([]).map(fn(entry: Entry) -> string: "${entry.path}")
             assert_equal(names, ["d/a.txt", "d/b.txt", "d/sub"], reason="ordered by path text")
             assert_equal(rename!(Path("d/a.txt"), Path("d/c.txt")), .Ok(()), reason="renamed")
-            assert_equal(exists!(Path("d/a.txt")), .Ok(false), reason="old name gone")
+            assert_equal(stat!(Path("d/a.txt")), .Ok(.None), reason="old name gone")
             assert_equal(remove!(Path("d/c.txt")), .Ok(()), reason="removed")
-            assert_equal(exists!(Path("d/c.txt")), .Ok(false), reason="file gone")
+            assert_equal(stat!(Path("d/c.txt")), .Ok(.None), reason="file gone")
             assert_equal(remove!(Path("nothing")), .Err(FsError.NotFound(path=Path("nothing"))), reason="a missing path")

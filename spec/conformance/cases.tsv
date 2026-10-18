@@ -3403,7 +3403,7 @@ typing/valid/index-trait-tuple-key.hd	type	accept	lang/05-expressions.md#r-expr.
 typing/invalid/unknown-method-before-diverging-matches.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#r-names.method-lookup.unknown
 runtime/valid/top-level-pattern-binding.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.let-pattern
 typing/invalid/top-level-refutable-let-without-else.hd	type	reject:refutable-let-pattern	lang/06-control-flow.md#r-flow.let.refutable.else
-runtime/valid/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.exists
+runtime/valid/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.stat
 runtime/valid/process-run-helper.hd	runtime	accept	std/process.md#r-std-process.helper.run
 runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.display
 runtime/valid/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
