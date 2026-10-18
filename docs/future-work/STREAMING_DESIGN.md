@@ -1,35 +1,27 @@
 # Streaming: One Reader And Writer Shape
 
-**Owner decisions (2026-10-17).** Handles are plain values that
-implement `Disposable` or `AsyncDisposable`, bound with `using`, as the
-note at the top of [Ownership And Borrows](OWNERSHIP_DESIGN.md)
-decides; ownership work is on hold, and nothing below uses it. Handles
-cross the host boundary as plain descriptors: a host method returns a
-plain id, and std wraps it in a handle whose `dispose` calls the host's
-close, as Rust's `File` wraps a file descriptor. Each handle module's
-error keeps a `Closed` variant, as the owner approved earlier; it is
-what a call on a closed handle returns. Every question of section 13 was
-accepted as recommended, and those answers stand here. The block rule
-that the owner accepted for `timeout!`, `race!`, `all!`, `retry!` and
-`map_all!` existed only for owned and borrowed captures; it lapses, and
-those blocks are ordinary closures again.
+Today an hd program reads an HTTP body, a child process's output or a
+file in one piece: `send!`, `run!` and `read_text!` return the whole
+thing. That is right for most programs and fails for the rest: a
+download larger than memory, a build whose output should appear as it
+runs, a log of several gigabytes, a line protocol over a socket. This
+design adds streaming beside the buffered calls. HTTP bodies, child
+pipes, files and TCP streams all implement one `Reader` and one `Writer`
+shape, so the same line reader, copy loop and timeout work on any of
+them.
 
-This is a proposal for issue #350, not a decision. The owner asked on
-2026-10-17 to "design streaming now", before the I/O redesign is
-implemented. It answers question 5 of
-[Standard Library Redesign](STDLIB_REDESIGN.md): HTTP bodies, process
-output and large files are buffered whole, and the recommendation there
-was one reader shape for all three, added beside the buffered terminals.
+A handle is an ordinary value. A `using` binding closes it when its
+scope ends ([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)),
+and an explicit `finish!()` closes it and reports any close error. A
+call on a closed handle returns the module's `Closed` error, and the
+host reports handles a program forgot to close. On the host boundary a
+handle is a plain descriptor id that std wraps, as Rust's `File` wraps
+a file descriptor.
 
-The design builds on the decided resource model: `Disposable`
-(`fn dispose(mut self)`) and `AsyncDisposable` (`fn dispose!(mut self)`),
-a `using` binding that disposes at scope end in reverse order,
-best-effort disposal with an explicit `finish!()` for errors, a runtime
-`Closed` error after disposal, and a leak report from the host's
-descriptor table. Every name below is a placeholder, and so is the
-`using name = value` spelling.
-
-**Owner decision (2026-10-17, night):** `Disposable` handles suspension by default: one trait with `fn dispose!(mut self)`, no separate `AsyncDisposable`; `using` needs a `!` function. On cancellation each `dispose!` still runs to completion, shielded, and the cancel waits for it, as JS `await using` and C# `DisposeAsync` do (owner: follow JS/C#). Several tasks calling one handle: each handle serves one read and one write at a time, later calls wait in call order, as Go's `net.Conn` (approved). Where this doc says `AsyncDisposable` or a synchronous dispose, this note overrides it.
+This is the design for issue #350; nothing in it is implemented yet,
+and every name is a placeholder. It answers question 5 of
+[Standard Library Redesign](STDLIB_REDESIGN.md), which recommended one
+reader shape added beside the buffered terminals.
 
 ## 1. The Problem
 
@@ -438,10 +430,19 @@ close synchronously, which flushes and ignores errors, as Rust's
 them. A network writer keeps no buffer in std, so a disposed one loses
 nothing that `write!` acknowledged.
 
-Every std handle implements `Disposable`, never `AsyncDisposable`:
-each close is one synchronous host call, so it runs during cancellation
-and in a function without `!`. A graceful close that must wait for the
-peer, such as a stream's `close_write!`, is part of `finish!`.
+Every std handle implements `Disposable`, whose one method `dispose!`
+may suspend, so `using` is written only in a `!` function. A std
+handle's dispose is one host call that closes it; a graceful close that
+waits for the peer, such as a stream's `close_write!`, is part of
+`finish!`. Cancellation does not cut a dispose short: a cancelled task
+finishes its disposes, in reverse order, before the cancellation
+completes, as JavaScript's `await using` and C#'s `DisposeAsync` do.
+
+Several tasks may use one handle at once, as `map_all!` items or `all!`
+children can. A handle serves one read and one write at a time; a later
+call waits its turn in call order, as Go's `net.Conn` does. Each
+`write!` lands whole, and a socket can still read and write at the
+same time.
 
 ## 7. Timeouts
 
@@ -642,46 +643,23 @@ in this shape (a datagram is not a stream), and stdin and stdout as a
 `Reader` and `Writer`, which can follow in the same shape when a binary
 filter needs them.
 
-## 13. Accepted Answers And New Questions
+## 13. The Main Choices In Brief
 
-The owner accepted these on 2026-10-17, as recommended:
-
-1. **Host trait additions.** Four host methods:
-   `Http.send_streaming!` (with a default body over `send!`),
-   `Process.spawn!`, `FsRead.open!` and `FsWrite.create!`.
-2. **How a scripted handle reports.** It holds an id into a std table,
-   as a real handle holds a descriptor, and the test reads a plain
-   `WriteLog` (section 9).
-3. **Invalid UTF-8 in a line.** `read_line!` fails with
-   `LineError.InvalidUtf8(bytes)`, keeping the bytes, since a silent
-   replacement changes data.
-4. **The default line limit.** 1 MiB, changed with `limit(n)`.
-5. **A failing status on a streamed response.** `send_streaming!`
-   returns the same error as `send!`, reading at most 1 MiB of the error
-   body so a hostile server cannot exhaust memory, with `ok_status` to
-   stream an expected status such as a 404 page.
-6. **Streaming uploads.** Not now; uploads stay buffered until a
-   program needs more. A request body from a reader needs a writer whose
-   `finish!` ends the body and returns the response, a new terminal
-   shape.
-
-Plain handles raise two new questions:
-
-1. **Which dispose trait std handles implement.** Every std handle
-   could implement `Disposable`, closing with one synchronous host call.
-   Or a handle with a graceful close, such as a socket, could implement
-   `AsyncDisposable` and wait for the peer at scope end. The spec's
-   cancellation runs only synchronous cleanup, so an async dispose would
-   need a rule for cancellation. Recommendation: `Disposable` for every
-   std handle, with any graceful close in `finish!` (section 6).
-2. **Calls on one handle from several tasks.** With plain values, two
-   tasks can read or write one handle at once, as `map_all!` items or
-   `all!` children can. Option A: each handle serves one read and one
-   write at a time, and later calls wait their turn in call order, so
-   each `write!` lands whole and a full-duplex socket still works.
-   Option B: a second call while one is pending fails at once. Option
-   C: leave the order unspecified. Recommendation: A. It matches Go's
-   `Conn`, costs one wait list per handle, and fails no program.
+- Four host methods carry streaming: `Http.send_streaming!` (with a
+  default body over `send!`), `Process.spawn!`, `FsRead.open!` and
+  `FsWrite.create!`.
+- A scripted handle holds an id into a std table, as a real handle holds
+  a descriptor, and the test reads a plain `WriteLog` (section 9).
+- `read_line!` fails on invalid UTF-8 with `LineError.InvalidUtf8(bytes)`,
+  keeping the bytes, since a silent replacement changes data.
+- The default line limit is 1 MiB, changed with `limit(n)`.
+- A failing status on a streamed response is the same error as `send!`
+  returns, reading at most 1 MiB of the error body so a hostile server
+  cannot exhaust memory; `ok_status` streams an expected status such as
+  a 404 page.
+- Uploads stay buffered for now. A request body from a reader needs a
+  writer whose `finish!` ends the body and returns the response, a new
+  terminal shape that waits for a program that needs it.
 
 ## Sources
 

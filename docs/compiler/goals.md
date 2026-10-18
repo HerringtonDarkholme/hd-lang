@@ -52,9 +52,10 @@ checking.
   10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact
   `hd.names` for backtraces.
-- Ownership and borrows (`own`, `^`, `OwnOnly`, `DropOwn`) come after the
-  first release; the design is
-  [docs/future-work/OWNERSHIP_DESIGN.md](../future-work/OWNERSHIP_DESIGN.md)
+- Resources use `Disposable` and `using`, not ownership. A local `^`
+  mode without lifetimes, for escape analysis and parallel children, is
+  planned in
+  [docs/future-work/PARALLELISM_AND_LOCALITY.md](../future-work/PARALLELISM_AND_LOCALITY.md)
   (#163). `defer` stays, and a `defer` suite still cannot make a bang
   call.
 - No serializable closures in the first release; see #166.

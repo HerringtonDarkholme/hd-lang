@@ -1,11 +1,29 @@
 # Parallelism And Locality: Design Study
 
-This is a design study for issue #163, after the owner's decision of
-2026-10-17 (late) that resources use `Disposable` and `using`, not
-ownership (see the note at the top of
-[Ownership And Borrows](OWNERSHIP_DESIGN.md)). Nothing in it is decided.
-Every spelling, std name and diagnostic name is a placeholder. Hd code in
-`text` blocks is proposed syntax; no compiler checks it.
+hd wants three things that a garbage-collected language does not give
+for free: escape analysis that each function can check on its own (so
+the compiler can check bodies in parallel and keep short-lived values
+out of the heap), closures passed to `map` or `retry!` that need no heap
+environment, and real parallelism. Resources are handled separately, by
+`Disposable` and `using`
+([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
+
+This design meets the first two with a local mode, written `^T` and
+`^mut T`: a `^` value stays in the call that received it. It may appear
+only on parameters, receivers, locals and function types; parts read
+through it are plain; there are no lifetimes. A closure parameter is
+plain unless written `^fn`. It meets the third in stages. Stage A runs
+on engines that ship today: separate instances, copied boundary-safe
+messages and shared byte buffers, with the existing boundary-safe rule
+as the only rule for what may cross. Stage C, sharing garbage-collected
+data between threads, waits until Wasm's shared-everything-threads
+proposal reaches phase 3. Section 7 says what of the earlier ownership
+prototype stays, and section 8 is the work plan that replaces its
+remaining slices.
+
+This is the design for issue #163; its std names and diagnostic names
+are placeholders, and hd code in `text` blocks is proposed syntax that
+no compiler checks yet.
 
 - [1. Motivation](#1-motivation)
 - [2. The Model On One Page](#2-the-model-on-one-page)
@@ -15,42 +33,31 @@ Every spelling, std name and diagnostic name is a placeholder. Hd code in
 - [6. The Rules In Plain Words](#6-the-rules-in-plain-words)
 - [7. The Ownership Prototype: Keep Or Remove](#7-the-ownership-prototype-keep-or-remove)
 - [8. Re-Plan](#8-re-plan)
-- [9. Questions For The Owner](#9-questions-for-the-owner)
 - [Sources](#sources)
 
-**Owner decisions (2026-10-17, night).** Keep the `^T` / `^mut T` spelling for the local mode ("stays in this call"). `^` appears only on parameters, receivers, locals and function types, never on results, fields or type arguments, and parts read through `^` are plain. A closure parameter is plain unless written `^fn`. Real parallelism starts with stage A (separate instances, copied boundary-safe messages, `SharedBytes`, worker code named by #166's portable closures, the boundary-safe rule as the only "Sendable" rule); stage C is parked as a P4 issue until shared-everything threads reach phase 3. The prototype re-plan (question 6) is approved: remove the owned mode, moves, drops, `OwnOnly`/`DropOwn` and lifetimes; keep `^` lending, the loan check and the exit ladder; run jobs R1-R3 and L1-L8 in place of slices 12-23. No marker for closures that change captured state (`fn~` was proposed and rejected: "without ownership and lifetime we don't need this"); plain `fn` stays as today.
 
 ## 1. Motivation
 
-Ownership and lifetimes were chosen to make resources safe. The owner has
-now moved resources to `Disposable` and `using`: a handle is a plain
-value, use after dispose is the runtime `Closed` error, and a leak is a
-runtime report. That removes the main reason for moves, drops and
-lifetimes. It does not remove three needs that ownership also served,
-which the owner named:
+Resources are `Disposable` values bound with `using`: a handle is a plain
+value, a call after disposal is the runtime `Closed` error, and a
+forgotten handle is a runtime report. Three needs remain that resources
+do not cover:
 
 1. **Modular escape analysis.** Whether a value can outlive a call should
    be checkable one function at a time, from signatures only, so bodies
    check in parallel and a body edit never rechecks its callers. Hd
    already writes every visible signature for this reason
    ([Functions](../../spec/lang/07-functions.md)).
-2. **How threads share data.** The owner wants real parallelism. Today
-   one instance runs on one thread, and instances exchange only
-   boundary-safe values ([Instances And Threads](../../spec/lang/10-modules.md#instances-and-threads)).
-   The owner noted that scriptc seems to have this right.
+2. **How threads share data.** Today one instance runs on one thread,
+   and instances exchange only boundary-safe values
+   ([Instances And Threads](../../spec/lang/10-modules.md#instances-and-threads)).
+   Real parallelism needs a rule for what threads may share.
 3. **Local closures.** A closure passed to `map`, `sorted_by`, `retry!` or
    `timeout!` is called during the call and then dropped. It should be
    inlined or kept out of the heap, and the language should guarantee it.
 
-A history note. An earlier design (NonEscapable, deleted on 2026-10-16)
-had a `^` locality mark and lifetimes, and the owner held then that a
-design without lifetimes could not work. The decisive cases were
-handles: `open.push(c)` of a connection whose cleanup ran at block end.
-Those cases now have runtime answers by the owner's own decision
-(`Closed`, the leak report), so the argument for lifetimes lapses with
-them. This study checks whether what is left can be served without
-lifetimes. It finds that need 1 and need 3 can, and that need 2 mostly
-needs something else: isolation now, and deep immutability later.
+Needs 1 and 3 are met by a local mode with no lifetimes. Need 2 is met by
+isolation now and deep immutability later.
 
 ## 2. The Model On One Page
 
@@ -59,8 +66,7 @@ value that cannot outlive the current call. It may be read and passed to
 other `^` parameters. It cannot be returned, stored in a field, a
 collection or a top-level binding, passed to a plain parameter, or
 captured by a closure that could outlive the call. `^mut T` is the same,
-with a `mut` view, and is exclusive: while it is lent, the place it came
-from is not used. A closure that captures a `^` value is itself local.
+with a `mut` view; like any plain `mut` value it may be aliased. A closure that captures a `^` value is itself local.
 There are no lifetime names, no `^` results, no `^` fields and no `^`
 type arguments. Every value is still plain and garbage-collected;
 `^` changes only where a value may go. The mode is checked per function
@@ -131,29 +137,32 @@ or returned.
 
 ```text
 pub fn sorted_by(self, compare: ^fn(T, T) -> Ordering) -> List[T]
-pub fn retry![T, E, $R](times: usize, when: ^fn(E) -> bool, attempt: ^mut fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+pub fn retry![T, E, $R](times: usize, when: ^fn(E) -> bool, attempt: ^fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
 pub fn map_all![T, U, $R](items: List[T], limit: usize, work: ^fn!(T) -> U $ R) -> List[U] $ R
 ```
 
-There are two closure modes. They follow the owner's decision of
-2026-10-17 that a closure capturing `^mut` is called any number of
-times; the streaming block rule that applied it lapsed with ownership,
-and `^` would bring it back:
-
-- `^fn` may capture plain values and `^` values. Several calls may be in
-  flight at once, so `map_all!` takes it.
-- `^mut fn` may also capture a `^mut` value. While the closure lives, the
-  place it borrowed is lent exclusively, and its calls run one at a time,
-  so `retry!` and `timeout!` take it. A `^fn` is accepted where a
-  `^mut fn` is expected, and a plain `fn` is accepted for either.
+There is one local closure mode, `^fn`. A local closure may capture
+plain values, `^` values and `^mut` values, and a plain `fn` is accepted
+wherever a `^fn` is expected. A function type says only where the
+closure may go, never whether calling it changes something: changes are
+marked where they happen, on the `mut` value and its `mut` method.
+Several calls of one closure may be in flight at once, as in `map_all!`.
+That is safe for the same reasons plain code is: tasks are cooperative
+on one thread, a handle serves one read and one write at a time in call
+order, and a stage C parallel child reads only frozen data, so a closure
+holding a `^mut` capture never reaches one.
 
 ```text
 fn sync!(conn: ^mut Conn, rows: List[Row]) -> Result[void, NetError]:
     retry!(3, attempt = fn!() -> Result[void, NetError]: conn.send!(encode(rows)))
-    # the closure captures `conn` mutably: it is a `^mut fn!`, which `retry!` accepts
+    # the closure captures `conn`, so it is local: a `^fn!`, which `retry!` accepts
 
 fn fan!(conn: ^mut Conn, ids: List[u64]) -> List[Row]:
-    map_all!(ids, 4, fn!(id: u64) -> Row: conn.get!(id))   # error: local-escapes: a `^mut` capture where `^fn!` is expected
+    map_all!(ids, 4, fn!(id: u64) -> Row: conn.get!(id))
+    # four calls may wait on `conn` at once; the handle serves them in call order
+
+fn keep(conn: ^mut Conn) -> fn() -> void:
+    fn() -> void: conn.ping()   # error: local-escapes: a closure capturing `conn` is returned
 ```
 
 ### 3.3 What It Buys
@@ -193,35 +202,27 @@ live on the stack, and a local closure's environment too. This is
 OxCaml's main use of `local`.
 
 **Concurrency in one thread (stage B).** A child of `all!` or
-`map_all!` may borrow its parent's locals, because a child finishes or
-is cancelled before the combinator returns. Two children cannot both
-hold a `^mut` of one place. This is slice 11 of the prototype plan
-(loans inside a body), limited to one body. It covers the place that was
-lent, not other plain paths to the same object, so it checks the code in
-view and promises nothing about the heap.
+`map_all!` may take its parent's locals as `^` arguments, because a
+child finishes or is cancelled before the combinator returns. Children
+run cooperatively on one thread, so they may share a `^mut` value as
+plain code shares a `mut` one.
 
 ### 3.4 What It Costs
 
 **Checker cost.** One forward pass per body marks each value local or
 not and rejects a local value at a return, a store, a plain argument or
-a capture by a non-local closure. The `^mut` exclusivity check is the
-loan pass of the prototype plan's slice 11, but a loan now lives only
-for one call or for the live range of one local closure, so a body has
-few loans. Priced with the cost model:
+a capture by a non-local closure. There is no borrow checking:
+`^` values alias as plain values do. Priced with the cost model:
 
 | Dimension | Cost |
 | --- | --- |
 | Granularity | per body, inline with today's body check |
 | Contention | none: reads only callee signatures |
 | Locality | one walk over the body's TIR |
-| Allocation | one bit per value, one small loan set per local |
-| Superlinear risk | loans times instructions in bitsets; few loans per body; body fuel bounds it |
+| Allocation | one bit per value |
+| Superlinear risk | none: one linear walk |
 | I/O | none |
 | Incremental | `^` is in the interface hash; a body edit rechecks only that body |
-
-The lifetime slices that remain in the prototype plan (lifetimes across
-calls, lifetime parameters on data, drop check, mode substitution in
-generics) all disappear.
 
 **What programs can no longer write.**
 
@@ -362,9 +363,8 @@ untracked by design. So the stage C rule is about mutation, as OxCaml's
 `contended` mode is: a parallel child may read the parent's data only
 through `Frozen` values (deeply immutable), may write only data it
 allocates, and returns its results. `^` still matters for a native
-backend, where a child may read the parent's stack, and for the
-exclusive `^mut fn` closure, which stage C never sends to a parallel
-child.
+backend, where a child may read the parent's stack, and because a local
+closure, whatever it captures, is never sent to a parallel child.
 
 One more problem waits for stage C: top-level mutable `let` bindings.
 Today each instance has its own, so stage A has no issue. With one
@@ -560,29 +560,27 @@ fn ship!(source: ^mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsErr
    a `mut` field gives a plain `mut` view.
 6. A closure literal that captures a local value is local. A local
    closure may be called any number of times.
-7. A closure that captures a `^mut` value is a `^mut fn`. It is accepted
-   only where a `^mut fn` is expected, and its calls run one at a time.
-8. While a `^mut` value is lent, to a call or to a live local closure,
-   the place it came from is not read, written or lent again.
-9. A plain call of a suspending function with a local argument builds a
+7. A function type carries no mark for changing captured state; `^fn`
+   only says the closure stays in the call.
+8. A plain call of a suspending function with a local argument builds a
    local suspension, which may only be awaited or passed to a combinator
    that accepts local children.
-10. A local value is not boundary-safe and is never a provider.
+9. A local value is not boundary-safe and is never a provider.
 
 **Threads, stage A**
 
-11. Each worker is a separate instance; instances share no GC values.
-12. A message is a boundary-safe value, copied.
-13. A `SharedBytes` handle is boundary-safe; sending it with transfer
+10. Each worker is a separate instance; instances share no GC values.
+11. A message is a boundary-safe value, copied.
+12. A `SharedBytes` handle is boundary-safe; sending it with transfer
     closes the sender's handle.
-14. Shared memory is reached only through `SharedBytes`, with atomic
+13. Shared memory is reached only through `SharedBytes`, with atomic
     operations where they are asked for.
 
 ## 7. The Ownership Prototype: Keep Or Remove
 
-Slices 1 to 10 of [Ownership Prototype Plan](OWNERSHIP_PROTOTYPE.md) are
-committed. Slice 11 (loans inside a body) is not; a draft was set aside
-when ownership work went on hold.
+Slices 1 to 10 of the ownership prototype plan (deleted; git history keeps it) are
+committed. Slice 11 (loans inside a body) was never committed and is not
+needed: `^` values alias as plain values do.
 
 | Part | Where | Verdict | Why |
 | --- | --- | --- | --- |
@@ -598,16 +596,16 @@ when ownership work went on hold.
 | ownership by structure, the classifier | `hd_check` own.rs (`Classify`) | remove | |
 | freshness, `own-upgrade`, `own-to-plain` | `hd_check` modes.rs | remove | |
 | lending, `mutable-upgrade`, field reads through a borrow | `hd_check` modes.rs | keep; field reads become plain (section 3.1) | |
-| `Lend`, `LendMut` coercions | `hd_tir` | keep | they mark where a value is lent |
+| `Lend`, `LendMut` coercions | `hd_tir` | keep | they mark where a value is passed as local |
 | move checking, `use-after-move`, `partial-move`, the `moves` column | `hd_check` moves.rs, `hd_tir` | remove | no moves |
 | `DropLocal` in the scope list and the exit ladder | `hd_tir`, `hd_wasm` emit/drops.rs | keep the ladder for `using`; remove flags and `drop_mode` | `using` disposes at scope end in reverse order, which is the same registration |
 | `DropTemp`, temporaries | `hd_check` temps.rs, `hd_tir` | remove | `using` names its value |
 | drop glue | `hd_mono` drops.rs, `hd_structure` drop.rs, `hd_wasm` glue bodies | remove | `dispose` is one ordinary method call |
-| loans inside a body | slice 11, not committed | build, limited to one call or one closure's live range (job L3) | `^mut` exclusivity |
+| loans inside a body | slice 11, never committed | do not build | `^` values alias as plain values do |
 | `provider-not-plain`, `not-boundary-safe` for borrowed types | `hd_check` | keep the borrowed half | rule 10 |
 | prototype limits (`not-in-ownership-prototype`) | `hd_check` init.rs, modes.rs | remove; the cold-call limit becomes rule 9 | |
 | spec chapter | `spec/lang/13-ownership.md` | rewrite as a short chapter on local values | |
-| conformance fixtures | `spec/conformance/*/ownership/` | keep the lending and loan cases; remove owned, move, drop and lifetime cases; turn the drop-order runtime cases into `using` cases when `using` lands | |
+| conformance fixtures | `spec/conformance/*/ownership/` | keep the lending cases; remove loan, owned, move, drop and lifetime cases; turn the drop-order runtime cases into `using` cases when `using` lands | |
 
 ## 8. Re-Plan
 
@@ -615,7 +613,7 @@ Slices 12 to 23 of the prototype plan map as follows.
 
 | Old slice | Under this model |
 | --- | --- |
-| 12 Lifetimes across calls | removed: no `^` results, so no loan crosses a call |
+| 12 Lifetimes across calls | removed: no `^` results, so nothing local leaves a call |
 | 13 Two-phase receivers | kept, as job L6, if std adopts `^mut self` receivers |
 | 14 Lifetime parameters on data | removed: no `^` fields |
 | 15 Drop check | removed: no drops |
@@ -640,7 +638,7 @@ the owner approves the model.
 | R3 | Remove lifetimes: `^{x}`, lifetime parameters and arguments, their header rules | lifetime fixtures gone; parse snapshots updated |
 | L1 | Placement: `^` only on parameters, receivers, locals and function types (rule 1) | one invalid fixture per forbidden place |
 | L2 | The escape check: `local-escapes` at return, store, plain argument and capture; shallow part reads; matching | fixtures for each escape and for the getter that returns a part |
-| L3 | Local closures and loans: `^fn` and `^mut fn` types, capture rules, repeat calls; loans of `^mut` arguments and of live local closures | `sync!` accepted, `fan!` rejected, as in section 3.2 |
+| L3 | Local closures: the `^fn` type, capture rules, repeat calls | `sync!` and `fan!` accepted and `keep` rejected, as in section 3.2 |
 | L4 | Suspending bodies: local arguments of cold calls, local children of `all!` and `race!`, two `^mut` children of one place rejected | fixtures from the old slice 22 without owned values |
 | L5 | std: `^fn` on eager callbacks (`List.map`, `filter`, `sorted_by`, `sorted_by_key`, `retry!`, `retry_with!`, `timeout!`, `map_all!`), with `map_all!`'s body rewritten | std golden TIR updated once; every std test passes |
 | L6 | Two-phase receivers, if L5 adds `^mut self` receivers | `xs.push(xs.len())` accepted |
@@ -652,39 +650,6 @@ the owner; R2 leaves the exit ladder for it. Stage A (workers, messages,
 `SharedBytes`) is std and host work that needs its own proposal and the
 owner's approval; it does not depend on the L jobs. Stage C is a parked
 issue until shared-everything threads reach phase 3.
-
-## 9. Questions For The Owner
-
-1. **Spelling.** Keep `^T` and `^mut T` for the local mode, with the new
-   meaning "stays in this call", or use a word such as `local T`?
-   Recommended: keep `^`. It is landed, short, already means "not plain"
-   to readers of the prototype, and the owner's `^mut` closure decision
-   carries over unchanged.
-2. **Where `^` may appear, and how deep.** `^` only on parameters,
-   receivers, locals and function types, never on results, fields or type
-   arguments, and parts read through `^` are plain. Recommended: yes.
-   Results, fields and type arguments are what bring lifetimes back, and
-   deep locality only pays for stack-allocating parts, which Wasm GC
-   cannot do.
-3. **Closure parameters by default.** Should a closure parameter be local
-   unless marked, as in Swift, or plain unless written `^fn`?
-   Recommended: written `^fn`. It matches "if a thing is local, always
-   show it in source", and changes no existing program.
-4. **Stage A first.** Should real parallelism start with separate
-   instances, copied boundary-safe messages, and `SharedBytes` over shared
-   linear memory, using #166's `Portable` closures to name worker code,
-   with the boundary-safe rule as the only "Sendable" rule?
-   Recommended: yes. It runs on engines that ship today, and every later
-   stage keeps it.
-5. **Stage C parked.** Should sharing GC data between threads (`Frozen`,
-   structured parallel children, globals under threads) wait as a P4
-   issue until shared-everything threads reach phase 3? Recommended: yes.
-   The proposal is at phase 1 and its type rules decide hd's `freeze`.
-6. **The prototype.** Remove the owned mode, moves, drops, `OwnOnly`,
-   `DropOwn` and lifetimes; keep `^` lending and the loan check; keep the
-   exit ladder for `using`; run jobs R1 to L8 in place of slices 12 to 23?
-   Recommended: yes. The removed parts served resources, which
-   `Disposable` now serves.
 
 ## Sources
 

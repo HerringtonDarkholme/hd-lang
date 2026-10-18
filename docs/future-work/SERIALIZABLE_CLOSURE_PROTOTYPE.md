@@ -1,28 +1,24 @@
 # Serializable Closures And Remote Calls: Prototype Plan
 
-This is the plan for the first implementation of
+This is the work plan for
 [Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md)
-(issue #166). The design is decided, including every point the owner
-settled on 2026-10-15, 2026-10-16 and 2026-10-17 (design, Decisions So
-Far and section 8). This record plans the work and writes no code.
+(issue #166): how one hd program becomes several place-specific modules
+whose calls meet on the wire, in slices of about an hour each. Every
+slice lands with its spec rules and conformance fixtures, so the new
+chapter grows one slice at a time. The plan uses no ownership: where the
+design leans on borrows or owned values, it says how today's compiler
+enforces the rule without them ([Without Ownership](#without-ownership)),
+and a resource is a plain `Disposable` value that holds a live host
+handle ([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
 
-Two owner rules shape it. Every slice lands with its spec rules and
-conformance fixtures in the same job, so the new chapter grows slice by
-slice, as the ownership chapter did. And ownership work is on hold
-(2026-10-17): no slice adds or changes an ownership rule. Where the
-design leans on borrows or owned values, the plan says how today's
-compiler enforces the rule without them ([Without Ownership](#without-ownership)).
-Resources are now `Disposable` values with `using` (decision note at the
-top of [OWNERSHIP_DESIGN.md](OWNERSHIP_DESIGN.md)), and the plan treats a
-handle as a plain value that holds a live host handle.
+No slice is scheduled while the design is under review; slice 1's draft
+is kept on the local branch `park/remote-slice1`.
 
 - [1. What The Prototype Proves](#1-what-the-prototype-proves)
 - [2. Where It Lives](#2-where-it-lives)
 - [3. Slices](#3-slices)
 - [4. Hard Cases By Slice](#4-hard-cases-by-slice)
 - [5. Questions For The Owner](#5-questions-for-the-owner)
-
-**On hold (owner, 2026-10-17 night): "wait on remote. i need to think and review it more deeply."** No slice runs until the owner finishes reviewing the design and this plan. Slice 1's unfinished work is parked on the local branch `park/remote-slice1`.
 
 ## 1. What The Prototype Proves
 

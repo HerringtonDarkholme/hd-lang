@@ -1,14 +1,25 @@
 # SIMD Byte-Scan Primitives: Proposal
 
-This is the proposal for issue #428, under the optimization umbrella #426.
-Nothing in it is in the spec or the compiler.
+Every byte scan in hd's standard library, finding a byte, splitting on
+a separator, finding where JSON needs an escape, validating UTF-8, is
+a loop that reads one byte at a time. Wasm's SIMD instructions compare
+16 bytes per step, and native libraries such as memchr and simdjson get
+large speedups from them. This proposal asks how much of that hd can
+have.
 
-**Owner decisions (2026-10-17).** The five primitives and their names are
-approved. Landing step 1 (native loops) is deferred. A probe measures
-scans and copies over `(array i8)` and `(array v128)` on both engines
-before any layout decision. If SIMD bodies measure faster, they are
-emitted unconditionally, with no target-feature gate. The owner also
-asked for SIMD-speed string copies; the probe covers them (section 3).
+It defines five scan functions that std calls (`bytes_index`,
+`bytes_index_pair`, `bytes_index_json`, `bytes_mismatch`,
+`utf8_valid_len`), each a plain hd declaration whose body the compiler
+supplies. The measurements in section 10 show the catch: SIMD cannot
+load from hd's strings as they are laid out today, and the 16-byte
+layout that would allow it makes every other string operation slower.
+So strings keep their layout, and the functions get plain native loops
+first, later; SIMD bodies follow only if a layout change ever measures
+faster overall, and then they are emitted unconditionally. String copies
+already run at memory-copy speed, so they need nothing.
+
+This is the proposal for issue #428, under #426; nothing in it is in the
+spec or the compiler yet.
 
 - [1. Motivation](#1-motivation)
 - [2. The Proposal On One Page](#2-the-proposal-on-one-page)
@@ -23,9 +34,6 @@ asked for SIMD-speed string copies; the probe covers them (section 3).
 - [11. Open Points](#11-open-points)
 
 ## 1. Motivation
-
-The owner's direction in #426: strings follow Go (immutable UTF-8 bytes,
-text built with `StringBuilder`), and "SIMD may be added" for byte scans.
 
 Today every byte scan in `lib/std` is an hd loop over `bytes_at`. Each
 call of `bytes_at` checks the index against the view's length, unpacks

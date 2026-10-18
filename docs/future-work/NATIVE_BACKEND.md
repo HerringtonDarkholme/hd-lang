@@ -1,13 +1,27 @@
 # Native Backend: Design Study
 
-This is a proposal for issue #188, the native backend umbrella. Nothing
-in it is decided, and nothing in it is in the spec. Numbers marked
-"estimate" are not measurements; line counts of existing crates were
-counted on 2026-10-17.
+hd compiles every program to one Wasm GC module, run by V8 or by
+wasmtime. That keeps one backend, a sandbox and a playground, but it
+ties startup, peak speed and parallelism to what the engines offer, and
+sharing garbage-collected data between threads waits for a Wasm proposal
+still at phase 1. This study asks what a native path would cost and
+which one to take.
 
-**Owner, later the same night: "don't do native first".** No native work is scheduled now, phase 1 included; the plan below waits until the owner reprioritizes it. The earlier note records what was approved as a direction.
+Its recommended path has two steps. First, native executables come from
+the Wasm path itself: `hd build --target exe` writes one file holding a
+wasmtime runtime without its compiler and the program's precompiled
+module, which needs no Node, compiles nothing at start, keeps the
+sandbox and is about a thousand lines of work; loading the precompiled
+module is one audited `unsafe` call. Second, a true native backend
+(Cranelift from a lowering plan shared with `hd_wasm`, with a precise
+mark-sweep collector and later Immix) is built only if benchmarks show
+at least a 1.5x gain, or if stage C parallelism is wanted before Wasm can
+share data between threads.
 
-**Owner decision (2026-10-17, night).** Approved: native executables first from the Wasm path (`hd build --target exe` over wasmtime AOT); a true native backend (Cranelift, precise mark-sweep then Immix) only if phase 0 benchmarks show at least 1.5x or the owner wants stage C on native. The one `unsafe` call phase 1 needs (wasmtime `Module::deserialize` of bytes embedded in the same file) is allowed; the native runtime's unsafe crate only if phase 4 starts.
+Neither step is scheduled: native work comes after the current
+priorities. This is the study for issue #188; numbers marked "estimate"
+are not measurements, and line counts of existing crates were counted on
+2026-10-17.
 
 ## 1. Motivation
 

@@ -5,8 +5,8 @@ yet. Spellings, std names, and diagnostic names not listed under
 [Decisions So Far](#decisions-so-far) are placeholders. It builds on the boundary rules of
 [Modules](../../spec/lang/10-modules.md), the requirement rows of
 [Requirements And Suspension](../../spec/lang/11-requirements-and-suspension.md),
-and the borrows and owned values of
-[Ownership And Borrows](OWNERSHIP_DESIGN.md).
+and the local `^` values of
+[Parallelism And Locality](PARALLELISM_AND_LOCALITY.md).
 
 - [Decisions So Far](#decisions-so-far)
 - [1. Motivation](#1-motivation)

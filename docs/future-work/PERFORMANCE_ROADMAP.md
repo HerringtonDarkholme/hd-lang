@@ -1,23 +1,29 @@
 # Performance Roadmap
 
-This is the plan for the optimization umbrella #426. It is a proposal:
-nothing in it is decided beyond the owner decisions it quotes. It changes
-no code, and it measured nothing new; every number below comes from a
-record that it cites.
+hd is a statically typed language, so a program that runs slower than
+the same program in JavaScript points at the compiler or the library,
+not at the language. This roadmap finds where time and memory go today
+and ranks the fixes, for the optimization umbrella #426. It changes no
+code and measured nothing new: every number comes from a record it
+cites.
 
-The owner's direction for this work (#426 and its children):
+Speed comes after correctness, ergonomics and usability, and runtime
+speed is not a gate today. These rules shape the plan:
 
-- Correctness, ergonomics and usability come first, and runtime speed is
-  not a gate now. But "you cannot design a beautiful API at a huge cost of
-  runtime perf": an API that forces a cost no implementation can remove
-  is a design bug, not a tuning task.
+- An API that forces a cost no implementation can remove is a design
+  bug, not a tuning task.
 - Strings follow Go: immutable UTF-8 bytes, text built with
   `StringBuilder` or `join`, and `+` copies.
-- Allocation per element must be fixed (#427).
-- SIMD may be added. The five byte-scan primitives in
-  [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md) are approved, landing
-  their native loops is deferred, and strings stay `(array i8)` after the
-  probe.
+- Intrinsics stay low-level, one machine operation each; algorithms are
+  std hd code. Where hd is slow, the fix is the missing low-level
+  primitive (#514), not moving the algorithm into the compiler.
+- A speed fix never grows hello.wasm. It may grow programs that use the
+  feature when it gains at least 5% speed for each 10% of size.
+- Allocation removal (escape analysis, scalar replacement, bounded
+  inlining) runs in the optimized pipeline; constant hoisting and trivial
+  inlining run in both. The allocations metric reports both pipelines.
+- Float text and Unicode case mapping stay host primitives until a
+  measurement says otherwise.
 
 Contents:
 
@@ -26,9 +32,6 @@ Contents:
 - [3. Candidate Fixes By Mechanism](#3-candidate-fixes-by-mechanism)
 - [4. Ranked Steps](#4-ranked-steps)
 - [5. What Stays Parked](#5-what-stays-parked)
-- [6. Questions For The Owner](#6-questions-for-the-owner)
-
-**Owner decisions (2026-10-17, night).** Approved: the primitive batch (wrapping_add/sub/mul, count_ones, leading_zeros, rotate_left/right, string_to_bytes, a list copy and a private list reserve, a map upsert for counts), each a plain hd signature with a one- or two-instruction body; and the size rule: a speed fix never grows hello.wasm, and may grow programs that use the feature when it gains at least 5% speed per 10% size. Question 2: keep the split (allocation removal in the optimized pipeline only; the allocations metric reports both pipelines). Questions 4 and 5 were already answered by earlier owner decisions (docs/future-work/STDLIB_CALLS.md): float text stays a host primitive, and property tests run many cases in one instance with a fresh instance for a panicking case's shrink.
 
 ## 1. Summary
 
@@ -241,11 +244,9 @@ decoding builds its metadata per call (#377), and a downcast compares
 | **Time types as newtypes**: `Duration`, `Timestamp`, `Instant` | one allocation per time value; a newtype emits nothing | std only; the redesign says no API change | low, if a newtype can keep its constructor private as the field is today; check first | nothing |
 | **Integer type ids**: compare one `i64` per type, as §15.2 designs it | a string compare per downcast | lowering of `TypeId::of`; `inspect.hd` | low | nothing |
 
-The ownership design gives a later option. A `^T` parameter cannot
-escape its callee, so once borrows land, escape analysis gets facts
-across calls without inlining. This is pending: the ownership work is
-still landing ([Ownership Prototype Plan](OWNERSHIP_PROTOTYPE.md)), and
-no `PARALLELISM_AND_LOCALITY.md` exists yet to say more.
+The local `^` mode of [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md)
+gives a later option: a `^T` parameter cannot escape its callee, so
+escape analysis gets facts across calls without inlining.
 
 ### 3.2 Boxing of numbers and options
 
@@ -449,46 +450,3 @@ Several steps wait on a question: 7, 8 and 18 on question 1, and 22 and
   boundary; that is a metrics change.
 - **Compiler time and memory** (pathological inputs, parallel speedup,
   startup RSS, recheck precision). Indexed by #49.
-
-## 6. Questions For The Owner
-
-1. **Approve a batch of copy and arithmetic primitives?** Steps 7, 8 and
-   18 and the list fixes need bodies that hd cannot express:
-   - `wrapping_add`, `wrapping_sub`, `wrapping_mul`, `count_ones`,
-     `leading_zeros`, `rotate_left` and `rotate_right`, one Wasm
-     instruction each;
-   - `string_to_bytes`, one `array.copy`;
-   - a list copy and a private list reserve, one `array.copy` or one
-     allocation;
-   - a map upsert for `counts`, one probe.
-
-   Each signature stays a plain hd declaration. spec/std/README.md says a
-   primitive outside its tables needs your approval. Recommendation:
-   approve all of them. Each body is one or two instructions, and each
-   removes a loop per element from std.
-2. **Which pipelines remove allocations?** The design runs constant
-   hoisting and trivial inlining in both pipelines, and escape analysis,
-   scalar replacement and bounded inlining in the optimized one only. So
-   `hd run` and `hd test` keep per-element allocations that
-   `--release` removes. Recommendation: keep the design, and have the
-   `allocations` metric report both pipelines. The `dev-speed` metric
-   then bounds how far dev falls behind.
-3. **May a speed fix grow programs?** hello.wasm is gated at 4257 B, and
-   the tiny-program row already fails. #357's first attempt was parked
-   for +537 B. Recommendation: a speed fix never grows hello. It may grow
-   programs that use the feature when the E8 rule holds, at least 5%
-   speed for each 10% of size (crates/hd_mono/DESIGN.md §12.8), and the
-   job reports both.
-4. **Float text in hd?** Ryu or Dragonbox for printing and Eisel-Lemire for
-   parsing would cost about 30 ns per float with no host crossing. But
-   they move `format_f64`, `format_f32` and `parse_f64` out of the host
-   primitives. Recommendation: not now. Re-measure JSON after steps 1 to
-   11, and decide only if floats still take more than a fifth of encode
-   or decode time.
-5. **Many property cases per instance?** After step 25 a property still
-   pays one instantiation per case. Running a property's cases in one
-   instance, with a fresh one to shrink and replay a failure, would reach
-   100k cases per second. It weakens isolation: a property that changes
-   module state could see an earlier case. Recommendation: not now. Do
-   step 25, re-measure, and keep one instance per case unless the
-   suite's speed blocks agents.
