@@ -5788,13 +5788,19 @@ impl<'a> Em<'a> {
         // Cancel the child, then leave through the enclosing scopes'
         // ladders, which run the registered suites. A child left unwinding
         // (its shielded `dispose!` waits) is waited for here first: each
-        // later cancel call continues it.
+        // later cancel call continues it. The child cancels are bracketed
+        // as a frame's cancel brackets its work, so a folded cleanup that
+        // ended `.Abandoned` marks this frame also when the branch runs
+        // from an await, outside any cancel of this frame
+        // (`req.abandon.carry`, `req.cancel.await.unwind`).
         let c = self.a.local(VT::rn(task.clone()));
         let wait = self.a.local(VT::I32);
+        let seen = self.a.local(VT::I32);
         self.a.i32(0);
         self.a.set(wait);
+        self.a.call(Sym::Helper(Helper::CancelEnter));
+        self.a.set(seen);
         if tag == Tag::AwaitAll {
-            let none = self.a.local(VT::rn(task.clone()));
             for (j, ch) in children.iter().enumerate() {
                 self.a.get(done);
                 self.a.i32(1 << j);
@@ -5806,21 +5812,23 @@ impl<'a> Em<'a> {
                 self.unwinding_into(c, wait);
                 self.a.end();
             }
-            self.a.get(wait);
-            self.a.if_();
-            self.suspend(k, none)?;
-            self.a.end();
+            self.a.ref_null(&task);
+            self.a.set(c);
         } else {
             self.a.raw_get(frame);
             self.a.struct_get(&ft, F_CHILD);
             self.a.set(c);
             self.cancel_task(c);
             self.unwinding_into(c, wait);
-            self.a.get(wait);
-            self.a.if_();
-            self.suspend(k, c)?;
-            self.a.end();
         }
+        self.a.raw_get(frame);
+        self.a.s().ref_as_non_null();
+        self.a.get(seen);
+        self.a.call(Sym::Helper(Helper::CancelLeave));
+        self.a.get(wait);
+        self.a.if_();
+        self.suspend(k, c)?;
+        self.a.end();
         // The ladders run as fresh code: a dispose suite's guards test
         // `pc` (flow.using.cancel).
         self.a.i32(0);

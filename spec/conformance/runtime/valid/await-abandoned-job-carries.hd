@@ -1,0 +1,76 @@
+# expect-stdout: abandon: drive abandoned, cleanup abandoned
+# expect-stdout: graceful: drive cancelled, cleanup finished
+# expect-stdout: dependency: drive abandoned, cleanup abandoned
+# expect-stdout: chain: drive abandoned, cleanup abandoned
+# test: a task cancelled because the job it awaits was cancelled ends .Abandoned when that job's cleanup ended .Abandoned, before the await or while the task unwinds, and .Cancelled otherwise; the result carries up a chain of awaiters
+# Spec lang/11 Abandoning: req.abandon.carry; Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Driving A Stored Suspension: req.drive.block-on.cancelled.
+use std.ops.Disposable
+use std.task.{all, block_on}
+use std.time.{Clock, s, sleep}
+
+data Conn:
+    closing: mut Suspend[void]
+    ack: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        let mut wait = self.closing
+        wait!()
+        let mut ack = self.ack
+        ack!()                   # abandoned in the dependency case
+
+fn session!(ack: mut Suspend[void]) -> string $ Clock:
+    using conn = Conn { closing: sleep(s(1)), ack: ack }
+    sleep!(s(60))
+    "late"
+
+fn stop!(job: mut Suspend[string], hard: bool) -> string:
+    if hard:
+        job.abandon()
+    else:
+        job.cancel!()
+    "stopped"
+
+# `all!` polls `job` again once `stop` cancelled it, so `pair` is
+# cancelled at that await and its cleanup folds the job's.
+fn pair!(job: mut Suspend[string], hard: bool) -> string:
+    let (a, b) = all!(job, stop(job, hard))
+    "${a} ${b}"
+
+fn watch!(job: mut Suspend[string]) -> string:
+    job!()
+
+# `watch` is cancelled at its bang call of `job`, and `chained` at its
+# `all!` of `watch`.
+fn chained!(job: mut Suspend[string]) -> string:
+    let (a, b) = all!(watch(job), stop(job, true))
+    "${a} ${b}"
+
+fn report!(task: mut Suspend[string]) -> string:
+    match task.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+fn run(name: string, hard: bool, ack: mut Suspend[void]) -> string $ Clock:
+    let job: mut Suspend[string] = session(ack)
+    drive(name, pair(job, hard))
+
+fn drive(name: string, task: mut Suspend[string]) -> string:
+    let drive = match block_on(task):
+        .Completed(value) => value
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+    let cleanup = match block_on(report(task)):
+        .Completed(value) => value
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+    "${name}: drive ${drive}, cleanup ${cleanup}"
+
+pub fn main() -> void $ Console + Clock:
+    println(run("abandon", true, sleep(s(0))))
+    println(run("graceful", false, sleep(s(0))))
+    let dep: mut Suspend[void] = sleep(s(60))
+    dep.abandon()
+    println(run("dependency", false, dep))
+    let job: mut Suspend[string] = session(sleep(s(0)))
+    println(drive("chain", chained(job)))

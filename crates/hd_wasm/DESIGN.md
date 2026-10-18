@@ -1038,6 +1038,10 @@ intrinsic, which calls the task's `f$cancel` with the runtime global
   cancels it made saw mark its frame, and it adds its own bit for its
   caller. So a cleanup that folds an abandoned one ends abandoned too
   ([`req.abandon.carry`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.carry)).
+  A point's cancellation branch brackets its child cancels the same way,
+  since an await of a cancelled suspension enters it from a poll, outside
+  any cancel of the frame (below): a child whose cleanup already ended
+  `ABANDONED` reports its bit when cancelled again, and marks the frame.
 - **Waking.** Waiters on the ended cleanup registered no wake (above),
   and no host operation is left to wake them. An abandon that changed
   its task's flags sets the global `rewake`, and the entry's `hd.poll`
