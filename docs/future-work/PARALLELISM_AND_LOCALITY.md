@@ -18,6 +18,8 @@ Every spelling, std name and diagnostic name is a placeholder. Hd code in
 - [9. Questions For The Owner](#9-questions-for-the-owner)
 - [Sources](#sources)
 
+**Owner decisions (2026-10-17, night).** Keep the `^T` / `^mut T` spelling for the local mode ("stays in this call"). `^` appears only on parameters, receivers, locals and function types, never on results, fields or type arguments, and parts read through `^` are plain. A closure parameter is plain unless written `^fn`. Real parallelism starts with stage A (separate instances, copied boundary-safe messages, `SharedBytes`, worker code named by #166's portable closures, the boundary-safe rule as the only "Sendable" rule); stage C is parked as a P4 issue until shared-everything threads reach phase 3. The prototype re-plan (question 6) is still open.
+
 ## 1. Motivation
 
 Ownership and lifetimes were chosen to make resources safe. The owner has
