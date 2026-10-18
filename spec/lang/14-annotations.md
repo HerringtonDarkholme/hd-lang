@@ -1201,12 +1201,13 @@ fn key_for(style: Style, m: Member) -> string:
 8. r[annot.fact.requirement-free] A fact expression must be requirement-free, as defined for [default values](07-functions.md#default-values).
 9. r[annot.fact.value] A fact may hold any value that a global may hold.
 10. r[annot.fact.eval.panic-runtime] A panic while a fact or metadata expression is evaluated is a runtime panic at the read that started the evaluation. Its report names the fact and the original panic category. Panic: `fact-evaluation-failed`.
-11. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
-12. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-13. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
-14. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
-15. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
-16. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
+11. r[annot.fact.eval.reentrant] A fact or metadata expression whose evaluation reads the same fact again is a runtime panic at that second read, before the second evaluation starts. Its report names the fact. Panic: `fact-evaluation-failed`.
+12. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
+13. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
+14. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+15. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
+16. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
+17. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
 use std.structure.Structure

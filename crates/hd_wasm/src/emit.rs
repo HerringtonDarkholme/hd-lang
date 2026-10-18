@@ -6264,7 +6264,13 @@ impl OnceCell<'_> {
     /// its label until the body ends (`annot.fact.eval.panic-runtime`),
     /// and the result is `true`.
     fn enter(&self, a: &mut Asm) -> bool {
-        a.global_get(self.global(self.results.len()));
+        let flag = self.global(self.results.len());
+        a.global_get(flag.clone());
+        if self.fact.is_some() {
+            // The flag is 0 before the body, 2 while it runs, 1 after.
+            a.i32(1);
+            a.s().i32_eq();
+        }
         a.if_();
         for (k, v) in self.results.iter().enumerate() {
             a.global_get(self.global(k));
@@ -6276,6 +6282,17 @@ impl OnceCell<'_> {
             return false;
         };
         crate::rt::write_lit_to(a, label, crate::rt::fact_import());
+        // A call while the body runs reads the fact from its own
+        // evaluation (`annot.fact.eval.reentrant`); the report names it.
+        a.global_get(flag.clone());
+        a.if_();
+        a.call(Sym::Helper(Helper::Panic(
+            "reentrant-evaluation: the fact reads itself".into(),
+        )));
+        a.s().unreachable();
+        a.end();
+        a.i32(2);
+        a.global_set(flag);
         // A facts body is a forbidden context (`req.drive.block-on.fact-contexts`).
         crate::rt::forbid_by(a, 1);
         true

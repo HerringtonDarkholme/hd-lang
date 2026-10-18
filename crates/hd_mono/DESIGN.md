@@ -262,7 +262,9 @@ cancel function (§14.6).
   dominating path and reuses the result. The getter runs
   the body inside the forbidden-context counter (crates/hd_wasm/DESIGN.md §14.9), and
   a panic in it is reported as `fact-evaluation-failed` with the original
-  category. A fact that nothing reads is never collected, so it is never
+  category. The flag is three-valued (0, 1 done, 2 running), so a read
+  during the fact's own evaluation panics at once, naming it
+  ([`annot.fact.eval.reentrant`](../../spec/lang/14-annotations.md#r-annot.fact.eval.reentrant)). A fact that nothing reads is never collected, so it is never
   emitted. There is no compile-time evaluator, no evaluation budget, no
   `fact` cache entry and no value-graph serialization; a changed fact
   body changes only its own instance's code key.
