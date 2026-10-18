@@ -311,8 +311,8 @@ impl Reactor {
         self.read(false)
     }
 
-    /// A read of all the rest of standard input, as the lines `read_line`
-    /// would return, joined by `\n`.
+    /// A read of all the rest of standard input as read, with `\r\n` read
+    /// as `\n`.
     pub fn read_all(&mut self) -> i32 {
         self.read(true)
     }
@@ -332,7 +332,7 @@ impl Reactor {
                 if !self.at_end {
                     break;
                 }
-                Some(join_lines(std::mem::take(&mut self.buffered)))
+                Some(normalize_crlf(&std::mem::take(&mut self.buffered)))
             } else if let Some(at) = self.buffered.iter().position(|&b| b == b'\n') {
                 let mut line: Vec<u8> = self.buffered.drain(..=at).collect();
                 line.pop();
@@ -674,16 +674,8 @@ fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, ()> {
     }
 }
 
-/// All the input that is left, as the Node host's reader answers it: the
-/// lines `read_line` would return joined by `\n`. So the last line ending
-/// goes, and a `\r` before any `\n`; a last line with no ending is kept.
-fn join_lines(mut input: Vec<u8>) -> String {
-    if input.last() == Some(&b'\n') {
-        input.pop();
-        if input.last() == Some(&b'\r') {
-            input.pop();
-        }
-    }
+/// All the input that is left, as read, with `\r\n` read as `\n`.
+fn normalize_crlf(input: &[u8]) -> String {
     let mut out = Vec::with_capacity(input.len());
     for (i, &b) in input.iter().enumerate() {
         if b == b'\r' && input.get(i + 1) == Some(&b'\n') {
@@ -915,8 +907,31 @@ mod tests {
             _ => panic!("read {h} has no result"),
         };
         assert_eq!(text(&mut r, first).as_deref(), Some("a"));
-        assert_eq!(text(&mut r, rest).as_deref(), Some("b\n\nc"));
+        assert_eq!(text(&mut r, rest).as_deref(), Some("b\n\nc\n"));
         assert_eq!(text(&mut r, again).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn read_all_keeps_the_line_structure() {
+        for (input, want) in [
+            (&b"a\nb\n"[..], "a\nb\n"),
+            (b"a\nb", "a\nb"),
+            (b"\n", "\n"),
+            (b"a\r\nb\r\n", "a\nb\n"),
+            (b"a\r", "a\r"),
+            (b"", ""),
+        ] {
+            let mut r = Reactor::new(Some(Box::new(input)));
+            let h = r.read_all();
+            let mut out = Vec::new();
+            while r.due(&mut out).is_empty() {
+                assert!(r.wait());
+            }
+            let Some(Work::Read(Some(Ok(Some(got))))) = r.remove(h).map(|op| op.work) else {
+                panic!("no result");
+            };
+            assert_eq!(got, want, "{input:?}");
+        }
     }
 
     #[test]

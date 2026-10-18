@@ -332,14 +332,12 @@ function lineReader(fd) {
       if (!fill()) return false;
     }
   };
-  // The rest of the input as the lines `line` would return, joined by
-  // `\n` (std-console.input.read-all.host): the last line ending goes, and
-  // a `\r` before any `\n`.
+  // The rest of the input as read, with `\r\n` read as `\n`
+  // (std-console.input.read-all-host).
   line.all = () => {
     while (!ended) if (!fill()) return false;
-    let text = pending.toString("utf8");
+    const text = pending.toString("utf8");
     pending = Buffer.alloc(0);
-    if (text.endsWith("\n")) text = text.slice(0, text.endsWith("\r\n") ? -2 : -1);
     return text.replaceAll("\r\n", "\n");
   };
   return line;
@@ -351,16 +349,17 @@ function lineReader(fd) {
 function consoleInputProvider({ env, flush }) {
   const readLine = env.readLine ?? lineReader(env.stdin === undefined ? 0 : env.stdin);
   // A host that reads lines for a worker has no read of the rest: the
-  // lines are joined here, as the default body of `read_all!` does.
+  // lines are joined here, each ended by "\n", as the default body of
+  // `read_all!` does.
   const readAll =
     readLine.all ??
     (() => {
-      const lines = [];
+      let text = "";
       for (let line; (line = readLine()) !== null;) {
         if (line === false) return false;
-        lines.push(line);
+        text += `${line}\n`;
       }
-      return lines.join("\n");
+      return text;
     });
   return {
     read_line: () => {

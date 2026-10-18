@@ -418,7 +418,7 @@ pub fn main!() -> void $ Console + ConsoleInput:
 }
 
 /// `read_all!` reads the rest of standard input whole, on both engines,
-/// as the lines `read_line!` would return joined by `\n`
+/// as read, with `\r\n` read as `\n`
 /// (`std-console.input.read-all-host`).
 #[test]
 fn console_input_reads_all() {
@@ -441,12 +441,20 @@ pub fn main!() -> void $ Console + ConsoleInput:
         _ => println(\"not end\")
 ",
     );
-    let out = both_with(&dir, &["main.hd"], "one\r\ntwo\r\n\nlast\r\n", &[]);
-    assert_eq!(text(&out.stdout), "[one]\n<two\n\nlast>\n<>\nend\n");
-    let bare = both_with(&dir, &["main.hd"], "one\ntwo\nlast", &[]);
-    assert_eq!(text(&bare.stdout), "[one]\n<two\nlast>\n<>\nend\n");
-    let empty = both_with(&dir, &["main.hd"], "", &[]);
-    assert_eq!(text(&empty.stdout), "no line\n<>\n<>\nend\n");
+    for (input, want) in [
+        // A final newline is kept, and `\r\n` is read as `\n`.
+        (
+            "one\r\ntwo\r\n\nlast\r\n",
+            "[one]\n<two\n\nlast\n>\n<>\nend\n",
+        ),
+        ("one\ntwo\nlast\n", "[one]\n<two\nlast\n>\n<>\nend\n"),
+        ("one\ntwo\nlast", "[one]\n<two\nlast>\n<>\nend\n"),
+        ("one\n\n", "[one]\n<\n>\n<>\nend\n"),
+        ("", "no line\n<>\n<>\nend\n"),
+    ] {
+        let out = both_with(&dir, &["main.hd"], input, &[]);
+        assert_eq!(text(&out.stdout), want, "{input:?}");
+    }
 }
 
 /// The existing file sample now runs on both engines.

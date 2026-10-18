@@ -30,20 +30,19 @@ pub trait Console:
 pub trait ConsoleInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]
 
-    # The rest of the input: the default body joins the remaining lines
-    # with `\n` through one `StringBuilder`, so a provider need not
-    # override it (spec/std/console.md#r-std-console.input.read-all-default).
-    # The host's provider overrides it with one read of standard input.
+    # The rest of the input. The default body cannot see whether the last
+    # line had an ending, so it ends every line with `\n`
+    # (spec/std/console.md#r-std-console.input.read-all-default).
+    # The host's provider overrides it with one read of standard input,
+    # which keeps the text as it was, with `\r\n` read as `\n`
+    # (spec/std/console.md#r-std-console.input.read-all-host).
     fn read_all!(mut self) -> Result[string, ConsoleError]:
         let mut out = StringBuilder::new()
-        let first = true
         while true:
             match self.read_line!()?:
                 .Some(line) =>
-                    if !first:
-                        out.push("\n")
-                    first = false
                     out.push(line)
+                    out.push("\n")
                 .None => break
         .Ok(out.build())
 
@@ -55,9 +54,10 @@ pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
     input.read_line!()
 
-# The rest of the covering provider's input
+# The rest of the covering provider's input, as one string
+# with the line structure of the text
 # (spec/std/console.md#r-std-console.input.read-all-helper).
-## Returns all the input that is left, with its lines joined by `\n` and no final line ending.
+## Returns all the input that is left, as text, with `\r\n` read as `\n`.
 ## See [std-console.input.read-all-helper](../../spec/std/console.md#r-std-console.input.read-all-helper).
 pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
@@ -151,6 +151,16 @@ impl ConsoleInput for ScriptedInput:
         line := self.lines[self.next]
         self.next = self.next + 1
         .Ok(.Some(line))
+
+    # The remaining lines, each ended by `\n`
+    # (spec/std/console.md#r-std-console.scripted.read-all).
+    fn read_all!(mut self) -> Result[string, ConsoleError]:
+        let mut out = StringBuilder::new()
+        while self.next < self.lines.len():
+            out.push(self.lines[self.next])
+            out.push("\n")
+            self.next = self.next + 1
+        .Ok(out.build())
 
 impl Debug for ScriptedInput:
     fn debug(self, out: mut DebugWriter) -> void:
