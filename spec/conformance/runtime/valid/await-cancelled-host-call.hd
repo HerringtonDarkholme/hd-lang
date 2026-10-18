@@ -1,0 +1,45 @@
+# expect-stdout: fallback
+# expect-stdout: stopper finished, supervise defer
+# expect-stdout: fallback
+# expect-stdout: stopper finished, waiter defer
+# test: awaiting a pending host call that another task cancelled cancels the awaiter, through all! and through a bang call of the stored call
+# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds.
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+fn stop_later!(call: mut Suspend[void], log: mut List[string]) -> void $ Clock:
+    sleep!(ms(1))
+    match call.cancel!():
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+
+fn supervise!(call: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    defer: log.push("supervise defer")
+    _ := all!(call, stop_later(call, log))
+    "supervise never"
+
+fn waiter!(call: mut Suspend[void], log: mut List[string]) -> string:
+    defer: log.push("waiter defer")
+    call!()
+    "waiter never"
+
+fn stop_then!(call: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    stop_later!(call, log)
+    sleep!(s(60))
+    "stopper never"
+
+fn fallback!() -> string $ Clock:
+    sleep!(ms(10))
+    "fallback"
+
+pub fn main!() -> void $ Console + Clock:
+    let mut clock = $.use(Clock)
+    let log: mut List[string] = []
+    let nap: mut Suspend[void] = clock.sleep(s(60))
+    let sup: mut Suspend[string] = supervise(nap, log)
+    println(race!(sup, fallback()))
+    println(log.join(", "))
+    let other: mut List[string] = []
+    let rest: mut Suspend[void] = clock.sleep(s(60))
+    println(race!(waiter(rest, other), fallback(), stop_then(rest, other)))
+    println(other.join(", "))

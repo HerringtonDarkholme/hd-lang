@@ -1,0 +1,48 @@
+# expect-stdout: fallback
+# expect-stdout: a defer, b defer, stopper finished, supervise defer
+# expect-stdout: fallback
+# expect-stdout: c defer, d defer, stopper finished, waiter defer
+# test: awaiting a stored std.task race that another task cancelled cancels the awaiter, through all! and through a bang call
+# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds.
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+fn slow!(name: string, log: mut List[string]) -> void $ Clock:
+    defer: log.push("${name} defer")
+    sleep!(s(60))
+
+fn stop_later!(job: mut Suspend[void], log: mut List[string]) -> void $ Clock:
+    sleep!(ms(1))
+    match job.cancel!():
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+
+fn supervise!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    defer: log.push("supervise defer")
+    _ := all!(job, stop_later(job, log))
+    "supervise never"
+
+fn waiter!(job: mut Suspend[void], log: mut List[string]) -> string:
+    defer: log.push("waiter defer")
+    job!()
+    "waiter never"
+
+fn stop_then!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    stop_later!(job, log)
+    sleep!(s(60))
+    "stopper never"
+
+fn fallback!() -> string $ Clock:
+    sleep!(ms(10))
+    "fallback"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let racer: mut Suspend[void] = race(slow("a", log), slow("b", log))
+    let sup: mut Suspend[string] = supervise(racer, log)
+    println(race!(sup, fallback()))
+    println(log.join(", "))
+    let other: mut List[string] = []
+    let pair: mut Suspend[void] = race(slow("c", other), slow("d", other))
+    println(race!(waiter(pair, other), fallback(), stop_then(pair, other)))
+    println(other.join(", "))

@@ -1283,11 +1283,13 @@ fn demo!() -> void:
 2. r[req.check.cancel-active] Cancelling a suspension while it or one of its descendants is active on the current poll stack causes `suspension-reentrant-poll`.
 3. r[req.check.cancel-active.no-effect] That cancellation performs no cleanup or state transition.
 4. r[req.check.cancel-idempotent] Cancellation is otherwise idempotent: cancelling an already cancelled or completed suspension has no further effect.
-5. r[req.check.poll-cancelled] Polling a cancelled suspension causes a runtime panic.
-6. r[req.check.runtime-only] These are runtime checks rather than ownership rules in the type system.
-7. r[req.check.code.competing] Competing drivers report `suspension-competing-driver`.
-8. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
-9. r[req.check.code.invalid-state] Polling after completion or cancellation and attempting a second execution report `suspension-invalid-state`.
+5. r[req.check.driver-cancelled] A task that awaits a cancelled suspension is cancelled, by [`req.cancel.await`](#r-req.cancel.await), but a driver whose caller cannot be cancelled panics instead. Panic: `suspension-invalid-state`.
+6. r[req.check.driver-cancelled.block-on] `block_on` panics as soon as it finds the suspension it drives cancelled.
+7. r[req.check.driver-cancelled.entry] The entry driver panics once the cleanup of its cancelled suspension has ended.
+8. r[req.check.runtime-only] These are runtime checks rather than ownership rules in the type system.
+9. r[req.check.code.competing] Competing drivers report `suspension-competing-driver`.
+10. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
+11. r[req.check.code.invalid-poll] Polling after completion, attempting a second execution, and a driver whose suspension turns out cancelled report `suspension-invalid-state`.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
@@ -1462,9 +1464,15 @@ pub fn main!() -> void $ Console + Clock:
 13. r[req.cancel.kept] A cancel made after the cleanup ended returns at once how it ended.
 14. r[req.cancel.takeover] A cancel that reaches a suspension already disposing, after `return`, `?`, or the end of a block, takes over that dispose. The dispose goes on from where it is, and the code after the block never runs.
 15. r[req.cancel.nested] Cancelling the task that waits in a cancel stops only that wait. The cleanup goes on as part of the task's own cleanup, which ends after it, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
-16. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
-17. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
-18. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
+16. r[req.cancel.await] A task that awaits the value of a cancelled suspension, by a bang call or as a child of `all!`, is cancelled at that await.
+17. r[req.cancel.await.unwind] The task unwinds as any cancellation does, and its cleanup folds the awaited suspension's cleanup. No value is produced, and nothing panics.
+18. r[req.cancel.await.kinds] The rule holds for every suspension: a compiler-generated frame, a `std.task` combinator or cancel, and a pending host operation.
+19. r[req.cancel.await.propagate] A task that awaits a task cancelled this way is cancelled the same way, up to the first task where the chain ends.
+20. r[req.cancel.await.dispose] Inside a `dispose!`, the await unwinds that dispose instead, by [`req.abandon.dependency`](#r-req.abandon.dependency), and the chain ends there.
+21. r[req.cancel.await.end] The chain also ends at a `race!` that has a child left, by [`req.combinator.race-cancelled`](#r-req.combinator.race-cancelled), and at a driver, by [`req.check.driver-cancelled`](#r-req.check.driver-cancelled).
+22. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
+23. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
+24. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
 
 ```text
 fn ready!() -> i32: 42
@@ -1477,7 +1485,9 @@ fn stop!(job: mut Suspend[i32]) -> void:
 > its cleanup. Because `cancel!()` waits inside the call, no cleanup
 > outlives the code that asked for it. Because a suspension has one
 > cleanup, a close handshake never runs twice, however many tasks cancel
-> it.
+> it. A value that a cancelled suspension owes never comes, so its awaiter
+> is cancelled, as Python's asyncio raises `CancelledError` at such an
+> `await`.
 
 > **Note.** A cancel that waits keeps the code after it from running. In
 > the example, `stopper` logs only after the close has finished.
@@ -1576,6 +1586,73 @@ fn page!(id: i64) -> string:
     let (user, orders) = all!(load_user(id), load_orders(id))
     "$user: ${orders.len()}"
 ```
+
+#### Cancelling The Children
+
+A cancelled `all!` or `race!` stops every unfinished child before it waits
+for any, so a server shuts down without a deadlock:
+
+```text
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+data Server:
+    accepting: bool
+    log: mut List[string]
+
+data Connections:
+    server: mut Server
+    clock: mut dyn Clock
+
+impl Disposable for Connections:
+    fn dispose!(mut self) -> void:
+        self.server.log.push("connections draining")
+        while self.server.accepting:
+            let mut tick = self.clock.sleep(ms(1))
+            tick!()
+        self.server.log.push("connections drained")
+
+fn connections!(server: mut Server) -> void $ Clock:
+    using open = Connections { server: server, clock: $.use(Clock) }
+    sleep!(s(60))
+
+fn acceptor!(server: mut Server) -> void $ Clock:
+    defer:
+        server.accepting = false
+        server.log.push("acceptor stops accepting")
+    sleep!(s(60))
+
+fn serve!(server: mut Server) -> string $ Clock:
+    defer: server.log.push("serve defer")
+    _ := all!(connections(server), acceptor(server))
+    "served"
+
+fn shutdown!() -> string $ Clock:
+    sleep!(ms(1))
+    "shutdown"
+
+pub fn main!() -> void $ Console + Clock:
+    let server: mut Server = Server { accepting: true, log: [] }
+    println(race!(serve(server), shutdown()))
+    println(server.log.join(", "))
+```
+
+1. r[req.combinator.cancel-fold] A cancelled combinator never abandons a child's cleanup. Each unfinished child's cleanup becomes part of the combinator's own.
+2. r[req.combinator.cancel-order] It starts every unfinished child's cleanup, in argument order, before it waits for any of them.
+3. r[req.combinator.cancel-parent-last] The task that awaits the combinator runs its own cleanup only after every child's cleanup has ended, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
+4. r[req.combinator.race-outer-cancel] A cancel that reaches `race!` while a loser's cleanup runs continues that cleanup as part of the race's own cleanup.
+5. r[req.combinator.all-cancelled] An `all!` child that turns out cancelled cancels the task that awaits the `all!`, by [`req.cancel.await`](#r-req.cancel.await).
+6. r[req.combinator.race-cancelled] A `race!` child that turns out cancelled cannot win, and the race goes on with the others. The race is cancelled only when every child turned out cancelled and none completed.
+
+> **Note.** In the example, the connections' dispose waits until the
+> acceptor stops accepting, and the acceptor's `defer` is what stops it.
+> A parent that waited out the connections before it cancelled the
+> acceptor would never reach that `defer`. A dispose that waits for its
+> own parent's `defer` still never ends, since the parent cleans up last.
+
+> **Why.** A cancelled child's value never comes, but another `race!`
+> child may still win, so only `race!` outlives a cancelled child.
 
 #### Typing `all!`
 

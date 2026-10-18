@@ -1,0 +1,47 @@
+# expect-stdout: shutdown
+# expect-stdout: connections draining, acceptor stops accepting, connections drained, serve defer
+# test: a cancelled all! starts every unfinished child's cleanup in argument order before it waits for any, so the connections' dispose that waits for the acceptor's defer does not deadlock, and the parent's own cleanup runs last
+# Spec lang/11 Standard Combinators: req.combinator.cancel-order, req.combinator.cancel-fold, req.combinator.cancel-parent-last.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+data Server:
+    accepting: bool
+    log: mut List[string]
+
+data Connections:
+    server: mut Server
+    clock: mut dyn Clock
+
+impl Disposable for Connections:
+    fn dispose!(mut self) -> void:
+        self.server.log.push("connections draining")
+        while self.server.accepting:
+            let mut tick = self.clock.sleep(ms(1))
+            tick!()
+        self.server.log.push("connections drained")
+
+fn connections!(server: mut Server) -> void $ Clock:
+    using open = Connections { server: server, clock: $.use(Clock) }
+    sleep!(s(60))
+
+fn acceptor!(server: mut Server) -> void $ Clock:
+    defer:
+        server.accepting = false
+        server.log.push("acceptor stops accepting")
+    sleep!(s(60))
+
+fn serve!(server: mut Server) -> string $ Clock:
+    defer: server.log.push("serve defer")
+    _ := all!(connections(server), acceptor(server))
+    "served"
+
+fn shutdown!() -> string $ Clock:
+    sleep!(ms(1))
+    "shutdown"
+
+pub fn main!() -> void $ Console + Clock:
+    let server: mut Server = Server { accepting: true, log: [] }
+    println(race!(serve(server), shutdown()))
+    println(server.log.join(", "))

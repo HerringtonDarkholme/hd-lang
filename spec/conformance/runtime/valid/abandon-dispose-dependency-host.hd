@@ -1,0 +1,69 @@
+# expect-stdout: won
+# expect-stdout: send close, channel defer
+# expect-stdout: abandoned
+# expect-stdout: won
+# expect-stdout: gate closing, gate closed
+# expect-stdout: finished
+# test: a dispose! that awaits a host call cancelled elsewhere unwinds from that await, and its cleanup ends .Abandoned; a race! inside a dispose! that a live child wins does not cut the dispose short
+# Spec lang/11 Cancellation: req.cancel.await.dispose, req.cancel.await.kinds; Abandoning: req.abandon.dependency.
+use std.ops.Disposable
+use std.task.race
+use std.time.{Clock, s, sleep}
+
+data Channel:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Channel:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("channel defer")
+        self.log.push("send close")
+        let mut wait = self.ack
+        wait!()
+        self.log.push("acked")
+
+data Gate:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Gate:
+    fn dispose!(mut self) -> void:
+        self.log.push("gate closing")
+        race!(self.ack, nothing())
+        self.log.push("gate closed")
+
+fn nothing!() -> void:
+    pass
+
+fn talk!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+    using channel = Channel { log: log, ack: ack }
+    sleep!(s(60))
+    "late"
+
+fn guard!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+    using gate = Gate { log: log, ack: ack }
+    sleep!(s(60))
+    "late"
+
+fn ready!() -> string:
+    "won"
+
+fn ended!(job: mut Suspend[string]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+pub fn main!() -> void $ Console + Clock:
+    let mut clock = $.use(Clock)
+    let ack: mut Suspend[void] = clock.sleep(s(60))
+    _ := ack.cancel!()
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = talk(log, ack)
+    println(race!(job, ready()))
+    println(log.join(", "))
+    println(ended!(job))
+    let other: mut List[string] = []
+    let gated: mut Suspend[string] = guard(other, ack)
+    println(race!(gated, ready()))
+    println(other.join(", "))
+    println(ended!(gated))

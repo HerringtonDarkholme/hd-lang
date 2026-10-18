@@ -634,11 +634,12 @@ lang/11-requirements-and-suspension.md	49	mixed	typing/invalid/missing-requireme
 lang/11-requirements-and-suspension.md	50	accept	runtime/valid/cancel-waits-for-dispose.hd
 lang/11-requirements-and-suspension.md	51	mixed	typing/invalid/cancel-cold-discarded.hd
 lang/11-requirements-and-suspension.md	52	accept	runtime/valid/abandon-unwind-order.hd
-lang/11-requirements-and-suspension.md	53	accept	typing/valid/all-tuple-result.hd
-lang/11-requirements-and-suspension.md	54	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd|typing/invalid/all-explicit-type-arguments.hd
-lang/11-requirements-and-suspension.md	55	accept	typing/valid/requirements-and-suspension.hd
-lang/11-requirements-and-suspension.md	56	accept	typing/valid/row-extension-entailment.hd
-lang/11-requirements-and-suspension.md	57	accept	typing/valid/row-extension-absent-key.hd
+lang/11-requirements-and-suspension.md	53	accept	runtime/valid/combinator-cancel-fan-out.hd
+lang/11-requirements-and-suspension.md	54	accept	typing/valid/all-tuple-result.hd
+lang/11-requirements-and-suspension.md	55	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd|typing/invalid/all-explicit-type-arguments.hd
+lang/11-requirements-and-suspension.md	56	accept	typing/valid/requirements-and-suspension.hd
+lang/11-requirements-and-suspension.md	57	accept	typing/valid/row-extension-entailment.hd
+lang/11-requirements-and-suspension.md	58	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd

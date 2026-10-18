@@ -1,0 +1,60 @@
+# expect-stdout: fallback
+# expect-stdout: conn closing, conn closed, supervise cleanup, outer defer
+# expect-stdout: finished
+# test: an all! whose child another task cancelled is cancelled instead of panicking: it folds the child's cleanup into its own, and its awaiter is cancelled in turn
+# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Standard Combinators: req.combinator.all-cancelled.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("conn closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("conn closed")
+
+data Report:
+    log: mut List[string]
+
+impl Disposable for Report:
+    fn dispose!(mut self) -> void:
+        self.log.push("supervise cleanup")
+
+fn work!(log: mut List[string]) -> void $ Clock:
+    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    sleep!(s(60))
+    log.push("work never")
+
+fn stop_later!(job: mut Suspend[void], log: mut List[string]) -> void $ Clock:
+    sleep!(ms(1))
+    match job.cancel!():
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+
+fn supervise!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    using report = Report { log: log }
+    _ := all!(job, stop_later(job, log))
+    "supervise never"
+
+fn outer!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    defer: log.push("outer defer")
+    supervise!(job, log)
+
+fn fallback!() -> string $ Clock:
+    sleep!(ms(20))
+    "fallback"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[void] = work(log)
+    let sup: mut Suspend[string] = outer(job, log)
+    println(race!(sup, fallback()))
+    println(log.join(", "))
+    match sup.cancel!():
+        .Finished => println("finished")
+        .Abandoned => println("abandoned")

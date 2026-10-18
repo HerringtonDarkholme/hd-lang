@@ -1814,8 +1814,8 @@ pub fn link(
     };
     // `block_on`'s indirect ban checks the forbidden-context counter only
     // when some code raises it. A host leaf records the `all!` waker node
-    // it sits under, and a completion walks those records, only when some
-    // code polls an `all!`.
+    // it sits under, and a completion or an abort walks those records,
+    // only when some code polls an `all!`.
     let mut full = Vec::new();
     if helpers.contains_key(&Helper::ForbidCheck)
         && names(&rt::forbid_global(), &[Helper::ForbidCheck], &helpers)
@@ -1823,7 +1823,7 @@ pub fn link(
         full.push((Helper::ForbidCheck, rt::forbid_check(true)));
     }
     if names(&rt::all_polls(), &[], &helpers) {
-        for h in [Helper::WakeMark, Helper::WakeRegister] {
+        for h in [Helper::WakeMark, Helper::WakeRegister, Helper::WakeAborted] {
             if helpers.contains_key(&h) {
                 let c = rt::wake_nodes(&h, true);
                 full.push((h, c));

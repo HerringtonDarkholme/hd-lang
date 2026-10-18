@@ -817,9 +817,11 @@ else:                                     ;; Pending
   ([`req.suspend.cold.captures`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.cold.captures)).
 - **Runtime checks** sit in `f$poll`, not in `f$body`: polling an ACTIVE
   frame panics `suspension-reentrant-poll`, a second driver panics
-  `suspension-competing-driver`, and polling a DONE or CANCELLED frame
-  panics `suspension-invalid-state`
+  `suspension-competing-driver`, and polling a DONE frame panics
+  `suspension-invalid-state`
   ([Runtime Checks](../../spec/lang/11-requirements-and-suspension.md#runtime-checks)).
+  Polling a CANCELLED frame answers Pending (§14.6, "Awaiting a cancelled
+  suspension").
   A bang call of a direct callee never needs them: its frame is fresh and
   has one driver by construction.
 
@@ -927,6 +929,9 @@ result types:
   A loser left UNWINDING (§14.6) keeps the race Pending: the winner's value
   waits in the frame (`F_STATE` 1), and each later poll cancels the
   losers again, which continues them, until none unwinds.
+- A child that answers Pending while `CANCELLED` cannot win. A poll on
+  which no child completes and every child is `CANCELLED` cancels the race
+  itself (§14.6, "Awaiting a cancelled suspension").
 - An empty list at run time panics `explicit-panic`.
 
 `all_list!` is std hd over nested `all!` (std's task chapter), so it
@@ -968,9 +973,11 @@ so a cancelled body can go Pending inside its exit ladder:
   forbidden context.
 - A point inside such a suite is shielded: it has no cancellation branch,
   so it keeps waiting on its child, the `dispose!`.
-- When `f$cancel`'s body call returns Pending, the frame is marked
-  UNWINDING. A later `f$cancel` of an UNWINDING frame resumes its body
-  again instead of returning; the flag clears once the body completes.
+- `f$cancel` marks a started frame UNWINDING before it steps the body,
+  and the body clears the flag when it leaves by `Cancel`, handing back
+  its frame, still CANCELLED, instead of null. So a frame left Pending
+  stays UNWINDING, and a later `f$cancel` of it resumes its body again
+  instead of returning.
 - A cancellation branch that cancels a child left UNWINDING suspends at
   its own state with that child, so its frame unwinds too, and each later
   cancel continues the child first. Once no child unwinds, it leaves by
@@ -1038,15 +1045,50 @@ intrinsic, which calls the task's `f$cancel` with the runtime global
   inside the same drive still reports a deadlock.
 - **A failed dependency**
   ([`req.abandon.dependency`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.dependency)).
-  A shielded point steps its `dispose!` with the global `indisp` raised
-  and `depfail` clear. `PollCheck` answers a poll of a cancelled frame
-  made while `indisp` is set with Pending and sets `depfail`, instead of
-  panicking. The shielded point then cancels the dispose under `aband`,
+  An await inside a `dispose!` of a cancelled suspension cancels the
+  awaiting frame, as any such await does (below), so the `dispose!`
+  ends CANCELLED or unwinds. A shielded point whose stepped `dispose!`
+  is CANCELLED cancels it under `aband`, which cuts short what is left,
   marks its own frame `ABANDONED`, and goes on with the rest of the
-  ladder. A `race!` that a sibling wins restores `depfail`, so a loser
-  that hit a cancelled suspension does not kill the dispose. Only
-  generated frames have `PollCheck`; a `std.task` frame or a host stub
-  polled after a cancel still panics.
+  ladder. A `race!` inside the dispose that a live child wins never
+  turns CANCELLED, so it does not kill the dispose.
+
+**Awaiting a cancelled suspension**
+([`req.cancel.await`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.await)).
+A suspension that another task cancelled never completes, so its awaiter
+is cancelled instead of panicking. No runtime global serves this; the
+awaiter reads its child's `CANCELLED` bit:
+
+- Every poll of a CANCELLED suspension answers Pending: `PollCheck`
+  (generated frames, and `race!`'s and `cancel!`'s frames, which call it
+  too) and a host stub's poll. A CANCELLED frame that still unwinds is
+  continued first, under no waker node and counted as unregistered, so
+  every party that polls one cleanup drives it.
+- An await that gets Pending from a CANCELLED child, or for `all!` from
+  any child polled, cancels its own frame (`Em::cancel_here`): it
+  allocates the frame if it is still null, marks it CANCELLED and
+  UNWINDING, and branches to the point's cancellation branch, which a
+  resume for cancellation enters too. That branch cancels the child, so
+  a child still unwinding folds into this frame's cleanup, then the
+  ladders run and the body leaves by `Cancel` with its frame. Its own
+  awaiter sees that frame CANCELLED, so the cancellation climbs one
+  awaiter at a time: through `f$poll`'s Pending, and through a direct
+  call's returned frame.
+- `race!` counts its CANCELLED children on a poll with no winner, and
+  cancels itself only when all of them are; it then cancels every child
+  in list order and unwinds while one does.
+- A pending host operation that is aborted gets no completion, and its
+  awaiter may be another task than the canceller. `HostCancel` therefore
+  calls `rt::Helper::WakeAborted`: it sets `rewake`, so `hd.poll` polls
+  the root again, and wakes the handle's registration as a completion
+  would, so each `all!` on the way polls the child that waited on it.
+  Without `all!` node bookkeeping it only sets `rewake`.
+- Drivers whose caller cannot be cancelled
+  ([`req.check.driver-cancelled`](../../spec/lang/11-requirements-and-suspension.md#r-req.check.driver-cancelled)):
+  `block_on` panics `suspension-invalid-state` as soon as its argument
+  answers Pending while CANCELLED. `hd.poll` steps a CANCELLED root
+  through its `f$cancel` instead of its poll, and panics once the root no
+  longer unwinds.
 
 ### 14.7 Hook Points
 

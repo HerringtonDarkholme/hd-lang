@@ -1,0 +1,45 @@
+# expect-stdout: winner
+# expect-stdout: victim defer
+# expect-stdout: killer
+# expect-stdout: a defer, b defer, both cancelled, watch defer
+# test: a race! child that another task cancelled cannot win, and the race goes on; a race! whose every child was cancelled is cancelled, and so is its awaiter
+# Spec lang/11 Standard Combinators: req.combinator.race-cancelled; Cancellation: req.cancel.await.end.
+use std.task.race
+use std.time.{Clock, ms, s, sleep}
+
+fn slow!(name: string, log: mut List[string]) -> string $ Clock:
+    defer: log.push("${name} defer")
+    sleep!(s(60))
+    name
+
+fn winner_later!(victim: mut Suspend[string]) -> string $ Clock:
+    sleep!(ms(1))
+    _ := victim.cancel!()
+    sleep!(ms(2))
+    "winner"
+
+fn killer!(a: mut Suspend[string], b: mut Suspend[string], log: mut List[string]) -> string $ Clock:
+    sleep!(ms(1))
+    _ := a.cancel!()
+    _ := b.cancel!()
+    log.push("both cancelled")
+    sleep!(ms(5))
+    "killer"
+
+fn watch!(inner: mut Suspend[string], log: mut List[string]) -> string:
+    defer: log.push("watch defer")
+    value := inner!()
+    log.push("watch got ${value}")
+    value
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let victim: mut Suspend[string] = slow("victim", log)
+    println(race!(victim, winner_later(victim)))
+    println(log.join(", "))
+    let other: mut List[string] = []
+    let a: mut Suspend[string] = slow("a", other)
+    let b: mut Suspend[string] = slow("b", other)
+    let inner: mut Suspend[string] = race(a, b)
+    println(race!(watch(inner, other), killer(a, b, other)))
+    println(other.join(", "))
