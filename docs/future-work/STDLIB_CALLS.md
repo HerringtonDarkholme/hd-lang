@@ -534,7 +534,7 @@ add `set_timeout` to the three handle declarations and the rules
 `receive!` only), `r[std-net.timeout.error]` (`.Err(.Operation(.Timeout))`,
 handle stays open, unread bytes kept), `r[std-net.timeout.cancel]`
 (cancellation never reports `Timeout`), `r[std-net.timeout.host-time]`
-(not the `Clock` provider), and `r[std-net.timeout.negative]` (a zero or
+(not the `Clock` provider), and `r[std-net.timeout.zero]` (a zero or
 negative `Duration` times out at once; the implementation issue confirms
 this against both hosts); the `Display` text rule for `Timeout`; the
 `NoNetwork` example gains `connect_timeout!`; the Scripted Net rules gain
@@ -873,6 +873,9 @@ Questions the stdlib audit (#350) raised that were the owner's to answer.
   prefix `r` stays an import; `it_each` and `it_prop` stay closure-only;
   `Duration` stays in milliseconds for now.
 - **Duration constructors** (owner, 2026-10-17): both forms stay.
+- **Private host primitives** (owner, 2026-10-17): `map_hash_seed`
+  (#353, the run's Map hash key) and `snapshot_update` (#420, update mode
+  for `std.testing.snapshot`) are approved as landed.
   `ms(500)`, `s(30)` and the other suffix functions read as literals;
   `Duration::milliseconds(n)` and `Duration::seconds(n)` build a
   duration from a variable. The redesign's removal of the named

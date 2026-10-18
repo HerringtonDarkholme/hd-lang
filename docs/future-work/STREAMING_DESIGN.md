@@ -1,5 +1,13 @@
 # Streaming: One Reader And Writer Shape
 
+**Owner decisions (2026-10-17).** Handles cross the host boundary as
+plain descriptors: a host method returns a plain id, and std wraps it in
+an `own` handle whose drop calls the host's close, as Rust's `File` wraps
+a file descriptor, so ownership slice 7's `not-boundary-safe` rule needs
+no exception. The `Closed` variant in each handle module's error stays,
+as the owner approved earlier (section 8 is overruled). The questions in
+section 13 are still under discussion.
+
 This is a proposal for issue #350, not a decision. The owner asked on
 2026-10-17 to "design streaming now", before the I/O redesign is
 implemented. It answers question 5 of
