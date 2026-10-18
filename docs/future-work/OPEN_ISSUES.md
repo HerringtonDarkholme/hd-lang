@@ -292,22 +292,10 @@ is what sharing values across threads or actors without copying needs
 
 ### Cancelling A Using Binding
 
-**Problem.** A `using` binding's `dispose!` runs to its end when its task
-is cancelled, and the cancellation waits for it
-([`flow.using.cancel.wait`](../../spec/lang/06-control-flow.md#r-flow.using.cancel.wait)).
-A parent that cancels, as `race!` does, waits for it. But `cancel()` on a
-stored suspension is synchronous
-([`req.cancel.synchronous`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.synchronous)),
-so it cannot wait for a `dispose!` that suspends. Today the prototype
-leaves that dispose stopped where it waited, and the host's leak report
-or exit close catches the handle. A host's cancellation of the entry
-(the runtime scenarios' `hd.cancel`) has the same gap.
-
-**Options.** (1) `cancel()` drives the unwinding to its end as
-`block_on` does, which needs a runtime hook and is a forbidden context
-issue. (2) `cancel()` stays synchronous and the dispose is abandoned,
-the host's leak report catching it. (3) `cancel()` returns a suspension
-that a bang call awaits.
+A stored suspension's `cancel()` cannot wait for a `dispose!` that
+suspends. The proposed answer, a graceful `cancel()` returning a `Cleanup`
+to await and an explicit `abandon()`, is in
+[Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md).
 
 ### Closure Shorthand
 
