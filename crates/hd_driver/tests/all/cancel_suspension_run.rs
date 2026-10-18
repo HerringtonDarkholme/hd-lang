@@ -1,9 +1,10 @@
-//! `Suspend[T].cancel` (spec 11 `req.cancel.steps`, `req.cancel.defer`,
+//! `Suspend[T].cancel!` (spec 11 `req.cancel.cold-job`,
+//! `req.cancel.completed`, `req.cancel.defer`,
 //! `req.check.cancel-idempotent`): cancelling a cold suspension marks it
 //! without running it, cancelling a completed one changes nothing,
 //! cancelling twice is the same as once, and cancelling a started one
-//! runs its registered `defer` suites once. Programs build through the
-//! driver and run on V8 (`host/run.mjs`).
+//! runs its registered `defer` suites once. Each returns `.Finished`.
+//! Programs build through the driver and run on V8 (`host/run.mjs`).
 
 use std::path::Path;
 use std::process::Command;
@@ -61,7 +62,7 @@ fn program(body: &str) -> String {
     format!(
         "\
 use std.time.{{Clock, Duration, sleep}}
-use std.task.race
+use std.task.{{CleanupEnd, race}}
 
 data Log:
     text: string
@@ -81,9 +82,15 @@ fn slow!(log: mut Log) -> i32 $ Clock:
     7
 
 fn stopper!(target: mut Suspend[i32], log: mut Log) -> i32:
-    target.cancel()
+    ended := end(target.cancel!())
+    log.text = log.text + ended
     log.text = log.text + \"stopped;\"
     1
+
+fn end(cleanup: CleanupEnd) -> string:
+    match cleanup:
+        .Finished => \"finished;\"
+        .Abandoned => \"abandoned;\"
 
 pub fn main!() -> void $ Console + Clock:
     {body}"
@@ -96,11 +103,11 @@ fn cancelling_a_cold_suspension_never_runs_its_body() {
         "\
     let mut log = Log { text: \"\" }
     let pending: mut Suspend[i32] = work(log)
-    pending.cancel()
+    log.text = log.text + end(pending.cancel!())
     println(\"log=[${log.text}]\")
 ",
     );
-    assert_eq!(output_of("cold", &main), "log=[]\n");
+    assert_eq!(output_of("cold", &main), "log=[finished;]\n");
 }
 
 #[test]
@@ -110,13 +117,13 @@ fn cancelling_a_completed_suspension_changes_nothing() {
     let mut log = Log { text: \"\" }
     let pending: mut Suspend[i32] = work(log)
     value := pending!()
-    pending.cancel()
+    log.text = log.text + end(pending.cancel!())
     println(\"value=$value log=[${log.text}]\")
 ",
     );
     assert_eq!(
         output_of("completed", &main),
-        "value=7 log=[body;cleanup;]\n"
+        "value=7 log=[body;cleanup;finished;]\n"
     );
 }
 
@@ -126,20 +133,18 @@ fn cancelling_twice_is_the_same_as_cancelling_once() {
         "\
     let mut log = Log { text: \"\" }
     let pending: mut Suspend[i32] = work(log)
-    pending.cancel()
-    pending.cancel()
+    log.text = log.text + end(pending.cancel!()) + end(pending.cancel!())
     println(\"cold=[${log.text}]\")
     let mut other = Log { text: \"\" }
     let done: mut Suspend[i32] = work(other)
     _ := done!()
-    done.cancel()
-    done.cancel()
+    other.text = other.text + end(done.cancel!()) + end(done.cancel!())
     println(\"completed=[${other.text}]\")
 ",
     );
     assert_eq!(
         output_of("twice", &main),
-        "cold=[]\ncompleted=[body;cleanup;]\n"
+        "cold=[finished;finished;]\ncompleted=[body;cleanup;finished;finished;]\n"
     );
 }
 
@@ -158,7 +163,7 @@ fn cancelling_a_started_suspension_runs_its_defer_once() {
     );
     assert_eq!(
         output_of("started", &main),
-        "winner=1 log=[start;cleanup;stopped;]\n"
+        "winner=1 log=[start;cleanup;finished;stopped;]\n"
     );
 }
 
@@ -171,7 +176,7 @@ fn ready!() -> i32: 42
 
 fn main() -> void:
     pending := ready()
-    pending.cancel()
+    _ := pending.cancel()
 ";
     let out = built(main);
     assert!(

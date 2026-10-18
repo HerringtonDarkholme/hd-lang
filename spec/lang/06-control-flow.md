@@ -1096,9 +1096,11 @@ fn plain(id: i32) -> void:
 > task still awaits each disposal, and `DisposeAsync` takes no
 > cancellation token.
 
-> **Note.** What `cancel()` on a stored suspension does with a `dispose!`
-> that suspends is open: `cancel()` cannot wait. See
-> [open design work](../../docs/future-work/OPEN_ISSUES.md#cancelling-a-using-binding).
+> **Note.** `cancel!()` on a stored suspension waits for a `dispose!`
+> that suspends, by
+> [`req.cancel.wait`](11-requirements-and-suspension.md#r-req.cancel.wait),
+> and a cancel that arrives during a dispose takes it over, by
+> [`req.cancel.takeover`](11-requirements-and-suspension.md#r-req.cancel.takeover).
 > `using` does not stop an alias of the value from outliving its scope.
 
 ## Unreachable Code

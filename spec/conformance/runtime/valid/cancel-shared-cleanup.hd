@@ -1,0 +1,46 @@
+# expect-stdout: won
+# expect-stdout: closing, closed, waiters, finished, finished
+# expect-stdout: later finished
+# test: several cancel!() calls share one cleanup: the close runs once, each gets the same result, and a later call returns the kept result
+# Spec lang/11 Cancellation: req.cancel.shared, req.cancel.kept.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed")
+
+fn session!(log: mut List[string]) -> string $ Clock:
+    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    sleep!(s(60))
+    "late"
+
+fn ready!() -> string:
+    "won"
+
+fn stop_twice!(job: mut Suspend[string], log: mut List[string]) -> string:
+    let (first, second) = all!(job.cancel(), job.cancel())
+    log.push("waiters")
+    for end in [first, second]:
+        match end:
+            .Finished => log.push("finished")
+            .Abandoned => log.push("abandoned")
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = session(log)
+    let (winner, _) = all!(race(job, ready()), stop_twice(job, log))
+    println(winner)
+    println(log.join(", "))
+    match job.cancel!():
+        .Finished => println("later finished")
+        .Abandoned => println("later abandoned")

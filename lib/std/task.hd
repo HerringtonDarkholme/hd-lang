@@ -19,22 +19,49 @@ pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
     let frame: mut Suspend[T] = race_frame(tasks)
     frame!()
 
-# The `Suspend[T]` protocol's `cancel` (r-req.cancel.steps,
-# r-req.check.cancel-idempotent). The method is plain hd over `suspend_cancel`,
-# the one primitive, so that the prototype's checker, which answers `cancel`
-# itself, reads the same std.
-impl[T] Suspend[T]:
-    ## Cancels the suspension synchronously; cancelling a completed or cancelled one has no effect.
-    ## See [req.cancel.steps](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.steps).
-    pub fn cancel(mut self) -> void:
-        suspend_cancel(self)
+# How a job's cleanup ended (spec/std/task.md#cleanup-end). Only
+# `.Finished` is produced until `abandon()` exists; a kept `.Abandoned`
+# would come from the job's frame.
+## How a job's cleanup ended: `Finished` when it ran to its end, `Abandoned` when a part of it was cut short.
+## See [std-task.cleanup-end.decl](../../spec/std/task.md#r-std-task.cleanup-end.decl).
+pub enum CleanupEnd:
+    Finished
+    Abandoned
 
-# Runs the suspension's own cancel function. A cold frame is only marked
-# cancelled and never runs; a started one runs its registered `defer`
-# suites and cancels its child; a completed or cancelled one is left as it
-# is. The compiler supplies the body.
-@intrinsic("suspend_cancel")
-fn suspend_cancel[T](task: mut Suspend[T]) -> void:
+impl Eq for CleanupEnd:
+    fn eq(self, other: CleanupEnd) -> bool:
+        cleanup_end_rank(self) == cleanup_end_rank(other)
+
+fn cleanup_end_rank(end: CleanupEnd) -> i32:
+    match end:
+        .Finished => 0
+        .Abandoned => 1
+
+impl Debug for CleanupEnd:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Finished => out.write("CleanupEnd.Finished")
+            .Abandoned => out.write("CleanupEnd.Abandoned")
+
+# The `Suspend[T]` protocol's `cancel!` (r-req.cancel.bang). The job's
+# frame holds its one cleanup; each call waits on it through a cleanup
+# frame, whose polling body is the compiler's, so any number of calls
+# share the cleanup and none restarts it (r-req.cancel.shared).
+impl[T] Suspend[T]:
+    ## Stops the job, waits until its cleanup has ended, and returns how it ended.
+    ## See [req.cancel.bang](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.bang).
+    pub fn cancel!(mut self) -> CleanupEnd:
+        let cleanup: mut Suspend[void] = cleanup_frame(self)
+        cleanup!()
+        .Finished
+
+# The cleanup frame of `cancel!`. Each poll starts the task's cleanup or
+# continues it, and the frame completes once the task no longer unwinds:
+# at once for a cold task, which is only marked cancelled, and for a
+# completed or cancelled one. Cancelling the frame continues the cleanup
+# too, so a cancelled waiter folds it into its own (r-req.cancel.nested).
+@intrinsic("task_cleanup_frame")
+fn cleanup_frame[T](task: mut Suspend[T]) -> mut Suspend[void]:
     panic("intrinsic")
 
 # The polling frame of `race!`. Each poll polls the unfinished tasks in

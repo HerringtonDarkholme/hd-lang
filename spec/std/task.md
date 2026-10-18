@@ -9,7 +9,8 @@ ordinary hd over the language tier:
 - the `Backoff` policy and the `retry_with!` combinator;
 - the `all_list!` combinator;
 - the `timeout!` combinator and its `TimedOut` error;
-- the `map_all!` combinator.
+- the `map_all!` combinator;
+- the `CleanupEnd` enum, which `cancel!()` returns.
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
 polling combinators `all!` and `race!`, which are compiler intrinsics
@@ -262,3 +263,39 @@ starts as soon as the first completes.
 > lock. A `limit` of 0 counts as 1, not as a panic, as for `retry!`.
 
 See also: [All List](#all-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
+
+## Cleanup End
+
+`CleanupEnd` says how the cleanup of a cancelled suspension ended, and
+[`cancel!()`](../lang/11-requirements-and-suspension.md#cancellation)
+returns it:
+
+```text
+pub enum CleanupEnd:
+    Finished
+    Abandoned
+```
+
+1. r[std-task.cleanup-end.decl] `std.task` declares the enum `CleanupEnd` with the two variants above. `CleanupEnd` implements `Eq` and `Debug`. Code imports it with `use std.task.CleanupEnd`.
+2. r[std-task.cleanup-end.finished] `.Finished` means the whole cleanup ran to its end, with nothing in it cut short.
+3. r[std-task.cleanup-end.abandoned] `.Abandoned` means a part of the cleanup was cut short. No operation of this specification cuts a cleanup short yet, so `cancel!()` returns `.Finished`.
+4. r[std-task.cleanup-end.best-effort] `.Finished` does not mean that every close succeeded: a `dispose!` returns `void`, by [`flow.using.best-effort`](../lang/06-control-flow.md#r-flow.using.best-effort).
+5. r[std-task.cleanup-end.debug] The `Debug` text of each variant is `CleanupEnd.` followed by the variant's name, as in `CleanupEnd.Finished`.
+
+```text
+use std.task.CleanupEnd
+
+fn stop!(job: mut Suspend[string]) -> string:
+    end := job.cancel!()
+    if end == CleanupEnd.Finished: "closed" else: "cut short"
+```
+
+`stop!` returns `"closed"` once the cleanup of `job` has run to its end.
+
+> **Why.** A `void` dispose cannot report a failed close, but a program
+> can still log a close that was cut short. Code that must know that a
+> close protocol succeeded calls an explicit close that returns a
+> `Result`, as [`flow.using.best-effort`](../lang/06-control-flow.md#r-flow.using.best-effort)
+> advises.
+
+See also: [Cancellation](../lang/11-requirements-and-suspension.md#cancellation).

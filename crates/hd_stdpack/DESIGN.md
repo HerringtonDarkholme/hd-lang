@@ -68,7 +68,7 @@ every key in `lib/std` has a row.
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
-| `suspend_cancel`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
+| `task_cleanup_frame`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
 | `dbg`, `dbg_text`, `dbg_write`, `dbg_show`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `assert_equal`, `downcast_val`, `downcast`, `downcast_mut`, `entry_write`, `entry_write_out` | seeded items and `rt.hd` | compiler |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |

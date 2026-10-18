@@ -1218,7 +1218,7 @@ data Suspend[T]: pass
 
 impl[T] Suspend[T]:
     fn poll(mut self, context: PollContext) -> Poll[T]
-    fn cancel(mut self) -> void
+    fn cancel!(mut self) -> CleanupEnd
 ```
 
 1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error, because `Suspend` names a built-in type and no trait. Error: `unknown-trait`.
@@ -1395,7 +1395,7 @@ fn tagged!() -> string $ Tag:
 
 pub fn rejected_construction() -> void:
     let pending: mut Suspend[string] = tagged()  # error: missing-requirement
-    pending.cancel()
+    _ := pending.cancel()
 ```
 
 > **Why.** Binding at construction prevents a stored computation from
@@ -1403,25 +1403,83 @@ pub fn rejected_construction() -> void:
 
 ## Cancellation
 
-This section defines what `cancel(mut self)` does and how the standard
-combinators cancel their children.
+This section defines `cancel!`, which stops a suspension and waits until
+its cleanup has ended, and how the standard combinators cancel their
+children.
 
-1. r[req.cancel.synchronous] `cancel(mut self)` is synchronous and must not suspend.
-2. r[req.cancel.steps] It marks the suspension cancelled, synchronously propagates cancellation to an unfinished child, and asks unfinished external operations to abort through their provider/runtime contracts.
-3. r[req.cancel.defer] After an unfinished child has completed its own cancellation cleanup, registered `defer` suites in the suspension's unfinished frames run synchronously. They run in last-in, first-out order, from the innermost frame outward.
-4. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
-5. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
-6. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
-7. r[req.cancel.hook-synchronous] Cleanup that can fail or requires asynchronous work needs a separate design; the cancellation hook itself remains synchronous.
-8. r[req.cancel.dispose] A `using` binding's dispose may suspend, so cancellation that reaches it follows [Using Bindings](06-control-flow.md#using-bindings) instead of running synchronously.
+```text
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, s, sleep}
 
-```hd
-fn fetch!(key: string) -> string: "value of $key"
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
 
-fn demo!() -> string $ Console:
-    println("start")
-    fetch!("k")   # cancelling here would run pending defers first, synchronously
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed")
+
+fn session!(log: mut List[string]) -> string $ Clock:
+    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    sleep!(s(60))
+    "late"
+
+fn ready!() -> string:
+    "won"
+
+fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string:
+    end := job.cancel!()   # returns once the dispose! of conn has finished
+    match end:
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = session(log)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    println("${winner} ${stopped}")   # won stopped
+    println(log.join(", "))           # closing, closed, stopper finished
 ```
+
+1. r[req.cancel.bang] `Suspend[T]` has the suspending method `cancel!(mut self)`, which returns a [`CleanupEnd`](../std/task.md#cleanup-end) of `std.task`.
+2. r[req.cancel.steps] It marks the suspension cancelled, synchronously propagates cancellation to an unfinished child, and asks unfinished external operations to abort through their provider/runtime contracts.
+3. r[req.cancel.cold] Like every suspending call, `job.cancel()` without the bang builds a cold suspension of the cancel. `job` keeps its state until that suspension is driven.
+4. r[req.cancel.cold.discard] A cold cancel that is discarded is an error, as any discarded suspension is. Error: `discarded-must-use-value`.
+5. r[req.cancel.defer] After an unfinished child has completed its own cancellation cleanup, registered `defer` suites in the suspension's unfinished frames run synchronously. They run in last-in, first-out order, from the innermost frame outward.
+6. r[req.cancel.dispose] A `using` binding's dispose may suspend, so cancellation that reaches it follows [Using Bindings](06-control-flow.md#using-bindings) instead of running synchronously.
+7. r[req.cancel.wait] The cancel completes only once the suspension's whole cleanup has ended, every dispose that suspends included.
+8. r[req.cancel.result] It then returns how the cleanup ended. A cleanup that ran to its end gives `.Finished`.
+9. r[req.cancel.cold-job] Cancelling a cold suspension marks it cancelled without running its body, and returns `.Finished` at once.
+10. r[req.cancel.completed] Cancelling a completed suspension changes nothing. It returns how the suspension's own cleanup ended.
+11. r[req.cancel.shared] A suspension has at most one cleanup, and the runtime runs it. A cancel made while that cleanup runs waits for it and starts no other, so each dispose and `defer` suite runs once.
+12. r[req.cancel.shared.result] Every cancel that waits on one cleanup returns the same result.
+13. r[req.cancel.kept] A cancel made after the cleanup ended returns at once how it ended.
+14. r[req.cancel.takeover] A cancel that reaches a suspension already disposing, after `return`, `?`, or the end of a block, takes over that dispose. The dispose goes on from where it is, and the code after the block never runs.
+15. r[req.cancel.nested] Cancelling the task that waits in a cancel stops only that wait. The cleanup goes on as part of the task's own cleanup, which ends after it, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
+16. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
+17. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
+18. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
+
+```text
+fn ready!() -> i32: 42
+
+fn stop!(job: mut Suspend[i32]) -> void:
+    job.cancel()  # error: discarded-must-use-value
+```
+
+> **Why.** Kotlin's `cancelAndJoin` also cancels a job and then waits for
+> its cleanup. Because `cancel!()` waits inside the call, no cleanup
+> outlives the code that asked for it. Because a suspension has one
+> cleanup, a close handshake never runs twice, however many tasks cancel
+> it.
+
+> **Note.** A cancel that waits keeps the code after it from running. In
+> the example, `stopper` logs only after the close has finished.
 
 ### Standard Combinators
 

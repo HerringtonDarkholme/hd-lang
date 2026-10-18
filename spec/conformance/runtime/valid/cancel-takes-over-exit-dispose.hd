@@ -1,0 +1,41 @@
+# expect-stdout: won stopped
+# expect-stdout: leaving, closing, closed, stopper finished
+# test: a cancel that reaches a task disposing at the end of a using block takes that dispose over: it runs once, and the code after the block never runs
+# Spec lang/11 Cancellation: req.cancel.takeover.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, ms, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed")
+
+fn session!(log: mut List[string], open: bool) -> string $ Clock:
+    if open:
+        using conn = Conn { log: log, closing: sleep(ms(2)) }
+        log.push("leaving")
+    log.push("after the block")
+    "done"
+
+fn ready!() -> string:
+    "won"
+
+fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string:
+    match job.cancel!():
+        .Finished => log.push("stopper finished")
+        .Abandoned => log.push("stopper abandoned")
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = session(log, true)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    println("${winner} ${stopped}")
+    println(log.join(", "))

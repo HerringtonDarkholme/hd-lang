@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::asm::Asm;
 use crate::boundary::BTy;
 use crate::layout::{
-    ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, UNWINDING, cancel_fn,
-    storage, task_base,
+    ACTIVE, CANCELLED, DONE, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, UNWINDING,
+    cancel_fn, storage, task_base,
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
@@ -495,6 +495,16 @@ pub enum Helper {
         poll: WTy,
         result: Vec<VT>,
     },
+    /// `cancel!`'s cleanup frame (std's `task_cleanup_frame` intrinsic):
+    /// `(task) -> frame`, a `Suspend[void]` over `base` that waits out the
+    /// task's one cleanup (`crates/hd_wasm/DESIGN.md` §14.6).
+    CleanupCold { base: WTy },
+    /// Its poll: starts or continues the task's cleanup, and is Ready once
+    /// the task no longer unwinds.
+    CleanupPoll { base: WTy },
+    /// Its cancel: continues the task's cleanup, and unwinds while the
+    /// task does, so a cancelled waiter keeps the cleanup going.
+    CleanupCancel { base: WTy },
     /// A vtable slot over a concrete impl method: unerases the receiver.
     /// The slot's last `2 * keys` parameters are its row's providers; the
     /// target takes, per key of its own row, provider `provs[j]` of them.
@@ -532,7 +542,7 @@ pub enum Helper {
     /// `hd.wake(n)`: marks the completed handles.
     EntryWake,
     /// `hd.cancel`: cancels the entry's pending root suspension through
-    /// its `$Task` prefix, as `Suspend.cancel` does; a no-op when no root
+    /// its `$Task` prefix, as a cleanup frame's first poll does; a no-op when no root
     /// is pending. Only scenario builds and REPL inputs export it.
     EntryCancel,
     /// `hd.scenario.cleanup`: calls the scenario's top-level cleanup
@@ -839,6 +849,18 @@ impl Helper {
                 enc_wty(poll, w);
                 encode_vts(result, w);
             }
+            Helper::CleanupCold { base } => {
+                w.u8(45);
+                enc_wty(base, w);
+            }
+            Helper::CleanupPoll { base } => {
+                w.u8(46);
+                enc_wty(base, w);
+            }
+            Helper::CleanupCancel { base } => {
+                w.u8(47);
+                enc_wty(base, w);
+            }
             Helper::Adapter {
                 sig,
                 self_vts,
@@ -1053,6 +1075,9 @@ impl Helper {
                     },
                 }
             }
+            45 => Helper::CleanupCold { base: dec_wty(r)? },
+            46 => Helper::CleanupPoll { base: dec_wty(r)? },
+            47 => Helper::CleanupCancel { base: dec_wty(r)? },
             18 => Helper::EntryInit {
                 inits: (0..r.count()).map(|_| (r.hash(), r.u8() != 0)).collect(),
             },
@@ -1793,6 +1818,56 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.struct_set(&fr, F_FLAGS);
             a.finish(vec![])
         }
+        Helper::CleanupCold { base } => {
+            let fr = cleanup_frame(base);
+            let mut a = Asm::new(vec![VT::r(task_base())]);
+            let f = a.local(VT::r(fr.clone()));
+            a.struct_new_default(&fr);
+            a.set(f);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::CleanupCancel { base: base.clone() }));
+            a.struct_set(&fr, F_CANCEL);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::CleanupPoll { base: base.clone() }));
+            a.struct_set(&fr, F_POLL);
+            a.get(f);
+            a.get(0);
+            a.struct_set(&fr, F_CHILD);
+            a.get(f);
+            a.finish(vec![VT::r(base.clone())])
+        }
+        Helper::CleanupPoll { base } => cleanup_poll(base),
+        Helper::CleanupCancel { base } => {
+            let fr = cleanup_frame(base);
+            let mut a = Asm::new(vec![VT::Eq]);
+            let f = a.local(VT::r(fr.clone()));
+            let wait = a.local(VT::I32);
+            a.get(0);
+            a.ref_cast(&fr, false);
+            a.set(f);
+            a.get(f);
+            a.struct_get(&fr, F_FLAGS);
+            a.i32(UNWINDING);
+            a.s().i32_and();
+            a.s().i32_eqz();
+            a.if_();
+            a.get(f);
+            a.struct_get(&fr, F_FLAGS);
+            a.i32(DONE | CANCELLED);
+            a.s().i32_and();
+            a.if_();
+            a.s().return_();
+            a.end();
+            a.end();
+            continue_cleanup(&mut a, f, &fr, wait);
+            a.get(f);
+            a.i32(CANCELLED);
+            a.get(wait);
+            a.i32(UNWINDING);
+            a.s().i32_mul().i32_or();
+            a.struct_set(&fr, F_FLAGS);
+            a.finish(vec![])
+        }
         Helper::Adapter {
             sig,
             self_vts,
@@ -2179,6 +2254,97 @@ fn race_frame(list: &WTy, base: &WTy, result: &[VT]) -> WTy {
     crate::layout::frame_of(base, &fields)
 }
 
+/// `cancel!`'s cleanup frame: a suspension holding the task whose
+/// cleanup it waits out.
+fn cleanup_frame(base: &WTy) -> WTy {
+    crate::layout::frame_of(base, &[VT::rn(task_base())])
+}
+
+/// Runs `body`, which starts or continues cleanups, under no `all!` waker
+/// node (`crates/hd_wasm/DESIGN.md` §14.6, "One cleanup per job"). Several
+/// parties may continue one cleanup, so its host leaves register under
+/// none of them, and each party polls again on every poll.
+fn unwatched(a: &mut Asm, body: impl FnOnce(&mut Asm)) {
+    let (node, slot) = (a.local(VT::Eq), a.local(VT::I32));
+    a.global_get(wake_cur_node());
+    a.set(node);
+    a.global_get(wake_cur_slot());
+    a.set(slot);
+    a.ref_null_eq();
+    a.global_set(wake_cur_node());
+    body(a);
+    a.raw_get(node);
+    a.global_set(wake_cur_node());
+    a.get(slot);
+    a.global_set(wake_cur_slot());
+}
+
+/// Starts or continues the cleanup of the task in a cleanup frame, and
+/// sets local `wait` while the task still unwinds.
+fn continue_cleanup(a: &mut Asm, f: u32, fr: &WTy, wait: u32) {
+    let task = task_base();
+    let c = a.local(VT::r(task.clone()));
+    a.get(f);
+    a.struct_get(fr, F_CHILD);
+    a.s().ref_as_non_null();
+    a.set(c);
+    unwatched(a, |a| {
+        a.get(c);
+        a.get(c);
+        a.struct_get(&task, F_CANCEL);
+        a.call_ref(&cancel_fn());
+    });
+    a.get(c);
+    a.struct_get(&task, F_FLAGS);
+    a.i32(UNWINDING);
+    a.s().i32_and();
+    a.i32(0);
+    a.s().i32_ne();
+    a.set(wait);
+}
+
+/// The cleanup frame's poll (`crates/hd_wasm/DESIGN.md` §14.6): the task's
+/// own cancel starts its cleanup, or continues it while it unwinds, and
+/// does nothing once it ended. Pending while the task unwinds; a Pending
+/// poll registers no wake, so an `all!` polls it again.
+fn cleanup_poll(base: &WTy) -> Code {
+    let fr = cleanup_frame(base);
+    let mut a = Asm::new(vec![VT::Eq]);
+    let (f, wait, regs) = (
+        a.local(VT::r(fr.clone())),
+        a.local(VT::I32),
+        a.local(VT::I32),
+    );
+    a.get(0);
+    a.ref_cast(&fr, false);
+    a.set(f);
+    a.get(f);
+    a.struct_get(&fr, F_FLAGS);
+    a.i32(DONE | CANCELLED | ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-invalid-state: a completed or cancelled `cancel!` was polled".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.global_get(wake_regs());
+    a.set(regs);
+    continue_cleanup(&mut a, f, &fr, wait);
+    a.get(wait);
+    a.if_();
+    a.get(regs);
+    a.global_set(wake_regs());
+    a.i32(0);
+    a.s().return_();
+    a.end();
+    a.get(f);
+    a.i32(DONE);
+    a.struct_set(&fr, F_FLAGS);
+    a.i32(1);
+    a.finish(vec![VT::I32])
+}
+
 /// Cancels every child of a race frame in list order, but `skip`, and
 /// sets local `wait` when one is left unwinding.
 fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>, wait: u32) {
@@ -2215,10 +2381,12 @@ fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>, wai
     a.array_get(&WTy::Array(storage(&VT::r(task.clone())).dflt()));
     a.ref_cast(&task, false);
     a.set(c);
-    a.get(c);
-    a.get(c);
-    a.struct_get(&task, F_CANCEL);
-    a.call_ref(&cancel_fn());
+    unwatched(a, |a| {
+        a.get(c);
+        a.get(c);
+        a.struct_get(&task, F_CANCEL);
+        a.call_ref(&cancel_fn());
+    });
     a.get(c);
     a.struct_get(&task, F_FLAGS);
     a.i32(UNWINDING);
@@ -2256,10 +2424,13 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
         a.local(VT::I32),
     );
     let tmp: Vec<u32> = result.iter().map(|v| a.local(v.dflt())).collect();
+    let wake_count = a.local(VT::I32);
     let first = F_SAVED;
     a.get(0);
     a.ref_cast(&fr, false);
     a.set(f);
+    a.global_get(wake_regs());
+    a.set(wake_count);
     a.get(f);
     a.struct_get(&fr, F_FLAGS);
     a.i32(DONE | CANCELLED | ACTIVE);
@@ -2275,10 +2446,14 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.s().ref_as_non_null();
     a.set(l);
     // Settling: the winner's value waits in the frame while a loser's
-    // shielded `dispose!` runs (flow.using.cancel).
+    // shielded `dispose!` runs (flow.using.cancel). The losers' leaves
+    // register under no node (`unwatched`), so a settling race registers
+    // no wake either, and an `all!` polls it again.
     let settle = |a: &mut Asm| {
         a.get(wait);
         a.if_();
+        a.get(wake_count);
+        a.global_set(wake_regs());
         for v in &res {
             a.zero(v);
         }
@@ -2944,6 +3119,9 @@ impl Helper {
             Helper::RaceCold { .. } => "race_cold".into(),
             Helper::RacePoll { .. } => "race_poll".into(),
             Helper::RaceCancel { .. } => "race_cancel".into(),
+            Helper::CleanupCold { .. } => "cleanup_cold".into(),
+            Helper::CleanupPoll { .. } => "cleanup_poll".into(),
+            Helper::CleanupCancel { .. } => "cleanup_cancel".into(),
             Helper::Adapter { .. } => "adapter".into(),
             Helper::EntryInit { .. } => "entry_init".into(),
             Helper::EntryPoll { .. } => "entry_poll".into(),

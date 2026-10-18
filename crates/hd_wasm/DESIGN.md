@@ -668,7 +668,8 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 ## 14. Suspension Lowering
 
 The spec fixes the protocol: cold, one-shot, poll-based suspensions,
-synchronous cancellation, and a waker-driven entry driver
+a suspending `cancel!` with one cleanup per suspension, and a
+waker-driven entry driver
 ([Compilation Strategy](../../spec/lang/11-requirements-and-suspension.md#compilation-strategy)).
 Suspensions lower to state machines with lazily materialized frames,
 which
@@ -973,8 +974,31 @@ so a cancelled body can go Pending inside its exit ladder:
 - After a waiting ladder, a cancelled frame leaves by `Cancel` whatever
   exit it took, so code after the scope never starts.
 
-A plain `cancel()` call cannot wait, so a frame it leaves UNWINDING is
-never continued; that case is an open question.
+**One cleanup per job.** `Suspend[T].cancel!` is std hd: it awaits a
+cleanup frame that the `task_cleanup_frame` intrinsic builds
+(`rt::Helper::CleanupCold`), a `Suspend[void]` holding the task
+([`req.cancel.wait`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.wait)):
+
+- Its poll calls the task's `f$cancel`, which marks a cold or started
+  task cancelled, continues an UNWINDING one, and does nothing to a
+  finished one. It is Ready once the task no longer unwinds.
+- The task's frame holds the one cleanup, so every waiter steps the same
+  frame and none restarts it
+  ([`req.cancel.shared`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.shared)).
+  A cancel that reaches a frame disposing after an ordinary exit takes
+  that dispose over the same way.
+- Its cancel continues the task's cleanup too, and leaves the frame
+  UNWINDING while the task unwinds. So a cancelled waiter's frame unwinds
+  through it, as for any child
+  ([`req.cancel.nested`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.nested)).
+- Several parties may continue one cleanup: waiters, and a `race!` whose
+  loser it is. A leaf registers its wake under the last poller only, so
+  the others would never be woken. Both the cleanup frame's poll and
+  `race!`'s loser cancels therefore run under no waker node
+  (`rt::unwatched`), and a Pending poll restores `wregs`, so it counts as
+  unregistered. An `all!` then polls such a party again on every poll.
+- `CleanupEnd` is always `.Finished` for now: nothing cuts a cleanup
+  short yet.
 
 ### 14.7 Hook Points
 

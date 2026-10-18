@@ -2906,21 +2906,20 @@ impl Em<'_> {
                 let _ = ty;
                 self.store_from(i, &result)
             }
-            // `Suspend[T].cancel` (`req.cancel.steps`): the frame's own
-            // cancel function, which marks a cold frame, resumes a started
-            // one for its `defer` suites, and ignores a finished one.
-            "suspend_cancel" => {
-                let Shape::Suspend { base, .. } = self.lay.shape(self.ty_of(args[0]))? else {
-                    return unsupported("`cancel` of a value that is not a suspension");
+            // `Suspend[T].cancel!`'s cleanup frame (`req.cancel.wait`): a
+            // `Suspend[void]` that starts or continues the task's one
+            // cleanup and waits it out (`crates/hd_wasm/DESIGN.md` §14.6).
+            "task_cleanup_frame" => {
+                let Shape::Suspend { base, .. } = self.lay.shape(ty)? else {
+                    return unsupported("a `cancel!` frame of a type that is not a suspension");
                 };
-                let s = self.a.local(VT::r(base.clone()));
-                self.comp(args[0], 0, &VT::r(base.clone()))?;
-                self.a.set(s);
-                self.a.get(s);
-                self.a.get(s);
-                self.a.struct_get(&base, F_CANCEL);
-                self.a.call_ref(&cancel_fn());
-                Ok(())
+                let Shape::Suspend { base: task, .. } = self.lay.shape(self.ty_of(args[0]))? else {
+                    return unsupported("`cancel!` of a value that is not a suspension");
+                };
+                self.comp(args[0], 0, &VT::r(task))?;
+                self.a
+                    .call(Sym::Helper(Helper::CleanupCold { base: base.clone() }));
+                self.store_from(i, &[VT::r(base)])
             }
             "bytes_len" => {
                 let (_, span) = self.str_view(args[0])?;

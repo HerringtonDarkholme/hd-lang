@@ -3,4 +3,4 @@ fn ready!() -> i32:
 
 fn cannot_cancel() -> void:
     pending := ready()
-    pending.cancel()  # diagnostic: mutable-receiver-required
+    _ := pending.cancel()  # diagnostic: mutable-receiver-required

@@ -6,5 +6,5 @@ fn accept_all[T](tasks...: List[mut Suspend[T]]) -> void:
 
 fn keep_mutable() -> void:
     let pending: mut Suspend[i32] = ready()
-    pending.cancel()
+    _ := pending.cancel()
     accept_all(ready())

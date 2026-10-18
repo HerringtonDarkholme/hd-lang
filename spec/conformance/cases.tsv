@@ -732,7 +732,13 @@ runtime/valid/cancellation-lifo-across-three-frames.hd	runtime	accept	lang/11-re
 runtime/valid/cancellation-loop-and-branch-scopes.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/cancellation-provider-scope-cleanup.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/cancel-cold-and-completed-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
-runtime/panic/defer-cancels-active-ancestor.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
+runtime/panic/dispose-cancels-active-ancestor.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
+runtime/valid/cancel-waits-for-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.wait
+runtime/valid/cancel-shared-cleanup.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.shared
+runtime/valid/cancel-takes-over-exit-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.takeover
+runtime/valid/cancel-cancelled-waiter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.nested
+runtime/valid/cancel-cold-is-lazy.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.cold
+typing/invalid/cancel-cold-discarded.hd	type	reject:discarded-must-use-value	lang/11-requirements-and-suspension.md#r-req.cancel.cold.discard
 typing/valid/defer-indirect-block-on-checks.hd	type	accept	lang/06-control-flow.md#r-flow.defer.block-on.direct
 typing/invalid/defer-bang-call-cold-twin.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/nested-provider-restoration.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-scopes
@@ -3316,6 +3322,7 @@ runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections
 runtime/valid/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty
 runtime/valid/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.when
 runtime/valid/task-timeout.hd	runtime	accept	std/task.md#r-std-task.timeout.race
+runtime/valid/task-cleanup-end.hd	runtime	accept	std/task.md#r-std-task.cleanup-end.decl
 runtime/valid/task-map-all.hd	runtime	accept	std/task.md#r-std-task.map-all.limit
 runtime/valid/clock-elapsed.hd	runtime	accept	std/time.md#r-std-time.helper.elapsed
 runtime/valid/duration-parse.hd	runtime	accept	std/time.md#r-std-time.duration.parse

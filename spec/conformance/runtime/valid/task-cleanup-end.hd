@@ -1,0 +1,22 @@
+# expect-stdout: closed
+# expect-stdout: CleanupEnd.Finished CleanupEnd.Abandoned
+# expect-stdout: true false
+# test: CleanupEnd has two variants with Eq and Debug, and cancel!() of a cold or completed suspension returns .Finished
+# Spec std/task Cleanup End: std-task.cleanup-end.decl, std-task.cleanup-end.finished, std-task.cleanup-end.abandoned, std-task.cleanup-end.debug.
+use std.task.CleanupEnd
+
+fn fetch!() -> string:
+    "value"
+
+fn stop!(job: mut Suspend[string]) -> string:
+    end := job.cancel!()
+    if end == CleanupEnd.Finished: "closed" else: "cut short"
+
+pub fn main!() -> void $ Console:
+    let job: mut Suspend[string] = fetch()
+    println(stop!(job))
+    println("${debug(CleanupEnd.Finished)} ${debug(CleanupEnd.Abandoned)}")
+    let done: mut Suspend[string] = fetch()
+    _ := done!()
+    end := done.cancel!()
+    println("${end == CleanupEnd.Finished} ${end == CleanupEnd.Abandoned}")

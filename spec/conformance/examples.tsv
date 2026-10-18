@@ -631,11 +631,13 @@ lang/11-requirements-and-suspension.md	46	illustrative-pseudocode	-
 lang/11-requirements-and-suspension.md	47	illustrative-pseudocode	-
 lang/11-requirements-and-suspension.md	48	accept	typing/valid/requirements-and-suspension.hd
 lang/11-requirements-and-suspension.md	49	mixed	typing/invalid/missing-requirement-cold-construction.hd
-lang/11-requirements-and-suspension.md	50	accept	typing/valid/all-tuple-result.hd
-lang/11-requirements-and-suspension.md	51	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd|typing/invalid/all-explicit-type-arguments.hd
-lang/11-requirements-and-suspension.md	52	accept	typing/valid/requirements-and-suspension.hd
-lang/11-requirements-and-suspension.md	53	accept	typing/valid/row-extension-entailment.hd
-lang/11-requirements-and-suspension.md	54	accept	typing/valid/row-extension-absent-key.hd
+lang/11-requirements-and-suspension.md	50	accept	runtime/valid/cancel-waits-for-dispose.hd
+lang/11-requirements-and-suspension.md	51	mixed	typing/invalid/cancel-cold-discarded.hd
+lang/11-requirements-and-suspension.md	52	accept	typing/valid/all-tuple-result.hd
+lang/11-requirements-and-suspension.md	53	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd|typing/invalid/all-explicit-type-arguments.hd
+lang/11-requirements-and-suspension.md	54	accept	typing/valid/requirements-and-suspension.hd
+lang/11-requirements-and-suspension.md	55	accept	typing/valid/row-extension-entailment.hd
+lang/11-requirements-and-suspension.md	56	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
@@ -774,6 +776,8 @@ std/task.md	8	type-fragment	-
 std/task.md	9	accept	runtime/valid/task-timeout.hd
 std/task.md	10	type-fragment	-
 std/task.md	11	accept	runtime/valid/task-map-all.hd
+std/task.md	12	type-fragment	-
+std/task.md	13	accept	runtime/valid/task-cleanup-end.hd
 std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd

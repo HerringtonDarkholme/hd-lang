@@ -1,16 +1,20 @@
-# test: cold suspension cancellation is synchronous and idempotent
-# Spec 11 Cancellation Checks: req.check.cancel-idempotent,
-# req.cancel.synchronous, req.cancel.steps.
+# test: cancelling a cold suspension marks it without running it, returns .Finished, and a second cancel does the same
+# Spec 11 Cancellation: req.cancel.cold-job, req.check.cancel-idempotent.
 
 fn ready!() -> i32: 42
-fn main() -> i32:
+fn main!() -> i32:
     let pending: mut Suspend[i32] = ready()
-    pending.cancel()
-    pending.cancel()
-    42
+    first := pending.cancel!()
+    second := pending.cancel!()
+    match first:
+        .Finished => pass
+        .Abandoned => return 0
+    match second:
+        .Finished => 42
+        .Abandoned => 0
 
 tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main(), 42, reason="cold suspension cancellation is synchronous and idempotent")
+        assert_equal(main!(), 42, reason="cancelling a cold suspension twice returns .Finished both times")

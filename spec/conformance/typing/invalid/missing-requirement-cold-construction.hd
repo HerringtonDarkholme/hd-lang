@@ -17,9 +17,9 @@ fn tagged!() -> string $ Tag:
 
 pub fn rejected_construction() -> void:
     let pending: mut Suspend[string] = tagged()  # diagnostic: missing-requirement
-    pending.cancel()
+    _ := pending.cancel()
 
 pub fn lexical_construction() -> void:
     let pending: mut Suspend[string] = $.with(Tag=FixedTag { value: "x" }):
         tagged()
-    pending.cancel()
+    _ := pending.cancel()
