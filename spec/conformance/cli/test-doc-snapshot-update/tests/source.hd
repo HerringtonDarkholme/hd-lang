@@ -3,7 +3,8 @@ use std.path.Path
 use std.testing.assert_equal
 
 it("rewrote only the failing doc literals"):
-    lib := read_text!(Path("src/lib.hd")).expect("lib.hd")
+    # A Windows checkout may end lines with CRLF; the checks use LF.
+    lib := read_text!(Path("src/lib.hd")).expect("lib.hd").replace("\r\n", "\n")
     assert_equal(lib.contains("## snapshot(greeting(\"Ada\"),\n##     expect=\"hello, Ada\")\n"), true, reason="the failing literal")
     assert_equal(lib.contains("## snapshot(greeting(\"Grace\"), expect=\"hello, Grace\")\n"), true, reason="the omitted literal")
     assert_equal(lib.contains("expect=\"hello,\\u{20}Lin\")\n"), true, reason="the passing literal")
