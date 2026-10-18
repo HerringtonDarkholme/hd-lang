@@ -5,10 +5,9 @@ When a task is cancelled, its `using` values must still be disposed, and a
 Inside `race!`, `all!` and `timeout!` this already works, because the
 combinator waits for its cancelled children to finish disposing
 ([`flow.using.cancel.wait`](../../spec/lang/06-control-flow.md#r-flow.using.cancel.wait)).
-A stored suspension is different: its `cancel()` returns at once
-([`req.cancel.synchronous`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.synchronous)),
-so nothing waits for a dispose that suspends, and today that dispose is left
-where it stopped until the host closes the handle at exit. This proposal
+A stored suspension was different: its `cancel()` returned at once,
+so nothing waited for a dispose that suspends, and that dispose was left
+where it stopped until the host closed the handle at exit. This proposal
 gives every cancellation one shape: a graceful cancel that composes, and a
 forced abandon that is always explicit.
 
@@ -375,9 +374,7 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
 
 ## What Changes
 
-- The synchronous `Suspend.cancel()`
-  ([`req.cancel.synchronous`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.synchronous))
-  becomes two operations: the suspending `cancel!()`, which returns a
+- The synchronous `Suspend.cancel()` becomes two operations: the suspending `cancel!()`, which returns a
   `CleanupEnd`, and the synchronous `abandon()`.
 - The runtime keeps one cleanup per job, with any number of waiters and
   the final `CleanupEnd` kept for later calls.
