@@ -5,8 +5,17 @@ plain descriptors: a host method returns a plain id, and std wraps it in
 an `own` handle whose drop calls the host's close, as Rust's `File` wraps
 a file descriptor, so ownership slice 7's `not-boundary-safe` rule needs
 no exception. The `Closed` variant in each handle module's error stays,
-as the owner approved earlier (section 8 is overruled). The questions in
-section 13 are still under discussion.
+as the owner approved earlier (section 8 is overruled). Every question
+in section 13 is accepted as recommended, and so is the block rule of
+section 7, with the owner's change that a block capturing a `^mut`
+borrow is a mutable borrowed closure (`^{c} mut fn!()`), callable any
+number of times while the borrow lives: `timeout!`'s `work` and the
+children of `race!` and `all!` take `own fn!()`, which a fresh block
+satisfies whatever it captures; `retry!`'s attempt may capture a `^mut`
+handle, since its calls run one at a time; `map_all!`'s `work` runs for
+several items at once, so it captures only plain values and shared
+borrows; and a plain `fn` is accepted wherever an `own fn` or a
+borrowed `fn` is expected.
 
 This is a proposal for issue #350, not a decision. The owner asked on
 2026-10-17 to "design streaming now", before the I/O redesign is

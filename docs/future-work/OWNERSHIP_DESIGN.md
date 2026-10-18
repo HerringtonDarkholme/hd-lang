@@ -71,8 +71,9 @@ its guard succeeds. There is no general `replace`; an owner that must be
 swapped out lives in an `Option[own T]` and leaves through `take()`. Rust's known false alarms are accepted as
 limits.
 
-A closure that captures a value exclusively, an owned value or a `^mut`
-borrow, can be called once. A job that must run repeatedly with
+A closure that captures an owned value can be called once; one that
+captures a `^mut` borrow is a mutable borrowed closure, called any number
+of times while the borrow lives. A job that must run repeatedly with
 exclusive access is named data with `^mut self` methods.
 
 A handle type implements `OwnOnly`, so no producer can hand out a
@@ -522,7 +523,8 @@ of what it captures.
 | --- | --- | --- |
 | A plain value | an ordinary plain closure; the capture is shared, as today | any number |
 | A shared borrow `^c` | bounded by `c`'s lifetime, as `^{c} fn() -> usize` | any number, while `c` lives |
-| An owned value, or a `^mut` borrow | an `own fn(...)`, holding the capture exclusively | once |
+| A `^mut` borrow `^mut c` | bounded by `c`'s lifetime and exclusive, as `^{c} mut fn() -> usize` | any number, one at a time, while `c` lives |
+| An owned value | an `own fn(...)`, holding the capture exclusively | once |
 
 ```text
 fn on_close(f: own File) -> own fn() -> void:        # hypothetical syntax
@@ -539,8 +541,9 @@ fn tidy() -> void:
 
 **Capturing an owned value moves it in.** The closure becomes the only
 path to the value, so it is itself owned, `own fn(...)`. A call consumes
-it, as Rust's `FnOnce` does. The same holds for a `^mut` capture: two
-calls could otherwise overlap, so the closure may run only once.
+it, as Rust's `FnOnce` does. A `^mut` capture instead makes a mutable
+borrowed closure: exclusive, so calls never overlap, and callable any
+number of times while the borrow lives, as Rust's `FnMut` is.
 
 **Dropping a closure drops what it owns.** `done` above holds an open
 file. If it is never called, dropping `done` drops the file, which
@@ -986,6 +989,7 @@ adds a few of its own. Each rejects code the old design accepted:
 - 6.5 Higher-order functions: owned lists reach `map`, `filter` and `fold` through `iter()` and `into_iter()`, plus `retain`; no owned twins on `List`.
 - 6.6 Migration: bottom up: language, traits, containers, handles with streaming, then the rest of std by lint.
 - Freshness on stores (prototype question 7, review O10): the freshness rule also applies to a later store into a plain field of an owned value, so `own` stays the only path to the whole value.
+- Closures over a `^mut` borrow (owner, 2026-10-17): a closure that captures a `^mut` borrow is a mutable borrowed closure, written with the borrow syntax, `^{c} mut fn() -> usize` (elided `^mut fn() -> usize`). It may be called any number of times while `c` lives, and it is exclusive as any `^mut` is, so two calls never overlap (Rust's `FnMut`). Only capturing an owned value makes an `own fn`, called once. A plain `fn` is accepted where an `own fn` or a borrowed `fn` is expected, as Rust's `Fn` is an `FnMut` and an `FnOnce`. This overrides the `^mut` row of section 3.7.
 - Lifetime names (owner, 2026-10-17): type-parameter paths are removed (`x.T`, `s.A` and `s::A` all expose a declaration's generic names). A path lifetime now names a FIELD path for partial capture: `fn name_of(u: ^User) -> ^{u.name} string` borrows only `u.name`, so the caller keeps the other fields usable while the result lives. Every field a path lifetime names must be `pub` (owner: "partial capturing only allow public visibility"), so a signature never exposes a private field. A function declares lifetime parameters, last in its generic list, to name inner lifetimes no variable can denote: `fn first[^c](x: ^List[^{c} Conn]) -> ^{c} Conn`; `fn add[^c](dst: ^mut List[^{c} Conn], conn: ^{c} Conn)`. Variables still name outer borrows, with elision unchanged. A declared lifetime parameter may appear inside a parameter's type argument; a bare nested `^` is anonymous. Where the text below still shows a path lifetime, this note overrides it.
 
 The option discussions below are kept as the record of why.
