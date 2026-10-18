@@ -1,14 +1,14 @@
 path	issue	engine	reason
-cli/repl-bang	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-declarations	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-host	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-member	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-outside	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-deps	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-lib	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-no-lib	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-panic	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-quit	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-value	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-value-stream	#183	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-workspace	#183	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-bang	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-declarations	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-host	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-member	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-outside	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-package-deps	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-package-lib	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-package-no-lib	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-panic	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-quit	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-value	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-value-stream	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+cli/repl-workspace	#518	node	the REPL runs on wasmtime only; the Node engine has no session
