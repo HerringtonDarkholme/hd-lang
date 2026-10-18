@@ -250,6 +250,16 @@ Go's slices share their array but not their length, so
 `b := append(a, x)` aliases `a` or not depending on spare capacity. With
 value collections, a shared list is written `&mut List[T]`.
 
+Nested writes never copy. `m[k].push(x)`, `team.members.push(x)` and
+`xs[i].name = n` each write through the path in place: the compiler
+makes each buffer on the path unique, at most once, and changes the
+inner value where it is stored. It never reads the inner value out,
+changes a copy and writes it back. That read-copy-write would make
+building a map of lists quadratic, the cliff Swift removed with its
+modify accessors. No reference escapes such a statement, so it needs no
+pin, and map values, which are not addressable, are still written in
+place this way.
+
 `string` is immutable UTF-8. A string slice is a view that counts the
 shared buffer, so a small view keeps a large buffer alive, the retention
 cost Go documents for slices; `s.compact()` copies a view out. A list
@@ -366,7 +376,7 @@ The cost of that rule is concrete. `p.translate(d)` on a local `p`, with
 an allocation and a free each time the function runs. Go would keep
 `p` on the stack. Three things shrink the cost: small methods are
 inlined, after which the reference is local; std's methods carry tier 2
-headers that promise not to keep their receivers; and section 18 lists a
+headers that promise not to keep their receivers; and section 17 lists a
 further optimization over same-module bodies, still open.
 
 hd compiles modules separately, where Go analyzes a package at a time;
@@ -797,41 +807,9 @@ them. A std migration chunk that runs long splits into further jobs.
 | 20 | After the RC backend: `hd build --explain-escapes` and `--explain-copies`, and the `large-struct` warning | CLI rules; fixtures for the report format |
 
 Jobs 1 to 10 are the language; 11 and 12 let it run before the backend
-moves (question 5); 13 to 18 migrate; 19 and 20 follow the backend.
+moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 and 20 follow the backend.
 
-## 17. Questions For The Owner
-
-1. **Should global `&mut T` be checked for exclusivity?** A counted
-   reference cannot dangle, and the remaining hazards close without
-   exclusivity: no references into enum payloads, pins on collections,
-   copies of aliased value arguments. Swift likewise never enforces
-   exclusivity on a whole class instance. Recommendation: no;
-   exclusivity belongs to tier 2's uncounted scoped references.
-2. **Should `List`, `Map` and `string` be values with copy-on-write?**
-   The alternatives are shared list objects, as in hd today, or Go's
-   slices, which share an array but not a length. Recommendation: values
-   with copy-on-write, as in Swift; a shared list is written
-   `&mut List[T]`, and only a shared buffer is ever copied.
-3. **What happens when a list grows under an element reference?** Go
-   keeps the old array alive, and later writes silently miss the list,
-   depending on capacity. The alternative is the pin: changing the
-   length of a list with a live element reference panics.
-   Recommendation: the pin. Its panic is deterministic because
-   references are released at their last use, and tier 2 makes the same
-   rule a static check.
-4. **What does `==` mean between references?** Recommendation: an error
-   with two fix-its, `is` for identity and `*a == *b` for contents;
-   derived `Eq` and `Hash` compare reference fields by identity, as Go's
-   struct `==` does, and identity-keyed maps use `Id[T]`.
-5. **Should the new semantics run on the Wasm GC backend before the RC
-   backend exists?** Struct values can be emulated there as GC objects
-   copied on every copy: slow but correct. The language, std and
-   examples then migrate with every fixture running, and the backend
-   moves under a green suite. Recommendation: yes, jobs 11 and 12; the
-   alternative is check-only fixtures and a long known-failures list
-   until the RC backend lands.
-
-## 18. Open Points
+## 17. Open Points
 
 - **Same-module escape summaries.** The optimizer could use callee
   bodies within one module to keep `&mut local` on the stack, as Go does
