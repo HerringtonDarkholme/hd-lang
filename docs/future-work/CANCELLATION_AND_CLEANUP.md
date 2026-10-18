@@ -156,7 +156,12 @@ the await exactly as `abandon()` would unwind it: its registered `defer`
 blocks run, the code after the await is skipped, and its cleanup ends
 `.Abandoned`, which carries up as any abandonment does. Cancelling the
 task itself still never drops cleanup; here a dependency of the cleanup
-failed, and `.Abandoned` says the close did not finish.
+failed, and `.Abandoned` says the close did not finish. This is the one
+way a cleanup ends early without an explicit `abandon()`. If the dispose
+ran after an ordinary return, the job still completed: its value is
+delivered, and only its kept cleanup result is `.Abandoned`. Sharing a
+suspension this way is rare under structured concurrency, so nothing more
+reports it.
 
 `block_on` is the one driver whose caller cannot be cancelled: it is
 synchronous code expecting a value. So `block_on` returns a `BlockOn[T]`
@@ -390,8 +395,9 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
   awaiter; inside a `dispose!` it unwinds that dispose as an abandon
   would, with `.Abandoned`.
 - `block_on` returns a new std enum `BlockOn[T]` in `std.task`
-  (`.Completed(T)`, `.Cancelled`, `.Abandoned`). Its callers in std
-  (`println`, `eprintln`) match it.
+  (`.Completed(T)`, `.Cancelled`, `.Abandoned`). `println` and `eprintln`
+  hold the only reference to their write, so it cannot be cancelled; they
+  ignore the other two variants.
 - A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
   `hd.cancel`) follows the same rules with the host as the waiter. The
   host waits with a default cleanup bound, a host setting that behaves as
