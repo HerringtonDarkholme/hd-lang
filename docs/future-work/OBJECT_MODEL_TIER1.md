@@ -61,7 +61,7 @@ struct Body:
     vel: Vec2
 
 fn demo() -> f64:
-    let a = Vec2 { x: 1.0, y: 2.0 }
+    let mut a = Vec2 { x: 1.0, y: 2.0 }
     b := a                              # a copy; nothing is shared
     a.x = 5.0                           # changes a only
     r := &mut Body { pos: a, vel: b }   # a new counted object
@@ -73,8 +73,9 @@ fn demo() -> f64:
 1. Structs, tuples and enums are values without identity, copied on
    assignment, passing and return. So are `List`, `Map` and `string`,
    with copy-on-write.
-2. A `let` binding is mutable, fields included; `:=` and parameters are
-   not.
+2. `let mut` marks a variable whose value changes in place: fields,
+   elements, `&mut self` calls, `&mut x`. A plain `let` may only be
+   reassigned as a whole; `:=` and parameters never change.
 3. `&place` refers to a place and `&T { ... }` allocates an object. A
    reference keeps its whole object alive and may go anywhere.
 4. `&T` reads; `&mut T` also writes, and is not exclusive.
@@ -125,9 +126,9 @@ sets its threshold.
 | `&mut T` | reading and writing `T` through it | `&T`, implicitly |
 
 ```text
-let p = Vec2 { x: 0.0, y: 0.0 }
+let mut p = Vec2 { x: 0.0, y: 0.0 }
 r1 := &p                              # refers to p's storage
-r2 := &mut p                          # writable; needs a `let`
+r2 := &mut p                          # writable; needs `let mut`
 r3 := &mut Vec2 { x: 1.0, y: 1.0 }    # a new object, count 1
 r4 := &make_point()                   # not a place: a new object holding the result
 ```
@@ -166,7 +167,8 @@ hd marks where values change. In tier 1 the marks are few:
 
 | Mark | Meaning |
 | --- | --- |
-| `let x = ...` | `x` may be reassigned and its fields assigned |
+| `let x = ...` | `x` may be reassigned as a whole, nothing more |
+| `let mut x = ...` | `x` may also change in place: fields assigned, elements replaced, `&mut self` methods called, `&mut x` taken |
 | `x := ...` | `x` never changes, as a whole or in part |
 | a value parameter, `self` | immutable: the callee's own copy of the caller's value |
 | a `&T` parameter, `&self` | a read of the caller's value, with no copy |
@@ -174,15 +176,17 @@ hd marks where values change. In tier 1 the marks are few:
 | `&mut T` in a type | this position may write the object |
 | `&mut self` | this method changes its receiver in place |
 
-A place is **writable** when it is a `let` variable or a field of a
-writable place, or when it is reached through a `&mut` reference.
+A place is **writable** when it is a `let mut` variable or a field of a
+writable place, or when it is reached through a `&mut` reference. A
+`&mut` cannot be taken from a plain `let`, a `:=` binding or a value
+parameter.
 Assigning a field, replacing a list element, calling a `&mut self`
 method and taking `&mut` all need a writable place:
 
 ```text
 fn shift(v: Vec2) -> Vec2:
-    v.x += 1.0              # error: `v` is a parameter; copy it into a `let` to change it
-    let w = v
+    v.x += 1.0              # error: `v` is a parameter; copy it into a `let mut` to change it
+    let mut w = v
     w.x += 1.0              # fine: w is the function's own copy
     w
 
@@ -585,7 +589,7 @@ impl Router:
             .None => out.status = 404
 
 fn connection!(conn: &mut Conn, router: &Router) -> Result[void, NetError]:
-    let out = Response { status: 0, headers: [], body: [] }
+    let mut out = Response { status: 0, headers: [], body: [] }
     loop:
         req := conn.read_request!()?
         router.serve(&req, &mut out)
@@ -624,8 +628,8 @@ impl Lexer:
         Token { kind, text: self.src.slice(start, self.pos) }
 
 fn tokens(src: string) -> List[Token]:
-    let lexer = Lexer { src, pos: 0 }
-    let out: List[Token] = []
+    let mut lexer = Lexer { src, pos: 0 }
+    let mut out: List[Token] = []
     loop:
         t := lexer.next()
         if t.kind == .End:
@@ -732,7 +736,7 @@ tier 1 callers unchanged.
 | --- | --- |
 | `data D`, a shared object with identity | `struct D`, a value; sharing is `&D` or `&mut D` |
 | `mut D` and readonly `D` views | `&mut D` and `&D`, or `D` as a value |
-| `let mut x = D { ... }` | `let x = D { ... }`; `x := &mut D { ... }` to share |
+| `let mut x = D { ... }` | `let mut x = D { ... }`, now a value; `x := &mut D { ... }` to share |
 | `:=` gives a readonly view | `:=` gives an immutable binding |
 | `mut self`, `self` | `&mut self`; `self` (a value) or `&self` |
 | a field `f: mut U` of a data type `U` | `f: &mut U` |
@@ -748,8 +752,8 @@ tier 1 callers unchanged.
 | the Wasm GC backend | linear memory with counts (REFCOUNT_RUNTIME.md) |
 
 The spec loses `data` declarations, permission views on composites,
-freshness rules, `let mut` with `mut-on-primitive`, `mut-on-tuple`,
-`let-mut-readonly-type` and `redundant-let-mut`, `readonly-edge`,
+freshness rules, `mut-on-tuple`, `let-mut-readonly-type`,
+`readonly-edge`,
 `embedded-copy-required`, `copy-into-ordinary-field`,
 `old-struct-declaration`, and `mut-on-type-parameter`, since `&mut T` on
 a type parameter now means something. `mutable-upgrade` stays for
@@ -776,7 +780,8 @@ marks nothing at the call site, which tier 1's auto-address keeps, and
    `D { ...d, x }` becomes `&mut D { ...*d, x }`, and a list literal used
    as `mut` becomes `&mut [...]`.
 4. `mut self` becomes `&mut self`, `self` on a former data type becomes
-   `&self`, and `let mut` becomes `let`.
+   `&self`, and `let mut` stays. A list declared `let xs: mut List[T]`
+   becomes `let mut xs: List[T]`.
 5. `a == b` on two former data values becomes `*a == *b`.
 
 The result behaves as today, except that a loop which today panics on a
@@ -807,7 +812,7 @@ them. A std migration chunk that runs long splits into further jobs.
 | # | Job | Spec and fixtures |
 | --- | --- | --- |
 | 1 | Grammar: `&T` and `&mut T` types, `&e`, `&mut e`, `&T { ... }`, prefix `*`; parser | a "Values And References" chapter skeleton and grammar productions; parse fixtures, valid and invalid |
-| 2 | `struct` values with mutable fields: literals, copies, field writes on `let`, immutable `:=` and parameters | struct and copy rules; check and run fixtures, one per error |
+| 2 | `struct` values with mutable fields: literals, copies, field writes on `let mut`, `&mut` only from writable places, immutable `:=` and parameters | struct and copy rules; check and run fixtures, one per error |
 | 3 | References in the checker: forming them on places and non-places, writable places, `&mut` to `&`, transitive weakening, auto-dereference, `*r` | reference and writable-path rules; check fixtures per error, with fix-its |
 | 4 | Identity and equality: `is` on references only, `==` between references rejected, derived `Eq` and `Hash` by identity on reference fields, `Id[T]`, `Option[&T]` | identity rules; check and run fixtures |
 | 5 | Methods: `self`, `&self`, `&mut self`, auto-address, non-writable receivers, method sets in trait implementations | receiver rules; a fixture per error |
@@ -823,7 +828,7 @@ them. A std migration chunk that runs long splits into further jobs.
 | 15 | std migration 2: text, formatting, encoding, hashing, time, with values per VALUE_STRUCTS.md section 8 | std rules; fixtures |
 | 16 | std migration 3: I/O, streams, net, processes, with handles behind references | std rules; fixtures |
 | 17 | `examples/`, the guide and the website: section 11's programs in place of the `data` examples | none |
-| 18 | Remove `data`, permission views, freshness rules, `let mut`, readonly edges and part copies from spec and checker | removed rules and fixtures; a rule inventory diff |
+| 18 | Remove `data`, permission views, freshness rules, readonly edges and part copies from spec and checker | removed rules and fixtures; a rule inventory diff |
 | 19 | After the RC backend: stack placement of address-taken locals and new objects within one body | none (unobservable); allocation counts on the tour programs |
 | 20 | After the RC backend: `hd build --explain-escapes` and `--explain-copies`, and the `large-struct` warning | CLI rules; fixtures for the report format |
 

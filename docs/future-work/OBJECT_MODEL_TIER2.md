@@ -91,7 +91,7 @@ impl[{s}] Lexer[{s}]:
         self.src.slice(start, self.pos)
 
 fn count_words(text: string) -> usize:
-    let lexer = Lexer { src: &text, pos: 0 }     # Lexer[{text}]: scoped, uncounted
+    let mut lexer = Lexer { src: &text, pos: 0 } # Lexer[{text}]: scoped, uncounted
     let n = 0
     while lexer.next_word().len() > 0:
         n += 1
@@ -273,7 +273,7 @@ a cache is to parse with `Parser[global]`, from the same source:
 
 ```text
 fn remember(cache: &mut Cache, src: string) -> Result[void, ParseError]:
-    let p = Parser.new(&src)              # Parser[{src}]
+    let mut p = Parser.new(&src)          # Parser[{src}]
     cache.last = .Some(p.expr()?)
     # error: `Expr[{src}]` borrows `src`, and `cache.last` holds `Expr[global]`
     #   help: parse with `Parser[global]`, whose views are counted
@@ -320,7 +320,7 @@ impl Buffer:
     fn drop(&{} mut self) -> void: pass     # optional; runs at the end of the owner's scope
 
 fn greet() -> string:
-    let b = Buffer { bytes: [] }
+    let mut b = Buffer { bytes: [] }
     b.write("hi")                           # borrows `b`
     s := b.finish()                         # moves `b`
     b.write("!")                            # error: `b` was moved by `finish` on the line above
@@ -424,7 +424,8 @@ scoped reference. Nested write paths such as `m[k].push(x)` and
 of a map entry freezes the map, since an insert may rehash. Places
 conflict when one is a prefix of the other: `p.pos` and `p` conflict,
 `p.pos` and `p.vel` do not. A scoped writable reference cannot be
-copied; passing it to a parameter reborrows it for the call.
+copied; passing it to a parameter reborrows it for the call. As in tier 1, `&{} mut x` needs a writable place: a `let mut`
+variable, a field of one, or a place reached through a `&mut`.
 
 For a local list, freezing replaces the pin. `r := xs.get(0)` with
 `get`'s header `-> Option[&{self} T]` freezes `xs` while `r` lives, so
@@ -738,8 +739,8 @@ shapes.hd:22: `Rect.translate` never keeps `self`; 14 call sites move a local to
 
 ```text
 fn tokens(src: &{} string) -> List[Token[{src}]]:
-    let lexer = Lexer { src, pos: 0 }            # section 2's Lexer, with `next(&{} mut self) -> Token[{s}]`
-    let out: List[Token[{src}]] = []
+    let mut lexer = Lexer { src, pos: 0 }        # section 2's Lexer, with `next(&{} mut self) -> Token[{s}]`
+    let mut out: List[Token[{src}]] = []
     loop:
         match lexer.next():
             .End => return out
@@ -787,7 +788,7 @@ fn sort_scores(scores: &{} mut List[Score]) -> void:
     scores.sort_by(fn(a, b): b.points.cmp(a.points))
 
 fn report(path: string) -> string:
-    let scores = load_scores(path)
+    let mut scores = load_scores(path)
     sort_scores(&mut scores)        # `scores` stays in this frame: no cell, no count
     render(scores)
 ```
