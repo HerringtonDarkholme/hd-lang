@@ -21,7 +21,6 @@ action at a distance.
 - [Serializable Closure Prototype Plan](SERIALIZABLE_CLOSURE_PROTOTYPE.md): 31
   hour-sized slices, each with its spec rules and fixtures, over an in-process transport.
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): a design study for #163 after `Disposable`: a non-escaping `^` mode without lifetimes, worker isolation and shared bytes on Wasm today, frozen data later, and a re-plan of the ownership prototype.
-- [Changing Closures: A Notation](CHANGING_CLOSURE_NOTATION.md): a proposal for #163 to mark, in a function type and on a closure literal, that calling it changes captured state; recommends `fn~`.
 - [Ownership And Borrows: Design Study](OWNERSHIP_DESIGN.md): the owner's
   Rust-model design for #163: `own` at the use site, `^` borrows, lifetimes
   named by variables, `DropOwn`. Fully decided by the owner (2026-10-17);
