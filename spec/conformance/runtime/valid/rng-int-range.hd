@@ -1,5 +1,5 @@
 # test: int draws from a half-open or an inclusive Range, unbiased by rejection, over the whole i64 range too
-# Spec std/random Integer Ranges: std-random.rng.int, std-random.rng.int.count, std-random.rng.int.offset, std-random.rng.below, std-random.rng.below.full (task #242).
+# Spec std/random Integer Ranges: std-random.rng.int.generic, std-random.rng.int.count, std-random.rng.int.offset, std-random.rng.below, std-random.rng.below.full (task #242).
 use std.random.Rng
 tests:
     use std.testing.{assert, assert_equal}

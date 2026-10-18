@@ -2441,6 +2441,7 @@ runtime/valid/bound-inference-two-bounds.hd	runtime	accept	lang/04-type-system.m
 typing/invalid/bound-inference-bounds-disagree.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.no-default.disagree
 runtime/valid/rng-seeded-sequence.hd	runtime	accept	std/random.md#rng-generator
 runtime/valid/rng-int-range.hd	runtime	accept	std/random.md#integer-ranges
+runtime/valid/rng-int-generic.hd	runtime	accept	std/random.md#integer-ranges
 runtime/panic/rng-int-empty-range.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.int.empty
 runtime/valid/rng-shuffle-choose-sample.hd	runtime	accept	std/random.md#lists
 runtime/panic/rng-sample-too-many.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.sample.count

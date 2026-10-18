@@ -3,6 +3,7 @@
 # default profile binds a host `Random` (src/commands/default-profile.ts);
 # `std.testing` draws a property test's cases from a `SeededRandom`.
 use std.format.DebugWriter
+use std.num.Integer
 use std.ops.Range
 
 # Draws values from a source of randomness (r-std-random.decl). Both
@@ -91,21 +92,35 @@ impl Rng:
         self.source.next_u64()
 
     # An integer of `range`, from `start + below(count)`
-    # (r-std-random.rng.int.offset). A count of 2^64, the whole `i64` range,
-    # is passed as 0.
+    # (r-std-random.rng.int.offset), computed in `u64` through the `Integer`
+    # conversions (r-std-random.rng.int.u64). A count of 2^64 is passed as 0.
     ## A random integer of `range`, each with the same chance.
-    ## See [std-random.rng.int](../../spec/std/random.md#r-std-random.rng.int).
-    pub fn int(mut self, range: Range[i64]) -> i64:
+    ## See [std-random.rng.int.generic](../../spec/std/random.md#r-std-random.rng.int.generic).
+    pub fn int[N < Integer](mut self, range: Range[N]) -> N:
         if range.start > range.end || (range.start == range.end && !range.inclusive):
             panic("std.random: empty range")
-        let count: u64 = range.end.abs_diff(range.start)
+        zero := N::zero()
+        one := N::one()
+        # The magnitude of a negative bound, `-(b + 1) + 1`, which cannot overflow.
+        let count: u64 = 0
+        if range.start >= zero:
+            count = range.end.to_u64() - range.start.to_u64()
+        else:
+            low := (zero - (range.start + one)).to_u64() + 1
+            if range.end >= zero:
+                count = range.end.to_u64() + low
+            else:
+                count = low - ((zero - (range.end + one)).to_u64() + 1)
         if range.inclusive:
             count = if count == 0xFFFFFFFFFFFFFFFF: 0 else: count + 1
         offset := self.below(count)
-        if offset > 0x7FFFFFFFFFFFFFFF:
-            # Only a negative `start` reaches an offset past the largest i64.
-            return (range.start + 0x7FFFFFFFFFFFFFFF) + i64(offset - 0x7FFFFFFFFFFFFFFF)
-        range.start + i64(offset)
+        if range.start >= zero:
+            return N::from_u64(range.start.to_u64() + offset)
+        low := (zero - (range.start + one)).to_u64() + 1
+        if offset < low:
+            # A negative result: `-(low - offset)`, written as `-(low - offset - 1) - 1`.
+            return (zero - N::from_u64(low - offset - 1)) - one
+        N::from_u64(offset - low)
 
     # The top 53 bits of a draw, scaled by 2^-53: exact, and below 1.
     ## A random float from 0 up to, not including, 1.

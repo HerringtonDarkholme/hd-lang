@@ -106,7 +106,7 @@ fn deal(seed: u64) -> List[string]:
 | Rule | Method | Returns |
 | --- | --- | --- |
 | r[std-random.rng.next] `next_u64` | `pub fn next_u64(mut self) -> u64` | the next 64-bit draw |
-| r[std-random.rng.int] `int` | `pub fn int(mut self, range: Range[i64]) -> i64` | an integer of `range`, each with equal probability |
+| r[std-random.rng.int.generic] `int` | `pub fn int[N < Integer](mut self, range: Range[N]) -> N` | an integer of `range`, each with equal probability |
 | r[std-random.rng.float] `float` | `pub fn float(mut self) -> f64` | an `f64` from 0.0 up to, not including, 1.0 |
 | r[std-random.rng.bool] `bool` | `pub fn bool(mut self) -> bool` | `true` or `false`, each with equal probability |
 | r[std-random.rng.choose] `choose` | `pub fn choose[T](mut self, items: List[T]) -> T?` | one item, each position with equal probability |
@@ -170,13 +170,14 @@ uint32_t next32(uint32_t s[4]) {
 ### Integer Ranges
 
 `int` takes either form of `Range`, so `0..10` draws from 0 through 9 and
-`1..=6` from 1 through 6:
+`1..=6` from 1 through 6. It is generic over the integer type, so `int(0..items.len())` is a `usize` and `int(0..=255)` can be a `u8`:
 
 1. r[std-random.rng.int.count] The count `n` of `range` is `end - start` for a `..` range and `end - start + 1` for a `..=` range, computed exactly.
 2. r[std-random.rng.int.empty] A range with no integer, where `n` is 0 or less, panics. Panic: `explicit-panic`.
 3. r[std-random.rng.int.offset] `int` returns `start + below(n)`.
-4. r[std-random.rng.below] `below(n)` draws `next_u64` values until one, `x`, is at least `2^64 mod n`. It returns `x mod n`.
-5. r[std-random.rng.below.full] When `n` is 2^64, the whole `i64` range, `below(n)` is one `next_u64` draw.
+4. r[std-random.rng.int.u64] `int` draws and counts in `u64`, converting bounds and the result with `Integer.to_u64` and `Integer.from_u64`. It never overflows `N`, and a negative bound is converted through its magnitude. For an `i64` range, a seed draws the same values as the `i64`-only `int` did.
+5. r[std-random.rng.below] `below(n)` draws `next_u64` values until one, `x`, is at least `2^64 mod n`. It returns `x mod n`.
+6. r[std-random.rng.below.full] When `n` is 2^64, the whole `i64` or `u64` range, `below(n)` is one `next_u64` draw.
 
 ```text
 use std.random.Rng

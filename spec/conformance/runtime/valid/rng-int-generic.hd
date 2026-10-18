@@ -1,0 +1,53 @@
+# test: int is generic over the integer type; an i64 range draws what it always drew
+# Spec std/random Integer Ranges: std-random.rng.int.generic, std-random.rng.int.u64.
+use std.random.Rng
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a usize range indexes a list"):
+        items := ["a", "b", "c", "d", "e"]
+        let mut gen = Rng::new(7)
+        for _ in 0..100:
+            index := gen.int(0..items.len())
+            assert(index < items.len(), reason="inside the list")
+        let mut a = Rng::new(7)
+        let mut b = Rng::new(7)
+        let wide: usize = a.int(0..10)
+        assert_equal(i64(wide), b.int(0..10), reason="the draws of an i64 range")
+
+    it("a u8 range reaches both ends"):
+        let mut gen = Rng::new(7)
+        let seen_low = false
+        let seen_high = false
+        for _ in 0..2000:
+            let byte: u8 = gen.int(0..=255)
+            if byte == 0:
+                seen_low = true
+            if byte == 255:
+                seen_high = true
+        assert(seen_low && seen_high, reason="0 and 255 are drawn")
+
+    it("signed ranges of every width stay inside"):
+        let mut gen = Rng::new(2026)
+        for _ in 0..300:
+            let a: i8 = gen.int(-128..=127)
+            let b: i8 = gen.int(-100..-50)
+            let c: i16 = gen.int(-5..=5)
+            let d: i32 = gen.int(-2147483648..=2147483647)
+            assert(b >= -100 && b < -50, reason="negative i8 range")
+            assert(c >= -5 && c <= 5, reason="i16 across zero")
+            assert(a >= -128 && d >= -2147483648, reason="whole ranges")
+
+    it("the whole u64 range takes one draw"):
+        let mut gen = Rng::new(7)
+        let mut plain = Rng::new(7)
+        let low: u64 = 0
+        let high: u64 = 18446744073709551615
+        assert_equal(gen.int(low..=high), plain.next_u64(), reason="the raw draw")
+
+    it("an i64 range keeps its seeded sequence"):
+        let mut gen = Rng::new(7)
+        let draws: mut List[i64] = []
+        for _ in 0..10:
+            draws.push(gen.int(0..10))
+        assert_equal(draws, [7, 2, 1, 6, 8, 4, 9, 1, 2, 5], reason="ten draws below 10")
