@@ -34,8 +34,10 @@ They differ only at those suspension points:
 
 - `cancel!()` waits at each one until the dispose finishes, then returns
   how the cleanup ended, `.Finished` or `.Abandoned`, so a program can log
-  an abrupt close. It is a suspending call, so only a `!` function makes
-  it.
+  an abrupt close. `.Finished` means the whole cleanup closed gracefully,
+  including every child cleanup folded into it; if any part was abandoned,
+  the result is `.Abandoned`. It is a suspending call, so only a `!`
+  function makes it.
 - `abandon()` kills each dispose at its suspension point and returns at
   once. Any function can call it.
 
@@ -85,7 +87,12 @@ dispose again would send a second close, and dropping it would break the
 graceful promise.
 
 A cancelled waiter only stops waiting. The cleanup goes on, and the
-waiter's own task folds it into its cleanup, as the next section says.
+waiter's own task folds it into its cleanup, as the next section says. If
+that task is later abandoned, the folded cleanup is abandoned with it, and
+every other waiter of that cleanup gets `.Abandoned` too. Any code holding
+the job could abandon it directly, so a fellow waiter loses nothing it
+could rely on, and the bound on the abandoning task really ends the
+cleanup it was waiting for.
 
 ## Composition
 
@@ -141,7 +148,11 @@ once, innermost frame first, as one last-in-first-out list:
 3. A `using` value whose dispose has not started yet starts it now; the
    dispose runs to its first suspension point and is killed there in the
    same way.
-4. If a `cancel!()` of the same job is waiting, it returns `.Abandoned`,
+4. Every cleanup folded into the job is abandoned the same way: the
+   cleanups of children that `race!` or `all!` had started, and a shared
+   cleanup the job was waiting on. Abandonment follows exactly the links
+   that cancellation folds.
+5. If a `cancel!()` of the same job is waiting, it returns `.Abandoned`,
    and so does every later one.
 
 Mixed `defer` and `using` blocks keep their written order under
@@ -212,10 +223,19 @@ If the outside cancel came first, at t3, the deadline would be t4. A later
 cancel never moves the deadline, so cancelling again and again cannot
 stretch the bound.
 
+The bound is cooperative, like everything on one thread. The deadline
+calls `abandon()` at the first moment at or after it when the thread is
+free, which is the next suspension point. Synchronous code is never
+interrupted: a dispose that computes for two seconds before its first wait
+overruns a one-second bound, and `abandon()` itself still runs every
+registered `defer`, however long each takes. So the bound limits waiting,
+not computation. The one hard wall-clock limit is the host's time limit,
+which panics and, like any panic, runs no pending cleanup.
+
 Racing does not bound a cleanup: `race!(job.cancel(), sleep!(1s))` cancels
 the losing cancel, which only continues inside the race's own cleanup, and
-the race then waits for it. A hard bound comes only from an explicit
-`abandon()`, which the parameter performs.
+the race then waits for it. Only an explicit `abandon()` ends a cleanup
+early, and the parameter performs one.
 
 ## Seeing An Abrupt Close
 
@@ -230,6 +250,13 @@ Three places learn that a cleanup was abandoned:
 `race!` and `all!` keep their result types. A loser whose cleanup was cut
 short by an outer abandon shows up at that outer abandon, not in the
 race's value.
+
+Because `.Abandoned` carries up through folded cleanups, a parent reports
+it when any child's cleanup was cut short, even if the parent and its
+other children finished gracefully. With structured concurrency this is
+rare: a child is normally abandoned only through its parent. The rule
+keeps `TimedOut.cleanup` from saying `.Finished` over a forced close when
+it does happen.
 
 ## Nothing To Forget
 
