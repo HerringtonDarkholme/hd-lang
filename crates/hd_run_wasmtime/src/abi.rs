@@ -465,6 +465,7 @@ pub enum NetError {
     Dns { host: String },
     Refused { address: String },
     Timeout,
+    Closed,
     Other { message: String },
 }
 
@@ -490,14 +491,17 @@ impl Wire for NetError {
             Self::Timeout => {
                 e.leb(4);
             }
-            Self::Other { message } => {
+            Self::Closed => {
                 e.leb(5);
+            }
+            Self::Other { message } => {
+                e.leb(6);
                 message.enc(e);
             }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(6)? {
+        Ok(match d.tag(7)? {
             0 => Self::NotGranted {
                 address: Wire::dec(d)?,
             },
@@ -511,6 +515,7 @@ impl Wire for NetError {
                 address: Wire::dec(d)?,
             },
             4 => Self::Timeout,
+            5 => Self::Closed,
             _ => Self::Other {
                 message: Wire::dec(d)?,
             },
@@ -664,35 +669,6 @@ impl Wire for Request {
     }
 }
 
-/// `ResourceError` of `lib/std/resource.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ResourceError<E> {
-    Operation { error: E },
-    Disposed,
-}
-
-impl<E: Wire> Wire for ResourceError<E> {
-    fn enc(&self, e: &mut Enc) {
-        match self {
-            Self::Operation { error } => {
-                e.leb(0);
-                error.enc(e);
-            }
-            Self::Disposed => {
-                e.leb(1);
-            }
-        }
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Operation {
-                error: Wire::dec(d)?,
-            },
-            _ => Self::Disposed,
-        })
-    }
-}
-
 /// `Response` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Response {
@@ -808,15 +784,18 @@ pub enum Id {
     NetTcpStreamSetNodelay,
     NetTcpStreamSetKeepalive,
     NetTcpStreamClose,
+    NetTcpStreamDispose,
     NetTcpListenerAccept,
     NetTcpListenerSetTimeout,
     NetTcpListenerLocalAddress,
     NetTcpListenerClose,
+    NetTcpListenerDispose,
     NetUdpSocketSendTo,
     NetUdpSocketReceive,
     NetUdpSocketSetTimeout,
     NetUdpSocketLocalAddress,
     NetUdpSocketClose,
+    NetUdpSocketDispose,
 }
 
 /// A host method (`crates/hd_run_wasmtime/DESIGN.md` §17.2): `wait` is
@@ -1207,7 +1186,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[List[u8], ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[List[u8], NetError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamWrite,
@@ -1216,7 +1195,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("List[u8]")],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamSetTimeout,
@@ -1225,7 +1204,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("Duration?")],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamSetNodelay,
@@ -1234,7 +1213,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamSetKeepalive,
@@ -1243,7 +1222,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("Duration?")],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamClose,
@@ -1252,7 +1231,16 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
+    },
+    HostMethod {
+        id: Id::NetTcpStreamDispose,
+        module: "hd:Net",
+        name: "TcpStream.dispose",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Void,
     },
     HostMethod {
         id: Id::NetTcpListenerAccept,
@@ -1261,7 +1249,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[TcpStream, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[TcpStream, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpListenerSetTimeout,
@@ -1270,7 +1258,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("Duration?")],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetTcpListenerLocalAddress,
@@ -1279,7 +1267,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[(string, u16), ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[(string, u16), NetError]"),
     },
     HostMethod {
         id: Id::NetTcpListenerClose,
@@ -1288,7 +1276,16 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
+    },
+    HostMethod {
+        id: Id::NetTcpListenerDispose,
+        module: "hd:Net",
+        name: "TcpListener.dispose",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Void,
     },
     HostMethod {
         id: Id::NetUdpSocketSendTo,
@@ -1302,7 +1299,7 @@ pub static METHODS: &[HostMethod] = &[
             Codec::Scalar(Scalar::I32),
             Codec::Buffer("List[u8]"),
         ],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetUdpSocketReceive,
@@ -1311,7 +1308,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[Datagram, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[Datagram, NetError]"),
     },
     HostMethod {
         id: Id::NetUdpSocketSetTimeout,
@@ -1320,7 +1317,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Buffer("Duration?")],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
     },
     HostMethod {
         id: Id::NetUdpSocketLocalAddress,
@@ -1329,7 +1326,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[(string, u16), ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[(string, u16), NetError]"),
     },
     HostMethod {
         id: Id::NetUdpSocketClose,
@@ -1338,6 +1335,15 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[void, ResourceError[NetError]]"),
+        result: Codec::Buffer("Result[void, NetError]"),
+    },
+    HostMethod {
+        id: Id::NetUdpSocketDispose,
+        module: "hd:Net",
+        name: "UdpSocket.dispose",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Void,
     },
 ];

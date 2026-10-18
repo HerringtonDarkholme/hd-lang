@@ -7331,21 +7331,53 @@ fn root_poll(
 /// `hd_host_abi::HANDLES` names its methods `<Trait>.<method>` there; a
 /// runtime profile's own trait, at the profile's boundary `at`, is
 /// imported from `hd:<Trait>` by each method's name (`profile_slot`).
+/// Then the vtables of its direct supertraits, which have none of their
+/// own, as `std.ops.Disposable`: each method a host method of the handle
+/// trait, as `TcpStream.dispose` (flow.using.disposable).
 pub(crate) fn handle_slots(
     lay: &Lay<'_>,
     trait_: DefId,
     host: Option<&hd_host_abi::HostTrait>,
     at: Option<crate::boundary::AtProfile<'_>>,
-) -> StageResult<Vec<Helper>> {
+) -> StageResult<(Vec<Helper>, Vec<crate::boundary::HandleSuper>)> {
     let tp = (lay.path)(trait_);
     let tname = tp.rsplit(['.', '/']).next().unwrap_or("");
-    let mut slots = Vec::new();
     let key = lay.trait_key(trait_, TyList::EMPTY);
-    if !lay.dyn_supers(key).is_empty() {
+    let supers = lay.dyn_supers(key);
+    if !supers.is_empty() && host.is_none() {
         return unsupported(format!(
             "the host handle trait `{tp}`, which has supertraits"
         ));
     }
+    let slots = handle_trait_slots(lay, key, trait_, tname, host, at)?;
+    let mut tables = Vec::new();
+    for s in supers {
+        let TyData::TraitValue { def, .. } = lay.pool.get(s) else {
+            return unsupported("a supertrait that is not a trait");
+        };
+        if !lay.dyn_supers(s).is_empty() {
+            return unsupported(format!(
+                "the host handle trait `{tp}`, whose supertrait has supertraits"
+            ));
+        }
+        let vt = lay.vtable(s)?;
+        tables.push((vt, handle_trait_slots(lay, s, def, tname, host, at)?));
+    }
+    Ok((slots, tables))
+}
+
+/// The slots of the vtable of `trait_`, at trait value key `key`, for a
+/// host handle whose trait is named `tname` (`handle_slots`).
+fn handle_trait_slots(
+    lay: &Lay<'_>,
+    key: Ty,
+    trait_: DefId,
+    tname: &str,
+    host: Option<&hd_host_abi::HostTrait>,
+    at: Option<crate::boundary::AtProfile<'_>>,
+) -> StageResult<Vec<Helper>> {
+    let tp = (lay.path)(trait_);
+    let mut slots = Vec::new();
     for m in lay.env.trait_methods(trait_) {
         let sig = lay.slot_sig(key, m)?;
         let mp = (lay.path)(m);

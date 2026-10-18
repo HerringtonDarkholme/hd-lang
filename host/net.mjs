@@ -14,8 +14,9 @@
 // `connect_timeout!` bounds a connect the same way.
 //
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,
-// or `{ disposed: true }` for an operation on a closed handle
-// (std-net.handles.closable). The program's thread checks the host's form
+// or `{ disposed: true }` for an operation on a closed handle, which the
+// program's thread reports as `NetError.Closed`
+// (std-net.handles.closed). The program's thread checks the host's form
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
 import dgram from "node:dgram";
@@ -25,7 +26,7 @@ import { workerData } from "node:worker_threads";
 import { validHost } from "./node.mjs";
 
 // Open handles by number; a closed one stays, marked, so each later
-// operation on it is `Disposed`.
+// operation on it is `Closed`.
 const handles = new Map();
 let nextHandle = 1;
 const open = (h) => {
@@ -269,13 +270,23 @@ const ops = {
     return { ok: null };
   },
   check: () => ({ ok: null }),
+  // std-net.dispose: a close that reports nothing.
+  dispose: (r) => ops.close(r),
+  // The open handles by kind, for the leak report of `hd test`
+  // (cli.test.leak).
+  open: () => {
+    const counts = { stream: 0, listener: 0, udp: 0 };
+    for (const h of handles.values()) if (!h.closed) counts[h.kind] += 1;
+    return { ok: counts };
+  },
 };
 
 const run = async (r) => {
   if (r.handle === undefined) return ops[r.op](r);
   const h = handles.get(r.handle);
   if (h === undefined) return { unknown: true };
-  if (h.closed) return { disposed: true };
+  // Disposing a closed handle does nothing (std-net.dispose).
+  if (h.closed) return r.op === "dispose" ? { ok: null } : { disposed: true };
   return ops[r.op]({ ...r, h });
 };
 

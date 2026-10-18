@@ -1,7 +1,7 @@
 # test: local_address reports a listener's or UDP socket's bound address, and a scripted handle returns only the address the test set
-# Spec std/net Local Address: std-net.local-address, std-net.local-address.closed, std-net.scripted.local-address, std-net.scripted.local-address.unset.
+# Spec std/net Local Address: std-net.local-address, std-net.local-address.after-close, std-net.scripted.local-address, std-net.scripted.local-address.unset.
 # Also covers std-net.scripted.udp, std-net.scripted.setup, and
-# std-net.scripted.closed.
+# std-net.scripted.closed-error.
 # expect: test
 use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedUdp, TcpListener, UdpSocket}
 
@@ -41,7 +41,7 @@ tests:
         $.with(Net=net):
             assert_equal(start_server!(), .Err(.Other("no local address")), reason="unscripted")
         match listener.local_address():
-            .Err(.Operation(.Other(message))) => assert_equal(message, "ScriptedListener has no local address", reason="the message")
+            .Err(.Other(message)) => assert_equal(message, "ScriptedListener has no local address", reason="the message")
             _ => panic("unscripted")
 
     it("tells the peer which port to answer on"):
@@ -56,10 +56,10 @@ tests:
     it("an unscripted UDP address names the socket, and close disposes it"):
         let mut socket = ScriptedUdp::new([])
         match socket.local_address():
-            .Err(.Operation(.Other(message))) => assert_equal(message, "ScriptedUdp has no local address", reason="the message")
+            .Err(.Other(message)) => assert_equal(message, "ScriptedUdp has no local address", reason="the message")
             _ => panic("unscripted")
         socket.set_local_address("0.0.0.0", 40001)
         _ := socket.close()
         match socket.local_address():
-            .Err(.Disposed) => pass
-            _ => panic("Disposed after close")
+            .Err(.Closed) => pass
+            _ => panic("Closed after close")

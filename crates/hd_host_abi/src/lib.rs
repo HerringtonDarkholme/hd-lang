@@ -365,7 +365,9 @@ pub static RUNNERS: &[HostTrait] = &[
 /// host method returns as a handle number, such as `Net`'s sockets. In hd
 /// such a value is a trait value whose vtable's slots are host calls that
 /// take the handle first, as an `i32`; they are imported from the module
-/// of the capability that made the handle, named `<Trait>.<method>`.
+/// of the capability that made the handle, named `<Trait>.<method>`. A
+/// supertrait's methods are the handle trait's too, as `TcpStream.dispose`
+/// for `std.ops.Disposable`.
 pub static HANDLES: &[HostTrait] = &[
     HostTrait {
         key: "Net",
@@ -374,45 +376,46 @@ pub static HANDLES: &[HostTrait] = &[
             m(
                 "TcpStream.read",
                 &[S(Scalar::I32), S(Scalar::I32)],
-                B("Result[List[u8], ResourceError[NetError]]"),
+                B("Result[List[u8], NetError]"),
                 Wait::May,
                 None,
             ),
             m(
                 "TcpStream.write",
                 &[S(Scalar::I32), B("List[u8]")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::May,
                 None,
             ),
             m(
                 "TcpStream.set_timeout",
                 &[S(Scalar::I32), B("Duration?")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "TcpStream.set_nodelay",
                 &[S(Scalar::I32), S(Scalar::I32)],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "TcpStream.set_keepalive",
                 &[S(Scalar::I32), B("Duration?")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "TcpStream.close",
                 &[S(Scalar::I32)],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
+            m("TcpStream.dispose", &[S(Scalar::I32)], V, Wait::May, None),
         ],
     },
     HostTrait {
@@ -422,31 +425,32 @@ pub static HANDLES: &[HostTrait] = &[
             m(
                 "TcpListener.accept",
                 &[S(Scalar::I32)],
-                B("Result[TcpStream, ResourceError[NetError]]"),
+                B("Result[TcpStream, NetError]"),
                 Wait::May,
                 None,
             ),
             m(
                 "TcpListener.set_timeout",
                 &[S(Scalar::I32), B("Duration?")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "TcpListener.local_address",
                 &[S(Scalar::I32)],
-                B("Result[(string, u16), ResourceError[NetError]]"),
+                B("Result[(string, u16), NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "TcpListener.close",
                 &[S(Scalar::I32)],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
+            m("TcpListener.dispose", &[S(Scalar::I32)], V, Wait::May, None),
         ],
     },
     HostTrait {
@@ -456,38 +460,39 @@ pub static HANDLES: &[HostTrait] = &[
             m(
                 "UdpSocket.send_to",
                 &[S(Scalar::I32), B("string"), S(Scalar::I32), B("List[u8]")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::May,
                 Some(ResourceArg::Addr),
             ),
             m(
                 "UdpSocket.receive",
                 &[S(Scalar::I32), S(Scalar::I32)],
-                B("Result[Datagram, ResourceError[NetError]]"),
+                B("Result[Datagram, NetError]"),
                 Wait::May,
                 None,
             ),
             m(
                 "UdpSocket.set_timeout",
                 &[S(Scalar::I32), B("Duration?")],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "UdpSocket.local_address",
                 &[S(Scalar::I32)],
-                B("Result[(string, u16), ResourceError[NetError]]"),
+                B("Result[(string, u16), NetError]"),
                 Wait::Never,
                 None,
             ),
             m(
                 "UdpSocket.close",
                 &[S(Scalar::I32)],
-                B("Result[void, ResourceError[NetError]]"),
+                B("Result[void, NetError]"),
                 Wait::Never,
                 None,
             ),
+            m("UdpSocket.dispose", &[S(Scalar::I32)], V, Wait::May, None),
         ],
     },
 ];

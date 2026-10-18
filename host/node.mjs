@@ -368,11 +368,12 @@ function sysProvider({ grant }) {
 function netProvider({ grant, netClient }) {
   // `Result[T, NetError]` of a `Net` method from a client outcome.
   const netResult = (r) => (r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok));
-  // `Result[T, ResourceError[NetError]]` of a handle's method.
+  // `Result[T, NetError]` of a handle's method: an operation on a closed
+  // handle is `Closed` (std-net.handles.closed).
   const handleResult = (r) => {
     if (r.unknown) throw new HostContract("an operation on a handle the host never made");
-    if (r.disposed) return Err({ tag: "Disposed" });
-    return r.error ? Err({ tag: "Operation", error: variant(NetError, ...r.error) }) : Ok(r.ok);
+    if (r.disposed) return Err(variant(NetError, "Closed"));
+    return r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok);
   };
   // A call names its address `host:port` (std-net.error.address): one
   // whose host is no host is `InvalidAddress`, and one the grant does not
@@ -394,8 +395,13 @@ function netProvider({ grant, netClient }) {
   const setNoDelay = (h, enabled) => handleOp("set_nodelay")(h, { enabled: enabled !== 0 });
   const setKeepAlive = (h, idle) =>
     handleOp("set_keepalive")(h, { idle: idle === null ? null : Number(idle.millis) });
-  // A second `close` is `Disposed` (std-net.handles.closable).
+  // A second `close` is `Closed` (std-net.handles.closed).
   const close = (h) => handleResult(netClient.call({ op: "close", handle: h }));
+  // `dispose!` closes an open handle and reports nothing (std-net.dispose).
+  const dispose = (h) => {
+    const r = netClient.call({ op: "dispose", handle: h });
+    if (r.unknown) throw new HostContract("an operation on a handle the host never made");
+  };
   return {
     // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
     lookup: (host) =>
@@ -418,10 +424,12 @@ function netProvider({ grant, netClient }) {
     "TcpStream.set_nodelay": setNoDelay,
     "TcpStream.set_keepalive": setKeepAlive,
     "TcpStream.close": close,
+    "TcpStream.dispose": dispose,
     "TcpListener.accept": (h) => handleOp("accept")(h),
     "TcpListener.set_timeout": setBound,
     "TcpListener.local_address": (h) => handleOp("local_address")(h, {}),
     "TcpListener.close": close,
+    "TcpListener.dispose": dispose,
     // std-net.send-to.grant: each datagram's own address.
     "UdpSocket.send_to": (h, host, port, bytes) => {
       // Reject closed and unknown handles before destination validation.
@@ -435,6 +443,7 @@ function netProvider({ grant, netClient }) {
     "UdpSocket.set_timeout": setBound,
     "UdpSocket.local_address": (h) => handleOp("local_address")(h, {}),
     "UdpSocket.close": close,
+    "UdpSocket.dispose": dispose,
   };
 }
 

@@ -98,7 +98,13 @@ pub struct HandleB {
     pub payload: WTy,
     pub vt: WTy,
     pub slots: Vec<Helper>,
+    /// The vtables of its direct supertraits, as `std.ops.Disposable`.
+    pub supers: Vec<HandleSuper>,
 }
+
+/// A host handle's supertrait vtable: its type and its slots, host calls
+/// too (`HandleB::supers`).
+pub type HandleSuper = (WTy, Vec<Helper>);
 
 /// The payload struct of a host handle: its handle number.
 #[must_use]
@@ -284,7 +290,7 @@ impl BTy {
                 trait_, args, vt, ..
             } if args == hd_types::TyList::EMPTY => {
                 let path = (lay.path)(trait_).replace('/', ".");
-                let slots = if let Some(host) = hd_host_abi::handle_trait(&path) {
+                let (slots, supers) = if let Some(host) = hd_host_abi::handle_trait(&path) {
                     crate::emit::handle_slots(lay, trait_, Some(host), None)?
                 } else if let Some(at) = json
                     && !at.out
@@ -316,6 +322,7 @@ impl BTy {
                     payload: handle_payload(),
                     slots,
                     vt,
+                    supers,
                 }))
             }
             Shape::Tuple { boxed, .. } => {
@@ -484,6 +491,14 @@ impl BTy {
                 for s in &h.slots {
                     s.encode(w);
                 }
+                w.len_of(&h.supers);
+                for (vt, slots) in &h.supers {
+                    enc_wty(vt, w);
+                    w.len_of(slots);
+                    for s in slots {
+                        s.encode(w);
+                    }
+                }
             }
             BTy::Json(j) => {
                 w.u8(12);
@@ -578,6 +593,15 @@ impl BTy {
                 vt: dec_wty(r)?,
                 slots: (0..r.count())
                     .map(|_| Helper::decode(r))
+                    .collect::<Option<Vec<_>>>()?,
+                supers: (0..r.count())
+                    .map(|_| {
+                        let vt = dec_wty(r)?;
+                        let slots = (0..r.count())
+                            .map(|_| Helper::decode(r))
+                            .collect::<Option<Vec<_>>>()?;
+                        Some((vt, slots))
+                    })
                     .collect::<Option<Vec<_>>>()?,
             })),
             12 => BTy::Json(Box::new(JsonB {
@@ -1505,6 +1529,12 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
             a.struct_new(&h.payload);
             for s in &h.slots {
                 a.ref_func(Sym::Helper(s.clone()));
+            }
+            for (vt, slots) in &h.supers {
+                for s in slots {
+                    a.ref_func(Sym::Helper(s.clone()));
+                }
+                a.struct_new(vt);
             }
             a.struct_new(&h.vt);
         }

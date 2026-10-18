@@ -909,7 +909,7 @@ return 1  # error: return-outside-function
 `defer:` registers a cleanup suite:
 
 ```text
-fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
+fn read_first!(path: string) -> Result[string, FileError] $ Files:
     let handle: mut FileHandle = $.use(Files).open!(path)?
     defer:
         _ := handle.close()

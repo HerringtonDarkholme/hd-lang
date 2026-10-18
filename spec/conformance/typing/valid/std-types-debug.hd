@@ -2,10 +2,10 @@
 # Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.generic (STD-DEBUG; task #223).
 use std.cmp.Reverse
 use std.error.ErrorReport
+use std.net.NetError
 use std.num.ParseNumberError
 use std.process.{ExitCode, ProcessOutput}
 use std.random.SeededRandom
-use std.resource.ResourceError
 use std.testing.RunOutput
 use std.text.{EscapeError, StringBuilder, Utf8Error}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, s}
@@ -25,5 +25,5 @@ fn error_texts(report: ErrorReport, parse: ParseNumberError, escape: EscapeError
 fn value_texts(order: Ordering, reverse: Reverse[i32], builder: StringBuilder, random: SeededRandom) -> List[string]:
     [shown(order), shown(reverse), shown(builder), shown(random)]
 
-fn process_texts(code: ExitCode, output: ProcessOutput, run: RunOutput, failure: ResourceError[ParseNumberError]) -> List[string]:
+fn process_texts(code: ExitCode, output: ProcessOutput, run: RunOutput, failure: NetError) -> List[string]:
     [shown(code), shown(output), shown(run), shown(failure)]

@@ -2252,19 +2252,32 @@ hd build --release src/main.hd   # the official compiler targets Wasm
 
 ### Closable Handles
 
-Closable runtime handles use `std.resource.ResourceError[E]`:
+A closable runtime handle reports a use after close with its module's
+`Closed` error, and a `using` binding disposes it:
 
 ```text
-enum ResourceError[E]:
-    Operation(error: E)
-    Disposed
+use std.ops.Disposable
+
+pub enum StoreError:
+    Missing(key: string)
+    Closed
+
+pub trait Session < Disposable:
+    fn get!(mut self, key: string) -> Result[string, StoreError]
+    fn close(mut self) -> Result[void, StoreError]
 ```
 
-1. r[module.resource.error] Closable runtime handles use `std.resource.ResourceError[E]`.
-2. r[module.resource.result] An operation whose ordinary error type is `E` returns `Result[T, ResourceError[E]]`.
-3. r[module.resource.disposed] Once the handle has been closed, every further operation returns `.Err(ResourceError.Disposed)` and must not trap or access the host resource.
-4. r[module.resource.close] Closing is itself an operation, and a repeated close returns the same `Disposed` error.
-5. r[module.resource.aliases] This checked behavior applies through every alias.
+1. r[module.resource.closed] A closable runtime handle's operations return its module's error type, which has the payload-free variant `Closed`.
+2. r[module.resource.closed.after] Once the handle is closed or disposed, every further operation returns `.Err(Closed)` and must not trap or access the host resource.
+3. r[module.resource.close.repeated] Closing is itself an operation, so a repeated close returns `.Err(Closed)`.
+4. r[module.resource.aliases] This checked behavior applies through every alias.
+5. r[module.resource.disposable] A closable runtime handle's trait has `std.ops.Disposable` as a supertrait, so a [`using` binding](06-control-flow.md#using-bindings) disposes the handle.
+6. r[module.resource.dispose] Disposing a handle closes it and reports nothing. Disposing a closed handle does nothing.
+
+> **Why.** `Closed` inside the module's own error lets `?` carry a use
+> after close as any other failure of the module, as Go's `net.ErrClosed`
+> does. A close that can fail stays an explicit call that returns a
+> `Result`, since `dispose!` reports nothing.
 
 ## Tooling, ABI, And Unsupported Extensions
 

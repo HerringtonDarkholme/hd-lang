@@ -768,7 +768,7 @@ fn free_udp_port() -> u16 {
 
 /// `Net` and its handles (`std-net.*`, `cli.cap.scope.net`): a lookup, a
 /// TCP listener, connection and stream that read at most `max` bytes and
-/// an empty list at the end, every operation after `close` `Disposed`, an
+/// an empty list at the end, every operation after `close` `Closed`, an
 /// address in use refused, an address or host outside the grant and one
 /// that is no host refused before any connection, and a UDP datagram.
 /// Everything stays on the loopback interface.
@@ -796,8 +796,8 @@ fn net_opens_sockets_inside_the_grant() {
          reply 4\n\
          rest 2\n\
          at end 0\n\
-         ResourceError.Disposed\n\
-         resource disposed\n\
+         NetError.Closed\n\
+         the socket is closed\n\
          listening again\n\
          NetError.NotGranted(address=\"example.com:80\")\n\
          NetError.NotGranted(address=\"example.com\")\n\

@@ -296,21 +296,17 @@ fn width(text: string) -> Result[i32, dyn Error]:
 | `CliError` | `std.cli` |
 | `EnvError` | `std.host` |
 | `RegexError` | `std.regex` |
-| `ResourceError[E]`, when `E < Error` | `std.resource` |
+| `NetError` | `std.net` |
 
 1. r[std-error.std-types.impl] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, dyn Error]`, by [`trait.error.result`](../lang/09-traits.md#r-trait.error.result), and `context` accepts it.
 2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
-4. r[std-error.std-types.resource] `ResourceError[E]` implements `Display` when `E < Display`. `Operation(error)` displays as `error` does, and `Disposed` as `resource disposed`.
-5. r[std-error.std-types.string] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and converts into `dyn Error`.
-6. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
+4. r[std-error.std-types.string] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and converts into `dyn Error`.
+5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
 
 > **Why.** An application error type is the erased `dyn Error` in most
 > scripts. A std error that cannot reach it forces a wrapper type at
 > every call, which Rust's `std::io::Error` and Go's `error` never need.
-
-> **Why.** `ResourceError.Operation` shows its error's text and has no
-> cause, so a report does not print the same text twice.
 
 See also: [Error Trait](../lang/09-traits.md#error-trait),
 [Error Derivation](../lang/14-annotations.md#error-derivation),

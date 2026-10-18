@@ -2,12 +2,11 @@
 # Spec std/net Scripted Net: std-net.scripted.new, std-net.scripted.setup, std-net.scripted.read, std-net.scripted.read-max, std-net.scripted.eof, std-net.scripted.exhausted, std-net.scripted.write, std-net.scripted.failing.
 # Also covers std-net.scripted.decl, std-net.scripted.queue,
 # std-net.scripted.lookup-unknown, std-net.scripted.refused,
-# std-net.scripted.requested, std-net.scripted.closed,
+# std-net.scripted.requested, std-net.scripted.closed-error,
 # std-net.scripted.no-host, std-net.provider.scripted, and
-# std-net.handles.closable.
+# std-net.handles.closed.
 # expect: test
 use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpStream}
-use std.resource.ResourceError
 
 fn text_of(bytes: List[u8]) -> string:
     match string::from_utf8(bytes):
@@ -26,17 +25,17 @@ fn lookup_value!(key: string) -> Result[string, NetError] $ Net:
     _ := stream.close()
     .Ok(reply.trim())
 
-fn bytes_of(result: Result[List[u8], ResourceError[NetError]]) -> List[u8]:
+fn bytes_of(result: Result[List[u8], NetError]) -> List[u8]:
     match result:
         .Ok(bytes) => bytes
         .Err(_) => panic("a scripted read")
 
-fn outcome[T](result: Result[T, ResourceError[NetError]]) -> string:
+fn outcome[T](result: Result[T, NetError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(.Disposed) => "disposed"
-        .Err(.Operation(.Other(message))) => "other: ${message}"
-        .Err(.Operation(error)) => "error: ${error}"
+        .Err(.Closed) => "closed"
+        .Err(.Other(message)) => "other: ${message}"
+        .Err(error) => "error: ${error}"
 
 fn open_stream!(address: string, port: u16) -> mut dyn TcpStream $ Net:
     let mut net = $.use(Net)
@@ -96,16 +95,16 @@ tests:
             assert_equal(outcome(stream.read!(10)), "other: reset", reason="and every later read")
         assert_equal(peer.written(), [1], reason="only the first write")
 
-    it("every operation after close is Disposed"):
+    it("every operation after close is Closed"):
         let mut peer = ScriptedStream::new(["x".to_utf8()])
         let mut net = ScriptedNet::new()
         net.add_connection("feed.local:9000", peer)
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
             assert_equal(outcome(stream.close()), "ok", reason="the first close")
-            assert_equal(outcome(stream.close()), "disposed", reason="a second close")
-            assert_equal(outcome(stream.read!(1)), "disposed", reason="a read")
-            assert_equal(outcome(stream.write!([1])), "disposed", reason="a write")
+            assert_equal(outcome(stream.close()), "closed", reason="a second close")
+            assert_equal(outcome(stream.read!(1)), "closed", reason="a read")
+            assert_equal(outcome(stream.write!([1])), "closed", reason="a write")
         assert_equal(peer.is_closed(), true, reason="the test sees it")
 
     it("serves one address's queue in order, then refuses"):

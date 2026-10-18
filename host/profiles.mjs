@@ -33,17 +33,18 @@ export function providers(name, io) {
       return { "hd:Vault": { keep: (len) => len } };
     // `trait Files: fn open!(self) -> mut FileHandle` and the handle's
     // `trait FileHandle`: `read!(mut self)` and `close(mut self)`, each
-    // returning `Result[_, ResourceError[E]]`. A handle crosses as its
-    // number, which every handle method takes first. `open!` and `read!`
-    // complete at once and decide their result at `.finish`; after its
-    // first `.Ok(())` close, every operation on the handle is
-    // `.Err(ResourceError.Disposed)` (module.resource.disposed).
+    // returning `Result[_, E]`, where `E` is the fixture's error enum with
+    // `Closed` as its second variant. A handle crosses as its number, which
+    // every handle method takes first. `open!` and `read!` complete at once
+    // and decide their result at `.finish`; after its first `.Ok(())`
+    // close, every operation on the handle is `.Err(E.Closed)`
+    // (module.resource.closed.after).
     case "disposed-file": {
       // Whether each handle number is still open; numbers are never reused.
       const files = new Map();
       // The handle number each pending `read!` reads.
       const reads = new Map();
-      // `.Err(Disposed)`: `Err` is variant 1, `Disposed` variant 1.
+      // `.Err(E.Closed)`: `Err` is variant 1, `Closed` variant 1.
       const disposed = () => new io.Enc().leb(1).leb(1);
       const known = (file) => {
         if (!files.has(file)) throw new Error(`no disposed-file handle numbered ${file}`);

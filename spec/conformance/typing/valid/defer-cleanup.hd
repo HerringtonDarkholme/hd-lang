@@ -1,16 +1,15 @@
-use std.resource.ResourceError
-
-data FileError:
-    message: string
+enum FileError:
+    Failed(message: string)
+    Closed
 
 trait FileHandle:
-    fn close(mut self) -> Result[void, ResourceError[FileError]]
-    fn read!(mut self) -> Result[string, ResourceError[FileError]]
+    fn close(mut self) -> Result[void, FileError]
+    fn read!(mut self) -> Result[string, FileError]
 
 trait Files:
-    fn open!(self, path: string) -> Result[mut dyn FileHandle, ResourceError[FileError]]
+    fn open!(self, path: string) -> Result[mut dyn FileHandle, FileError]
 
-fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
+fn read_first!(path: string) -> Result[string, FileError] $ Files:
     let handle: mut dyn FileHandle = $.use(Files).open!(path)?
     defer:
         _ := handle.close()

@@ -1,13 +1,12 @@
-# Spec 10 Closable Handles: module.resource.error, module.resource.result.
-use std.resource.{ResourceError}
-
-data IoError:
-    message: string
+# Spec 10 Closable Handles: module.resource.closed.
+enum IoError:
+    Failed(message: string)
+    Closed
 
 trait FileHandle:
-    fn read!(mut self) -> Result[string, ResourceError[IoError]]
-    fn close(mut self) -> Result[void, ResourceError[IoError]]
+    fn read!(mut self) -> Result[string, IoError]
+    fn close(mut self) -> Result[void, IoError]
 
-fn read_after_close!(handle: mut dyn FileHandle) -> Result[string, ResourceError[IoError]]:
+fn read_after_close!(handle: mut dyn FileHandle) -> Result[string, IoError]:
     _ := handle.close()?
     handle.read!()

@@ -68,7 +68,7 @@ every fixture. They are the items a numbered chapter specifies:
 - the harness from `std.testing`: `it`, `assert`, `assert_equal`, and a
   literal `snapshot`, and the functions of the test registration calls
   `it_each`, `it_prop`, and `it_prop_with`;
-- the lang items and traits of `std.task`, `std.ownership`, `std.resource`, `std.convert`,
+- the lang items and traits of `std.task`, `std.ownership`, `std.convert`,
   `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
   `std.num`, `std.structure`, `std.annotation`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
@@ -338,15 +338,16 @@ mutable when the trait has a `mut self` method, readonly otherwise.
   ([Private Fields At A Boundary](../lang/10-modules.md#private-fields-at-a-boundary)).
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
   The fixture declares exactly these three methods, where `E` is the
-  fixture's own error type:
+  fixture's own error enum, whose second variant is the payload-free
+  `Closed`:
 
   ```text
   trait Files:
       fn open!(self) -> mut FileHandle
 
   trait FileHandle:
-      fn read!(mut self) -> Result[string, ResourceError[E]]
-      fn close(mut self) -> Result[void, ResourceError[E]]
+      fn read!(mut self) -> Result[string, E]
+      fn close(mut self) -> Result[void, E]
   ```
 
   - `open!` completes on its first poll with a fresh open handle.
@@ -354,7 +355,7 @@ mutable when the trait has a `mut self` method, readonly otherwise.
     `.Ok("")`.
   - The first `close` returns `.Ok(())`.
   - After a successful close, every operation on that handle, including a
-    second `close`, returns `.Err(ResourceError.Disposed)` and must not trap.
+    second `close`, returns `.Err(E.Closed)` and must not trap.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
 - `pending-write` implements the prelude `Console`, as `console` does,

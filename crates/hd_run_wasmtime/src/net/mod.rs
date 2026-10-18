@@ -62,7 +62,12 @@ pub(crate) fn call(
         client::Start::Ready(e) => Ret::ready(e),
         client::Start::Closed { reply, handle } => {
             ops::dispose(&mut host.reactor, handle);
-            Ok(Ret::encoded(reply))
+            // `close` replies at once; `dispose!` completes on its start.
+            if at_once {
+                Ok(Ret::encoded(reply))
+            } else {
+                Ret::ready(reply)
+            }
         }
         client::Start::Run(job) => {
             let resource = job.resource();

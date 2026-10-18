@@ -1,17 +1,14 @@
 # test: Result patterns recursively match imported enum payloads
 # Spec 10 Use Forms: module.use.single.
 
-use std.resource.ResourceError
+use std.console.ConsoleError
 
-data Failure:
-    code: i32
-
-fn outcome() -> Result[i32, ResourceError[Failure]]:
-    .Err(ResourceError.Disposed)
+fn outcome() -> Result[i32, ConsoleError]:
+    .Err(ConsoleError.Closed)
 
 fn main() -> i32:
     match outcome():
-        .Err(ResourceError.Disposed) => 42
+        .Err(ConsoleError.Closed) => 42
         _ => 0
 
 tests:

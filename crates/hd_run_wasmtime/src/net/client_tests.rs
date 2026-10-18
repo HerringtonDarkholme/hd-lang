@@ -129,7 +129,7 @@ fn tcp_partial_reads_zero_read_eof_and_disposal_are_sticky() {
             net.call(method, &params, &[], &Grants::default())
                 .unwrap()
                 .done(),
-            &[1, 1]
+            &[1, 5]
         );
     }
     writer.join().unwrap();
@@ -350,12 +350,13 @@ fn stop_closes_a_stream_with_a_waiting_read() {
     net.abort(waiting);
 }
 
+/// `.Err(NetError.Closed)`: `Err` is variant 1, `Closed` variant 5.
 fn disposed() -> &'static [u8] {
-    &[1, 1]
+    &[1, 5]
 }
 
-/// `std-net.close.release` and `std-net.close.pending`: `close` ends a
-/// waiting read with `Disposed`, drops the socket at once, and the peer
+/// `std-net.close.release` and `std-net.close.pending-closed`: `close` ends a
+/// waiting read with `Closed`, drops the socket at once, and the peer
 /// reads the end at once.
 #[test]
 fn close_ends_a_waiting_read_and_releases_the_socket() {
@@ -390,7 +391,7 @@ fn close_ends_a_waiting_read_and_releases_the_socket() {
 }
 
 /// A read and a write both pending, and a read that completed before
-/// its `.finish`, all end with `Disposed`.
+/// its `.finish`, all end with `Closed`.
 #[test]
 fn close_disposes_every_operation_not_yet_finished() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -410,7 +411,7 @@ fn close_disposes_every_operation_not_yet_finished() {
     assert!(!net.reactor.waiting());
 }
 
-/// A closed listener ends its waiting accept with `Disposed` and frees
+/// A closed listener ends its waiting accept with `Closed` and frees
 /// its port, so a new `listen!` on it succeeds.
 #[test]
 fn close_ends_a_waiting_accept_and_frees_the_port() {
@@ -474,7 +475,7 @@ fn closed_udp_send_is_disposed_before_denied_or_invalid_destination() {
             net.call("UdpSocket.send_to", &[handle, 9, 0], args.done(), &denied)
                 .unwrap()
                 .done(),
-            &[1, 1]
+            &[1, 5]
         );
     }
 }
@@ -503,8 +504,7 @@ fn tcp_reset_is_sticky_after_queued_bytes_are_delivered() {
         .unwrap();
     let mut decoded = Dec::new(first.done());
     assert_eq!(decoded.leb().unwrap(), 1);
-    assert_eq!(decoded.leb().unwrap(), 0);
-    assert_eq!(decoded.leb().unwrap(), 5);
+    assert_eq!(decoded.leb().unwrap(), 6);
     assert!(decoded.str().unwrap().starts_with("read: "));
     let again = net
         .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
@@ -519,8 +519,7 @@ fn tcp_reset_is_sticky_after_queued_bytes_are_delivered() {
     let mut expected = Enc::default();
     expected
         .leb(1)
-        .leb(0)
-        .leb(5)
+        .leb(6)
         .str("cannot write to a failed TCP stream");
     assert_eq!(
         net.call(
@@ -550,7 +549,7 @@ fn some_millis(millis: i64) -> Enc {
 /// `std-net.option.nodelay`, `std-net.option.keepalive` and
 /// `std-net.option.default`: a connected or accepted stream starts at
 /// the system default, each option reads back from the socket, and a
-/// closed handle is `Disposed`.
+/// closed handle is `Closed`.
 #[test]
 fn nodelay_and_keepalive_set_the_socket_and_start_at_the_default() {
     use socket2::SockRef;
@@ -632,7 +631,7 @@ fn nodelay_and_keepalive_set_the_socket_and_start_at_the_default() {
 
 /// `std-net.local-address`: a port-0 listener and UDP socket report the
 /// port the system picked, a client connects to it, and a closed handle
-/// is `Disposed`.
+/// is `Closed`.
 #[test]
 fn local_address_reports_the_picked_port() {
     let mut net = Net::new();

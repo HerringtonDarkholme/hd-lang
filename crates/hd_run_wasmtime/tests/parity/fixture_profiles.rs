@@ -469,7 +469,7 @@ fn disposed_file_open_read_close_then_reports_disposed() {
     let (wasm, expected) = program.finish(7);
     assert_eq!(
         expected, "01\n0000\n00\n0101\n0101\n",
-        "open, .Ok(\"\"), .Ok(()), then .Err(Disposed) twice"
+        "open, .Ok(\"\"), .Ok(()), then .Err(Closed) twice"
     );
     let captured = run_captured_with_profile(
         EngineConfig::default(),

@@ -76,15 +76,18 @@ fn host(
         | Id::NetTcpStreamSetNodelay
         | Id::NetTcpStreamSetKeepalive
         | Id::NetTcpStreamClose
+        | Id::NetTcpStreamDispose
         | Id::NetTcpListenerAccept
         | Id::NetTcpListenerSetTimeout
         | Id::NetTcpListenerLocalAddress
         | Id::NetTcpListenerClose
+        | Id::NetTcpListenerDispose
         | Id::NetUdpSocketSendTo
         | Id::NetUdpSocketReceive
         | Id::NetUdpSocketSetTimeout
         | Id::NetUdpSocketLocalAddress
-        | Id::NetUdpSocketClose => {
+        | Id::NetUdpSocketClose
+        | Id::NetUdpSocketDispose => {
             let input = (Kind::Host { method, finish }).input();
             net::call(method, finish, input, caller, params)
         }

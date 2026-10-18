@@ -1,11 +1,11 @@
 # test: every std error type implements Error, so ? converts it into Result[T, Error] and context wraps it
-# Spec std/error Standard Error Types: std-error.std-types.impl, std-error.std-types.resource (spec pass 89, audit item 2).
+# Spec std/error Standard Error Types: std-error.std-types.impl (spec pass 89, audit item 2).
 use std.error.{Error, report_of}
 use std.fs.FsError
 use std.json.{Json, parse}
 use std.num.{ParseNumberError, parse_i32}
 use std.path.Path
-use std.resource.ResourceError
+use std.net.NetError
 use std.time.Timestamp
 
 fn count(text: string) -> Result[i32, dyn Error]:
@@ -33,8 +33,8 @@ fn read_missing(path: string) -> Result[string, FsError]:
 fn read_closed() -> Result[string, ConsoleError]:
     .Err(ConsoleError.Closed)
 
-fn read_disposed() -> Result[i32, ResourceError[ParseNumberError]]:
-    .Err(ResourceError.Disposed)
+fn read_socket() -> Result[i32, NetError]:
+    .Err(NetError.Closed)
 
 fn missing(path: string) -> Result[string, dyn Error]:
     text := read_missing(path)?
@@ -44,8 +44,8 @@ fn closed() -> Result[string, dyn Error]:
     line := read_closed()?
     .Ok(line)
 
-fn disposed() -> Result[i32, dyn Error]:
-    value := read_disposed()?
+fn socket() -> Result[i32, dyn Error]:
+    value := read_socket()?
     .Ok(value)
 
 fn message(result: Result[i32, dyn Error]) -> string:
@@ -64,7 +64,7 @@ tests:
         assert(utf8([255]).is_err(), reason="Utf8Error")
         assert(missing("a.txt").is_err(), reason="FsError")
         assert(closed().is_err(), reason="ConsoleError")
-        assert_equal(message(disposed()), "resource disposed", reason="ResourceError")
+        assert_equal(message(socket()), "the socket is closed", reason="NetError")
 
     it("wraps with context"):
         match parse_i32("x").context("reading the count"):

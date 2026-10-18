@@ -1,6 +1,6 @@
 //! A runtime profile's host method may return a value of another trait
 //! the profile declares itself: a handle the profile made
-//! (`module.resource.*`, spec/conformance/README.md "Runtime Profiles").
+//! (`module.resource.closed`, spec/conformance/README.md "Runtime Profiles").
 //! It crosses as its number, and its methods are imported from
 //! `hd:<Trait>` by name with the number first. A handle trait that one
 //! of its own methods returns does not cross.
@@ -11,14 +11,13 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 const FILES: &str = "\
-use std.resource.ResourceError
-
-pub data IoError:
-    pub message: string
+pub enum IoError:
+    Failed(message: string)
+    Closed
 
 pub trait FileHandle:
-    fn read!(mut self) -> Result[string, ResourceError[IoError]]
-    fn close(mut self) -> Result[void, ResourceError[IoError]]
+    fn read!(mut self) -> Result[string, IoError]
+    fn close(mut self) -> Result[void, IoError]
 ";
 
 const MAIN: &str = "

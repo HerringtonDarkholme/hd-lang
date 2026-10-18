@@ -1,12 +1,11 @@
 # test: ScriptedNet answers listen! and bind_udp! with scripted handles that accept, receive, and record in order
-# Spec std/net Scripted Net: std-net.scripted.accept, std-net.scripted.udp, std-net.scripted.queue, std-net.scripted.refused, std-net.scripted.closed.
+# Spec std/net Scripted Net: std-net.scripted.accept, std-net.scripted.udp, std-net.scripted.queue, std-net.scripted.refused, std-net.scripted.closed-error.
 # Also covers std-net.scripted.decl, std-net.scripted.new,
 # std-net.scripted.setup, std-net.scripted.requested,
 # std-net.scripted.read, std-net.scripted.eof, std-net.scripted.write,
-# std-net.datagram.traits, and std-net.handles.closable.
+# std-net.datagram.traits, and std-net.handles.closed.
 # expect: test
 use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp}
-use std.resource.ResourceError
 
 fn serve_one!() -> Result[usize, NetError] $ Net:
     let mut net = $.use(Net)
@@ -50,17 +49,17 @@ fn ping!(host: string, port: u16) -> Result[bool, NetError] $ Net:
         .Ok(datagram) => .Ok(datagram.bytes == "pong".to_utf8())
         .Err(_) => .Ok(false)
 
-fn bytes_of(result: Result[List[u8], ResourceError[NetError]]) -> List[u8]:
+fn bytes_of(result: Result[List[u8], NetError]) -> List[u8]:
     match result:
         .Ok(bytes) => bytes
         .Err(_) => panic("a scripted read")
 
-fn outcome[T](result: Result[T, ResourceError[NetError]]) -> string:
+fn outcome[T](result: Result[T, NetError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(.Disposed) => "disposed"
-        .Err(.Operation(.Other(message))) => "other: ${message}"
-        .Err(.Operation(error)) => "error: ${error}"
+        .Err(.Closed) => "closed"
+        .Err(.Other(message)) => "other: ${message}"
+        .Err(error) => "error: ${error}"
 
 tests:
     use std.testing.assert_equal
@@ -104,7 +103,7 @@ tests:
             assert_equal(outcome(listener.close()), "ok", reason="close")
             match listener.accept!():
                 .Ok(_) => panic("closed")
-                .Err(error) => assert_equal(outcome::[void](.Err(error)), "disposed", reason="after close")
+                .Err(error) => assert_equal(outcome::[void](.Err(error)), "closed", reason="after close")
         assert_equal(first.written(), [1], reason="the first accept")
         assert_equal(second.written(), [2], reason="the second accept")
 
@@ -129,7 +128,7 @@ tests:
             assert_equal(ping!("10.0.0.7", 9000), .Ok(true), reason="pong")
         assert_equal(socket.sent(), [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="the ping")
 
-    it("cuts a datagram to max, fails past the last, and is Disposed after close"):
+    it("cuts a datagram to max, fails past the last, and is Closed after close"):
         let mut socket = ScriptedUdp::new([Datagram { bytes: "hello".to_utf8(), host: "10.0.0.7", port: 9000 }])
         let mut net = ScriptedNet::new()
         net.add_udp("0.0.0.0:5000", socket)
@@ -143,7 +142,7 @@ tests:
                 .Err(_) => panic("a scripted datagram")
             assert_equal(outcome(udp.receive!(3)), "other: ScriptedUdp has no more datagrams", reason="exhausted")
             assert_equal(outcome(udp.close()), "ok", reason="close")
-            assert_equal(outcome(udp.send_to!("10.0.0.7", 9000, [1])), "disposed", reason="after close")
+            assert_equal(outcome(udp.send_to!("10.0.0.7", 9000, [1])), "closed", reason="after close")
             match client.bind_udp!("0.0.0.0", 5000):
                 .Ok(_) => panic("the queue is empty")
                 .Err(error) => assert_equal(error, NetError.Refused("0.0.0.0:5000"), reason="an emptied queue")

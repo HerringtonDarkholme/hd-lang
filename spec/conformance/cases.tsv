@@ -438,6 +438,7 @@ runtime/valid/test-block-on.hd	runtime	accept	lang/11-requirements-and-suspensio
 runtime/panic/reentrant-cancel.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/construction-provider-capture.hd	runtime	accept	lang/11-requirements-and-suspension.md#construction-time-requirement-binding
 runtime/valid/resource-disposed-result.hd	runtime	accept	lang/10-modules.md#wasm-boundary
+typing/valid/closable-handle-closed.hd	type	accept	lang/10-modules.md#closable-handles
 runtime/panic/competing-suspension-drivers.hd	runtime	panic:suspension-competing-driver	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/reentrant-suspension-poll.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
 typing/valid/console-error-entry.hd	type	accept	lang/10-modules.md#entry-point
@@ -702,7 +703,6 @@ typing/valid/match-guard-reads-binding.hd	type	accept	lang/06-control-flow.md#ma
 runtime/valid/match-guards.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/valid/optional-propagation.hd	runtime	accept	lang/04-type-system.md#optional-types
 runtime/valid/result-propagation.hd	runtime	accept	lang/04-type-system.md#result-types
-runtime/valid/resource-error-operation-payload.hd	runtime	accept	lang/10-modules.md#use-forms
 runtime/valid/result-pattern-nested-enum.hd	runtime	accept	lang/10-modules.md#use-forms
 typing/warnings/unused-nested-optional-binding.hd	type	warn:unused-local-binding	lang/04-type-system.md#optional-types
 typing/invalid/discarded-optional-result.hd	type	reject:discarded-must-use-value	lang/06-control-flow.md#blocks-and-completion
@@ -3066,6 +3066,7 @@ runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
 runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/net-scripted-stream.hd	runtime	accept	std/net.md#scripted-net
+runtime/valid/net-using-dispose.hd	runtime	accept	std/net.md#socket-handles
 runtime/valid/net-scripted-servers.hd	runtime	accept	std/net.md#r-std-net.scripted.accept
 runtime/valid/net-timeouts.hd	runtime	accept	std/net.md#timeouts
 runtime/valid/net-socket-options.hd	runtime	accept	std/net.md#socket-options

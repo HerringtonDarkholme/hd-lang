@@ -73,7 +73,7 @@ pub(crate) enum Job {
 
 /// A completed operation, for its `.finish` to encode.
 pub struct Done {
-    /// Whether the result is a handle's, `Result[T, ResourceError[NetError]]`.
+    /// Whether the result is a handle's (`Result[T, NetError]` too).
     pub(crate) resource: bool,
     pub(crate) result: Result<Got, NetError>,
 }
@@ -84,7 +84,7 @@ pub(crate) enum Got {
     /// A new socket, which `.finish` puts in the handle table.
     Opened(Opened),
     /// The operation ended because its handle closed
-    /// (`std-net.close.pending`).
+    /// (`std-net.close.pending-closed`).
     Disposed,
     /// A read's bytes from the stream with handle `handle`.
     Bytes {
@@ -112,7 +112,7 @@ const OWNER: &str = "Net";
 
 /// `close` of socket `handle`: every operation still pending on it ends
 /// with `Disposed`, and its task drops the socket it held
-/// (`std-net.close.pending`).
+/// (`std-net.close.pending-closed`).
 pub(crate) fn dispose(reactor: &mut Reactor, handle: i64) {
     reactor.dispose_owned((OWNER, handle), || {
         crate::runtime::reactor::Done::Net(Done {

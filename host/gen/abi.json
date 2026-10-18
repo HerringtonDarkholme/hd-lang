@@ -72,25 +72,28 @@
   ],
   "handles": [
     { "key": "Net", "std": "std.net.TcpStream", "methods": [
-      { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], ResourceError[NetError]]" },
-      { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "TcpStream.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "TcpStream.set_nodelay", "wait": "never", "resource": null, "params": ["i32", "i32"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "TcpStream.set_keepalive", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "TcpStream.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+      { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], NetError]" },
+      { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, NetError]" },
+      { "name": "TcpStream.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, NetError]" },
+      { "name": "TcpStream.set_nodelay", "wait": "never", "resource": null, "params": ["i32", "i32"], "result": "Result[void, NetError]" },
+      { "name": "TcpStream.set_keepalive", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, NetError]" },
+      { "name": "TcpStream.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, NetError]" },
+      { "name": "TcpStream.dispose", "wait": "may", "resource": null, "params": ["i32"], "result": "void" }
     ]},
     { "key": "Net", "std": "std.net.TcpListener", "methods": [
-      { "name": "TcpListener.accept", "wait": "may", "resource": null, "params": ["i32"], "result": "Result[TcpStream, ResourceError[NetError]]" },
-      { "name": "TcpListener.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "TcpListener.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), ResourceError[NetError]]" },
-      { "name": "TcpListener.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+      { "name": "TcpListener.accept", "wait": "may", "resource": null, "params": ["i32"], "result": "Result[TcpStream, NetError]" },
+      { "name": "TcpListener.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, NetError]" },
+      { "name": "TcpListener.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), NetError]" },
+      { "name": "TcpListener.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, NetError]" },
+      { "name": "TcpListener.dispose", "wait": "may", "resource": null, "params": ["i32"], "result": "void" }
     ]},
     { "key": "Net", "std": "std.net.UdpSocket", "methods": [
-      { "name": "UdpSocket.send_to", "wait": "may", "resource": "addr", "params": ["i32", "string", "i32", "List[u8]"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "UdpSocket.receive", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[Datagram, ResourceError[NetError]]" },
-      { "name": "UdpSocket.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, ResourceError[NetError]]" },
-      { "name": "UdpSocket.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), ResourceError[NetError]]" },
-      { "name": "UdpSocket.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, ResourceError[NetError]]" }
+      { "name": "UdpSocket.send_to", "wait": "may", "resource": "addr", "params": ["i32", "string", "i32", "List[u8]"], "result": "Result[void, NetError]" },
+      { "name": "UdpSocket.receive", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[Datagram, NetError]" },
+      { "name": "UdpSocket.set_timeout", "wait": "never", "resource": null, "params": ["i32", "Duration?"], "result": "Result[void, NetError]" },
+      { "name": "UdpSocket.local_address", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[(string, u16), NetError]" },
+      { "name": "UdpSocket.close", "wait": "never", "resource": null, "params": ["i32"], "result": "Result[void, NetError]" },
+      { "name": "UdpSocket.dispose", "wait": "may", "resource": null, "params": ["i32"], "result": "void" }
     ]}
   ],
   "types": {
@@ -155,6 +158,7 @@
       { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
       { "name": "Refused", "fields": [{ "name": "address", "type": "string" }] },
       { "name": "Timeout", "fields": [] },
+      { "name": "Closed", "fields": [] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },
     "Path": { "kind": "newtype", "module": "lib/std/path.hd", "of": "string" },
@@ -168,10 +172,6 @@
     "ProcessOutput": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "stdout", "type": "string" }, { "name": "stderr", "type": "string" }, { "name": "status", "type": "i32" }] },
     "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },
     "Request": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "timeout", "type": "Duration?" }] },
-    "ResourceError": { "kind": "enum", "module": "lib/std/resource.hd", "generics": ["E"], "variants": [
-      { "name": "Operation", "fields": [{ "name": "error", "type": "E" }] },
-      { "name": "Disposed", "fields": [] }
-    ] },
     "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] },
     "SysError": { "kind": "enum", "module": "lib/std/sys.hd", "generics": [], "variants": [
       { "name": "NotGranted", "fields": [{ "name": "name", "type": "string" }] },

@@ -187,7 +187,7 @@ impl State {
         self.next_file
     }
 
-    /// `read!` of the handle: `.Ok("")` while open, `.Err(Disposed)` after
+    /// `read!` of the handle: `.Ok("")` while open, `.Err(Closed)` after
     /// its close. An unknown number is a guest bug.
     pub(crate) fn read_file(&self, file: i32) -> Result<Vec<u8>, String> {
         match self.files.get(&file) {
@@ -201,7 +201,7 @@ impl State {
         }
     }
 
-    /// `close` of the handle: `.Ok(())` once, `.Err(Disposed)` after.
+    /// `close` of the handle: `.Ok(())` once, `.Err(Closed)` after.
     pub(crate) fn close_file(&mut self, file: i32) -> Result<Vec<u8>, String> {
         match self.files.get_mut(&file) {
             Some(open @ true) => {
@@ -216,8 +216,8 @@ impl State {
     }
 }
 
-/// `.Err(ResourceError.Disposed)`: `Operation` is variant 0, `Disposed`
-/// variant 1 (`std.resource`), crossed as unsigned LEB128 like every
+/// `.Err(E.Closed)`: `Err` is variant 1, and `Closed` is variant 1 of the
+/// fixture's error enum `E`, crossed as unsigned LEB128 like every
 /// `Result` error (`fs::api`).
 fn disposed() -> Vec<u8> {
     let mut encoded = Enc::default();

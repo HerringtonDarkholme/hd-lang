@@ -1,13 +1,12 @@
-# Spec 10 Closable Handles: module.resource.error, module.resource.result, module.resource.disposed.
+# Spec 10 Closable Handles: module.resource.closed, module.resource.closed.after, module.resource.close.repeated.
 # fixture-runtime-profile: disposed-file
-use std.resource.ResourceError
-
-pub data IoError:
-    pub message: string
+pub enum IoError:
+    Failed(message: string)
+    Closed
 
 pub trait FileHandle:
-    fn read!(mut self) -> Result[string, ResourceError[IoError]]
-    fn close(mut self) -> Result[void, ResourceError[IoError]]
+    fn read!(mut self) -> Result[string, IoError]
+    fn close(mut self) -> Result[void, IoError]
 
 pub trait Files:
     fn open!(self) -> mut dyn FileHandle
@@ -18,5 +17,8 @@ pub fn main!() -> void $ Files:
         .Ok(_) => pass
         .Err(_) => panic("fixture host failed to close its handle")
     match handle.read!():
-        .Err(ResourceError.Disposed) => pass
-        _ => panic("operation after close did not report Disposed")
+        .Err(IoError.Closed) => pass
+        _ => panic("operation after close did not report Closed")
+    match handle.close():
+        .Err(IoError.Closed) => pass
+        _ => panic("a second close did not report Closed")

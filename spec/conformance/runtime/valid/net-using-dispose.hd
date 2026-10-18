@@ -1,0 +1,33 @@
+# expect-stdout: Result.Ok([111, 107])
+# expect-stdout: closed true
+# expect-stdout: Result.Err(NetError.Closed)
+# expect-stdout: Result.Err(NetError.Closed)
+# expect-stdout: the socket is closed
+# test: a using binding disposes a net handle at scope exit, after which every operation returns NetError.Closed
+# Spec std/net Socket Handles: std-net.handles.closed, std-net.dispose, std-net.error.closed, std-net.error.closed.text, std-net.scripted.closed-error, std-net.scripted.dispose.
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpStream}
+
+fn greet!(host: string) -> Result[List[u8], NetError] $ Net:
+    using stream = $.use(Net).connect!(host, 7)?
+    stream.write!([104, 105])?
+    stream.read!(16)
+
+fn twice!(stream: mut dyn TcpStream) -> void:
+    using first = stream
+    using second = stream
+    pass
+
+pub fn main!() -> void $ Console:
+    let mut peer = ScriptedStream::new([[111, 107]])
+    let mut net = ScriptedNet::new()
+    net.add_connection("echo:7", peer)
+    $.with(Net=net):
+        println(debug(greet!("echo")))
+    println("closed ${peer.is_closed()}")
+    println(debug(peer.read!(4)))
+    let mut other = ScriptedStream::new([])
+    twice!(other)
+    println(debug(other.close()))
+    match other.write!([1]):
+        .Err(error) => println(error.to_string())
+        .Ok(_) => println("written")

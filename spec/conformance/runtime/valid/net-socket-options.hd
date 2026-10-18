@@ -1,6 +1,6 @@
 # test: set_nodelay and set_keepalive set a stream's options, and ScriptedStream records them
-# Spec std/net Socket Options: std-net.option.nodelay, std-net.option.keepalive, std-net.option.closed, std-net.scripted.options.
-# Also covers std-net.handles.decl, std-net.scripted.closed, and
+# Spec std/net Socket Options: std-net.option.nodelay, std-net.option.keepalive, std-net.option.after-close, std-net.scripted.options.
+# Also covers std-net.handles.decl, std-net.scripted.closed-error, and
 # std-net.scripted.write.
 # expect: test
 use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpStream}
@@ -37,14 +37,14 @@ tests:
         assert_equal(stream.nodelay(), false, reason="nodelay off")
         assert_equal(stream.keepalive(), .None, reason="keep-alive off")
 
-    it("an option after close is Disposed"):
+    it("an option after close is Closed"):
         let mut stream = ScriptedStream::new([])
         _ := stream.close()
         match stream.set_nodelay(true):
             .Ok(_) => panic("closed")
-            .Err(.Disposed) => pass
-            .Err(_) => panic("Disposed")
+            .Err(.Closed) => pass
+            .Err(_) => panic("Closed")
         match stream.set_keepalive(.None):
             .Ok(_) => panic("closed")
-            .Err(.Disposed) => pass
-            .Err(_) => panic("Disposed")
+            .Err(.Closed) => pass
+            .Err(_) => panic("Closed")

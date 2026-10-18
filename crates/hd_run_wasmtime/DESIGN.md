@@ -315,8 +315,11 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   trait value whose payload is a struct of the number and whose vtable's
   slots (`Helper::HandleSlot`) call `hd:Net` `<Trait>.<method>` with the
   number first. The host keeps a closed handle's number, so every later
-  call on it is `Disposed`
-  ([`std-net.handles.closable`](../../spec/std/net.md#r-std-net.handles.closable)).
+  call on it is `NetError.Closed`
+  ([`std-net.handles.closed`](../../spec/std/net.md#r-std-net.handles.closed)).
+  A supertrait's vtable, as `std.ops.Disposable`'s, is built the same
+  way inside it: `Disposable.dispose!` calls `<Trait>.dispose`, which
+  closes an open handle and does nothing for a closed one.
   A runtime profile's own trait that a profile method returns crosses
   the same way, its slots imported from `hd:<Trait>` by method name with
   the number first (the `disposed-file` profile's `FileHandle`). A trait
@@ -346,8 +349,7 @@ The structured values of the ABI table, byte by byte:
 | `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name |
 | `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, its header pairs (a count, then each name and value), its body, and its timeout as a `Duration?` (a `Duration` is its milliseconds, zigzag) |
 | `Response` | its status, its header pairs, its body |
-| `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Timeout` 4, `Other` 5), then its text, except `Timeout`, which has none |
-| `ResourceError[NetError]` | `0` (`Operation`) and the `NetError`, or `1` (`Disposed`) |
+| `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Timeout` 4, `Closed` 5, `Other` 6), then its text, except `Timeout` and `Closed`, which have none; a handle's method returns it too |
 | `Datagram` | its bytes, its host, its port |
 | `HttpError` | the variant index (`NotGranted` 0, `InvalidUrl` 1, `Dns` 2, `Connect` 3, `Tls` 4, `Timeout` 5, `TooManyRedirects` 6, `Other` 7), then its text, which `Timeout` lacks |
 

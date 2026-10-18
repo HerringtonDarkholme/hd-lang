@@ -9,7 +9,7 @@ use std::time::Duration;
 use hd_run::Grants;
 
 pub(crate) use crate::abi::NetError;
-use crate::abi::{self, Datagram, ResourceError};
+use crate::abi::{self, Datagram};
 use crate::codec::{Dec, Enc, Handle, Wire, encode};
 use crate::host::Stop;
 
@@ -31,7 +31,7 @@ enum Entry {
     Stream(Arc<Stream>),
     Listener(Arc<tokio::net::TcpListener>),
     Udp(Arc<Udp>),
-    /// Closed, so every later operation is `Disposed`. Its socket is gone.
+    /// Closed, so every later operation is `Closed`. Its socket is gone.
     Closed,
 }
 
@@ -114,7 +114,23 @@ impl Client {
             }
             _ => (String::new(), Vec::new()),
         };
-        // Closable Handles requires Disposed through every alias before any
+        // `dispose!` closes an open handle and reports nothing; disposing a
+        // closed one does nothing (`std-net.dispose`).
+        if method.ends_with(".dispose") {
+            let handle = scalar(0)?;
+            return match self.handles.get(&handle) {
+                None => ready(Outcome::Unknown),
+                Some(Entry::Closed) => Ok(Start::Ready(Enc::default())),
+                Some(_) => {
+                    self.close(handle);
+                    Ok(Start::Closed {
+                        reply: Enc::default(),
+                        handle,
+                    })
+                }
+            };
+        }
+        // Closable Handles requires Closed through every alias before any
         // destination validation or grant check.
         let entry = if resource {
             match self.handles.get(&scalar(0)?) {
@@ -407,10 +423,10 @@ fn port(value: i64) -> wasmtime::Result<u16> {
     u16::try_from(value).map_err(|_| Stop::Contract("a Net port is outside u16".into()).into())
 }
 
-/// An operation's encoded result: `Result[T, NetError]` for a `Net`
-/// method, `Result[T, ResourceError[NetError]]` for a handle's
-/// (`resource`), where `T` is what its value holds.
-fn reply(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
+/// An operation's encoded result: `Result[T, NetError]`, where `T` is what
+/// its value holds; an operation on a closed handle is `Closed`
+/// (`std-net.handles.closed`).
+fn reply(outcome: Outcome, _resource: bool) -> wasmtime::Result<Enc> {
     fn ok<T: Wire>(value: T) -> Enc {
         encode(&Ok::<T, NetError>(value))
     }
@@ -420,10 +436,7 @@ fn reply(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
                 Stop::Contract("an operation on a handle the host never made".into()).into(),
             );
         }
-        Outcome::Disposed => encode(&Err::<(), _>(ResourceError::<NetError>::Disposed)),
-        Outcome::Error(error) if resource => {
-            encode(&Err::<(), _>(ResourceError::Operation { error }))
-        }
+        Outcome::Disposed => encode(&Err::<(), _>(NetError::Closed)),
         Outcome::Error(error) => encode(&Err::<(), _>(error)),
         Outcome::Ok(Value::None) => ok(()),
         Outcome::Ok(Value::Handle(handle)) => ok(Handle(handle)),

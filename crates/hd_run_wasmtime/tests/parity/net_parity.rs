@@ -15,12 +15,15 @@ use wasm_encoder::{Instruction as I, ValType};
 
 /// `NetError.Timeout`'s variant, which has no field.
 const TIMEOUT: u64 = 4;
+/// `NetError.Closed`'s variant, which has no field.
+const CLOSED: u8 = 5;
 
 fn net_error(variant: u64, text: &str) -> Vec<u8> {
     Enc::default().leb(1).leb(variant).str(text).0
 }
+/// A handle method's error: `NetError` itself (`std-net.handles.closed`).
 fn operation_error(variant: u64, text: &str) -> Vec<u8> {
-    Enc::default().leb(1).leb(0).leb(variant).str(text).0
+    net_error(variant, text)
 }
 fn open(p: &mut Program, method: &str, host: &str, port: u16, result: Vec<u8>) {
     p.abi_call(
@@ -165,15 +168,15 @@ fn tcp_binary_write_read_zero_partial_reads_eof_and_disposal() {
         handle(&mut p, "TcpStream.read", &[1, 8], None, vec![0, 0]);
     }
     handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpStream.read", &[1, 0], None, vec![1, 1]);
+    handle(&mut p, "TcpStream.read", &[1, 0], None, vec![1, CLOSED]);
     handle(
         &mut p,
         "TcpStream.write",
         &[1],
         Some(&Enc::default().bytes(b"x").0),
-        vec![1, 1],
+        vec![1, CLOSED],
     );
-    handle(&mut p, "TcpStream.close", &[1], None, vec![1, 1]);
+    handle(&mut p, "TcpStream.close", &[1], None, vec![1, CLOSED]);
     assert_program(
         &scratch,
         p,
@@ -208,8 +211,8 @@ fn tcp_listener_accept_write_close_and_disposed_accept() {
     );
     handle(&mut p, "TcpStream.close", &[2], None, vec![0]);
     handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpListener.accept", &[1], None, vec![1, 1]);
-    handle(&mut p, "TcpListener.close", &[1], None, vec![1, 1]);
+    handle(&mut p, "TcpListener.accept", &[1], None, vec![1, CLOSED]);
+    handle(&mut p, "TcpListener.close", &[1], None, vec![1, CLOSED]);
     let clients = Mutex::new(Vec::new());
     assert_program(&scratch, p, vec![], || {
         clients.lock().unwrap().push(std::thread::spawn(move || {
@@ -270,7 +273,7 @@ fn tcp_timed_out_read_keeps_the_stream_and_zero_bound_returns_only_buffered_byte
         peer.read_to_end(&mut rest).unwrap();
         assert!(rest.is_empty(), "the guest writes nothing more");
     });
-    let timed_out = Enc::default().leb(1).leb(0).leb(TIMEOUT).0;
+    let timed_out = Enc::default().leb(1).leb(TIMEOUT).0;
     let mut p = Program::new();
     open(
         &mut p,
@@ -315,7 +318,7 @@ fn tcp_timed_out_read_keeps_the_stream_and_zero_bound_returns_only_buffered_byte
         "TcpStream.set_timeout",
         &[1],
         Some(&bound(None)),
-        vec![1, 1],
+        vec![1, CLOSED],
     );
     assert_program(
         &scratch,
@@ -368,13 +371,19 @@ fn tcp_nodelay_and_keepalive_set_and_a_closed_stream_is_disposed() {
         vec![0],
     );
     handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpStream.set_nodelay", &[1, 1], None, vec![1, 1]);
+    handle(
+        &mut p,
+        "TcpStream.set_nodelay",
+        &[1, 1],
+        None,
+        vec![1, CLOSED],
+    );
     handle(
         &mut p,
         "TcpStream.set_keepalive",
         &[1],
         Some(&bound(None)),
-        vec![1, 1],
+        vec![1, CLOSED],
     );
     assert_program(
         &scratch,
@@ -486,7 +495,7 @@ fn bounded_accept_and_receive_time_out_and_the_handles_stay_open() {
     let scratch = Scratch::new();
     let echo = UdpFixture::new();
     let echo_port = echo.address.port();
-    let timed_out = Enc::default().leb(1).leb(0).leb(TIMEOUT).0;
+    let timed_out = Enc::default().leb(1).leb(TIMEOUT).0;
     let mut p = Program::new();
     open(&mut p, "listen", "127.0.0.1", 0, vec![0, 1]);
     set_timeout(&mut p, "TcpListener", 1, Some(0));
@@ -643,9 +652,9 @@ fn udp_binary_truncation_zero_receive_consumption_and_each_send_grant() {
         operation_error(1, &format!("bad host:{port}")),
     );
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
-    handle(&mut p, "UdpSocket.receive", &[1, 1], None, vec![1, 1]);
-    send(&mut p, "127.0.0.1", port, b"closed", vec![1, 1]);
-    handle(&mut p, "UdpSocket.close", &[1], None, vec![1, 1]);
+    handle(&mut p, "UdpSocket.receive", &[1, 1], None, vec![1, CLOSED]);
+    send(&mut p, "127.0.0.1", port, b"closed", vec![1, CLOSED]);
+    handle(&mut p, "UdpSocket.close", &[1], None, vec![1, CLOSED]);
     assert_program(
         &scratch,
         p,
@@ -821,8 +830,8 @@ fn closed_udp_disposed_precedes_denied_or_invalid_destination() {
     let mut p = Program::new();
     open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 1]);
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
-    send(&mut p, "127.0.0.2", 9, b"denied", vec![1, 1]);
-    send(&mut p, "bad host", 9, b"invalid", vec![1, 1]);
+    send(&mut p, "127.0.0.2", 9, b"denied", vec![1, CLOSED]);
+    send(&mut p, "bad host", 9, b"invalid", vec![1, CLOSED]);
     assert_program(
         &scratch,
         p,
@@ -959,7 +968,7 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
         "::1",
         9,
         b"x",
-        operation_error(5, &format!("send [::1]:9: {native}")),
+        operation_error(6, &format!("send [::1]:9: {native}")),
     );
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
     let (wasm, expected) = p.finish(7);
@@ -986,9 +995,9 @@ fn address(host: &str, port: u16) -> Vec<u8> {
 }
 
 /// `std-net.local-address`: a listener and a UDP socket report their bound
-/// address, the same bytes on both engines, and `Disposed` after close.
+/// address, the same bytes on both engines, and `Closed` after close.
 #[test]
-fn local_address_reports_the_bound_address_and_a_closed_handle_is_disposed() {
+fn local_address_reports_the_bound_address_and_a_closed_handle_is_closed() {
     let scratch = Scratch::new();
     // The port is leased as in the accept test above, so both engines
     // report the same bytes.
@@ -1012,9 +1021,19 @@ fn local_address_reports_the_bound_address_and_a_closed_handle_is_disposed() {
         address("127.0.0.1", tcp),
     );
     handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 2]);
-    handle(&mut p, "TcpStream.close", &[2], None, vec![0]);
+    // `std-net.dispose`: a dispose closes an open handle, and one of a
+    // closed handle does nothing.
+    handle(&mut p, "TcpStream.dispose", &[2], None, vec![]);
+    handle(&mut p, "TcpStream.close", &[2], None, vec![1, CLOSED]);
     handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpListener.local_address", &[1], None, vec![1, 1]);
+    handle(&mut p, "TcpListener.dispose", &[1], None, vec![]);
+    handle(
+        &mut p,
+        "TcpListener.local_address",
+        &[1],
+        None,
+        vec![1, CLOSED],
+    );
     open(&mut p, "bind_udp", "127.0.0.1", udp, vec![0, 3]);
     handle(
         &mut p,
@@ -1024,7 +1043,13 @@ fn local_address_reports_the_bound_address_and_a_closed_handle_is_disposed() {
         address("127.0.0.1", udp),
     );
     handle(&mut p, "UdpSocket.close", &[3], None, vec![0]);
-    handle(&mut p, "UdpSocket.local_address", &[3], None, vec![1, 1]);
+    handle(
+        &mut p,
+        "UdpSocket.local_address",
+        &[3],
+        None,
+        vec![1, CLOSED],
+    );
     let clients = Mutex::new(Vec::new());
     assert_program(&scratch, p, vec![], || {
         clients.lock().unwrap().push(std::thread::spawn(move || {
@@ -1063,11 +1088,23 @@ fn local_address_of_port_zero_reports_the_port_the_system_picked() {
     open(&mut p, "listen", "127.0.0.1", 0, vec![0, 1]);
     handle(&mut p, "TcpListener.local_address", &[1], None, vec![]);
     handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
-    handle(&mut p, "TcpListener.local_address", &[1], None, vec![1, 1]);
+    handle(
+        &mut p,
+        "TcpListener.local_address",
+        &[1],
+        None,
+        vec![1, CLOSED],
+    );
     open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 2]);
     handle(&mut p, "UdpSocket.local_address", &[2], None, vec![]);
     handle(&mut p, "UdpSocket.close", &[2], None, vec![0]);
-    handle(&mut p, "UdpSocket.local_address", &[2], None, vec![1, 1]);
+    handle(
+        &mut p,
+        "UdpSocket.local_address",
+        &[2],
+        None,
+        vec![1, CLOSED],
+    );
     // The reports are the lines at 1 and 5: a line holding `.Ok(("127.0.0.1",
     // port))` with a nonzero port becomes `picked`.
     let (wasm, _) = p.finish(7);
@@ -1097,7 +1134,7 @@ fn local_address_of_port_zero_reports_the_port_the_system_picked() {
     let result = parity_masked(&scratch, &wasm, vec![], || {}, picked);
     assert_eq!(result.status, 7);
     let lines = String::from_utf8(result.stderr).unwrap();
-    // Closed handles are Disposed on both engines.
-    assert_eq!(lines.lines().nth(3), Some("0101"));
-    assert_eq!(lines.lines().nth(7), Some("0101"));
+    // Closed handles are `NetError.Closed`, variant 5, on both engines.
+    assert_eq!(lines.lines().nth(3), Some("0105"));
+    assert_eq!(lines.lines().nth(7), Some("0105"));
 }
