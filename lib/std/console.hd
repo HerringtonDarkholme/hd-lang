@@ -109,15 +109,20 @@ impl Console for MemoryConsole:
 # covering provider's `write_line!` with `block_on`, so it inherits all of
 # `block_on`'s rules. Under an active driver, such as `main!` or a test
 # body, it drives only its own write, and it is rejected in a `defer` suite
-# or a default expression. An `.Err` is an ordinary panic.
+# or a default expression. An `.Err` is an ordinary panic. It holds the only
+# reference to its write, so only a provider that cancels its own work can
+# end the drive `.Cancelled` or `.Abandoned`; that line is lost
+# (r-module.console.println-cancelled).
 ## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
 ## See [module.console.println-write](../../spec/lang/10-modules.md#r-module.console.println-write).
 pub fn println[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
     match block_on(call):
-        .Ok(()) => pass
-        .Err(_) => panic("println: write_line! returned .Err(ConsoleError)")
+        .Completed(.Ok(())) => pass
+        .Completed(.Err(_)) => panic("println: write_line! returned .Err(ConsoleError)")
+        .Cancelled => pass
+        .Abandoned => pass
 
 # `eprintln` (spec/std/console.md#standard-error) drives the covering
 # provider's `write_error_line!` as `println` drives `write_line!`.
@@ -127,8 +132,10 @@ pub fn eprintln[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_error_line("$value")
     match block_on(call):
-        .Ok(()) => pass
-        .Err(_) => panic("eprintln: write_error_line! returned .Err(ConsoleError)")
+        .Completed(.Ok(())) => pass
+        .Completed(.Err(_)) => panic("eprintln: write_error_line! returned .Err(ConsoleError)")
+        .Cancelled => pass
+        .Abandoned => pass
 
 # The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
 # it returns its lines in order, then `.None`.

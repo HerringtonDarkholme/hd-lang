@@ -1,0 +1,27 @@
+# expect-stdout: before
+# expect-stdout: after, 1 recorded
+# test: println ignores a write that its provider's write_line! cancels: the line is lost, nothing panics, and the next println writes as usual
+# Spec lang/10 Console: module.console.println-cancelled.
+use std.time.{Clock, s, sleep}
+
+data FlakyConsole:
+    lines: mut List[string]
+    gate: mut Suspend[void]
+
+impl Console for FlakyConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        if text == "lost":
+            let mut gate = self.gate
+            gate!()              # the gate was abandoned: this write is cancelled
+        self.lines.push(text)
+        .Ok(())
+
+pub fn main() -> void $ Console + Clock:
+    let gate: mut Suspend[void] = sleep(s(60))
+    gate.abandon()
+    let mut flaky = FlakyConsole { lines: [], gate: gate }
+    $.with(Console=flaky):
+        println("lost")
+        println("kept")
+    println("before")
+    println("after, ${flaky.lines.len()} recorded")

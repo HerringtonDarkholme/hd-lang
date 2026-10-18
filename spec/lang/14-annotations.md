@@ -1258,8 +1258,8 @@ data Style:
 fn ready!() -> string:
     "p_"
 
-fn style_of(prefix: string) -> Style:
-    Style { prefix: prefix }
+fn style_of[T](source: T) -> Style:
+    Style { prefix: "p_" }
 
 @style_of(block_on(ready()))  # error: suspension-forbidden-context
 data User:

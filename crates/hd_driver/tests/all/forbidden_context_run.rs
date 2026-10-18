@@ -94,7 +94,9 @@ fn ready!() -> i32:
 
 fn wait_now() -> i32:
     let pending: mut Suspend[i32] = ready()
-    block_on(pending)
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
 
 data QuietConsole: pass
 

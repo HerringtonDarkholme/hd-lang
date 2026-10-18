@@ -7,7 +7,9 @@ fn ready!() -> i32: 42
 
 fn drive() -> i32:
     let pending: mut Suspend[i32] = ready()
-    block_on(pending)
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
 
 pub fn main() -> void:
     assert_equal(drive(), 42, reason="a plain entry point is not a driver, so block_on may drive")

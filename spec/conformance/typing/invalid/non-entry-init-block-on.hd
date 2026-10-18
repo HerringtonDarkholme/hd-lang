@@ -10,4 +10,6 @@ let pending: mut Suspend[i32] = ready()
 total := block_on(pending)  # diagnostic: suspension-forbidden-context
 
 pub fn item_count() -> i32:
-    total
+    match total:
+        .Completed(value) => value
+        _ => 0

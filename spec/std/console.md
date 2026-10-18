@@ -33,7 +33,7 @@ fn warn(message: string) -> void $ Console:
 
 1. r[std-console.eprintln.decl] `std.console` declares `pub fn eprintln[T < Display](value: T) -> void $ Console`. Code imports it, as in `use std.console.eprintln`.
 2. r[std-console.eprintln.write] A call `eprintln(value)` calls `write_error_line!(value.to_string())` on the `Console` provider that covers the call.
-3. r[std-console.eprintln.like-println] `eprintln` drives that call as `println` drives `write_line!`, with the same rules: [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on) driving, its forbidden contexts, and an `explicit-panic` on `.Err`.
+3. r[std-console.eprintln.like-println] `eprintln` drives that call as `println` drives `write_line!`, with the same rules: [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature) driving, its forbidden contexts, and an `explicit-panic` on `.Err`.
 4. r[std-console.eprintln.row] Each `eprintln` call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 
 ```text

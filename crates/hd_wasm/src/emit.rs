@@ -1332,49 +1332,66 @@ impl Em<'_> {
         }
     }
 
+    /// Pushes variant `variant` of the enum type `ty`, laid out as `e`.
+    /// `field(self, f, k, exact)` pushes value `k` of payload field `f`
+    /// as `exact`.
+    fn push_variant(
+        &mut self,
+        ty: Ty,
+        e: &EnumShape,
+        variant: u32,
+        field: &mut dyn FnMut(&mut Self, usize, usize, &VT) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let fields = e.fields.get(variant as usize).cloned().unwrap_or_default();
+        if let (Some(base), Some(sub)) = (&e.boxed, e.subtypes.get(variant as usize)) {
+            // A subtype box: the tag, then the payload's exact values; a
+            // payloadless variant is the base alone, one constant global
+            // per enum type and tag.
+            if let Some(sub) = sub {
+                self.a.i32(variant.cast_signed());
+                for (f, (_, vs)) in fields.iter().enumerate() {
+                    for (k, x) in vs.iter().enumerate() {
+                        field(self, f, k, x)?;
+                    }
+                }
+                self.a.struct_new(sub);
+            } else {
+                let h = self.type_hash("payloadless-variant", ty);
+                self.a
+                    .global_get(GSym::Variant(h, variant, VT::r(base.clone())));
+            }
+            return Ok(());
+        }
+        self.a.i32(variant.cast_signed());
+        for (s, st) in e.slots.iter().enumerate() {
+            let src = fields.iter().enumerate().find_map(|(f, (slots, vs))| {
+                slots
+                    .iter()
+                    .position(|x| *x == s)
+                    .map(|k| (f, k, vs[k].clone()))
+            });
+            match src {
+                Some((f, k, exact)) => {
+                    field(self, f, k, &exact)?;
+                    self.a.conv(&exact, st);
+                }
+                None => self.a.zero(st),
+            }
+        }
+        if let Some(b) = &e.boxed {
+            self.a.struct_new(b);
+        }
+        Ok(())
+    }
+
     fn new_variant(&mut self, i: u32, variant: u32, vals: u32, ty: Ty) -> StageResult<()> {
         let args = self.rec(vals);
         match self.lay.shape(ty)? {
             Shape::Enum(e) => {
-                let fields = e.fields.get(variant as usize).cloned().unwrap_or_default();
-                if let (Some(base), Some(sub)) = (&e.boxed, e.subtypes.get(variant as usize)) {
-                    // A subtype box: the tag, then the payload's exact
-                    // values; a payloadless variant is the base alone, one
-                    // constant global per enum type and tag.
-                    if let Some(sub) = sub {
-                        self.a.i32(variant.cast_signed());
-                        for ((_, vs), r) in fields.iter().zip(&args) {
-                            for (k, x) in vs.iter().enumerate() {
-                                self.comp(*r, k, x)?;
-                            }
-                        }
-                        self.a.struct_new(sub);
-                    } else {
-                        let h = self.type_hash("payloadless-variant", ty);
-                        self.a
-                            .global_get(GSym::Variant(h, variant, VT::r(base.clone())));
-                    }
-                    return self.store(i);
-                }
-                self.a.i32(variant.cast_signed());
-                for (s, st) in e.slots.iter().enumerate() {
-                    let src = fields.iter().zip(&args).find_map(|((slots, vs), r)| {
-                        slots
-                            .iter()
-                            .position(|x| *x == s)
-                            .map(|k| (*r, k, vs[k].clone()))
-                    });
-                    match src {
-                        Some((r, k, exact)) => {
-                            self.comp(r, k, &exact)?;
-                            self.a.conv(&exact, st);
-                        }
-                        None => self.a.zero(st),
-                    }
-                }
-                if let Some(b) = &e.boxed {
-                    self.a.struct_new(b);
-                }
+                self.push_variant(ty, &e, variant, &mut |s, f, k, x| match args.get(f) {
+                    Some(r) => s.comp(*r, k, x),
+                    None => unsupported("a variant payload without its value"),
+                })?;
                 self.store(i)
             }
             Shape::Opt(o, inner) => {
@@ -2863,13 +2880,20 @@ impl Em<'_> {
                 else {
                     return unsupported("`block_on` of a value that is not a suspension");
                 };
+                let Shape::Enum(end) = self.lay.shape(ty)? else {
+                    return unsupported("`block_on` whose result is not a `BlockOn`");
+                };
                 let s = self.a.local(VT::r(base.clone()));
                 self.comp(args[0], 0, &VT::r(base.clone()))?;
                 self.a.set(s);
                 // The indirect ban (`req.drive.block-on.indirect`): reached
                 // while a forbidden context runs, it panics.
                 self.a.call(Sym::Helper(Helper::ForbidCheck));
-                let ready = self.a.local(VT::I32);
+                let (ready, flags, seen) = (
+                    self.a.local(VT::I32),
+                    self.a.local(VT::I32),
+                    self.a.local(VT::I32),
+                );
                 let tmp: Vec<u32> = result.iter().map(|v| self.a.local(v.dflt())).collect();
                 // The polled subtree is its own root: its host leaves sit
                 // under no `all!` waker node (`crates/hd_wasm/DESIGN.md`
@@ -2893,18 +2917,29 @@ impl Em<'_> {
                 self.a.set(ready);
                 self.a.get(ready);
                 self.a.br_if(1);
-                // A suspension that code inside the drive cancelled never
-                // completes, and `block_on`'s caller cannot be cancelled
-                // (`req.check.driver-cancelled`).
+                // A cancelled suspension never completes; each poll
+                // continues its cleanup, and the drive ends once that has
+                // ended (`req.drive.block-on.cancelled`).
                 self.a.get(s);
                 self.a.struct_get(&base, F_FLAGS);
-                self.a.i32(CANCELLED);
+                self.a.set(flags);
+                self.a.get(flags);
+                self.a.i32(CANCELLED | UNWINDING);
                 self.a.s().i32_and();
+                self.a.i32(CANCELLED);
+                self.a.s().i32_eq();
+                self.a.br_if(1);
+                // An `abandon()` in the drive may have ended a cleanup that
+                // a party waits on with no wake, as for the entry
+                // (`crates/hd_wasm/DESIGN.md` §14.6, "Abandoning"): poll
+                // again, and hand the request on to the outer driver.
+                self.a.global_get(crate::rt::rewake_global());
                 self.a.if_();
-                self.a.call(Sym::Helper(Helper::Panic(
-                    "suspension-invalid-state: `block_on` drove a cancelled suspension".into(),
-                )));
-                self.a.s().unreachable();
+                self.a.i32(0);
+                self.a.global_set(crate::rt::rewake_global());
+                self.a.i32(1);
+                self.a.set(seen);
+                self.a.br(1);
                 self.a.end();
                 // The host waits for at least one completion and writes
                 // the handles; they go to the wake table.
@@ -2917,12 +2952,35 @@ impl Em<'_> {
                 self.a.global_set(crate::rt::wake_cur_node());
                 self.a.get(slot);
                 self.a.global_set(crate::rt::wake_cur_slot());
-                for (l, v) in tmp.iter().zip(&result) {
-                    self.a.get(*l);
-                    self.a.conv(&v.dflt(), v);
-                }
-                let _ = ty;
-                self.store_from(i, &result)
+                self.a.get(seen);
+                self.a.global_get(crate::rt::rewake_global());
+                self.a.s().i32_or();
+                self.a.global_set(crate::rt::rewake_global());
+                // `.Completed(value)`, or how the cleanup ended:
+                // `.Abandoned` when the frame carries `ABANDONED`, else
+                // `.Cancelled` (`std-task.block-on.decl` order).
+                self.result(i)?;
+                self.a.get(ready);
+                self.a.if_();
+                self.push_variant(ty, &end, 0, &mut |em, _, k, x| {
+                    em.a.get(tmp[k]);
+                    em.a.conv(&result[k].dflt(), x);
+                    Ok(())
+                })?;
+                self.store(i)?;
+                self.a.else_();
+                self.a.get(flags);
+                self.a.i32(ABANDONED);
+                self.a.s().i32_and();
+                self.a.if_();
+                self.push_variant(ty, &end, 2, &mut |_, _, _, _| Ok(()))?;
+                self.store(i)?;
+                self.a.else_();
+                self.push_variant(ty, &end, 1, &mut |_, _, _, _| Ok(()))?;
+                self.store(i)?;
+                self.a.end();
+                self.a.end();
+                Ok(())
             }
             // `Suspend[T].cancel!`'s cleanup frame (`req.cancel.wait`): a
             // `Suspend[bool]` that starts or continues the task's one

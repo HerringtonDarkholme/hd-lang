@@ -1,0 +1,59 @@
+# expect-stdout: before: cancelled
+# expect-stdout: inside: cancelled
+# expect-stdout: work defer, stop finished, closing, closed, both defer
+# test: block_on of a suspension that is cancelled, before the call or by code inside its own drive, drives its cleanup to its end and gives .Cancelled instead of panicking
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Runtime Checks: req.check.driver-cancelled.await.
+use std.ops.Disposable
+use std.task.{all, block_on}
+use std.time.{Clock, ms, s, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()                  # block_on waits here on the host timer
+        self.log.push("closed")
+
+fn ready!() -> i32: 42
+
+fn work!(log: mut List[string]) -> string $ Clock:
+    defer: log.push("work defer")
+    sleep!(s(60))
+    "late"
+
+fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
+    match job.cancel!():
+        .Finished => log.push("stop finished")
+        .Abandoned => log.push("stop abandoned")
+    "stopped"
+
+# `job` turns out cancelled when `all!` polls it again, so `all!` is
+# cancelled, and so is `both`, the suspension that block_on drives. Its
+# cleanup waits in the dispose of `conn`, and block_on drives it to its end.
+fn both!(job: mut Suspend[string], log: mut List[string]) -> string $ Clock:
+    defer: log.push("both defer")
+    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    let (worked, stopped) = all!(job, stop(job, log))
+    "${worked} ${stopped}"
+
+fn ended[T](pending: mut Suspend[T]) -> string:
+    match block_on(pending):
+        .Completed(_) => "completed"
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+fn inside(log: mut List[string]) -> string $ Clock:
+    let job: mut Suspend[string] = work(log)
+    ended(both(job, log))
+
+pub fn main!() -> void $ Console + Clock:
+    let pending: mut Suspend[i32] = ready()
+    _ := pending.cancel!()
+    println("before: ${ended(pending)}")
+    let log: mut List[string] = []
+    println("inside: ${inside(log)}")
+    println(log.join(", "))

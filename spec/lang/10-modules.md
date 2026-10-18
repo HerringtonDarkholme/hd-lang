@@ -1007,18 +1007,19 @@ pub enum ConsoleError:
 6. r[module.console.error.closed] `ConsoleError` is a public enum with one variant, the payload-free `Closed`, so code may build `ConsoleError.Closed`.
 7. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 8. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
-9. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
+9. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature), exactly as `block_on` drives a stored suspension, and returns after the call completes.
 10. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
 11. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
 12. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
-13. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
-14. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-16. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
-17. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-18. r[module.console.println-block-on.direct-contexts] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free`](#r-module.init.requirement-free), and the compiler reports both.
-19. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
-20. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+13. r[module.console.println-cancelled] If that `write_line!` call turns out cancelled, so that `block_on` returns `.Cancelled` or `.Abandoned`, `println` returns without a panic, and the line is lost. Only the provider can cancel the call, since `println` holds the only reference to it.
+14. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+15. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+16. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+17. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
+18. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
+19. r[module.console.println-block-on.direct-contexts] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free`](#r-module.init.requirement-free), and the compiler reports both.
+20. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
+21. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:

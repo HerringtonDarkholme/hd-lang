@@ -245,7 +245,7 @@ fn ping!(url: string) -> string $ Http:
 
 ### Waiting In The Playground
 
-A [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on)
+A [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature)
 call in the playground may have to wait for the host, as for a response
 to `get!`. How it waits depends on the browser:
 
@@ -264,8 +264,10 @@ use std.task.block_on
 
 fn status_of(url: string) -> string $ Http:
     match block_on(get(url)):   # without Promise Integration: a synchronous request
-        .Ok(response) => "status ${response.status}"
-        .Err(error) => "${error}"
+        .Completed(.Ok(response)) => "status ${response.status}"
+        .Completed(.Err(error)) => "${error}"
+        .Cancelled => "cancelled"
+        .Abandoned => "cut short"
 ```
 
 > **Why.** A browser thread cannot block, so only Promise Integration

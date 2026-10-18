@@ -2223,7 +2223,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                     a.br_if(0);
                     a.end();
                     // Its cleanup ended: the host cannot be cancelled, so
-                    // the entry panics (`req.check.driver-cancelled`).
+                    // the entry panics (`req.check.driver-cancelled.entry`).
                     cancelled(&mut a);
                     a.if_();
                     a.get(root);

@@ -1,0 +1,52 @@
+# expect-stdout: abandoned
+# expect-stdout: work defer, stop finished, send close, channel defer, both defer
+# test: block_on of a suspension cancelled inside its own drive whose cleanup is cut short gives .Abandoned
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Abandoning: req.abandon.dependency.result; std/task Block On: std-task.block-on.abandoned.
+use std.ops.Disposable
+use std.task.{all, block_on}
+use std.time.{Clock, s, sleep}
+
+data Channel:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Channel:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("channel defer")
+        self.log.push("send close")
+        let mut wait = self.ack
+        wait!()                  # ack was abandoned: the dispose is cut short here
+        self.log.push("acked")
+
+fn work!(log: mut List[string]) -> string $ Clock:
+    defer: log.push("work defer")
+    sleep!(s(60))
+    "late"
+
+fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
+    match job.cancel!():
+        .Finished => log.push("stop finished")
+        .Abandoned => log.push("stop abandoned")
+    "stopped"
+
+# `job` turns out cancelled when `all!` polls it again, so `all!` and
+# `both` are cancelled, and the dispose of `channel` cannot finish.
+fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+    defer: log.push("both defer")
+    using channel = Channel { log: log, ack: ack }
+    let (worked, stopped) = all!(job, stop(job, log))
+    "${worked} ${stopped}"
+
+fn drive(log: mut List[string]) -> string $ Clock:
+    let ack: mut Suspend[void] = sleep(s(60))
+    ack.abandon()
+    let job: mut Suspend[string] = work(log)
+    match block_on(both(job, ack, log)):
+        .Completed(value) => value
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+pub fn main() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    println(drive(log))
+    println(log.join(", "))

@@ -105,7 +105,8 @@ fn every_std_body_checks_with_no_diagnostic() {
 }
 
 /// The golden TIR of a few std bodies: `println` (rows, `$.use`, a cold
-/// suspending call, `block_on`, interpolation, `match` on a `Result`),
+/// suspending call, `block_on`, interpolation, `match` on a `BlockOn` of a
+/// `Result`),
 /// `simple_escape` (integer patterns), `Option.map` (an `Option` match with a
 /// closure call) and `Iterator.take` (a closure capturing and assigning).
 /// `HD_UPDATE_GOLDEN=1` rewrites the files.
@@ -929,26 +930,27 @@ fn block_on_and_println_are_forbidden_in_direct_contexts() {
     const HEAD: &str = "use std.task.block_on\n\n\
         fn ready!() -> i32: 42\n\
         data Tag:\n    name: string\n\
-        fn tag_of(name: string) -> Tag: Tag { name: name }\n\
+        fn tag_of[T](source: T) -> Tag: Tag { name: \"t\" }\n\
+        fn done[T](end: T) -> i32: 1\n\
         fn text!() -> string: \"t\"\n";
     for ok in [
         // Outside a forbidden context, and in a closure inside one.
-        "fn f() -> i32:\n    let s: mut Suspend[i32] = ready()\n    block_on(s)",
+        "fn f() -> void:\n    let s: mut Suspend[i32] = ready()\n    _ := block_on(s)",
         "fn f() -> void $ Console:\n    defer:\n        let g = fn() -> void $ Console: println(\"x\")\n        g()\n    pass",
         "fn f(v: i32 = (fn() -> i32: 1)()) -> i32: v",
         "@tag_of(\"a\")\ndata D:\n    id: i32",
         // A call that only reaches `block_on` is indirect: a panic, not an error.
-        "fn wait() -> i32:\n    let s: mut Suspend[i32] = ready()\n    block_on(s)\nfn f(v: i32 = wait()) -> i32: v",
+        "fn wait() -> i32:\n    let s: mut Suspend[i32] = ready()\n    done(block_on(s))\nfn f(v: i32 = wait()) -> i32: v",
     ] {
         assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
     }
     for bad in [
         "fn f() -> void:\n    let s: mut Suspend[i32] = ready()\n    defer:\n        _ := block_on(s)\n    pass",
         "fn f() -> void $ Console:\n    defer:\n        println(\"x\")\n    pass",
-        "fn f(v: i32 = block_on(ready())) -> i32: v",
+        "fn f(v: i32 = done(block_on(ready()))) -> i32: v",
         "@tag_of(block_on(text()))\ndata D:\n    id: i32",
         "data D:\n    @tag_of(block_on(text()))\n    id: i32",
-        "data D:\n    id: i32 = block_on(ready())",
+        "data D:\n    id: i32 = done(block_on(ready()))",
     ] {
         assert_eq!(
             item_codes(&format!("{HEAD}\n{bad}\n")),

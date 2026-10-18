@@ -134,7 +134,6 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             }
         }
         "std.task" => {
-            let suspend = names.item(module, "Suspend");
             item("Suspend", gens(names, &["T"]), ItemData::Data(vec![]));
             let poll_def = names.item(module, "Poll");
             item(
@@ -165,21 +164,6 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             private.has_default = true;
             item("PollContext", vec![], ItemData::Data(vec![private]));
             item("Waker", vec![], ItemData::Data(vec![]));
-            let block_on = names.item(module, "block_on");
-            let t = param(names, block_on, 0);
-            let s = pool.intern_ty(&TyData::Mut(pool.intern_ty(&TyData::Adt {
-                def: suspend,
-                args: pool.list(&[t]),
-            })));
-            item(
-                "block_on",
-                vec![],
-                ItemData::Fn(FnSig::simple(
-                    gens(names, &["T"]),
-                    vec![(sym(names, "s"), s)],
-                    t,
-                )),
-            );
             // `all!` has no written signature (`crates/hd_wasm/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut all = FnSig::simple(vec![], vec![], Ty::VOID);

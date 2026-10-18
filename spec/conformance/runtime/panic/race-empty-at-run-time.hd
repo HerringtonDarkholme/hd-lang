@@ -8,7 +8,9 @@ fn first!(tasks: List[mut Suspend[i32]]) -> i32:
 fn run() -> i32:
     let tasks: List[mut Suspend[i32]] = []
     let pending: mut Suspend[i32] = first(tasks)
-    block_on(pending)
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
 
 tests:
     it("an empty task list panics"):

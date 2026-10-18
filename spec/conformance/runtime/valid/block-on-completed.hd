@@ -1,0 +1,54 @@
+# expect-stdout: completed 42
+# expect-stdout: completed value
+# expect-stdout: send close, channel defer
+# expect-stdout: kept abandoned
+# test: block_on of a suspension that completes gives .Completed with its value, also when its dispose was cut short after an ordinary return
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.completed; Abandoning: req.abandon.dependency.completed.
+use std.ops.Disposable
+use std.task.block_on
+use std.time.{Clock, s, sleep}
+
+data Channel:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Channel:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("channel defer")
+        self.log.push("send close")
+        let mut wait = self.ack
+        wait!()
+        self.log.push("acked")
+
+fn ready!() -> i32: 42
+
+fn quick!(log: mut List[string], ack: mut Suspend[void]) -> string:
+    using channel = Channel { log: log, ack: ack }
+    "value"
+
+fn ended!(job: mut Suspend[string]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+fn drive_number() -> string:
+    match block_on(ready()):
+        .Completed(value) => "completed ${value}"
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+fn drive_text(job: mut Suspend[string]) -> string:
+    match block_on(job):
+        .Completed(value) => "completed ${value}"
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+pub fn main!() -> void $ Console + Clock:
+    println(drive_number())
+    let ack: mut Suspend[void] = sleep(s(60))
+    ack.abandon()
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = quick(log, ack)
+    println(drive_text(job))
+    println(log.join(", "))
+    println("kept ${ended!(job)}")

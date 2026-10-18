@@ -8,7 +8,9 @@ fn drive_inside!() -> i32:
 
 fn drive_outside() -> i32:
     let stored: mut Suspend[i32] = ready()
-    block_on(stored)
+    match block_on(stored):
+        .Completed(value) => value
+        _ => 0
 
 pub fn main() -> void:
     _ := drive_outside()

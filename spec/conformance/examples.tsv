@@ -781,6 +781,8 @@ std/task.md	11	type-fragment	-
 std/task.md	12	accept	runtime/valid/task-map-all.hd
 std/task.md	13	type-fragment	-
 std/task.md	14	accept	runtime/valid/task-cleanup-end.hd
+std/task.md	15	type-fragment	-
+std/task.md	16	accept	runtime/valid/task-block-on.hd
 std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd

@@ -7,8 +7,8 @@ data Rename:
 fn ready!() -> string:
     "mail"
 
-fn rename_to(name: string) -> Rename:
-    Rename { name: name }
+fn rename_to[T](source: T) -> Rename:
+    Rename { name: "mail" }
 
 data User:
     @rename_to(block_on(ready()))  # diagnostic: suspension-forbidden-context

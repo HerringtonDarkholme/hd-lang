@@ -1041,9 +1041,9 @@ intrinsic, which calls the task's `f$cancel` with the runtime global
 - **Waking.** Waiters on the ended cleanup registered no wake (above),
   and no host operation is left to wake them. An abandon that changed
   its task's flags sets the global `rewake`, and the entry's `hd.poll`
-  polls the root again while it is set. `block_on` does not check it,
-  so a waiter driven by `block_on` whose cleanup is abandoned from
-  inside the same drive still reports a deadlock.
+  polls the root again while it is set. `block_on` does the same before
+  it waits in the host (§14.9), and sets `rewake` again on return when
+  it consumed one, since the abandoned cleanup may have outer waiters.
 - **A failed dependency**
   ([`req.abandon.dependency`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.dependency)).
   An await inside a `dispose!` of a cancelled suspension cancels the
@@ -1086,11 +1086,11 @@ awaiter reads its child's `CANCELLED` bit:
   would, so each `all!` on the way polls the child that waited on it.
   Without `all!` node bookkeeping it only sets `rewake`.
 - Drivers whose caller cannot be cancelled
-  ([`req.check.driver-cancelled`](../../spec/lang/11-requirements-and-suspension.md#r-req.check.driver-cancelled)):
-  `block_on` panics `suspension-invalid-state` as soon as its argument
-  answers Pending while CANCELLED. `hd.poll` steps a CANCELLED root
-  through its `f$cancel` instead of its poll, and panics once the root no
-  longer unwinds.
+  ([`req.check.driver-cancelled.await`](../../spec/lang/11-requirements-and-suspension.md#r-req.check.driver-cancelled.await)):
+  `block_on` keeps polling a CANCELLED argument, which continues its
+  cleanup, and returns once the argument no longer unwinds (§14.9).
+  `hd.poll` steps a CANCELLED root through its `f$cancel` instead of its
+  poll, and panics once the root no longer unwinds.
 
 **A frame that never completes.** std's `timeout!` bounds its work's
 cleanup from a `dispose!` of a `race!` child that must stay pending until
@@ -1141,16 +1141,30 @@ hangs by the spec's note. That is a deadlock of the same shape inside
 
 ### 14.9 `block_on`
 
-`block_on(s)` is std hd over one runtime import:
+`block_on(s)` is std's `@intrinsic("block_on")`, an inline loop over one
+runtime import:
 
 ```text
 loop:
     poll s with a waker that sets a local flag
-    if Ready: return the value
+    if Ready: return .Completed(value)
+    if s is CANCELLED and not UNWINDING: return .Abandoned if ABANDONED else .Cancelled
+    if rewake: clear it, note it, continue
     if the flag is set: continue
     hd:rt/block()   ;; the host waits for >= 1 completion, writes the handles, returns n
     process the n wakes
 ```
+
+- **Result.** The intrinsic builds the `BlockOn[T]` variant itself, by
+  the enum's layout, so the drive allocates nothing more than the
+  variant does.
+- **Cancelled.** A poll of a CANCELLED suspension answers Pending and
+  continues its cleanup (§14.6), so the same loop drives the cleanup to
+  its end, waiting in the host while a dispose waits.
+- **`rewake`.** An `abandon()` inside the drive may end a cleanup whose
+  waiters registered no wake (§14.6, "Abandoning"); the loop polls again
+  instead of waiting. A consumed `rewake` is set again on return, so an
+  outer `hd.poll` polls its root again too.
 
 - **wasmtime:** the import runs the reactor on the same thread until a
   completion arrives. The Wasm stack waits below the host call.

@@ -6,7 +6,9 @@ fn ready!() -> i32: 42
 
 fn nested() -> i32:
     let pending: mut Suspend[i32] = ready()
-    block_on(pending)
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)

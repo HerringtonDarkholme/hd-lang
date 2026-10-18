@@ -249,8 +249,8 @@ fn a_block_on_call_in_a_fact_is_one_error_with_nothing_reading_it() {
 fn ready!() -> string:
     \"p\"
 
-fn quiet(text: string) -> Tag:
-    tag(text)
+fn quiet[T](source: T) -> Tag:
+    tag(\"p\")
 
 @quiet(block_on(ready()))  # here
 data A:

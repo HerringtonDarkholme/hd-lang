@@ -10,7 +10,8 @@ ordinary hd over the language tier:
 - the `all_list!` combinator;
 - the `timeout!` combinator and its `TimedOut` error;
 - the `map_all!` combinator;
-- the `CleanupEnd` enum, which `cancel!()` returns.
+- the `CleanupEnd` enum, which `cancel!()` returns;
+- the `BlockOn` enum, which `block_on` returns.
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
 polling combinators `all!` and `race!`, which are compiler intrinsics
@@ -370,3 +371,45 @@ fn stop!(job: mut Suspend[string]) -> string:
 > advises.
 
 See also: [Cancellation](../lang/11-requirements-and-suspension.md#cancellation).
+
+## Block On
+
+`BlockOn[T]` says how a
+[`block_on`](../lang/11-requirements-and-suspension.md#driving-a-stored-suspension)
+drive ended, and `block_on` returns it:
+
+```text
+pub enum BlockOn[T]:
+    Completed(T)
+    Cancelled
+    Abandoned
+```
+
+1. r[std-task.block-on.decl] `std.task` declares the generic enum `BlockOn[T]` with the three variants above. Code imports it with `use std.task.BlockOn`.
+2. r[std-task.block-on.completed] `.Completed(value)` means the suspension completed with `value`, by [`req.drive.block-on.completed`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.completed).
+3. r[std-task.block-on.cancelled] `.Cancelled` means the suspension was cancelled and its cleanup ran to its end, as [`CleanupEnd.Finished`](#r-std-task.cleanup-end.finished) means.
+4. r[std-task.block-on.abandoned] `.Abandoned` means the suspension was cancelled and a part of its cleanup was cut short, as [`CleanupEnd.Abandoned`](#r-std-task.cleanup-end.cut-short) means.
+
+```text
+use std.task.block_on
+
+fn fetch!(id: i32) -> string:
+    "user ${id}"
+
+fn name_of(id: i32) -> string:
+    match block_on(fetch(id)):
+        .Completed(name) => name
+        .Cancelled => "cancelled"        # its cleanup ran to its end
+        .Abandoned => "cut short"        # its cleanup was cut short
+```
+
+`name_of(7)` returns `"user 7"`: nothing else holds the suspension, so
+nothing can cancel it.
+
+> **Why.** Synchronous code that drives a suspension cannot be cancelled
+> itself, so the result names every way the drive can end. A caller that
+> holds the only reference matches the other two variants with `pass` or
+> a default, as `println` does.
+
+See also: [Driving A Stored Suspension](../lang/11-requirements-and-suspension.md#driving-a-stored-suspension),
+[Cleanup End](#cleanup-end).

@@ -1,0 +1,58 @@
+# expect-stdout: won waited stopped
+# expect-stdout: closing, abandon, conn defer, session defer, abandon returned, waiter abandoned
+# test: an abandon() inside a block_on drive that ends a cleanup another task of the drive waits on lets that waiter go on instead of reporting suspension-deadlock
+# Spec lang/11 Abandoning: req.abandon.result; Driving A Stored Suspension: req.drive.block-on.deadlock.
+# The waiter registered no wake, and abandon() aborted the only host
+# operation, so block_on polls again instead of waiting in the host.
+use std.ops.Disposable
+use std.task.{all, block_on, race}
+use std.time.{Clock, s, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("conn defer")
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed")
+
+fn session!(log: mut List[string]) -> string $ Clock:
+    defer: log.push("session defer")
+    using conn = Conn { log: log, closing: sleep(s(60)) }
+    sleep!(s(60))
+    "late"
+
+fn ready!() -> string:
+    "won"
+
+fn waiter!(job: mut Suspend[string], log: mut List[string]) -> string:
+    match job.cancel!():
+        .Finished => log.push("waiter finished")
+        .Abandoned => log.push("waiter abandoned")
+    "waited"
+
+fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
+    log.push("abandon")
+    job.abandon()
+    log.push("abandon returned")
+    "stopped"
+
+fn trio!(job: mut Suspend[string], log: mut List[string]) -> string:
+    let (winner, waited, stopped) = all!(race(job, ready()), waiter(job, log), stop(job, log))
+    "${winner} ${waited} ${stopped}"
+
+fn drive(log: mut List[string]) -> string $ Clock:
+    let job: mut Suspend[string] = session(log)
+    match block_on(trio(job, log)):
+        .Completed(value) => value
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+pub fn main() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    println(drive(log))
+    println(log.join(", "))

@@ -1,8 +1,8 @@
 # std.task, the part written in hd (spec/std/task.md). The `Suspend`
 # protocol, `block_on`, `all!`, and `race!` are compiler intrinsics
 # (spec/lang/11-requirements-and-suspension.md#standard-combinators). The
-# compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
-# written signature (r-req.combinator.all-typing).
+# compiler provides `all!` and `Waker` by name; `all!` has no written
+# signature (r-req.combinator.all-typing).
 use std.task.all
 use std.error.Error
 use std.format.DebugWriter
@@ -19,6 +19,24 @@ use std.time.{Clock, Duration, Instant, sleep}
 pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
     let frame: mut Suspend[T] = race_frame(tasks)
     frame!()
+
+# How a `block_on` drive ended (spec/std/task.md#block-on).
+## How a `block_on` drive ended: `Completed` with the suspension's value, or `Cancelled` or `Abandoned` when the suspension was cancelled and its cleanup ran to its end or was cut short.
+## See [std-task.block-on.decl](../../spec/std/task.md#r-std-task.block-on.decl).
+pub enum BlockOn[T]:
+    Completed(T)
+    Cancelled
+    Abandoned
+
+# The synchronous driver (r-req.drive.block-on.signature). The compiler
+# supplies the body: it polls `s` and waits in the host while `s` is
+# pending. A cancelled `s` is driven on until its cleanup has ended
+# (r-req.drive.block-on.cancelled).
+## Drives `s` from code that does not suspend, and returns how the drive ended. A compiler intrinsic.
+## See [req.drive.block-on.signature](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature).
+@intrinsic("block_on")
+pub fn block_on[T](s: mut Suspend[T]) -> BlockOn[T]:
+    panic("intrinsic")
 
 # How a job's cleanup ended (spec/std/task.md#cleanup-end). A kept
 # `.Abandoned` comes from the job's frame.

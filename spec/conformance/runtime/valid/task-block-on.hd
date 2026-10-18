@@ -1,0 +1,30 @@
+# expect-stdout: user 7
+# expect-stdout: cancelled
+# expect-stdout: cut short
+# test: block_on returns a BlockOn: .Completed with the value of a suspension nothing else holds, .Cancelled for one cancelled before the drive, .Abandoned for one abandoned before it
+# Spec std/task Block On: std-task.block-on.decl, std-task.block-on.completed, std-task.block-on.cancelled, std-task.block-on.abandoned.
+use std.task.{BlockOn, block_on}
+
+fn fetch!(id: i32) -> string:
+    "user ${id}"
+
+fn name_of(id: i32) -> string:
+    match block_on(fetch(id)):
+        .Completed(name) => name
+        .Cancelled => "cancelled"        # its cleanup ran to its end
+        .Abandoned => "cut short"        # its cleanup was cut short
+
+fn describe(end: BlockOn[string]) -> string:
+    match end:
+        .Completed(name) => name
+        .Cancelled => "cancelled"
+        .Abandoned => "cut short"
+
+pub fn main() -> void $ Console:
+    println(name_of(7))
+    let cancelled: mut Suspend[string] = fetch(8)
+    _ := block_on(cancelled.cancel())
+    println(describe(block_on(cancelled)))
+    let abandoned: mut Suspend[string] = fetch(9)
+    abandoned.abandon()
+    println(describe(block_on(abandoned)))

@@ -1143,24 +1143,27 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 1. r[req.drive.bang] For any expression `s` of type `mut Suspend[T]`, `s!()` drives that stored suspension to completion and has type `T`.
 2. r[req.drive.once] The expression `s` is evaluated once.
 3. r[req.drive.not-method] This is the same postfix bang suffix used for a direct `fn!` call; it is not a method lookup.
-4. r[req.drive.block-on] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> T`, which owns the driver loop until the suspension completes or panics.
-5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
-6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.block-on.direct).
-7. r[req.drive.block-on.direct] A `block_on` call written directly in a forbidden context is an error. A call inside a closure or local function declared there is not direct. Error: `suspension-forbidden-context`.
-8. r[req.drive.block-on.direct.syntax] The check of a direct call reads only the forbidden context's own source, never the body of a function it calls.
-9. r[req.drive.block-on.indirect] A `block_on` call reached through a call while a forbidden context runs panics when it is reached. Panic: `suspension-forbidden-context`.
-10. r[req.drive.block-on.indirect.nested] A forbidden context runs from its start to its end, including every call it makes, even while another driver is active.
-11. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on). Error: `suspension-forbidden-context`. Panic: `suspension-forbidden-context`.
-12. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
-13. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
-14. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.
+4. r[req.drive.block-on.signature] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> BlockOn[T]`, which owns the driver loop until the drive ends or panics. [`BlockOn`](../std/task.md#block-on) is an enum of `std.task`.
+5. r[req.drive.block-on.completed] When the suspension completes, `block_on` returns `.Completed` with its value. That holds also when a dispose was cut short after an ordinary exit, by [`req.abandon.dependency.completed`](#r-req.abandon.dependency.completed).
+6. r[req.drive.block-on.cancelled] When the suspension turns out cancelled, `block_on` goes on driving its cleanup until the cleanup has ended. It then returns `.Cancelled` when the cleanup ran to its end, and `.Abandoned` when a part of it was cut short.
+7. r[req.drive.block-on.cancelled.when] That holds for a suspension cancelled before the call, and for one that code inside the drive cancels, as an await of a suspension cancelled elsewhere does by [`req.cancel.await`](#r-req.cancel.await).
+8. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
+9. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.block-on.direct).
+10. r[req.drive.block-on.direct] A `block_on` call written directly in a forbidden context is an error. A call inside a closure or local function declared there is not direct. Error: `suspension-forbidden-context`.
+11. r[req.drive.block-on.direct.syntax] The check of a direct call reads only the forbidden context's own source, never the body of a function it calls.
+12. r[req.drive.block-on.indirect] A `block_on` call reached through a call while a forbidden context runs panics when it is reached. Panic: `suspension-forbidden-context`.
+13. r[req.drive.block-on.indirect.nested] A forbidden context runs from its start to its end, including every call it makes, even while another driver is active.
+14. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on). Error: `suspension-forbidden-context`. Panic: `suspension-forbidden-context`.
+15. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
+16. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
+17. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.
 
 ```text
 use std.task.block_on
 fn ready!() -> i32: 42
 
-fn finish(pending: mut Suspend[i32]) -> i32:
-    block_on(pending)  # panics with suspension-forbidden-context when a defer suite calls it
+fn finish(pending: mut Suspend[i32]) -> void:
+    _ := block_on(pending)  # panics with suspension-forbidden-context when a defer suite calls it
 
 fn main() -> void:
     let pending: mut Suspend[i32] = ready()
@@ -1171,6 +1174,16 @@ fn main() -> void:
 > **Why.** A direct call is found from the source of the context alone,
 > so checking never reads another function's body. An indirect call is
 > caught when it runs, as Rust's tokio panics on a nested `block_on`.
+
+> **Why.** The caller of `block_on` is synchronous code that expects a
+> value, and nothing can cancel it. So `block_on` names each way the drive
+> can end instead of panicking, as a task awaiting the suspension would be
+> cancelled.
+
+> **Note.** Only code that holds another reference to the suspension can
+> cancel it: code before the call, or code inside the drive. A caller that
+> passes its only reference never gets `.Cancelled` or `.Abandoned`,
+> unless the suspension cancels its own work.
 
 > **Note.** The outer driver makes no progress while an inner `block_on`
 > call runs. An inner suspension that can progress only when the outer
@@ -1283,13 +1296,12 @@ fn demo!() -> void:
 2. r[req.check.cancel-active] Cancelling a suspension while it or one of its descendants is active on the current poll stack causes `suspension-reentrant-poll`.
 3. r[req.check.cancel-active.no-effect] That cancellation performs no cleanup or state transition.
 4. r[req.check.cancel-idempotent] Cancellation is otherwise idempotent: cancelling an already cancelled or completed suspension has no further effect.
-5. r[req.check.driver-cancelled] A task that awaits a cancelled suspension is cancelled, by [`req.cancel.await`](#r-req.cancel.await), but a driver whose caller cannot be cancelled panics instead. Panic: `suspension-invalid-state`.
-6. r[req.check.driver-cancelled.block-on] `block_on` panics as soon as it finds the suspension it drives cancelled.
-7. r[req.check.driver-cancelled.entry] The entry driver panics once the cleanup of its cancelled suspension has ended.
-8. r[req.check.runtime-only] These are runtime checks rather than ownership rules in the type system.
-9. r[req.check.code.competing] Competing drivers report `suspension-competing-driver`.
-10. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
-11. r[req.check.code.invalid-poll] Polling after completion, attempting a second execution, and a driver whose suspension turns out cancelled report `suspension-invalid-state`.
+5. r[req.check.driver-cancelled.await] A task that awaits a cancelled suspension is cancelled, by [`req.cancel.await`](#r-req.cancel.await), but a driver cannot be cancelled. `block_on` returns how the cleanup ended instead, by [`req.drive.block-on.cancelled`](#r-req.drive.block-on.cancelled).
+6. r[req.check.driver-cancelled.entry] The entry driver panics once the cleanup of its cancelled suspension has ended. Panic: `suspension-invalid-state`.
+7. r[req.check.runtime-only] These are runtime checks rather than ownership rules in the type system.
+8. r[req.check.code.competing] Competing drivers report `suspension-competing-driver`.
+9. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
+10. r[req.check.code.invalid-drive] Polling after completion, attempting a second execution, and the entry driver of a cancelled suspension report `suspension-invalid-state`.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
@@ -1469,7 +1481,7 @@ pub fn main!() -> void $ Console + Clock:
 18. r[req.cancel.await.kinds] The rule holds for every suspension: a compiler-generated frame, a `std.task` combinator or cancel, and a pending host operation.
 19. r[req.cancel.await.propagate] A task that awaits a task cancelled this way is cancelled the same way, up to the first task where the chain ends.
 20. r[req.cancel.await.dispose] Inside a `dispose!`, the await unwinds that dispose instead, by [`req.abandon.dependency`](#r-req.abandon.dependency), and the chain ends there.
-21. r[req.cancel.await.driver] The chain also ends at a driver, by [`req.check.driver-cancelled`](#r-req.check.driver-cancelled).
+21. r[req.cancel.await.driver] The chain also ends at a driver, by [`req.check.driver-cancelled.await`](#r-req.check.driver-cancelled.await).
 22. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
 23. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
 24. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.

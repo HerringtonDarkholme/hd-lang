@@ -709,7 +709,7 @@ typing/invalid/readonly-loop-element-mutation.hd	type	reject:readonly-root	lang/
 typing/valid/mutable-loop-element-mutation.hd	type	accept	lang/06-control-flow.md#for-loops
 runtime/valid/callee-and-operand-evaluation-order.hd	runtime	accept	lang/05-expressions.md#calls
 runtime/panic/block-on-completed-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#suspendt-protocol
-runtime/panic/block-on-cancelled-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#r-req.check.driver-cancelled.block-on
+runtime/valid/block-on-cancelled.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.cancelled
 typing/invalid/row-parameter-propagates-callback-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-polymorphism
 typing/invalid/row-extension-keeps-other-keys.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 runtime/valid/f64-nan-ordering.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
@@ -2201,7 +2201,7 @@ runtime/valid/num-float-bits.hd	runtime	accept	std/num.md#r-std-num.float-bits.t
 runtime/valid/num-float-total-cmp.hd	runtime	accept	std/num.md#r-std-num.float-total-cmp.order
 runtime/valid/num-f32-classify.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending
-runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on
+runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature
 typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-std-num.bits.count-ones-u32
 runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
 runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
@@ -3416,3 +3416,8 @@ runtime/valid/combinator-cancel-fan-out.hd	runtime	accept	lang/11-requirements-a
 runtime/valid/race-loser-cleanup-outer-cancel.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-outer-cancel
 runtime/valid/race-cancelled-child.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-child-cancelled
 runtime/valid/timeout-work-cancelled-elsewhere.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-child-cancelled
+runtime/valid/block-on-completed.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.completed
+runtime/valid/block-on-abandoned.hd	runtime	accept	std/task.md#r-std-task.block-on.abandoned
+runtime/valid/block-on-abandon-wakes-waiter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.deadlock
+runtime/valid/println-provider-cancels-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-cancelled
+runtime/valid/task-block-on.hd	runtime	accept	std/task.md#r-std-task.block-on.decl

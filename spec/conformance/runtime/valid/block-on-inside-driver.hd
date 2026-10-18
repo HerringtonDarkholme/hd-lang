@@ -6,7 +6,9 @@ fn ready!(value: i32) -> i32: value
 
 fn helper() -> i32:
     let pending: mut Suspend[i32] = ready(1)
-    block_on(pending)
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let outer: mut Suspend[i32] = ready(2)

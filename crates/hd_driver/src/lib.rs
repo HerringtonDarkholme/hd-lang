@@ -9558,11 +9558,8 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn intrinsic(&self, def: DefId) -> Option<String> {
-        let it = self.p.items.get(&def)?;
-        if let Some(k) = it.intrinsic {
-            return Some(self.run.syms.resolve(k).to_owned());
-        }
-        (def == self.run.known.block_on).then(|| "block_on".to_owned())
+        let k = self.p.items.get(&def)?.intrinsic?;
+        Some(self.run.syms.resolve(k).to_owned())
     }
     fn json_items(&self) -> Option<JsonItems> {
         let k = &self.run.known;

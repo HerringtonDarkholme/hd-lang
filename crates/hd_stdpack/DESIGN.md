@@ -37,7 +37,7 @@ wins.
 
 | Module | Supplied names | Why source alone is not enough |
 | --- | --- | --- |
-| `std.task` | `block_on`, `all` | `all!` has no writable signature; the emitter lowers both (`all` through the `task_all` key) |
+| `std.task` | `all` | `all!` has no writable signature; the emitter lowers it through the `task_all` key |
 | `std.function` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `function.hd` |
 | `std.inspect` | `downcast_val`, and `downcast` and `downcast_mut` | downcasting needs intrinsic bodies; `Inspectable` and `TypeId` stay in `inspect.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |

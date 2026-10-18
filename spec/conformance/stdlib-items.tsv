@@ -36,6 +36,7 @@ std.task.timeout	std/task.md#timeout
 std.task.TimedOut	std/task.md#timeout
 std.task.map_all	std/task.md#map-all
 std.task.CleanupEnd	std/task.md#cleanup-end
+std.task.BlockOn	std/task.md#block-on
 std.cmp.clamp	std/cmp.md#clamp
 std.console.eprintln	std/console.md#standard-error
 std.console.ConsoleInput	std/console.md#console-input

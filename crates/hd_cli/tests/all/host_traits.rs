@@ -652,7 +652,7 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
         &dir.join("src/lib.hd"),
         "use std.http.{Http, get}\nuse std.task.block_on\n\n\
          pub fn status_of(url: string) -> u16 $ Http:\n    \
-         match block_on(get(url)):\n        .Ok(response) => response.status\n        .Err(_) => 0\n",
+         match block_on(get(url)):\n        .Completed(.Ok(response)) => response.status\n        _ => 0\n",
     );
     write(
         &dir.join("tests/fetch.hd"),
