@@ -28,7 +28,7 @@ Contents:
 - [5. What Stays Parked](#5-what-stays-parked)
 - [6. Questions For The Owner](#6-questions-for-the-owner)
 
-**Owner decisions (2026-10-17, night).** Approved: the primitive batch (wrapping_add/sub/mul, count_ones, leading_zeros, rotate_left/right, string_to_bytes, a list copy and a private list reserve, a map upsert for counts), each a plain hd signature with a one- or two-instruction body; and the size rule: a speed fix never grows hello.wasm, and may grow programs that use the feature when it gains at least 5% speed per 10% size. Questions 2, 4 and 5 are still open.
+**Owner decisions (2026-10-17, night).** Approved: the primitive batch (wrapping_add/sub/mul, count_ones, leading_zeros, rotate_left/right, string_to_bytes, a list copy and a private list reserve, a map upsert for counts), each a plain hd signature with a one- or two-instruction body; and the size rule: a speed fix never grows hello.wasm, and may grow programs that use the feature when it gains at least 5% speed per 10% size. Question 2: keep the split (allocation removal in the optimized pipeline only; the allocations metric reports both pipelines). Questions 4 and 5 were already answered by earlier owner decisions (docs/future-work/STDLIB_CALLS.md): float text stays a host primitive, and property tests run many cases in one instance with a fresh instance for a panicking case's shrink.
 
 ## 1. Summary
 
