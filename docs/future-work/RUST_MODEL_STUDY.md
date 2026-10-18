@@ -744,7 +744,192 @@ or TypeScript's ease with checked capabilities and structured effects.
 Under ownership, it becomes Rust with dependency injection and simpler
 async: a narrower niche, with Rust's hardest part inherited.
 
-## 8. Recommendation
+## 8. What Rust Gives, Measured
+
+The sections above price Rust's model on paper. This one measures what
+Rust's speed is made of today, on the same Wasm engines hd targets, so
+the owner can see how much of it comes from allocating less and how
+much from a better optimizer. Wasm GC cannot place an object on a
+stack, and hd removes no allocation yet (section 1), so the suite has
+two groups: five programs that compute in fixed arrays with almost no
+allocation, and six that allocate in their hot loop.
+
+Each program is one algorithm written idiomatically in JavaScript (on
+Node), Python (CPython), hd and Rust, with the same input and the same
+printed checksum. hd is built with `hd build --release` and runs on V8
+through the repository's Node host and on wasmtime through
+`hd run --release --engine wasmtime`. Rust is built for
+`wasm32-unknown-unknown` with `--release`, exports `run(n)`, and runs on
+V8 from a small Node driver and on wasmtime 49.0.2 from a scratch
+embedding configured as hd's engine is (Cranelift at speed, epoch
+interruption on). Every time is the median of five runs after one
+warm-up, as process wall time in milliseconds, so it includes start-up:
+the last row of each table is an empty program. The machine was never
+quiet: the one-minute load stayed between 5.6 and 15.4 on 14 cores
+(mostly Spotlight indexing), which adds noise but no bias to one
+language. Every checksum matched across all languages and engines. The
+programs, versions and commands are in the appendix.
+
+### 8.1 Computation
+
+| Program | Node | Python | hd, V8 | hd, wasmtime | Rust, V8 | Rust, wasmtime | hd/Rust, V8 | hd/Rust, wasmtime |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| spectral-norm (n 2500) | 528 | 20,886 | 317 | 822 | 227 | 482 | 1.4 | 1.7 |
+| fannkuch-redux (n 10) | 208 | 3,331 | 753 | 414 | 279 | 228 | 2.7 | 1.8 |
+| mandelbrot (1600², 50 iterations) | 141 | 4,511 | 430 | 224 | 243 | 172 | 1.8 | 1.3 |
+| nbody (5M steps) | 286 | 15,575 | 262 | 339 | 408 | 225 | 0.6 | 1.5 |
+| sieve (30M) | 130 | 1,508 | 624 | 314 | 273 | 144 | 2.3 | 2.2 |
+| empty program | 30 | 24 | 36 | 18 | 32 | 6 | | |
+
+Rust allocates at most three times per run here, and hd allocates
+nothing beyond start-up except in the sieve. Its 30 million flags cost
+268 MB of V8 allocation against Rust's one 30 MB vector, which is about
+four bytes per flag plus the copies a growing list makes.
+
+hd is 1.3x to 2.7x slower than Rust in nine of ten cells, and faster
+than Rust on V8 in nbody. With no allocation in either, the gap is code
+quality. Rust compiled at `opt-level=1` is within 20% of `opt-level=3`
+in every cell of this group, while `opt-level=0` is 1.2x to 5.6x
+slower. hd's release build lands between Rust's levels 0 and 1 in most
+cells, and at or behind level 0 for mandelbrot and the sieve on V8.
+hd's own optimizer buys little so far: on V8 its release build is at
+most 1.14x faster than its debug build, except spectral-norm at 2.25x.
+
+### 8.2 Allocation
+
+| Program | Node | Python | hd, V8 | hd, wasmtime | Rust, V8 | Rust, wasmtime | hd/Rust, V8 | hd/Rust, wasmtime |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| binary-trees (depth 20) | 2,825 | 19,483 | 1,934 | 2,913 | 3,958 | 11,973 | 0.5 | 0.2 |
+| points (1M records, 10 rounds) | 673 | 3,317 | 399 | 251 | 81 | 43 | 4.9 | 5.9 |
+| closures (1M items, 50 rounds) | 889 | 4,131 | 272 | 1,632 | 160 | 117 | 1.7 | 13.9 |
+| map-count (2M words) | 370 | 348 | 497 | 450 | 144 | 162 | 3.4 | 2.8 |
+| string-build (3M pieces) | 240 | 262 | 366 | 351 | 104 | 112 | 3.5 | 3.1 |
+| json (400k records) | 241 | 781 | 1,007 | 2,427 | 234 | 323 | 4.3 | 7.5 |
+| empty program | 30 | 24 | 36 | 18 | 32 | 6 | | |
+
+What each run allocates: Rust counted by a counting global allocator,
+hd and Node by V8 (heap in use at exit plus what every collection
+freed, the method of `bench/metrics`), less the empty program.
+
+| Program | Rust: allocations, bytes | Rust in hd's shape: allocations, bytes | hd on V8: bytes | Node: bytes |
+| --- | --- | --- | ---: | ---: |
+| binary-trees | 307M, 2,455 MB | the same program | 9,821 MB | 12,276 MB |
+| points | 11, 176 MB | 11.0M, 220 MB | 537 MB | 1,504 MB |
+| closures | 1, 4 MB | 201, 4 MB | 8 MB | 1,271 MB |
+| map-count | 38, 36 MB | 6.0M, 123 MB | 447 MB | 390 MB |
+| string-build | 23, 67 MB | 3.0M, 148 MB | 531 MB | 350 MB |
+| json | 3.6M, 164 MB | 6.4M, 384 MB | 2,132 MB | 212 MB |
+
+"Rust in hd's shape" is the same Rust allocating the way hd does:
+`Vec<Box<Point>>` for the records, boxed iterator stages and `Box<dyn
+Fn>` closures, a `String` per word and per piece with owned map keys,
+and JSON decoded through a `serde_json::Value` tree first, as hd's
+`decode` parses to a `Json` value.
+
+Three readings stand out.
+
+- **Allocating an object is cheaper on Wasm GC than in Rust's linear
+  memory.** Binary-trees allocates one object per node in both
+  languages, and hd is 2x faster than Rust on V8 and 4x on wasmtime:
+  the engine's bump allocation and generational collection beat
+  `dlmalloc`'s `malloc` and `free` per node. Boxing the points in Rust
+  makes it slower than hd on wasmtime. Rust wins binary-trees only by
+  not allocating per node: with one vector per tree it takes 925 ms.
+- **Rust's lead in the record, string and map programs is mostly
+  layout.** Records inline in a `Vec`, words borrowed as `&str` slices
+  of the text, and one growing `String` are what Rust gives. Put back
+  into hd's shape, Rust loses 2.1x to 8.7x in points, map-count and
+  string-build, half or more of its lead, and 1.7x of JSON's 7.6x on
+  wasmtime. Laying hd's points out by hand as two lists of numbers
+  makes hd 1.7x faster on both engines.
+- **The closure chain allocates nothing in hd.** hd's iterator runs
+  map, filter and fold with no allocation per element, and Rust's
+  boxed, dynamically dispatched version is as fast as its inlined one.
+  The 13.9x gap on wasmtime is the engine: the same hd module runs 6.9x
+  slower on wasmtime than on V8, while Rust's runs faster there.
+
+### 8.3 Attribution
+
+For each cell where Rust leads by more than 1.5x, the gap splits into
+three measured factors and a residual. The times here have each
+runner's empty-program time subtracted, so start-up does not dilute
+the ratios. The engine factor is how much larger the gap is on this
+engine than on the other one, so it is measured. Allocation and layout
+is Rust in hd's shape against idiomatic Rust, also measured. The
+residual is what remains, attributed to code generation, an estimate.
+The last column bounds that estimate: what dropping from
+`opt-level=3` to `opt-level=0` costs Rust.
+
+| Program | Engine | hd/Rust | Engine factor | Allocation and layout | Residual: code generation (estimate) | Bound: Rust O0/O3 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| spectral-norm | wasmtime | 1.69 | 1.18 | none to measure | 1.43 | 3.99 |
+| fannkuch-redux | V8 | 2.90 | 1.62 | none to measure | 1.78 | 3.88 |
+| fannkuch-redux | wasmtime | 1.78 | 1.00 | none to measure | 1.78 | 5.52 |
+| mandelbrot | V8 | 1.86 | 1.50 | none to measure | 1.24 | 1.71 |
+| sieve | V8 | 2.44 | 1.13 | not measured | 2.16 | 2.00 |
+| sieve | wasmtime | 2.15 | 1.00 | not measured | 2.15 | 4.36 |
+| points | V8 | 7.34 | 1.15 | 4.30 | 1.49 | 1.97 |
+| points | wasmtime | 6.38 | 1.00 | 6.38 (8.67 alone) | 1.00 | 3.84 |
+| closures | V8 | 1.83 | 1.00 | 1.00 (0.84 alone) | 1.83 | 1.68 |
+| closures | wasmtime | 14.50 | 7.91 | 1.08 | 1.70 | 5.18 |
+| map-count | V8 | 4.09 | 1.47 | 2.15 | 1.29 | 4.14 |
+| map-count | wasmtime | 2.78 | 1.00 | 2.08 | 1.34 | 3.38 |
+| string-build | V8 | 4.59 | 1.47 | 2.11 | 1.49 | 2.52 |
+| string-build | wasmtime | 3.13 | 1.00 | 2.19 | 1.43 | 1.92 |
+| json | V8 | 4.81 | 1.00 | 4.81 (5.05 alone) | 1.00 | 5.07 |
+| json | wasmtime | 7.59 | 1.58 | 1.66 | 2.90 | 5.13 |
+
+The factors multiply to the gap. A factor that would exceed what
+remains, or fall below 1, is clamped, with its own value in
+parentheses. Three cells are less certain than the rest. Rust's
+JSON-through-a-tree variant runs 2.0x slower on V8 than on wasmtime,
+so its 4.81 on V8 likely includes V8's cost of growing a 384 MB linear
+memory, and the wasmtime 1.66 is the safer figure. The sieve has no
+Rust variant with four-byte flags, so its layout share is folded into
+the residual, which then exceeds the bound. The closure chain on V8
+also exceeds it, so part of that residual is the cost of hd's closure
+calls rather than optimization.
+
+Two engine costs apply to every row. Epoch interruption, which hd's
+wasmtime engine turns on to enforce time limits, slows Rust's modules
+on wasmtime by up to 2.4x (spectral-norm; binary-trees 2.0x; most
+programs 1.2x to 1.5x), and hd pays it in every loop. And hd runs
+integer loops faster on wasmtime than on V8 (fannkuch, mandelbrot,
+sieve and points at 0.50x to 0.64x of V8's time), but closures, JSON
+and spectral-norm 2.5x to 6.9x slower.
+
+Read together: in the computation group, Rust's speed is code
+generation. No allocation is involved, the gap of 1.2x to 2.9x is at
+most about what dropping to `opt-level=0` costs Rust, and
+`opt-level=1` already gives nearly all of it. In the allocation group,
+Rust's speed is layout, not ownership: values stored inline or
+borrowed instead of allocated as separate objects explain half or more
+of the gap in three of the four programs that have a variant. Where
+Rust allocates object by object as hd does, Wasm GC is faster. What
+remains after layout is at most 1.5x of code generation, except the
+closure chain at 1.7x to 1.8x and JSON on wasmtime at 2.9x, whose
+cause was not isolated. The single largest factor in the suite is not
+a language property at all: hd's closure calls on wasmtime.
+
+### 8.4 What This Means For The Recommendation
+
+The measurements confirm the recommendation in section 9 and narrow
+its third point. Rust's model would not make hd's allocation-heavy
+programs fast by itself. Owned values in linear memory, allocated one
+by one, measured slower than Wasm GC objects here. Rust's advantage
+comes from storing small values inline and borrowing slices, which a
+collected language can also do: flat records in lists (the structure
+of arrays that [`hd_wasm`'s design](../../crates/hd_wasm/DESIGN.md)
+§15.2 plans for `Array[T]`), substrings and map keys that need no
+object of their own, and scalar replacement after inlining. hd's
+hand-flattened points measure that route at 1.7x. The
+computation gap is optimizer work that no memory model changes. The
+measurements also rank three costs that this study had not priced:
+closure calls on wasmtime, decoding JSON through a tree (2.1 GB
+allocated where Rust allocates 164 MB), and the epoch checks in every
+loop on wasmtime.
+
+## 9. Recommendation
 
 **Keep the collector as the default, and take the three gains by
 narrower routes.**
@@ -778,7 +963,7 @@ which keeps providers, graphs, caches and observers in today's shape
 with no `RefCell`; not `Rc<RefCell<T>>`, and not a linear-memory
 tracing collector, which needs root registration and `GcCell` flags.
 
-## 9. Questions For The Owner
+## 10. Questions For The Owner
 
 1. **Default model.** Keep the collector and today's object semantics
    as hd's default, rather than adopting owned values, moves, borrows
@@ -834,3 +1019,117 @@ tracing collector, which needs root registration and `GcCell` flags.
   Deligiannis et al., [Fixing Rust Compilation Errors using LLMs](https://arxiv.org/abs/2308.05177) (2023).
 - This repository: the studies linked above, [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md)
   §14 and §15, and the deleted ownership design (`git show 73c0e0478^:docs/future-work/OWNERSHIP_DESIGN.md`).
+
+## Appendix: Benchmark Data
+
+The data behind section 8, measured on 2026-10-18 at commit `e3d78deeb`.
+
+**Machine and versions.** Apple M3 Max, 14 cores, 36 GB, macOS 26.6.2
+(Darwin 25.6.0). Node v24.19.0 (V8 13.6.233.17-node.51); Python 3.14.7;
+rustc 1.97.1 with target `wasm32-unknown-unknown`; wasmtime 49.0.2 (in
+`hd` and in the scratch runner); serde 1.0.229 and serde_json 1.0.154.
+The one-minute load before each measured command was 5.6 to 15.4
+(main runs) and 5.6 to 13.9 (variant runs); the brief's wait for a load
+under 4 ran its 20 minutes and timing started at 15.4. Of 154 measured
+commands longer than 50 ms, 25 had a spread (max minus min over five
+runs) above 10% of the median.
+
+**Programs.** The sources are scratch files under `target/bench4/`
+(`js/`, `py/`, `hd/<name>/src/main.hd`, `rust/examples/`), not in the
+repository. All programs compute their checksums with integer
+arithmetic or truncate a float result times 10⁹, so every language
+prints the same number. Rust uses `Vec<f64>`, `Vec<usize>` and
+`Vec<bool>` with bounds checks, `Option<Box<Node>>` trees,
+`HashMap<&str, i64>`, `write!` into a `String`, and serde derive. hd
+uses `List` with `while` loops, `data` records, `List.map`, the
+`Iterator` chain, `Map[string, i32]`, `StringBuilder`, and
+`std.json.encode` and `decode`. JavaScript uses typed arrays for the
+computation group and arrays of objects, `Map`, `join` and `JSON` for
+the rest. Python uses lists, `bytearray`, tuples for trees, a
+`dataclass(slots=True)` for points, `functools.reduce`, a `dict`, `join`
+and the `json` module.
+
+**Commands.** hd: `cargo build --release -p hd_cli --features wasmtime`;
+in each package `HD_CACHE=target/bench4/cache target/release/hd build
+--release --engine node` (and `hd build --engine node` for the debug
+pipeline), then `node host/run.mjs NAME.wasm`; on wasmtime
+`hd run --release --engine wasmtime` (debug: `hd run --engine
+wasmtime`, which also turns Cranelift's optimizer off). Rust:
+`cargo build --release --examples --target wasm32-unknown-unknown`
+with profiles `o1` and `o0` that inherit `release` and set only
+`opt-level`; on V8 `node rust-v8.mjs NAME.wasm N`; on wasmtime
+`wasmtime-runner NAME.wasm N`, a small embedding with Cranelift at
+`Speed`, epoch interruption on and a deadline it never reaches
+(`--no-epoch` turns it off). Node: `node NAME.js`. Python:
+`python3 -I NAME.py`. A Python harness ran each command once to warm
+up, then five times under `/usr/bin/time -l`, keeping the median wall
+time and the peak RSS.
+
+**Allocation counts.** Rust: the same examples built with a counting
+`#[global_allocator]` over the system allocator, `dlmalloc` on this
+target. hd and Node: V8's heap at exit plus the bytes every collection
+freed under `--trace-gc-nvp`, as the `allocations` metric in
+`bench/metrics` measures; the empty program's 6.1 MB (hd) and 4.8 MB
+(Node) are subtracted. wasmtime has no allocation counter, so hd's
+counts are from V8 only.
+
+**Module size and instructions.** Release builds; instructions counted
+with the `wasmparser` crate. hd's release modules carry no name
+section, so its per-function counts are not shown; Rust's `run`
+includes everything LLVM inlined into it.
+
+| Program | hd: bytes | hd: instructions | Rust: bytes | Rust: instructions | Rust: `run` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| spectral-norm | 5,487 | 1,320 | 23,053 | 7,314 | 480 |
+| fannkuch-redux | 5,849 | 1,497 | 23,175 | 7,384 | 551 |
+| mandelbrot | 3,640 | 894 | 744 | 167 | 167 |
+| nbody | 7,973 | 1,904 | 2,720 | 899 | 487 |
+| sieve | 3,458 | 834 | 21,875 | 6,864 | 184 |
+| binary-trees | 3,845 | 911 | 20,195 | 6,265 | 104 |
+| points | 5,152 | 1,183 | 20,338 | 6,461 | 408 |
+| closures | 5,989 | 1,304 | 19,848 | 6,256 | 203 |
+| map-count | 19,188 | 5,753 | 30,594 | 9,932 | 1,123 |
+| string-build | 6,459 | 1,513 | 23,143 | 7,069 | 85 |
+| json | 118,455 | 29,555 | 138,788 | 39,119 | 1,195 |
+
+A Rust module that allocates or can panic carries `dlmalloc` (2,100
+instructions in `malloc` alone) and the panic formatter, about 20 KB.
+
+**Variant runs** (median wall ms). "Variant" is Rust in hd's shape:
+`binarytrees_arena` for binary-trees (a vector per tree, the one
+variant that allocates less than hd), `points_boxed`,
+`closures_boxed`, `mapcount_owned`, `stringbuild_parts`, `json_tree`.
+hd's points as two lists of numbers took 231 ms on V8 and 144 ms on
+wasmtime.
+
+| Program | hd debug, V8 | hd debug, wasmtime | Rust O1, V8 | Rust O1, wasmtime | Rust O0, V8 | Rust O0, wasmtime | Rust, wasmtime, no epoch | Variant, V8 | Variant, wasmtime |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| spectral-norm | 668 | 1,491 | 232 | 556 | 1,083 | 1,903 | 204 | | |
+| fannkuch-redux | 857 | 793 | 281 | 199 | 993 | 1,231 | 206 | | |
+| mandelbrot | 440 | 217 | 226 | 162 | 394 | 208 | 120 | | |
+| nbody | 254 | 781 | 418 | 207 | 819 | 1,228 | 195 | | |
+| sieve | 685 | 407 | 297 | 170 | 513 | 609 | 99 | | |
+| binary-trees | 1,986 | 2,949 | 4,033 | 12,501 | 6,202 | 12,080 | 6,036 | 925 | 1,293 |
+| points | 412 | 376 | 65 | 46 | 129 | 146 | 47 | 244 | 323 |
+| closures | 421 | 2,856 | 221 | 145 | 248 | 582 | 115 | 139 | 126 |
+| map-count | 540 | 575 | 152 | 155 | 498 | 532 | 121 | 274 | 330 |
+| string-build | 386 | 356 | 109 | 112 | 213 | 210 | 93 | 183 | 239 |
+| json | 1,079 | 2,702 | 324 | 432 | 1,056 | 1,634 | 238 | 1,052 | 532 |
+| empty program | 35 | 16 | 30 | 6 | 30 | 6 | 6 | | |
+
+**Peak RSS** (MB, the largest of the five runs).
+
+| Program | Node | Python | hd, V8 | hd, wasmtime | Rust, V8 | Rust, wasmtime |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| spectral-norm | 53 | 15 | 55 | 26 | 50 | 11 |
+| fannkuch-redux | 51 | 15 | 54 | 26 | 50 | 11 |
+| mandelbrot | 53 | 15 | 54 | 26 | 50 | 7 |
+| nbody | 53 | 15 | 54 | 26 | 50 | 8 |
+| sieve | 79 | 43 | 258 | 282 | 78 | 40 |
+| binary-trees | 748 | 143 | 1,349 | 538 | 116 | 75 |
+| points | 756 | 427 | 630 | 282 | 81 | 42 |
+| closures | 253 | 55 | 64 | 34 | 54 | 15 |
+| map-count | 365 | 246 | 398 | 278 | 80 | 41 |
+| string-build | 370 | 230 | 479 | 505 | 105 | 65 |
+| json | 374 | 398 | 963 | 1,069 | 187 | 147 |
+| empty program | 45 | 15 | 52 | 26 | 47 | 6 |
