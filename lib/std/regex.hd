@@ -34,24 +34,6 @@ pub data Match:
     ## See [std-regex.match.text](../../spec/std/regex.md#r-std-regex.match.text).
     pub text: string
 
-# Why a pattern does not compile (r-std-regex.error.declared).
-## Which kind of error a pattern holds.
-## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
-pub enum RegexErrorKind:
-    MissingParen
-    UnmatchedParen
-    MissingBracket
-    BadEscape
-    BadRange
-    NothingToRepeat
-    BadRepeat
-    UnsupportedGroup
-    BadGroupName
-    DuplicateGroupName
-    TooLarge
-
-# A kind and the byte offset in the pattern where the problem starts
-# (r-std-regex.error.position).
 # The groups of one match (r-std-regex.captures.decl): two optional byte
 # offsets per group; `.None` means that the group took no part.
 ## The capture groups of one match: group 0 is the whole match.
@@ -61,15 +43,23 @@ pub data Captures:
     slots: List[usize?]
     names: List[string]
 
-## Why a pattern failed to compile: the kind, and the byte position.
-## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
-pub data RegexError:
-    ## Which kind of error the pattern holds.
-    ## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
-    pub kind: RegexErrorKind
-    ## The byte offset of the error in the pattern.
-    ## See [std-regex.error.position](../../spec/std/regex.md#r-std-regex.error.position).
-    pub position: usize
+# Why a pattern does not compile (r-std-regex.error.variants): one variant
+# per rule, each with the byte offset in the pattern where the rule puts the
+# error (r-std-regex.error.position).
+## Why a pattern failed to compile: eleven variants, each at a byte position in the pattern.
+## See [std-regex.error.variants](../../spec/std/regex.md#r-std-regex.error.variants).
+pub enum RegexError:
+    MissingParen(position: usize)
+    UnmatchedParen(position: usize)
+    MissingBracket(position: usize)
+    BadEscape(position: usize)
+    BadRange(position: usize)
+    NothingToRepeat(position: usize)
+    BadRepeat(position: usize)
+    UnsupportedGroup(position: usize)
+    BadGroupName(position: usize)
+    DuplicateGroupName(position: usize)
+    TooLarge(position: usize)
 
 impl Regex:
     ## Compiles `pattern`, or returns the first error it holds.
@@ -79,9 +69,9 @@ impl Regex:
         let names: mut List[string] = [""]
         parsed := parse_alternation(source, 0, names)?
         if parsed.next < source.chars.len():
-            return .Err(RegexError { kind: .UnmatchedParen, position: source.offsets[parsed.next] })
+            return .Err(RegexError.UnmatchedParen(source.offsets[parsed.next]))
         if program_size(parsed.node) > max_program():
-            return .Err(RegexError { kind: .TooLarge, position: 0 })
+            return .Err(RegexError.TooLarge(0))
         let program: mut List[Inst] = []
         compile(parsed.node, program)
         program.push(Inst.Done)
@@ -256,8 +246,8 @@ impl Pattern:
     fn has(self, index: usize, c: char) -> bool:
         index < self.chars.len() && self.chars[index] == c
 
-    fn fail(self, kind: RegexErrorKind, index: usize) -> RegexError:
-        RegexError { kind: kind, position: self.offsets[index] }
+    fn offset(self, index: usize) -> usize:
+        self.offsets[index]
 
 # The syntax tree.
 enum Node:
@@ -312,7 +302,7 @@ fn parse_concat(source: Pattern, start: usize, names: mut List[string]) -> Resul
         # A quantifier with no atom before it, including one right after
         # another quantifier (r-std-regex.repeat.nothing).
         if quantifier_at(source, at):
-            return .Err(source.fail(.NothingToRepeat, at))
+            return .Err(RegexError.NothingToRepeat(source.offset(at)))
         atom := parse_atom(source, at, names)?
         repeated := parse_repeat(source, atom)?
         items.push(repeated.node)
@@ -406,7 +396,7 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
                         bad = true
                 .None => pass
             if bad:
-                return .Err(source.fail(.BadRepeat, at))
+                return .Err(RegexError.BadRepeat(source.offset(at)))
         _ => return .Ok(atom)
     let greedy = true
     if source.has(next, '?'):
@@ -452,7 +442,7 @@ fn parse_group(source: Pattern, open: usize, names: mut List[string]) -> Result[
         else if source.has(start + 1, '<') && !source.has(start + 2, '=') && !source.has(start + 2, '!'):
             name_start = .Some(start + 2)
         else:
-            return .Err(source.fail(.UnsupportedGroup, open))
+            return .Err(RegexError.UnsupportedGroup(source.offset(open)))
         match name_start:
             .None => pass
             .Some(name_at) =>
@@ -460,18 +450,18 @@ fn parse_group(source: Pattern, open: usize, names: mut List[string]) -> Result[
                 while close < source.chars.len() && !source.has(close, '>'):
                     close = close + 1
                 if close >= source.chars.len() || !group_name(source, name_at, close):
-                    return .Err(source.fail(.BadGroupName, open))
+                    return .Err(RegexError.BadGroupName(source.offset(open)))
                 name = source.piece(name_at, close)
                 for taken in names:
                     if taken == name:
-                        return .Err(source.fail(.DuplicateGroupName, open))
+                        return .Err(RegexError.DuplicateGroupName(source.offset(open)))
                 start = close + 1
     index := names.len()
     if capturing:
         names.push(name)
     inner := parse_alternation(source, start, names)?
     if !source.has(inner.next, ')'):
-        return .Err(source.fail(.MissingParen, open))
+        return .Err(RegexError.MissingParen(source.offset(open)))
     if capturing:
         return .Ok(Step { node: Node.Group(inner.node, index), next: inner.next + 1 })
     .Ok(Step { node: inner.node, next: inner.next + 1 })
@@ -498,7 +488,7 @@ data Escape:
 
 fn parse_escape(source: Pattern, at: usize) -> Result[Escape, RegexError]:
     match source.at(at + 1):
-        .None => .Err(source.fail(.BadEscape, at))
+        .None => .Err(RegexError.BadEscape(source.offset(at)))
         .Some(e) =>
             if e == 'd' || e == 'D':
                 return .Ok(Escape { item: .Some(ClassItem.Digit(e == 'D')), value: e })
@@ -514,7 +504,7 @@ fn parse_escape(source: Pattern, at: usize) -> Result[Escape, RegexError]:
                 return .Ok(Escape { item: .None, value: '\r' })
             if ascii_punctuation(e):
                 return .Ok(Escape { item: .None, value: e })
-            .Err(source.fail(.BadEscape, at))
+            .Err(RegexError.BadEscape(source.offset(at)))
 
 fn ascii_punctuation(c: char) -> bool:
     (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
@@ -530,7 +520,7 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
     let first = true
     while true:
         match source.at(at):
-            .None => return .Err(source.fail(.MissingBracket, open))
+            .None => return .Err(RegexError.MissingBracket(source.offset(open)))
             .Some(c) =>
                 if c == ']' && !first:
                     break
@@ -539,14 +529,14 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
         match low.item:
             .Some(item) =>
                 if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
-                    return .Err(source.fail(.BadRange, at))
+                    return .Err(RegexError.BadRange(source.offset(at)))
                 items.push(item)
                 at = low.next
             .None =>
                 if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
                     high := class_char(source, low.next + 1)?
                     if high.item.is_some() || high.value < low.value:
-                        return .Err(source.fail(.BadRange, at))
+                        return .Err(RegexError.BadRange(source.offset(at)))
                     items.push(ClassItem.Range(low.value, high.value))
                     at = high.next
                 else:
@@ -1624,46 +1614,36 @@ impl Eq for Match:
     fn eq(self, other: Match) -> bool:
         self.start == other.start && self.end == other.end && self.text == other.text
 
-impl Eq for RegexErrorKind:
-    fn eq(self, other: RegexErrorKind) -> bool:
-        kind_index(self) == kind_index(other)
-
-fn kind_index(kind: RegexErrorKind) -> i32:
-    match kind:
-        .MissingParen => 0
-        .UnmatchedParen => 1
-        .MissingBracket => 2
-        .BadEscape => 3
-        .BadRange => 4
-        .NothingToRepeat => 5
-        .BadRepeat => 6
-        .UnsupportedGroup => 7
-        .BadGroupName => 8
-        .DuplicateGroupName => 9
-        .TooLarge => 10
-
 impl Eq for RegexError:
     fn eq(self, other: RegexError) -> bool:
-        self.kind == other.kind && self.position == other.position
-
-impl Display for RegexErrorKind:
-    fn to_string(self) -> string:
-        match self:
-            .MissingParen => "missing closing )"
-            .UnmatchedParen => "unexpected )"
-            .MissingBracket => "missing closing ]"
-            .BadEscape => "invalid escape"
-            .BadRange => "invalid character class range"
-            .NothingToRepeat => "missing argument to repetition operator"
-            .BadRepeat => "invalid repeat count"
-            .UnsupportedGroup => "unsupported group"
-            .BadGroupName => "invalid named capture"
-            .DuplicateGroupName => "duplicate capture group name"
-            .TooLarge => "expression too large"
+        match (self, other):
+            (.MissingParen(left), .MissingParen(right)) => left == right
+            (.UnmatchedParen(left), .UnmatchedParen(right)) => left == right
+            (.MissingBracket(left), .MissingBracket(right)) => left == right
+            (.BadEscape(left), .BadEscape(right)) => left == right
+            (.BadRange(left), .BadRange(right)) => left == right
+            (.NothingToRepeat(left), .NothingToRepeat(right)) => left == right
+            (.BadRepeat(left), .BadRepeat(right)) => left == right
+            (.UnsupportedGroup(left), .UnsupportedGroup(right)) => left == right
+            (.BadGroupName(left), .BadGroupName(right)) => left == right
+            (.DuplicateGroupName(left), .DuplicateGroupName(right)) => left == right
+            (.TooLarge(left), .TooLarge(right)) => left == right
+            _ => false
 
 impl Display for RegexError:
     fn to_string(self) -> string:
-        "${self.kind} at byte ${self.position}"
+        match self:
+            .MissingParen(position) => "missing closing ) at byte $position"
+            .UnmatchedParen(position) => "unexpected ) at byte $position"
+            .MissingBracket(position) => "missing closing ] at byte $position"
+            .BadEscape(position) => "invalid escape at byte $position"
+            .BadRange(position) => "invalid character class range at byte $position"
+            .NothingToRepeat(position) => "missing argument to repetition operator at byte $position"
+            .BadRepeat(position) => "invalid repeat count at byte $position"
+            .UnsupportedGroup(position) => "unsupported group at byte $position"
+            .BadGroupName(position) => "invalid named capture at byte $position"
+            .DuplicateGroupName(position) => "duplicate capture group name at byte $position"
+            .TooLarge(position) => "expression too large at byte $position"
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
 impl Error for RegexError
@@ -1683,25 +1663,20 @@ impl Debug for Match:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("Match").field("start", self.start).field("end", self.end).field("text", self.text).finish()
 
-impl Debug for RegexErrorKind:
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.write(match self:
-            .MissingParen => "RegexErrorKind.MissingParen"
-            .UnmatchedParen => "RegexErrorKind.UnmatchedParen"
-            .MissingBracket => "RegexErrorKind.MissingBracket"
-            .BadEscape => "RegexErrorKind.BadEscape"
-            .BadRange => "RegexErrorKind.BadRange"
-            .NothingToRepeat => "RegexErrorKind.NothingToRepeat"
-            .BadRepeat => "RegexErrorKind.BadRepeat"
-            .UnsupportedGroup => "RegexErrorKind.UnsupportedGroup"
-            .BadGroupName => "RegexErrorKind.BadGroupName"
-            .DuplicateGroupName => "RegexErrorKind.DuplicateGroupName"
-            .TooLarge => "RegexErrorKind.TooLarge"
-        )
-
 impl Debug for RegexError:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("RegexError").field("kind", self.kind).field("position", self.position).finish()
+        match self:
+            .MissingParen(position) => out.debug_tuple("RegexError.MissingParen").named_field("position", position).finish()
+            .UnmatchedParen(position) => out.debug_tuple("RegexError.UnmatchedParen").named_field("position", position).finish()
+            .MissingBracket(position) => out.debug_tuple("RegexError.MissingBracket").named_field("position", position).finish()
+            .BadEscape(position) => out.debug_tuple("RegexError.BadEscape").named_field("position", position).finish()
+            .BadRange(position) => out.debug_tuple("RegexError.BadRange").named_field("position", position).finish()
+            .NothingToRepeat(position) => out.debug_tuple("RegexError.NothingToRepeat").named_field("position", position).finish()
+            .BadRepeat(position) => out.debug_tuple("RegexError.BadRepeat").named_field("position", position).finish()
+            .UnsupportedGroup(position) => out.debug_tuple("RegexError.UnsupportedGroup").named_field("position", position).finish()
+            .BadGroupName(position) => out.debug_tuple("RegexError.BadGroupName").named_field("position", position).finish()
+            .DuplicateGroupName(position) => out.debug_tuple("RegexError.DuplicateGroupName").named_field("position", position).finish()
+            .TooLarge(position) => out.debug_tuple("RegexError.TooLarge").named_field("position", position).finish()
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler
 # supplies each body. `@intrinsic` is prototype-internal and accepted only

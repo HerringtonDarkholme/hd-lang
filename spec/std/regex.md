@@ -398,25 +398,21 @@ fn fields(line: string) -> List[string]:
 ## Pattern Errors
 
 ```text
-pub enum RegexErrorKind:
-    MissingParen
-    UnmatchedParen
-    MissingBracket
-    BadEscape
-    BadRange
-    NothingToRepeat
-    BadRepeat
-    UnsupportedGroup
-    BadGroupName
-    DuplicateGroupName
-    TooLarge
-
-pub data RegexError:
-    pub kind: RegexErrorKind
-    pub position: usize
+pub enum RegexError:
+    MissingParen(position: usize)
+    UnmatchedParen(position: usize)
+    MissingBracket(position: usize)
+    BadEscape(position: usize)
+    BadRange(position: usize)
+    NothingToRepeat(position: usize)
+    BadRepeat(position: usize)
+    UnsupportedGroup(position: usize)
+    BadGroupName(position: usize)
+    DuplicateGroupName(position: usize)
+    TooLarge(position: usize)
 ```
 
-| Rule | Kind | When | `Display` text |
+| Rule | Variant | When | `Display` text |
 | --- | --- | --- | --- |
 | r[std-regex.error.kind.missing-paren] Missing paren | `MissingParen` | [`std-regex.syntax.group.unclosed`](#r-std-regex.syntax.group.unclosed) | `missing closing )` |
 | r[std-regex.error.kind.unmatched-paren] Unmatched paren | `UnmatchedParen` | [`std-regex.syntax.group.unopened`](#r-std-regex.syntax.group.unopened) | `unexpected )` |
@@ -430,21 +426,21 @@ pub data RegexError:
 | r[std-regex.error.kind.duplicate-group-name] Duplicate group name | `DuplicateGroupName` | [`std-regex.syntax.group.duplicate-name`](#r-std-regex.syntax.group.duplicate-name) | `duplicate capture group name` |
 | r[std-regex.error.kind.too-large] Too large | `TooLarge` | [`std-regex.error.too-large`](#r-std-regex.error.too-large) | `expression too large` |
 
-1. r[std-regex.error.declared] `std.regex` declares the enum `RegexErrorKind` with the eleven kinds above, and the data type `RegexError` with the public fields above.
-2. r[std-regex.error.position] `position` is the byte offset in the pattern where the rule for the kind puts the error.
+1. r[std-regex.error.variants] `std.regex` declares the enum `RegexError` with the eleven variants above, each holding one `position: usize`.
+2. r[std-regex.error.position] `position` is the byte offset in the pattern where the rule for the variant puts the error.
 3. r[std-regex.error.first] `new` reads the pattern from left to right and returns the first error it meets. A group or class is checked for its closing character after its contents.
 4. r[std-regex.error.size-last] `TooLarge` is checked only once the whole pattern has no other error.
-5. r[std-regex.error.traits] `RegexErrorKind` and `RegexError` implement `Eq`, `Debug`, and `Display`.
-6. r[std-regex.error.display] A kind's `Display` text is the text in the table. A `RegexError`'s is the kind's text, then ` at byte `, then `position`, as in `invalid escape at byte 3`.
+5. r[std-regex.error.impls] `RegexError` implements `Eq`, `Debug`, and `Display`. Two errors are equal when they are the same variant at the same `position`.
+6. r[std-regex.error.text] A `RegexError`'s `Display` text is the variant's text in the table, then ` at byte `, then `position`, as in `invalid escape at byte 3`.
 
 ```text
 use std.regex.{Regex, RegexError}
 
 fn broken() -> RegexError?:
-    Regex::new("a(b").err()  # .Some(RegexError { kind: .MissingParen, position: 1 })
+    Regex::new("a(b").err()  # .Some(RegexError.MissingParen(1))
 ```
 
-> **Why.** The kinds and texts follow Go's `regexp/syntax` error codes,
+> **Why.** The variants and texts follow Go's `regexp/syntax` error codes,
 > and Rust's text for a duplicate name, so an error reads the same as there. A position lets a tool point at the
 > spot in a pattern the user wrote.
 
