@@ -280,6 +280,101 @@ impl[N < Integer] N:
                 base = base * base
         result
 
+# Radix text (r-std-num.radix.*). `to_radix` writes the digits of the
+# remainders into one byte list, least significant first, and copies them
+# out reversed into a second list: one string is built, never one per digit.
+# A negative value takes the negative remainders `%` gives and negates each,
+# so the minimum value needs no negation of the whole. Generic code has no
+# casts, so `digit_byte` reads a remainder (0 to 35) bit by bit.
+impl[N < Integer] N:
+    ## The value's digits in `radix` (2 to 36), lowercase, with a leading `-` when negative.
+    ## See [std-num.radix.to-radix](../../spec/std/num.md#r-std-num.radix.to-radix).
+    pub fn to_radix(self, radix: u32) -> string:
+        if radix < 2 || radix > 36:
+            panic("to_radix: the radix must be 2 to 36")
+        zero := N::zero()
+        if self == zero:
+            return "0"
+        base := N::from_i64(i64(radix))
+        negative := self < zero
+        let rest = self
+        let reversed: mut List[u8] = []
+        while rest != zero:
+            rem := rest % base
+            reversed.push(digit_byte(if negative: zero - rem else: rem))
+            rest = rest / base
+        let out: mut List[u8] = []
+        if negative:
+            out.push(45)
+        let index = reversed.len()
+        while index > 0:
+            index = index - 1
+            out.push(reversed[index])
+        string_from_bytes(out)
+
+    ## Reads `text` as an integer in `radix` (2 to 36), or the first error.
+    ## See [std-num.radix.parse-radix](../../spec/std/num.md#r-std-num.radix.parse-radix).
+    pub fn parse_radix(text: string, radix: u32) -> Result[N, ParseNumberError]:
+        if radix < 2 || radix > 36:
+            panic("parse_radix: the radix must be 2 to 36")
+        size := text.len()
+        if size == 0:
+            return .Err(ParseNumberError.Empty)
+        zero := N::zero()
+        # `~zero` is negative exactly in a signed type.
+        signed := ~zero < zero
+        negative := signed && text[0] == 45
+        let index: usize = if negative || text[0] == 43: 1 else: 0
+        if index == size:
+            return .Err(ParseNumberError.InvalidDigit(index))
+        base := N::from_i64(i64(radix))
+        low := int_min::[N]()
+        high := int_max::[N]()
+        let value = zero
+        while index < size:
+            found := byte_digit(text[index])
+            if found >= radix:
+                return .Err(ParseNumberError.InvalidDigit(index))
+            digit := N::from_i64(i64(found))
+            # Division truncates toward zero, so each bound is exact and the
+            # product never leaves the type's range.
+            if negative:
+                if value < (low + digit) / base:
+                    return .Err(ParseNumberError.OutOfRange)
+                value = value * base - digit
+            else:
+                if value > (high - digit) / base:
+                    return .Err(ParseNumberError.OutOfRange)
+                value = value * base + digit
+            index = index + 1
+        .Ok(value)
+
+# The byte of a digit value, 0 to 35: `0` to `9`, then `a` to `z`.
+fn digit_byte[N < Integer](digit: N) -> u8:
+    zero := N::zero()
+    one := N::one()
+    let value: u8 = 0
+    let bit: u32 = 0
+    while bit < 6:
+        if ((digit >> bit) & one) != zero:
+            value = value + u8(1 << bit)
+        bit = bit + 1
+    if value < 10: 48 + value else: 87 + value
+
+# The value of an ASCII digit or letter, either case, or 255 for any other byte.
+fn byte_digit(byte: u8) -> u32:
+    if byte >= 48 && byte <= 57:
+        return u32(byte - 48)
+    if byte >= 97 && byte <= 122:
+        return u32(byte - 87)
+    if byte >= 65 && byte <= 90:
+        return u32(byte - 55)
+    255
+
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
 # `wrapping_mul` cannot use `*`, which panics on overflow in a debug or test
 # build. Every width widens to `u64`: a sign-extended operand has the same low
 # bits as the original, so the low bits of the `u64` product are the wrapped

@@ -17,6 +17,7 @@ ordinary hd over the language tier:
 - `trunc`, `floor`, `ceil`, and `round` on the floats;
 - integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
   `parse_usize`, and `ParseNumberError`;
+- radix text: `to_radix` and `parse_radix` on the integers;
 - float parsing: `parse_f64`;
 - fixed-point float text: `to_fixed` on `f64`.
 
@@ -318,6 +319,51 @@ fn byte(text: string) -> Result[u8, ParseNumberError]:
 > it, so each width reuses one grammar. Rust parses `f32` text directly, so
 > a few decimals that sit between two `f32` values may round differently
 > here, since the value is rounded twice.
+
+## Radix Text
+
+`to_radix` writes an integer in a base from 2 to 36, and `parse_radix` reads
+it back, for hex ids, colors, and file modes:
+
+```text
+fn id_text(id: u32) -> string:
+    id.to_radix(16).pad_start(8, '0')
+
+fn mode(text: string) -> Result[u32, ParseNumberError]:
+    u32::parse_radix(text, 8)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.radix.to-radix] `to_radix` | `fn to_radix(self, radix: u32) -> string` | the digits of `self` in `radix` |
+| r[std-num.radix.parse-radix] `parse_radix` | `fn parse_radix(text: string, radix: u32) -> Result[N, ParseNumberError]` | the integer that `text` spells in `radix`, or the first error |
+
+1. r[std-num.radix.widths] Both exist on every integer type, `i8` to `i64` and `u8` to `u64` including `usize`, and use that type's range. `parse_radix` takes no receiver: `i32::parse_radix("ff", 16)`.
+2. r[std-num.radix.bad-radix] A `radix` below 2 or above 36 panics with `explicit-panic`, in both methods, as [`std-text.char.to-digit.radix`](text.md#r-std-text.char.to-digit.radix) does.
+3. r[std-num.radix.digits] The digits are `0` to `9` and then `a` to `z`, so `z` is 35.
+4. r[std-num.radix.to-radix.format] `to_radix` writes no leading zeros, writes letters in lowercase, writes no prefix such as `0x`, and writes `0` for zero.
+5. r[std-num.radix.to-radix.sign] A negative value is written as `-` and then the digits of its magnitude. The minimum value of a signed type is written in full, so `i32` minimum in radix 16 is `-80000000`.
+6. r[std-num.radix.parse.grammar] `parse_radix` accepts an optional `+` or `-`, then one or more digits of `radix`, and nothing else. A letter digit is accepted in either case.
+7. r[std-num.radix.parse.no-prefix] So whitespace, `_` separators, and prefixes such as `0x` are not accepted; `"0xff"` in radix 16 gives `InvalidDigit(1)`.
+8. r[std-num.radix.parse.unsigned] An unsigned type rejects a leading `-` as an invalid digit at position 0, as [`std-num.parse.unsigned.minus`](#r-std-num.parse.unsigned.minus) does.
+9. r[std-num.radix.parse.errors] The errors, their positions, and their order are those of [`std-num.parse.empty`](#r-std-num.parse.empty), [`std-num.parse.order`](#r-std-num.parse.order), [`std-num.parse.invalid-digit-byte`](#r-std-num.parse.invalid-digit-byte), [`std-num.parse.end-of-text-bytes`](#r-std-num.parse.end-of-text-bytes), and [`std-num.parse.out-of-range`](#r-std-num.parse.out-of-range). A character that is not a digit of `radix` is an invalid digit.
+10. r[std-num.radix.round-trip] For every integer `x` of type `N` and every `radix` from 2 to 36, `N::parse_radix(x.to_radix(radix), radix)` gives `.Ok(x)`, the minimum and maximum of each width included.
+11. r[std-num.radix.cost] `to_radix` builds its text in one buffer, not one string per digit, so its cost is linear in the number of digits.
+
+| Call | Result |
+| --- | --- |
+| `(255).to_radix(16)` | `"ff"` |
+| `(-255).to_radix(2)` | `"-11111111"` |
+| the `u64` maximum, `to_radix(36)` | `"3w5e11264sgsf"` |
+| `i32::parse_radix("-FF", 16)` | `.Ok(-255)` |
+| `i32::parse_radix("12", 2)` | `.Err(ParseNumberError.InvalidDigit(1))` |
+| `u8::parse_radix("100", 16)` | `.Err(ParseNumberError.OutOfRange)` |
+| `u8::parse_radix("-1", 10)` | `.Err(ParseNumberError.InvalidDigit(0))` |
+| `i32::parse_radix("1", 37)` | panics |
+
+> **Why.** The names and the 2 to 36 range follow Go's `FormatInt` and
+> `ParseInt` and Rust's `from_str_radix`. Lowercase output, no prefix, an
+> optional sign, and a panic for a bad radix are what those APIs share.
 
 ## Float Parsing
 

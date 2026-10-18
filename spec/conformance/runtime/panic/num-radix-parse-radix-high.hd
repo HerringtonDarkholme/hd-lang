@@ -1,0 +1,10 @@
+# test: a radix outside 2 to 36 panics
+# Spec std/num Radix Text: std-num.radix.bad-radix (issue #477).
+use std.num.ParseNumberError
+
+fn run() -> Result[i32, ParseNumberError]:
+    i32::parse_radix("1", 37)  # panic: explicit-panic
+
+tests:
+    it("rejects the radix"):
+        _ := run()
