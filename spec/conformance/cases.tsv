@@ -889,6 +889,9 @@ runtime/valid/covariant-readonly-weakening.hd	runtime	accept	lang/04-type-system
 runtime/panic/for-map-insert-invalidates.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/panic/for-map-remove-invalidates.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/panic/exhausted-iterator-invalidated-by-growth.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
+runtime/panic/map-rebuild-invalidates-loop.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
+runtime/panic/map-rebuild-invalidates-iterator.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
+runtime/panic/exhausted-map-iterator-invalidated-by-rebuild.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
 runtime/panic/alias-growth-invalidates-readonly-iterator.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/valid/iterator-shape-versus-value-changes.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/map-remove-absent-key.hd	runtime	accept	lang/10-modules.md#prelude
@@ -3496,6 +3499,6 @@ runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
+runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.write-methods
 runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
-runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range

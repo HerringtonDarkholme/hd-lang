@@ -155,6 +155,53 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
+fn a_growth_that_doubles_during_iteration_invalidates_the_iterator() {
+    // flow.for.invalidate.map-rebuild: the four-entry literal is full, so
+    // the insertion doubles the entry arrays and moves the entries; the
+    // live count is restored, but the next round panics instead of
+    // resuming from a moved slot.
+    let main = "\
+pub fn main() -> void $ Console:
+    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
+    for (k, _) in m:
+        println(k)
+        _ := m.remove(\"c\")
+        m[\"e\"] = 5
+";
+    let r = ran("double-during", main);
+    assert!(!r.status.success(), "the loop must panic");
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "a\n");
+    let err = String::from_utf8_lossy(&r.stderr);
+    assert!(err.contains("iterator-invalidated"), "{err}");
+}
+
+#[test]
+fn a_compaction_in_place_during_iteration_invalidates_the_cursor() {
+    // flow.for.invalidate.map-rebuild: fewer than half of the eight slots
+    // are live, so the rebuild keeps the capacity and only compacts; the
+    // cursor's next call panics all the same.
+    let main = "\
+pub fn main() -> void $ Console:
+    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5, \"f\": 6, \"g\": 7, \"h\": 8}
+    for k in [\"a\", \"b\", \"c\", \"d\", \"e\"]:
+        _ := m.remove(k)
+    let it: mut Iterator[(string, i32)] = m.iter()
+    match it.next():
+        .Some((k, _)) => println(k)
+        .None => println(\"none\")
+    _ := m.remove(\"f\")
+    m[\"i\"] = 9
+    println(m.len())
+    _ := it.next()
+";
+    let r = ran("compact-during", main);
+    assert!(!r.status.success(), "the cursor must panic");
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "f\n3\n");
+    let err = String::from_utf8_lossy(&r.stderr);
+    assert!(err.contains("iterator-invalidated"), "{err}");
+}
+
+#[test]
 fn a_data_key_hashes_and_compares_through_its_derived_impls() {
     let main = "\
 @derive(Eq, Hash)

@@ -2994,11 +2994,13 @@ impl Ck<'_, '_> {
     }
 
     /// A `for` over a built-in `List` or `Map` as a counted loop
-    /// (lowering-catalog "Loops"): no iterator value. The length is
-    /// captured once (`flow.for.length`); each round checks it
-    /// (`flow.for.invalidate.panic`), then reads the next element, or the
-    /// next live entry of the slots written when the loop began, advances,
-    /// and binds it. The exhausted round checks too, as `next` would.
+    /// (lowering-catalog "Loops"): no iterator value. The length, and a
+    /// map's rebuild count, are captured once (`flow.for.length`); each
+    /// round checks them (`flow.for.invalidate.panic`,
+    /// `flow.for.invalidate.map-rebuild`), then reads the next element, or
+    /// the next live entry of the slots written when the loop began,
+    /// advances, and binds it. The exhausted round checks too, as `next`
+    /// would.
     fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
@@ -3044,12 +3046,29 @@ impl Ck<'_, '_> {
             self.b.get(len_l, us, at)
         };
         self.set_local(end_l, end, at);
+        // A map's loop also captures how often growth has rebuilt its
+        // entries: a rebuild moves them, so the slots mean nothing after.
+        let grown_l = if map {
+            let g = self.b.local(us, sym(self, "$grown"), ASSIGNED, at);
+            let c = self.b.get(src_l, st, at);
+            let n = intr(self, IntrinsicOp::MapGrowths, &[c], us);
+            self.set_local(g, n, at);
+            Some(g)
+        } else {
+            None
+        };
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, n) = (self.b.get(src_l, st, at), self.b.get(len_l, us, at));
-        intr(self, IntrinsicOp::IterCheck, &[c, n], Ty::VOID);
+        match grown_l {
+            Some(g) => {
+                let g = self.b.get(g, us, at);
+                intr(self, IntrinsicOp::IterCheck, &[c, n, g], Ty::VOID)
+            }
+            None => intr(self, IntrinsicOp::IterCheck, &[c, n], Ty::VOID),
+        };
         if map {
             let (c, p, d) = (
                 self.b.get(src_l, st, at),

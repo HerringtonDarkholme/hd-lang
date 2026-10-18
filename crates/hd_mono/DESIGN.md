@@ -1534,17 +1534,21 @@ as values exist.
 
 ### 13.12 Map Iteration And Removal
 
-A map is the `$Map_K_V` layout (`index`, `hashes`, `keys`, `values`,
-`used`, `live`; crates/hd_wasm/DESIGN.md §15.2), with runtime helpers in
+A map is the `$Map_K_V` layout (`live`, `used`, `grown`, `index`,
+`hashes`, `keys`, `values`; crates/hd_wasm/DESIGN.md §15.2), with runtime helpers in
 `hd_wasm/src/map.rs`: entries in insertion order, a removed entry marked
 by hash -1, and a linear-probing index.
 
 **Iterator state.** `MapIter` builds a `Closure` struct `{code, map,
-pos: i32}`, mirroring `ListIter`'s `{code, list, index}` and the same
-closure ABI. The step function `() -> (K, V)?` scans entries from
-`pos` to `used`, skipping tombstones, yields `(keys[i], values[i])`
-for the first live entry and advances past it, and answers `.None`
-when no live entry remains.
+pos, end, len, grown}`, mirroring `ListIter`'s `{code, list, index}`
+and the same closure ABI, with the written entry count, the live count
+and the rebuild count captured at creation. The step function
+`() -> (K, V)?` first panics with `iterator-invalidated` when the live
+count or the rebuild count changed (`flow.for.invalidate`,
+`flow.for.invalidate.map-rebuild`), then scans entries from `pos` to
+`end`, skipping tombstones, yields `(keys[i], values[i])` for the
+first live entry and advances past it, and answers `.None` when no
+live entry remains.
 
 **Order.** Iteration follows entry order: replacing a value keeps its
 entry (`types.map.replace.in-place`), removal writes a tombstone
@@ -1558,7 +1562,7 @@ order. That satisfies `types.map.order.deterministic` (same operations
 tombstones, stopping at empty), writes the tombstone marker,
 decrements `live`, and returns the old value as an `Option`
 (`.None` when absent). Lookup probes the same way. Growth compacts
-when the table fills.
+when the table fills and adds one to `grown`, since the entries move.
 
 **Other key types.** The key bound is already checked
 (`Map[K < Eq & Hash, V]`, `types.map-key.declared-bound`): at Emit,

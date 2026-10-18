@@ -1,0 +1,12 @@
+# test: an exhausted map iterator still panics on next after a rebuild
+# Spec 06 Iterator Invalidation: flow.for.invalidate.map-rebuild, flow.for.invalidate.panic.
+tests:
+    it("a rebuild invalidates an exhausted iterator"):
+        let entries: mut Map[string, i32] = {"a": +1}
+        let cursor: mut Iterator[(string, i32)] = entries.iter()
+        _ := cursor.next()
+        _ := cursor.next()
+        for i in 0..64:
+            entries["new$i"] = i
+            _ := entries.remove("new$i")
+        _ := cursor.next()  # panic: iterator-invalidated

@@ -24,8 +24,9 @@ use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
-    F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, UNWINDING, box_of,
-    cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base, witness_ty,
+    F_STATE, Lay, Layouts, M_GROWN, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, UNWINDING,
+    box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
+    witness_ty,
 };
 use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
@@ -3686,7 +3687,7 @@ impl Em<'_> {
             | IntrinsicOp::MapRemove => self.map_op(i, op, &args, ty),
             IntrinsicOp::MapIter => self.map_iter(i, args[0], ty),
             IntrinsicOp::Item => unsupported("the intrinsic operation Item"),
-            IntrinsicOp::IterCheck => self.iter_check(args[0], args[1]),
+            IntrinsicOp::IterCheck => self.iter_check(args[0], args[1], args.get(2).copied()),
             IntrinsicOp::MapSlots => {
                 let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
                 self.comp(args[0], 0, &VT::r(mt.clone()))?;
@@ -3695,6 +3696,12 @@ impl Em<'_> {
             }
             IntrinsicOp::MapSlotNext => self.map_slot_next(i, &args),
             IntrinsicOp::MapSlotEntry => self.map_slot_entry(i, args[0], args[1], ty),
+            IntrinsicOp::MapGrowths => {
+                let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
+                self.comp(args[0], 0, &VT::r(mt.clone()))?;
+                self.a.struct_get(&mt, M_GROWN);
+                self.store(i)
+            }
         }
     }
 
@@ -4190,6 +4197,7 @@ impl Em<'_> {
         let ints = WTy::Array(VT::I32);
         self.a.i32(0);
         self.a.i32(0);
+        self.a.i32(0);
         self.a.i32(cap * 2);
         self.a.array_new_default(&ints);
         self.a.i32(cap);
@@ -4376,9 +4384,10 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// A counted loop's check of its collection's captured length: the
+    /// A counted loop's check of its collection's captured length, and of
+    /// a map's captured rebuild count when `grown` is given: the
     /// `iterator-invalidated` panic of the cursor it replaces.
-    fn iter_check(&mut self, coll: u32, captured: u32) -> StageResult<()> {
+    fn iter_check(&mut self, coll: u32, captured: u32, grown: Option<u32>) -> StageResult<()> {
         let t = self.ty_of(coll);
         let (lt, what, len) = match self.lay.shape(t)? {
             Shape::List { ty, .. } => (ty, "list", 0),
@@ -4389,6 +4398,12 @@ impl Em<'_> {
         self.a.struct_get(&lt, len);
         self.comp(captured, 0, &VT::I32)?;
         self.a.s().i32_ne();
+        if let Some(g) = grown {
+            self.comp(coll, 0, &VT::r(lt.clone()))?;
+            self.a.struct_get(&lt, M_GROWN);
+            self.comp(g, 0, &VT::I32)?;
+            self.a.s().i32_ne().i32_or();
+        }
         self.a.if_();
         self.a.call(Sym::Helper(Helper::Panic(format!(
             "iterator-invalidated: {what} changed during iteration"
@@ -4399,9 +4414,10 @@ impl Em<'_> {
     }
 
     /// `(map, pos, end)`: the first live entry slot in `pos..end` that the
-    /// map has written, or `end`. Removals and insertions that restore the
-    /// live count go undetected, and a growth among them compacts the
-    /// entries, so the scan stops at what is written now.
+    /// map has written, or `end`. A `for` loop checks for growth first
+    /// (`flow.for.invalidate.map-rebuild`), so every slot before `end` is
+    /// still written; a drop walk has no check, so the scan still stops at
+    /// what is written now.
     fn map_slot_next(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
         let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
         let m = self.a.local(VT::r(mt.clone()));
@@ -4486,7 +4502,8 @@ impl Em<'_> {
     }
 
     /// `Map.iter()`: a cursor closure over the entries (`crates/hd_mono/DESIGN.md`
-    /// §13.12), capturing the written and live entry counts.
+    /// §13.12), capturing the written and live entry counts and the
+    /// rebuild count.
     fn map_iter(&mut self, i: u32, map: u32, ty: Ty) -> StageResult<()> {
         let (key, val, mt, _) = self.map_parts(self.ty_of(map))?;
         let pool = self.pool();
@@ -4515,7 +4532,7 @@ impl Em<'_> {
         let env = WTy::Struct {
             fields: [
                 base.fields(),
-                vec![VT::r(mt.clone()), VT::I32, VT::I32, VT::I32],
+                vec![VT::r(mt.clone()), VT::I32, VT::I32, VT::I32, VT::I32],
             ]
             .concat(),
             sup: Some(Box::new(base)),
@@ -4540,6 +4557,8 @@ impl Em<'_> {
         self.a.struct_get(&mt, M_USED);
         self.a.get(m);
         self.a.struct_get(&mt, M_LIVE);
+        self.a.get(m);
+        self.a.struct_get(&mt, M_GROWN);
         self.a.struct_new(&env);
         self.a.struct_new(&it);
         self.store(i)

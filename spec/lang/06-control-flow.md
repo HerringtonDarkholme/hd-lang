@@ -350,10 +350,11 @@ fn invalid(n: i32) -> void:
 
 1. r[flow.for.length] Built-in list and map iterators capture the collection's length when they are created.
 2. r[flow.for.invalidate] An iterator is invalidated when the collection's length differs from the captured length.
-3. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted. Panic: `iterator-invalidated`.
-4. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
-5. r[flow.for.replace.observed] Later visits observe the replacement.
-6. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
+3. r[flow.for.invalidate.map-rebuild] A map iterator is also invalidated when an insertion rebuilds the map's entry storage, which moves the entries. Only an insertion of a new key can rebuild it. Which insertions do is unspecified.
+4. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted. Panic: `iterator-invalidated`.
+5. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
+6. r[flow.for.replace.observed] Later visits observe the replacement.
+7. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
 
 ```hd
 fn demo() -> void:
@@ -362,9 +363,11 @@ fn demo() -> void:
         items.push(item)   # panics with iterator-invalidated
 ```
 
-> **Note.** The check compares lengths only, so a removal and an addition
-> between two `next` calls that restore the length are not detected. This is
-> memory-safe: the iterator reads the collection's current contents.
+> **Note.** The length check alone misses a removal and an addition between
+> two `next` calls that restore the length. A map iterator still panics when
+> that addition rebuilt the map's storage, so it never resumes from a moved
+> entry. This is memory-safe: the iterator reads the collection's current
+> contents.
 
 ## While Loops
 

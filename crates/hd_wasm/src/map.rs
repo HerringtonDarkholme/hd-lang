@@ -6,7 +6,7 @@
 use hd_base::StageResult;
 
 use crate::asm::Asm;
-use crate::layout::{M_HASHES, M_INDEX, M_KEYS, M_LIVE, M_USED, storage};
+use crate::layout::{M_GROWN, M_HASHES, M_INDEX, M_KEYS, M_LIVE, M_USED, storage};
 use crate::rt::{Helper, KeyOps, OptForm};
 use crate::{Code, Sym, VT, WTy, unsupported};
 
@@ -308,8 +308,9 @@ pub fn put_code(map: &WTy, key: &[VT], val: &[VT], ops: &KeyOps) -> Code {
 
 /// `(map)`, when the entry arrays are full: copies the live entries, in
 /// order, into a capacity that doubles (at least 4) when at least half of
-/// them are live and stays otherwise, and rebuilds the index from the
-/// stored hashes. Amortized O(1) per insertion either way.
+/// them are live and stays otherwise, rebuilds the index from the stored
+/// hashes, and counts the rebuild. Amortized O(1) per insertion either
+/// way.
 #[must_use]
 pub fn grow_code(map: &WTy, comps: &[VT]) -> Code {
     let mut a = Asm::new(vec![VT::r(map.clone())]);
@@ -428,22 +429,33 @@ pub fn grow_code(map: &WTy, comps: &[VT]) -> Code {
     a.get(0);
     a.get(j);
     a.struct_set(map, M_USED);
+    // The entries moved, so a live iterator's position means nothing now
+    // (`flow.for.invalidate.map-rebuild`).
+    a.get(0);
+    a.get(0);
+    a.struct_get(map, M_GROWN);
+    a.i32(1);
+    a.s().i32_add();
+    a.struct_set(map, M_GROWN);
     a.finish(vec![])
 }
 
 /// The iterator environment's fields after the code: the map, the next
-/// entry, the entry count written at creation, the live count then.
+/// entry, the entry count written at creation, the live count then, and
+/// the rebuild count then.
 pub const IT_MAP: u32 = 1;
 pub const IT_POS: u32 = 2;
 pub const IT_END: u32 = 3;
 pub const IT_LEN: u32 = 4;
+pub const IT_GROWN: u32 = 5;
 
 /// The cursor of `Map.iter()`. A live count other than the captured one
-/// is the `iterator-invalidated` panic (`flow.for.length`,
-/// `flow.for.invalidate.panic`), checked on every call, so an exhausted
-/// iterator panics too. Entries at or past the captured end stay unseen
-/// and removed entries are skipped (Q-R7); a value replaced in place is
-/// seen (`flow.for.replace.observed`).
+/// (`flow.for.length`, `flow.for.invalidate`), or a growth that rebuilt
+/// the entry arrays since creation (`flow.for.invalidate.map-rebuild`),
+/// is the `iterator-invalidated` panic (`flow.for.invalidate.panic`),
+/// checked on every call, so an exhausted iterator panics too. Entries at
+/// or past the captured end stay unseen and removed entries are skipped
+/// (Q-R7); a value replaced in place is seen (`flow.for.replace.observed`).
 pub fn step_code(
     code: &WTy,
     env: &WTy,
@@ -476,6 +488,12 @@ pub fn step_code(
     a.get(e);
     a.struct_get(env, IT_LEN);
     a.s().i32_ne();
+    a.get(m);
+    a.struct_get(map, M_GROWN);
+    a.get(e);
+    a.struct_get(env, IT_GROWN);
+    a.s().i32_ne();
+    a.s().i32_or();
     a.if_();
     a.call(Sym::Helper(Helper::Panic(
         "iterator-invalidated: map changed during iteration".into(),
@@ -485,21 +503,11 @@ pub fn step_code(
     a.get(e);
     a.struct_get(env, IT_POS);
     a.set(i);
+    // No growth since creation, so the entries at or before the captured
+    // end are still written where they were.
     a.get(e);
     a.struct_get(env, IT_END);
     a.set(end);
-    // Removals and insertions that restore the live count go undetected;
-    // a growth among them compacts the entries, so the end is clamped to
-    // what is written now.
-    a.get(m);
-    a.struct_get(map, M_USED);
-    a.get(end);
-    a.s().i32_lt_u();
-    a.if_();
-    a.get(m);
-    a.struct_get(map, M_USED);
-    a.set(end);
-    a.end();
     a.block();
     a.loop_();
     a.get(i);

@@ -531,6 +531,7 @@ JavaScript's `Map` (`layout::map_ty`):
 ```wat
 (type $Map_K_V (struct
   (field $live (mut i32)) (field $used (mut i32))
+  (field $grown (mut i32))               ;; how many times growth rebuilt the entry arrays
   (field $index  (mut (ref $Arr_i32)))   ;; twice the entry capacity, a power of two; entry number + 1, 0 empty
   (field $hashes (mut (ref $Arr_i32)))   ;; per entry, insertion order; -1 marks a removed entry
   (field $keys ...) (field $values ...)))  ;; one array per key value and per map value; eqref under A1
@@ -538,8 +539,11 @@ JavaScript's `Map` (`layout::map_ty`):
 
 - **Speed:** a lookup hashes the key, probes `index`, compares the stored
   hash, then compares the key. Removal marks the entry; growth drops
-  removed entries and keeps order. Iteration walks entries and skips
-  removed ones, in insertion order.
+  removed entries, keeps order and counts the rebuild in `grown`.
+  Iteration walks entries and skips removed ones, in insertion order; it
+  captures `grown` and panics once it changes
+  ([`flow.for.invalidate.map-rebuild`](../../spec/lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild)),
+  one load and compare per step beside the length check.
 - **Hashing.** Every key hashes by a function keyed by the run's seed,
   which the first call asks the host's `hd:rt` `hash_seed` import for
   and keeps in a runtime global. An integer, `bool`, `char` or 64-bit
@@ -895,7 +899,7 @@ it reads, which the code key lists (crates/hd_mono/DESIGN.md §13.8).
 ```wat
 ;; for i in a..b: i = a; end = b; loop: if i >= end break; bind i; advance; body
 ;; for x in items: len captured; loop over the backing array; compare len each step (iterator-invalidated)
-;; for (k, v) in m: loop over entries, skipping holes; the same length check
+;; for (k, v) in m: loop over entries, skipping holes; the same length check plus the rebuild count
 ;; for x in it (an Iterator): call step until .None
 ;; while c: (block $exit (loop $top (br_if $exit (i32.eqz c)) body (br $top)))
 ```
@@ -915,8 +919,10 @@ A `for` over a `List` or a `Map` is a counted loop too
 (`hd_check::expr`, `collection_loop`). It captures the length once and
 checks it at the top of every round, the exhausted round included, so it
 panics with `iterator-invalidated` exactly where the cursor's `next`
-would. A map loop scans the slots written when it began, skipping
-removed entries, and stops at the slots written now (`MapSlotNext`).
+would. A map loop also captures the map's rebuild count (`MapGrowths`)
+and checks it in the same place, since a rebuild moves the entries. It
+scans the slots written when it began, skipping removed entries
+(`MapSlotNext`).
 Each entry is a `(K, V)` tuple value, which allocates only when the
 tuple's layout is boxed.
 Implementation differs: a numeric range is a counted loop only when it

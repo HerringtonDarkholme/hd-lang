@@ -248,7 +248,9 @@ pub enum IntrinsicOp {
     Item,
     /// `(collection, captured)`: the `iterator-invalidated` panic of a
     /// counted `for` over a list or a map when the collection's length is
-    /// no longer the captured one (`flow.for.invalidate.panic`).
+    /// no longer the captured one (`flow.for.invalidate.panic`). A map's
+    /// check takes a third argument, the captured `MapGrowths`, and
+    /// panics when it changed too (`flow.for.invalidate.map-rebuild`).
     IterCheck,
     /// `(map) -> usize`: how many entry slots the map has written, removed
     /// ones included.
@@ -258,10 +260,13 @@ pub enum IntrinsicOp {
     MapSlotNext,
     /// `(map, slot) -> (K, V)`: the entry in a live slot.
     MapSlotEntry,
+    /// `(map) -> usize`: how many times growth has rebuilt the map's
+    /// entry arrays, which moves every entry to a new slot.
+    MapGrowths,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 19] = [
+    pub const ALL: [IntrinsicOp; 20] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIter,
@@ -281,6 +286,7 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlots,
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
+        IntrinsicOp::MapGrowths,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {
