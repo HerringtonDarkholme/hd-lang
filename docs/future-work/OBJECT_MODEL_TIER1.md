@@ -198,7 +198,11 @@ fn shift_in_place(v: &mut Vec2) -> void:
 weakens every `&mut` in the value read to `&`. With
 `struct Team { lead: &mut User }` and `t: &Team`, `t.lead` is a `&User`,
 and copying it out cannot recover write access; a `List[&mut User]` read
-through `&` is a `List[&User]`, with the same layout. Function values
+through `&` is a `List[&User]`, with the same layout. For the same
+reason, copying a whole value out of a `&T` is an error when `T` holds a
+`&mut` at any depth: `*t` would be an ordinary `Team` whose `lead` is
+writable again. A struct of plain values copies out freely, and a new
+value can still be built from the fields that read gives. Function values
 are the exception: a closure read through `&` can still be called and
 may change what it captured. Read-only is a permission on paths, not a
 freeze of the object graph.
@@ -227,7 +231,7 @@ scoped `&{l} mut T` holds no count and is checked to be exclusive.
 
 ### 6.1 Fields, locals and payloads
 
-`&mut p` on a `let` local gives the local an address: semantically it
+`&mut p` on a `let mut` local gives the local an address: semantically it
 is now a cell that lives as long as any reference to it, so returning
 `&mut p` is legal and safe; where the cell lives is the compiler's
 choice (section 8). `&mut r.pos` with `r: &mut Body` points into `r`'s

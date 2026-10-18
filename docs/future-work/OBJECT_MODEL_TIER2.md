@@ -104,10 +104,12 @@ fn count_words(text: string) -> usize:
 2. A set names reference parameters, `self`, paths such as `self.items`, lifetime
    parameters, locals inside a body, and `global`. In a parameter, `{}`
    is that parameter's own lifetime.
-3. A global reference converts to any scoped one. A scoped value
-   stored in a global place is promoted: its counted buffer gets a count,
-   with no copy. One that points into a stack frame cannot be stored
-   globally.
+3. A global reference converts to any scoped one. A view type whose
+   bytes always live in a counted buffer (a string view, a span, an
+   element reference to a global element type) is promoted when stored
+   in a global place: one count, no copy; a value holding such views is
+   converted, a count per view. A general `&{} T`, which may point into a
+   stack frame, cannot be stored globally.
 4. A type with a lifetime parameter, `Lexer[{s}]`, is scoped when its
    argument is. A value containing a scoped reference is itself scoped.
 5. A scoped `&{} mut T` admits no other writer; a scoped `&{} T` freezes
@@ -237,7 +239,8 @@ any depth. A scoped value:
    global reference, a top-level binding, a provider, a task, a value
    that crosses a boundary), except by promotion: a view type whose
    bytes always live in a counted buffer (a string view, a span, an
-   element reference) is converted to its global form there
+   element reference to a global element type) is converted to its
+   global form there
    (section 8.4). A general `&{} T` may point into a stack frame, so
    storing it globally is an error whose fix is a global `&T`;
 2. cannot be returned beyond its sets, nor captured by a global closure;
@@ -705,6 +708,11 @@ Promotion applies only to view types whose representation always has a
 counted buffer behind it: string views, spans and element references
 into counted buffers. A single view gets one count on its buffer, with
 no copy, which works because interior references are plain addresses.
+An element reference or span is promoted this way only when its element
+type is global (`T < global`): counting a list's buffer keeps a
+`Token[{source}]` slot alive but not the source bytes its `text`
+borrows, so storing `parsed.get(0)` globally is an error; the fix is to
+convert the token value itself, or to parse with `Token[global]`.
 A value holding views, such as `split`'s `List[&{line} string]`, is
 converted to its global instance: a new outer buffer when the old one is
 shared, and a count per view, so promoting n views costs n increments
@@ -908,15 +916,17 @@ work, nothing measurable from interior pointers, and nothing from
 cycles. Its larger gains are the ones these programs do not measure:
 heap cells for `&mut` locals passed across calls, closure environments,
 and pins. The flag gives back a little of it on data behind global
-references: a 2.1 ns pair per borrow and a free test per write.
+references: a 2.1 ns pair per marked storage on a borrow's path, and a
+free test per write.
 
 ## 13. Costs
 
 **Run time.** Scoped references remove the costs listed at the start,
-priced in section 12. The borrow flag adds a header word per counted
-object, a flag set and clear per scoped borrow through a global
-reference, and a load and branch per write through a global reference
-(section 6.4). NonCopyable values add a release at each scope exit and
+priced in section 12. The borrow flag takes a few bits of the header
+word that holds the release-and-trace descriptor, a count pair with a
+flag set and clear per marked storage on a scoped borrow's path through
+counted storage, and a load and branch per write through counted
+storage (section 6.4). NonCopyable values add a release at each scope exit and
 a drop flag where a move happens on some paths.
 
 **Compile time**, priced per stage:
@@ -993,7 +1003,13 @@ use(first)
 
 This program was already wrong: in tier 1 the push panics with
 `collection-pinned`, because `first` pins `xs`. Tier 2 reports the same
-bug at compile time. Applications adopt marks where `--explain-escapes`
+bug at compile time. Replacing the whole list, `xs = []`, while `first`
+lives is rejected too, as in Rust, though tier 1 would run it safely
+with `first` reading the old buffer. Reading a reference into a list
+just replaced is almost always a mistake, so tier 2 std may reject the
+few safe tier 1 programs of this shape: a borrowed result held across a
+change or replacement of its source. The fix-it copies the value out
+first. Applications adopt marks where `--explain-escapes`
 shows a cost.
 
 ## 16. Implementation Plan
