@@ -30,7 +30,7 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
         pieces.push(t.values[index].to_string())
         pieces.push(t.raw_parts[index + 1])
         index = index + 1
-    join(pieces, "")
+    pieces.join("")
 
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
@@ -79,7 +79,7 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
             pieces.push(meaning)
         plain = index
     pieces.push(bytes_slice(text, plain, size))
-    .Ok(join(pieces, ""))
+    .Ok(pieces.join(""))
 
 # The meaning of a simple escape, by the byte after the backslash. The
 # carriage return is written `\u{d}` because the std loader renames every
@@ -139,27 +139,27 @@ fn scalar_value(point: i32) -> bool:
 
 # A malformed byte sequence given to `string::from_utf8`.
 ## A malformed byte sequence given to `string::from_utf8`.
-## See [std-text.utf8.error.declared](../../spec/std/text.md#r-std-text.utf8.error.declared).
+## See [std-text.utf8.error.declared-positions](../../spec/std/text.md#r-std-text.utf8.error.declared-positions).
 pub enum Utf8Error:
     # The byte offset where the first invalid sequence starts.
     InvalidSequence(position: usize)
-    # The bytes end inside a sequence.
-    Truncated
+    # The byte offset where the sequence the bytes end inside starts.
+    Truncated(position: usize)
 
 impl Eq for Utf8Error:
     fn eq(self, other: Utf8Error) -> bool:
         match (self, other):
             (.InvalidSequence(left), .InvalidSequence(right)) => left == right
-            (.Truncated, .Truncated) => true
+            (.Truncated(left), .Truncated(right)) => left == right
             _ => false
 
 # The texts of r-std-text.utf8.error.display.invalid and
-# r-std-text.utf8.error.display.truncated.
+# r-std-text.utf8.error.display.truncated-position.
 impl Display for Utf8Error:
     fn to_string(self) -> string:
         match self:
             .InvalidSequence(position) => "invalid UTF-8 sequence at byte $position"
-            .Truncated => "incomplete UTF-8 sequence at the end of the bytes"
+            .Truncated(position) => "incomplete UTF-8 sequence at byte $position"
 
 # The text-reading trait (spec/std/text.md#parsing-text): `T::parse(text)`
 # reads a `T` from the whole of `text`, and `string.parse::[T]()` calls it.
@@ -335,7 +335,7 @@ impl string:
             let at: usize = 1
             while at < width:
                 if index + at >= size:
-                    return .Err(Utf8Error.Truncated)
+                    return .Err(Utf8Error.Truncated(index))
                 if !continuation_byte(bytes[index + at]):
                     return .Err(Utf8Error.InvalidSequence(index))
                 point = point * 64 + i32(bytes[index + at]) - 128
@@ -453,7 +453,7 @@ impl string:
                 pieces.push(bytes_slice(self, start, end))
                 pieces.push(replacement)
                 start = end
-            return join(pieces, "")
+            return pieces.join("")
         finder := searcher(old)
         let start: usize = 0
         let searching = true
@@ -466,7 +466,7 @@ impl string:
                 .None =>
                     searching = false
         pieces.push(bytes_slice(self, start, size))
-        join(pieces, "")
+        pieces.join("")
 
     # Removes the Unicode White_Space property at both ends.
     ## Returns the string without whitespace at either end.
@@ -665,26 +665,21 @@ impl char:
             value = point - 55
         if u32(value) < radix: .Some(u32(value)) else: .None
 
-## Returns the parts in order with `separator` between each two.
-## See [std-text.join.decl](../../spec/std/text.md#r-std-text.join.decl).
-pub fn join(parts: List[string], separator: string) -> string:
-    if bytes_len(separator) == 0:
-        return concat_all(parts)
-    # The parts with a separator between each two, then one copy of all.
-    let pieces: mut List[string] = []
-    for part in parts:
-        if pieces.len() > 0:
-            pieces.push(separator)
-        pieces.push(part)
-    concat_all(pieces)
-
 impl List[string]:
     # The parts in order with `separator` between each two
-    # (r-std-text.join.method).
+    # (r-std-text.join.list-method).
     ## Joins the list's elements with `separator` between each two.
-    ## See [std-text.join.method](../../spec/std/text.md#r-std-text.join.method).
+    ## See [std-text.join.list-method](../../spec/std/text.md#r-std-text.join.list-method).
     pub fn join(self, separator: string) -> string:
-        join(self, separator)
+        if bytes_len(separator) == 0:
+            return concat_all(self)
+        # The parts with a separator between each two, then one copy of all.
+        let pieces: mut List[string] = []
+        for part in self:
+            if pieces.len() > 0:
+                pieces.push(separator)
+            pieces.push(part)
+        concat_all(pieces)
 
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
 ## See [std-text.builder.decl](../../spec/std/text.md#r-std-text.builder.decl).
@@ -1229,7 +1224,7 @@ impl Debug for Utf8Error:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
             .InvalidSequence(position) => out.debug_tuple("Utf8Error.InvalidSequence").named_field("position", position).finish()
-            .Truncated => out.write("Utf8Error.Truncated")
+            .Truncated(position) => out.debug_tuple("Utf8Error.Truncated").named_field("position", position).finish()
 
 impl Debug for ParseBoolError:
     fn debug(self, out: mut DebugWriter) -> void:

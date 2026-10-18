@@ -13,7 +13,6 @@ tests:
 
 # ── plumbing ──────────
 use std.num.parse_i32
-use std.text.join
 
 pub fn main() -> void $ Console:
     let names: mut List[string] = []
@@ -21,4 +20,4 @@ pub fn main() -> void $ Console:
         match score(line):
             .Some(_) => names.push(line.split(" ")[0].upper())
             .None => println("skipped '$line'")
-    println(join(names, ", "))
+    println(names.join(", "))

@@ -1,12 +1,12 @@
-# test: after use std.text as strings, strings.join is the function value text.join
+# test: after use std.time as clock, clock.s is the function value time.s
 # Spec 03 Use Declarations: names.use.introduces; a module use with as binds the module namespace under the alias.
-use std.text as strings
+use std.time as clock
 
-fn render_row(cells: List[string], join_row: fn(List[string], string) -> string) -> string:
-    join_row(cells, ",")
+fn make_one(make: fn(i64) -> clock.Duration) -> clock.Duration:
+    make(1)
 
 tests:
     use std.testing.assert_equal
 
     it("the alias reaches the module's members"):
-        assert_equal(render_row(["id", "name"], strings.join), "id,name", reason="strings.join is text.join")
+        assert_equal(make_one(clock.s), clock.ms(1000), reason="clock.s is time.s")

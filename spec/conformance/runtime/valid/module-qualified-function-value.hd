@@ -1,16 +1,16 @@
-# test: after use std.text, text.join is a function value that can be passed as an argument
-# Spec Expressions, Names: expr.name.qualified; the qualified name selects the declaration join, which is a value.
-use std.text
+# test: after use std.time, time.s is a function value that can be passed as an argument
+# Spec Expressions, Names: expr.name.qualified; the qualified name selects the declaration s, which is a value.
+use std.time
 
-fn render_rows(rows: List[List[string]], separator: string, join_row: fn(List[string], string) -> string) -> List[string]:
-    let lines: mut List[string] = []
-    for row in rows:
-        lines.push(join_row(row, separator))
-    lines
+fn durations(counts: List[i64], make: fn(i64) -> time.Duration) -> List[time.Duration]:
+    let result: mut List[time.Duration] = []
+    for count in counts:
+        result.push(make(count))
+    result
 
 tests:
     use std.testing.assert_equal
 
-    it("renders CSV lines"):
-        lines := render_rows([["id", "name"], ["1", "Ada"]], ",", text.join)
-        assert_equal(lines, ["id,name", "1,Ada"], reason="each row joined by commas")
+    it("makes a duration per count"):
+        found := durations([1, 2], time.s)
+        assert_equal(found, [time.ms(1000), time.ms(2000)], reason="each count is in seconds")

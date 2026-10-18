@@ -4,7 +4,6 @@
 # and `all!` to run independent tasks of one wave together.
 use std.cmp.max
 use std.task.all
-use std.text.join
 
 @derive(Eq, Debug)
 enum PlanError:
@@ -15,7 +14,7 @@ impl Display for PlanError:
     fn to_string(self) -> string:
         match self:
             .UnknownTask(name, needed_by) => "task $needed_by needs unknown task $name"
-            .Cycle(path) => "dependency cycle: ${join(path, " -> ")}"
+            .Cycle(path) => "dependency cycle: ${path.join(" -> ")}"
 
 data Graph:
     deps: Map[string, List[string]]
@@ -129,7 +128,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
     graph := build_graph()
     match plan(graph):
-        .Ok(order) => console.write_line!("order: ${join(order, ", ")}")?
+        .Ok(order) => console.write_line!("order: ${order.join(", ")}")?
         .Err(e) => console.write_line!("error: $e")?
     cyclic := Graph { deps: {"a": ["b"], "b": ["c"], "c": ["a"], "d": []} }
     match plan(cyclic):
@@ -137,7 +136,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
         .Err(e) => console.write_line!("error: $e")?
     $.with(Runner=LogRunner { log: [] }):
         match execute!(graph):
-            .Ok(done) => console.write_line!("waves: ${join(done, ", ")}")?
+            .Ok(done) => console.write_line!("waves: ${done.join(", ")}")?
             .Err(e) => console.write_line!("error: $e")?
     .Ok(())
 

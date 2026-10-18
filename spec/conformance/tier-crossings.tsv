@@ -4,14 +4,14 @@ runtime/valid/host-result-special-floats.hd	f64.is_nan, f64.is_finite	the owner 
 runtime/valid/test-registration-qualified-call.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
 runtime/valid/test-registration-qualified-prop.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
 typing/invalid/test-registration-qualified-duplicate.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
-runtime/valid/module-qualified-function-call.hd	std.text	the task asks for a module-qualified call through a real std module, which needs the whole-module import use std.text
-runtime/valid/module-qualified-function-value.hd	std.text	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.text
-runtime/valid/module-qualified-function-value-parenthesized.hd	std.text	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.text
+runtime/valid/module-qualified-function-call.hd	std.time	the task asks for a module-qualified call through a real std module, which needs the whole-module import use std.time
+runtime/valid/module-qualified-function-value.hd	std.time	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.time
+runtime/valid/module-qualified-function-value-parenthesized.hd	std.time	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.time
 runtime/valid/module-qualified-associated-call.hd	std.text	the task asks for a module-qualified associated call through a real std type, which needs the whole-module import use std.text
 runtime/valid/module-qualified-type.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
 runtime/valid/module-qualified-variant.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
 runtime/valid/module-qualified-variant-pattern.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
-runtime/valid/module-alias-function-value.hd	std.text	the task asks for a module alias of a real std module, which needs the whole-module import use std.text as strings
+runtime/valid/module-alias-function-value.hd	std.time	the task asks for a module alias of a real std module, which needs the whole-module import use std.time as clock
 runtime/valid/module-qualified-generic-function-value.hd	std.cmp	the task asks for a generic member of a real std module, cmp.min, which needs the whole-module import use std.cmp
 runtime/valid/module-qualified-prelude-function.hd	std.format	debug is language tier, but the whole-module import use std.format also covers the stdlib-tier items of std.format
 runtime/valid/module-qualified-beside-direct-use.hd	std.cmp, std.cmp.max, std.cmp.min	the task asks for cmp.max and cmp.min beside direct and aliased uses of the same std functions, which are stdlib tier

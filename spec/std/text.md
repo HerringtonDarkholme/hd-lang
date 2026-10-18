@@ -165,7 +165,7 @@ fn decode(bytes: List[u8]) -> string:
     match string::from_utf8(bytes):
         .Ok(text) => text
         .Err(Utf8Error.InvalidSequence(position)) => "bad byte at $position"
-        .Err(Utf8Error.Truncated) => "cut short"
+        .Err(Utf8Error.Truncated(position)) => "cut short at $position"
 ```
 
 | Receiver | Methods |
@@ -176,18 +176,18 @@ fn decode(bytes: List[u8]) -> string:
 2. r[std-text.utf8.from-utf8] `string::from_utf8(bytes)` returns `.Ok` of the string whose bytes are `bytes` when they are well-formed UTF-8, and `.Err` otherwise.
 3. r[std-text.utf8.well-formed] Well-formed UTF-8 is that of the Unicode Standard, so an overlong encoding, a surrogate code point, and a value above U+10FFFF are not well formed.
 4. r[std-text.utf8.round-trip] For every string `s`, `string::from_utf8(s.to_utf8())` is `.Ok(s)`.
-5. r[std-text.utf8.error.declared] `std.text` declares the enum `Utf8Error`, with the variants `InvalidSequence(position: usize)` and `Truncated`. Code imports it, as in `use std.text.Utf8Error`.
+5. r[std-text.utf8.error.declared-positions] `std.text` declares the enum `Utf8Error`, with the variants `InvalidSequence(position: usize)` and `Truncated(position: usize)`. Code imports it, as in `use std.text.Utf8Error`.
 6. r[std-text.utf8.error.first] The error describes the first sequence, from the start of `bytes`, that is not well formed.
-7. r[std-text.utf8.error.truncated] It is `Truncated` when the bytes end before that sequence has the length its first byte gives. That holds only when each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
+7. r[std-text.utf8.error.truncated-position] It is `Truncated(position)` when the bytes end before that sequence has the length its first byte gives, where `position` is the byte offset at which that sequence starts. That holds only when each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
 8. r[std-text.utf8.error.invalid] Otherwise it is `InvalidSequence(position)`, where `position` is the byte offset at which that sequence starts.
 9. r[std-text.utf8.error.traits] `Utf8Error` implements `Eq`, `Debug`, and `Display`. Two errors are equal when they are the same variant with the same position.
 
 | Rule | Error | Display text |
 | --- | --- | --- |
 | r[std-text.utf8.error.display.invalid] Invalid sequence | `InvalidSequence(position)` | `invalid UTF-8 sequence at byte ` followed by `position` in decimal |
-| r[std-text.utf8.error.display.truncated] Truncated | `Truncated` | `incomplete UTF-8 sequence at the end of the bytes` |
+| r[std-text.utf8.error.display.truncated-position] Truncated | `Truncated(position)` | `incomplete UTF-8 sequence at byte ` followed by `position` in decimal |
 
-> **Note.** So `[0xE2, 0x82]` is `Truncated`, `[0xC3, 0x28]` is
+> **Note.** So `[0xE2, 0x82]` is `Truncated(0)`, `[0x68, 0xE2, 0x82]` is `Truncated(1)`, `[0xC3, 0x28]` is
 > `InvalidSequence(0)`, and the overlong `[0xC0, 0xAF]` is
 > `InvalidSequence(0)`.
 
@@ -321,17 +321,14 @@ fn header(line: string) -> string?:
 
 ## Joining And Building
 
-`join`, as a method and as a function, and `StringBuilder` join many
+The `join` method of `List[string]` and `StringBuilder` join many
 pieces of text:
 
 ```text
-use std.text.{StringBuilder, join}
+use std.text.StringBuilder
 
 fn csv(cells: List[string]) -> string:
     cells.join(",")
-
-fn dotted(parts: List[string]) -> string:
-    join(parts, ".")
 
 fn report(names: List[string]) -> string:
     let mut out = StringBuilder::new()
@@ -340,19 +337,19 @@ fn report(names: List[string]) -> string:
     out.build()
 ```
 
-1. r[std-text.join.decl] `std.text` declares `pub fn join(parts: List[string], separator: string) -> string`. Code imports it, as in `use std.text.join`.
-2. r[std-text.join.result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
+1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`. Calling it needs no import.
+2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
 3. r[std-text.builder.decl] `std.text` declares `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new] `StringBuilder::new() -> mut StringBuilder` returns an empty builder.
 5. r[std-text.builder.push] `b.push(text: string) -> mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
 6. r[std-text.builder.push-char] `b.push_char(c: char) -> mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `mut self`.
 7. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
-8. r[std-text.join.method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`, which returns what `join(self, separator)` returns. Calling it needs no import.
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
-> in usability probes. The free function stays, since existing code imports it
-> and the method is one call to it. `trait.inherent.unique-unifying.disjoint`
-> already allows an inherent implementation for `List[string]` alone.
+> in usability probes. There is no free `join(parts, separator)`, since it
+> was a second spelling of the method.
+> `trait.inherent.unique-unifying.disjoint` already allows an inherent
+> implementation for `List[string]` alone.
 
 ## Prefix Helpers
 

@@ -55,9 +55,7 @@ fn output_of(name: &str, main: &str) -> String {
 }
 
 /// The program: fixed adversarial cases, then 3,000 seeded random ones.
-const PROGRAM: &str = r#"use std.text.join
-
-# Substring operations against a naive reference: random haystacks and
+const PROGRAM: &str = r#"# Substring operations against a naive reference: random haystacks and
 # needles over small alphabets (ASCII and multi-byte UTF-8), needles cut
 # from the haystack, and adversarial periodic cases.
 
@@ -100,7 +98,7 @@ fn naive_split(text: string, separator: string) -> List[string]:
     pieces
 
 fn naive_replace(text: string, old: string, new: string) -> string:
-    join(naive_split(text, old), new)
+    naive_split(text, old).join(new)
 
 data Rng:
     state: u64
@@ -114,7 +112,7 @@ fn word(rng: mut Rng, alphabet: List[string], size: usize) -> string:
     let parts: mut List[string] = []
     for _ in 0..size:
         parts.push(alphabet[rng.below(alphabet.len())])
-    join(parts, "")
+    parts.join("")
 
 fn agree(text: string, needle: string, failures: mut List[string]) -> void:
     case := "${debug(text)} ${debug(needle)}"
@@ -189,7 +187,7 @@ pub fn main() -> void $ Console:
             chars := text.chars().collect::[List[char]]()
             from := rng.below(chars.len())
             to := from + rng.below(chars.len() - from + 1)
-            join([for c in chars[from..to] => "$c"], "")
+            [for c in chars[from..to] => "$c"].join("")
         else:
             word(rng, alphabet, rng.below(8))
         agree(text, needle, failures)

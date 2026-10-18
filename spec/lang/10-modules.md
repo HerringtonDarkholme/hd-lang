@@ -513,11 +513,11 @@ Every absolute use path begins with one of these roots:
 2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
 3. r[module.root.dep-prefix] Source syntax does not require a different prefix for each dependency beyond `dep.<name>`.
 4. r[module.root.use-only] Only a use declaration may begin a path with a root. Only a use brings a module name into scope.
-5. r[module.root.use-only.error] So an absolute path in an expression or a type, such as `std.text.join(words, " ")` with no `use std.text`, is an error. Error: `unknown-name`.
+5. r[module.root.use-only.error] So an absolute path in an expression or a type, such as `std.time.s(seconds)` with no `use std.time`, is an error. Error: `unknown-name`.
 
 ```text
-fn headline(words: List[string]) -> string:
-    std.text.join(words, " ")  # error: unknown-name
+fn timeout(seconds: i64) -> void:
+    std.time.s(seconds)  # error: unknown-name
 ```
 
 ### Relative Uses

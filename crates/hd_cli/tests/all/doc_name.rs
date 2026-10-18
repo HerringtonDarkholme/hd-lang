@@ -110,7 +110,10 @@ fn a_std_name_prints_the_lib_std_declaration() {
     let out = hd(&root, &cache, &["doc", "std.text"]);
     let page = text(&out.stdout);
     assert!(page.starts_with("# Module `std.text`\n"), "{page}");
-    assert!(page.contains("- [`join`](#join): "), "{page}");
+    assert!(
+        page.contains("- [`process_escapes`](#process_escapes): "),
+        "{page}"
+    );
     let out = hd(&root, &cache, &["doc", "std.text.nope"]);
     assert_eq!(out.status.code(), Some(101));
     assert_eq!(text(&out.stdout), "");

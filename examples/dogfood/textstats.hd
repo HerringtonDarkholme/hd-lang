@@ -1,7 +1,6 @@
 # textstats: analytics over an embedded multi-line log string.
 # Shows a triple-quoted string, string methods, closures, filter/map/fold,
 # Map counting, sorted_by with a two-key comparison, and formatted output.
-use std.text.join
 
 LOG := """2026-10-03 10:00:01 INFO server started on port 8080
 2026-10-03 10:00:05 INFO request ok path /home
@@ -55,7 +54,7 @@ pub fn main() -> void $ Console:
     println("errors:")
     for line in errors(lines):
         println("  $line")
-    println(join(errors(lines).map(fn(l: string) -> string: l.slice(11, 19)), ", "))
+    println(errors(lines).map(fn(l: string) -> string: l.slice(11, 19)).join(", "))
 
 tests:
     use std.testing.assert_equal

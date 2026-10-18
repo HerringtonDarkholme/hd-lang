@@ -2373,7 +2373,7 @@ runtime/panic/num-radix-parse-radix-low.hd	runtime	panic:explicit-panic	std/num.
 runtime/panic/num-radix-parse-radix-high.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.radix.bad-radix
 runtime/valid/utf8-valid-text.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8
 runtime/valid/utf8-invalid-bytes.hd	runtime	accept	std/text.md#r-std-text.utf8.error.invalid
-runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error.truncated
+runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error.truncated-position
 runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-formed
 runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
 runtime/valid/time-unix-milliseconds.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-milliseconds

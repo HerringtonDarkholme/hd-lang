@@ -349,7 +349,10 @@ fn name_prints_a_std_entry() {
 fn name_prints_a_std_module_page() {
     let page = name(false, "std.text").unwrap();
     assert!(page.starts_with("# Module `std.text`\n"), "{page}");
-    assert!(page.contains("- [`join`](#join): "), "{page}");
+    assert!(
+        page.contains("- [`process_escapes`](#process_escapes): "),
+        "{page}"
+    );
     assert!(page.contains("### `string.split`"), "{page}");
     assert!(
         page.ends_with("Reference: [std.text](spec/std/text.md)\n"),
@@ -357,7 +360,7 @@ fn name_prints_a_std_module_page() {
     );
     assert!(!page.contains("](../../spec/"), "{page}");
     assert_eq!(
-        name(false, "std.text.join")
+        name(false, "std.text.process_escapes")
             .unwrap()
             .matches("```hd")
             .count(),
