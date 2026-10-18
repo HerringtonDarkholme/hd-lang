@@ -293,8 +293,8 @@ is what sharing values across threads or actors without copying needs
 ### Cancelling A Using Binding
 
 A stored suspension's `cancel()` cannot wait for a `dispose!` that
-suspends. The proposed answer, a graceful `cancel()` returning a `Cleanup`
-to await and an explicit `abandon()`, is in
+suspends. The proposed answer, a graceful `cancel()` returning its cleanup as a
+suspension to await and an explicit `abandon()`, is in
 [Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md).
 
 ### Closure Shorthand
