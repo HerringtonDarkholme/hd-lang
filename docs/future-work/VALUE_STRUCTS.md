@@ -1,7 +1,6 @@
 # Value Structs: Design Study
 
-Status: proposal for owner review (#426). Nothing here is decided. The
-spec and the compiler are unchanged.
+Status: proposal (#426). The spec and the compiler are unchanged.
 
 ## 1. The Problem
 
@@ -151,7 +150,7 @@ passing records through calls) and ties where `data` allocates nothing
 
 1. **Keep every element a value.** The per-element box is the whole
    difference measured above. A struct must use the tuple's layout in
-   every position, and the bound decides how many real records qualify
+   every position, with no size bound, so every real record qualifies
    (section 5.6).
 2. **Store small homogeneous records adjacent.** One strided array beat
    two parallel arrays by 1.1x to 1.3x with identical loops: one growth,
@@ -236,19 +235,23 @@ fields where `Order` stores the struct, and allocates nothing.
 `lines[i] = LineItem { ...lines[i], unit }` writes one slot in each of
 the list's field arrays (section 7.5).
 
-Sugar where `p.x = 1.0` on a `let` binding means
-`p = Point { ...p, x: 1.0 }` is left open (section 12).
+`p.x = 1.0` is never shorthand for `p = Point { ...p, x: 1.0 }`. A
+changed struct is always written as a new value, so a copy never hides
+behind what reads as a mutation, and neither `pts[i].x` nor a tuple
+element becomes a place.
 
 ### 4.2 Copying, equality and hashing
 
-Copying a struct copies at most four Wasm values, or one reference past
-the bound (section 5), so the C# and Go advice against large structs
-does not carry over: a large struct is a box, and copying it copies a
-pointer.
+Copying a struct copies all its fields' Wasm values, however many there
+are. A struct is never boxed to make a copy cheap (section 5), so the C#
+and Go advice against large structs holds: a struct of ten values costs
+ten moves on every call and every list read. An optional warning can
+point out large ones (section 8).
 
 Equality and hashing are on contents; there is nothing else to compare.
-As for `data`, they come from `@derive(Eq, Hash)` or a written `impl`
-(question 2). Derived `Eq` compares fields in declaration order, and
+As for `data`, and unlike tuples, they come from `@derive(Eq, Hash)` or
+a written `impl`: a struct is nominal, and its author decides what `==`
+means for it. Derived `Eq` compares fields in declaration order, and
 derived `Hash` writes them in that order. A `data` field compares with
 its own type's `Eq`; identity never enters a struct's `==`.
 
@@ -326,17 +329,18 @@ integer or one reference. Nested and inline aggregates are listed as
 post-MVP work in the GC proposal. So "a `Vec<Point>`" can only be
 emulated.
 
-A struct uses the tuple's layout in every position. The bound counts
-Wasm values: one per scalar, enum tag or reference, two per string view
-(a reference and an `i64` span), and the sum over nested structs.
+A struct is never boxed for its size. It uses the tuple's unboxed layout
+in every position, however many fields it has. Its size counts Wasm
+values: one per scalar, enum tag or reference, two per string view (a
+reference and an `i64` span), and the sum over nested structs.
 
 ### 5.1 Locals, arguments and results
 
-Within the bound, a struct is its fields' Wasm values: a `Point` local is
-two `f64` locals, an argument is two parameters, and a result is two
-results of a multi-value function. Both V8 and wasmtime support
-multi-value returns. Nothing is allocated. Passing a four-value struct
-through a call costs four register moves against one for a reference.
+A struct is its fields' Wasm values: a `Point` local is two `f64`
+locals, an argument is two parameters, and a result is two results of a
+multi-value function. Both V8 and wasmtime support multi-value returns.
+Nothing is allocated. Passing a k-value struct through a call costs k
+register moves against one for a reference.
 
 ### 5.2 Fields
 
@@ -353,7 +357,6 @@ two dependent loads when `Rect` and `Vec2` are `data`.
 | `data` element (today) | allocate one object, store one reference | load the reference, cast, then a dependent load per field | same | about 28 bytes (a 24-byte object and a 4-byte slot) | n + 2 |
 | One array per field (today's tuple layout) | one `array.set` per field, in separate arrays | one load per field, each with its own bounds check | one array, the best case | 16 bytes | k + 1 |
 | One strided array (all fields share a Wasm type) | k stores into one array | k loads from one array, adjacent in memory | every k-th element | 16 bytes | 2 |
-| Boxed (over the bound) | allocate one immutable object | as `data` | as `data` | as `data` | n + 2 |
 
 The plan:
 
@@ -383,31 +386,36 @@ object built for every insert and every lookup.
 ### 5.4 Strings inside structs
 
 A string field is a view, `(ref $bytes, i64 span)`, so it costs two
-values toward the bound and 12 bytes at rest. A slice stored in a
+values and 12 bytes at rest. A slice stored in a
 struct allocates nothing: `WordDay { day, word }` built from
 `line.split(" ")` refers into the line's bytes. The known retention risk
 of views applies: a small slice keeps its whole source alive.
 
-### 5.5 Where boxing stays
+### 5.5 Where a reference is unavoidable
 
-- **Past the bound**: one immutable box per value in every position, so
-  reading an element or field never allocates, and copying copies a
-  reference. Constant boxes can become globals (PERFORMANCE_ROADMAP.md
-  step 13).
-- **Erased positions**: `dyn Trait`, `Any`, an erased method body.
-- **Inside a self-recursive enum's payload**, in the enum's box.
+Size never boxes a struct. Only positions that hold exactly one
+reference for any type do, as C# boxes a struct converted to an
+interface and Swift boxes a large value in an existential:
 
-### 5.6 The bound
+- **Erased positions**: converting a struct to `dyn Trait` or `Any`
+  copies it into one immutable box. Generic code is monomorphized, so a
+  type parameter never erases a struct.
+- **Inside a self-recursive enum's payload**: the struct's fields sit in
+  the enum's own box, with no separate struct object.
 
-The bound is 4 today. It came from enums and tuples: the largest count
-where parallel arrays still won a read-only kernel by more than 10
-percent on wasmtime and `push` stayed under 256 bytes. It decides which
-real structs get the gain. `Point`, `Vec2`, `Rect` of four `f64`, `Money`
-(an `i64` and a currency tag), `Date` and `Range[i32]` fit. A `LineItem`
-with a string, a quantity and a `Money` needs five values, and the JSON
-benchmark's `Record` needs six; both would be boxed. A wider bound for
-list storage is a measured choice, not a guess, so it is a job in
-section 11 and question 3.
+### 5.6 No size bound
+
+Tuples and enums are boxed past 4 Wasm values today. That bound came
+from measuring parallel arrays on a read-only kernel and keeping `push`
+under 256 bytes. A struct has no such bound: its author chose a value,
+so the compiler keeps it one. A `LineItem` of five values and the JSON
+benchmark's `Record` of six are five and six parallel arrays in a list,
+not an object per element.
+
+The cost of a wide struct moves elsewhere: push code grows with the
+field count, every copy moves every value, and a scan of one field
+skips over the rest only in strided storage. Those are the author's
+trade-offs, shown by the optional warning of section 8.
 
 ## 6. Prior Art
 
@@ -531,12 +539,11 @@ struct Record:
     tags: List[string]
 ```
 
-`Record` is six values (`name` counts two), past the bound of 4, so with
-today's bound it is one immutable box per record: the same allocation as
-`data`. The JSON gap is decoding through a `Json` tree (2.1 GB allocated
-where Rust allocates 164 MB), not the records. With a list-storage
-bound of 8, the 400,000 decoded records would be six arrays instead of
-400,000 objects; the measurement plan prices that.
+`Record` is six values (`name` counts two), so the 400,000 decoded
+records are six arrays instead of 400,000 objects. That is not where
+most of the JSON gap is: decoding goes through a `Json` tree (2.1 GB
+allocated where Rust allocates 164 MB). The measurement plan prices the
+records' share.
 
 ### 7.5 Money and line items
 
@@ -592,9 +599,8 @@ impl Invoice:
 `Money` is two values: an `i64` and an `i32` tag. Every `+` and `times`
 returns two values and allocates nothing; today each allocates a `Money`
 object. `Invoice` stays `data`: it has identity, and `reprice` changes
-it in place. `LineItem` is five values, one past the bound, so today's
-bound boxes it; the lint in section 8 says so at the declaration. With
-a bound of 8 the item list would be five arrays.
+it in place. `LineItem` is five values, so the item list is five
+arrays, and replacing an item writes one slot in each.
 
 With `data` in place of `struct`, this program runs today; that is the
 migration property of section 4.8 at work.
@@ -656,13 +662,14 @@ Each conversion changes a public type from `AnyRef` to `AnyVal`. A
 program that put such a value behind `T < AnyRef` or compared it with
 `is` stops compiling; nothing changes meaning silently.
 
-**The lint.** A struct whose layout is over the bound is legal and still
-correct, but it is boxed, and its author probably wrote `struct` for
-speed. A warning at the declaration says so:
+**The lint.** A large struct is legal and stays unboxed, but every copy
+moves every value. An optional warning at the declaration can say so.
+It is a convenience, not part of the model, and it lands after the
+language jobs; its threshold comes from measurement (section 10):
 
 ```text
-warning: struct-boxed: `LineItem` needs 5 slots, over the limit of 4, so each value is a separate object
-  help: drop or merge a field, or declare it `data` if values are shared and changed
+warning: large-struct: `Report` is 14 Wasm values; each copy moves all of them
+  help: split it, or declare it `data` if values are shared and changed
 ```
 
 ## 9. Costs
@@ -673,9 +680,9 @@ warning: struct-boxed: `LineItem` needs 5 slots, over the limit of 4, so each va
 | A choice for every record | real | the guide needs one paragraph: values that are interchangeable are structs |
 | Checker | small | structs are tuples with names: field resolution from `data`, value rules from tuples |
 | Layout | small for the first slice | the tuple shape with a name; flat list storage of every value layout already exists |
-| Code size | per `List[S]` instance, push grows with the field count | the bound caps it; job 11 measures it |
+| Code size | per `List[S]` instance, push grows with the field count | no bound caps it; jobs 11 and 12 measure it |
 | Compile time | none expected | one more nominal kind in monomorphization keys |
-| Copies | at most four values or one reference | the bound caps it |
+| Copies | one move per Wasm value | no bound caps it; the optional warning points out large structs |
 | Binary compatibility | none to keep | layout is not observable ([`data.repr.no-dependence`](../../spec/lang/08-data-and-enums.md#r-data.repr.no-dependence)) |
 
 ## 10. Measurement Plan
@@ -693,9 +700,10 @@ both engines, release builds, medians of five runs at a load under 4:
 
 Later slices measure their own claims: map-key structs at the speed of
 an integer-pair key once derived `Hash` stops allocating; strided
-against per-field arrays on the points and geometry loops; a bound of 6
-and 8 for list storage on `LineItem` and `Record` lists, reporting push
-code size, read kernels and the JSON benchmark.
+against per-field arrays on the points and geometry loops; `LineItem`
+and `Record` lists against `data`, and the call and copy cost of structs
+of 8, 12 and 16 values, reporting push code size, read kernels and the
+JSON benchmark. That last measurement sets the warning's threshold.
 
 ## 11. Implementation Plan
 
@@ -707,15 +715,15 @@ and reports the measurement it names.
 | 1 | Parse `struct` declarations with data's field grammar; drop the `old-struct-declaration` rule | a "Struct Declarations" section in `08-data-and-enums.md` replacing `data.decl.no-struct`; parse fixtures, valid and invalid | hello.wasm unchanged |
 | 2 | Check construction and access: literals, defaults, shorthand, copy-update, field access, visibility; reject field assignment and `mut S` | rules for immutable fields and no `mut` form, beside `types.tuple.no-mut`; check and run fixtures | none |
 | 3 | Value rules: `is` rejected, `AnyVal` and `AnyRef` bounds, `mut U` fields, the struct-cycle error | rules in `04-type-system.md` (Tuple Types, `AnyVal`) and the new section; invalid fixtures per error | none |
-| 4 | Lower a struct as a named tuple: values in locals and results, flattened fields, one array per field in lists and map keys, one box past the bound, erased in `dyn` and `Any` | run fixtures per position; a test that a `List[Point]` push emits no `struct.new` | points with `struct` against tuples (equal within noise) and `data`; Wasm bytes; hello.wasm |
+| 4 | Lower a struct as a named tuple with no size bound: values in locals and results, flattened fields, one array per field in lists and map keys, boxed only in `dyn` and `Any` | run fixtures per position; a test that a `List[Point]` push emits no `struct.new` | points with `struct` against tuples (equal within noise) and `data`; Wasm bytes; hello.wasm |
 | 5 | Struct patterns in `match` and `let`, irrefutability, exhaustiveness | pattern rules beside Data Patterns; fixtures | none |
 | 6 | Derivations and serialization on structs: `Eq`, `Hash`, `Ord`, `Debug`, `Serialize`, `Deserialize`, `Structure` members | a rule that struct members are its fields; a fixture that JSON matches the `data` form | none |
 | 7 | Derived `Eq` and `Hash` without a walker object per call, with `Hasher.write_u64` and `write_str` (#434) | std hash rules where they change | the map-key programs of section 2.1 with tuple, `data` and struct keys; ns per operation, bytes |
-| 8 | The `struct-boxed` warning | a lint rule and a fixture | none |
+| 8 | Optional, after job 12: the `large-struct` warning | a lint rule and a fixture | none |
 | 9 | Builders that know their length allocate once: `map`, `collect` from a sized source | std rules if any; existing fixtures | the points map phase on both engines |
 | 10 | Remove an index check that a dominating test already made, and hoist a list's fields out of loops with no growing call | none (optimizer); conformance digests | the indexed and `for` phases on both engines |
 | 11 | Strided storage for structs and tuples whose fields share one Wasm storage type | none (layout is unobservable); run fixtures for push, index, set, growth, `for`, map | points and geometry against parallel arrays; push code bytes per instance |
-| 12 | Measure a storage bound of 6 and 8 for value layouts; land nothing without the owner's answer to question 3 | none | `LineItem` and `Record` lists, push code size, read kernels, the JSON benchmark |
+| 12 | Measure wide structs: `LineItem` and `Record` lists against `data`, and calls and copies of 8-, 12- and 16-value structs | none | push code size, read kernels, the JSON benchmark, the warning threshold |
 | 13 | std migration: `Date`, the `Range` types, `regex.Match`, `Reverse`, `Datagram`, `Backoff`, `TimedOut` become structs | spec/std rules that name `data`; fixtures that use `is` or `AnyRef` on them | allocation of a `Date` loop and a sort with `Reverse` keys |
 | 14 | Guide and website: choosing `struct` or `data`, with the points and money examples | none | none |
 
@@ -724,25 +732,10 @@ and 9 to 12 are what section 2.3 says the compiler must add.
 
 ## 12. Open Questions
 
-1. **Should the keyword be `struct`?** It is reserved today only to
-   reject obsolete source (`old-struct-declaration`).
-   Recommendation: yes. It is the word C#, Go, Swift, Julia and Rust
-   readers expect for a value record, and no current program uses it.
-2. **Should struct equality be derived or automatic?** Tuples get `Eq`
-   and `Hash` from std for every element type that has them; `data`
-   needs `@derive`. Recommendation: derived, as for `data`. A struct is
-   nominal, and its author decides what `==` means for it.
-3. **Should structs share the single bound of 4 with tuples and enums?**
-   Under it, `Point`, `Rect`, `Money` and `Date` are flat, but a
-   `LineItem` or a JSON `Record` is boxed. Recommendation: ship with
-   the bound of 4 and the `struct-boxed` warning, then decide a wider
-   bound only from job 12's measurements.
-4. **Should `p.x = 1.0` on a `let`-bound struct mean
-   `p = Point { ...p, x: 1.0 }`?** It reads like C#, Go and Swift, and
-   would also make `pts[i].x = 1.0` and tuple elements places.
-   Recommendation: not in the first version. It hides a copy behind
-   what reads as a mutation. Revisit once the std migration and the
-   guide show real code that wants it.
+1. **Should tuples drop their bound too?** A struct is a named tuple,
+   yet a five-value struct would be unboxed while a five-value tuple is
+   boxed. Recommendation: decide from job 12. If wide structs measure
+   well, give tuples the same rule, so the two layouts stay one.
 
 ## Sources
 
