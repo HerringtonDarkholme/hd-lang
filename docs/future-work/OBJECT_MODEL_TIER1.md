@@ -26,9 +26,8 @@ Part 1 designs tier 1 from scratch and justifies each choice by the
 programs it serves and its run-time cost. It uses an indentation syntax
 close to hd's so that Part 2 reads easily; every spelling is a
 placeholder, and no code block is checked by a compiler. Part 2 maps the
-design onto hd and plans the work in hour-sized jobs. Unit costs that
-REFCOUNT_RUNTIME.md will measure are stated as assumptions and marked
-*(to be confirmed by REFCOUNT_RUNTIME.md)*.
+design onto hd and plans the work in hour-sized jobs. Unit costs come
+from the measurements in REFCOUNT_RUNTIME.md.
 
 # Part 1: From Scratch
 
@@ -154,11 +153,12 @@ whose `Eq` and `Hash` are the reference's identity.
 **Representation.** A reference into the middle of an object keeps the
 whole object alive: either a fat reference holds base and offset (one
 Wasm `i64`), or a thin address finds its header through the allocator's
-size-class page, as Go's does. The companion study's draft picks the
-thin address and a header of one 32-bit count, plus a collector word for
-types that can be in a cycle; release and trace code come from the
-static type, or from the vtable of a `dyn` value *(to be confirmed by
-REFCOUNT_RUNTIME.md)*.
+size-class page, as Go's does. hd uses the thin address. The header is
+8 bytes: a 32-bit count and a word holding the object's release-and-trace
+descriptor (with tier 2's borrow-flag bits), plus a collector word for
+types that can be in a cycle. The descriptor is what lets the last
+reference be an interior one: when `&mut p.status` is the last reference
+to a `Packet`, its release still destroys the whole `Packet`.
 
 ## 5. Mutability
 
@@ -168,7 +168,8 @@ hd marks where values change. In tier 1 the marks are few:
 | --- | --- |
 | `let x = ...` | `x` may be reassigned and its fields assigned |
 | `x := ...` | `x` never changes, as a whole or in part |
-| a parameter, `self` | immutable: a copy or a borrow of the caller's value |
+| a value parameter, `self` | immutable: the callee's own copy of the caller's value |
+| a `&T` parameter, `&self` | a read of the caller's value, with no copy |
 | `&mut e` | a writable reference is made here, visible at the call site |
 | `&mut T` in a type | this position may write the object |
 | `&mut self` | this method changes its receiver in place |
@@ -232,7 +233,15 @@ memory, and the reference sees it.
 
 Enum payloads are not places. A payload is read by matching, which
 binds copies, and changed by replacing the whole enum value, so an
-enum's layout can change between variants under no reference.
+enum's layout can change between variants under no reference. To change
+a payload in place, std lends it to a callback and puts it back on every
+return path, `?` errors included, so an early exit never leaves the enum
+emptied:
+
+```text
+current.update(fn mut(w: &{} mut Writer) -> Result[void, IoError]:
+    w.add(text))?
+```
 
 ### 6.2 Collections are values
 
@@ -260,7 +269,9 @@ modify accessors. No reference escapes such a statement, so it needs no
 pin, and map values, which are not addressable, are still written in
 place this way.
 
-`string` is immutable UTF-8. A string slice is a view that counts the
+`string` is immutable UTF-8. Every empty string, and every empty view,
+is one shared static value that is never counted. A string slice is a
+view that counts the
 shared buffer, so a small view keeps a large buffer alive, the retention
 cost Go documents for slices; `s.compact()` copies a view out. A list
 slice, `xs.slice(a, b)`, likewise shares its buffer until either side
@@ -282,7 +293,11 @@ it reallocates depends on capacity. Tier 1 forbids the move instead:
    length or moves its elements (push, insert, remove, clear, truncate,
    reserve) panics with `collection-pinned`. Replacing an element,
    sorting and swapping are allowed; a reference sees whatever is in its
-   slot.
+   slot. An element reference names a slot, exactly as Go's `&s[i]`
+   does, never an entity: after `sort`, it sees whoever moved into its
+   slot. A handle to one entity that must survive sorting and growth is
+   a reference stored in the list, `List[&mut Person]` (Go's
+   `[]*Person`), or an ID.
 3. Copying a list whose buffer is pinned copies the buffer at once, so a
    pinned buffer is never shared, and a reference into one list never
    sees another list's writes.
@@ -296,8 +311,7 @@ It is the iterator-invalidation check of Java's collections, extended
 to every element reference, and it is the dynamic twin of tier 2, where a scoped element reference freezes the list
 statically and holds no count. A buffer's header keeps two counts:
 owners (list values sharing it, for copy-on-write) and references
-(pins); it is freed when both are zero *(to be confirmed by
-REFCOUNT_RUNTIME.md)*.
+(pins); it is freed when both are zero.
 
 Maps rehash, so map values are not addressable, as in Go: `m[k] = v`
 and `m[k] += 1` work; `m[k].x = v` and `&m[k]` are errors whose fix is
@@ -317,7 +331,7 @@ is the read-only form, for code that keeps the references.
 
 ```text
 impl Vec2:
-    fn len(self) -> f64:                  # a copy, or a borrow of the caller's value
+    fn len(&self) -> f64:                 # a read of the caller's value
         (self.x * self.x + self.y * self.y).sqrt()
     fn translate(&mut self, d: Vec2) -> void:
         self.x += d.x
@@ -351,15 +365,18 @@ compiler decides:
 | Does an address-taken `let` live on the stack or in a heap cell? | the stack if every reference to it provably dies before the function returns |
 | Is a new object, `&T { ... }`, on the stack? | the same test |
 | Which increments and decrements go? | a reference passed on and never used again is moved; one only read in the body is never counted |
-| Is a value argument passed by pointer or copied? | by pointer when its source is a local without an address or a temporary |
+| Is a value argument moved or counted? | moved at the caller's last use of it, otherwise one increment; a plain struct of scalars is copied |
 
 Three conventions keep the analysis local without inference:
 
-- **Parameters are passed at +0.** The caller keeps every reference
-  argument alive during the call; the callee increments only what it
-  stores or returns. One rule for every function is part of every header
-  without being written (Swift's default "guaranteed" convention).
-  Results are returned at +1.
+- **The parameter's type fixes how it is passed.** A value parameter
+  `T` is the callee's own copy: the caller moves it in at its last use
+  and otherwise passes it with one increment, so the callee may change
+  it in place when it is the only holder. A `&T` parameter is a
+  borrowed read: the caller keeps the argument alive and nothing is
+  counted; the callee increments only what it stores or returns.
+  Results are returned owned. There is no `consume` mark; the type
+  already says it.
 - **A stack object starts with a count of one, held by the frame**, so a
   callee that counts it up and down never frees it. It is placed on the
   stack only when no reference can outlive the frame.
@@ -461,6 +478,9 @@ caches, Go added weak pointers only in Go 1.24, as "a low-level
 primitive" for weak maps, and hd can add a `Weak[T]` the same way later.
 A `Disposable` caught in a cycle is reclaimed at the collector's next
 run, so `using` remains the way to release a resource at a known point.
+An undisposed handle is reported as a leak the moment its count reaches
+zero, or, inside a cycle, when the collector reclaims it; the collector
+also runs at orderly shutdown, before the final leak report.
 
 ## 10. Keeping Go's Known Bugs Rare
 
@@ -661,14 +681,15 @@ measures them:
 
 | Operation | Cost in tier 1 | Assumption |
 | --- | --- | --- |
-| Copy a struct | its bytes, plus an increment per counted field | an increment is a non-atomic load, add and store *(to be confirmed by REFCOUNT_RUNTIME.md)* |
-| Pass a reference | nothing, at +0 | |
+| Copy a struct | its bytes, plus an increment per counted field | an increment is a non-atomic load, add and store; a pair costs 2.1 ns |
+| Pass a `&T` | nothing, at +0 | |
+| Pass a value | a move at the caller's last use, otherwise one increment per counted field | |
 | Store or return a reference | an increment; later a decrement and a zero test | |
-| `&mut T { ... }` | an allocation and an object header | a 4-byte count, plus a collector word for cyclic types *(to be confirmed by REFCOUNT_RUNTIME.md)* |
+| `&mut T { ... }` | an allocation and an object header | an 8-byte header (count and descriptor), plus a collector word for cyclic types |
 | `&mut local` passed to a call in another module, not inlined | the local moves to a heap cell | |
-| Interior reference | a fat `i64`, or a header lookup per count operation | *(to be confirmed by REFCOUNT_RUNTIME.md)* |
+| Interior reference | a page-table lookup per count operation | measured no slower than a base pointer |
 | Change a list or map | a uniqueness test; a full copy if the buffer is shared | |
-| Element reference | the buffer made unique, a pin increment, later a decrement | a second 4-byte count per buffer header *(to be confirmed by REFCOUNT_RUNTIME.md)* |
+| Element reference | the buffer made unique, a pin increment, later a decrement | a second 4-byte count per buffer header |
 | Push, insert, remove | a pin test: a load and a branch | |
 | A closure literal with captures, a captured `let` that is written | an environment object, a cell | none, when the closure is inlined |
 | An object of a possibly cyclic type | a candidate entry on a decrement that does not reach zero | collector pauses priced in REFCOUNT_RUNTIME.md |

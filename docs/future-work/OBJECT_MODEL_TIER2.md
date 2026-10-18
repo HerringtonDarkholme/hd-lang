@@ -24,7 +24,7 @@ boundary, the one Rust itself has at `Rc<RefCell<T>>`. A scoped borrow
 taken through a global reference sets a borrow flag in the object's
 header, and a conflicting write through another alias panics. Each
 declaration is compiled once, tier 1 code calls it with no marks, and
-locals and values never pay for the flag.
+locals that never escape and values never pay for the flag.
 
 | Tier 1 cost | With tier 2 marks |
 | --- | --- |
@@ -33,7 +33,7 @@ locals and values never pay for the flag.
 | a count update through each stored interior reference | none through scoped references |
 | element references pin the list; push tests the pin | a local list is frozen statically; a list behind a global reference is flagged |
 | closure environments in counted objects | a scoped closure's environment is a record in the frame |
-| writable references may alias | a scoped `&{} mut` is exclusive in every caller: statically from locals, by the flag through global references |
+| writable references may alias | a scoped `&{} mut` has no conflicting writer in any caller: statically from locals, by the flag through counted storage; other aliases may still read |
 | release happens at count zero | a NonCopyable value is released at the end of its scope |
 
 One rule binds both tiers: **nothing a caller relies on is inferred
@@ -104,18 +104,21 @@ fn count_words(text: string) -> usize:
 2. A set names reference parameters, `self`, paths such as `self.items`, lifetime
    parameters, locals inside a body, and `global`. In a parameter, `{}`
    is that parameter's own lifetime.
-3. A global reference converts to any scoped one. A scoped value never
-   becomes global except by copying.
+3. A global reference converts to any scoped one. A scoped value
+   stored in a global place is promoted: its counted buffer gets a count,
+   with no copy. One that points into a stack frame cannot be stored
+   globally.
 4. A type with a lifetime parameter, `Lexer[{s}]`, is scoped when its
    argument is. A value containing a scoped reference is itself scoped.
-5. A scoped `&{} mut T` is exclusive; a scoped `&{} T` freezes the place
-   it borrows. A static checker enforces both inside each body.
+5. A scoped `&{} mut T` admits no other writer; a scoped `&{} T` freezes
+   the place it borrows. A static checker enforces both inside each
+   body; other aliases may still read.
 6. Closure types carry capture sets, `fn(A) ->{xs} B`, and a kind:
    `fn`, `fn mut` or `fn once`. A closure type with no set is global.
 7. A struct marked `~Copy` is NonCopyable: it moves, and is released at
    the end of its scope.
-8. A scoped borrow taken through a global reference flags the object
-   for its extent; a write through another global reference that meets
+8. A scoped borrow taken through counted storage flags every storage on
+   its path for its extent; a write through another alias that meets
    the flag panics (section 6.4).
 
 ## 3. Lifetime Sets
@@ -296,6 +299,13 @@ shared buffer, and the views still point into it. Three rules:
 Such a struct depends on nothing outside itself, so it is global. It
 cannot express an arena that grows while views into it live.
 
+Taking such a field out of its struct ties it to the owner: projection
+replaces `self` with the owner, so `csv.cells` has type
+`List[&{csv} string]`. The ordinary escape checks then apply: returning
+`csv.cells` after `csv` dies is an error, and using it while `csv` lives
+is free. Storing it in a global place promotes it as any scoped result
+is promoted (section 8.4).
+
 ## 5. NonCopyable And NonEscapable Structs
 
 ### 5.1 NonCopyable
@@ -405,7 +415,7 @@ While a scoped borrow is live, its source place is restricted:
 | Live borrow of place `P` | Reading `P` | Writing `P`, or a call that changes a list's length | Another `&{} mut` of `P` | Another `&{} P` |
 | --- | --- | --- | --- | --- |
 | `&{} P` (shared) | yes | no: `P` is frozen | no | yes |
-| `&{} mut P` (exclusive) | only through the borrow | only through the borrow | no | no |
+| `&{} mut P` (exclusive) | through the borrow; directly, no; through a global alias, yes (section 6.4) | only through the borrow | no | no |
 
 A place is a local, a field path from a local, the elements of a list
 taken together, a map's entries taken together, or the target of a
@@ -465,21 +475,29 @@ global references to `obj`, so an alias may write while the borrow
 lives. A flag in the object header keeps the borrow sound at run time,
 as Rust's `RefCell` and Swift's dynamic exclusivity do:
 
-1. Taking a scoped borrow through a global reference marks the object
-   that reference points to: a reader count for `&{}`, a writer bit for
-   `&{} mut`. The caller also holds one count on the object for the
-   borrow, so it cannot be freed while flagged.
-2. A write through a global reference tests the flag of the object it
-   writes, including a call that changes a list's length. A conflicting
-   flag makes the write panic with `borrow-conflict`.
+1. Taking a scoped borrow through counted storage marks every counted
+   storage on its path: the object that holds the borrowed field, and
+   the buffer a view or element reference points into, nested
+   copy-on-write buffers included. A reader count marks `&{}`, a writer
+   bit `&{} mut`. The caller also holds one count on the innermost
+   storage for the borrow, so it cannot be freed while flagged.
+   Counted storage is anything a count reaches: a global reference, a
+   local whose address escaped into a heap cell, and a buffer that an
+   element reference pins.
+2. A write through counted storage tests the flag of the storage it
+   actually writes: the object for a field, the buffer for an element or
+   a length change. A conflicting flag makes the write panic with
+   `borrow-conflict`. So an older alias cannot invalidate a newer view:
+   `alias.name = "other"` while a view of `doc.name` lives tests the
+   flag on `doc`'s object and panics.
 3. Taking a second borrow through a global reference tests the flag
    too: a shared borrow conflicts with the writer bit, an exclusive one
    with either.
 4. The flag clears where the borrow's extent ends, as the static
    checker computed it. A result that borrows, such as what
    `obj.items.get(0)` returns, keeps the flag set while it lives.
-5. Locals and values never touch the flag, nor do writes through the
-   borrow itself or reads through any alias.
+5. Locals that never escape and values never touch the flag, nor do
+   writes through the borrow itself or reads through any alias.
 
 Borrows through one global variable are checked statically against
 each other, so `swap(&{} mut a.x, &{} mut a.y)` sets one writer bit.
@@ -487,9 +505,15 @@ The flag is per object: borrowing `a.x` and `b.y` exclusively panics
 when `a` and `b` refer to one object, as two `borrow_mut` calls on one
 `RefCell` do.
 
-So a scoped `&{} mut` is exclusive in every caller, statically when its
-path starts at something local and by the flag otherwise; an alias may
-still read. **Global `&mut T` gets no check of its own**, as in tier 1:
+So a scoped `&{} mut` is free of conflicting writes in every caller,
+statically when its path starts at a local that never escaped and by
+the flag otherwise. Reads through another alias are allowed and see the
+current value: a callback that reads the object in the middle of an
+exclusive borrow observes the latest write. The optimizer may therefore
+assume no other writer, but not that nobody reads; it keeps a store that
+an aliased read could observe. Full Rust exclusivity, where reads are
+excluded too, would cost a flag test on every read through a shared
+reference. **Global `&mut T` gets no check of its own**, as in tier 1:
 a counted reference cannot dangle. Only a write that would break a live
 scoped borrow fails.
 
@@ -497,10 +521,10 @@ Priced with REFCOUNT_RUNTIME.md's numbers:
 
 | | Cost |
 | --- | --- |
-| Memory | one 4-byte word next to the 32-bit count, so the header grows from 4 to 8 bytes; an 8-byte node rounds to 16 either way. Bits taken from the count word are the alternative |
+| Memory | a few bits of the header word that also holds the release-and-trace descriptor (REFCOUNT_RUNTIME.md), so no header growth beyond its 8 bytes; buffers carry the same bits |
 | Per borrow through a global reference | the page-table lookup for an interior address (measured free), an increment with the flag set, then a clear with the decrement: about one 2.1 ns pair |
 | Per write through a global reference | a load and a branch, like the copy-on-write uniqueness test, which measured free (102 ms against 102) |
-| Locals, values, scoped references from local sources | nothing: the static checker proves them |
+| Locals that never escape, values, scoped references from such locals | nothing: the static checker proves them |
 | Code size | one body per declaration; the tests sit at writes through global references |
 
 The panic needs a write to an object through one global reference while
@@ -537,6 +561,20 @@ A scoped closure's environment is a record in the creating frame, so
 making one allocates nothing, and its value is uncounted. A literal
 passed to a scoped parameter cannot escape, so the optimizer may
 specialize the callee for it with no environment at all.
+
+A scoped closure may still outlive the frame that made it, as long as
+what it borrows lives on:
+
+```text
+fn adder(n: &{n} i32) -> fn(i32) ->{n} i32:
+    fn(x: i32) ->{n} i32: x + *n
+```
+
+The pointer to `n` stays valid, but `adder`'s frame does not. A scoped
+closure returned past its creator's frame therefore gets a counted heap
+environment, which still carries its `{n}` dependency, so the caller's
+checks are unchanged. Only closures that stay in their frame keep the
+zero-allocation environment.
 
 ### 7.2 What a scoped closure captures
 
@@ -645,10 +683,26 @@ writes `names.sort_by(fn(a, b): a.cmp(b))` and `line.split(",")` with
 no marks. On a local, `split` returns uncounted views that freeze the
 string's variable. On a string behind a global reference it returns
 the same uncounted views, with the object flagged while they live
-(section 6.4); storing them in a global place is an error whose fix-it
-copies them. A string is immutable, so a shared reference to one refers
+(section 6.4). Storing such views in a global place promotes them: the
+compiler takes a count on the counted buffer their bytes live in, one
+increment and no copy, which works because interior references are
+plain addresses. So tier 1 code that writes `cache.words = line.split(" ")`
+keeps compiling, at tier 1's cost; tier 2 only ever removes costs. A
+result that points into a stack frame has no counted buffer to retain,
+so storing it globally stays an error. A string is immutable, so a shared reference to one refers
 to its bytes, which lets `slice` and `split` return references;
 `&mut string` refers to the variable.
+
+`iter_mut` yields items that may all be alive at once, as Rust's does:
+`ListIterMut[{L}, T]` has `next(&{} mut self) -> Option[&{L} mut T]`, so
+each item lives for the list's borrow `L`, not for the call to `next`.
+No borrow checker can see that two such items are disjoint, so std
+builds the iterator on one checked low-level intrinsic that splits a
+`&{L} mut` span into its first element and the rest, two
+non-overlapping parts (Rust's `split_first_mut` and `split_at_mut`,
+written with `unsafe` inside Rust's core). The same primitive gives
+`chunks_mut`, the two halves of a parallel sort, and swapping two
+elements through references.
 
 ## 9. Escape Analysis And Marks
 
@@ -901,9 +955,10 @@ Tier 2 is opt-in, so no program changes. std gains tier 2 headers by
 hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
 because global arguments still convert; it breaks only a std body that
 stored what it now promises not to keep, which the checker reports in
-that body. A result that gains a set breaks a caller that stored it in
-a global place; the checker offers a copy as the fix-it. Applications
-adopt marks where `--explain-escapes` shows a cost.
+that body. A result that gains a set breaks no caller either: a caller
+that stores it in a global place gets it promoted to a counted
+reference (section 8.4). Applications adopt marks where
+`--explain-escapes` shows a cost.
 
 ## 16. Implementation Plan
 
@@ -921,12 +976,12 @@ jobs 1 to 10.
 | 1 | Grammar: sets on `&`, `{}`, `global`, lifetime parameters `[{s}]` and arguments, closure sets `->{...}`, `fn mut`, `fn once`, `~Copy`; parser | a "Lifetimes" chapter skeleton and grammar productions; parse fixtures, valid and invalid |
 | 2 | Header checks: names in sets (parameters, `self`, `pub` paths, lifetime parameters, `global`), `{}` placement, missing argument means global | header rules; a fixture per error |
 | 3 | Set algebra: global to scoped, inclusion, joins, exactness behind `mut`, expected-type rule for `&e` | conversion rules; check fixtures |
-| 4 | Escape checks in bodies: scoped values not stored globally, results covered by the header, scoped values not captured by global closures | escape rules; a fixture per error, with fix-its |
+| 4 | Escape checks in bodies: scoped values not captured by global closures, results covered by the header; a scoped value stored globally is promoted when its bytes are in a counted buffer, an error when they are on the stack; projection of self-relative fields | escape and promotion rules; a fixture per error, with fix-its |
 | 5 | Lifetime parameters on structs and enums: scoped-contains rule, variance, `Token[global]` | type rules; check fixtures |
 | 6 | Loans 1: shared and exclusive loans on local places, liveness, freezes, length-changing calls | exclusivity rules; a fixture per conflict |
 | 7 | Loans 2: two-phase borrows, reborrows through scoped references, field disjointness, elements as one place | rules and fixtures |
 | 8 | Loans at calls: loans from header sets, owned value parameters, temporaries | call rules; check and run fixtures |
-| 9 | Borrow flag: scoped borrows through global references set and clear it, writes through global references and second borrows test it, `borrow-conflict` | flag rules; run fixtures for each conflict and for disjoint fields through one variable |
+| 9 | Borrow flag: scoped borrows through counted storage (global references, escaped locals, pinned buffers) mark every storage on the path; writes test the storage they write; `borrow-conflict` | flag rules; run fixtures for each conflict, an older alias writing under a newer view, and disjoint fields through one variable |
 | 10 | Closures 1: capture sets, scoped literals checked against expected types | capture rules; fixtures |
 | 11 | Closures 2: kinds, copyability, conversions, exclusive captures, two live `fn mut` | kind rules; a fixture per error |
 | 12 | Generics: `T < global`, scoped type arguments, places that need `global` (providers, tasks, `dyn`, boundaries) | bound rules; fixtures |
@@ -935,36 +990,25 @@ jobs 1 to 10.
 | 15 | NonCopyable 3: release at scope exits, drop order, synchronous `drop`, `Disposable` interplay | release rules; run fixtures for order |
 | 16 | Self-relative paths: `{self.f}`, frozen fields, literal rule | rules; fixtures |
 | 17 | Suspension: borrows across bang calls, scoped cold suspensions, borrows in `all!` children | rules; fixtures |
-| 18 | std 1: `List`, `Map`, iterators, `Span`, `sort_by` with tier 2 headers | std rules; fixtures |
+| 18 | std 1: `List`, `Map`, iterators, `Span`, `sort_by` with tier 2 headers; the span-splitting intrinsic and `iter_mut` on it | std and intrinsic rules; fixtures, including two live `iter_mut` items |
 | 19 | std 2: text (`slice`, `split`, `Builder`), formatting, encoding | std rules; fixtures |
 | 20 | std 3: the rest of std's writing methods; `--explain-escapes` suggestions | std rules; report-format fixtures |
 | 21 | RC backend: uncounted scoped references; instances split on `global` lifetime arguments; the flag word and its tests | none (unobservable); count totals and flag tests on the tour programs |
-| 22 | RC backend: locals behind `{}` borrows in the shadow-stack frame; scoped closure environments in the frame | allocation counts on the tour programs |
+| 22 | RC backend: locals behind `{}` borrows in the shadow-stack frame; scoped closure environments in the frame, a counted environment for one returned past its frame | allocation counts on the tour programs |
 | 23 | RC backend: NonCopyable release glue and drop flags | run fixtures from job 15 on the new backend |
-| 24 | No-alias for `&{} mut`: the backend may keep values in registers across writes through other references | benchmark: sort and points from the Rust study |
+| 24 | No-writer optimization for `&{} mut`: the backend may keep values in registers across calls that cannot write them, keeping stores an aliased read could observe | benchmark: sort and points from the Rust study |
 
 ## 17. Open Points
 
 - **Spelling.** `~Copy` against a word such as `@noncopy`; `[{s}]` for
   lifetime parameters against `[&s]`.
-- **Flag layout.** A second header word, or bits taken from the count
-  word, which would cap the count; the runtime study can measure both.
-- **Promoting results.** A scoped result whose sources are all reached
-  through global references could become a counted, pinning reference
-  at the caller, since interior references are plain addresses. That
-  would let tier 1 code keep storing what std returns.
-- **Element references and the flag**, to close before job 9. A
-  pinning global element reference into a buffer that a flagged object
-  owns writes without testing that object's flag. If it overwrites a
-  string field that a scoped view borrows, the view dangles. Either
-  such writes test a flag on the buffer, or a scoped borrow into a
-  pinned buffer copies it first.
 - **Shared references to strings refer to bytes**, so `r := &s` then
   `s = "x"` leaves `r` reading the old string. This differs from tier
   1's rule that a reference sees its slot; it is what lets `split`
   return references.
 - **Payload borrows** of locals, as Rust's `if let Some(f) = &mut x`,
-  which tier 1's non-place payloads forbid.
+  which tier 1's non-place payloads forbid; until then std's lending
+  callback (tier 1 section 6.1) changes a payload in place.
 - **Non-local `return` from scoped trailing blocks**, as Kotlin's
   inline lambdas.
 

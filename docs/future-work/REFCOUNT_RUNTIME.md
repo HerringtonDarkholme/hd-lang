@@ -58,7 +58,7 @@ Wasm GC, is obsolete.
 | scalars, `bool`, `char` | Wasm values; packed in memory | no |
 | struct | its fields inline: several Wasm values in locals, parameters and results; fields inline in its parent; elements inline in a list buffer | no; its reference fields are counted one by one |
 | enum | tag and payload inline; a recursive enum's payload in a counted cell | the cell |
-| `string` | a view: address and length of bytes inside a counted buffer, or inside the data segment for a literal | the buffer |
+| `string` | a view: address and length of bytes inside a counted buffer, or inside the data segment for a literal; every empty string is one shared static value | the buffer |
 | `List[T]` | a value: a small header referring to a counted buffer of inline elements; copy-on-write; element references pin the buffer | the buffer: owners and pins, two counts |
 | `Map[K, V]` | a value: a counted table of inline entries, copy-on-write | the table |
 | `&T` | the address of a `T` inside a counted cell, a list element or a field | the enclosing object |
@@ -66,11 +66,14 @@ Wasm GC, is obsolete.
 | `dyn Trait` | data reference and a vtable (methods, release, trace) | the data |
 | suspension frame | a counted object owned by its task | yes |
 
-A counted object has a 32-bit count before it (a collection buffer has
-two, owners and pins, as the tier 1 study specifies) and no type tag or
-size:
-monomorphized code knows both at every release, and `dyn` values carry
-a vtable. Around that sit a size-class allocator (section 6), counting
+A counted object has an 8-byte header before it: a 32-bit count, and a
+32-bit word holding its release-and-trace descriptor together with the
+tier 2 borrow-flag bits (a collection buffer adds a second count for
+pins, as the tier 1 study specifies). The descriptor is needed because
+the last reference to an object may be an interior one: when the
+`&mut i32` that `&mut packet.status` produced dies, the release must
+destroy a whole `Packet`, and the reference's type says only `i32`. The
+page table finds the header; the descriptor says what to release. Around that sit a size-class allocator (section 6), counting
 rules decided from declarations and one body at a time (section 4),
 interior references as plain addresses (section 5), and a cycle
 collector that only cycle-capable types ever reach (section 7). Section
@@ -308,9 +311,9 @@ one body is free to use anything that body shows.
 | Technique | hd | Needs a mark |
 | --- | --- | --- |
 | moves at last use | yes: liveness inside one body | no |
-| borrowed parameters | yes: every parameter is borrowed, by a fixed rule, as in Swift | no |
+| parameter passing | fixed by the parameter's type: a value parameter `T` is an owned copy, moved in at the caller's last use and otherwise passed with one increment, so the callee may change it in place when it is the only holder; a `&T` parameter is a borrowed read with no count | no: the type already says it |
 | consuming parameters for construction | yes: a struct literal, an enum constructor and a list literal take their parts; a stored borrowed argument costs one increment in the callee | no |
-| a `consume` parameter mark (Swift's `consuming`, Nim's `sink`) | later, if a builder measures it; saves one increment and one decrement per call | yes |
+| a `consume` parameter mark (Swift's `consuming`, Nim's `sink`) | not needed: a value parameter already owns its copy | no |
 | borrowed reads of immutable fields | yes: a field that is not `mut`, read from a value the body holds, stays alive as long as its parent | no |
 | borrowed reads of mutable places | only when no call or store between the read and the last use can overwrite the place; otherwise one increment | no |
 | borrowed loop elements | yes when the loop body cannot write the list; otherwise one increment per element | no |
@@ -402,13 +405,20 @@ overlaps them with the count update. The fat form's doubled
 reference size cost 40% on the read-only pass, which is the common
 case. The objects here are visited in address order; in a scattered
 heap the lookup adds one load from a table of 4 bytes per 64 KiB page
-(3 KB for a 48 MB heap), which stays in cache. The thin form is the
-recommendation, and it keeps a reference one Wasm value.
+(3 KB for a 48 MB heap), which stays in cache. hd uses the thin form,
+which keeps a reference one Wasm value.
 
 Strings are the most common interior reference: a view into a buffer.
 In the thin form a string is `(address, length)`, 8 bytes, against 12
 for today's `(ref, i64)` in a field, and a substring costs no
 allocation and no lookup until it is stored.
+
+An empty view needs one rule. `text.slice(text.len(), text.len())` has
+the address one past its buffer, and when the buffer exactly fills its
+slot that address lies inside the next object, whose count the page
+table would then find. So every empty view, and every empty string, is
+one shared static empty value that is never counted; slicing to length
+zero drops the reference to the source.
 
 With tier 2 lifetimes, a non-escaping reference needs no count at all,
 because its lifetime already keeps the object alive, and a local it
@@ -542,6 +552,8 @@ for its cycles, and only for them.
   little, halve it back when one frees most of what it visited.
 - When the instance goes idle: the entry driver's `hd.poll` finds no
   runnable task. A collection there pauses nothing the user waits for.
+- At orderly instance shutdown, before the final leak report, so a
+  handle leaked inside a cycle is still reported, by `hd test` too.
 - Never on a timer, and never from a host call in the middle of a
   computation.
 
@@ -610,7 +622,9 @@ cleanup in `Disposable` and `using`, because closing can suspend, and a
 release cannot. What counting adds is a cheap, exact leak report: when a
 `Disposable` handle's count reaches zero and it was never disposed, the
 runtime knows the site at once, instead of the host's descriptor table
-noticing at exit.
+noticing at exit. A handle leaked inside a cycle never reaches zero by
+itself; it is reported when the collector reclaims the cycle, and at the
+latest at shutdown (section 7.4). Neither report disposes the handle.
 
 ### 9.4 The host and JavaScript
 
@@ -652,8 +666,9 @@ backend needs no collector beyond the cycle detector
 
 The runtime, in ten lines:
 
-1. Counted objects in linear memory with a 4-byte header: a 32-bit,
-   non-atomic count. Cycle-capable types add a 4-byte collector word.
+1. Counted objects in linear memory with an 8-byte header: a 32-bit,
+   non-atomic count and a word for the release-and-trace descriptor and
+   the borrow-flag bits. Cycle-capable types add a 4-byte collector word.
 2. No overflow check on wasm32; literals and constants are immortal
    (a count starting at 2^31, or a static page).
 3. A size-class allocator: classes up to 2 KiB in 64 KiB single-class
@@ -661,9 +676,10 @@ The runtime, in ten lines:
    for large blocks.
 4. References are plain addresses; a count update through an interior
    reference finds the header through the page table.
-5. Parameters borrowed, results owned, construction consumes, moves at
-   last use, immutable fields read without a count: all decided from
-   declarations and one body, with no new syntax.
+5. Value parameters owned (moved at the caller's last use, else one
+   increment), `&T` parameters borrowed, results owned, construction
+   consumes, moves at last use, immutable fields read without a count:
+   all decided from declarations and one body, with no new syntax.
 6. Release glue per type, iterative for recursive types, shared between
    types with the same layout.
 7. Trial deletion only for cycle-capable types, run when the candidate
@@ -677,14 +693,18 @@ The runtime, in ten lines:
 
 For the tier 1 study's open runtime assumptions: the thin address and
 the 32-bit header are confirmed (section 5); the copy-on-write test
-measured free (section 9.1); a buffer with an owner count and a pin
-count costs one more word per buffer, not per element; and parameters
-at +0 with results at +1 are this study's convention too.
+measured free (section 9.1); and a buffer with an owner count and a pin
+count costs one more word per buffer, not per element.
+
+The "rc borrow" column measured every parameter at +0. Under the settled
+convention a value parameter costs one increment when the caller keeps
+using the value and nothing at its last use, while a read-only callee
+written with `&T` stays at +0; so that column is the cost of code whose
+read-only helpers take `&T`, and value parameters that the caller keeps
+add one 2.1 ns pair each.
 
 Tier 2 lifetimes, when they come, remove counts from every non-escaping
-reference and let borrowed locals live in a shadow stack. A `consume`
-parameter mark and copy-on-write collections are later options that the
-runtime already supports.
+reference and let borrowed locals live in a shadow stack.
 
 ### 10.1 Size budget
 
@@ -719,7 +739,7 @@ likely two jobs.
 3. Module skeleton: memory, data segments, globals, entry wrapper;
    hello and integer-only programs pass; hello stays at 2,935 bytes.
 4. Memory intrinsics (load, store, grow, copy, fill) in a privileged
-   std module, with their spec rules (needs question 3).
+   std module, with their spec rules.
 5. Allocator in std: size classes, pages, page table, large runs; hd
    tests drive it.
 6. Structs, tuples and enums inline: locals, parameters, multi-value
@@ -739,48 +759,20 @@ likely two jobs.
 15. Host codecs in `hd_run_wasmtime` (2).
 16. Checked mode: poison freed memory, audit counts, report leaks at
     exit, collect at every allocation; a count fuzzer over conformance.
-17. Elision 1: moves at last use, borrowed parameters, construction
-    consumes.
+17. Elision 1: moves at last use, owned value parameters and borrowed
+    `&T` parameters, construction consumes.
 18. Elision 2: immutable-field borrows, loop-element borrows, cancelling
     increment and decrement pairs.
 19. Iterative release for recursive types, with a pause test.
 20. Cycle-capability analysis per concrete type, shown by `hd inspect`.
 21. Trial-deletion collector, candidate buffer, threshold and idle
     triggers.
-22. The `Disposable` leak report at count zero (needs question 4).
+22. The `Disposable` leak report at count zero, and the collection at shutdown before the final report.
 23. Conformance parity: the linear known-failures list to zero (several
     jobs).
 24. Benchmarks: the Rust study's suite and this study's on the linear
     backend, with the footprint guard.
 25. Switch the default; delete Wasm GC emission and its host paths (2).
-
-## 11. Questions For The Owner
-
-1. **Interior references.** Represent every reference as a plain
-   address and find the object's header through the allocator's page
-   table on a count update, as Go finds an object's base, rather than
-   as a `(base, offset)` pair? *Recommendation: plain addresses.*
-   The page-table lookup measured no slower than a base pointer, and the
-   fat pair cost 40% on reads by doubling every reference (section 5).
-2. **Calling convention.** Fix it by rule with no new syntax: every
-   parameter borrowed, results owned, construction consuming its parts;
-   add a `consume` parameter mark only if a measured program needs it?
-   *Recommendation: yes.* It is Swift's default, it lives in the
-   declaration, and it never reads a callee's body.
-3. **Where the runtime lives.** Write the allocator, the release helpers
-   and the collector in hd, in a privileged std module over a handful of
-   memory intrinsics, rather than emitting them from the Rust backend?
-   *Recommendation: hd.* It follows "library in hd, not compiler", tree
-   shaking then keeps it out of programs that do not use it, and only
-   the intrinsics need spec rules.
-4. **Leaked handles.** When a `Disposable` value's count reaches zero
-   and it was never disposed, report the leak at once with its site,
-   replacing the host's report at exit? *Recommendation: yes.* It is
-   exact and costs one flag test in that type's release.
-5. **Two backends.** Keep Wasm GC as the default until the linear
-   backend passes conformance, then delete it, with no period where
-   both are supported? *Recommendation: yes.* Two runtimes double the
-   host codecs and every layout decision.
 
 ## Sources
 
