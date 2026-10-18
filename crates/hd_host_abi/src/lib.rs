@@ -751,8 +751,10 @@ mod tests {
                 module.trim_start_matches("std.").replace('.', "/")
             ));
             let text = std::fs::read_to_string(&file).expect("std file");
+            // A handle trait may list supertraits, as `< Disposable`.
             assert!(
-                text.contains(&format!("pub trait {name}:")),
+                text.contains(&format!("pub trait {name}:"))
+                    || text.contains(&format!("pub trait {name} <")),
                 "{} not in {}",
                 t.std_path,
                 file.display()
