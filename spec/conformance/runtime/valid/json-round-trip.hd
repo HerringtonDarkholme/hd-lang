@@ -23,7 +23,7 @@ tests:
         assert_equal(items.and_then(fn(found): found.at(1)).and_then(fn(found): found.as_text()), .Some("s"), reason="text")
         assert_equal(items.and_then(fn(found): found.at(3)).and_then(fn(found): found.as_bool()), .Some(true), reason="bool")
         assert_equal(items.and_then(fn(found): found.at(2)).map(fn(found): found.is_null()), .Some(true), reason="null")
-        assert_equal(items.and_then(fn(found): found.at(0)).and_then(fn(found): found.as_number()).and_then(fn(found): found.as_u64()), .Some(10), reason="number")
+        assert_equal(items.and_then(fn(found): found.at(0)).and_then(fn(found): found.as_u64()), .Some(10), reason="number")
 
     it("an accessor on another kind, or a missing key or index, gives none"):
         value := read("{\"a\":[1]}")
@@ -33,7 +33,7 @@ tests:
         assert(read("[1]").at(1).is_none(), reason="index past the end")
         assert(read("1").as_text().is_none(), reason="text of a number")
         assert(read("\"a\"").as_bool().is_none(), reason="bool of a text")
-        assert(read("true").as_number().is_none(), reason="number of a bool")
+        assert(read("true").as_u64().is_none(), reason="u64 of a bool")
         assert(!read("false").is_null(), reason="false is not null")
         assert(read("null").is_null(), reason="null")
 

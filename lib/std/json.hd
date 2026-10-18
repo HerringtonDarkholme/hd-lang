@@ -77,6 +77,24 @@ impl JsonObject:
                                 at = at + 1
                             self.index = .Some(index)
 
+    ## Removes `key` and returns its value, or `.None` when the object has no such key. The other members keep their order.
+    ## See [std-json.object.remove](../../spec/std/json.md#r-std-json.object.remove).
+    pub fn remove(mut self, key: string) -> Json?:
+        match self.position(key):
+            .None => .None
+            .Some(at) =>
+                removed := self.entries.remove_at(at)
+                match self.index:
+                    .Some(index) =>
+                        _ := index.remove(key)
+                        size := self.entries.len()
+                        let later: usize = at
+                        while later < size:
+                            index[self.entries[later]._0] = later
+                            later = later + 1
+                    .None => pass
+                .Some(removed._1)
+
     # The place of `key` in `entries`.
     fn position(self, key: string) -> usize?:
         match self.index:
@@ -228,13 +246,6 @@ impl Json:
     pub fn as_bool(self) -> bool?:
         match self:
             .Bool(value) => .Some(value)
-            _ => .None
-
-    ## The `Number` of a `Number` value.
-    ## See [std-json.value.accessors.number](../../spec/std/json.md#r-std-json.value.accessors.number).
-    pub fn as_number(self) -> Number?:
-        match self:
-            .Number(value) => .Some(value)
             _ => .None
 
     ## `true` exactly for `Null`.

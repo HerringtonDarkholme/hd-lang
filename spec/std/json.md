@@ -55,7 +55,6 @@ The accessors read one kind and give `.None` for any other:
 | r[std-json.value.accessors.at-index] `at` | `pub fn at(self, index: usize) -> Json?` | the item at `index` when `self` is an `Array` and `index` is from 0 up to its length |
 | r[std-json.value.accessors.text] `as_text` | `pub fn as_text(self) -> string?` | the string of a `Text` |
 | r[std-json.value.accessors.bool] `as_bool` | `pub fn as_bool(self) -> bool?` | the value of a `Bool` |
-| r[std-json.value.accessors.number] `as_number` | `pub fn as_number(self) -> Number?` | the `Number` of a `Number` |
 | r[std-json.value.accessors.null] `is_null` | `pub fn is_null(self) -> bool` | `true` exactly for `Null` |
 | r[std-json.value.accessors.i64] `as_i64` | `pub fn as_i64(self) -> i64?` | what [`Number.as_i64`](#r-std-json.number.accessors.i64) gives for a `Number` |
 | r[std-json.value.accessors.u64] `as_u64` | `pub fn as_u64(self) -> u64?` | what [`Number.as_u64`](#r-std-json.number.accessors.u64) gives for a `Number` |
@@ -78,7 +77,8 @@ fn count(value: Json) -> i64:
     value.as_i64().unwrap_or(0)   # 0 for 2.0: a float is not an integer
 ```
 
-> **Note.** The accessors take no default. Chain them with `and_then`
+> **Note.** There is no accessor for the `Number` itself: `match value:
+> .Number(n) => ...` gives it. The accessors take no default. Chain them with `and_then`
 > ([Option](option.md)), or reach a nested value with `pointer`.
 
 ### JSON Pointer
@@ -128,6 +128,7 @@ where they were.
 | r[std-json.object.len] `len` | `pub fn len(self) -> usize` | the number of members; `is_empty` is `len() == 0` |
 | r[std-json.object.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
 | r[std-json.object.set] `set` | `pub fn set(mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
+| r[std-json.object.remove] `remove` | `pub fn remove(mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
 | r[std-json.object.keys] `keys` | `pub fn keys(self) -> List[string]` | the keys, in insertion order |
 
 1. r[std-json.object.decl] `std.json` declares `JsonObject` with the methods above, and `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.

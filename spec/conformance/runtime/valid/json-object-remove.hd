@@ -1,0 +1,53 @@
+# test: JsonObject.remove gives the removed value, keeps the order of the other members, gives none for a missing key, and keeps lookups right in an object with an index
+# Spec std/json Json Objects: std-json.object.remove, std-json.object.order.
+use std.json.{Json, JsonObject}
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("remove returns the value and keeps the order of the rest"):
+        let fields: mut JsonObject = JsonObject::new()
+        fields.set("a", Json.Bool(true))
+        fields.set("b", Json.Null)
+        fields.set("c", Json.Text("x"))
+        assert_equal(fields.remove("b"), .Some(Json.Null), reason="removed value")
+        assert_equal(fields.keys(), ["a", "c"], reason="order of the rest")
+        assert_equal(fields.len(), 2, reason="len")
+        assert(!fields.contains_key("b"), reason="gone")
+        assert_equal("${Json.Object(fields)}", "{\"a\":true,\"c\":\"x\"}", reason="printed")
+
+    it("a missing key is none and changes nothing"):
+        let fields: mut JsonObject = JsonObject::new()
+        fields.set("a", Json.Null)
+        assert(fields.remove("z").is_none(), reason="missing")
+        assert_equal(fields.keys(), ["a"], reason="unchanged")
+
+    it("the first and last members can be removed, and a key can be set again"):
+        let fields: mut JsonObject = JsonObject::new()
+        fields.set("a", Json.Null)
+        fields.set("b", Json.Null)
+        fields.set("c", Json.Null)
+        assert(fields.remove("a").is_some(), reason="first")
+        assert(fields.remove("c").is_some(), reason="last")
+        assert(fields.remove("c").is_none(), reason="twice")
+        fields.set("a", Json.Bool(false))
+        assert_equal(fields.keys(), ["b", "a"], reason="set after remove goes last")
+
+    it("an object past the index threshold keeps every lookup right after a remove"):
+        let fields: mut JsonObject = JsonObject::new()
+        let at: i64 = 0
+        while at < 12:
+            fields.set("k${at}", Json.Bool(at % 2 == 0))
+            at = at + 1
+        assert_equal(fields.remove("k3"), .Some(Json.Bool(false)), reason="middle")
+        assert_equal(fields.remove("k0"), .Some(Json.Bool(true)), reason="first")
+        assert_equal(fields.len(), 10, reason="len")
+        assert(fields.get("k3").is_none(), reason="removed key is gone")
+        assert_equal(fields.get("k4"), .Some(Json.Bool(true)), reason="shifted member found")
+        assert_equal(fields.get("k11"), .Some(Json.Bool(false)), reason="last member found")
+        assert_equal(fields.keys().len(), 10, reason="keys")
+        assert_equal(fields.keys()[0], "k1", reason="first key")
+        fields.set("k3", Json.Null)
+        assert_equal(fields.keys()[10], "k3", reason="re-set goes last")
+        assert_equal(fields.get("k3"), .Some(Json.Null), reason="re-set found")
+        assert_equal(fields.get("k5"), .Some(Json.Bool(false)), reason="member before re-set found")

@@ -2325,6 +2325,7 @@ runtime/valid/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string
 runtime/valid/json-errors.hd	runtime	accept	std/json.md#r-std-json.error.position-bytes
 runtime/valid/json-numbers.hd	runtime	accept	std/json.md#r-std-json.number.eq
 runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate-last
+runtime/valid/json-object-remove.hd	runtime	accept	std/json.md#r-std-json.object.remove
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float
