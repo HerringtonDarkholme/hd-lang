@@ -501,19 +501,11 @@ impl Parser<'_> {
         }
         match mode {
             Params::Function => {
+                // grammar.fn.param-mut: `mut` before the name marks the
+                // parameter's own changeable copy.
+                self.eat(TokenKind::KwMut);
                 if self.at(TokenKind::KwSelfValue) {
                     self.bump();
-                } else if self.at(TokenKind::KwMut) {
-                    self.bump();
-                    if !self.eat(TokenKind::KwSelfValue) {
-                        // grammar: only the receiver takes `mut`.
-                        let at = self.pos() - 1;
-                        self.error_at(Code::SyntaxError, at, "'mut' goes on the parameter's type, not its name; only the receiver is 'mut self'");
-                        self.eat_name();
-                        if self.eat(TokenKind::Colon) {
-                            self.ty();
-                        }
-                    }
                 } else {
                     self.expect_name("a parameter name");
                     let vararg = self.eat(TokenKind::Ellipsis);
@@ -535,6 +527,8 @@ impl Parser<'_> {
                 }
             }
             Params::Closure => {
+                // grammar.fn.param-mut
+                self.eat(TokenKind::KwMut);
                 self.expect_name("a closure parameter name");
                 if self.eat(TokenKind::Colon) {
                     self.ty();

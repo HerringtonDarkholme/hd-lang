@@ -1,0 +1,8 @@
+# Spec 07 Parameters: fn.param.mut.view.
+struct Point:
+    x: i32
+    y: i32
+
+fn nudge(mut p: mut Point) -> Point:  # diagnostic: mut-on-struct
+    p.x += 1
+    p

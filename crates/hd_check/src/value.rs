@@ -2,7 +2,7 @@
 //! A struct value has no identity, so a field write changes only the
 //! writable place it names: a `let mut` local or top-level binding, a
 //! field of a data value with mutable access, or a struct field of one of
-//! these (`types.value.writable`).
+//! these (`types.value.writable-place`).
 //!
 //! The Wasm GC backend holds a struct value as an object that is never
 //! written after it is built (`crates/hd_wasm/DESIGN.md` §15.2, "Struct
@@ -40,7 +40,7 @@ struct Place {
 impl Ck<'_, '_> {
     /// `base.name = rhs`, `base.name op= rhs` or `base.name ...= rhs`
     /// where `base`, already checked as `(br, bt)`, has a struct type
-    /// (`types.value.writable`, `types.value.field-write`).
+    /// (`types.value.writable-place`, `types.value.field-write`).
     pub(crate) fn struct_field_assign(
         &mut self,
         (br, bt): (Ref, Ty),
@@ -177,15 +177,15 @@ impl Ck<'_, '_> {
     }
 
     /// Reports a field write through the binding `name`, which is not
-    /// `let mut` (`types.value.write.short`, `types.value.write.param`,
+    /// `let mut` (`types.value.write.short`, `types.value.write.plain-param`,
     /// `types.value.write.let`).
     fn not_writable(&mut self, name: &str, short: bool, param: bool, at: NodeRef<'_>) {
         if param {
             let msg = if name == "self" {
-                "`self` is the method's own copy of the receiver, which never changes; copy it into a `let mut` to change a field".to_owned()
+                "`self` is the method's own copy of the receiver, which never changes; write `mut self` to change the copy".to_owned()
             } else {
                 format!(
-                    "parameter `{name}` is the function's own copy, which never changes; copy it into a `let mut` to change a field"
+                    "parameter `{name}` is the function's own copy, which never changes; write `mut {name}` to change the copy"
                 )
             };
             self.err(Code::NonReassignableParameterBinding, at, &msg);
@@ -236,6 +236,9 @@ impl Ck<'_, '_> {
         match place.root {
             Root::Local(l, d) => {
                 self.note_write(l, d);
+                if self.mut_params.contains(&l) {
+                    self.param_writes.push((l, at));
+                }
                 self.set_local(l, new, at);
             }
             Root::Global(def, _) => {
@@ -246,6 +249,118 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[Ref(i), new]);
                 self.b.emit(Tag::FieldSet, base.0, rec, Ty::VOID, at);
             }
+        }
+    }
+}
+
+impl Ck<'_, '_> {
+    /// Marks the `mut` parameters of the function `f`: each is its own
+    /// changeable copy, so it may be reassigned and, for a struct, its
+    /// fields are writable places (`fn.param.mut`). `mut self` on a data
+    /// type keeps its `mut` type and is not marked.
+    pub(crate) fn mark_mut_params(&mut self, f: NodeRef<'_>) {
+        let Some(list) = hd_resolve::Src::child(f, SyntaxKind::ParameterList) else {
+            return;
+        };
+        let toks = &self.cx.src.parse.tokens;
+        let marked: Vec<_> = list
+            .children()
+            .filter(|p| p.kind() == SyntaxKind::Parameter)
+            .filter(|p| p.direct_token(toks, TokenKind::KwMut).is_some())
+            .map(|p| {
+                if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
+                    "self".to_owned()
+                } else {
+                    p.name(toks)
+                        .map_or_else(String::new, |t| self.cx.src.text(t).to_owned())
+                }
+            })
+            .collect();
+        for name in marked {
+            let sym = self.cx.names.syms.intern(&name);
+            let Some(&l) = self.scopes[0].get(&sym) else {
+                continue;
+            };
+            // A data type's `mut self` keeps its `mut` type. A rejected
+            // `mut` view of a struct is marked, so one error is reported.
+            let t = self.b.local_ty(l);
+            if matches!(self.pool().get(t), TyData::Mut(_)) && !self.is_struct_ty(t) {
+                continue;
+            }
+            self.mut_params.push(l);
+            self.mut_locals.push(l);
+        }
+    }
+
+    /// `lost-write` (`fn.param.mut.lost-write`): a statement of the body
+    /// that writes a `mut` parameter, or a struct field of one, when no
+    /// later statement of the body names the parameter, and no closure or
+    /// `defer` in the body does. The write changes the callee's copy and is
+    /// never seen. Only a statement directly in the body is judged, so a
+    /// write the analysis cannot place stays silent.
+    pub(crate) fn lost_writes(&mut self, body: NodeRef<'_>) {
+        let mut writes = std::mem::take(&mut self.param_writes);
+        writes.dedup();
+        let stmts: Vec<_> = body.children().collect();
+        for (l, at) in writes {
+            let Some(i) = stmts.iter().position(|s| s.index() == at) else {
+                continue;
+            };
+            let name = self
+                .cx
+                .names
+                .text(self.b.body_mut().local_name[l.idx()])
+                .to_owned();
+            let named = |n: NodeRef<'_>| self.names_param(n, &name);
+            let deferred = stmts.iter().any(|s| self.captures_param(*s, &name));
+            if deferred || stmts[i + 1..].iter().any(|s| named(*s)) {
+                continue;
+            }
+            let (what, help) = if name == "self" {
+                ("`self`", "take `&mut self` to change the caller's value")
+            } else {
+                (
+                    "the parameter",
+                    "take `&mut T` to change the caller's value",
+                )
+            };
+            let msg = if name == "self" {
+                format!(
+                    "this write to {what} is lost: the copy is never read afterwards or returned; {help}"
+                )
+            } else {
+                format!(
+                    "this write to {what} `{name}` is lost: the copy is never read afterwards or returned; {help}"
+                )
+            };
+            let span = self.cx.src.span(stmts[i]);
+            self.diags.push(
+                Code::LostWrite,
+                hd_diag::Severity::Warning,
+                span,
+                &msg,
+                None,
+            );
+        }
+    }
+
+    /// Whether `n` names the parameter `name` anywhere in its tokens.
+    fn names_param(&self, n: NodeRef<'_>, name: &str) -> bool {
+        let src = self.cx.src;
+        n.direct_tokens().any(|t| {
+            matches!(
+                src.tkind(t),
+                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
+            ) && src.text(t) == name
+        }) || n.children().any(|c| self.names_param(c, name))
+    }
+
+    /// Whether a closure or a `defer` within `n` names the parameter, so it
+    /// may read the copy after the write.
+    fn captures_param(&self, n: NodeRef<'_>, name: &str) -> bool {
+        match n.kind() {
+            SyntaxKind::ClosureExpr | SyntaxKind::DeferStmt => self.names_param(n, name),
+            _ => n.children().any(|c| self.captures_param(c, name)),
         }
     }
 }

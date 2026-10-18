@@ -417,7 +417,7 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
-        self.value_item(it, skip_self);
+        self.value_item(it);
         // The bounds the item writes are written types too
         // (`trait.bound.no-implied.positions`); they report at the header.
         let gens: &[Generic] = match &it.data {
@@ -1026,22 +1026,10 @@ impl<'a> ItemCheck<'_, 'a> {
             if self.cx.lookup.item(def).is_some_and(|i| i.is_struct))
     }
 
-    /// The struct rules of a declaration: a method's `mut self` on a
-    /// struct (`data.struct.no-mut-self`), and a struct that holds itself
+    /// The struct rule of a declaration: a struct that holds itself
     /// through its value fields (`data.struct.no-recursion`).
-    fn value_item(&mut self, it: &Item, has_self: bool) {
+    fn value_item(&mut self, it: &Item) {
         match &it.data {
-            ItemData::Method { sig, .. } if has_self => {
-                if let Some(TyData::Mut(i)) = sig.params.first().map(|p| self.pool().get(p.1))
-                    && self.is_struct(i)
-                {
-                    let message = format!(
-                        "{} is a struct, so a method takes `self`, its own copy, rather than `mut self`",
-                        self.show(i)
-                    );
-                    self.report(1, Code::MutOnStruct, message);
-                }
-            }
             ItemData::Data(fs) if it.is_struct => {
                 for (i, f) in fs.iter().enumerate() {
                     let mut seen = Vec::new();

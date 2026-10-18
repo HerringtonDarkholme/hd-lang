@@ -170,16 +170,5 @@ fi
 
 node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir" "$examples"
 
-# `let mut` is valid again as a mutability inference helper (OPEN_ISSUES,
-# 2026-09-29); only the old `mut name:` parameter spelling is obsolete.
-if grep -R -n -E 'fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
-    "$spec_dir" \
-    "$repo_dir/website/guide/OVERVIEW.md" \
-    "$repo_dir/website/guide/WORKING_WITH_DATA.md" \
-    "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \
-    --include='*.md' --include='*.hd'; then
-    fail "obsolete mutability syntax found"
-fi
-
 git -C "$repo_dir" diff --check
 printf '%s\n' "spec check passed"

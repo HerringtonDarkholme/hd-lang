@@ -1,0 +1,11 @@
+# test: a write to mut self that nothing reads afterwards is lost and warns
+# Spec 07 Parameters: fn.param.mut.lost-write. Spec 07 Methods And Receivers: fn.method.mut-self-struct.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn bump(mut self): self.n += 1  # warning: lost-write
+
+    fn bumped(mut self) -> Counter:
+        self.n += 1
+        self

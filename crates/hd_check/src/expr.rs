@@ -3558,6 +3558,15 @@ impl Ck<'_, '_> {
                     .b
                     .local(t, sym, hd_tir::ir::local_flags::PARAM, p.index());
                 self.scopes.last_mut().expect("scope").insert(sym, l);
+                // `fn.param.mut`: a `mut` closure parameter is its own
+                // changeable copy.
+                if p.direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
+                    .is_some()
+                    && !matches!(pool.get(t), TyData::Mut(_))
+                {
+                    self.mut_params.push(l);
+                    self.mut_locals.push(l);
+                }
                 params.push(l);
                 ptys.push(t);
             }

@@ -1,0 +1,53 @@
+# test: a struct method's mut self and a mut parameter are the callee's own changeable copy, so the caller's value is unchanged unless the copy is returned and kept
+# Spec 07 Parameters: fn.param.mut, fn.param.mut.copy, fn.param.mut.reassign. Spec 07 Methods And Receivers: fn.method.mut-self-struct.
+# Spec 08 Struct Declarations: data.struct.receivers, data.struct.mut-self. Spec 04 Writable Places: types.value.writable-place, types.value.reassign-binding.
+# expect-stdout: true 1
+# expect-stdout: 2 ann
+# expect-stdout: 1 ann
+# expect-stdout: 11 1
+# expect-stdout: 7 ann
+# expect-stdout: 10 1
+# expect-stdout: 8 1
+struct Account:
+    n: i32
+    name: string
+
+impl Account:
+    fn test(mut self) -> bool:
+        self.n += 2
+        self.n > 2
+
+    fn renamed(mut self, name: string) -> Account:
+        self.name = name
+        self.n = self.n + 1
+        self
+
+    fn restarted(mut self) -> Account:
+        self = Account { n: 0, name: self.name }
+        self.n += 7
+        self
+
+fn grow(mut a: Account) -> i32:
+    a.n += 10
+    a.n
+
+fn doubled(mut k: i32) -> i32:
+    k *= 2
+    k
+
+pub fn main() -> void $ Console:
+    let mut acc = Account { n: 1, name: "ann" }
+    ok := acc.test()
+    println("${ok} ${acc.n}")
+    other := acc.renamed("bo")
+    println("${other.n} ${acc.name}")
+    println("${acc.n} ${acc.name}")
+    println("${grow(acc)} ${acc.n}")
+    fresh := acc.restarted()
+    println("${fresh.n} ${fresh.name}")
+    bump := fn(mut a: Account) -> Account:
+        a.n += 9
+        a
+    big := bump(acc)
+    println("${big.n} ${acc.n}")
+    println("${doubled(4)} ${acc.n}")

@@ -475,18 +475,19 @@ parameter = receiver_parameter
           ;
 
 parameter_decorator = "@", continued_expression ;
-value_parameter = identifier, ":", type, [ "=", expression ]
-                | identifier, "...", ":", type
+value_parameter = [ "mut" ], identifier, ":", type, [ "=", expression ]
+                | [ "mut" ], identifier, "...", ":", type
                 ;
 
 receiver_parameter = "self" | "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
-2. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
-3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
-4. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
-5. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+2. r[grammar.fn.param-mut] `mut` before a parameter name marks a parameter whose value changes. [Parameters](07-functions.md#parameters) states its meaning.
+3. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
+4. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
+5. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
+6. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -1110,11 +1111,17 @@ additive_expression = multiplicative_expression,
 multiplicative_expression = unary_expression,
                             { ( "*" | "/" | "%" ), unary_expression } ;
 
-unary_expression = ( "+" | "-" | "~" | "!" | "*" ), unary_expression
-                 | "&", [ "mut" ], unary_expression
+unary_expression = prefix_expression
                  | power_expression
                  ;
-power_expression = postfix_expression, [ "**", unary_expression ] ;
+prefix_expression = ( "+" | "-" | "~" | "!" ), unary_expression
+                  | "&", [ "mut" ], unary_expression
+                  ;
+power_expression = ( postfix_expression | dereference_expression ),
+                   [ "**", unary_expression ] ;
+dereference_expression = "*", ( dereference_expression
+                              | postfix_expression
+                              | prefix_expression ) ;
 
 postfix_expression = primary_expression, { postfix_suffix } ;
 postfix_suffix = ".", identifier, [ "::", function_type_arguments ]
@@ -1135,7 +1142,7 @@ suspension_call_suffix = "!", [ "::", function_type_arguments ],
 4. r[grammar.expr.power.unary] The right operand of `**` may therefore begin with a unary operator.
 5. r[grammar.expr.pipe] `|>` is left-associative and binds more tightly than comparison and more loosely than `|`.
 6. r[grammar.expr.pipe.step] Each pipe step is a `bitwise_or_expression`, so a step with a comparison, `&&`, `||`, or a control-flow expression needs parentheses.
-7. r[grammar.expr.prefix-reference] A `&`, `&mut`, or `*` at the start of an operand is a prefix operator of `unary_expression`. [Reference Expressions](13-values-and-references.md#reference-expressions) states their rules.
+7. r[grammar.expr.prefix-operand] A `&` or `&mut` at the start of an operand is a prefix operator of `unary_expression`, and a `*` there starts a `dereference_expression`, which `**` takes whole as its base. [Reference Expressions](13-values-and-references.md#reference-expressions) states their rules.
 
 ```text
 inside := 0 < value < 10  # error: comparison-chaining
@@ -1641,11 +1648,12 @@ closure_header = "fn", [ "!" ], closure_parameter_clause,
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,
                          { ",", closure_parameter }, [ "," ] ;
-closure_parameter = identifier, [ ":", type ] ;
+closure_parameter = [ "mut" ], identifier, [ ":", type ] ;
 ```
 
 1. r[grammar.closure.parameter-types] Omitted closure parameter types require an expected function type.
 2. r[grammar.closure.annotations] A standalone or otherwise ambiguous closure must provide enough annotations to determine its complete function type.
+3. r[grammar.closure.param-mut] A closure parameter may begin with `mut`, as a function parameter may.
 
 See also: [Closure Annotations](07-functions.md#closure-annotations), which says when a closure may infer its result type.
 

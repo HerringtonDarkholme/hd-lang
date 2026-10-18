@@ -644,6 +644,11 @@ impl Parser<'_> {
     }
 
     fn unary(&mut self) -> Done {
+        if self.at(TokenKind::Star) {
+            // ref.prec.deref: `*` binds like a postfix operator, tighter than `**`
+            let deref = self.deref();
+            return self.power_tail(deref);
+        }
         if matches!(
             self.current(),
             Some(
@@ -652,7 +657,6 @@ impl Parser<'_> {
                     | TokenKind::Bang
                     | TokenKind::Tilde
                     | TokenKind::Amp
-                    | TokenKind::Star
             )
         ) {
             if !self.enter() {
@@ -661,28 +665,25 @@ impl Parser<'_> {
                 return self.complete(marker, SyntaxKind::Error);
             }
             let marker = self.start();
-            let kind = match self.current() {
+            let kind = if self.at(TokenKind::Amp) {
                 // ref.expr.make
-                Some(TokenKind::Amp) => {
-                    self.bump();
-                    self.eat(TokenKind::KwMut);
-                    SyntaxKind::RefExpr
-                }
-                // ref.expr.deref
-                Some(TokenKind::Star) => {
-                    self.bump();
-                    SyntaxKind::DerefExpr
-                }
-                _ => {
-                    self.bump();
-                    SyntaxKind::UnaryExpr
-                }
+                self.bump();
+                self.eat(TokenKind::KwMut);
+                SyntaxKind::RefExpr
+            } else {
+                self.bump();
+                SyntaxKind::UnaryExpr
             };
             self.unary();
             self.leave();
             return self.complete(marker, kind);
         }
         let base = self.postfix();
+        self.power_tail(base)
+    }
+
+    /// `**` after an operand, and its right operand.
+    fn power_tail(&mut self, base: Done) -> Done {
         if self.at(TokenKind::StarStar) {
             let marker = self.precede(base);
             self.bump();
@@ -695,6 +696,36 @@ impl Parser<'_> {
             return self.complete(marker, SyntaxKind::PowerExpr);
         }
         base
+    }
+
+    /// `*e` (ref.expr.deref-operand): the operand is a postfix expression, another
+    /// `*e`, or another prefix operator with its own operand.
+    fn deref(&mut self) -> Done {
+        if !self.enter() {
+            let marker = self.start();
+            self.skip_balanced();
+            return self.complete(marker, SyntaxKind::Error);
+        }
+        let marker = self.start();
+        self.bump();
+        if self.at(TokenKind::Star) {
+            self.deref();
+        } else if matches!(
+            self.current(),
+            Some(
+                TokenKind::Plus
+                    | TokenKind::Minus
+                    | TokenKind::Bang
+                    | TokenKind::Tilde
+                    | TokenKind::Amp
+            )
+        ) {
+            self.unary();
+        } else {
+            self.postfix();
+        }
+        self.leave();
+        self.complete(marker, SyntaxKind::DerefExpr)
     }
 
     fn postfix(&mut self) -> Done {

@@ -1,4 +1,4 @@
-# Spec 04 Writable Places: types.value.write.param, for a value parameter.
+# Spec 04 Writable Places: types.value.write.plain-param, for a value parameter.
 struct Point:
     x: i32
     y: i32

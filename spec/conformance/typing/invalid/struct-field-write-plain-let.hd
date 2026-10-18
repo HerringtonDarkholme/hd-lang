@@ -1,4 +1,4 @@
-# Spec 04 Writable Places: types.value.write.let, types.value.reassign.
+# Spec 04 Writable Places: types.value.write.let, types.value.reassign-binding.
 struct Point:
     x: i32
     y: i32

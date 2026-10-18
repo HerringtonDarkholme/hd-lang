@@ -396,7 +396,7 @@ lang/08-data-and-enums.md	1	accept	typing/valid/data-types.hd
 lang/08-data-and-enums.md	2	mixed	parse/invalid/mutable-field-modifier.hd|parse/invalid/mutable-embedded-field.hd
 lang/08-data-and-enums.md	3	mixed	typing/invalid/private-type-embedded-in-public-data.hd
 lang/08-data-and-enums.md	4	accept	runtime/valid/fieldless-data-canonical.hd
-lang/08-data-and-enums.md	5	mixed	typing/invalid/struct-embedded-field.hd|typing/invalid/struct-contains-itself.hd|typing/invalid/struct-mut-self.hd
+lang/08-data-and-enums.md	5	mixed	typing/invalid/struct-embedded-field.hd|typing/invalid/struct-contains-itself.hd
 lang/08-data-and-enums.md	6	accept	typing/valid/data-types.hd
 lang/08-data-and-enums.md	7	mixed	typing/invalid/missing-required-data-field.hd|typing/invalid/data-literal-unknown-field.hd|typing/invalid/duplicate-field.hd
 lang/08-data-and-enums.md	8	mixed	runtime/valid/data-field-shorthand.hd|typing/invalid/data-field-shorthand-unknown-name.hd

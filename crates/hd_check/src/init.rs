@@ -43,7 +43,7 @@ pub struct Global {
     /// Bound with `:=`: not reassignable (expr.bind.one-name).
     pub short: bool,
     /// Bound with `let mut`: a struct value in it changes in place
-    /// (`types.value.writable`).
+    /// (`types.value.writable-place`).
     pub mutable: bool,
 }
 

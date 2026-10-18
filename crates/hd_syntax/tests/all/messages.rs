@@ -458,11 +458,6 @@ const ROWS: &[(&str, &str, &str)] = &[
         "unknown provider-context operation '$.foo'; expected 'use', 'context', 'with', or 'Context'",
     ),
     (
-        "fn f(mut x: i32):\n    pass\n",
-        "syntax-error",
-        "'mut' goes on the parameter's type, not its name; only the receiver is 'mut self'",
-    ),
-    (
         "fn f(values...: i32 = 1):\n    pass\n",
         "syntax-error",
         "a vararg parameter takes no default",

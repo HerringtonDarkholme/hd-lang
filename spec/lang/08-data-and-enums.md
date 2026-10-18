@@ -177,8 +177,8 @@ fn demo() -> f64:
 1. r[data.struct.decl] `struct Name:` declares a struct. Its body has the grammar of a data body: named fields, defaults, visibility, decorators, and generic parameters.
 2. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
 3. r[data.struct.data-rules] The rules of [Data Declarations](#data-declarations) and [Construction And Access](#construction-and-access) apply to a struct, except as this section states.
-4. r[data.struct.methods] A method of a struct takes `self` by value: its own copy of the receiver.
-5. r[data.struct.no-mut-self] A struct method that takes `mut self` is an error. Error: `mut-on-struct`.
+4. r[data.struct.receivers] A method of a struct takes `self`, its own read-only copy of the receiver, or `mut self`, its own changeable copy.
+5. r[data.struct.mut-self] A struct method's `mut self` changes its copy only. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 6. r[data.struct.no-embedding] A struct declares no embedded field, so a bare type-name member of a struct is an error. Error: `embedded-non-data`.
 7. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
 8. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
@@ -195,10 +195,13 @@ struct Pair:
 
 struct Chain:
     next: Chain?  # error: recursive-value-type
+```
 
+```hd
 impl Vec2:
-    fn reset(mut self) -> void:  # error: mut-on-struct
-        pass
+    fn moved(mut self, dx: f64) -> Vec2:
+        self.x += dx
+        self
 ```
 
 > **Why.** A struct holds its fields inline, so one that contained itself

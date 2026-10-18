@@ -1,0 +1,13 @@
+# Spec 02 Grammar: grammar.fn.param-mut, grammar.closure.param-mut.
+struct Point:
+    x: i32
+
+impl Point:
+    fn shifted(mut self, mut dx: i32, mut rest...: List[i32]) -> Point:
+        self
+
+fn changed(mut a: Point, mut b: i32 = 1) -> void: pass
+
+fn closures() -> void:
+    f := fn(mut a: Point, mut b) -> Point: a
+    g := fn(mut a: i32): a

@@ -159,10 +159,10 @@ Root
       ExprStmt
         BindingExpr :=
           BindingPattern dd
-          DerefExpr *
-            PowerExpr **
+          PowerExpr **
+            DerefExpr *
               NameExpr r
-              LiteralExpr 2
+            LiteralExpr 2
       ExprStmt
         BindingExpr :=
           BindingPattern ee

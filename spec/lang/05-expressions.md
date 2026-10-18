@@ -1472,7 +1472,7 @@ This section defines operator precedence and the meaning of each operator.
 8. r[expr.op.power.grouping] Exponentiation binds less tightly on its right than unary negation, following the grammar: `2 ** -3` parses as `2 ** (-3)`, while `-2 ** 2` means `-(2 ** 2)`.
 9. r[expr.op.power.grouping.signed] With an integer base, `2 ** -3` is then rejected because its exponent is signed, as [Exponentiation](#exponentiation) describes.
 10. r[expr.op.no-chain] Comparisons do not chain.
-11. r[expr.op.reference] The prefix `&`, `&mut`, and `*` are unary operators in the row of prefix `!`. [Precedence](13-values-and-references.md#precedence) states how they group.
+11. r[expr.op.prefix-reference] The prefix `&` and `&mut` are unary operators in the row of prefix `!`, and the prefix `*` binds tighter than `**`. [Precedence](13-values-and-references.md#precedence) states how they group.
 
 > **Note.** Write `low <= value && value < high` rather than
 > `low <= value < high`.

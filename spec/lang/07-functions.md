@@ -144,17 +144,40 @@ fn rename(user: mut User, name: string) -> void:
 ```
 
 1. r[fn.param.init-order] Parameters are evaluated and initialized from left to right after argument mapping.
-2. r[fn.param.non-reassignable] Parameters are non-reassignable bindings: their names cannot be reassigned. Reassigning one is an error. Error: `non-reassignable-parameter-binding`.
+2. r[fn.param.fixed] A parameter that is not `mut` is a non-reassignable binding: its name cannot be reassigned. Reassigning one is an error. Error: `non-reassignable-parameter-binding`.
 3. r[fn.param.access] For composite parameters, `T` permits readonly access and `mut T` requires mutable access.
 4. r[fn.param.primitive] Primitive parameters pass by value.
 5. r[fn.param.composite] Composite parameters pass shared reference access according to their declared type.
 6. r[fn.param.no-transfer] hd-lang does not perform ownership transfer at a call.
+7. r[fn.param.mut] `mut` before a parameter name, as in `mut a: S`, marks the callee's own copy of the argument, which may change.
+8. r[fn.param.mut.copy] The argument moves into a `mut` parameter at the caller's last use of it, and is copied otherwise. The caller's value is unchanged unless the callee returns the copy and the caller keeps it.
+9. r[fn.param.mut.reassign] A `mut` parameter may be reassigned as a whole, and a struct field of one is a [writable place](04-type-system.md#writable-places).
+10. r[fn.param.mut.view] `mut a: T` marks the binding and `a: mut T` types it as a `mut` view. A struct has no `mut` view, so `mut a: S` is valid and `a: mut S` is an error. Error: `mut-on-struct`.
+11. r[fn.param.mut.closure] A closure parameter may be `mut` in the same way.
+12. r[fn.param.mut.lost-write] A write to a `mut` parameter, or to a struct field of one, that is never read afterwards and never returned, stored, or passed on is a warning. The help says to take `&mut self` or `&mut T` to change the caller's value. Warning: `lost-write`.
+13. r[fn.param.mut.lost-write.scope] The check judges a write written directly in the function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body does.
 
 ```text
 fn normalize(value: i32) -> i32:
     value = 0  # error: non-reassignable-parameter-binding
     value
 ```
+
+```hd
+struct Counter:
+    n: i32
+
+fn bumped(mut c: Counter) -> Counter:
+    c.n += 1   # changes the copy, which is returned
+    c
+
+fn bump(mut c: Counter) -> void:
+    c.n += 1   # warning: lost-write
+```
+
+> **Note.** A `mut` parameter never changes the caller's value in place. A
+> reference parameter, `&mut T`, does; [Values And
+> References](13-values-and-references.md) states the syntax.
 
 ### Positional And Named Arguments
 
@@ -987,12 +1010,13 @@ label := user.tagged::[string]("admin")
 
 1. r[fn.method.form] Functions declared in `impl` blocks are methods when their first parameter is `self` or `mut self`.
 2. r[fn.method.self] `self` is readonly access to the receiver, so mutating the receiver through it is an error. Error: `readonly-root`.
-3. r[fn.method.mut-self] `mut self` is shorthand for `self: mut Self`.
-4. r[fn.method.no-sigil] There is no reference sigil or ownership-taking receiver form.
-5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
-6. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
-7. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
-8. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
+3. r[fn.method.mut-self-data] On a data type, `mut self` is shorthand for `self: mut Self`.
+4. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
+5. r[fn.method.no-sigil] There is no reference sigil or ownership-taking receiver form.
+6. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
+7. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
+8. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
+9. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
 
 ```text
 data Counter:

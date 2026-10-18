@@ -59,20 +59,22 @@ fn demo(r: &mut Point, items: List[Point], i: i32) -> void:
 
 1. r[ref.expr.make] `&e` and `&mut e` are prefix expressions. Their operand is a `unary_expression`.
 2. r[ref.expr.literal] A data expression is an ordinary operand, so `&Point { x: 1, y: 2 }` and `&mut Box::[i32] { value: 1 }` are reference expressions around a literal.
-3. r[ref.expr.deref] `*e` is a prefix expression. Its operand is a `unary_expression`.
+3. r[ref.expr.deref-operand] `*e` is a prefix expression. Its operand is a postfix expression, another `*e`, or a prefix expression such as `&x` or `-x`.
 4. r[ref.expr.deref.target] `*e` may be the left side of `=` and of a compound assignment, as in `*r = v` and `*r += 1`.
 5. r[ref.expr.star-binary] `*` is a prefix operator only. Between two operands it stays multiplication, and `*=` stays compound assignment.
 
 ## Precedence
 
-The prefix `&`, `&mut`, and `*` bind like the prefix `!` and the unary `-`.
+The prefix `&` and `&mut` bind like the prefix `!` and the unary `-`. The prefix `*` binds like a postfix suffix, tighter than `**`.
 
-1. r[ref.prec.unary] The three operators are `unary_expression` operators. They bind more tightly than every binary operator and less tightly than every postfix suffix.
-2. r[ref.prec.postfix] The operand includes the postfix suffixes after it. `&a.b[i]` is `&(a.b[i])`, and `*r.x` is `*(r.x)`.
-3. r[ref.prec.group] To dereference before a suffix, group the operand: `(*r).x`.
-4. r[ref.prec.power] The operand of a prefix operator includes `**`, as for unary `-`. `&x ** 2` is `&(x ** 2)`, and `*r ** 2` is `*(r ** 2)`.
-5. r[ref.prec.nested] Prefix operators nest from the right. `&*r` is `&(*r)`, `*&x` is `*(&x)`, and `-*r` is `-(*r)`.
-6. r[ref.prec.operand-position] A `&` or `*` that begins an operand is a prefix operator. After an operand it is the binary bitwise and or multiplication, so `a & &b` is `a & (&b)`.
+1. r[ref.prec.unary-ref] `&` and `&mut` are `unary_expression` operators. They bind more tightly than every binary operator and less tightly than every postfix suffix.
+2. r[ref.prec.deref] `*` binds more tightly than every binary operator, `**` included, and less tightly than every postfix suffix.
+3. r[ref.prec.postfix] The operand includes the postfix suffixes after it. `&a.b[i]` is `&(a.b[i])`, and `*r.x` is `*(r.x)`.
+4. r[ref.prec.group] To dereference before a suffix, group the operand: `(*r).x`.
+5. r[ref.prec.power-ref] The operand of `&` and `&mut` includes `**`, as for unary `-`. `&x ** 2` is `&(x ** 2)`.
+6. r[ref.prec.power-deref] The operand of `**` may be a dereference. `*r ** 2` is `(*r) ** 2`, and `2 ** *r` is `2 ** (*r)`.
+7. r[ref.prec.nested] Prefix operators nest from the right. `&*r` is `&(*r)`, `*&x` is `*(&x)`, and `-*r` is `-(*r)`.
+8. r[ref.prec.operand-position] A `&` or `*` that begins an operand is a prefix operator. After an operand it is the binary bitwise and or multiplication, so `a & &b` is `a & (&b)`.
 
 ```hd
 fn precedence(r: &mut Point, items: List[Point], i: i32, a: i32, b: i32) -> void:
@@ -81,10 +83,13 @@ fn precedence(r: &mut Point, items: List[Point], i: i32, a: i32, b: i32) -> void
     three := (*r).x     # a field of the value
     four := a & &b      # bitwise and of a with a reference
     five := a * *b      # multiplication of a by a dereference
+    six := *r ** 2      # (*r) ** 2
+    seven := &r ** 2    # &(r ** 2)
 ```
 
-> **Why.** One tier for every prefix operator keeps the rule short. A reader
-> who knows `-a.b` and `!a.b` already knows `&a.b` and `*a.b`.
+> **Why.** A reader who knows `-a.b` and `!a.b` already knows `&a.b`. A
+> dereference reads a value, so `*r ** 2` squares the value `*r`, as
+> `r.x ** 2` squares a field.
 
 ## Operator Tokens
 

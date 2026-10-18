@@ -222,8 +222,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`flow.using.binding`).
     pub using_locals: Vec<LocalId>,
     /// The locals bound with `let mut`: a struct value in one changes in
-    /// place (`types.value.writable`).
+    /// place (`types.value.writable-place`).
     pub mut_locals: Vec<LocalId>,
+    /// The `mut` parameters (and `mut self`) whose value is the callee's own
+    /// copy, and the statements that wrote one of them in place, for
+    /// `lost-write` (`fn.param.mut.lost-write`).
+    pub mut_params: Vec<LocalId>,
+    pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -490,6 +495,8 @@ pub(crate) fn new_ck<'a, 'c>(
         using_bind: false,
         using_locals: Vec::new(),
         mut_locals: Vec::new(),
+        mut_params: Vec::new(),
+        param_writes: Vec::new(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -934,6 +941,7 @@ fn fn_body_steps(
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
     }
+    ck.mark_mut_params(node);
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
@@ -950,6 +958,7 @@ fn fn_body_steps(
         Ok((tail, ret))
     })?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
+    ck.lost_writes(body);
     ck.finish_with(root, ret, Some(node))
 }
 
@@ -3017,7 +3026,7 @@ impl Ck<'_, '_> {
                         self.cx.names.text(name)
                     );
                     self.err(Code::NonReassignableBinding, *lhs, &msg);
-                } else if flags & local_flags::PARAM != 0 {
+                } else if flags & local_flags::PARAM != 0 && !self.mut_params.contains(&l) {
                     let msg = format!(
                         "parameter `{}` cannot be reassigned",
                         self.cx.names.text(name)
@@ -3036,6 +3045,9 @@ impl Ck<'_, '_> {
                     }
                 };
                 self.note_write(l, depth);
+                if self.mut_params.contains(&l) {
+                    self.param_writes.push((l, s.index()));
+                }
                 self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {
@@ -3045,7 +3057,7 @@ impl Ck<'_, '_> {
                 let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 // A struct field changes in a writable place only
-                // (`types.value.writable`).
+                // (`types.value.writable-place`).
                 if self.is_struct_ty(bt) {
                     return self.struct_field_assign(
                         (br, bt),

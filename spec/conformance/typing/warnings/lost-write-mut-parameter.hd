@@ -1,0 +1,20 @@
+# test: a write to a mut parameter's field that nothing reads afterwards is lost and warns
+# Spec 07 Parameters: fn.param.mut.lost-write, fn.param.mut.lost-write.scope.
+struct Counter:
+    n: i32
+
+fn reset(mut c: Counter) -> void:
+    c.n = 0  # warning: lost-write
+
+fn read_after(mut c: Counter) -> i32:
+    c.n = 0
+    c.n
+
+fn read_in_closure(mut c: Counter) -> i32:
+    get := fn() -> i32: c.n
+    c.n = 4
+    get()
+
+fn count_up(mut k: i32) -> i32:
+    k += 1
+    k

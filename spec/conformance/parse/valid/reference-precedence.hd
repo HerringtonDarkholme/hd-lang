@@ -1,4 +1,4 @@
-# Spec 13 Precedence: ref.prec.unary, ref.prec.postfix, ref.prec.group, ref.prec.power, ref.prec.nested, ref.prec.operand-position.
+# Spec 13 Precedence: ref.prec.unary-ref, ref.prec.deref, ref.prec.postfix, ref.prec.group, ref.prec.power-ref, ref.prec.power-deref, ref.prec.nested, ref.prec.operand-position.
 fn precedence(r: &mut Point, items: List[Point], i: i32, a: i32, b: i32) -> void:
     one := &items[i].x
     two := *r.x

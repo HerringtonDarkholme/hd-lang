@@ -1,4 +1,4 @@
-# Spec 13 Reference Expressions: ref.expr.make, ref.expr.literal, ref.expr.deref, ref.expr.deref.target.
+# Spec 13 Reference Expressions: ref.expr.make, ref.expr.literal, ref.expr.deref-operand, ref.expr.deref.target.
 fn expressions(r: &mut Point, items: List[Point], i: i32) -> void:
     view := &items[i]
     edit := &mut r.x

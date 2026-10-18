@@ -1049,11 +1049,11 @@ fn same(a: Point, b: Point) -> bool:
 
 A field of a struct value changes in place only through a writable place.
 
-1. r[types.value.writable] A place is **writable** when it is a `let mut` binding, local or top-level, a field of a data value with mutable access, or a struct field of a writable place.
+1. r[types.value.writable-place] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter or `mut self`, a field of a data value with mutable access, or a struct field of a writable place.
 2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
-5. r[types.value.reassign] A plain `let` binding of a struct may be reassigned as a whole. A `:=` binding and a parameter never change.
+5. r[types.value.reassign-binding] A plain `let` binding of a struct and a `mut` parameter may be reassigned as a whole. A `:=` binding and a parameter that is not `mut` never change.
 
 A field write through a struct that is not in a writable place is an error,
 by what holds the struct:
@@ -1061,7 +1061,7 @@ by what holds the struct:
 | Rule | The struct is held by | Error |
 | --- | --- | --- |
 | r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
-| r[types.value.write.param] Parameter | a value parameter or `self` | `non-reassignable-parameter-binding` |
+| r[types.value.write.plain-param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
 | r[types.value.write.other] Other value | a call result, a collection element, an unwrapped value, or a pattern binding | `readonly-root` |
 | r[types.value.write.data] Data field | a field of a data value without mutable access | as [Mutation Checks](#mutation-checks) states |
@@ -1082,6 +1082,10 @@ fn demo() -> void:
     start = Point { x: 2, y: 0 }  # valid: reassigned as a whole
     let mut cur = start
     cur.x = 3  # valid: cur is writable
+
+fn shifted(mut p: Point) -> Point:
+    p.x += 1  # valid: a mut parameter is writable
+    p
 ```
 
 See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),

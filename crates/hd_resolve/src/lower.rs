@@ -751,6 +751,8 @@ struct Resolver<'a, 'b> {
     cx: &'b Cx<'a>,
     frozen: Option<Arc<FolderIface>>,
     own: HashMap<(String, Symbol), (DefId, HeadKind, bool)>,
+    /// The `struct` declarations of the modules being lowered.
+    struct_defs: HashSet<DefId>,
     pub_uses: HashMap<(String, Symbol), (String, Symbol)>,
     memo: RefCell<HashMap<(String, Symbol), Res>>,
     visiting: RefCell<HashSet<(String, Symbol)>>,
@@ -905,6 +907,11 @@ impl Resolver<'_, '_> {
             let msg = format!("re-export loop through `{}`", self.cx.names.text(name));
             diags.error(Code::ReExportLoop, span, &msg);
         }
+    }
+
+    /// Whether `d` is a `struct` declaration (`data.struct.decl`).
+    fn is_struct(&self, d: DefId) -> bool {
+        self.struct_defs.contains(&d) || self.item(d).is_some_and(|i| i.is_struct)
     }
 
     /// An item of another folder or a seed, for kinds and alias bodies.
@@ -2685,7 +2692,11 @@ impl Lower<'_, '_, '_> {
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
                     let pool = self.names.pool;
-                    let st = if p.direct_token(toks, TokenKind::KwMut).is_some() {
+                    // `data.struct.mut-self`: a struct's `mut self` is its own
+                    // changeable copy, of the struct type itself.
+                    let own_copy =
+                        matches!(pool.get(st), TyData::Adt { def, .. } if self.r.is_struct(def));
+                    let st = if p.direct_token(toks, TokenKind::KwMut).is_some() && !own_copy {
                         pool.intern_ty(&TyData::Mut(st))
                     } else {
                         st
@@ -5274,6 +5285,7 @@ fn resolver<'a, 'b>(
         cx,
         frozen,
         own: HashMap::default(),
+        struct_defs: HashSet::default(),
         pub_uses: HashMap::default(),
         memo: RefCell::new(HashMap::default()),
         visiting: RefCell::new(HashSet::default()),
@@ -5309,6 +5321,13 @@ fn resolver<'a, 'b>(
                     h.kind,
                     h.public || m.session.is_some(),
                 ));
+            }
+            if h.kind == HeadKind::Data
+                && h.node
+                    .direct_token(&m.src.parse.tokens, TokenKind::KwStruct)
+                    .is_some()
+            {
+                r.struct_defs.insert(h.def);
             }
             if let Some(gl) = Src::child(h.node, SyntaxKind::GenericParameterList) {
                 let toks = &m.src.parse.tokens;

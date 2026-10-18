@@ -1,4 +1,4 @@
-# Spec 04 Writable Places: types.value.write.param, for `self`. Spec 08 Struct Declarations: data.struct.methods.
+# Spec 04 Writable Places: types.value.write.plain-param, for `self`. Spec 08 Struct Declarations: data.struct.receivers.
 struct Point:
     x: i32
     y: i32

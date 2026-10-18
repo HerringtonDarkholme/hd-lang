@@ -1,0 +1,40 @@
+# Spec 07 Parameters: fn.param.mut, fn.param.mut.reassign, fn.param.mut.view, fn.param.mut.closure. Spec 02 Grammar: grammar.fn.param-mut, grammar.closure.param-mut.
+# Spec 04 Writable Places: types.value.writable-place, types.value.reassign-binding.
+struct Point:
+    x: i32
+    y: i32
+
+struct Segment:
+    from: Point
+    to: Point
+
+impl Point:
+    fn shifted(mut self, dx: i32) -> Point:
+        self.x += dx
+        self
+
+    fn swapped(mut self) -> Point:
+        t := self.x
+        self.x = self.y
+        self.y = t
+        self
+
+fn lengthened(mut s: Segment, dx: i32) -> Segment:
+    s.to.x += dx
+    s
+
+fn replaced(mut p: Point, q: Point) -> Point:
+    p = q
+    p.y += 1
+    p
+
+fn total(mut n: i32, items: List[i32]) -> i32:
+    for item in items:
+        n += item
+    n
+
+fn scaled(items: List[i32]) -> List[i32]:
+    double := fn(mut v: i32) -> i32:
+        v *= 2
+        v
+    items.map(double)

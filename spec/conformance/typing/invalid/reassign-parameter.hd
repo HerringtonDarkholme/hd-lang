@@ -1,4 +1,4 @@
-# Spec 07 Parameters: fn.param.non-reassignable.
+# Spec 07 Parameters: fn.param.fixed.
 fn normalize(value: i32) -> i32:
     value = 0  # diagnostic: non-reassignable-parameter-binding
     value
