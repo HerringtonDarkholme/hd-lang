@@ -50,6 +50,8 @@ action at a distance.
   owner did not make explicitly, kept for the stdlib audit.
 - [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): proposed std
   primitives for byte scans, and what blocks SIMD on GC strings (#428).
+- [Native Backend](NATIVE_BACKEND.md): native executables, a collector
+  and threads without a Wasm engine, priced against wasmtime AOT (#188).
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
