@@ -1,0 +1,2 @@
+# Spec 13 Reference Types: ref.type.no-nesting. `&&` is one token.
+fn bad_and(p: &&Point) -> void: pass  # diagnostic: syntax-error

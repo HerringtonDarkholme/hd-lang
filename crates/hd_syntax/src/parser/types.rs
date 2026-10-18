@@ -33,7 +33,21 @@ impl Parser<'_> {
             return self.ty_function(rows);
         }
         let marker = self.start();
-        let mut done = if self.at(TokenKind::KwMut) {
+        let mut done = if self.at(TokenKind::Amp) {
+            self.bump();
+            self.eat(TokenKind::KwMut);
+            if self.at(TokenKind::KwFn) {
+                // ref.type.no-function
+                self.error(
+                    Code::SyntaxError,
+                    "'&' cannot directly precede 'fn'; a function value is already a reference",
+                );
+                self.ty_function(rows);
+            } else {
+                self.ty_reference(rows);
+            }
+            self.complete(marker, SyntaxKind::RefType)
+        } else if self.at(TokenKind::KwMut) {
             self.bump();
             if self.at(TokenKind::KwFn)
                 || self.at(TokenKind::LParen) && self.nth(1) == Some(TokenKind::KwFn)

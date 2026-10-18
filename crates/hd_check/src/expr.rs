@@ -249,6 +249,18 @@ impl Ck<'_, '_> {
                 }
                 v
             }
+            SyntaxKind::RefExpr | SyntaxKind::DerefExpr => {
+                // `ref.check.not-yet`
+                self.err(
+                    Code::ReferencesNotYetChecked,
+                    n,
+                    "reference expressions are parsed but not checked yet",
+                );
+                return Ok((
+                    self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
+                    Ty::POISON,
+                ));
+            }
             SyntaxKind::ParenExpr => match kids.as_slice() {
                 [e] => {
                     let v = self.expr(*e, want)?;

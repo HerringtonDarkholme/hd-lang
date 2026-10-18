@@ -2343,6 +2343,15 @@ impl Lower<'_, '_, '_> {
                 Ty::POISON
             }
             SyntaxKind::ContextType => self.context_ty(n, gn),
+            SyntaxKind::RefType => {
+                // `ref.check.not-yet`
+                self.diags.error(
+                    Code::ReferencesNotYetChecked,
+                    self.src.span(n),
+                    "reference types are parsed but not checked yet",
+                );
+                Ty::POISON
+            }
             _ => {
                 self.gap("this type form");
                 Ty::POISON

@@ -1,0 +1,21 @@
+# Spec 13 Reference Expressions: ref.expr.make, ref.expr.literal, ref.expr.deref, ref.expr.deref.target.
+fn expressions(r: &mut Point, items: List[Point], i: i32) -> void:
+    view := &items[i]
+    edit := &mut r.x
+    whole := *r
+    made := &Point { x: 3.0, y: 4.0 }
+    owned := &mut Point { x: 3.0, y: 4.0 }
+    boxed := &Box::[i32] { value: 1 }
+    from_call := &make_point()
+    *r = Point { x: 1.0, y: 2.0 }
+    *r += step
+    *r.x = 1.0
+    items.push(*r)
+    send(&r, &mut r, *r)
+    pairs := [&a, &b]
+    named := send(first = &a, second = *b)
+    if *flag:
+        pass
+    total := match *r:
+        _ => 1
+    return *r

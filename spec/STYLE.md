@@ -122,6 +122,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [Modules](lang/10-modules.md) | `module` |
 | [Requirements and Suspension](lang/11-requirements-and-suspension.md) | `req` |
 | [Variadic Generics](lang/12-variadic-generics.md) | `pack` |
+| [Values And References](lang/13-values-and-references.md) | `ref` |
 | [Annotations](lang/14-annotations.md) | `annot` |
 | `std/cmp.md` | `std-cmp` |
 | `std/collections.md` | `std-collections` |

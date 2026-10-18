@@ -1,0 +1,2 @@
+# Spec 13 Reference Types: ref.type.no-nesting. `&mut` takes no second `mut`.
+fn show(p: &mut mut Point) -> void: pass  # diagnostic: syntax-error

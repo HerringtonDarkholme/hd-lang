@@ -1,0 +1,22 @@
+# Spec 13 Precedence: ref.prec.unary, ref.prec.postfix, ref.prec.group, ref.prec.power, ref.prec.nested, ref.prec.operand-position.
+fn precedence(r: &mut Point, items: List[Point], i: i32, a: i32, b: i32) -> void:
+    one := &items[i].x
+    two := *r.x
+    three := (*r).x
+    four := a & &b
+    five := a * *b
+    six := &*r
+    seven := *&x
+    eight := -*r
+    nine := *-r
+    ten := &x ** 2
+    eleven := *r ** 2
+    twelve := &a + 1
+    thirteen := *a + *b
+    fourteen := &a == &b
+    fifteen := &mut r.items[i].name
+    sixteen := *r.items[i]
+    seventeen := !*flag
+    eighteen := *f(x).y
+    nineteen := &a.b(c)?
+    twenty := & &a

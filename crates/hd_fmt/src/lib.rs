@@ -86,4 +86,16 @@ mod tests {
         assert_eq!(format(&once).expect("parses"), once);
         assert!(format("fn main(:\n").is_err());
     }
+
+    /// `ref.check.formatter`: every reference form formats, keeps its
+    /// tokens, and is a fixed point.
+    #[test]
+    fn reference_forms_round_trip_and_format_as_written() {
+        let src = "fn demo(r: &mut Point, xs: List[&Point], f: fn(&Point) -> &mut Point) -> &Point?:  \n    view := &xs[0].x\n    edit := &mut r.y\n    made := &Point { x: 1, y: 2 }\n    *r = *view\n    *r.x += 1\n    both := a && b & &c * *d ^ e\n    .None\n\n\n";
+        let clean = src.replace("?:  \n", "?:\n").trim_end().to_owned() + "\n";
+        assert_eq!(round_trip(src), src);
+        let once = format(src).expect("parses");
+        assert_eq!(once, clean);
+        assert_eq!(format(&once).expect("parses"), once);
+    }
 }

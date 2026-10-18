@@ -1,0 +1,3 @@
+# Spec 13 Reference Expressions: ref.expr.make. `&mut` needs an operand.
+fn demo() -> void:
+    r := (&mut)  # diagnostic: syntax-error

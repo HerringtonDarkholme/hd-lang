@@ -1,0 +1,5 @@
+# Spec 13 Not Yet Checked: ref.check.not-yet. A reference expression.
+fn demo() -> i32:
+    count := 3
+    r := &count  # diagnostic: references-not-yet-checked
+    0

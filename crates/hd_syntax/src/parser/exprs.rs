@@ -66,6 +66,8 @@ impl Parser<'_> {
                     | TokenKind::Minus
                     | TokenKind::Bang
                     | TokenKind::Tilde
+                    | TokenKind::Amp
+                    | TokenKind::Star
                     | TokenKind::Dollar
                     | TokenKind::DotDot
                     | TokenKind::DotDotEq
@@ -644,7 +646,14 @@ impl Parser<'_> {
     fn unary(&mut self) -> Done {
         if matches!(
             self.current(),
-            Some(TokenKind::Plus | TokenKind::Minus | TokenKind::Bang | TokenKind::Tilde)
+            Some(
+                TokenKind::Plus
+                    | TokenKind::Minus
+                    | TokenKind::Bang
+                    | TokenKind::Tilde
+                    | TokenKind::Amp
+                    | TokenKind::Star
+            )
         ) {
             if !self.enter() {
                 let marker = self.start();
@@ -652,10 +661,26 @@ impl Parser<'_> {
                 return self.complete(marker, SyntaxKind::Error);
             }
             let marker = self.start();
-            self.bump();
+            let kind = match self.current() {
+                // ref.expr.make
+                Some(TokenKind::Amp) => {
+                    self.bump();
+                    self.eat(TokenKind::KwMut);
+                    SyntaxKind::RefExpr
+                }
+                // ref.expr.deref
+                Some(TokenKind::Star) => {
+                    self.bump();
+                    SyntaxKind::DerefExpr
+                }
+                _ => {
+                    self.bump();
+                    SyntaxKind::UnaryExpr
+                }
+            };
             self.unary();
             self.leave();
-            return self.complete(marker, SyntaxKind::UnaryExpr);
+            return self.complete(marker, kind);
         }
         let base = self.postfix();
         if self.at(TokenKind::StarStar) {

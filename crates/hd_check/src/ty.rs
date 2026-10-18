@@ -823,6 +823,15 @@ impl Ck<'_, '_> {
                     args,
                 }))?
             }
+            SyntaxKind::RefType => {
+                // `ref.check.not-yet`
+                self.err(
+                    hd_diag::Code::ReferencesNotYetChecked,
+                    n,
+                    "reference types are parsed but not checked yet",
+                );
+                Ty::POISON
+            }
             other => return unsupported(format!("the type form {other:?} in a body")),
         })
     }

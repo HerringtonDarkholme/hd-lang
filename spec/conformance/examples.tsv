@@ -643,6 +643,9 @@ lang/11-requirements-and-suspension.md	56	accept	typing/valid/requirements-and-s
 lang/11-requirements-and-suspension.md	57	accept	typing/valid/row-extension-entailment.hd
 lang/11-requirements-and-suspension.md	58	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
+lang/13-values-and-references.md	1	mixed	parse/invalid/reference-type-and-and.hd|parse/invalid/reference-type-mut-before-reference.hd|parse/invalid/reference-type-function.hd
+lang/13-values-and-references.md	2	mixed	parse/invalid/reference-expression-and-and.hd|parse/invalid/caret-prefix-expression.hd
+lang/13-values-and-references.md	3	mixed	typing/invalid/reference-type-not-checked.hd|typing/invalid/reference-expression-not-checked.hd|typing/invalid/dereference-assignment-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

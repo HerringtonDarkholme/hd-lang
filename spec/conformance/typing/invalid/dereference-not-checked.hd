@@ -1,0 +1,3 @@
+# Spec 13 Not Yet Checked: ref.check.not-yet. A dereference read.
+fn demo(count: i32) -> i32:
+    *count  # diagnostic: references-not-yet-checked

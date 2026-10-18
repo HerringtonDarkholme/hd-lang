@@ -799,7 +799,11 @@ type = reference_access_type, { "?" }
      | function_type
      ;
 
-reference_access_type = [ "mut" ], reference_type ;
+reference_access_type = [ "mut" ], reference_type
+                      | ref_type
+                      ;
+
+ref_type = "&", [ "mut" ], reference_type ;
 
 reference_type = named_type
                | dyn_type
@@ -920,6 +924,7 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 9. r[grammar.type.dyn.optional] `?` applies to the whole `dyn` type, so `dyn Display?` is an optional trait value.
 10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+12. r[grammar.type.ref] `&T` and `&mut T` write reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.
 
 ```hd
 fn readers() -> (fn() -> i32)?:
@@ -1105,7 +1110,8 @@ additive_expression = multiplicative_expression,
 multiplicative_expression = unary_expression,
                             { ( "*" | "/" | "%" ), unary_expression } ;
 
-unary_expression = ( "+" | "-" | "~" | "!" ), unary_expression
+unary_expression = ( "+" | "-" | "~" | "!" | "*" ), unary_expression
+                 | "&", [ "mut" ], unary_expression
                  | power_expression
                  ;
 power_expression = postfix_expression, [ "**", unary_expression ] ;
@@ -1129,6 +1135,7 @@ suspension_call_suffix = "!", [ "::", function_type_arguments ],
 4. r[grammar.expr.power.unary] The right operand of `**` may therefore begin with a unary operator.
 5. r[grammar.expr.pipe] `|>` is left-associative and binds more tightly than comparison and more loosely than `|`.
 6. r[grammar.expr.pipe.step] Each pipe step is a `bitwise_or_expression`, so a step with a comparison, `&&`, `||`, or a control-flow expression needs parentheses.
+7. r[grammar.expr.prefix-reference] A `&`, `&mut`, or `*` at the start of an operand is a prefix operator of `unary_expression`. [Reference Expressions](13-values-and-references.md#reference-expressions) states their rules.
 
 ```text
 inside := 0 < value < 10  # error: comparison-chaining

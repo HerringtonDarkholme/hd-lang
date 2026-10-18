@@ -1,0 +1,4 @@
+# Spec 13 Not Yet Checked: ref.check.not-yet. A reference type in a binding annotation.
+fn demo() -> void:
+    let other: &i32 = 3  # diagnostic: references-not-yet-checked
+    pass

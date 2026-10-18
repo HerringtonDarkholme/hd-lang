@@ -44,6 +44,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "lang/10-modules.md": "module",
   "lang/11-requirements-and-suspension.md": "req",
   "lang/12-variadic-generics.md": "pack",
+  "lang/13-values-and-references.md": "ref",
   "lang/14-annotations.md": "annot",
   "std/format.md": "std-format",
   "std/iter.md": "std-iter",

@@ -1,0 +1,2 @@
+# Spec 13 Reference Types: ref.type.no-function. `&` never directly precedes `fn`.
+fn bad_fn(f: &fn() -> i32) -> void: pass  # diagnostic: syntax-error

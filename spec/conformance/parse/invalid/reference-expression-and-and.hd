@@ -1,0 +1,3 @@
+# Spec 13 Operator Tokens: ref.token.and-and. `&&x` is not two references.
+fn bad_expr(x: i32) -> void:
+    r := &&x  # diagnostic: syntax-error

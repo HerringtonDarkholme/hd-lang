@@ -2955,6 +2955,15 @@ impl Ck<'_, '_> {
             );
             return Ok(());
         }
+        if lhs.kind() == SyntaxKind::DerefExpr {
+            // `ref.check.not-yet`
+            self.err(
+                Code::ReferencesNotYetChecked,
+                *lhs,
+                "reference expressions are parsed but not checked yet",
+            );
+            return Ok(());
+        }
         match lhs.kind() {
             SyntaxKind::NameExpr => {
                 let name = self.sym_of(*lhs);

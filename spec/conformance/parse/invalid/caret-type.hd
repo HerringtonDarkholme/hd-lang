@@ -1,0 +1,2 @@
+# Spec 13 Operator Tokens: ref.token.caret. `^` has no meaning in a type.
+fn show(p: ^Point) -> void: pass  # diagnostic: syntax-error

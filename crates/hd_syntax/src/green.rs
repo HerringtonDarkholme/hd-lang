@@ -69,6 +69,8 @@ pub enum SyntaxKind {
     AdditiveExpr,
     MultiplicativeExpr,
     UnaryExpr,
+    RefExpr,
+    DerefExpr,
     PowerExpr,
     CallExpr,
     IndexExpr,
@@ -118,6 +120,7 @@ pub enum SyntaxKind {
     NamedType,
     DynType,
     MutType,
+    RefType,
     OptionalType,
     TupleType,
     ParenType,
@@ -504,6 +507,8 @@ ast_nodes! {
     AdditiveExpr => AdditiveExpr,
     MultiplicativeExpr => MultiplicativeExpr,
     UnaryExpr => UnaryExpr,
+    RefExpr => RefExpr,
+    DerefExpr => DerefExpr,
     PowerExpr => PowerExpr,
     CallExpr => CallExpr,
     IndexExpr => IndexExpr,
@@ -551,6 +556,7 @@ ast_nodes! {
     NamedType => NamedType,
     DynType => DynType,
     MutType => MutType,
+    RefType => RefType,
     OptionalType => OptionalType,
     TupleType => TupleType,
     ParenType => ParenType,
@@ -670,6 +676,7 @@ impl SyntaxKind {
             Self::NamedType
                 | Self::DynType
                 | Self::MutType
+                | Self::RefType
                 | Self::OptionalType
                 | Self::TupleType
                 | Self::ParenType

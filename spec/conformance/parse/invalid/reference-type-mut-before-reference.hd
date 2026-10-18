@@ -1,0 +1,2 @@
+# Spec 13 Reference Types: ref.type.no-nesting. `mut` never precedes a reference type.
+fn bad_mut(p: mut &Point) -> void: pass  # diagnostic: syntax-error
