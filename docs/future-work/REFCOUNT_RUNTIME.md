@@ -47,9 +47,8 @@ Rust and compiled to Wasm, then proposes the runtime.
 
 Today's layout is the starting point of the migration, not a constraint:
 [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §15 maps
-every value to Wasm GC structs and arrays, and
-[VALUE_STRUCTS.md](VALUE_STRUCTS.md)'s layout section, which assumed
-Wasm GC, is obsolete.
+every value to Wasm GC structs and arrays; the earlier value-structs
+study's layout plan, which assumed Wasm GC, is obsolete and deleted.
 
 ## 2. The Runtime On One Page
 
@@ -817,7 +816,6 @@ likely two jobs.
   [lol_alloc](https://github.com/Craig-Macomber/lol_alloc).
 - This repository: [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md) section 8
   and its appendix (hd's Wasm GC numbers),
-  [VALUE_STRUCTS.md](VALUE_STRUCTS.md),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
   [NATIVE_BACKEND.md](NATIVE_BACKEND.md),
   [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §14 and §15.

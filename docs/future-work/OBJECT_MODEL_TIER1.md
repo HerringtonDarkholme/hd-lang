@@ -553,8 +553,8 @@ fn step(bodies: &mut List[Body], dt: f64) -> void:
         b.pos.translate(b.vel.scale(dt))
 ```
 
-`List[Body]` is one buffer of 32-byte elements, the layout
-VALUE_STRUCTS.md could only emulate on Wasm GC with one array per field.
+`List[Body]` is one buffer of 32-byte elements, a layout Wasm GC could
+only emulate with one array per field.
 Nothing here is counted except the list's buffer, since `Body` holds no
 reference. `b.pos.translate(...)` takes an interior reference that the
 loop's pin already covers. The small methods are inlined, so no count
@@ -785,9 +785,10 @@ a type parameter now means something. `mutable-upgrade` stays for
 `&T` to `&mut T`, and `readonly-root` and `mutable-receiver-required`
 become one error: a write to a place that is not writable.
 
-VALUE_STRUCTS.md is superseded where it assumed Wasm GC (immutable
-fields, `struct` next to `data`, one array per field); its measurements
-and its table of std types that should be values carry over. The removed
+The earlier value-structs study, which assumed Wasm GC (immutable
+fields, `struct` next to `data`, one array per field), is superseded and
+deleted; its list of std types that should be values carries over into
+job 15. The removed
 `^` mode (chapter 13, deleted in R4) survives in two ideas: lending
 marks nothing at the call site, which tier 1's auto-address keeps, and
 "stays in this call", which tier 2's dependency sets make precise.
@@ -850,7 +851,7 @@ them. A std migration chunk that runs long splits into further jobs.
 | 12 | Bridge, part 2: element references with a pin count; references to scalar fields as boxed cells | the run fixtures of jobs 8 to 10 pass, or `KNOWN_FAILURES.tsv` rows with an issue each |
 | 13 | `hd fix --object-model`, the conservative rewrite | before-and-after fixture pairs; rewritten examples run unchanged |
 | 14 | std migration 1: collections, iterators, `Option` and `Result` helpers | std rules that name `data` or `mut` views; fixtures |
-| 15 | std migration 2: text, formatting, encoding, hashing, time, with values per VALUE_STRUCTS.md section 8 | std rules; fixtures |
+| 15 | std migration 2: text, formatting, encoding, hashing, time; small records become values (`Date`, the `Range` types, `regex.Match`, `Reverse`, `Datagram`, `Backoff`, `TimedOut`) | std rules; fixtures |
 | 16 | std migration 3: I/O, streams, net, processes, with handles behind references | std rules; fixtures |
 | 17 | `examples/`, the guide and the website: section 11's programs in place of the `data` examples | none |
 | 18 | Remove `data`, permission views, freshness rules, readonly edges and part copies from spec and checker | removed rules and fixtures; a rule inventory diff |
@@ -897,7 +898,7 @@ moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 and
   OxCaml: [stack allocation](https://oxcaml.org/documentation/stack-allocation/intro/).
   D: [scope parameters](https://dlang.org/spec/function.html#scope-parameters).
   Hylo: Racordon et al., [Implementation Strategies for Mutable Value Semantics](https://www.jot.fm/issues/issue_2022_02/article2.pdf), JOT 2022.
-- hd: [VALUE_STRUCTS.md](VALUE_STRUCTS.md), [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md),
+- hd: [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md), REFCOUNT_RUNTIME.md,
   the removed chapter 13 (`git show 5d0b21e0a^:spec/lang/13-ownership.md`),
   [04-type-system.md](../../spec/lang/04-type-system.md),
