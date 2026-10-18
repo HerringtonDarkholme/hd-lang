@@ -32,7 +32,7 @@ locals that never escape and values never pay for the flag.
 | `&mut local` passed to a call that is not inlined: a heap cell | the local stays in the frame when the parameter is `&{} mut T` |
 | a count update through each stored interior reference | none through scoped references |
 | element references pin the list; push tests the pin | a local list is frozen statically; a list behind a global reference is flagged |
-| closure environments in counted objects | a scoped closure's environment is a record in the frame |
+| closure environments in counted objects | a scoped closure's environment is a record in the frame, unless it is returned past the frame |
 | writable references may alias | a scoped `&{} mut` has no conflicting writer in any caller: statically from locals, by the flag through counted storage; other aliases may still read |
 | release happens at count zero | a NonCopyable value is released at the end of its scope |
 
@@ -233,9 +233,13 @@ type argument carries its own lifetime (section 8.2).
 A value is scoped when its type mentions a set other than `global`, at
 any depth. A scoped value:
 
-1. cannot be stored in a global place: a field of an object behind a
+1. cannot be stored in a global place (a field of an object behind a
    global reference, a top-level binding, a provider, a task, a value
-   that crosses a boundary;
+   that crosses a boundary), except by promotion: a view type whose
+   bytes always live in a counted buffer (a string view, a span, an
+   element reference) is converted to its global form there
+   (section 8.4). A general `&{} T` may point into a stack frame, so
+   storing it globally is an error whose fix is a global `&T`;
 2. cannot be returned beyond its sets, nor captured by a global closure;
 3. is never counted: copying a `Token[{src}]` copies its bytes and
    touches no header, because the view inside it holds no count.
@@ -268,16 +272,19 @@ parser while it lives.
 
 `Parser[global]` is an ordinary tier 1 type: its views are counted,
 because their lifetime argument is global (section 8.3), and its
-values may be stored anywhere. So the fix for storing a parsed tree in
-a cache is to parse with `Parser[global]`, from the same source:
+values may be stored anywhere. A tree parsed with `Parser[{src}]` and
+then stored in a cache is promoted to `Expr[global]` at the store: its
+string views are always backed by `src`'s counted buffer, so each gets a
+count and no byte is copied (section 8.4).
 
 ```text
 fn remember(cache: &mut Cache, src: string) -> Result[void, ParseError]:
-    let mut p = Parser.new(&src)          # Parser[{src}]
-    cache.last = .Some(p.expr()?)
-    # error: `Expr[{src}]` borrows `src`, and `cache.last` holds `Expr[global]`
-    #   help: parse with `Parser[global]`, whose views are counted
+    let mut p = Parser.new(&src)          # Parser[{src}]: uncounted while parsing
+    cache.last = .Some(p.expr()?)         # promoted to Expr[global]: one count per view
 ```
+
+Parsing with `Parser[global]` from the start counts each view as it is
+made instead.
 
 ### 4.5 A field that borrows another field of its struct
 
@@ -480,8 +487,14 @@ as Rust's `RefCell` and Swift's dynamic exclusivity do:
    storage on its path: the object that holds the borrowed field, and
    the buffer a view or element reference points into, nested
    copy-on-write buffers included. A reader count marks `&{}`, a writer
-   bit `&{} mut`. The caller also holds one count on the innermost
-   storage for the borrow, so it cannot be freed while flagged.
+   bit `&{} mut`. The caller holds one count on every storage it marked,
+   and clears each flag before releasing that count, so no flagged
+   header is ever freed; a borrow along a path of k counted storages
+   costs k count pairs. A result that borrows carries these counts with
+   it, and its last copy clears the flags and releases them, on every
+   exit, cancellation included. When an object's reader bits fill, the
+   runtime moves its reader count to a side table rather than wrapping
+   into the descriptor bits; no program sees a limit.
    Counted storage is anything a count reaches: a global reference, a
    local whose address escaped into a heap cell, and a buffer that an
    element reference pins.
@@ -523,7 +536,7 @@ Priced with REFCOUNT_RUNTIME.md's numbers:
 | | Cost |
 | --- | --- |
 | Memory | a few bits of the header word that also holds the release-and-trace descriptor (REFCOUNT_RUNTIME.md), so no header growth beyond its 8 bytes; buffers carry the same bits |
-| Per borrow through a global reference | the page-table lookup for an interior address (measured free), an increment with the flag set, then a clear with the decrement: about one 2.1 ns pair |
+| Per borrow through counted storage | the page-table lookup for an interior address (measured free), then per storage on the path an increment with the flag set and a clear with the decrement: about one 2.1 ns pair each, unmeasured as a whole |
 | Per write through a global reference | a load and a branch, like the copy-on-write uniqueness test, which measured free (102 ms against 102) |
 | Locals that never escape, values, scoped references from such locals | nothing: the static checker proves them |
 | Code size | one body per declaration; the tests sit at writes through global references |
@@ -575,7 +588,10 @@ The pointer to `n` stays valid, but `adder`'s frame does not. A scoped
 closure returned past its creator's frame therefore gets a counted heap
 environment, which still carries its `{n}` dependency, so the caller's
 checks are unchanged. Only closures that stay in their frame keep the
-zero-allocation environment.
+zero-allocation environment. A captured reference is copied into the
+environment as a reference value, keeping its sources: the closure holds
+the pointer to `n` itself, never the address of `adder`'s parameter slot
+that held it.
 
 ### 7.2 What a scoped closure captures
 
@@ -684,13 +700,20 @@ writes `names.sort_by(fn(a, b): a.cmp(b))` and `line.split(",")` with
 no marks. On a local, `split` returns uncounted views that freeze the
 string's variable. On a string behind a global reference it returns
 the same uncounted views, with the object flagged while they live
-(section 6.4). Storing such views in a global place promotes them: the
-compiler takes a count on the counted buffer their bytes live in, one
-increment and no copy, which works because interior references are
-plain addresses. So tier 1 code that writes `cache.words = line.split(" ")`
-keeps compiling, at tier 1's cost; tier 2 only ever removes costs. A
-result that points into a stack frame has no counted buffer to retain,
-so storing it globally stays an error. A string is immutable, so a shared reference to one refers
+(section 6.4). Storing such views in a global place promotes them.
+Promotion applies only to view types whose representation always has a
+counted buffer behind it: string views, spans and element references
+into counted buffers. A single view gets one count on its buffer, with
+no copy, which works because interior references are plain addresses.
+A value holding views, such as `split`'s `List[&{line} string]`, is
+converted to its global instance: a new outer buffer when the old one is
+shared, and a count per view, so promoting n views costs n increments
+and one buffer, never a byte copy. Scoped aliases of the old value keep
+their type and their borrow. So tier 1 code that writes
+`cache.words = line.split(" ")` keeps compiling, at tier 1's cost. A
+general scoped reference `&{} T` may point into a stack frame, so it is
+never promoted: storing one globally is an error, fixed by taking a
+global `&T`. A string is immutable, so a shared reference to one refers
 to its bytes, which lets `slice` and `split` return references;
 `&mut string` refers to the variable.
 
@@ -931,7 +954,7 @@ removes nothing that tier 1 keeps.
 | tier 1 `&T`, `&mut T` | unchanged: global |
 | a header that cannot promise not to keep a reference | `&{} T`, `&{} mut T`, result sets |
 | element references pin | a scoped borrow of a local freezes statically; one through a global reference sets the borrow flag; global references still pin |
-| a 4-byte header: the count | a second word for the borrow flag; the `borrow-conflict` panic |
+| an 8-byte header: the count, and the release-and-trace descriptor | borrow-flag bits in the descriptor word; the `borrow-conflict` panic |
 | one `fn` type; `mut` before `fn` is a syntax error | `fn`, `fn mut`, `fn once`, with capture sets; the plain `fn` keeps its meaning |
 | "no mutable closure type" (Mutable Closures) | still true for global closures; scoped closures get kinds |
 | tier 1 `string` views counted | `&{s} string`: uncounted views |
@@ -956,10 +979,22 @@ Tier 2 is opt-in, so no program changes. std gains tier 2 headers by
 hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
 because global arguments still convert; it breaks only a std body that
 stored what it now promises not to keep, which the checker reports in
-that body. A result that gains a set breaks no caller either: a caller
-that stores it in a global place gets it promoted to a counted
-reference (section 8.4). Applications adopt marks where
-`--explain-escapes` shows a cost.
+that body. A result that gains a set breaks no correct caller: one that
+stores it in a global place gets it promoted (section 8.4). A caller
+that holds a borrowed result across a change to its source is rejected,
+and rightly:
+
+```text
+let mut xs = load()
+first := xs.get(0)     # a reference into xs
+xs.push(x)             # error: xs is frozen while `first` lives
+use(first)
+```
+
+This program was already wrong: in tier 1 the push panics with
+`collection-pinned`, because `first` pins `xs`. Tier 2 reports the same
+bug at compile time. Applications adopt marks where `--explain-escapes`
+shows a cost.
 
 ## 16. Implementation Plan
 

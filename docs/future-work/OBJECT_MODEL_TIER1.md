@@ -243,9 +243,14 @@ return path, `?` errors included, so an early exit never leaves the enum
 emptied:
 
 ```text
-current.update(fn mut(w: &{} mut Writer) -> Result[void, IoError]:
+current.update(fn(w: &mut Writer) -> Result[void, IoError]:
     w.add(text))?
 ```
+
+While the payload is lent, the enum holds `.None`, so a re-entrant read
+of `current` from inside the callback sees it empty; that is part of the
+callback's contract. (Tier 2 writes the parameter as `fn mut(w: &{} mut
+Writer)`, which also keeps the lent reference from escaping.)
 
 ### 6.2 Collections are values
 

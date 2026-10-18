@@ -325,12 +325,13 @@ one body is free to use anything that body shows.
 | coalesced field updates | no: a write log and a collection phase for a gain the elisions above mostly take | no |
 | non-atomic counts | yes: stage A instances share no objects ([PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md) §4.2) | no |
 
-One rule needs care. A borrowed argument must stay alive for the call,
-so when the caller passes a value it just read from a mutable place
-(`f(node.next)` where `next` is `mut`), and the callee could overwrite
-that place, the caller increments first. Swift does the same. Values
-held in locals and parameters, and values read from immutable fields,
-pass with no count.
+One rule needs care. A `&T` argument must stay alive for the call, so
+when the caller passes a reference to a value it just read from a
+mutable place (`f(&node.next)` where `next` is mutable), and the callee
+could overwrite that place, the caller increments first. Swift does the
+same. A `&T` to a local, a parameter or an immutable field passes with
+no count. A value argument is moved at the caller's last use and
+otherwise costs one increment.
 
 ### 4.4 Do values need counts at all?
 
@@ -691,8 +692,9 @@ The runtime, in ten lines:
 10. The Wasm GC backend stays the default until the linear backend
     passes conformance, then goes.
 
-For the tier 1 study's open runtime assumptions: the thin address and
-the 32-bit header are confirmed (section 5); the copy-on-write test
+For the tier 1 study's open runtime assumptions: the thin address is
+confirmed (section 5), and the header is 8 bytes, the count plus the
+descriptor word (section 2); the copy-on-write test
 measured free (section 9.1); and a buffer with an owner count and a pin
 count costs one more word per buffer, not per element.
 
