@@ -15,6 +15,16 @@ use std.format.DebugWriter
 pub trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
 
+    ## Writes `value` as its eight little-endian bytes, as `write` would.
+    ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
+    fn write_u64(mut self, value: u64) -> void:
+        self.write(unsigned_bytes(value, 8))
+
+    ## Writes the UTF-8 bytes of `text`, with no length, as `write` would.
+    ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
+    fn write_str(mut self, text: string) -> void:
+        self.write(text.to_utf8())
+
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash:
@@ -22,9 +32,8 @@ pub trait Hash:
 
 impl Hash for string:
     fn hash(self, state: mut dyn Hasher) -> void:
-        bytes := self.to_utf8()
-        u64(bytes.len()).hash(state)
-        state.write(bytes)
+        state.write_u64(u64(bytes_len(self)))
+        state.write_str(self)
 
 impl Hash for char:
     fn hash(self, state: mut dyn Hasher) -> void:
@@ -72,7 +81,7 @@ impl Hash for i32:
 
 impl Hash for i64:
     fn hash(self, state: mut dyn Hasher) -> void:
-        state.write(signed_bytes(self, 8))
+        state.write_u64(u64(self))
 
 impl Hash for u8:
     fn hash(self, state: mut dyn Hasher) -> void:
@@ -92,13 +101,13 @@ impl Hash for usize:
 
 impl Hash for u64:
     fn hash(self, state: mut dyn Hasher) -> void:
-        state.write(unsigned_bytes(self, 8))
+        state.write_u64(self)
 
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
 impl[T < Hash] Hash for List[T]:
     fn hash(self, state: mut dyn Hasher) -> void:
-        u64(self.len()).hash(state)
+        state.write_u64(u64(self.len()))
         for item in self:
             item.hash(state)
 
@@ -154,15 +163,37 @@ impl DefaultHasher:
 # (r-std-hash.default.write). The prime is 256 * 2^32 + 435, and the
 # state is split into 32-bit halves, so no intermediate product overflows
 # the checked `u64` arithmetic.
+impl DefaultHasher:
+    # One FNV-1a step on the state.
+    fn mix(mut self, byte: u8) -> void:
+        let mask: u64 = 4294967295
+        mixed := self.state ^ u64(byte)
+        low := mixed & mask
+        low_product := low * 435
+        middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
+        self.state = (middle << 32) | (low_product & mask)
+
 impl Hasher for DefaultHasher:
     fn write(mut self, bytes: List[u8]) -> void:
-        let mask: u64 = 4294967295
         for byte in bytes:
-            mixed := self.state ^ u64(byte)
-            low := mixed & mask
-            low_product := low * 435
-            middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
-            self.state = (middle << 32) | (low_product & mask)
+            self.mix(byte)
+
+    # The eight bytes, least significant first, without a list.
+    fn write_u64(mut self, value: u64) -> void:
+        let rest = value
+        let index: usize = 0
+        while index < 8:
+            self.mix(u8(rest & 255))
+            rest = rest >> 8
+            index = index + 1
+
+    # The string's bytes, read in place.
+    fn write_str(mut self, text: string) -> void:
+        n := bytes_len(text)
+        let index: usize = 0
+        while index < n:
+            self.mix(bytes_at(text, index))
+            index = index + 1
 
 # Hashes `value` into a new `DefaultHasher` (r-std-hash.hash-of).
 ## `value`'s hash under a fresh `DefaultHasher`.

@@ -258,6 +258,8 @@ The standard library also defines `Hash` and `Hasher` in `std.hash`:
 ```text
 trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
+    fn write_u64(mut self, value: u64) -> void
+    fn write_str(mut self, text: string) -> void
 
 trait Hash:
     fn hash(self, state: mut dyn Hasher) -> void
@@ -267,6 +269,7 @@ trait Hash:
 2. r[trait.hash.map-key] A map key must implement both `Eq` and `Hash`.
 3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined data or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
+5. r[trait.hash.hasher-methods] `write` is the only required method of `Hasher`. `write_u64` and `write_str` have default bodies over `write`: `write_u64(value)` calls `write` with the eight bytes of `value`, least significant first, and `write_str(text)` calls `write` with the UTF-8 bytes of `text` and no length. An implementation may override either to hash the same bytes without building a list, and it must give the same result as the default.
 
 > **Note.** A readonly key can still change through another mutable alias,
 > potentially leaving its map entry unreachable.

@@ -98,8 +98,9 @@ fn digest() -> u64:
 | r[std-hash.bytes.result] `Result[T, E]` | `.Ok(value)` or `.Err(error)` | the tag byte `0`, then the bytes of `value`, for `.Ok`; the tag byte `1`, then the bytes of `error`, for `.Err` |
 
 1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
-2. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
-3. r[std-hash.bytes.derive-data] A derived `Hash` on data writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
+2. r[std-hash.bytes.methods] An implementation may write a `u64` or a string's bytes through `write_u64` or `write_str` instead of `write`, since those write the same bytes ([`trait.hash.hasher-methods`](../lang/09-traits.md#r-trait.hash.hasher-methods)).
+3. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
+4. r[std-hash.bytes.derive-data] A derived `Hash` on data writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
 
 > **Why.** A string writes its length first, as a list does, so one rule
 > covers every sequence, and `("ab", "c")` writes other bytes than
@@ -138,9 +139,10 @@ fn bucket(key: string) -> u64:
 3. r[std-hash.default.new] `DefaultHasher::new() -> mut DefaultHasher` returns a hasher whose state is the offset basis.
 4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
-6. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
-7. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
-8. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.
+6. r[std-hash.default.write-methods] `DefaultHasher` overrides `write_u64` and `write_str` ([`trait.hash.hasher-methods`](../lang/09-traits.md#r-trait.hash.hasher-methods)). Each gives the state that `write` of the same bytes gives, without building a list.
+7. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
+8. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
+9. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.
 
 > **Why.** FNV-1a is a few lines of hd that need only XOR and one
 > wrapping multiplication. SipHash-1-3 mixes better, but its strength is

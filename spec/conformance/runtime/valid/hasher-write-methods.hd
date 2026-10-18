@@ -1,0 +1,68 @@
+# test: write_u64 and write_str default to write over the same bytes, DefaultHasher overrides them, hash_of values are unchanged
+# Spec std Hash, Bytes Written and Hasher methods: trait.hash.hasher-methods,
+# std-hash.default.write-methods, std-hash.bytes.sequence.
+use std.hash.{DefaultHasher, hash_of}
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.push(byte)
+
+fn digest(bytes: List[u8]) -> u64:
+    let mut hasher = DefaultHasher::new()
+    hasher.write(bytes)
+    hasher.finish()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a hasher with only write gets the eight little-endian bytes of write_u64"):
+        let mut recorder = Recorder { bytes: [] }
+        recorder.write_u64(258)
+        assert_equal(recorder.bytes, [2, 1, 0, 0, 0, 0, 0, 0], reason="least significant first")
+
+    it("write_u64 writes the top byte of a large value last"):
+        let mut recorder = Recorder { bytes: [] }
+        let big: u64 = 18446744073709551615
+        recorder.write_u64(big)
+        assert_equal(recorder.bytes, [255, 255, 255, 255, 255, 255, 255, 255], reason="all ones")
+
+    it("a hasher with only write gets the UTF-8 bytes of write_str, with no length"):
+        let mut recorder = Recorder { bytes: [] }
+        recorder.write_str("h\u{E9}")
+        assert_equal(recorder.bytes, [104, 195, 169], reason="UTF-8 bytes only")
+
+    it("DefaultHasher write_u64 matches write of the same eight bytes"):
+        let mut hasher = DefaultHasher::new()
+        hasher.write_u64(258)
+        assert_equal(hasher.finish(), digest([2, 1, 0, 0, 0, 0, 0, 0]), reason="one u64")
+
+    it("DefaultHasher write_str matches write of the UTF-8 bytes"):
+        let mut hasher = DefaultHasher::new()
+        hasher.write_str("h\u{E9}")
+        assert_equal(hasher.finish(), digest([104, 195, 169]), reason="one string")
+        let mut empty = DefaultHasher::new()
+        empty.write_str("")
+        assert_equal(empty.finish(), digest([]), reason="no bytes")
+
+    it("the calls mix with write in any order"):
+        let mut hasher = DefaultHasher::new()
+        hasher.write([7])
+        hasher.write_u64(1)
+        hasher.write_str("a")
+        assert_equal(hasher.finish(), digest([7, 1, 0, 0, 0, 0, 0, 0, 0, 97]), reason="same byte stream")
+
+    it("hash_of values for integers and strings are unchanged"):
+        let key: (u8, string) = (7, "a")
+        let expected: u64 = 12920292002639229810
+        assert_equal(hash_of(key), expected, reason="the spec's digest of (7, \"a\")")
+        let wide: u64 = 258
+        assert_equal(hash_of(wide), digest([2, 1, 0, 0, 0, 0, 0, 0]), reason="a u64 writes eight bytes")
+        let negative: i64 = -2
+        assert_equal(hash_of(negative), digest([254, 255, 255, 255, 255, 255, 255, 255]), reason="an i64 writes its two's complement")
+        let narrow: i32 = -2
+        assert_equal(hash_of(narrow), digest([254, 255, 255, 255]), reason="an i32 writes four bytes")
+        assert_equal(hash_of("hd"), digest([2, 0, 0, 0, 0, 0, 0, 0, 104, 100]), reason="length, then bytes")
