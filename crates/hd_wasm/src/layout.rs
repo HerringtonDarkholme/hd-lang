@@ -620,8 +620,8 @@ impl<'a> Lay<'a> {
 
     pub(crate) fn strip(&self, t: Ty) -> Ty {
         match self.pool.get(t) {
-            // A mode is no part of the representation (13-ownership.md).
-            TyData::Mut(i) | TyData::Borrow { ty: i, .. } => self.strip(i),
+            // `mut` is no part of the representation.
+            TyData::Mut(i) => self.strip(i),
             _ => t,
         }
     }

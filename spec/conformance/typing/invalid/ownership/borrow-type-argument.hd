@@ -1,5 +1,0 @@
-# test: a mark on a type argument, even inside a parameter's type, is misplaced-borrow
-data File:
-    fd: i32
-
-fn walk(files: List[^File]) -> void: pass  # diagnostic: misplaced-borrow

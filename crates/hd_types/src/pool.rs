@@ -220,11 +220,6 @@ pub enum TyData {
     /// A reusable provider context, `$.Context[$ Row]` (`req.context.row`):
     /// indexed by one concrete, expanded row.
     Context(RowId),
-    /// A borrowed type, `^T` or `^mut T` (`own.syntax.borrow`).
-    Borrow {
-        ty: Ty,
-        mutable: bool,
-    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -248,7 +243,6 @@ enum PoolTag {
     Row,
     RowTy,
     Context,
-    Borrow,
 }
 
 /// Meta flags (§3.9.2).
@@ -258,8 +252,6 @@ pub mod meta {
     pub const HAS_PARAM: u32 = 4;
     pub const HAS_ASSOC: u32 = 8;
     pub const HAS_CANON: u32 = 16;
-    /// A borrow somewhere inside.
-    pub const HAS_MODE: u32 = 32;
 }
 
 impl PoolTag {
@@ -276,7 +268,6 @@ impl PoolTag {
                 | PoolTag::Assoc
                 | PoolTag::List
                 | PoolTag::Row
-                | PoolTag::Borrow
         )
     }
 }
@@ -328,11 +319,7 @@ impl Cols {
         }
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
-            PoolTag::Adt
-            | PoolTag::TupleRest
-            | PoolTag::Param
-            | PoolTag::List
-            | PoolTag::Borrow => 2,
+            PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
             PoolTag::Fn | PoolTag::Assoc => 4,
             PoolTag::TraitValue => 3 + 2 * x(2),
             PoolTag::Row => {
@@ -786,10 +773,6 @@ impl InternPool {
     pub fn has_assoc(&self, t: Ty) -> bool {
         self.types().has_assoc(t)
     }
-    #[must_use]
-    pub fn has_mode(&self, t: Ty) -> bool {
-        self.types().has_mode(t)
-    }
     pub fn subst(&self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
         self.types().subst(t, f)
     }
@@ -957,7 +940,6 @@ impl<'a> Types<'a> {
             TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
             TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
             TyData::Context(r) => (T::Context, r.0, self.row_meta(*r)),
-            TyData::Borrow { ty, .. } => (T::Borrow, 0, self.meta_of(*ty) | meta::HAS_MODE),
         };
         let mut buf = [0u32; 4];
         let rec: &[u32] = match t {
@@ -984,10 +966,6 @@ impl<'a> Types<'a> {
             }
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
-                &buf[..2]
-            }
-            TyData::Borrow { ty, mutable } => {
-                buf[..2].copy_from_slice(&[ty.0, u32::from(*mutable)]);
                 &buf[..2]
             }
             TyData::Assoc {
@@ -1090,10 +1068,6 @@ impl<'a> Types<'a> {
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
             PoolTag::RowTy => TyData::Row(RowId(d)),
             PoolTag::Context => TyData::Context(RowId(d)),
-            PoolTag::Borrow => TyData::Borrow {
-                ty: Ty(x[0]),
-                mutable: x[1] != 0,
-            },
             PoolTag::List | PoolTag::Row => unreachable!("not a type index"),
         }
     }
@@ -1109,11 +1083,6 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
-    }
-    /// Whether a type holds a borrow.
-    #[must_use]
-    pub fn has_mode(self, t: Ty) -> bool {
-        self.meta_of(t) & meta::HAS_MODE != 0
     }
     /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
     /// outside the base of an associated-type projection.
@@ -1135,7 +1104,6 @@ impl<'a> Types<'a> {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
             TyData::Option(i) | TyData::Mut(i) => self.names_trait_self(i, trait_),
-            TyData::Borrow { ty, .. } => self.names_trait_self(ty, trait_),
             TyData::Fn {
                 params,
                 result,
@@ -1202,10 +1170,6 @@ impl<'a> Types<'a> {
             },
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
-            TyData::Borrow { ty, mutable } => TyData::Borrow {
-                ty: self.subst(ty, f),
-                mutable,
-            },
             TyData::Fn {
                 params,
                 result,
@@ -1335,9 +1299,6 @@ impl<'a> Types<'a> {
             TyData::Canon(i) => format!("^{i}"),
             TyData::Row(r) => self.display_row(r),
             TyData::Context(r) => format!("$.Context[{}]", self.display_row(r)),
-            TyData::Borrow { ty, mutable } => {
-                format!("^{}{}", if mutable { "mut " } else { "" }, self.display(ty))
-            }
         }
     }
 
@@ -1393,10 +1354,6 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         },
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
-        TyData::Borrow { ty, mutable } => TyData::Borrow {
-            ty: with_assoc_args(pool, ty, trait_, args),
-            mutable,
-        },
         TyData::Fn {
             params,
             result,

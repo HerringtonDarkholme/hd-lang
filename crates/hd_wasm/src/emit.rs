@@ -3501,8 +3501,6 @@ impl Em<'_> {
             || kind == Coercion::RowSubsume as u32
             || kind == Coercion::SuspendFnToCtor as u32
             || kind == Coercion::Identity as u32
-            || kind == Coercion::Lend as u32
-            || kind == Coercion::LendMut as u32
         {
             self.load_as(v, &want)?;
             return self.store(i);

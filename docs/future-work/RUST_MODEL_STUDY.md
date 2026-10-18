@@ -100,8 +100,8 @@ fn demo() -> void:
 ```
 
 hd's `^` spelling and its call-site rule carry over: lending marks
-nothing at the call
-([Lending](../../spec/lang/13-ownership.md#lending)), so `total(o)`
+nothing at the call (the Lending section of the former
+`spec/lang/13-ownership.md`, removed in #163), so `total(o)`
 reads the same whether it borrows or not. The rest is new.
 
 | Area | Today | Rust's model in hd |

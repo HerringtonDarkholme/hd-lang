@@ -1,7 +1,0 @@
-# test: an enum payload is a field, so a mark on its type is misplaced-borrow
-data File:
-    fd: i32
-
-enum Lookup:
-    Found(file: ^File)  # diagnostic: misplaced-borrow
-    Missing

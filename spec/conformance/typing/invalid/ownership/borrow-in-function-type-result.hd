@@ -1,5 +1,0 @@
-# test: a function type's result is a result, so a mark on it is misplaced-borrow
-data File:
-    fd: i32
-
-fn hold(make: fn() -> ^File) -> void: pass  # diagnostic: misplaced-borrow

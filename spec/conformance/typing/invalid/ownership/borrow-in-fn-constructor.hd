@@ -1,7 +1,0 @@
-# test: a mark inside Fn[...] is on a type argument, so it is misplaced-borrow; the fn(...) form takes it
-use std.function.Fn
-
-data File:
-    fd: i32
-
-fn call(run: Fn[(^File,), void]) -> void: pass  # diagnostic: misplaced-borrow

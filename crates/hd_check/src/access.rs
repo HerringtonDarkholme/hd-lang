@@ -52,7 +52,6 @@ impl Ck<'_, '_> {
             TyData::Param(_) => (0..self.env.clause_self.len())
                 .any(|i| self.env.clause_self[i] == t && self.env.clause_mut[i]),
             TyData::Adt { .. } | TyData::TraitValue { .. } => false,
-            TyData::Borrow { mutable, .. } => mutable,
             _ => true,
         }
     }

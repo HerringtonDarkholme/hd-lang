@@ -137,48 +137,6 @@ fn std_bodies_match_golden_tir() {
     }
 }
 
-/// The golden TIR of one body: `item` of `main` checked alone, against
-/// `tests/tir/{golden}`. `HD_UPDATE_GOLDEN=1` rewrites the file.
-fn body_golden(main: &str, item: &str, golden: &str) {
-    let mut src = MemorySources::default();
-    src.insert("main.hd", main);
-    let store = MemoryStore::default();
-    let host = Host {
-        render_tir: &[item],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let out = build(&host, "app", &Goal::Analyze);
-    assert!(out.diags.is_empty(), "{}", out.render());
-    let got = out
-        .tir_text
-        .get(item)
-        .unwrap_or_else(|| panic!("no body; have {:?}", out.tir_text.keys()));
-    let golden = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/tir")
-        .join(golden);
-    if std::env::var_os("HD_UPDATE_GOLDEN").is_some() {
-        std::fs::write(&golden, got).expect("write golden");
-        return;
-    }
-    let want = std::fs::read_to_string(&golden).unwrap_or_default();
-    assert_eq!(got, &want, "TIR differs from {}", golden.display());
-}
-
-/// The golden TIR of a small body that lends (`own.body.lend`): each
-/// value passed to a `^` parameter or receiver is a `Lend` coercion, a
-/// plain local and a borrowed parameter alike, and nothing drops.
-#[test]
-fn borrowed_body_matches_golden_tir() {
-    body_golden(
-        "data File:\n    fd: i32\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> File: File { fd: 3 }\n\nfn total(f: ^File) -> i32: f.fd\n\nfn report(keep: ^File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    n + total(f) + keep.size()\n\npub fn main() -> void:\n    pass\n",
-        "app/main/report",
-        "borrowed_body.tir",
-    );
-}
-
 /// `use a.b as c` and `use a.{b as c}` (grammar.use) reach the checker:
 /// the renamed module, type and trait resolve in bodies.
 #[test]

@@ -58,13 +58,6 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
 /// in test code, but no declaration of a module may take their place.
 const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
 
-/// What a header with an ownership mark gets until the ownership
-/// prototype's later slices check marks (13-ownership.md, issue #163).
-const OWNERSHIP_GAP: &str = "a borrow mark (`^`)";
-
-/// `own.header.placement`.
-const MISPLACED_BORROW: &str = "a `^` mark is written only on a parameter, a receiver, a local binding, or a function type's parameter";
-
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
 pub fn is_prelude_name(name: &str) -> bool {
@@ -2147,20 +2140,6 @@ impl Lower<'_, '_, '_> {
         })
     }
 
-    /// The type of a parameter, or of a function type's parameter: the
-    /// one place in a header where a mark is written
-    /// (`own.header.placement`).
-    fn param_ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
-        let Some(n) = n.filter(|n| n.kind() == SyntaxKind::BorrowType) else {
-            return self.ty(n, gn);
-        };
-        let ty = self.ty(n.children().find(|c| c.kind().is_type()), gn);
-        let mutable = n
-            .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
-            .is_some();
-        self.names.pool.intern_ty(&TyData::Borrow { ty, mutable })
-    }
-
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
         let Some(n) = n else { return Ty::VOID };
         let pool = self.names.pool;
@@ -2261,11 +2240,7 @@ impl Lower<'_, '_, '_> {
                         row = self.row(Some(c), gn);
                     } else if c.kind().is_type() {
                         let after = arrow.is_some_and(|a| self.src.first(c).raw() > a);
-                        let t = if after {
-                            self.ty(Some(c), gn)
-                        } else {
-                            self.param_ty(Some(c), gn)
-                        };
+                        let t = self.ty(Some(c), gn);
                         if after {
                             result = t;
                         } else {
@@ -2363,15 +2338,6 @@ impl Lower<'_, '_, '_> {
                 })
             }
             SyntaxKind::InferType => Ty::POISON,
-            // `own.header.placement`: a mark here is not on a parameter's
-            // type. The marked type is poisoned, so its uses report nothing
-            // more.
-            SyntaxKind::BorrowType => {
-                first_ty(self, n);
-                self.diags
-                    .error(Code::MisplacedBorrow, self.src.span(n), MISPLACED_BORROW);
-                Ty::POISON
-            }
             SyntaxKind::RequirementRow => {
                 self.gap("a requirement row in type position");
                 Ty::POISON
@@ -2710,13 +2676,7 @@ impl Lower<'_, '_, '_> {
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
                     let pool = self.names.pool;
-                    // `own.receiver.forms`: the receiver's mark is its mode.
-                    let st = if let Some(m) = Src::child(p, SyntaxKind::ModeMark) {
-                        pool.intern_ty(&TyData::Borrow {
-                            ty: st,
-                            mutable: m.direct_token(toks, TokenKind::KwMut).is_some(),
-                        })
-                    } else if p.direct_token(toks, TokenKind::KwMut).is_some() {
+                    let st = if p.direct_token(toks, TokenKind::KwMut).is_some() {
                         pool.intern_ty(&TyData::Mut(st))
                     } else {
                         st
@@ -2752,7 +2712,7 @@ impl Lower<'_, '_, '_> {
                             .error(Code::DuplicateBinding, self.src.span(p), &msg);
                     }
                 }
-                let ty = self.param_ty(Src::type_child(p), &gn);
+                let ty = self.ty(Src::type_child(p), &gn);
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
                 // tuple type, or a type parameter bounded by `Tuple`,
                 // under `mut` as elsewhere.
@@ -4129,9 +4089,6 @@ impl Lower<'_, '_, '_> {
                 self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
-                if self.names.pool.has_mode(t) {
-                    self.gap(OWNERSHIP_GAP);
-                }
                 // `@derive` on a newtype names implementations from the
                 // base type's (`trait.derive.newtype`).
                 self.derived(h, &generics, out);
@@ -4184,9 +4141,6 @@ impl Lower<'_, '_, '_> {
             .own_types
             .borrow_mut()
             .insert(h.def, generics.clone());
-        if self.names.pool.has_mode(t) {
-            self.gap(OWNERSHIP_GAP);
-        }
         let mut it = Item::new(h.def, h.name, h.public, ItemData::Alias(t));
         it.generics = generics;
         out.push(it);
@@ -4434,7 +4388,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(pool.list_items(elems));
             kids.extend(rest);
         }
-        TyData::Option(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } => kids.push(i),
+        TyData::Option(i) | TyData::Mut(i) => kids.push(i),
         TyData::Fn {
             params,
             result,

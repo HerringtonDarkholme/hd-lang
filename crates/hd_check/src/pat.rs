@@ -785,11 +785,7 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ let
 
     pub(crate) fn let_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
-        let kids: Vec<NodeRef<'_>> = kids
-            .iter()
-            .copied()
-            .filter(|k| k.kind() != SyntaxKind::ModeMark)
-            .collect();
+        let kids: Vec<NodeRef<'_>> = kids.to_vec();
         let Some(pat) = kids.first().copied() else {
             return unsupported("a `let` without a pattern");
         };
@@ -818,7 +814,7 @@ impl Ck<'_, '_> {
         // A `using` binding keeps its initializer's access (flow.using.access).
         let using = std::mem::take(&mut self.using_bind);
         let annot = match ty_node {
-            Some(t) => Some(self.binding_ty_node(t)?),
+            Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
         let name = (pat.kind() == SyntaxKind::BindingPattern && els.is_none())
@@ -1082,11 +1078,6 @@ impl Ck<'_, '_> {
     /// Emits, into the open block, the decision tree of `rows` against the
     /// scrutinee `v`; every path ends in `ToArm` or `Unreachable`.
     pub(crate) fn decide(&mut self, rows: &[Row<'_>], v: Ref, t: Ty) -> StageResult<()> {
-        // Patterns over an owned or borrowed value take ownership in a
-        // later section of 13-ownership.md.
-        if self.pool().has_mode(self.infer.resolve(self.pool(), t)) {
-            self.mode_gap.get_or_insert(NodeIdx::NONE);
-        }
         let m = rows
             .iter()
             .enumerate()

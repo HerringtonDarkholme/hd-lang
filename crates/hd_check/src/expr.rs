@@ -1664,13 +1664,6 @@ impl Ck<'_, '_> {
         if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
             bt = self.infer.resolve(pool, bt);
         }
-        // `own.body.field-read`: an owner's fields are read with mutable
-        // access; a borrow's fields are borrowed.
-        let lent = match pool.get(bt) {
-            TyData::Borrow { mutable, .. } => Some(mutable),
-            _ => None,
-        };
-        let bt = self.mode_view(bt);
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
             _ => bt,
@@ -1702,10 +1695,7 @@ impl Ck<'_, '_> {
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
-            let mut ft = self.field_access(bt, &name, ft);
-            if let Some(mutable) = lent {
-                ft = self.borrowed_field(ft, mutable);
-            }
+            let ft = self.field_access(bt, &name, ft);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n) {
@@ -2767,10 +2757,6 @@ impl Ck<'_, '_> {
         let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.known.iterator;
         let st_r = self.infer.resolve(pool, st);
-        // Iteration over an owned or borrowed value is a later section's.
-        if pool.has_mode(st_r) {
-            return self.gap(src, crate::ty::OWNERSHIP_GAP);
-        }
         let st_i = match pool.get(st_r) {
             TyData::Mut(i) => i,
             _ => st_r,
@@ -3515,7 +3501,7 @@ impl Ck<'_, '_> {
                 // read by mistake (`fn.default.later-parameter`).
                 if i >= upto {
                     let t = match Src::type_child(p) {
-                        Some(tn) => self.binding_ty_node(tn)?,
+                        Some(tn) => self.ty_node(tn)?,
                         None => Ty::POISON,
                     };
                     let sym = self.cx.names.syms.intern(&name);
@@ -3524,7 +3510,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let t = match Src::type_child(p) {
-                    Some(tn) => self.binding_ty_node(tn)?,
+                    Some(tn) => self.ty_node(tn)?,
                     None => {
                         if let Some(t) = wparams.get(i).copied() {
                             t
@@ -3924,20 +3910,6 @@ impl Ck<'_, '_> {
                 return unsupported("a provider key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
-            // `own.provider.plain`: a provider is a plain value.
-            let resolved = self.infer.resolve(pool, t);
-            if pool.has_mode(resolved) {
-                let msg = format!(
-                    "a provider is a plain value, but this is {}; pass a borrowed service as a parameter",
-                    self.show(t)
-                );
-                self.err(Code::ProviderNotPlain, *vn, &msg);
-                pairs.push(Ref(key.0));
-                pairs.push(r);
-                self.check_key_collision(entry, &[key], &keys, &visible);
-                keys.push(key);
-                continue;
-            }
             // A mutable requirement trait needs a `mut` provider.
             if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
                 let msg = format!(

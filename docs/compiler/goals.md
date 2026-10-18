@@ -54,7 +54,7 @@ checking.
   `hd.names` for backtraces.
 - Resources use `Disposable` and `using`, not ownership. A local `^`
   mode without lifetimes, for escape analysis and parallel children, is
-  planned in
+  parked as an option for a native backend in
   [docs/future-work/PARALLELISM_AND_LOCALITY.md](../future-work/PARALLELISM_AND_LOCALITY.md)
   (#163). `defer` stays, and a `defer` suite still cannot make a bang
   call.

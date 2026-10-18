@@ -1,7 +1,0 @@
-# test: a result is never borrowed, so a function that leaves its result type out and gives a borrowed value is missing-result-type
-data File:
-    fd: i32
-
-fn reset(f: ^mut File) -> void: pass
-
-fn helper(f: ^File): f  # diagnostic: missing-result-type

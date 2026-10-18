@@ -1,5 +1,0 @@
-# test: the right side of a type declaration takes no mark
-data File:
-    fd: i32
-
-type View = ^File  # diagnostic: misplaced-borrow

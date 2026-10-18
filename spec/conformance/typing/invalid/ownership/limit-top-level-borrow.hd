@@ -1,9 +1,0 @@
-# test: a function that lends a top-level binding is not in the ownership prototype
-data Settings:
-    level: i32
-
-fn level(s: ^Settings) -> i32: s.level
-
-CONFIG := Settings { level: 1 }
-
-fn current() -> i32: level(CONFIG)  # diagnostic: not-in-ownership-prototype

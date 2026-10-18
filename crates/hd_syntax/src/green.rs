@@ -127,10 +127,6 @@ pub enum SyntaxKind {
     RestType,
     InferType,
     RequirementRow,
-    // Borrow marks (13-ownership.md: Mark Syntax).
-    BorrowType,
-    /// `^` or `^mut` before `self`.
-    ModeMark,
     Error,
     SkippedBody,
 }
@@ -564,8 +560,6 @@ ast_nodes! {
     RestType => RestType,
     InferType => InferType,
     RequirementRow => RequirementRow,
-    BorrowType => BorrowType,
-    ModeMark => ModeMark,
     ErrorNode => Error,
     SkippedBody => SkippedBody,
 }
@@ -685,7 +679,6 @@ impl SyntaxKind {
                 | Self::RestType
                 | Self::InferType
                 | Self::RequirementRow
-                | Self::BorrowType
         )
     }
 

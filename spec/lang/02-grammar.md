@@ -479,7 +479,7 @@ value_parameter = identifier, ":", type, [ "=", expression ]
                 | identifier, "...", ":", type
                 ;
 
-receiver_parameter = [ "mut" | "^", [ "mut" ] ], "self" ;
+receiver_parameter = "self" | "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
@@ -795,11 +795,10 @@ See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-res
 
 ```ebnf
 type = reference_access_type, { "?" }
-     | [ type_mode ], function_type
+     | function_type
      ;
 
-reference_access_type = [ "mut" | type_mode ], reference_type ;
-type_mode = "^", [ "mut" ] ;
+reference_access_type = [ "mut" ], reference_type ;
 
 reference_type = named_type
                | dyn_type
@@ -833,7 +832,7 @@ type_list = type, { ",", type }, [ ",", rest_type ], [ "," ]
           ;
 
 result_type = reference_access_type, { "?" }
-            | [ type_mode ], result_function_type
+            | result_function_type
             ;
 result_function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                        "->", result_type ;
@@ -849,9 +848,6 @@ requirement_row = requirement_list
 requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = bound_trait_type ;
 ```
-
-`type_mode` writes a borrow mark, which
-[Mark Syntax](13-ownership.md#mark-syntax) specifies.
 
 ### Requirement Clauses
 

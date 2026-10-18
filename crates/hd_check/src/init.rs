@@ -636,7 +636,7 @@ impl Ck<'_, '_> {
         // Its statement resolves the annotation again and reports its
         // errors once.
         let mark = self.diags.mark();
-        let ty = self.binding_ty_node(tn);
+        let ty = self.ty_node(tn);
         let failed = self.diags.errors_since(mark) > 0;
         self.diags.truncate(mark);
         let Ok(ty) = ty else { return };
@@ -682,35 +682,7 @@ impl Ck<'_, '_> {
             }
             _ => {}
         }
-        // `own.limit.top-level`: the statement reports one prototype limit
-        // at most, whether a borrow or the binding's type finds it.
-        let had = std::mem::take(&mut self.prototype_limit);
-        let out = self.top_level_binding(s);
-        self.prototype_limit |= had;
-        out
-    }
-
-    /// `own.limit.top-level`: a top-level binding whose type holds a
-    /// borrowed part is not in the ownership prototype.
-    fn top_level_limit(&mut self, n: NodeRef<'_>) {
-        if self.prototype_limit {
-            return;
-        }
-        self.err(
-            Code::NotInOwnershipPrototype,
-            n,
-            "a borrowed top-level binding is not in the ownership prototype; bind a plain value, or move the binding into a function",
-        );
-        self.prototype_limit = true;
-    }
-
-    /// Checks a top-level binding's moded type (`own.limit.top-level`).
-    fn top_level_ty(&mut self, t: Ty, n: NodeRef<'_>) {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        if pool.has_mode(t) {
-            self.top_level_limit(n);
-        }
+        self.top_level_binding(s)
     }
 
     /// A top-level statement: a simple binding becomes a global.
@@ -751,8 +723,7 @@ impl Ck<'_, '_> {
             && pat.children().next().is_none()
             && els.is_none()
         {
-            let (_, t) = self.top_binding(s, pat, ty_node, rhs)?;
-            self.top_level_ty(t, s);
+            self.top_binding(s, pat, ty_node, rhs)?;
             return Ok(());
         }
         self.top_pattern(s, (pat, ty_node, rhs, els), at)
@@ -791,7 +762,6 @@ impl Ck<'_, '_> {
                 self.err(Code::DuplicateBinding, pat, &msg);
             }
             let t = self.b.local_ty(l);
-            self.top_level_ty(t, s);
             let v = self.b.get(l, t, at.index());
             let def = self.cx.names.item(&module, &text);
             self.cx.init.borrow_mut().globals.insert(
@@ -847,7 +817,7 @@ impl Ck<'_, '_> {
             })
             .flatten();
         let annot = match ty_node {
-            Some(t) => Some(self.binding_ty_node(t)?),
+            Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
         // `grammar.stmt.chain`: `a := b := e` binds `b` to `e`, then `a` to

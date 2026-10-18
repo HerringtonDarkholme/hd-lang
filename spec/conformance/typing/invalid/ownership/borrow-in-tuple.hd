@@ -1,5 +1,0 @@
-# test: a mark on a tuple element is misplaced-borrow
-data File:
-    fd: i32
-
-fn pair(p: (^File, i32)) -> void: pass  # diagnostic: misplaced-borrow

@@ -605,8 +605,6 @@ holds.
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
-| `Lend` | a place's value → `^T` ([`own.body.lend`](../../spec/lang/13-ownership.md#r-own.body.lend)) | none | none: the borrow is the same reference |
-| `LendMut` | a place's value → `^mut T` | none | none: the borrow is the same reference |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.

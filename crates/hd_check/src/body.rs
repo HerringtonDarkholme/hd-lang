@@ -216,15 +216,6 @@ pub(crate) struct Ck<'a, 'c> {
     pub rets: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
-    /// Where a value of a moded type met a form a later section of
-    /// 13-ownership.md checks.
-    pub mode_gap: Option<hd_base::NodeIdx>,
-    /// Whether the body met a form the ownership prototype rejects
-    /// (`own.limit.*`), which then stands for every later form's gap.
-    pub prototype_limit: bool,
-    /// The type variables of generic calls: one that a moded type solves
-    /// waits for a later section of 13-ownership.md.
-    pub generic_vars: Vec<(Ty, hd_base::NodeIdx)>,
     /// The `using` binding being checked (`flow.using.access`).
     pub using_bind: bool,
     /// The locals bound with `using`, which are not reassignable
@@ -493,9 +484,6 @@ pub(crate) fn new_ck<'a, 'c>(
         memo: BodyMemo::default(),
         rets: vec![ret],
         gens: Vec::new(),
-        mode_gap: None,
-        prototype_limit: false,
-        generic_vars: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
         self_ty: None,
@@ -957,17 +945,6 @@ fn fn_body_steps(
         let (tail, _) = ck.block_value(body, Some(ret))?;
         Ok((tail, ret))
     })?;
-    // `own.body.result-plain`: a result is never borrowed, so an omitted
-    // one that would be is written as a plain type.
-    let pool = ck.pool();
-    let shown = ck.infer.resolve(pool, ret);
-    if ck.result_omitted && pool.has_mode(shown) {
-        let msg = format!(
-            "this function's result would be {}, and a result is never borrowed: write a plain result type",
-            ck.show(shown)
-        );
-        ck.err(Code::MissingResultType, node, &msg);
-    }
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret, Some(node))
 }
@@ -1508,10 +1485,6 @@ impl Ck<'_, '_> {
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
-        // 13-ownership.md Modes In Bodies: borrowed values.
-        if !joined && let Some(r) = self.coerce_mode(r, g, w, n) {
-            return r;
-        }
         if !joined && self.check_upgrade(got, want, n, what) {
             return r;
         }
@@ -1531,11 +1504,6 @@ impl Ck<'_, '_> {
             && !open
             && self.injects_into(gs, ws)
         {
-            // An owned or borrowed payload converts as a value does.
-            if pool.has_mode(self.infer.resolve(pool, inner)) || pool.has_mode(gs) {
-                let r = self.coerce(r, got, inner, n, what, position);
-                return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
-            }
             if !self.check_upgrade(got, inner, n, what) {
                 self.expect(got, inner, n, what, position);
             }
@@ -1713,14 +1681,6 @@ impl Ck<'_, '_> {
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, got, want).is_err() {
             self.infer.rollback(snap);
-            // A moded value meeting a form a later section checks is
-            // that section's: the body is unsupported, with no mismatch.
-            if pool.has_mode(self.infer.resolve(pool, got))
-                || pool.has_mode(self.infer.resolve(pool, want))
-            {
-                self.mode_gap.get_or_insert(n.index());
-                return true;
-            }
             // `types.num.narrowing`: a value of a wider type of the same
             // numeric family where a narrower one is expected.
             if position != ExpectPosition::Operand && self.narrows(got, want) {
@@ -3070,9 +3030,6 @@ impl Ck<'_, '_> {
                     return unsupported("a field without a base");
                 };
                 let (br, bt) = self.expr(base, None)?;
-                // A `^mut` borrow stores with mutable access
-                // (`own.body.field-read`).
-                let bt = self.mode_view(bt);
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
@@ -3385,10 +3342,6 @@ impl Ck<'_, '_> {
                 });
                 self.normalize(x).unwrap_or(x)
             }
-            TyData::Borrow { ty, mutable } => {
-                let ty = self.zonk(ty);
-                pool.intern_ty(&TyData::Borrow { ty, mutable })
-            }
             _ => Ty::POISON,
         }
     }
@@ -3519,50 +3472,6 @@ impl Ck<'_, '_> {
             rows.push([u32::try_from(i).expect("instructions"), read]);
         }
         body.fallback = rows;
-    }
-
-    /// The forms of a body that later sections of 13-ownership.md check
-    /// stay `unsupported`: a generic call that a moded type argument
-    /// solves, a closure that captures a moded local, a moded value in a
-    /// body that suspends, and a moded value meeting a form no section
-    /// checks yet. A body that met a form the prototype rejects
-    /// (`own.limit.*`) reports that instead.
-    fn mode_gate(&mut self, n: usize) -> StageResult<()> {
-        let pool = self.pool();
-        // A form the prototype rejects is the body's diagnostic for it.
-        if self.prototype_limit {
-            return Ok(());
-        }
-        let body = self.b.body_mut();
-        let moded = (0..n).find(|&i| pool.has_mode(body.ty[i]));
-        let waits = |t: Tag| {
-            matches!(
-                t,
-                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
-            )
-        };
-        let cleanup = moded.and_then(|_| (0..n).find(|&i| waits(body.tags[i])));
-        let captured = body.local_ty.iter().zip(&body.local_flags).any(|(t, f)| {
-            f & local_flags::CAPTURED != 0 && pool.has_mode(self.infer.resolve(pool, *t))
-        });
-        let generic = self
-            .generic_vars
-            .iter()
-            .find(|(v, _)| pool.has_mode(self.infer.resolve(pool, *v)))
-            .map(|(_, at)| *at);
-        let at = cleanup
-            .map(|i| body.syn[i])
-            .or(generic)
-            .or(self.mode_gap)
-            .or(captured.then_some(hd_base::NodeIdx::NONE));
-        let Some(at) = at else {
-            return Ok(());
-        };
-        if at == hd_base::NodeIdx::NONE {
-            return unsupported(crate::ty::OWNERSHIP_GAP);
-        }
-        let node = self.cx.src.parse.tree.node(at);
-        self.gap(node, crate::ty::OWNERSHIP_GAP)
     }
 
     fn finish(self, root: Ref) -> StageResult<Body> {
@@ -3731,7 +3640,6 @@ impl Ck<'_, '_> {
             self.b.body_mut().local_ty[i] = z;
         }
         self.fallback_rows(&open);
-        self.mode_gate(n)?;
         let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];

@@ -1,6 +1,0 @@
-# test: ^ in an expression stays bitwise XOR; no expression writes a mark
-fn mix(a: i32, b: i32) -> i32:
-    let c = a ^ b
-    let mut d = c
-    d ^= a
-    (d ^ +1) ^ b

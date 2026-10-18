@@ -1,5 +1,0 @@
-# test: ^T? is Option[^T], so the mark is on a type argument and is misplaced-borrow
-data File:
-    fd: i32
-
-fn peek(f: ^File?) -> void: pass  # diagnostic: misplaced-borrow

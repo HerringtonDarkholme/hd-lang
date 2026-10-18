@@ -49,10 +49,8 @@ mod tag {
     pub const ROW: u8 = 14;
     pub const ROW_TY: u8 = 15;
     pub const CONTEXT: u8 = 16;
-    // 17 was an owned type, `own T`; it is not reused.
-    pub const BORROW: u8 = 18;
-    // 19 and 20 were a lifetime and a lifetime argument; they are not
-    // reused.
+    // 17 was an owned type, `own T`, 18 a borrowed type, `^T`, and 19
+    // and 20 a lifetime and a lifetime argument; they are not reused.
 }
 
 impl<'a> TableWriter<'a> {
@@ -231,7 +229,6 @@ impl<'a> TableWriter<'a> {
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
             TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
             TyData::Context(r) => (tag::CONTEXT, vec![self.row_id(r)?]),
-            TyData::Borrow { ty, mutable } => (tag::BORROW, vec![self.ty(ty)?, u32::from(mutable)]),
             other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
@@ -338,13 +335,6 @@ impl Tables {
                     .0
                 }
                 tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
-                tag::BORROW => {
-                    pool.intern_ty(&TyData::Borrow {
-                        ty: Ty(row(0)?),
-                        mutable: *words.get(1)? != 0,
-                    })
-                    .0
-                }
                 tag::FN => {
                     pool.intern_ty(&TyData::Fn {
                         params: TyList(row(0)?),

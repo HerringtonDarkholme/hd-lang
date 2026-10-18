@@ -306,10 +306,6 @@ pub enum Coercion {
     /// A least-common-type site's reserved slot whose value already has
     /// the site's type (`crates/hd_check/DESIGN.md` §4.3 step 6).
     Identity,
-    /// A place's value lent to a `^T` position (`own.body.lend`).
-    Lend,
-    /// A place's value lent to a `^mut T` position (`own.body.lend`).
-    LendMut,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.

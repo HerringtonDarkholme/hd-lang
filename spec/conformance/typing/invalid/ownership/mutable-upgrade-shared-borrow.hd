@@ -1,8 +1,0 @@
-# test: a mutable borrow of a shared borrow is mutable-upgrade
-data File:
-    fd: i32
-
-fn reset(f: ^mut File) -> void: pass
-
-fn change(f: ^File) -> void:
-    reset(f)  # diagnostic: mutable-upgrade

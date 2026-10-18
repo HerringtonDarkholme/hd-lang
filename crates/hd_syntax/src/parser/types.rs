@@ -3,9 +3,6 @@
 use hd_diag::Code;
 
 use super::{Done, Parser, REST_ELSEWHERE};
-
-/// own.syntax.one-mark
-const ONE_MARK: &str = "a type takes one mark: 'mut' or a borrow '^'";
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -36,10 +33,7 @@ impl Parser<'_> {
             return self.ty_function(rows);
         }
         let marker = self.start();
-        let mut done = if self.at(TokenKind::Caret) {
-            self.abandon(marker);
-            self.ty_marked(rows)
-        } else if self.at(TokenKind::KwMut) {
+        let mut done = if self.at(TokenKind::KwMut) {
             self.bump();
             if self.at(TokenKind::KwFn)
                 || self.at(TokenKind::LParen) && self.nth(1) == Some(TokenKind::KwFn)
@@ -47,13 +41,7 @@ impl Parser<'_> {
                 // grammar.type.mut.no-function
                 self.error(Code::SyntaxError, "'mut' cannot directly precede 'fn'");
             }
-            if self.at(TokenKind::Caret) {
-                // own.syntax.one-mark
-                self.error(Code::SyntaxError, ONE_MARK);
-                self.ty_marked(rows);
-            } else {
-                self.ty_reference(rows);
-            }
+            self.ty_reference(rows);
             self.complete(marker, SyntaxKind::MutType)
         } else {
             self.abandon(marker);
@@ -65,25 +53,6 @@ impl Parser<'_> {
             done = self.complete(marker, SyntaxKind::OptionalType);
         }
         done
-    }
-
-    /// `^T`, `^mut T` (own.syntax.borrow). A `?` after it wraps the
-    /// marked type (own.syntax.optional), as the caller's loop does for
-    /// `mut T?`.
-    fn ty_marked(&mut self, rows: bool) -> Done {
-        let marker = self.start();
-        self.bump(); // ^
-        self.eat(TokenKind::KwMut);
-        if self.at(TokenKind::Caret) || self.at(TokenKind::KwMut) {
-            // own.syntax.one-mark
-            self.error(Code::SyntaxError, ONE_MARK);
-            self.ty_inner(rows);
-        } else if self.at(TokenKind::KwFn) {
-            self.ty_function(rows);
-        } else {
-            self.ty_reference(rows);
-        }
-        self.complete(marker, SyntaxKind::BorrowType)
     }
 
     fn ty_reference(&mut self, rows: bool) -> Done {

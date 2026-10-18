@@ -1,7 +1,0 @@
-# test: in a body, a binding's type takes a mark at its top only, so a mark on a type argument is misplaced-borrow
-data File:
-    fd: i32
-
-fn gather(f: File) -> usize:
-    let views: List[^File] = []  # diagnostic: misplaced-borrow
-    views.len()

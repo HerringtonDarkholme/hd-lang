@@ -86,48 +86,4 @@ mod tests {
         assert_eq!(format(&once).expect("parses"), once);
         assert!(format("fn main(:\n").is_err());
     }
-
-    /// Every borrow mark form of `spec/conformance/parse/valid/ownership`
-    /// (`13-ownership.md`, own.syntax.*, own.receiver.forms)
-    /// round-trips and formats as a
-    /// fixed point, and trailing whitespace after a mark is trimmed
-    /// (`cli.fmt.meaning`, `cli.fmt.idempotent`).
-    #[test]
-    fn ownership_marks_round_trip_and_format_as_fixed_points() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../spec/conformance/parse/valid/ownership");
-        let mut files: Vec<_> = std::fs::read_dir(&dir)
-            .expect("ownership fixtures")
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|path| path.extension().is_some_and(|extension| extension == "hd"))
-            .collect();
-        files.sort();
-        assert!(files.len() >= 5, "ownership fixtures missing");
-        for path in files {
-            let src = std::fs::read_to_string(&path).expect("read fixture");
-            assert_eq!(round_trip(&src), src, "{}", path.display());
-            let once = format(&src).unwrap_or_else(|d| panic!("{}: {d:?}", path.display()));
-            assert_eq!(once, src, "{} is not formatted", path.display());
-            // A comment keeps its trailing spaces, so only code lines get them.
-            let spaced: String = src
-                .lines()
-                .map(|line| {
-                    if line.contains('#') {
-                        format!("{line}\n")
-                    } else {
-                        format!("{line}  \n")
-                    }
-                })
-                .collect();
-            assert_eq!(format(&spaced).expect("parses"), src, "{}", path.display());
-        }
-        let marks = "fn f(a: ^File, b: ^mut File?) -> void:   \n    let x = a  \n";
-        let once = format(marks).expect("parses");
-        assert_eq!(
-            once,
-            "fn f(a: ^File, b: ^mut File?) -> void:\n    let x = a\n"
-        );
-        assert_eq!(format(&once).expect("parses"), once);
-    }
 }

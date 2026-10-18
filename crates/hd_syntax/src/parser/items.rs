@@ -466,16 +466,6 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::Error);
     }
 
-    /// `^self` or `^mut self` ahead.
-    fn at_receiver_mark(&mut self) -> bool {
-        self.at(TokenKind::Caret)
-            && match self.nth(1) {
-                Some(TokenKind::KwSelfValue) => true,
-                Some(TokenKind::KwMut) => self.nth(2) == Some(TokenKind::KwSelfValue),
-                _ => false,
-            }
-    }
-
     /// A parenthesized parameter list.
     pub(crate) fn param_list(&mut self, mode: Params) {
         let marker = self.start();
@@ -516,13 +506,6 @@ impl Parser<'_> {
             Params::Function => {
                 if self.at(TokenKind::KwSelfValue) {
                     self.bump();
-                } else if self.at_receiver_mark() {
-                    // own.receiver.forms
-                    let mark = self.start();
-                    self.bump(); // ^
-                    self.eat(TokenKind::KwMut);
-                    self.complete(mark, SyntaxKind::ModeMark);
-                    self.bump(); // self
                 } else if self.at(TokenKind::KwMut) {
                     self.bump();
                     if !self.eat(TokenKind::KwSelfValue) {

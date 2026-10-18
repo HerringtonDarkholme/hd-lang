@@ -303,9 +303,6 @@ impl Ck<'_, '_> {
         for (&p, &g) in params.iter().zip(&nodes) {
             let mut bs = Vec::new();
             if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
-                if let Some(mark) = Src::child(bl, SyntaxKind::ModeMark) {
-                    return self.gap(mark, crate::ty::OWNERSHIP_GAP);
-                }
                 if bl.direct_token(toks, TokenKind::KwMut).is_some() {
                     return self.gap(bl, "a `mut` bound on a local function's type parameter");
                 }

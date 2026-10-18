@@ -1,7 +1,0 @@
-# test: an exclusive service is a parameter, never a provider (review W3)
-trait Sink:
-    fn write!(^mut self) -> void
-
-fn wrong(sink: ^mut dyn Sink) -> void:
-    $.with(Sink=sink):  # diagnostic: provider-not-plain
-        pass

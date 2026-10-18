@@ -58,8 +58,6 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
         Coercion::Supertrait,
         Coercion::SuspendFnToCtor,
         Coercion::Identity,
-        Coercion::Lend,
-        Coercion::LendMut,
     ];
     let kind = r
         .first()

@@ -1811,11 +1811,6 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
         ),
         TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
         TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
-        TyData::Borrow { ty, mutable } => format!(
-            "^{}{}",
-            if mutable { "mut " } else { "" },
-            show_ty_opts(names, pool, ty, rows)
-        ),
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,

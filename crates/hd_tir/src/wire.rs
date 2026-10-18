@@ -394,7 +394,7 @@ pub fn tir_hash(bytes: &[u8]) -> Hash128 {
 #[cfg(test)]
 mod tests {
     use super::{read_body, tir_hash, write_body};
-    use crate::ir::{BodyKind, Callee, Coercion, Providers, Tag, TirBuilder, TirSink, local_flags};
+    use crate::ir::{BodyKind, Callee, Providers, Tag, TirBuilder, TirSink, local_flags};
     use hd_base::NodeIdx;
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, Ty, TyData};
@@ -442,56 +442,5 @@ mod tests {
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
-    }
-
-    /// A `Lend` coercion crosses the wire.
-    #[test]
-    fn a_lend_round_trips() {
-        let (pool, paths, syms) = (
-            InternPool::new(),
-            PathTable::new(),
-            ShardedInterner::default(),
-        );
-        let f = paths.item("app", "main", "f");
-        let size = paths.item("app", "main", "size");
-        let file = pool.intern_ty(&TyData::Adt {
-            def: paths.item("app", "main", "File"),
-            args: pool.list(&[]),
-        });
-        let borrowed = pool.intern_ty(&TyData::Borrow {
-            ty: file,
-            mutable: false,
-        });
-        let mut b = TirBuilder::new(f, BodyKind::Fn);
-        let n = NodeIdx::from_raw(0);
-        let blk = b.open_block();
-        let p = b.local(file, syms.intern("p"), local_flags::PARAM, n);
-        let get = b.get(p, file, n);
-        let lend = b.coerce(Coercion::Lend, crate::ir::NONE, get, borrowed, n);
-        let call = b.call(
-            &Callee::Item {
-                def: size,
-                targs: pool.list(&[]),
-            },
-            &[lend],
-            Providers::None,
-            Ty::I32,
-            n,
-        );
-        let root = b.close_block(blk, Some(call), Ty::I32, n);
-        let body = b.finish(root, &[]).expect("verifies");
-        let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
-        let (pool2, paths2, syms2) = (
-            InternPool::new(),
-            PathTable::new(),
-            ShardedInterner::default(),
-        );
-        let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
-        assert_eq!(back.tags, body.tags);
-        assert!(back.tags.contains(&Tag::Coerce));
-        let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
-        assert_eq!(tir_hash(&bytes), tir_hash(&again));
-        let text = crate::ir::print(&body);
-        assert_eq!(crate::ir::parse(&text).expect("parse"), body);
     }
 }

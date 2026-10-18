@@ -598,11 +598,7 @@ fn name_into(
             out.push_str(">.");
             out.push_str(n.rsplit('.').next().unwrap_or(&n));
         }
-        TyData::Poison
-        | TyData::Param(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Borrow { .. } => {
+        TyData::Poison | TyData::Param(_) | TyData::Infer(_) | TyData::Canon(_) => {
             out.push_str(&pool.display(t));
         }
     }
@@ -1190,8 +1186,7 @@ impl Cx<'_> {
             | TyData::Poison
             | TyData::Param(_)
             | TyData::Infer(_)
-            | TyData::Canon(_)
-            | TyData::Borrow { .. } => {}
+            | TyData::Canon(_) => {}
         }
         let d = 1 + parts
             .into_iter()
@@ -2132,7 +2127,7 @@ impl Cx<'_> {
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let map = match pool.get(map) {
-            TyData::Mut(x) | TyData::Borrow { ty: x, .. } => x,
+            TyData::Mut(x) => x,
             _ => map,
         };
         let TyData::Adt { args, .. } = pool.get(map) else {

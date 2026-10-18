@@ -156,7 +156,7 @@ slice touches the ownership checker.
 
 | Design rule | How the prototype enforces it |
 | --- | --- |
-| A capture is never a borrow or an owned value (design 4.7) | The checker already diagnoses any closure that captures a moded value (status note of [Ownership and Borrows](../../spec/lang/13-ownership.md)), so a `portable` literal never gets one. A moded type also fails `Boundary` by `own.boundary.not-safe` |
+| A capture is never a borrow or an owned value (design 4.7) | The checker already diagnoses any closure that captures a moded value (status note of the former `spec/lang/13-ownership.md`, removed in #163), so a `portable` literal never gets one. A moded type also fails `Boundary` by `own.boundary.not-safe` |
 | No owned position, no type with an `own` part, and no type with a lifetime implements `Boundary` (design 4.5) | `Boundary` is decided by the same predicate as today's boundary check in `crates/hd_check/src/header.rs`, which already rejects moded types (`own.boundary.not-safe`). A moded type argument to a plain type parameter is already an error |
 | "A connection is owned, so it cannot ride along" (design 3.4) | Under the `Disposable` decision a connection is a plain value that holds a live host handle, and live runtime handles are not boundary-safe (`module.boundary.not-safe`). The capture fails with the same `portable-capture-not-boundary-safe`. The spec example says "a live handle", not "owned" |
 | No handle travels; captures are copies (design 3.4, 4.8) | Every value that crosses is boundary-safe, so it is immutable data with tree semantics. A `using` binding at home disposes when the call ends or is cancelled, through today's cleanup on cancellation |
