@@ -79,7 +79,8 @@ fn stop_twice!(job: mut Suspend[void]) -> (CleanupEnd, CleanupEnd):
 The close handshake runs once, and both calls return the same
 `CleanupEnd`. A `cancel!()` made after the cleanup ended returns how it
 ended, `.Abandoned` included. A job that finished on its own has nothing
-left to clean up, so cancelling it returns `.Finished`.
+left to clean up, so cancelling it returns how its own cleanup ended:
+`.Finished`, unless a dispose of its was cut short (below).
 
 A job may already be disposing when the cancel arrives, because its body
 reached `return`, `?` or the end of a `using` block. The cancel then takes
@@ -397,7 +398,8 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
 - `block_on` returns a new std enum `BlockOn[T]` in `std.task`
   (`.Completed(T)`, `.Cancelled`, `.Abandoned`). `println` and `eprintln`
   hold the only reference to their write, so it cannot be cancelled; they
-  ignore the other two variants.
+  ignore the other two variants. A custom provider whose `write_line!`
+  cancels its own work loses that line; that is the provider's bug.
 - A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
   `hd.cancel`) follows the same rules with the host as the waiter. The
   host waits with a default cleanup bound, a host setting that behaves as
