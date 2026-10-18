@@ -1,29 +1,34 @@
 # Parallelism And Locality: Design Study
 
 hd wants three things that a garbage-collected language does not give
-for free: escape analysis that each function can check on its own (so
-the compiler can check bodies in parallel and keep short-lived values
-out of the heap), closures passed to `map` or `retry!` that need no heap
-environment, and real parallelism. Resources are handled separately, by
-`Disposable` and `using`
-([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
+for free: escape analysis that each function can check on its own,
+closures passed to `map` or `retry!` that need no heap environment, and
+real parallelism. Resources are handled separately, by `Disposable` and
+`using` ([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
 
-This design meets the first two with a local mode, written `^T` and
-`^mut T`: a `^` value stays in the call that received it. It may appear
-only on parameters, receivers, locals and function types; parts read
-through it are plain; there are no lifetimes. A closure parameter is
-plain unless written `^fn`. It meets the third in stages. Stage A runs
-on engines that ship today: separate instances, copied boundary-safe
-messages and shared byte buffers, with the existing boundary-safe rule
-as the only rule for what may cross. Stage C, sharing garbage-collected
-data between threads, waits until Wasm's shared-everything-threads
-proposal reaches phase 3. Section 7 says what of the earlier ownership
-prototype stays, and section 8 is the work plan that replaces its
-remaining slices.
+Real parallelism comes in stages. Stage A runs on engines that ship
+today: separate instances, copied boundary-safe messages and shared byte
+buffers, with the existing boundary-safe rule as the only rule for what
+may cross (section 4). Stage C, sharing garbage-collected data between
+threads, waits until Wasm's shared-everything-threads proposal reaches
+phase 3.
 
-This is the design for issue #163; its std names and diagnostic names
-are placeholders, and hd code in `text` blocks is proposed syntax that
-no compiler checks yet.
+The first two needs led to a local mode, `^T`, a value that stays in
+the call that received it (section 3). On Wasm GC it does not pay for
+itself, so it is parked. Wasm GC cannot place an object on the stack,
+so an allocation disappears only when the callee is inlined and the
+object's fields become locals, and once a callee is inlined, escape
+analysis needs only that one body and no annotation. The same holds for
+a closure's environment. The local mode would pay on a native backend,
+where a non-escaping value or closure environment can live on the stack
+as in Go. One more use could revive non-escaping closures: letting
+`return` and `?` inside a trailing block, such as `timeout!(5s): ...`,
+leave the enclosing function, as Kotlin's inline lambdas do; that is
+only sound when the block cannot escape. Section 7 says what of the
+earlier ownership prototype goes, and section 8 the work that remains.
+
+hd code in `text` blocks is proposed syntax that no compiler checks yet,
+and names are placeholders.
 
 - [1. Motivation](#1-motivation)
 - [2. The Model On One Page](#2-the-model-on-one-page)
@@ -609,41 +614,19 @@ needed: `^` values alias as plain values do.
 
 ## 8. Re-Plan
 
-Slices 12 to 23 of the prototype plan map as follows.
-
-| Old slice | Under this model |
-| --- | --- |
-| 12 Lifetimes across calls | removed: no `^` results, so nothing local leaves a call |
-| 13 Two-phase receivers | kept, as job L6, if std adopts `^mut self` receivers |
-| 14 Lifetime parameters on data | removed: no `^` fields |
-| 15 Drop check | removed: no drops |
-| 16 Patterns and guards | removed with moves; matching a local value is part of L2 |
-| 17 Owned type arguments | removed |
-| 18 Generic bodies for every mode | removed: no `^` type arguments, so a type parameter is always plain |
-| 19 Closures | replaced by L3 |
-| 20 `own dyn` | removed; `^dyn K` parameters already work |
-| 21 `Option.take` | removed |
-| 22 Suspending bodies | replaced by L4 |
-| 23 Tour and cost report | replaced by L8 |
-
-The jobs, each about an hour, one feature each, in order. Each ships its
-spec rules and fixtures in the same job, by the owner's standing order,
-and runs the footprint guard where it touches codegen. None starts before
-the owner approves the model.
+The ownership prototype's remaining slices are not built, and neither
+is the local mode while it is parked. What remains is removal, each job
+about an hour, with its spec rules and fixtures:
 
 | Job | Work | Done check |
 | --- | --- | --- |
 | R1 | Remove the owned mode: `own` syntax, `TyData::Own`, freshness, `own-upgrade`, `own-to-plain`, moves and their fixtures and spec sections | no `own` in syntax, types or spec; hello unchanged |
-| R2 | Remove drops: `OwnOnly`, `DropOwn`, `drop`, the classifier, drop glue, `DropTemp`, drop flags; keep the `DropLocal` ladder unused | std interface hash changes once; tiny-program footprint byte-identical |
+| R2 | Remove drops: `OwnOnly`, `DropOwn`, `drop`, the classifier, drop glue, `DropTemp`, drop flags; keep the exit ladder that `using` uses | std interface hash changes once; tiny-program footprint byte-identical |
 | R3 | Remove lifetimes: `^{x}`, lifetime parameters and arguments, their header rules | lifetime fixtures gone; parse snapshots updated |
-| L1 | Placement: `^` only on parameters, receivers, locals and function types (rule 1) | one invalid fixture per forbidden place |
-| L2 | The escape check: `local-escapes` at return, store, plain argument and capture; shallow part reads; matching | fixtures for each escape and for the getter that returns a part |
-| L3 | Local closures: the `^fn` type, capture rules, repeat calls | `sync!` and `fan!` accepted and `keep` rejected, as in section 3.2 |
-| L4 | Suspending bodies: local arguments of cold calls, local children of `all!` and `race!`, two `^mut` children of one place rejected | fixtures from the old slice 22 without owned values |
-| L5 | std: `^fn` on eager callbacks (`List.map`, `filter`, `sorted_by`, `sorted_by_key`, `retry!`, `retry_with!`, `timeout!`, `map_all!`), with `map_all!`'s body rewritten | std golden TIR updated once; every std test passes |
-| L6 | Two-phase receivers, if L5 adds `^mut self` receivers | `xs.push(xs.len())` accepted |
-| L7 | Optimizer: closure literals at `^fn` parameters build no environment | a test counts zero closure `struct.new` in `xs.map(fn(x): x * k)`; footprint and timing reported |
-| L8 | Tour and cost report: the section 3 examples as fixtures; check time of the 10k-line package before and after | plain check time within noise |
+
+Escape analysis and scalar replacement stay planned as optimizer work
+after inlining, with no language mark ([Performance Roadmap](PERFORMANCE_ROADMAP.md),
+steps 20 to 24).
 
 `using` and `Disposable` are a separate design job, already decided by
 the owner; R2 leaves the exit ladder for it. Stage A (workers, messages,
