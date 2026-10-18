@@ -1565,7 +1565,14 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
             }
         }
         if tag == Tag::Defer {
-            for v in defer_suite_violations(b, b.data[i][0]) {
+            // A suspension point may stand in a suite: a `using` binding's
+            // `dispose!` (flow.using.suite-suspends); the checker rejects one that
+            // source writes in a `defer` suite (flow.defer.suspend).
+            let suites = defer_suite_violations(b, b.data[i][0]);
+            for v in suites
+                .into_iter()
+                .filter(|v| !is_suspension(b.tags[*v as usize]))
+            {
                 errs.push(VerifyError {
                     invariant: 6,
                     inst: v,

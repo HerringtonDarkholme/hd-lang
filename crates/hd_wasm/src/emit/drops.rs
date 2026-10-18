@@ -309,6 +309,16 @@ impl Em<'_> {
     /// The exit ladder's rung for entry `e`, whose flag is set.
     pub(super) fn run_entry(&mut self, e: &Entry) -> StageResult<()> {
         match e {
+            // A suite that waits is a `using` binding's `dispose!`, which runs
+            // under the driver (flow.using.not-forbidden), so it is no forbidden
+            // context; a count held across its wait would leak to others.
+            Entry::Suite(s) if self.range(*s).is_some() => {
+                self.shield += 1;
+                let r = self.suite_over_takes(*s);
+                self.shield -= 1;
+                r?;
+                self.drop_takes(*s)?;
+            }
             Entry::Suite(s) => {
                 // A `defer` suite is a forbidden context
                 // (`req.drive.block-on.indirect`): `block_on` reached from it

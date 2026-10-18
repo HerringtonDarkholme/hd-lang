@@ -1,0 +1,14 @@
+# test: a using binding cannot be reassigned
+# Spec lang/06 Using Bindings: flow.using.binding.
+use std.ops.Disposable
+
+data Lock:
+    name: string
+
+impl Disposable for Lock:
+    fn dispose!(mut self) -> void:
+        pass
+
+fn swap!() -> void:
+    using lock = Lock { name: "a" }
+    lock = Lock { name: "b" }  # diagnostic: non-reassignable-binding

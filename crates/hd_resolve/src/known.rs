@@ -87,6 +87,8 @@ pub struct KnownItems {
     pub iterable: DefId,
     pub from: DefId,
     pub error: DefId,
+    // std.ops: the trait a `using` binding disposes through
+    pub disposable: DefId,
     // std.ownership
     pub own_only: DefId,
     pub drop_own: DefId,
@@ -206,6 +208,7 @@ impl KnownItems {
             bit_xor: item("std.ops", "BitXor"),
             shl: item("std.ops", "Shl"),
             shr: item("std.ops", "Shr"),
+            disposable: item("std.ops", "Disposable"),
             own_only: item("std.ownership", "OwnOnly"),
             drop_own: item("std.ownership", "DropOwn"),
             drop: item("std.ownership", "drop"),

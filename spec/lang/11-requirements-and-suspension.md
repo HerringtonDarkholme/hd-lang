@@ -1412,6 +1412,7 @@ combinators cancel their children.
 5. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
 6. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
 7. r[req.cancel.hook-synchronous] Cleanup that can fail or requires asynchronous work needs a separate design; the cancellation hook itself remains synchronous.
+8. r[req.cancel.dispose] A `using` binding's dispose may suspend, so cancellation that reaches it follows [Using Bindings](06-control-flow.md#using-bindings) instead of running synchronously.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
@@ -1424,7 +1425,7 @@ fn demo!() -> string $ Console:
 ### Standard Combinators
 
 1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
-2. r[req.combinator.race-losers] `race!` also synchronously cancels losing children before returning the first completed value.
+2. r[req.combinator.race-losers-disposed] `race!` also cancels losing children before returning the first completed value. It returns that value once every loser's disposes have finished, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
 3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
 4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.

@@ -48,6 +48,7 @@ pub enum SyntaxKind {
     BreakStmt,
     ContinueStmt,
     DeferStmt,
+    UsingStmt,
     ExprStmt,
     ElseClause,
     ElseIfClause,
@@ -493,6 +494,7 @@ ast_nodes! {
     BreakStmt => BreakStmt,
     ContinueStmt => ContinueStmt,
     DeferStmt => DeferStmt,
+    UsingStmt => UsingStmt,
     ExprStmt => ExprStmt,
     ElseClause => ElseClause,
     ElseIfClause => ElseIfClause,
@@ -710,6 +712,7 @@ impl SyntaxKind {
                 | Self::BreakStmt
                 | Self::ContinueStmt
                 | Self::DeferStmt
+                | Self::UsingStmt
                 | Self::ExprStmt
         )
     }

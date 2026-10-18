@@ -1,0 +1,62 @@
+# expect-stdout: open a, open b, body, dispose b, defer, dispose a
+# expect-stdout: open a, open b, dispose b, defer, dispose a
+# expect-stdout: open r0, step 0, dispose r0, open r1, dispose r1, open r2, dispose r2
+# expect-stdout: open f, dispose f
+# expect-stdout: 2 1 bad
+# test: a using binding disposes its value at every scope exit, last in first out with defer suites, even when dispose! never suspends
+# Spec lang/06 Using Bindings: flow.using.register, flow.using.dispose, flow.using.order, flow.using.loop.
+use std.ops.Disposable
+
+data Res:
+    name: string
+    log: mut List[string]
+
+impl Disposable for Res:
+    fn dispose!(mut self) -> void:
+        self.log.push("dispose ${self.name}")
+
+fn open(name: string, log: mut List[string]) -> mut Res:
+    log.push("open ${name}")
+    Res { name: name, log: log }
+
+fn early!(log: mut List[string], stop: bool) -> i32:
+    using a = open("a", log)
+    defer: log.push("defer")
+    using b = open("b", log)
+    if stop:
+        return 1
+    log.push("body")
+    2
+
+fn steps!(log: mut List[string]) -> void:
+    for i in 0..3:
+        using r = open("r${i}", log)
+        if i == 1:
+            continue
+        if i == 2:
+            break
+        log.push("step ${i}")
+
+fn fails!(log: mut List[string]) -> Result[i32, string]:
+    using f = open("f", log)
+    let parsed: Result[i32, string] = .Err("bad")
+    value := parsed?
+    log.push("unreached")
+    .Ok(value)
+
+pub fn main!() -> void $ Console:
+    let log: mut List[string] = []
+    n := early!(log, false)
+    println(log.join(", "))
+    log.clear()
+    m := early!(log, true)
+    println(log.join(", "))
+    log.clear()
+    steps!(log)
+    println(log.join(", "))
+    log.clear()
+    failure := match fails!(log):
+        .Ok(_) => "ok"
+        .Err(e) => e
+    println(log.join(", "))
+    println("${n} ${m} ${failure}")

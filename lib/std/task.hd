@@ -9,7 +9,7 @@ use std.format.DebugWriter
 use std.time.{Clock, Duration, sleep}
 
 # The first child to complete wins, and the others are cancelled
-# (r-req.combinator.race-losers). Its plain signature types every call
+# (r-req.combinator.race-losers-disposed). Its plain signature types every call
 # (r-req.combinator.race-signature). The prototype writes the call in hd:
 # it drives the frame that `race_frame` builds, whose polling body is the
 # compiler's.

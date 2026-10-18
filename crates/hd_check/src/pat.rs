@@ -827,6 +827,8 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let pool = self.pool();
         let let_own = std::mem::take(&mut self.let_own);
+        // A `using` binding keeps its initializer's access (flow.using.access).
+        let using = std::mem::take(&mut self.using_bind);
         let annot = match ty_node {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
@@ -923,7 +925,7 @@ impl Ck<'_, '_> {
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
         {
             self.let_mut_binding(t, annot.is_some(), pat);
-        } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() {
+        } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
             // `x := e` and `let x = e` bind the readonly view
             // (types.bind.short, types.bind.let-readonly).
             t = self.readonly_view(t);

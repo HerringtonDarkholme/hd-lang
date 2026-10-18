@@ -24,8 +24,8 @@ use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
-    F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn,
-    ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base, witness_ty,
+    F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, UNWINDING, box_of,
+    cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base, witness_ty,
 };
 use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
@@ -105,6 +105,9 @@ struct Em<'a> {
     scopes: HashMap<u32, ScopeInfo>,
     /// Each `defer` suite's "registered" flag local.
     defer_flags: HashMap<u32, u32>,
+    /// While a `using` binding's dispose suite is emitted: its suspension
+    /// points are shielded from cancellation (flow.using.cancel).
+    shield: u32,
     /// Each owned local's drop flag (13-ownership.md, Drops; `drops`).
     drop_flags: HashMap<u32, u32>,
     /// Per `defer` suite: the owned locals it takes when it registers.
@@ -4678,11 +4681,8 @@ fn plan(b: &Body, root: u32) -> StageResult<Plan> {
     fn inst(b: &Body, i: u32, p: &mut Plan, next: &mut u32) -> StageResult<Option<(u32, u32)>> {
         let mut r = None;
         let blocks = operand_blocks(b, i);
-        for (k, ob) in blocks.iter().enumerate() {
+        for ob in &blocks {
             let x = block(b, *ob, p, next)?;
-            if x.is_some() && b.tags[i as usize] == Tag::Scope && k > 0 {
-                return unsupported("a suspension point in a `defer` suite");
-            }
             r = join(r, x);
         }
         if is_point(b.tags[i as usize]) {
@@ -4729,6 +4729,7 @@ impl<'a> Em<'a> {
             ret: None,
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
+            shield: 0,
             drop_flags: HashMap::default(),
             defer_takes: HashMap::default(),
             taken: HashMap::default(),
@@ -5041,6 +5042,18 @@ impl<'a> Em<'a> {
             }
             Ok(())
         })?;
+        // A suite that holds a suspension point: a `using` binding's
+        // `dispose!` (flow.using.suite-suspends).
+        let waits: Vec<Option<(u32, u32)>> = entries
+            .iter()
+            .map(|e| match e {
+                drops::Entry::Suite(s) => self.range(*s),
+                drops::Entry::Drop(..) => None,
+            })
+            .collect();
+        if waits.iter().any(Option::is_some) {
+            return self.waiting_scope(i, body, code, &entries, &flags, &waits);
+        }
         self.a.block();
         self.open(Ctl::Scope(i));
         self.block_into(body, Some(i))?;
@@ -5056,6 +5069,82 @@ impl<'a> Em<'a> {
             self.ctrl.pop();
             self.a.end();
         }
+        self.scope_exits(i, code)
+    }
+
+    /// The exit ladder of a scope with a suspending entry, a `using`
+    /// binding's `dispose!` (`crates/hd_wasm/DESIGN.md` §14.6). A resume
+    /// into an entry skips the body and the entries that already ran,
+    /// which cleared their flags; `code` holds the saved exit. A dispose
+    /// runs to its end even when the task is cancelled (flow.using.cancel).
+    fn waiting_scope(
+        &mut self,
+        i: u32,
+        body: u32,
+        code: u32,
+        entries: &[drops::Entry],
+        flags: &[u32],
+        waits: &[Option<(u32, u32)>],
+    ) -> StageResult<()> {
+        self.a.block();
+        self.open(Ctl::Scope(i));
+        self.entered(body, |em| {
+            em.block_into(body, Some(i))?;
+            em.a.i32(0);
+            em.a.set(code);
+            Ok(())
+        })?;
+        self.ctrl.pop();
+        self.a.end();
+        let (ft, _, frame, _) = self.susp_parts()?;
+        for ((e, f), w) in entries.iter().zip(flags).zip(waits).rev() {
+            // Registered, or resumed into.
+            let live = self.a.local(VT::I32);
+            self.a.get(*f);
+            if let Some((lo, hi)) = *w {
+                self.in_range(lo, hi);
+                self.a.s().i32_or();
+            }
+            self.a.set(live);
+            self.a.get(live);
+            self.a.if_();
+            self.open(Ctl::Plain);
+            self.a.i32(0);
+            self.a.set(*f);
+            self.run_entry(e)?;
+            self.ctrl.pop();
+            self.a.end();
+        }
+        // Cancelled while a shielded `dispose!` waited: once the ladder
+        // ran, the scope leaves by `Cancel`, whatever exit it was taking.
+        let cancel = {
+            let Some(info) = self.scopes.get_mut(&i) else {
+                return unsupported("a cleanup scope without its ladder");
+            };
+            if let Some(k) = info.exits.iter().position(|x| *x == Exit::Cancel) {
+                k + 1
+            } else {
+                info.exits.push(Exit::Cancel);
+                info.exits.len()
+            }
+        };
+        self.a.raw_get(frame);
+        self.a.s().ref_is_null().i32_eqz();
+        self.a.if_();
+        self.a.raw_get(frame);
+        self.a.struct_get(&ft, F_FLAGS);
+        self.a.i32(CANCELLED);
+        self.a.s().i32_and();
+        self.a.if_();
+        self.a.i32(i32::try_from(cancel).unwrap_or(0));
+        self.a.set(code);
+        self.a.end();
+        self.a.end();
+        self.scope_exits(i, code)
+    }
+
+    /// The exits a scope's ladder ends in: each taken by its code.
+    fn scope_exits(&mut self, i: u32, code: u32) -> StageResult<()> {
         let exits = self
             .scopes
             .get(&i)
@@ -5357,6 +5446,24 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
+    /// Sets local `wait` when the child task in local `c` is unwinding.
+    fn unwinding_into(&mut self, c: u32, wait: u32) {
+        let task = task_base();
+        self.a.raw_get(c);
+        self.a.s().ref_is_null().i32_eqz();
+        self.a.if_();
+        self.a.raw_get(c);
+        self.a.s().ref_as_non_null();
+        self.a.struct_get(&task, F_FLAGS);
+        self.a.i32(UNWINDING);
+        self.a.s().i32_and();
+        self.a.if_();
+        self.a.i32(1);
+        self.a.set(wait);
+        self.a.end();
+        self.a.end();
+    }
+
     /// Cancels the child task in local `c` (a `$Task`), when present.
     fn cancel_task(&mut self, c: u32) {
         let task = task_base();
@@ -5391,40 +5498,63 @@ impl<'a> Em<'a> {
         let done = self.a.local(VT::I32);
         // Resumed for cancellation: cancel the child, then leave through
         // the enclosing scopes' ladders, which run the registered suites.
-        self.a.get(pc);
-        self.a.i32(k.cast_signed());
-        self.a.s().i32_eq();
-        self.a.if_();
-        self.open(Ctl::Plain);
-        self.a.raw_get(frame);
-        self.a.struct_get(&ft, F_FLAGS);
-        self.a.i32(CANCELLED);
-        self.a.s().i32_and();
-        self.a.if_();
-        self.open(Ctl::Plain);
-        let c = self.a.local(VT::rn(task.clone()));
-        if tag == Tag::AwaitAll {
-            for (j, ch) in children.iter().enumerate() {
-                self.a.get(done);
-                self.a.i32(1 << j);
-                self.a.s().i32_and().i32_eqz();
+        // A child left unwinding (its shielded `dispose!` waits) is waited
+        // for here first: each later cancel call continues it. A point in
+        // a `using` binding's dispose suite is shielded: it waits on.
+        if self.shield == 0 {
+            self.a.get(pc);
+            self.a.i32(k.cast_signed());
+            self.a.s().i32_eq();
+            self.a.if_();
+            self.open(Ctl::Plain);
+            self.a.raw_get(frame);
+            self.a.struct_get(&ft, F_FLAGS);
+            self.a.i32(CANCELLED);
+            self.a.s().i32_and();
+            self.a.if_();
+            self.open(Ctl::Plain);
+            let c = self.a.local(VT::rn(task.clone()));
+            let wait = self.a.local(VT::I32);
+            self.a.i32(0);
+            self.a.set(wait);
+            if tag == Tag::AwaitAll {
+                let none = self.a.local(VT::rn(task.clone()));
+                for (j, ch) in children.iter().enumerate() {
+                    self.a.get(done);
+                    self.a.i32(1 << j);
+                    self.a.s().i32_and().i32_eqz();
+                    self.a.if_();
+                    self.comp(*ch, 0, &VT::rn(task.clone()))?;
+                    self.a.set(c);
+                    self.cancel_task(c);
+                    self.unwinding_into(c, wait);
+                    self.a.end();
+                }
+                self.a.get(wait);
                 self.a.if_();
-                self.comp(*ch, 0, &VT::rn(task.clone()))?;
+                self.suspend(k, none)?;
+                self.a.end();
+            } else {
+                self.a.raw_get(frame);
+                self.a.struct_get(&ft, F_CHILD);
                 self.a.set(c);
                 self.cancel_task(c);
+                self.unwinding_into(c, wait);
+                self.a.get(wait);
+                self.a.if_();
+                self.suspend(k, c)?;
                 self.a.end();
             }
-        } else {
-            self.a.raw_get(frame);
-            self.a.struct_get(&ft, F_CHILD);
-            self.a.set(c);
-            self.cancel_task(c);
+            // The ladders run as fresh code: a dispose suite's guards test
+            // `pc` (flow.using.cancel).
+            self.a.i32(0);
+            self.a.set(pc);
+            self.exit(Exit::Cancel)?;
+            self.ctrl.pop();
+            self.a.end();
+            self.ctrl.pop();
+            self.a.end();
         }
-        self.exit(Exit::Cancel)?;
-        self.ctrl.pop();
-        self.a.end();
-        self.ctrl.pop();
-        self.a.end();
         let ty = self.sub(self.b.ty[i as usize]);
         let res = self.vts(ty)?;
         match tag {
@@ -6790,19 +6920,16 @@ fn emit_suspending(
         pres.extend(dres.iter().cloned());
         a.finish(pres)
     };
-    // f$cancel (§14.6): a frame that never waited only gets marked.
+    // f$cancel (§14.6): a frame that never waited only gets marked. A
+    // frame that is unwinding (`UNWINDING`) continues: its shielded
+    // `dispose!` waits, and the flag clears once its body completes.
     let mut a = Asm::new(vec![VT::Eq]);
     let f = a.local(VT::r(ft.clone()));
+    let back = a.local(VT::rn(base.clone()));
     a.get(0);
     a.ref_cast(&ft, false);
     a.set(f);
-    flag_checks(&mut a, f, &ft, false);
-    a.get(f);
-    a.get(f);
-    a.struct_get(&ft, F_FLAGS);
-    a.i32(CANCELLED);
-    a.s().i32_or();
-    a.struct_set(&ft, F_FLAGS);
+    cancel_checks(&mut a, f, &ft);
     a.get(f);
     a.struct_get(&ft, F_STATE);
     a.s().i32_eqz();
@@ -6814,9 +6941,20 @@ fn emit_suspending(
         a.zero(&v.dflt());
     }
     a.call(Sym::Part(key, Part::Body));
-    for _ in 0..bres.len() {
+    a.set(back);
+    for _ in 1..bres.len() {
         a.s().drop();
     }
+    a.get(f);
+    a.get(f);
+    a.struct_get(&ft, F_FLAGS);
+    a.i32(!UNWINDING);
+    a.s().i32_and();
+    a.raw_get(back);
+    a.s().ref_is_null().i32_eqz();
+    a.i32(UNWINDING);
+    a.s().i32_mul().i32_or();
+    a.struct_set(&ft, F_FLAGS);
     let cancel = a.finish(vec![]);
     // A held body never runs: a direct caller passes a null frame on the
     // fresh path, so build the frame through the cold constructor and
@@ -6854,6 +6992,42 @@ fn emit_suspending(
         (Part::Cancel, cancel),
     ];
     Ok(code)
+}
+
+/// The checks of `f$cancel` (§14.6): an active frame is a re-entrant
+/// cancel; a completed or cancelled frame returns, unless it is unwinding,
+/// which continues; else the frame is marked cancelled.
+fn cancel_checks(a: &mut Asm, f: u32, ft: &WTy) {
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(UNWINDING);
+    a.s().i32_and();
+    a.if_();
+    a.else_();
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(DONE | CANCELLED);
+    a.s().i32_and();
+    a.if_();
+    a.s().return_();
+    a.end();
+    a.get(f);
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(CANCELLED);
+    a.s().i32_or();
+    a.struct_set(ft, F_FLAGS);
+    a.end();
 }
 
 /// The runtime checks of `f$poll` and `f$cancel` (§14.3, §14.6): an

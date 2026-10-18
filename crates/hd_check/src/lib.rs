@@ -48,6 +48,7 @@ pub mod tests;
 mod trial;
 mod ty;
 mod update;
+mod using;
 
 pub use body::{BodyCx, TestsView, check_default, check_fn, default_body_def};
 pub use call::MethodIndex;

@@ -954,8 +954,10 @@ The verifier checks each of these:
    them, and each label row is written. `ToArm` is inside its `Match`'s
    decision block. `Defer` is inside its `Scope`.
 6. `Await`, `AwaitValue`, `AwaitAll` and `AwaitRace` occur only in a
-   suspending body or closure. No suspension point, `Return`, `Break`,
-   `Continue` or failing `?` leaf is inside a `defer` suite.
+   suspending body or closure. No `Return`, `Break`, `Continue` or
+   failing `?` leaf is inside a `defer` suite. A suspension point is
+   only where a `using` binding's `dispose!` put it; the checker rejects
+   one that source writes in a `defer` suite.
 7. Every suspension point's side record lists exactly the `Scope`s that
    enclose it.
 8. Every call to a callee with a row has providers for exactly its keys.

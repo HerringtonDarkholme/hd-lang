@@ -170,6 +170,14 @@ pub trait Apply:
 pub trait Update[V]:
     fn update(mut self, value: V) -> void
 
+# A `using` binding disposes its value at scope exit through this trait
+# (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
+# `using` needs no import.
+## A value that releases what it holds when a `using` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing.
+## See [flow.using.disposable](../../spec/lang/06-control-flow.md#r-flow.using.disposable).
+pub trait Disposable:
+    fn dispose!(mut self) -> void
+
 # The built-in implementations (spec/lang/05-expressions.md#built-in-implementations).
 # Each body is the built-in indexing of its type, with its checks and
 # panics: `Map`'s `index` returns `V` and panics on a missing key

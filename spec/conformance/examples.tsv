@@ -331,7 +331,10 @@ lang/06-control-flow.md	33	mixed	typing/invalid/top-level-return.hd
 lang/06-control-flow.md	34	accept	typing/valid/defer-cleanup.hd
 lang/06-control-flow.md	35	mixed	typing/invalid/top-level-defer.hd
 lang/06-control-flow.md	36	mixed	typing/invalid/top-level-defer.hd|typing/invalid/defer-suspends.hd|typing/invalid/defer-return.hd
-lang/06-control-flow.md	37	mixed	typing/warnings/unreachable-after-infinite-loop.hd
+lang/06-control-flow.md	37	accept	typing/valid/using-transfer.hd|runtime/valid/using-dispose-order.hd
+lang/06-control-flow.md	38	accept	typing/valid/using-transfer.hd
+lang/06-control-flow.md	39	mixed	typing/invalid/using-reassigned.hd|typing/invalid/using-not-disposable.hd|typing/invalid/using-outside-bang-function.hd
+lang/06-control-flow.md	40	mixed	typing/warnings/unreachable-after-infinite-loop.hd
 lang/07-functions.md	1	accept	typing/valid/functions.hd
 lang/07-functions.md	2	mixed	typing/invalid/public-function-missing-result-type.hd|typing/invalid/public-method-missing-result-type.hd
 lang/07-functions.md	3	mixed	typing/invalid/mutual-recursion-omitted-results.hd

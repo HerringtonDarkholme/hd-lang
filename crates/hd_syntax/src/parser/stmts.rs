@@ -96,6 +96,7 @@ impl Parser<'_> {
                 }
                 self.complete(marker, SyntaxKind::DeferStmt);
             }
+            Some(TokenKind::Ident) if self.at_using() => self.using_statement(ctx),
             _ => {
                 if self.at(TokenKind::KwMut)
                     && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
@@ -174,6 +175,28 @@ impl Parser<'_> {
                 Some(TokenKind::LParen) => !self.nth_glued(1),
                 _ => false,
             }
+    }
+
+    /// `using` at the start of a statement, before a name on its line
+    /// (grammar.stmt.using).
+    fn at_using(&mut self) -> bool {
+        self.at_word("using")
+            && !self.nth_line_first(1)
+            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+    }
+
+    /// `using name [: T] = e` (grammar.stmt.using).
+    fn using_statement(&mut self, ctx: Ctx) {
+        let marker = self.start();
+        self.bump(); // using
+        self.token_node(SyntaxKind::BindingPattern);
+        if self.eat(TokenKind::Colon) {
+            self.ty();
+        }
+        if self.expect(TokenKind::Eq, "'='") {
+            self.expr(Self::rhs(ctx));
+        }
+        self.complete(marker, SyntaxKind::UsingStmt);
     }
 
     fn let_statement(&mut self, ctx: Ctx) {

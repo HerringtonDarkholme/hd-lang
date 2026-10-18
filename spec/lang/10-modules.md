@@ -787,6 +787,7 @@ fn helper() -> void:
 12. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
 13. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
 14. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
+15. r[module.prelude.ops-disposable] `std.ops` also declares `Disposable`, the trait of [using bindings](06-control-flow.md#using-bindings). Code imports it to name it, as in `use std.ops.Disposable`; a `using` binding needs no import.
 
 ```hd
 use std.cmp.Eq

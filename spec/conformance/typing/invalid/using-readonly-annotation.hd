@@ -1,0 +1,13 @@
+# test: a using binding's annotation must grant mutable access, since dispose takes mut self
+# Spec lang/06 Using Bindings: flow.using.access.annotation.
+use std.ops.Disposable
+
+data Lock:
+    name: string
+
+impl Disposable for Lock:
+    fn dispose!(mut self) -> void:
+        pass
+
+fn annotated!() -> void:
+    using held: Lock = Lock { name: "b" }  # diagnostic: let-mut-readonly-type

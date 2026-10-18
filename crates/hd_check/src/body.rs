@@ -240,6 +240,11 @@ pub(crate) struct Ck<'a, 'c> {
     pub generic_vars: Vec<(Ty, hd_base::NodeIdx)>,
     /// The `let own` being checked (`own.body.let-own`).
     pub let_own: bool,
+    /// The `using` binding being checked (`flow.using.access`).
+    pub using_bind: bool,
+    /// The locals bound with `using`, which are not reassignable
+    /// (`flow.using.binding`).
+    pub using_locals: Vec<LocalId>,
     /// The structure summaries this body read (`own.structure.owns`).
     pub structure: crate::own::StructureMemo,
     pub self_ty: Option<Ty>,
@@ -514,6 +519,8 @@ pub(crate) fn new_ck<'a, 'c>(
         own_part: None,
         generic_vars: Vec::new(),
         let_own: false,
+        using_bind: false,
+        using_locals: Vec::new(),
         structure: crate::own::StructureMemo::default(),
         self_ty: None,
         rows: vec![
@@ -2257,7 +2264,10 @@ impl Ck<'_, '_> {
         let at = self.at;
         // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
         // a `Scope` over its statements, whose suites are its `Defer`s.
-        let r = if block.children().any(|c| c.kind() == SyntaxKind::DeferStmt) {
+        let r = if block
+            .children()
+            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
+        {
             let sm = self.b.open_scope();
             let inner = self.b.open_block();
             match self.lines(block, want) {
@@ -2901,6 +2911,7 @@ impl Ck<'_, '_> {
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
             SyntaxKind::LetStmt => self.let_stmt(s, &kids)?,
+            SyntaxKind::UsingStmt => self.using_stmt(s, &kids)?,
             SyntaxKind::DiscardStmt => {
                 if let Some(e) = kids.last() {
                     self.expr(*e, None)?;
@@ -3077,7 +3088,13 @@ impl Ck<'_, '_> {
                     return Ok(());
                 };
                 let flags = self.b.body_mut().local_flags[l.idx()];
-                if flags & local_flags::SHORT != 0 {
+                if self.using_locals.contains(&l) {
+                    let msg = format!(
+                        "`{}` is bound with `using`, so it cannot be reassigned",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::NonReassignableBinding, *lhs, &msg);
+                } else if flags & local_flags::SHORT != 0 {
                     let msg = format!(
                         "`{}` is bound with `:=`; use `let` to reassign it",
                         self.cx.names.text(name)

@@ -998,6 +998,103 @@ fn demo() -> void:
 > **Note.** Ownership and alias-escape prevention remain
 > [open design work](../../docs/future-work/OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
 
+## Using Bindings
+
+A **`using` binding** binds a value that is disposed when its scope ends:
+
+```text
+use std.ops.Disposable
+
+data Lock:
+    name: string
+    held: mut List[string]
+
+impl Disposable for Lock:
+    fn dispose!(mut self) -> void:
+        self.held.push("released ${self.name}")
+
+fn acquire(name: string, held: mut List[string]) -> mut Lock:
+    held.push("acquired ${name}")
+    Lock { name: name, held: held }
+
+fn transfer!(held: mut List[string]) -> void:
+    using first = acquire("a", held)
+    using second = acquire("b", held)
+    held.push("work")   # then b is released, then a
+```
+
+### Disposable
+
+```text
+pub trait Disposable:
+    fn dispose!(mut self) -> void
+```
+
+1. r[flow.using.disposable] `std.ops` declares the trait `Disposable` as above. Code imports it to name it, as in `use std.ops.Disposable`; a `using` binding needs no import.
+2. r[flow.using.suspend] `dispose!` is a bang method, so it may suspend. A type whose release never suspends still writes `dispose!`, and its body makes no suspending call.
+3. r[flow.using.best-effort] `dispose!` returns `void`, so a release that fails reports nothing. A type whose release can fail offers a separate method that returns a `Result`, which code calls before the scope ends.
+
+### Binding And Registration
+
+1. r[flow.using.form] `using name = expression` and `using name: T = expression` bind `name` to the value of `expression` for the rest of the suite.
+2. r[flow.using.binding] A `using` binding is not reassignable. Error: `non-reassignable-binding`.
+3. r[flow.using.disposable-required] The binding's type must implement `Disposable`. Error: `unsatisfied-trait-bound`.
+4. r[flow.using.access] The binding keeps its initializer's type, or its annotation, and never takes the readonly view of [`types.bind.short`](04-type-system.md#r-types.bind.short).
+5. r[flow.using.access.readonly] Without an annotation, an initializer whose type has no mutable access is an error, since `dispose!` takes `mut self`. Error: `mutable-upgrade`.
+6. r[flow.using.access.annotation] An annotation without mutable access is an error. Error: `let-mut-readonly-type`.
+7. r[flow.using.register] Once the initializer is evaluated and bound, the statement registers a cleanup suite that calls `name.dispose!()`, exactly as a `defer` at that point would.
+8. r[flow.using.dispose] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
+9. r[flow.using.order] Disposes and `defer` suites of one block run in one last-in, first-out order.
+10. r[flow.using.loop] Each loop iteration disposes the values that its body bound with `using` before the next iteration begins.
+11. r[flow.using.unbound] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
+12. r[flow.using.scopes] A `using` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
+13. r[flow.using.bang] The registered call is a bang call written at the `using` statement. So a `using` binding outside a driver context is an error. Error: `bang-call-outside-suspension`.
+14. r[flow.using.in-defer] A `using` binding inside a `defer` suite is a suspension in that suite. Error: `suspension-forbidden-context`.
+15. r[flow.using.suite-suspends] Unlike a written `defer` suite, a dispose suite may suspend, and the scope exit goes on once `dispose!` returns.
+16. r[flow.using.not-forbidden] A dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
+17. r[flow.using.panic] A runtime panic does not run pending disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
+18. r[flow.using.cancel] Cancellation unwinds a task as any exit does: its registered disposes run, in last-in, first-out order with its `defer` suites.
+19. r[flow.using.cancel.shield] Each dispose runs to its end. A `dispose!` that suspends is shielded from the cancellation, and it takes no cancellation of its own.
+20. r[flow.using.cancel.wait] The cancellation of a task completes only once its disposes have. A suspension whose cancellation reaches a child waits for the child's disposes before it runs its own.
+
+```text
+use std.ops.Disposable
+
+data Lock:
+    name: string
+
+impl Disposable for Lock:
+    fn dispose!(mut self) -> void:
+        pass
+
+data Note:
+    text: string
+
+fn swap!() -> void:
+    using lock = Lock { name: "a" }
+    lock = Lock { name: "b" }  # error: non-reassignable-binding
+
+fn read!(note: Note) -> string:
+    using copy = Note { ...note }  # error: unsatisfied-trait-bound
+    copy.text
+
+fn plain(id: i32) -> void:
+    using session = Lock { name: "s" }  # error: bang-call-outside-suspension
+```
+
+> **Why.** A release often waits, as a socket flushes or a server
+> answers, so one trait whose `dispose!` may suspend covers every handle.
+> The registration is the `defer` that Go code writes by hand after each
+> open, made impossible to forget. Cancellation follows JavaScript's
+> `await using` and C#'s `await using` with `DisposeAsync`: an abandoned
+> task still awaits each disposal, and `DisposeAsync` takes no
+> cancellation token.
+
+> **Note.** What `cancel()` on a stored suspension does with a `dispose!`
+> that suspends is open: `cancel()` cannot wait. See
+> [open design work](../../docs/future-work/OPEN_ISSUES.md#cancelling-a-using-binding).
+> `using` does not stop an alias of the value from outliving its scope.
+
 ## Unreachable Code
 
 This section defines unreachable statements.

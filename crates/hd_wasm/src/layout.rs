@@ -262,6 +262,10 @@ pub const F_SAVED: u32 = 5;
 pub const ACTIVE: i32 = 1;
 pub const DONE: i32 = 4;
 pub const CANCELLED: i32 = 8;
+/// A cancelled frame whose `using` binding's `dispose!` still waits,
+/// shielded from the cancellation (flow.using.cancel): each later cancel
+/// call continues it, and the flag clears once its body completes.
+pub const UNWINDING: i32 = 16;
 
 /// The cancel function's type: `(frame) -> ()`, one for every layout.
 #[must_use]

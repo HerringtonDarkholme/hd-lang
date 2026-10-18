@@ -188,7 +188,7 @@ pub fn timeout![T, $R](limit: Duration, work: fn!() -> T $ R) -> Result[T, Timed
 4. r[std-task.timeout.ok] When `work` completes first, `timeout!` returns `.Ok` of its value.
 5. r[std-task.timeout.err] When the sleep completes first, `timeout!` returns `.Err(TimedOut { limit: limit })`.
 6. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
-7. r[std-task.timeout.cancel-loser] The losing child is cancelled before `timeout!` returns, as [`req.combinator.race-losers`](../lang/11-requirements-and-suspension.md#r-req.combinator.race-losers) states, so a timed-out `work` runs its registered `defer` suites and starts nothing more.
+7. r[std-task.timeout.cancel-loser] The losing child is cancelled before `timeout!` returns, as [`req.combinator.race-losers-disposed`](../lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed) states, so a timed-out `work` runs its registered `defer` suites and starts nothing more.
 8. r[std-task.timeout.cancel] Cancelling `timeout!` cancels both children, as [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children) states.
 
 ```text

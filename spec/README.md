@@ -328,6 +328,7 @@ The stdlib chapters' terms are in the
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](lang/07-functions.md#r-fn.ref.unbound). |
 | **unit test** | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. See [`module.testing.unit-row.anywhere`](lang/10-modules.md#r-module.testing.unit-row.anywhere). |
 | **untyped fact type** | A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, so its values stay unchecked. See [`annot.typed-fact.untyped`](lang/14-annotations.md#r-annot.typed-fact.untyped). |
+| **`using` binding** | A binding, written `using name = value`, whose value's `dispose!` runs when its scope ends, in order with `defer` suites. See [Using Bindings](lang/06-control-flow.md#using-bindings). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](lang/05-expressions.md#r-expr.category.value). |
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](lang/03-names-and-scopes.md#r-names.category.value). |
 | **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](lang/07-functions.md#r-fn.vararg.form). |

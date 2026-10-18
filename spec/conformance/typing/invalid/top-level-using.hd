@@ -1,0 +1,12 @@
+# test: a using binding at module top level is outside every cleanup scope
+# Spec lang/06 Using Bindings: flow.using.scopes.
+use std.ops.Disposable
+
+data Lock:
+    name: string
+
+impl Disposable for Lock:
+    fn dispose!(mut self) -> void:
+        pass
+
+using lock = Lock { name: "a" }  # diagnostic: defer-outside-cleanup-scope

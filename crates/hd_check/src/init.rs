@@ -298,6 +298,7 @@ pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
                     | SyntaxKind::DiscardStmt
                     | SyntaxKind::ReturnStmt
                     | SyntaxKind::DeferStmt
+                    | SyntaxKind::UsingStmt
                     | SyntaxKind::BreakStmt
                     | SyntaxKind::ContinueStmt
             ) || (c.kind() == SyntaxKind::EnumDecl
@@ -671,7 +672,7 @@ impl Ck<'_, '_> {
                 );
                 return Ok(());
             }
-            SyntaxKind::DeferStmt => {
+            SyntaxKind::DeferStmt | SyntaxKind::UsingStmt => {
                 self.err(
                     Code::DeferOutsideCleanupScope,
                     s,

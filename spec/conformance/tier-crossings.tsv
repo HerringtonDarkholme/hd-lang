@@ -19,3 +19,5 @@ runtime/valid/local-shadows-module-namespace.hd	std.cmp	the task asks for a loca
 typing/invalid/module-path-private-std-function.hd	std.text	the owner decision (PRIVATE-STD, 2026-10-04) names the module path text.hex_digit through a real std module, which needs the whole-module import use std.text
 typing/invalid/std-child-path-through-parent.hd	std.testing	the rule under test forbids a std child path through its parent, which needs a real std parent module import use std.testing
 typing/valid/std-reexported-child-item.hd	std.testing.Arbitrary, std.testing.Choices	proving the pub use re-export exposes the child items needs the re-exported Arbitrary and Choices names from std.testing
+runtime/valid/using-dispose-suspends.hd	std.time.Clock, std.time.ms, std.time.sleep	a dispose! that really suspends needs a host wait, and a timer is the only one a language-tier fixture can reach
+runtime/valid/using-race-loser-disposes.hd	std.time.Clock, std.time.ms, std.time.s, std.time.sleep	a race! loser must wait in its body and again in its dispose!, and a timer is the only host wait a language-tier fixture can reach

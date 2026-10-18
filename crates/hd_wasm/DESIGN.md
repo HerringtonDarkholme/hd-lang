@@ -920,9 +920,12 @@ result types:
 `race!(tasks...)` takes a `List[mut Suspend[T]]`:
 
 - It polls the children in list order. The first Ready wins.
-- It then cancels every other unfinished child synchronously, in list
-  order, before returning
-  ([`req.combinator.race-losers`](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-losers)).
+- It then cancels every other unfinished child, in list order, before
+  returning
+  ([`req.combinator.race-losers-disposed`](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed)).
+  A loser left UNWINDING (§14.6) keeps the race Pending: the winner's value
+  waits in the frame (`F_STATE` 1), and each later poll cancels the
+  losers again, which continues them, until none unwinds.
 - An empty list at run time panics `explicit-panic`.
 
 `all_list!` is std hd over nested `all!` (std's task chapter), so it
@@ -949,6 +952,29 @@ needs nothing here.
 A frame that was never polled has no registered suite, so cancelling it
 only marks it. Raw abandonment of a started frame runs nothing, as the
 spec says.
+
+**Shielded disposes.** A `using` binding's dispose suite holds a
+suspension point ([`flow.using.cancel`](../../spec/lang/06-control-flow.md#r-flow.using.cancel)),
+so a cancelled body can go Pending inside its exit ladder:
+
+- The ladder of a scope with such a suite (`Em::waiting_scope`) skips
+  the body and the entries that already ran when it resumes into a
+  suite; each entry clears its flag before it runs. A suite is not a
+  forbidden context.
+- A point inside such a suite is shielded: it has no cancellation branch,
+  so it keeps waiting on its child, the `dispose!`.
+- When `f$cancel`'s body call returns Pending, the frame is marked
+  UNWINDING. A later `f$cancel` of an UNWINDING frame resumes its body
+  again instead of returning; the flag clears once the body completes.
+- A cancellation branch that cancels a child left UNWINDING suspends at
+  its own state with that child, so its frame unwinds too, and each later
+  cancel continues the child first. Once no child unwinds, it leaves by
+  `Cancel` with `pc` 0, so the ladder runs as fresh code.
+- After a waiting ladder, a cancelled frame leaves by `Cancel` whatever
+  exit it took, so code after the scope never starts.
+
+A plain `cancel()` call cannot wait, so a frame it leaves UNWINDING is
+never continued; that case is an open question.
 
 ### 14.7 Hook Points
 

@@ -1,0 +1,8 @@
+# test: using is a contextual word, so it stays an ordinary name outside a using statement
+# Spec lang/01 Contextual Words: lex.contextual.using; lang/02 grammar.stmt.using.
+fn using(count: i32) -> i32:
+    count + 1
+
+fn demo() -> i32:
+    using := using(1)
+    using + 1

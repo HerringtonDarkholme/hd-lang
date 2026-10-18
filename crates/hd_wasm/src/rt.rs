@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::asm::Asm;
 use crate::boundary::BTy;
 use crate::layout::{
-    ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, cancel_fn, storage,
-    task_base,
+    ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, UNWINDING, cancel_fn,
+    storage, task_base,
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
@@ -1734,7 +1734,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             poll,
             result,
         } => {
-            let fr = race_frame(list, base);
+            let fr = race_frame(list, base, result);
             let mut a = Asm::new(vec![VT::r(list.clone())]);
             let f = a.local(VT::r(fr.clone()));
             a.struct_new_default(&fr);
@@ -1758,13 +1758,24 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             poll,
             result,
         } => race_poll(list, base, poll, result),
-        Helper::RaceCancel { list, base, .. } => {
-            let fr = race_frame(list, base);
+        // A loser left unwinding (a shielded `dispose!` waits) keeps the
+        // race unwinding: each later cancel continues it (flow.using.cancel).
+        Helper::RaceCancel {
+            list, base, result, ..
+        } => {
+            let fr = race_frame(list, base, result);
             let mut a = Asm::new(vec![VT::Eq]);
             let f = a.local(VT::r(fr.clone()));
+            let wait = a.local(VT::I32);
             a.get(0);
             a.ref_cast(&fr, false);
             a.set(f);
+            a.get(f);
+            a.struct_get(&fr, F_FLAGS);
+            a.i32(UNWINDING);
+            a.s().i32_and();
+            a.s().i32_eqz();
+            a.if_();
             a.get(f);
             a.struct_get(&fr, F_FLAGS);
             a.i32(DONE | CANCELLED);
@@ -1772,10 +1783,14 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.if_();
             a.s().return_();
             a.end();
+            a.end();
+            cancel_list(&mut a, f, &fr, list, None, wait);
             a.get(f);
             a.i32(CANCELLED);
+            a.get(wait);
+            a.i32(UNWINDING);
+            a.s().i32_mul().i32_or();
             a.struct_set(&fr, F_FLAGS);
-            cancel_list(&mut a, f, &fr, list, None);
             a.finish(vec![])
         }
         Helper::Adapter {
@@ -2156,19 +2171,25 @@ impl Helper {
     }
 }
 
-/// `race!`'s frame: a suspension holding its list of children.
-fn race_frame(list: &WTy, base: &WTy) -> WTy {
-    crate::layout::frame_of(base, &[VT::rn(list.clone())])
+/// `race!`'s frame: a suspension holding its list of children, then the
+/// winner's value while unwinding losers settle (`F_STATE` 1).
+fn race_frame(list: &WTy, base: &WTy, result: &[VT]) -> WTy {
+    let mut fields = vec![VT::rn(list.clone())];
+    fields.extend(result.iter().map(VT::dflt));
+    crate::layout::frame_of(base, &fields)
 }
 
-/// Cancels every child of a race frame in list order, but `skip`.
-fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>) {
+/// Cancels every child of a race frame in list order, but `skip`, and
+/// sets local `wait` when one is left unwinding.
+fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>, wait: u32) {
     let task = crate::layout::task_base();
     let (l, i, c) = (
         a.local(VT::r(list.clone())),
         a.local(VT::I32),
         a.local(VT::r(task.clone())),
     );
+    a.i32(0);
+    a.set(wait);
     a.get(f);
     a.struct_get(fr, F_SAVED - 1);
     a.s().ref_as_non_null();
@@ -2198,6 +2219,14 @@ fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>) {
     a.get(c);
     a.struct_get(&task, F_CANCEL);
     a.call_ref(&cancel_fn());
+    a.get(c);
+    a.struct_get(&task, F_FLAGS);
+    a.i32(UNWINDING);
+    a.s().i32_and();
+    a.if_();
+    a.i32(1);
+    a.set(wait);
+    a.end();
     if go.is_some() {
         a.end();
     }
@@ -2214,18 +2243,20 @@ fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>) {
 /// the first Ready wins, and every other child is cancelled in list order
 /// before it returns. An empty list panics.
 fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
-    let fr = race_frame(list, base);
+    let fr = race_frame(list, base, result);
     let mut res = vec![VT::I32];
     res.extend(result.iter().map(VT::dflt));
     let mut a = Asm::new(vec![VT::Eq]);
-    let (f, l, i, c, ready) = (
+    let (f, l, i, c, ready, wait) = (
         a.local(VT::r(fr.clone())),
         a.local(VT::r(list.clone())),
         a.local(VT::I32),
         a.local(VT::r(base.clone())),
         a.local(VT::I32),
+        a.local(VT::I32),
     );
     let tmp: Vec<u32> = result.iter().map(|v| a.local(v.dflt())).collect();
+    let first = F_SAVED;
     a.get(0);
     a.ref_cast(&fr, false);
     a.set(f);
@@ -2243,6 +2274,32 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.struct_get(&fr, F_SAVED - 1);
     a.s().ref_as_non_null();
     a.set(l);
+    // Settling: the winner's value waits in the frame while a loser's
+    // shielded `dispose!` runs (flow.using.cancel).
+    let settle = |a: &mut Asm| {
+        a.get(wait);
+        a.if_();
+        for v in &res {
+            a.zero(v);
+        }
+        a.s().return_();
+        a.end();
+        a.get(f);
+        a.i32(DONE);
+        a.struct_set(&fr, F_FLAGS);
+        a.i32(1);
+        for (k, _) in result.iter().enumerate() {
+            a.get(f);
+            a.struct_get(&fr, first + u32::try_from(k).unwrap_or(0));
+        }
+        a.s().return_();
+    };
+    a.get(f);
+    a.struct_get(&fr, F_STATE);
+    a.if_();
+    cancel_list(&mut a, f, &fr, list, None, wait);
+    settle(&mut a);
+    a.end();
     a.get(l);
     a.struct_get(list, 0);
     a.s().i32_eqz();
@@ -2275,15 +2332,16 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.set(ready);
     a.get(ready);
     a.if_();
-    cancel_list(&mut a, f, &fr, list, Some(i));
-    a.get(f);
-    a.i32(DONE);
-    a.struct_set(&fr, F_FLAGS);
-    a.i32(1);
-    for t in &tmp {
+    for (k, t) in tmp.iter().enumerate() {
+        a.get(f);
         a.raw_get(*t);
+        a.struct_set(&fr, first + u32::try_from(k).unwrap_or(0));
     }
-    a.s().return_();
+    a.get(f);
+    a.i32(1);
+    a.struct_set(&fr, F_STATE);
+    cancel_list(&mut a, f, &fr, list, Some(i), wait);
+    settle(&mut a);
     a.end();
     a.get(i);
     a.i32(1);
@@ -2292,7 +2350,6 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.br(0);
     a.end();
     a.end();
-    let _ = F_STATE;
     for v in &res {
         a.zero(v);
     }
