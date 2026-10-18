@@ -280,9 +280,10 @@ impl[N < Integer] N:
                 base = base * base
         result
 
-# Radix text (r-std-num.radix.*). `to_radix` writes the digits of the
-# remainders into one byte list, least significant first, and copies them
-# out reversed into a second list: one string is built, never one per digit.
+# Radix text (r-std-num.radix.to-radix, r-std-num.radix.parse-radix).
+# `to_radix` writes the digits of the remainders into one byte list, least
+# significant first, and copies them out reversed into a second list: one
+# string is built, never one per digit.
 # A negative value takes the negative remainders `%` gives and negates each,
 # so the minimum value needs no negation of the whole. Generic code has no
 # casts, so `digit_byte` reads a remainder (0 to 35) bit by bit.

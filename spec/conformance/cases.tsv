@@ -2366,6 +2366,10 @@ runtime/valid/char-unicode-whitespace.hd	runtime	accept	std/text.md#r-std-text.c
 runtime/valid/char-to-digit.hd	runtime	accept	std/text.md#r-std-text.char.to-digit.result
 runtime/panic/char-to-digit-radix-low.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.char.to-digit.radix
 runtime/panic/char-to-digit-radix-high.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.char.to-digit.radix
+runtime/panic/num-radix-to-radix-low.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.radix.bad-radix
+runtime/panic/num-radix-to-radix-high.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.radix.bad-radix
+runtime/panic/num-radix-parse-radix-low.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.radix.bad-radix
+runtime/panic/num-radix-parse-radix-high.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.radix.bad-radix
 runtime/valid/utf8-valid-text.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8
 runtime/valid/utf8-invalid-bytes.hd	runtime	accept	std/text.md#r-std-text.utf8.error.invalid
 runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error.truncated
@@ -2799,6 +2803,7 @@ typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#
 typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
 runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned
+runtime/valid/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip
 runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/num.md#r-std-num.parse.invalid-digit-byte
 runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
 runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
