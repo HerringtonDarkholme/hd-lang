@@ -1,0 +1,12 @@
+# test: top-level code of a non-entry module must be requirement-free, so a call that needs a requirement is an error there
+# Spec 10 Requirement-Free Initialization: module.init.requirement-free, module.init.requirement-free.forms.
+# The primary file is an ordinary module of the tree's package.
+# fixture-package-tree: lib-root/src/catalog.hd
+trait Clock
+
+fn read() -> i32 $ Clock: 1
+
+total := read()  # diagnostic: missing-requirement
+
+pub fn item_count() -> i32:
+    total

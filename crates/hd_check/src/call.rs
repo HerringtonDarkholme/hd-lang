@@ -1982,10 +1982,6 @@ impl Ck<'_, '_> {
             "a `defer` suite"
         } else if self.subs.is_empty()
             && let Some(c) = self.forbidden
-            // `module.console.println-block-on.direct` names a `defer`
-            // suite, a default and a fact expression; a `println` in a
-            // non-entry module's initialization is a `missing-requirement`.
-            && !(def == known.println && self.module_init.is_some())
         {
             c
         } else {

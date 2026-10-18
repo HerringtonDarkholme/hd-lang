@@ -964,7 +964,7 @@ fn word() -> Result[i32, i64]:
 /// default expression, a fact or metadata expression, or a non-entry
 /// module's initialization is an error; one inside a closure declared
 /// there, or outside those contexts, is not
-/// (`req.drive.block-on.direct`, `module.console.println-block-on.direct`,
+/// (`req.drive.block-on.direct`, `module.console.println-block-on.direct-contexts`,
 /// `annot.fact.block-on.direct`).
 #[test]
 fn block_on_and_println_are_forbidden_in_direct_contexts() {
@@ -998,6 +998,32 @@ fn block_on_and_println_are_forbidden_in_direct_contexts() {
             "{bad}"
         );
     }
+}
+
+/// A `println` written directly in a non-entry module's initialization
+/// reports both `missing-requirement` (`module.init.requirement-free`) and
+/// `suspension-forbidden-context` (`module.console.println-block-on.direct-contexts`).
+/// A conformance case holds one error, so this is the check of the pair.
+#[test]
+fn println_in_non_entry_module_init_reports_both_errors() {
+    let out = program_of(&[
+        (
+            "main.hd",
+            "use pkg.catalog.item_count\n\npub fn main() -> void:\n    _ := item_count()\n",
+        ),
+        (
+            "catalog.hd",
+            "println(\"loading\")\n\npub fn item_count() -> i32:\n    3\n",
+        ),
+    ]);
+    let mut found = codes(&out);
+    found.sort_by_key(|c| c.as_str());
+    assert_eq!(
+        found,
+        [Code::MissingRequirement, Code::SuspensionForbiddenContext],
+        "{}",
+        out.render()
+    );
 }
 
 /// After the first parameter with a default, every following parameter

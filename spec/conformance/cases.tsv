@@ -2879,7 +2879,8 @@ typing/invalid/pub-use-private-declaration.hd	type	reject:private-import	lang/10
 runtime/valid/sibling-module-enum-and-trait.hd	runtime	accept	lang/10-modules.md#r-module.vis.variants
 runtime/valid/init-ready-groups-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.ready-order
 runtime/valid/init-group-statements-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.earliest
-typing/invalid/non-entry-top-level-println.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free
+typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free
+typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts
 runtime/valid/script-top-level-runs.hd	runtime	accept	lang/10-modules.md#r-module.init.script-body
 typing/invalid/script-top-level-bang-call.hd	type	reject:bang-call-outside-suspension	lang/10-modules.md#r-module.init.script-not-driver
 runtime/valid/test-case-fresh-instance.hd	runtime	accept	lang/10-modules.md#r-module.testing.instance

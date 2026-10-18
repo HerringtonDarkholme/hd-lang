@@ -1016,7 +1016,7 @@ pub enum ConsoleError:
 15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
 16. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
 17. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-18. r[module.console.println-block-on.direct] A `println` call written directly in a `defer` suite, a default expression, or a fact expression is an error. Error: `suspension-forbidden-context`.
+18. r[module.console.println-block-on.direct-contexts] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free`](#r-module.init.requirement-free), and the compiler reports both.
 19. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
 20. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
