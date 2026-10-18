@@ -1,0 +1,52 @@
+# test: Integer converts to and from u64, exactly, over u8, i32, usize and u64
+# Spec std/num Conversion To And From u64: std-num.u64.members, std-num.u64.exact, std-num.u64.same-type.
+use std.num.Integer
+
+fn widen[N < Integer](n: N) -> u64:
+    n.to_u64()
+
+fn narrow[N < Integer](n: u64) -> N:
+    N::from_u64(n)
+
+fn round_trip[N < Integer](n: N) -> N:
+    N::from_u64(n.to_u64())
+
+tests:
+    use std.testing.assert_equal
+
+    it("u8 boundaries"):
+        let top: u8 = 255
+        assert_equal(widen(top), 255, reason="u8 maximum")
+        assert_equal(widen(u8(0)), 0, reason="u8 zero")
+        assert_equal(narrow::[u8](255), 255, reason="from 255")
+        assert_equal(narrow::[u8](0), 0, reason="from 0")
+        assert_equal(round_trip(top), 255, reason="round trip")
+
+    it("i32 boundaries"):
+        let top: i32 = 2147483647
+        assert_equal(widen(top), 2147483647, reason="i32 maximum")
+        assert_equal(widen(i32(0)), 0, reason="i32 zero")
+        assert_equal(narrow::[i32](2147483647), 2147483647, reason="from the maximum")
+        assert_equal(round_trip(top), top, reason="round trip")
+
+    it("usize boundaries"):
+        let top: usize = 4294967295
+        assert_equal(widen(top), 4294967295, reason="usize maximum")
+        assert_equal(narrow::[usize](4294967295), top, reason="from the maximum")
+        assert_equal(round_trip(usize(7)), usize(7), reason="small")
+
+    it("u64 boundaries"):
+        let top: u64 = 18446744073709551615
+        assert_equal(widen(top), top, reason="u64 maximum")
+        assert_equal(narrow::[u64](top), top, reason="from the maximum")
+        assert_equal(round_trip(u64(0)), u64(0), reason="zero")
+
+    it("i64 boundaries"):
+        let top: i64 = 9223372036854775807
+        assert_equal(widen(top), 9223372036854775807, reason="i64 maximum")
+        assert_equal(narrow::[i64](9223372036854775807), top, reason="from the maximum")
+
+    it("concrete receivers"):
+        let small: i8 = 100
+        assert_equal(small.to_u64(), 100, reason="method call on a concrete type")
+        assert_equal(i16::from_u64(300), i16(300), reason="static call on a concrete type")

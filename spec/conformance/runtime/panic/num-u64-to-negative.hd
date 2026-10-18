@@ -1,0 +1,10 @@
+# test: to_u64 panics on a negative value
+# Spec std/num Conversion To And From u64: std-num.u64.checked.
+use std.num.Integer
+
+fn widen[N < Integer](n: N) -> u64:
+    n.to_u64()  # panic: integer-overflow
+
+tests:
+    it("is negative"):
+        _ := widen(i32(-1))

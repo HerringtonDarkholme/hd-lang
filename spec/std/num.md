@@ -8,6 +8,7 @@ ordinary hd over the language tier:
 - the checked, wrapping, and saturating integer methods, which make
   overflow explicit;
 - `abs_diff`, the distance between two integers;
+- `to_u64` and `from_u64`, the conversions of `Integer` to and from `u64`;
 - the bit counts `count_ones` and `leading_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f32` and `f64`;
@@ -131,6 +132,36 @@ fn close(a: i32, b: i32, limit: i32) -> bool:
 > **Why.** The distance between the minimum and the maximum of `i32` does
 > not fit in `i32`, so a signed result would have to panic. Rust's
 > `i32::abs_diff` returns `u32` for the same reason.
+
+## Conversion To And From u64
+
+`Integer` declares two conversions, so generic code can move any integer
+through `u64`, as a range over any integer type does:
+
+```text
+use std.num.Integer
+
+fn widen[N < Integer](n: N) -> u64:
+    n.to_u64()
+
+fn narrow[N < Integer](n: u64) -> N:
+    N::from_u64(n)
+```
+
+| Rule | Member | Result |
+| --- | --- | --- |
+| r[std-num.u64.to] `to_u64` | `fn to_u64(self) -> u64` | the value as a `u64` |
+| r[std-num.u64.from] `from_u64` | `fn from_u64(n: u64) -> Self` | `n` as the integer type |
+
+1. r[std-num.u64.members] `to_u64` and `from_u64` are members of the sealed `Integer` trait, implemented for every integer type, so `n.to_u64()` and `N::from_u64(n)` work on a bound `N < Integer` and on each concrete integer type.
+2. r[std-num.u64.checked] Both are checked in every build, as [`trait.num.from-i64-checked`](../lang/09-traits.md#r-trait.num.from-i64-checked) is for `from_i64`. `to_u64` panics on a negative value, and `from_u64` panics when the integer type cannot hold `n`. Error: `integer-overflow`.
+3. r[std-num.u64.exact] A conversion that does not panic is exact: the result is the same number, never a wrapped one. A [numeric cast](../lang/04-type-system.md#numeric-casts) `u64(n)` stays the way to wrap.
+4. r[std-num.u64.same-type] On `u64`, both conversions return their argument.
+5. r[std-num.u64.cost] Each conversion is a comparison and a cast, with no text round trip.
+
+> **Why.** `from_i64` is already checked, so the new members match it.
+> A wrapping conversion would turn a bad range bound into a silent wrong
+> number.
 
 ## Bit Counts
 

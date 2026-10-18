@@ -19,7 +19,11 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 
 ## The trait every built-in integer type implements: `Num` plus a total order, the bitwise operators, and the shifts.
 ## See [trait.num.integer](../../spec/lang/09-traits.md#r-trait.num.integer).
-pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
+## `to_u64` and `from_u64` convert to and from `u64`, panicking with `integer-overflow` when the value does not fit.
+## See [trait.num.integer-u64](../../spec/std/num.md#r-std-num.u64.members).
+pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+    fn to_u64(self) -> u64
+    fn from_u64(n: u64) -> Self
 
 ## The trait the built-in floating-point types implement: `Num` plus negation.
 ## See [trait.num.float](../../spec/lang/09-traits.md#r-trait.num.float).
@@ -80,23 +84,41 @@ impl Num for f64:
     fn one() -> f64: 1.0
     fn from_i64(n: i64) -> f64: f64(n)
 
-impl Integer for i8
+impl Integer for i8:
+    fn to_u64(self) -> u64: nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i8: i8(fit_u64(n, 127))
 
-impl Integer for i16
+impl Integer for i16:
+    fn to_u64(self) -> u64: nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i16: i16(fit_u64(n, 32767))
 
-impl Integer for i32
+impl Integer for i32:
+    fn to_u64(self) -> u64: nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i32: i32(fit_u64(n, 2147483647))
 
-impl Integer for i64
+impl Integer for i64:
+    fn to_u64(self) -> u64: nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i64: i64(fit_u64(n, 9223372036854775807))
 
-impl Integer for u8
+impl Integer for u8:
+    fn to_u64(self) -> u64: u64(self)
+    fn from_u64(n: u64) -> u8: u8(fit_u64(n, 255))
 
-impl Integer for u16
+impl Integer for u16:
+    fn to_u64(self) -> u64: u64(self)
+    fn from_u64(n: u64) -> u16: u16(fit_u64(n, 65535))
 
-impl Integer for u32
+impl Integer for u32:
+    fn to_u64(self) -> u64: u64(self)
+    fn from_u64(n: u64) -> u32: u32(fit_u64(n, 4294967295))
 
-impl Integer for usize
+impl Integer for usize:
+    fn to_u64(self) -> u64: u64(self)
+    fn from_u64(n: u64) -> usize: usize(fit_u64(n, 4294967295))
 
-impl Integer for u64
+impl Integer for u64:
+    fn to_u64(self) -> u64: self
+    fn from_u64(n: u64) -> u64: n
 
 impl Float for f32
 
@@ -1005,6 +1027,20 @@ fn fit(n: i64, low: i64, high: i64) -> i64:
     if n < low || n > high:
         panic_with("integer-overflow", "integer overflow")
     n
+
+# Returns `n` when `n <= high`. Otherwise it panics with integer overflow,
+# in every build (r-std-num.u64.checked).
+fn fit_u64(n: u64, high: u64) -> u64:
+    if n > high:
+        panic_with("integer-overflow", "integer overflow")
+    n
+
+# Returns a non-negative `n` as a `u64`. A negative `n` panics with integer
+# overflow, in every build (r-std-num.u64.checked).
+fn nonneg_u64(n: i64) -> u64:
+    if n < 0:
+        panic_with("integer-overflow", "integer overflow")
+    u64(n)
 
 # `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:

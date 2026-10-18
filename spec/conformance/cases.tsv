@@ -2274,6 +2274,10 @@ typing/invalid/result-and-then-error-type.hd	type	reject:type-mismatch	std/resul
 runtime/valid/num-checked-wrapping.hd	runtime	accept	std/num.md#checked-arithmetic
 runtime/valid/num-abs-diff.hd	runtime	accept	std/num.md#r-std-num.abs-diff
 typing/invalid/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#r-std-num.abs-diff.unsigned
+runtime/valid/num-integer-u64.hd	runtime	accept	std/num.md#r-std-num.u64.exact
+runtime/panic/num-u64-from-overflow.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.u64.checked
+runtime/panic/num-u64-from-overflow-i64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.u64.checked
+runtime/panic/num-u64-to-negative.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.u64.checked
 runtime/valid/num-is-nan.hd	runtime	accept	std/num.md#r-std-num.is-nan
 runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.grammar
 runtime/valid/num-parse-f64-errors.hd	runtime	accept	std/num.md#r-std-num.parse-f64.invalid-digit-byte
