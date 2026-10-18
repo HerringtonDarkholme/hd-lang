@@ -158,7 +158,7 @@ fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
 2. r[std-net.timeout.error] A wait that its bound ends returns `.Err(ResourceError.Operation(NetError.Timeout))`. The handle stays open, and the bytes not yet returned stay for the next call.
 3. r[std-net.timeout.cancel] Cancelling the suspension of a bounded call aborts its wait by the existing rules, and never returns `Timeout`.
 4. r[std-net.timeout.host-time] A net timeout counts host time, never the `Clock` provider, so a `ManualClock` cannot end it.
-5. r[std-net.timeout.negative] A zero timeout ends each bounded wait at once. A `Duration` is never negative, so no timeout is.
+5. r[std-net.timeout.zero] A zero timeout ends each bounded wait at once. A `Duration` is never negative, so no timeout is.
 
 > **Why.** A read runs in a loop, so one setting beats an argument on
 > every call, as Rust's `set_read_timeout` and Java's `setSoTimeout` do.

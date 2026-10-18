@@ -369,7 +369,7 @@ impl Frames {
     /// `std.testing.snapshot` frame stands in: the frame after it that is
     /// in a package file (`cli.test.snapshot.update`). For a doc test's
     /// own frame, that is the `##` line of its source file
-    /// (`cli.test.doc.update`). `None` for a call from the standard
+    /// (`cli.test.doc.update-prefix`). `None` for a call from the standard
     /// library.
     fn snapshot_site(&self, wasm: &[u8], raw: &[(u32, u32)]) -> Option<(String, u32)> {
         let table = self

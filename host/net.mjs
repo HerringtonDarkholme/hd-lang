@@ -10,7 +10,7 @@
 // and `receive!` with a timer, cleared when the wait completes: a wait it
 // ends is `Timeout`, takes nothing, and leaves every arrival for the next
 // call (std-net.timeout.error). A zero or negative timeout returns what
-// already arrived and otherwise ends at once (std-net.timeout.negative).
+// already arrived and otherwise ends at once (std-net.timeout.zero).
 // `connect_timeout!` bounds a connect the same way.
 //
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,

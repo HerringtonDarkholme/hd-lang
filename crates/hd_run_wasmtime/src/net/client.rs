@@ -152,7 +152,7 @@ impl Client {
                     return refused(error);
                 }
                 // A zero bound ends the connect before it starts
-                // (`std-net.timeout.negative`).
+                // (`std-net.timeout.zero`).
                 if timeout.is_some_and(|t| t.is_zero()) {
                     return refused(NetError::Timeout);
                 }
@@ -398,7 +398,7 @@ fn unsigned(value: i64) -> usize {
 }
 
 /// A timeout of `value` milliseconds; a negative one is zero
-/// (`std-net.timeout.negative`).
+/// (`std-net.timeout.zero`).
 fn millis(value: i64) -> Duration {
     Duration::from_millis(u64::try_from(value).unwrap_or(0))
 }

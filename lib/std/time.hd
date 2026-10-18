@@ -67,7 +67,7 @@ impl Parse for Duration:
         parse_duration_text(text)
 
 # Checked `i64` arithmetic on the milliseconds, so an overflow panics
-# (r-std-time.duration.add, r-std-time.duration.overflow). A release build
+# (r-std-time.duration.add, r-std-time.duration.add-overflow). A release build
 # wraps the sum below zero, and the constructor then panics, so a negative
 # `Duration` never exists.
 impl Add for Duration:
@@ -76,7 +76,7 @@ impl Add for Duration:
         Duration::milliseconds(self.millis + rhs.millis)
 
 # `-` panics when `rhs` is the longer duration, in every build, as Rust's
-# `Duration` does (r-std-time.duration.sub).
+# `Duration` does (r-std-time.duration.sub-difference).
 impl Sub for Duration:
     type Out = Duration
     fn sub(self, rhs: Duration) -> Duration:
@@ -235,9 +235,9 @@ impl Timestamp:
     pub fn checked_since(self, earlier: Timestamp) -> Duration?:
         checked_millis_since(self.millis, earlier.millis)
 
-    # Zero when `earlier` is the later one (r-std-time.timestamp.since).
+    # Zero when `earlier` is the later one (r-std-time.timestamp.since-saturating).
     ## The time from `earlier` to the timestamp, or zero when `earlier` is the later one.
-    ## See [std-time.timestamp.since](../../spec/std/time.md#r-std-time.timestamp.since).
+    ## See [std-time.timestamp.since-saturating](../../spec/std/time.md#r-std-time.timestamp.since-saturating).
     pub fn since(self, earlier: Timestamp) -> Duration:
         millis_since(self.millis, earlier.millis)
 

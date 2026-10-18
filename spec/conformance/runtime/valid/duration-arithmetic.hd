@@ -1,5 +1,5 @@
 # test: Duration adds and subtracts milliseconds, and a Timestamp plus a Duration is a later Timestamp
-# Spec std/time Duration Arithmetic: std-time.duration.add, std-time.duration.sub, std-time.timestamp.add (DURATION-OPS; task #221).
+# Spec std/time Duration Arithmetic: std-time.duration.add, std-time.duration.sub-difference, std-time.timestamp.add (DURATION-OPS; task #221).
 use std.time.{Duration, Timestamp, ms, s, min}
 
 fn total(first: Duration, second: Duration) -> Duration:

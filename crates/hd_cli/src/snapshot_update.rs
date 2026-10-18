@@ -1,7 +1,7 @@
 //! `hd test --update` for in-code snapshots (`cli.test.snapshot.update`):
 //! a failing `snapshot(text, expect="...")` call has its `expect` literal
 //! rewritten in the source file to the text the call saw. A call in a doc
-//! test (`cli.test.doc.update`) is rewritten inside its `##` lines.
+//! test (`cli.test.doc.update-prefix`) is rewritten inside its `##` lines.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

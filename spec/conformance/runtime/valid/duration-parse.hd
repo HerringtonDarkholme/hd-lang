@@ -1,5 +1,5 @@
 # test: parsing a Duration reads Go-style text in h, min, m, s, ms, us, µs, μs, and ns, exactly, and the text of every duration parses back
-# Spec std/time Duration Parsing: std-time.duration.parse, std-time.duration.parse.grammar, std-time.duration.parse.no-sign, std-time.duration.parse.units, std-time.duration.parse.sum, std-time.duration.parse.exact, std-time.duration.parse.zero, std-time.duration.parse.range, std-time.duration.parse.round-trip, std-time.duration.parse.no-panic (#370).
+# Spec std/time Duration Parsing: std-time.duration.parse, std-time.duration.parse.text-grammar, std-time.duration.parse.no-sign, std-time.duration.parse.units, std-time.duration.parse.components-sum, std-time.duration.parse.exact, std-time.duration.parse.zero-text, std-time.duration.parse.range-max, std-time.duration.parse.round-trip, std-time.duration.parse.no-panic (#370).
 use std.time.{Duration, ParseTimeError, h, min, ms, s}
 
 fn timeout_of(text: string) -> Result[Duration, ParseTimeError]:

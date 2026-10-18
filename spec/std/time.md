@@ -68,17 +68,17 @@ fn later(start: Timestamp) -> Timestamp:
 ```
 
 1. r[std-time.duration.add] `Duration` implements `std.ops.Add` with `Out = Duration`. `a + b` holds the sum of the milliseconds of `a` and `b`.
-2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. When `a` is not shorter than `b`, `a - b` holds the milliseconds of `a` minus those of `b`.
+2. r[std-time.duration.sub-difference] `Duration` implements `std.ops.Sub` with `Out = Duration`. When `a` is not shorter than `b`, `a - b` holds the milliseconds of `a` minus those of `b`.
 3. r[std-time.duration.sub.underflow] `a - b` with `a` shorter than `b` panics at run time, in every build. Panic: `explicit-panic`.
 4. r[std-time.duration.checked-sub] `a.checked_sub(b)` is `.Some(a - b)` when `a` is not shorter than `b`, and `.None` otherwise. It never panics.
 5. r[std-time.duration.saturating-sub] `a.saturating_sub(b)` is `a - b` when `a` is not shorter than `b`, and zero otherwise. It never panics.
-6. r[std-time.duration.overflow] A sum that does not fit in `i64` milliseconds panics at run time. In a debug or test build this is checked `i64` arithmetic. Panic: `integer-overflow`. A release build wraps the sum, and the wrapped value is negative, so the result panics as [`std-time.duration.negative-count`](#r-std-time.duration.negative-count) says.
+6. r[std-time.duration.add-overflow] A sum that does not fit in `i64` milliseconds panics at run time. In a debug or test build this is checked `i64` arithmetic. Panic: `integer-overflow`. A release build wraps the sum, and the wrapped value is negative, so the result panics as [`std-time.duration.negative-count`](#r-std-time.duration.negative-count) says.
 7. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
 8. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
 
 > **Note.** `Timestamp` has no `Sub`: `t.since(earlier)` is the duration
 > between two timestamps, by
-> [`std-time.timestamp.since`](#r-std-time.timestamp.since).
+> [`std-time.timestamp.since-saturating`](#r-std-time.timestamp.since-saturating).
 
 ### Duration Display
 
@@ -141,12 +141,12 @@ is a number and a unit:
 | unit | `h`, `min`, `m`, `s`, `ms`, `us`, `µs`, `μs`, or `ns` |
 
 1. r[std-time.duration.parse] `std.time` declares `impl Parse for Duration` with `type Error = ParseTimeError`, and no inherent parse function. `text.parse::[Duration]()` returns `.Ok` of the duration that `text` names, or `.Err` of the first error.
-2. r[std-time.duration.parse.grammar] `text` must hold the optional `+`, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
+2. r[std-time.duration.parse.text-grammar] `text` must hold the optional `+`, then one or more components, each with the parts above in order, and nothing else. No space is allowed anywhere.
 3. r[std-time.duration.parse.units] `h` is 3600 seconds. `min` and `m` are 60 seconds. `s` is one second, and `ms` is a millisecond. `us`, `µs` (U+00B5), and `μs` (U+03BC) are a microsecond. `ns` is a nanosecond.
-4. r[std-time.duration.parse.sum] The duration is the sum of its components. A component's value is its number times its unit, with the fraction exact.
+4. r[std-time.duration.parse.components-sum] The duration is the sum of its components. A component's value is its number times its unit, with the fraction exact.
 5. r[std-time.duration.parse.exact] A component whose value is not a whole number of milliseconds gives `Inexact`. Nothing is rounded, so `1.5ms` and `500us` are errors, and `2000us` and `1.005s` are not.
-6. r[std-time.duration.parse.zero] The text `0`, with an optional `+` and no unit, is the zero duration. No other number is valid without a unit.
-7. r[std-time.duration.parse.range] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The longest duration is in range, so `9223372036854775807ms` parses.
+6. r[std-time.duration.parse.zero-text] The text `0`, with an optional `+` and no unit, is the zero duration. No other number is valid without a unit.
+7. r[std-time.duration.parse.range-max] A component or a running total that does not fit in `i64` milliseconds gives `OutOfRange`. The longest duration is in range, so `9223372036854775807ms` parses.
 8. r[std-time.duration.parse.no-sign] A `-` is not a duration character: no duration is negative, so `-5s` gives `InvalidCharacter` at 0, as does `-0`.
 9. r[std-time.duration.parse.round-trip] For every duration `d`, `d.to_string().parse::[Duration]()` is `.Ok(d)`.
 10. r[std-time.duration.parse.no-panic] The `Parse` impl of `Duration` never panics.
@@ -249,11 +249,11 @@ pub trait Clock:
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
 2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, `t.checked_since(earlier: Timestamp) -> Duration?`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Reading RFC 3339 text is [`impl Parse for Timestamp`](#parsing-rfc-3339).
 3. r[std-time.timestamp.unix-milliseconds] `t.unix_milliseconds()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_milliseconds(m).unix_milliseconds()` is `m` for every `m`.
-4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`. It is zero when `earlier` is the later one, and the longest duration when the time does not fit in `i64` milliseconds. It never panics.
+4. r[std-time.timestamp.since-saturating] `t.since(earlier)` is the time from `earlier` to `t`. It is zero when `earlier` is the later one, and the longest duration when the time does not fit in `i64` milliseconds. It never panics.
 5. r[std-time.timestamp.checked-since] `t.checked_since(earlier)` is `.Some` of that time, and `.None` when `earlier` is the later one or the time does not fit in `i64` milliseconds.
 6. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
 7. r[std-time.instant.api-milliseconds] The public API of `Instant` is `Instant::from_milliseconds(milliseconds: i64)`, `i.as_milliseconds() -> i64`, `i.since(earlier: Instant) -> Duration`, and `i.checked_since(earlier: Instant) -> Duration?`.
-8. r[std-time.instant.since] `i.since(earlier)` is the time from `earlier` to `i`, with the cases of [`std-time.timestamp.since`](#r-std-time.timestamp.since): zero when `earlier` is the later one, and the longest duration when the time does not fit.
+8. r[std-time.instant.since] `i.since(earlier)` is the time from `earlier` to `i`, with the cases of [`std-time.timestamp.since-saturating`](#r-std-time.timestamp.since-saturating): zero when `earlier` is the later one, and the longest duration when the time does not fit.
 9. r[std-time.instant.checked-since] `i.checked_since(earlier)` is `.Some` of that time, and `.None` in the cases of [`std-time.timestamp.checked-since`](#r-std-time.timestamp.checked-since).
 10. r[std-time.instant.as-milliseconds] `i.as_milliseconds()` returns the milliseconds since the origin that `i` holds, so `Instant::from_milliseconds(m).as_milliseconds()` is `m` for every `m`.
 11. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.

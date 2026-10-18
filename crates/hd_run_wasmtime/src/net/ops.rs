@@ -11,7 +11,7 @@
 //! non-blocking call on the socket itself returns what the kernel already
 //! holds, or `Timeout` (`std-net.timeout.error`). That call skips tokio's
 //! readiness, which may not have seen the bytes yet, so a zero timeout
-//! returns the buffered bytes, as on Node (`std-net.timeout.negative`).
+//! returns the buffered bytes, as on Node (`std-net.timeout.zero`).
 
 use std::io::{self, Read};
 use std::net::{Ipv6Addr, Shutdown, SocketAddr};

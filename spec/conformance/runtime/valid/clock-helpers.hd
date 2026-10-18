@@ -1,5 +1,5 @@
 # test: now() and sleep! call the covering Clock provider, and timestamps and instants measure and order time
-# Spec std/time Clock: std-time.helper.now, std-time.helper.sleep, std-time.timestamp.since, std-time.timestamp.checked-since, std-time.instant.since, std-time.instant.checked-since,
+# Spec std/time Clock: std-time.helper.now, std-time.helper.sleep, std-time.timestamp.since-saturating, std-time.timestamp.checked-since, std-time.instant.since, std-time.instant.checked-since,
 # std-time.instant.api-milliseconds, and std-time.time.eq-ord (batch 64, STD-2 and STD-3).
 use std.time.{Clock, Duration, Instant, Timestamp, ms, now, s, sleep}
 

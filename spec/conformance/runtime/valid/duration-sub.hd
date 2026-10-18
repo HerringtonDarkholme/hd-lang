@@ -1,5 +1,5 @@
 # test: Duration subtraction is checked: checked_sub gives none and saturating_sub gives zero when the right side is longer
-# Spec std/time Duration Arithmetic: std-time.duration.sub, std-time.duration.checked-sub, std-time.duration.saturating-sub.
+# Spec std/time Duration Arithmetic: std-time.duration.sub-difference, std-time.duration.checked-sub, std-time.duration.saturating-sub.
 use std.time.{Duration, ms, s}
 
 fn remaining(limit: Duration, used: Duration) -> Duration:
