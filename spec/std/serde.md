@@ -143,10 +143,14 @@ impl Deserialize for Session by Structure:
 | r[std-serde.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload for `.Some` | `.None` when `is_null` is `true`, and `.Some` of what `T` reads otherwise |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |
 | r[std-serde.std.map-entries] Map | `Map[string, V]`, where `V` implements the trait | a map of the entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
+| r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |
+| r[std-serde.std.tuple] Tuple | a tuple type whose members implement the trait | a list of the members, in order | a list with one item per member, in order |
 
 1. r[std-serde.std.range] A value that its scalar call reads but the type cannot hold is the reader's `invalid(expected)` error. That is an integer outside the type's range, a `char` text of another length, or an `f32` past its finite range. The range of `usize` is the target's, by [`types.usize.width`](../lang/04-type-system.md#r-types.usize.width), so on the Wasm32 target it is that of `u32`.
 2. r[std-serde.std.float-read] An `f32` reads the nearest `f32` to the `f64` it reads.
-3. r[std-serde.std.map-keys] Only a `Map` whose key type is `string` implements the traits. Using a map with any other key type where they are required is an error. Error: `unsatisfied-trait-bound`.
+3. r[std-serde.std.tuple-length] A tuple reads exactly one list item per member. A list with fewer items, or with items left after the last member, is the reader's `invalid(expected)` error, so JSON reports it at the path of the list or of the first extra item.
+4. r[std-serde.std.tuple-rest] A rest element is one member of type `List[T]`, by [`annot.walk.rest.default`](../lang/14-annotations.md#r-annot.walk.rest.default). So `(i32, List[i32]...)` writes `[1, [2, 3]]`, a list whose last item is the rest list.
+5. r[std-serde.std.map-keys] Only a `Map` whose key type is `string` implements the traits. Using a map with any other key type where they are required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.serde.Serialize

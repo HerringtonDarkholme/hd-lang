@@ -1,0 +1,51 @@
+# test: a Set writes and reads a list in insertion order, and a tuple writes and reads a list of its members; a wrong length is a decode error with the path
+# Spec std/serde Standard Implementations: std-serde.std.set, std-serde.std.tuple, std-serde.std.tuple-length, std-serde.std.tuple-rest.
+use std.json.{encode, decode, JsonError}
+use std.collections.Set
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+data Order:
+    tags: Set[string]
+    line: (i32, string)
+
+fn order() -> Order:
+    let tags: mut Set[string] = Set::new()
+    _ := tags.insert("rush")
+    _ := tags.insert("gift")
+    Order { tags: tags, line: (3, "pen") }
+
+fn failure(text: string) -> JsonError:
+    match decode::[Order](text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    use std.testing.assert_equal
+
+    it("a set and a tuple are lists in a derived type"):
+        assert_equal(encode(order()), "{\"tags\":[\"rush\",\"gift\"],\"line\":[3,\"pen\"]}", reason="text")
+
+    it("a derived type with both round trips"):
+        text := encode(order())
+        match decode::[Order](text):
+            .Ok(back) => assert_equal(encode(back), text, reason="same text")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a repeated set element keeps one"):
+        match decode::[Set[i32]]("[1,2,1,3,2]"):
+            .Ok(found) => assert_equal(encode(found), "[1,2,3]", reason="distinct, first order")
+            .Err(error) => panic("decode failed: $error")
+
+    it("an empty tuple is an empty list"):
+        assert_equal(encode(()), "[]", reason="unit")
+
+    it("a rest element is one nested list"):
+        let rest: (i32, List[i32]...) = (1, 2, 3)
+        assert_equal(encode(rest), "[1,[2,3]]", reason="rest")
+
+    it("a short list for a tuple fails at the path"):
+        assert_equal("${failure("{\"tags\":[],\"line\":[3]}")}", "expected tuple element at \$.line", reason="short")
+
+    it("a long list for a tuple fails at the path"):
+        assert_equal("${failure("{\"tags\":[],\"line\":[3,\"a\",4]}")}", "expected end of the tuple at \$.line[2]", reason="long")

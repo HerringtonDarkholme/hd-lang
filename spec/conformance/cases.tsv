@@ -2865,6 +2865,7 @@ typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/
 typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
+runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
 runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.order
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors

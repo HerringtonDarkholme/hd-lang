@@ -5,7 +5,10 @@
 # (spec/std/json.md#typed-json) and the host boundary
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
-use std.structure.{Structure, Walker, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
+use std.collections.Set
+use std.function.Tuple
+use std.hash.Hash
+use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
@@ -350,3 +353,98 @@ impl[V < Deserialize] Deserialize for Map[string, V]:
                 .Some(key) => found[key] = V::deserialize(input)?
                 .None => break
         .Ok(found)
+
+# A set is a list of its elements in insertion order
+# (r-std-serde.std.set).
+impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.begin_list(self.len())?
+        for item in self:
+            item.serialize(out)?
+        out.end_list()
+
+# A repeated element keeps one entry (r-std-serde.std.set).
+impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Set[T], R::Error]:
+        input.begin_list()?
+        let found: mut Set[T] = Set::new()
+        while input.next_item()?:
+            _ := found.insert(T::deserialize(input)?)
+        .Ok(found)
+
+# Tuple `Serialize` (r-std-serde.std.tuple): a list of the members, in
+# order. A counting pass over the members' types gives `begin_list` its
+# length before the one walk over the values.
+impl[T < Tuple] Serialize for T by Structure:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        let count: mut MemberCount = MemberCount { total: 0 }
+        _ := T::describe(count)
+        out.begin_list(count.total)?
+        let walker: mut TupleWriter[T, W] = TupleWriter::[T, W] { out: out }
+        Structure::walk(self, walker)?
+        out.end_list()
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module.
+data MemberCount:
+    pub total: usize
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.total = self.total + 1
+        .Ok(())
+
+data TupleWriter[S, W < mut Serializer]:
+    pub out: mut W
+
+impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
+    type Error = W::Error
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, W::Error]:
+        .Ok(())
+
+    # A rest element is one `List[T]` member (annot.walk.rest.default).
+    fn member[F < Serialize](mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+        value.serialize(self.out)
+
+# Tuple `Deserialize` (r-std-serde.std.tuple): a list with one item per
+# member, in order. A short or a long list is the reader's `invalid`
+# error.
+impl[T < Tuple] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[T, R::Error]:
+        input.begin_list()?
+        let source: mut TupleReader[T, R] = TupleReader::[T, R] { input: input, at: 0 }
+        built := T::build(source)?
+        if input.next_item()?:
+            return .Err(input.invalid("end of the tuple"))
+        .Ok(built)
+
+data TupleReader[S, R < mut Deserializer]:
+    pub input: mut R
+    pub at: usize
+
+impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:
+    type Error = R::Error
+
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+        .Ok(choices[0])
+
+    fn next(mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Deserialize](mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+        if !self.input.next_item()?:
+            return .Err(self.input.invalid("tuple element"))
+        F::deserialize(self.input)
+
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, R::Error]:
+        panic("std.serde: the source names every member")
