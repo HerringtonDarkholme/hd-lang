@@ -1,0 +1,42 @@
+# test: read_all!() joins the remaining lines of the covering ConsoleInput provider with \n
+# Spec std/console Console Input: std-console.input.read-all, std-console.input.read-all-default, and std-console.input.read-all-helper.
+use std.console.{ConsoleInput, read_all, read_line}
+data Lines:
+    lines: List[string]
+    at: usize
+
+impl ConsoleInput for Lines:
+    fn read_line!(mut self) -> Result[string?, ConsoleError]:
+        if self.at >= self.lines.len():
+            return .Ok(.None)
+        line := self.lines[self.at]
+        self.at = self.at + 1
+        .Ok(.Some(line))
+
+fn whole_input!() -> string $ ConsoleInput:
+    match read_all!():
+        .Ok(text) => text
+        .Err(_) => "error"
+
+tests:
+    use std.testing.assert_equal
+
+    it("joins three lines with newlines and no final one"):
+        let mut input = Lines { lines: ["a", "b", "c"], at: 0 }
+        $.with(ConsoleInput=input):
+            assert_equal(whole_input!(), "a\nb\nc", reason="three lines")
+
+    it("reads only what is left"):
+        let mut input = Lines { lines: ["a", "b", "c"], at: 0 }
+        $.with(ConsoleInput=input):
+            assert_equal(read_line!(), .Ok(.Some("a")), reason="first line")
+            assert_equal(whole_input!(), "b\nc", reason="the other two")
+            assert_equal(whole_input!(), "", reason="nothing is left")
+
+    it("is empty without input and keeps empty lines"):
+        let mut none = Lines { lines: [], at: 0 }
+        $.with(ConsoleInput=none):
+            assert_equal(whole_input!(), "", reason="no lines")
+        let mut blank = Lines { lines: ["", ""], at: 0 }
+        $.with(ConsoleInput=blank):
+            assert_equal(whole_input!(), "\n", reason="two empty lines")

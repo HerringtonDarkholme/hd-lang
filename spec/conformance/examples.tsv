@@ -805,9 +805,10 @@ std/console.md	1	accept	runtime/valid/eprintln-error-line.hd
 std/console.md	2	mixed	typing/invalid/eprintln-without-console.hd
 std/console.md	3	type-fragment	-
 std/console.md	4	accept	runtime/valid/console-input-helper.hd
-std/console.md	5	accept	runtime/valid/console-error-traits.hd
-std/console.md	6	accept	runtime/valid/buffer-console.hd
-std/console.md	7	accept	runtime/valid/scripted-input.hd
+std/console.md	5	accept	runtime/valid/console-read-all.hd
+std/console.md	6	accept	runtime/valid/console-error-traits.hd
+std/console.md	7	accept	runtime/valid/buffer-console.hd
+std/console.md	8	accept	runtime/valid/scripted-input.hd
 std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
 std/host.md	3	accept	runtime/valid/host-env-as.hd

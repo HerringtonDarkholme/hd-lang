@@ -1,8 +1,8 @@
 //! `Console` and `ConsoleInput`. `write_line` is pending at once and
 //! writes its line into the held standard output when it completes;
-//! `read_line` is pending until the reactor's reader thread has read the
-//! next line of standard input, so a program's other operations go on
-//! while it waits for input.
+//! `read_line` and `read_all` are pending until the reactor's reader thread
+//! has read the next line, or the rest, of standard input, so a program's
+//! other operations go on while it waits for input.
 
 use wasmtime::{Caller, Val};
 
@@ -32,7 +32,7 @@ pub(crate) fn call(
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.
-        Id::ConsoleInputReadLine if finish => {
+        Id::ConsoleInputReadLine | Id::ConsoleInputReadAll if finish => {
             let h = handle(int_arg(params, 0)?);
             let Some(Work::Read(Some(line))) =
                 caller.data_mut().reactor.remove(h).map(|op| op.work)
@@ -42,7 +42,16 @@ pub(crate) fn call(
                 )
                 .into());
             };
-            Ret::value(&line.map_err(|()| ConsoleError::Closed))
+            if method.id == Id::ConsoleInputReadAll {
+                // `Result[string, ConsoleError]`: all the rest, or `.Err(.Closed)`.
+                Ret::value(
+                    &line
+                        .map(Option::unwrap_or_default)
+                        .map_err(|()| ConsoleError::Closed),
+                )
+            } else {
+                Ret::value(&line.map_err(|()| ConsoleError::Closed))
+            }
         }
         // Make a completed prompt visible before asking the reader thread
         // for input. Pending until that thread delivers the line.
@@ -50,6 +59,11 @@ pub(crate) fn call(
             let host = caller.data_mut();
             host.flush();
             Ret::pair(1, host.reactor.read_line())
+        }
+        Id::ConsoleInputReadAll => {
+            let host = caller.data_mut();
+            host.flush();
+            Ret::pair(1, host.reactor.read_all())
         }
         _ => return Err(crate::host::misrouted(method)),
     })

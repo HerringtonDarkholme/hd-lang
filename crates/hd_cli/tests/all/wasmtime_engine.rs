@@ -417,6 +417,38 @@ pub fn main!() -> void $ Console + ConsoleInput:
     );
 }
 
+/// `read_all!` reads the rest of standard input whole, on both engines,
+/// as the lines `read_line!` would return joined by `\n`
+/// (`std-console.input.read-all-host`).
+#[test]
+fn console_input_reads_all() {
+    let dir = program(
+        "input-all",
+        "use std.console.{ConsoleInput, read_all, read_line}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    match read_line!():
+        .Ok(.Some(line)) => println(\"[${line}]\")
+        _ => println(\"no line\")
+    match read_all!():
+        .Ok(text) => println(\"<${text}>\")
+        .Err(_) => println(\"closed\")
+    match read_all!():
+        .Ok(text) => println(\"<${text}>\")
+        .Err(_) => println(\"closed\")
+    match read_line!():
+        .Ok(.None) => println(\"end\")
+        _ => println(\"not end\")
+",
+    );
+    let out = both_with(&dir, &["main.hd"], "one\r\ntwo\r\n\nlast\r\n", &[]);
+    assert_eq!(text(&out.stdout), "[one]\n<two\n\nlast>\n<>\nend\n");
+    let bare = both_with(&dir, &["main.hd"], "one\ntwo\nlast", &[]);
+    assert_eq!(text(&bare.stdout), "[one]\n<two\nlast>\n<>\nend\n");
+    let empty = both_with(&dir, &["main.hd"], "", &[]);
+    assert_eq!(text(&empty.stdout), "no line\n<>\n<>\nend\n");
+}
+
 /// The existing file sample now runs on both engines.
 #[test]
 fn fs_read_is_available_on_both_engines() {

@@ -4,7 +4,8 @@
       { "name": "write_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
-      { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" }
+      { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },
+      { "name": "read_all", "wait": "may", "resource": null, "params": [], "result": "Result[string, ConsoleError]" }
     ]},
     { "key": "Clock", "std": "std.time.Clock", "methods": [
       { "name": "now", "wait": "never", "resource": null, "params": [], "result": "i64" },

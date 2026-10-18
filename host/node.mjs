@@ -288,12 +288,33 @@ const httpSend = (request, left) => httpClient.call(request, left);
 // standard input cannot be read.
 function lineReader(fd) {
   // A closed standard input is at its end (cli.test.env.stdin).
-  if (fd === null) return () => null;
+  if (fd === null) {
+    const none = () => null;
+    none.all = () => "";
+    return none;
+  }
   let pending = Buffer.alloc(0);
   let ended = false;
   const chunk = Buffer.alloc(65536);
   const waiter = new Int32Array(new SharedArrayBuffer(4));
-  return () => {
+  // Fills `pending` from the descriptor: `false` when it cannot be read.
+  const fill = () => {
+    let n;
+    try {
+      n = readSync(fd, chunk, 0, chunk.length, null);
+    } catch (err) {
+      if (err.code === "EAGAIN") {
+        Atomics.wait(waiter, 0, 0, 5);
+        return true;
+      }
+      if (err.code !== "EOF") return false;
+      n = 0;
+    }
+    if (n === 0) ended = true;
+    else pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+    return true;
+  };
+  const line = () => {
     for (;;) {
       const nl = pending.indexOf(10);
       if (nl >= 0) {
@@ -308,24 +329,20 @@ function lineReader(fd) {
         pending = Buffer.alloc(0);
         return line;
       }
-      let n;
-      try {
-        n = readSync(fd, chunk, 0, chunk.length, null);
-      } catch (err) {
-        if (err.code === "EAGAIN") {
-          Atomics.wait(waiter, 0, 0, 5);
-          continue;
-        }
-        if (err.code === "EOF") {
-          n = 0;
-        } else {
-          return false;
-        }
-      }
-      if (n === 0) ended = true;
-      else pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+      if (!fill()) return false;
     }
   };
+  // The rest of the input as the lines `line` would return, joined by
+  // `\n` (std-console.input.read-all.host): the last line ending goes, and
+  // a `\r` before any `\n`.
+  line.all = () => {
+    while (!ended) if (!fill()) return false;
+    let text = pending.toString("utf8");
+    pending = Buffer.alloc(0);
+    if (text.endsWith("\n")) text = text.slice(0, text.endsWith("\r\n") ? -2 : -1);
+    return text.replaceAll("\r\n", "\n");
+  };
+  return line;
 }
 
 // `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
@@ -333,12 +350,29 @@ function lineReader(fd) {
 // of `lineReader` (run.mjs, whose main thread reads for a worker).
 function consoleInputProvider({ env, flush }) {
   const readLine = env.readLine ?? lineReader(env.stdin === undefined ? 0 : env.stdin);
+  // A host that reads lines for a worker has no read of the rest: the
+  // lines are joined here, as the default body of `read_all!` does.
+  const readAll =
+    readLine.all ??
+    (() => {
+      const lines = [];
+      for (let line; (line = readLine()) !== null;) {
+        if (line === false) return false;
+        lines.push(line);
+      }
+      return lines.join("\n");
+    });
   return {
     read_line: () => {
       // A completed prompt must reach the sink before this read blocks.
       flush();
       const line = readLine();
       return line === false ? Err({ tag: "Closed" }) : Ok(line);
+    },
+    read_all: () => {
+      flush();
+      const text = readAll();
+      return text === false ? Err({ tag: "Closed" }) : Ok(text);
     },
   };
 }

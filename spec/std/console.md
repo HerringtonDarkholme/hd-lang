@@ -7,7 +7,7 @@ ordinary hd over the language tier:
 
 - `eprintln`, which writes a line to standard error;
 - when the host's console output becomes visible;
-- the host capability trait `ConsoleInput`, and the helper `read_line!`;
+- the host capability trait `ConsoleInput`, and the helpers `read_line!` and `read_all!`;
 - the traits of `ConsoleError`;
 - the test providers `MemoryConsole` and `ScriptedInput`.
 
@@ -94,6 +94,23 @@ fn first_line!() -> string $ ConsoleInput:
         .Ok(.Some(line)) => line
         _ => ""
 ```
+
+`read_all!` reads the rest of the input in one call, for a filter such as
+`cat orders.json | total`:
+
+```text
+use std.console.{ConsoleInput, read_all}
+
+fn whole_input!() -> string $ ConsoleInput:
+    match read_all!():
+        .Ok(text) => text
+        .Err(_) => ""
+```
+
+6. r[std-console.input.read-all] `ConsoleInput` also declares `fn read_all!(mut self) -> Result[string, ConsoleError]`, a bang call that takes `mut self` as `read_line!` does. It returns the rest of the input as the lines `read_line!` would return, joined by `\n`: no line ending follows the last line, and `""` is the result when no line is left. After it, `read_line!` returns `.Ok(.None)`.
+7. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, joins the lines with one `StringBuilder`, and returns the first `.Err` that `read_line!` returns.
+8. r[std-console.input.read-all-host] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the one the default body gives for the same input: a `\r` before a `\n` is dropped, the final line ending is dropped, and bytes that are not UTF-8 become U+FFFD. It returns `.Err(ConsoleError.Closed)` when standard input cannot be read.
+9. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
 
 > **Why.** Input is its own trait, apart from `Console`, so a program
 > that only prints gains no authority to read.

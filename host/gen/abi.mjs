@@ -156,6 +156,12 @@ export const METHODS = {
       params: [],
       result: result(option(str), ConsoleError),
     },
+    read_all: {
+      wait: "may",
+      resource: null,
+      params: [],
+      result: result(str, ConsoleError),
+    },
   },
   "hd:Clock": {
     now: {

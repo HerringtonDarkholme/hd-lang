@@ -39,6 +39,7 @@ std.cmp.clamp	std/cmp.md#clamp
 std.console.eprintln	std/console.md#standard-error
 std.console.ConsoleInput	std/console.md#console-input
 std.console.read_line	std/console.md#console-input
+std.console.read_all	std/console.md#console-input
 std.host	std/host.md#program-arguments
 std.fs	std/fs.md#reading
 std.path	std/path.md#paths

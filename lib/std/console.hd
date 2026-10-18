@@ -8,6 +8,7 @@
 # records `println` lines too.
 use std.task.block_on
 use std.format.DebugWriter
+use std.text.StringBuilder
 
 # The host console capability; `write_line!` takes `mut self`, so it is a
 # mutable requirement trait.
@@ -29,6 +30,23 @@ pub trait Console:
 pub trait ConsoleInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]
 
+    # The rest of the input: the default body joins the remaining lines
+    # with `\n` through one `StringBuilder`, so a provider need not
+    # override it (spec/std/console.md#r-std-console.input.read-all-default).
+    # The host's provider overrides it with one read of standard input.
+    fn read_all!(mut self) -> Result[string, ConsoleError]:
+        let mut out = StringBuilder::new()
+        let first = true
+        while true:
+            match self.read_line!()?:
+                .Some(line) =>
+                    if !first:
+                        out.push("\n")
+                    first = false
+                    out.push(line)
+                .None => break
+        .Ok(out.build())
+
 # The next line of the covering provider's input
 # (spec/std/console.md#r-std-console.input.helper).
 ## Returns the next line of input without its line ending, or `.None` at the end of input.
@@ -36,6 +54,14 @@ pub trait ConsoleInput:
 pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
     input.read_line!()
+
+# The rest of the covering provider's input
+# (spec/std/console.md#r-std-console.input.read-all-helper).
+## Returns all the input that is left, with its lines joined by `\n` and no final line ending.
+## See [std-console.input.read-all-helper](../../spec/std/console.md#r-std-console.input.read-all-helper).
+pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
+    let mut input = $.use(ConsoleInput)
+    input.read_all!()
 
 # The recording `Console` provider (spec/std/console.md#buffer-console).
 # It keeps error lines apart from output lines.
@@ -63,32 +89,6 @@ impl MemoryConsole:
     ## See [std-console.buffer.error-output](../../spec/std/console.md#r-std-console.buffer.error-output).
     pub fn error_output(self) -> List[string]:
         self.error_lines
-
-# The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
-# it returns its lines in order, then `.None`.
-## The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
-## See [std-console.scripted.decl](../../spec/std/console.md#r-std-console.scripted.decl).
-pub data ScriptedInput:
-    lines: List[string]
-    next: usize
-
-impl ScriptedInput:
-    ## Returns the provider that answers `lines` in order, then the end of input.
-    ## See [std-console.scripted.new](../../spec/std/console.md#r-std-console.scripted.new).
-    pub fn new(lines: List[string]) -> mut ScriptedInput:
-        ScriptedInput { lines: lines, next: 0 }
-
-impl ConsoleInput for ScriptedInput:
-    fn read_line!(mut self) -> Result[string?, ConsoleError]:
-        if self.next >= self.lines.len():
-            return .Ok(.None)
-        line := self.lines[self.next]
-        self.next = self.next + 1
-        .Ok(.Some(line))
-
-impl Debug for ScriptedInput:
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("ScriptedInput").field("lines", self.lines).field("next", self.next).finish()
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
@@ -129,6 +129,32 @@ pub fn eprintln[T < Display](value: T) -> void $ Console:
     match block_on(call):
         .Ok(()) => pass
         .Err(_) => panic("eprintln: write_error_line! returned .Err(ConsoleError)")
+
+# The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
+# it returns its lines in order, then `.None`.
+## The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
+## See [std-console.scripted.decl](../../spec/std/console.md#r-std-console.scripted.decl).
+pub data ScriptedInput:
+    lines: List[string]
+    next: usize
+
+impl ScriptedInput:
+    ## Returns the provider that answers `lines` in order, then the end of input.
+    ## See [std-console.scripted.new](../../spec/std/console.md#r-std-console.scripted.new).
+    pub fn new(lines: List[string]) -> mut ScriptedInput:
+        ScriptedInput { lines: lines, next: 0 }
+
+impl ConsoleInput for ScriptedInput:
+    fn read_line!(mut self) -> Result[string?, ConsoleError]:
+        if self.next >= self.lines.len():
+            return .Ok(.None)
+        line := self.lines[self.next]
+        self.next = self.next + 1
+        .Ok(.Some(line))
+
+impl Debug for ScriptedInput:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ScriptedInput").field("lines", self.lines).field("next", self.next).finish()
 
 # The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
 ## The console's error type, with one variant, the payload-free `Closed`.

@@ -2,8 +2,8 @@
 //! `.start` that cannot finish at once
 //! gets a handle and completes later, when its time comes (`Clock.sleep`,
 //! `Console.write_line`) or when another thread delivers its result into
-//! the inbox: a line of standard input (`ConsoleInput.read_line`, read by
-//! a thread of its own), or the `Done` of an operation offloaded to the
+//! the inbox: a chunk of standard input (`ConsoleInput.read_line` and
+//! `read_all`, read by a thread of its own), or the `Done` of an operation offloaded to the
 //! `hd-io` runtime (`io.rs`). So the program never blocks inside a
 //! host call. The driver and `hd:rt` `block` wait here for the next
 //! completion: a timer's deadline or a delivery, whichever comes first.
@@ -58,7 +58,8 @@ pub enum Work {
     Write(Vec<u8>),
     /// `Clock.sleep`.
     Timer,
-    /// `ConsoleInput.read_line`: the line, once it is delivered.
+    /// `ConsoleInput.read_line` or `read_all`: the line, or all the rest
+    /// of the input, once it is delivered.
     Read(Option<Line>),
     /// `disposed-file` `open!`: allocates its handle at `.finish`.
     FixtureOpen,
@@ -129,15 +130,16 @@ impl<F: Future> Future for Tracked<F> {
 /// What other threads delivered and the reactor has not taken yet.
 #[derive(Default)]
 struct Deliveries {
-    /// Lines of standard input, each for the oldest waiting read.
-    lines: VecDeque<Line>,
+    /// Chunks of standard input, in order: empty at the end of input,
+    /// `Err(())` when a read failed.
+    chunks: VecDeque<Result<Vec<u8>, ()>>,
     /// Offloaded operations' results, by handle.
     done: Vec<(i32, Done)>,
 }
 
 impl Deliveries {
     fn is_empty(&self) -> bool {
-        self.lines.is_empty() && self.done.is_empty()
+        self.chunks.is_empty() && self.done.is_empty()
     }
 }
 
@@ -181,17 +183,19 @@ pub struct Reactor {
     /// every pending operation.
     ready: Vec<(i128, i32)>,
     inbox: Arc<Inbox>,
-    /// Standard input, until the reader thread takes it; `None` when it is
-    /// closed.
+    /// Standard input, until the reader thread takes it.
     input: Option<Box<dyn BufRead + Send>>,
-    /// Asks the reader thread for one more line.
+    /// Asks the reader thread for one more chunk.
     requests: Option<Sender<()>>,
-    /// The reads waiting for a line, oldest first.
-    reads: VecDeque<i32>,
-    /// Lines asked of the reader thread and not delivered yet.
-    in_flight: usize,
-    /// Lines delivered for a read that was aborted, for the next reads.
-    spare: VecDeque<Line>,
+    /// The reads waiting for input, oldest first; `true` for a `read_all`.
+    reads: VecDeque<(i32, bool)>,
+    /// What the reader thread delivered and no read has taken yet, so an
+    /// aborted read loses no input.
+    buffered: Vec<u8>,
+    /// Whether the input has ended (or is closed): no more chunks come.
+    at_end: bool,
+    /// Whether a chunk was asked of the reader thread and not delivered.
+    asked: bool,
 }
 
 impl Reactor {
@@ -203,11 +207,12 @@ impl Reactor {
             timers: BTreeSet::new(),
             ready: Vec::new(),
             inbox: Arc::default(),
+            at_end: input.is_none(),
             input,
             requests: None,
             reads: VecDeque::new(),
-            in_flight: 0,
-            spare: VecDeque::new(),
+            buffered: Vec::new(),
+            asked: false,
         }
     }
 
@@ -303,30 +308,59 @@ impl Reactor {
 
     /// A read of the next line of standard input.
     pub fn read_line(&mut self) -> i32 {
+        self.read(false)
+    }
+
+    /// A read of all the rest of standard input, as the lines `read_line`
+    /// would return, joined by `\n`.
+    pub fn read_all(&mut self) -> i32 {
+        self.read(true)
+    }
+
+    fn read(&mut self, all: bool) -> i32 {
         let h = self.start(None, Work::Read(None));
-        if let Some(line) = self.spare.pop_front() {
-            self.deliver(h, line);
-        } else {
-            self.reads.push_back(h);
-            if self.in_flight < self.reads.len() {
-                self.request();
-                self.in_flight += 1;
-            }
-        }
+        self.reads.push_back((h, all));
+        self.serve();
         h
     }
 
-    /// Asks for one more line: of the reader thread, which starts on the
-    /// first request, or at once when standard input is closed.
+    /// Completes the oldest waiting reads that the buffered input answers,
+    /// then asks the reader thread for more when a read still waits.
+    fn serve(&mut self) {
+        while let Some(&(h, all)) = self.reads.front() {
+            let line = if all {
+                if !self.at_end {
+                    break;
+                }
+                Some(join_lines(std::mem::take(&mut self.buffered)))
+            } else if let Some(at) = self.buffered.iter().position(|&b| b == b'\n') {
+                let mut line: Vec<u8> = self.buffered.drain(..=at).collect();
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+                Some(String::from_utf8_lossy(&line).into_owned())
+            } else if self.at_end {
+                // A last line with no ending, or the end of input.
+                let rest = std::mem::take(&mut self.buffered);
+                (!rest.is_empty()).then(|| String::from_utf8_lossy(&rest).into_owned())
+            } else {
+                break;
+            };
+            self.reads.pop_front();
+            self.deliver(h, Ok(line.or_else(|| all.then(String::new))));
+        }
+        if !self.reads.is_empty() && !self.asked && !self.at_end {
+            self.request();
+        }
+    }
+
+    /// Asks the reader thread for one more chunk; it starts on the first
+    /// request.
     fn request(&mut self) {
         if self.requests.is_none() {
             let Some(input) = self.input.take() else {
-                let mut queue = self
-                    .inbox
-                    .queue
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner);
-                queue.lines.push_back(Ok(None));
+                self.at_end = true;
                 return;
             };
             let (tx, rx) = channel::<()>();
@@ -335,15 +369,10 @@ impl Reactor {
             // program's end.
             std::thread::spawn(move || {
                 let mut input = input;
-                let mut ended = false;
                 while rx.recv().is_ok() {
-                    let line = if ended {
-                        Ok(None)
-                    } else {
-                        read_one(&mut *input, &mut ended)
-                    };
+                    let chunk = read_chunk(&mut *input);
                     let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
-                    queue.lines.push_back(line);
+                    queue.chunks.push_back(chunk);
                     inbox.ready.notify_all();
                 }
             });
@@ -352,6 +381,7 @@ impl Reactor {
         if let Some(tx) = &self.requests {
             // The thread only stops when this sender is dropped.
             let _ = tx.send(());
+            self.asked = true;
         }
     }
 
@@ -366,22 +396,29 @@ impl Reactor {
     /// each result for its operation. A result whose operation has ended,
     /// aborted while its task ran, is dropped.
     fn take_delivered(&mut self) {
-        let (lines, done) = {
+        let (chunks, done) = {
             let mut queue = self
                 .inbox
                 .queue
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            let lines: Vec<Line> = queue.lines.drain(..).collect();
-            (lines, std::mem::take(&mut queue.done))
+            let chunks: Vec<_> = queue.chunks.drain(..).collect();
+            (chunks, std::mem::take(&mut queue.done))
         };
-        for line in lines {
-            self.in_flight = self.in_flight.saturating_sub(1);
-            match self.reads.pop_front() {
-                Some(h) => self.deliver(h, line),
-                None => self.spare.push_back(line),
+        for chunk in chunks {
+            self.asked = false;
+            match chunk {
+                Ok(bytes) if bytes.is_empty() => self.at_end = true,
+                Ok(bytes) => self.buffered.extend(bytes),
+                // A failed read fails the oldest waiting read only.
+                Err(()) => {
+                    if let Some((h, _)) = self.reads.pop_front() {
+                        self.deliver(h, Err(()));
+                    }
+                }
             }
         }
+        self.serve();
         for (h, done) in done {
             if let Some(op) = self.ops.get_mut(&h)
                 && matches!(op.work, Work::Offloaded(None))
@@ -506,7 +543,7 @@ impl Reactor {
     /// while the abort ran, comes back in the operation, for a caller
     /// that keeps what it holds (`std-net.cancel.read`).
     pub fn remove(&mut self, h: i32) -> Option<Op> {
-        self.reads.retain(|r| *r != h);
+        self.reads.retain(|r| r.0 != h);
         let mut op = self.ops.remove(&h)?;
         if !op.completed {
             self.open -= 1;
@@ -621,28 +658,40 @@ impl Drop for Reactor {
     }
 }
 
-/// Reads one line as the Node host's line reader does: without its
-/// `\n`, and a `\r` before it; a last line with no ending as it is.
-fn read_one(input: &mut dyn BufRead, ended: &mut bool) -> Line {
-    let mut line = Vec::new();
-    match input.read_until(b'\n', &mut line) {
-        Err(_) => Err(()),
-        Ok(0) => {
-            *ended = true;
-            Ok(None)
-        }
-        Ok(_) => {
-            if line.last() == Some(&b'\n') {
-                line.pop();
-                if line.last() == Some(&b'\r') {
-                    line.pop();
-                }
-            } else {
-                *ended = true;
+/// The next chunk of input, as many bytes as the reader has at hand; empty
+/// at the end of input.
+fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, ()> {
+    loop {
+        match input.fill_buf() {
+            Ok(bytes) => {
+                let chunk = bytes.to_vec();
+                input.consume(chunk.len());
+                return Ok(chunk);
             }
-            Ok(Some(String::from_utf8_lossy(&line).into_owned()))
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => return Err(()),
         }
     }
+}
+
+/// All the input that is left, as the Node host's reader answers it: the
+/// lines `read_line` would return joined by `\n`. So the last line ending
+/// goes, and a `\r` before any `\n`; a last line with no ending is kept.
+fn join_lines(mut input: Vec<u8>) -> String {
+    if input.last() == Some(&b'\n') {
+        input.pop();
+        if input.last() == Some(&b'\r') {
+            input.pop();
+        }
+    }
+    let mut out = Vec::with_capacity(input.len());
+    for (i, &b) in input.iter().enumerate() {
+        if b == b'\r' && input.get(i + 1) == Some(&b'\n') {
+            continue;
+        }
+        out.push(b);
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]
@@ -846,6 +895,28 @@ mod tests {
         let op = r.remove(third).expect("read");
         assert!(matches!(op.work, Work::Read(Some(Ok(Some(ref l)))) if l == "b"));
         assert!(!r.wait(), "nothing pending");
+    }
+
+    #[test]
+    fn read_all_joins_the_rest_after_a_line() {
+        let input: &'static [u8] = b"a\r\nb\r\n\nc\n";
+        let mut r = Reactor::new(Some(Box::new(input)));
+        let first = r.read_line();
+        let rest = r.read_all();
+        let again = r.read_all();
+        let mut out = Vec::new();
+        let mut done = Vec::new();
+        while done.len() < 3 {
+            assert!(r.wait());
+            done.extend(r.due(&mut out));
+        }
+        let text = |r: &mut Reactor, h| match r.remove(h).map(|op| op.work) {
+            Some(Work::Read(Some(Ok(text)))) => text,
+            _ => panic!("read {h} has no result"),
+        };
+        assert_eq!(text(&mut r, first).as_deref(), Some("a"));
+        assert_eq!(text(&mut r, rest).as_deref(), Some("b\n\nc"));
+        assert_eq!(text(&mut r, again).as_deref(), Some(""));
     }
 
     #[test]

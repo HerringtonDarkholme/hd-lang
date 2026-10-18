@@ -37,7 +37,7 @@ fn host(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     match method.id {
-        Id::ConsoleWriteLine | Id::ConsoleInputReadLine => {
+        Id::ConsoleWriteLine | Id::ConsoleInputReadLine | Id::ConsoleInputReadAll => {
             console::call(method, finish, caller, params)
         }
         Id::ClockNow

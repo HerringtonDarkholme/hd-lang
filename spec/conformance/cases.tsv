@@ -2098,6 +2098,7 @@ runtime/valid/duration-order.hd	runtime	accept	std/time.md#r-std-time.duration.e
 runtime/valid/eprintln-error-line.hd	runtime	accept	std/console.md#standard-error
 typing/invalid/eprintln-without-console.hd	type	reject:missing-requirement	std/console.md#r-std-console.eprintln.row
 runtime/valid/console-input-helper.hd	runtime	accept	std/console.md#console-input
+runtime/valid/console-read-all.hd	runtime	accept	std/console.md#r-std-console.input.read-all-default
 runtime/valid/host-args-env.hd	runtime	accept	std/host.md#plain-reads
 runtime/valid/fs-helpers.hd	runtime	accept	std/fs.md#file-helpers
 typing/valid/path-newtype.hd	type	accept	std/path.md#paths
