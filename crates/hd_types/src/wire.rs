@@ -10,7 +10,7 @@ use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
 use crate::pool::{
-    Inputs, InternPool, Lifetime, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
 };
 
 const NONE: u32 = u32::MAX;
@@ -51,8 +51,8 @@ mod tag {
     pub const CONTEXT: u8 = 16;
     // 17 was an owned type, `own T`; it is not reused.
     pub const BORROW: u8 = 18;
-    pub const LIFETIME: u8 = 19;
-    pub const LIFETIMES: u8 = 20;
+    // 19 and 20 were a lifetime and a lifetime argument; they are not
+    // reused.
 }
 
 impl<'a> TableWriter<'a> {
@@ -231,22 +231,7 @@ impl<'a> TableWriter<'a> {
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
             TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
             TyData::Context(r) => (tag::CONTEXT, vec![self.row_id(r)?]),
-            TyData::Borrow {
-                ty,
-                mutable,
-                lifetimes,
-            } => (
-                tag::BORROW,
-                vec![self.ty(ty)?, self.list(lifetimes)?, u32::from(mutable)],
-            ),
-            TyData::Lifetime(l) => {
-                let mut w = l.words();
-                if let Lifetime::Field { path, .. } = l {
-                    w[2] = self.def(path);
-                }
-                (tag::LIFETIME, w.to_vec())
-            }
-            TyData::Lifetimes(l) => (tag::LIFETIMES, vec![self.list(l)?]),
+            TyData::Borrow { ty, mutable } => (tag::BORROW, vec![self.ty(ty)?, u32::from(mutable)]),
             other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
@@ -356,22 +341,10 @@ impl Tables {
                 tag::BORROW => {
                     pool.intern_ty(&TyData::Borrow {
                         ty: Ty(row(0)?),
-                        lifetimes: TyList(row(1)?),
-                        mutable: *words.get(2)? != 0,
+                        mutable: *words.get(1)? != 0,
                     })
                     .0
                 }
-                tag::LIFETIME => {
-                    let l = match Lifetime::from_words(&words)? {
-                        Lifetime::Field { input, .. } => Lifetime::Field {
-                            input,
-                            path: def(2)?,
-                        },
-                        l => l,
-                    };
-                    pool.intern_ty(&TyData::Lifetime(l)).0
-                }
-                tag::LIFETIMES => pool.intern_ty(&TyData::Lifetimes(TyList(row(0)?))).0,
                 tag::FN => {
                     pool.intern_ty(&TyData::Fn {
                         params: TyList(row(0)?),

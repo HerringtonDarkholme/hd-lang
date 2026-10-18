@@ -1,6 +1,0 @@
-# test: a lifetime's field path names only pub fields
-data User:
-    pub name: string
-    age: i32
-
-fn age_of(u: ^User) -> ^{u.age} i32: panic("stub")  # diagnostic: private-member

@@ -1,7 +1,0 @@
-# test: a borrow in a field names its lifetime parameter
-data File:
-    fd: i32
-
-data Parser[^doc]:
-    source: ^File  # diagnostic: missing-lifetime
-    at: usize

@@ -636,7 +636,7 @@ impl Ck<'_, '_> {
         // Its statement resolves the annotation again and reports its
         // errors once.
         let mark = self.diags.mark();
-        let ty = self.ty_node(tn);
+        let ty = self.binding_ty_node(tn);
         let failed = self.diags.errors_since(mark) > 0;
         self.diags.truncate(mark);
         let Ok(ty) = ty else { return };
@@ -847,7 +847,7 @@ impl Ck<'_, '_> {
             })
             .flatten();
         let annot = match ty_node {
-            Some(t) => Some(self.ty_node(t)?),
+            Some(t) => Some(self.binding_ty_node(t)?),
             None => None,
         };
         // `grammar.stmt.chain`: `a := b := e` binds `b` to `e`, then `a` to

@@ -1321,17 +1321,8 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
     if pat == t && !pool.has_param(pat) {
         return M::Yes;
     }
-    // A lifetime argument that is one parameter takes the whole argument
-    // (`own.lifetime-arg.write`).
-    if let TyData::Lifetimes(l) = pool.get(pat)
-        && let [one] = pool.list_items(l)
-        && matches!(pool.get(*one), TyData::Param(p) if p.owner == owner)
-    {
-        return match_ty(pool, owner, *one, t, binds);
-    }
     match (pool.get(pat), pool.get(t)) {
         (_, TyData::Poison) => M::Yes,
-        (TyData::Lifetimes(a), TyData::Lifetimes(b)) => match_list(pool, owner, a, b, binds),
         (_, TyData::Infer(_)) => M::Maybe,
         (TyData::Mut(p), _) => match_ty(pool, owner, p, t, binds),
         (_, TyData::Mut(x)) => match_ty(pool, owner, pat, x, binds),

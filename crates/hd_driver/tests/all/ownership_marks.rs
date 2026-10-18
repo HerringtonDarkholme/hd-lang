@@ -45,11 +45,9 @@ fn header_marks_check() {
     let forms = [
         "fn size(f: ^File) -> i32: 0\n",
         "fn fill(f: ^mut File) -> void: pass\n",
-        "fn view(a: ^File) -> ^{a} File: panic(\"stub\")\n",
         "fn job(run: ^fn() -> void) -> void: pass\n",
-        "data Parser[^doc]:\n    at: i32\n",
-        "data Parser[^doc]:\n    at: i32\n\nfn parse(p: Parser[^]) -> void: pass\n",
-        "fn first[^c](x: ^List[^{c} File]) -> ^{c} File: panic(\"stub\")\n",
+        "fn each(xs: List[File], visit: fn(^File) -> void) -> void: pass\n",
+        "data Hook:\n    on_open: fn(^File) -> void\n",
         "impl File:\n    fn peek(^self) -> i32: 0\n",
         "impl File:\n    fn reset(^mut self) -> void: pass\n",
     ];
@@ -57,6 +55,31 @@ fn header_marks_check() {
         let program = format!("{PRELUDE}\n{form}");
         let got = codes(&program);
         assert_eq!(got, Vec::<Code>::new(), "for:\n{form}");
+    }
+}
+
+/// A mark goes only on a parameter, a receiver, a binding, or a function
+/// type's parameter (`own.header.placement`); elsewhere it is
+/// `misplaced-borrow`, and the marked type reports nothing more.
+#[test]
+fn misplaced_marks_reject() {
+    let forms = [
+        "fn view(f: ^File) -> ^File: f\n",
+        "data Reader:\n    source: ^File\n",
+        "enum Found:\n    Some(f: ^File)\n",
+        "fn walk(xs: List[^File]) -> void: pass\n",
+        "fn pick(f: ^File?) -> void: pass\n",
+        "fn pair(p: (^File, i32)) -> void: pass\n",
+        "fn hold(make: fn() -> ^File) -> void: pass\n",
+        "type View = ^File\n",
+        "fn grab(f: File) -> void:\n    let _xs: List[^File] = []\n",
+        "fn make(f: File) -> void:\n    _g := fn(x: ^File) -> ^File: x\n",
+        "fn id[T](x: T) -> T: x\n\nfn grab(f: File) -> void:\n    _g := id::[^File](f)\n",
+    ];
+    for form in forms {
+        let program = format!("{PRELUDE}\n{form}");
+        let got = codes(&program);
+        assert_eq!(got, vec![Code::MisplacedBorrow], "for:\n{form}");
     }
 }
 
@@ -85,8 +108,7 @@ fn later_body_forms_are_unsupported() {
     let forms = [
         "fn id[T](x: T) -> T: x\n\nfn make(f: ^File) -> i32:\n    g := id(f)\n    g.fd\n",
         "fn size(f: ^File) -> i32: f.fd\n\nfn make(f: ^File) -> i32:\n    g := fn() -> i32: size(f)\n    g()\n",
-        "fn walk(xs: ^List[^File]) -> void:\n    for x in xs:\n        pass\n",
-        "fn pick(f: ^File?) -> void:\n    match f:\n        .Some(_) => pass\n        .None => pass\n",
+        "fn walk(xs: ^List[File]) -> void:\n    for x in xs:\n        pass\n",
         "fn plain(f: ^File) -> File: f\n",
     ];
     for form in forms {

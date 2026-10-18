@@ -809,18 +809,6 @@ impl Parser<'_> {
             let before = self.pos();
             if self.at(TokenKind::Placeholder) {
                 self.token_node(SyntaxKind::InferType);
-            } else if self.at_lifetime_argument() {
-                // own.lifetime-arg.types-only
-                self.error(
-                    Code::SyntaxError,
-                    "an expression's type arguments take no lifetime argument; a body's lifetimes are inferred",
-                );
-                let argument = self.start();
-                self.bump(); // ^
-                if self.at(TokenKind::LBrace) {
-                    self.lifetime_set();
-                }
-                self.complete(argument, SyntaxKind::LifetimeArgument);
             } else if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {

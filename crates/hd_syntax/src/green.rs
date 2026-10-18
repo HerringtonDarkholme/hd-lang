@@ -129,10 +129,6 @@ pub enum SyntaxKind {
     RequirementRow,
     // Borrow marks (13-ownership.md: Mark Syntax).
     BorrowType,
-    LifetimeSet,
-    Lifetime,
-    LifetimeParameter,
-    LifetimeArgument,
     /// `^` or `^mut` before `self`.
     ModeMark,
     Error,
@@ -569,10 +565,6 @@ ast_nodes! {
     InferType => InferType,
     RequirementRow => RequirementRow,
     BorrowType => BorrowType,
-    LifetimeSet => LifetimeSet,
-    Lifetime => Lifetime,
-    LifetimeParameter => LifetimeParameter,
-    LifetimeArgument => LifetimeArgument,
     ModeMark => ModeMark,
     ErrorNode => Error,
     SkippedBody => SkippedBody,

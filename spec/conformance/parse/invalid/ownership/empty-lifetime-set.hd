@@ -1,5 +1,0 @@
-# test: a lifetime set names at least one lifetime
-data File:
-    fd: i32
-
-fn view(f: ^File) -> ^{} File: f  # diagnostic: syntax-error

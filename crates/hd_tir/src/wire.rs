@@ -461,7 +461,6 @@ mod tests {
         let borrowed = pool.intern_ty(&TyData::Borrow {
             ty: file,
             mutable: false,
-            lifetimes: pool.list(&[]),
         });
         let mut b = TirBuilder::new(f, BodyKind::Fn);
         let n = NodeIdx::from_raw(0);

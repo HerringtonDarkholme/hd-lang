@@ -6,7 +6,7 @@
 use hd_diag::Code;
 use hd_syntax::NodeRef;
 use hd_tir::ir::{Coercion, NONE, Ref, Tag, TirSink};
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{Ty, TyData};
 
 use crate::body::Ck;
 
@@ -38,9 +38,9 @@ impl Ck<'_, '_> {
 
     /// The type of field `ft` read through a borrow (`own.body.field-read`):
     /// a primitive is copied out, a borrow stays as it is, and any other
-    /// part is borrowed for the same lifetimes, mutably when the base is a
-    /// `^mut` borrow and the field is `mut`.
-    pub(crate) fn borrowed_field(&self, ft: Ty, mutable: bool, lifetimes: TyList) -> Ty {
+    /// part is borrowed, mutably when the base is a `^mut` borrow and the
+    /// field is `mut`.
+    pub(crate) fn borrowed_field(&self, ft: Ty, mutable: bool) -> Ty {
         let pool = self.pool();
         let ft = self.infer.resolve(pool, ft);
         if self.exempt_part(ft) {
@@ -53,7 +53,6 @@ impl Ck<'_, '_> {
         pool.intern_ty(&TyData::Borrow {
             ty,
             mutable: mutable && edge,
-            lifetimes,
         })
     }
 
@@ -90,8 +89,7 @@ impl Ck<'_, '_> {
             return None;
         }
         let what = "this position";
-        // Same modes: the lifetimes a later section checks are inferred
-        // as types are.
+        // Same modes.
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, g, w).is_ok() {
             return Some(r);
@@ -137,8 +135,7 @@ impl Ck<'_, '_> {
             }
             // An optional wraps its payload, which converts on its own.
             (_, TyData::Option(_)) => None,
-            // A borrow in a plain position needs the lifetime checks of a
-            // later section.
+            // A borrow in a plain position waits for a later section.
             _ => {
                 self.mode_gap.get_or_insert(n.index());
                 Some(r)
@@ -161,7 +158,6 @@ impl Ck<'_, '_> {
             TyData::Borrow { mutable, .. } => pool.intern_ty(&TyData::Borrow {
                 ty: self_ty,
                 mutable,
-                lifetimes: TyList::EMPTY,
             }),
             _ => st,
         };

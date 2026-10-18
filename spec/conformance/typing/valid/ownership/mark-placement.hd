@@ -1,0 +1,25 @@
+# test: a mark is written at the top of a parameter's, a receiver's, a binding's, or a function type parameter's type
+data File:
+    fd: i32
+
+data Watcher:
+    on_open: fn(^File) -> void
+
+impl File:
+    fn peek(^self) -> i32: self.fd
+
+fn size(f: ^File) -> i32: f.fd
+
+fn each(files: List[File], visit: fn(^File) -> i32) -> i32:
+    let total = +0
+    for f in files:
+        total = total + visit(f)
+    total
+
+fn report(f: File) -> i32:
+    let view: ^File = f
+    let count = fn(g: ^File) -> i32: size(g)
+    count(view) + view.peek() + each([f], size)
+
+pub fn main() -> void:
+    pass

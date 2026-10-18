@@ -25,10 +25,6 @@ pub(crate) enum Owner {
     TraitImpl,
 }
 
-/// own.lifetime-param.plain
-const LIFETIME_PARAMETER_PLAIN: &str =
-    "a lifetime parameter takes no variance marker, bound, or default";
-
 /// Which generic parameter list a declaration takes.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Generics {
@@ -372,7 +368,6 @@ impl Parser<'_> {
     pub(crate) fn generic_params(&mut self, mode: Generics) {
         let marker = self.start();
         self.bump(); // [
-        let mut saw_lifetime = false;
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
             let before = self.pos();
             let param = self.start();
@@ -380,26 +375,6 @@ impl Parser<'_> {
                 && mode == Generics::Type;
             if variance {
                 self.bump();
-            }
-            if self.at(TokenKind::Caret) {
-                self.lifetime_parameter(variance);
-                saw_lifetime = true;
-                self.complete(param, SyntaxKind::LifetimeParameter);
-                if !self.eat(TokenKind::Comma) {
-                    if !self.at(TokenKind::RBracket) {
-                        self.expected("',' or ']'");
-                        self.skip_to_list_end(TokenKind::RBracket);
-                    }
-                    break;
-                }
-                continue;
-            }
-            if saw_lifetime {
-                // own.lifetime-param.last
-                self.error(
-                    Code::SyntaxError,
-                    "lifetime parameters follow every type parameter",
-                );
             }
             let row = self.eat(TokenKind::Dollar);
             self.expect_name("a generic parameter name");
@@ -445,28 +420,6 @@ impl Parser<'_> {
         }
         self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::GenericParameterList);
-    }
-
-    /// `^name` in a generic parameter list (own.lifetime-param.declared-by):
-    /// no variance, bound, or default.
-    fn lifetime_parameter(&mut self, variance: bool) {
-        if variance {
-            // own.lifetime-param.plain
-            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
-        }
-        self.bump(); // ^
-        self.expect_name("a lifetime parameter name");
-        if self.at(TokenKind::Lt) {
-            // own.lifetime-param.plain
-            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
-            self.bound_list();
-        }
-        if self.at(TokenKind::Eq) {
-            // own.lifetime-param.plain
-            self.error(Code::SyntaxError, LIFETIME_PARAMETER_PLAIN);
-            self.bump();
-            self.ty_argument();
-        }
     }
 
     /// `< [mut] Bound & Bound ...` as a `BoundList`.

@@ -818,7 +818,7 @@ impl Ck<'_, '_> {
         // A `using` binding keeps its initializer's access (flow.using.access).
         let using = std::mem::take(&mut self.using_bind);
         let annot = match ty_node {
-            Some(t) => Some(self.ty_node(t)?),
+            Some(t) => Some(self.binding_ty_node(t)?),
             None => None,
         };
         let name = (pat.kind() == SyntaxKind::BindingPattern && els.is_none())

@@ -1,4 +1,4 @@
-# test: ^ and ^mut write shared and mutable borrows; a lifetime set comes right after ^
+# test: ^ and ^mut write shared and mutable borrows
 trait Sink:
     fn write(self) -> void
 
@@ -12,20 +12,13 @@ fn size(c: ^Conn) -> usize: 0
 
 fn fill(buf: ^mut List[u8]) -> void: pass
 
-fn busier(a: ^Conn, b: ^Conn) -> ^{a, b} Conn:
-    if size(a) > size(b): a else: b
+fn busier(a: ^Conn, b: ^Conn) -> usize:
+    if size(a) > size(b): size(a) else: size(b)
 
 fn emit(sink: ^mut dyn Sink) -> void:
     sink.write()
 
-fn counter(c: ^Conn) -> ^{c} fn() -> usize:
-    fn() -> usize: size(c)
-
-fn primary(pool: ^List[Conn]) -> Option[^Conn]: pool.at(0)
-
-fn peek(pool: ^List[Conn]) -> ^Conn?: pool.at(0)
-
-fn add[^c](dst: ^mut List[^{c} Conn], conn: ^{c} Conn) -> void: pass
+fn count(c: ^Conn, run: ^fn(^Conn) -> usize) -> usize: run(c)
 
 fn view(d: mut Document) -> void:
     let v: ^Document = d

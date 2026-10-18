@@ -602,9 +602,7 @@ fn name_into(
         | TyData::Param(_)
         | TyData::Infer(_)
         | TyData::Canon(_)
-        | TyData::Borrow { .. }
-        | TyData::Lifetime(_)
-        | TyData::Lifetimes(_) => {
+        | TyData::Borrow { .. } => {
             out.push_str(&pool.display(t));
         }
     }
@@ -1193,9 +1191,7 @@ impl Cx<'_> {
             | TyData::Param(_)
             | TyData::Infer(_)
             | TyData::Canon(_)
-            | TyData::Borrow { .. }
-            | TyData::Lifetime(_)
-            | TyData::Lifetimes(_) => {}
+            | TyData::Borrow { .. } => {}
         }
         let d = 1 + parts
             .into_iter()

@@ -1,5 +1,0 @@
-# test: a lifetime's field path names a field of the parameter's value
-data User:
-    pub name: string
-
-fn nick_of(u: ^User) -> ^{u.nick} string: panic("stub")  # diagnostic: unknown-field

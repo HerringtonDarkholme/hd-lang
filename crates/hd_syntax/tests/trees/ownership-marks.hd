@@ -1,11 +1,11 @@
-data Parser[T, ^doc]:
-    source: ^{doc} Document
+data Parser[T]:
+    source: ^Document
     items: List[T]?
 
-impl[^doc] Parser[Item, ^{doc}]:
-    fn take(^mut self, xs: ^mut List[^Item]) -> ^{self, xs.len, $Log, static} mut Item: pass
-    fn peek(^self) -> ^fn() -> Parser[Item, ^]: pass
-    fn swap(^mut self, d: Suspend[^{d} Doc], e: Pair[^, ^{e}]) -> void: pass
+impl Parser[Item]:
+    fn take(^mut self, xs: ^mut List[^Item]) -> ^mut Item: pass
+    fn peek(^self) -> ^fn() -> Parser[Item]: pass
+    fn swap(^mut self, d: Suspend[^Doc], e: Pair[^A, ^mut B]) -> void: pass
 
 fn pick[T](a: ^dyn Show, own: i32) -> (T, ^T?): pass
 

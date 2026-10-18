@@ -1651,11 +1651,9 @@ impl Ck<'_, '_> {
             bt = self.infer.resolve(pool, bt);
         }
         // `own.body.field-read`: an owner's fields are read with mutable
-        // access; a borrow's fields are borrowed for its lifetimes.
+        // access; a borrow's fields are borrowed.
         let lent = match pool.get(bt) {
-            TyData::Borrow {
-                mutable, lifetimes, ..
-            } => Some((mutable, lifetimes)),
+            TyData::Borrow { mutable, .. } => Some(mutable),
             _ => None,
         };
         let bt = self.mode_view(bt);
@@ -1691,8 +1689,8 @@ impl Ck<'_, '_> {
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
             let mut ft = self.field_access(bt, &name, ft);
-            if let Some((mutable, lifetimes)) = lent {
-                ft = self.borrowed_field(ft, mutable, lifetimes);
+            if let Some(mutable) = lent {
+                ft = self.borrowed_field(ft, mutable);
             }
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
@@ -3498,7 +3496,7 @@ impl Ck<'_, '_> {
                 // read by mistake (`fn.default.later-parameter`).
                 if i >= upto {
                     let t = match Src::type_child(p) {
-                        Some(tn) => self.ty_node(tn)?,
+                        Some(tn) => self.binding_ty_node(tn)?,
                         None => Ty::POISON,
                     };
                     let sym = self.cx.names.syms.intern(&name);
@@ -3507,7 +3505,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let t = match Src::type_child(p) {
-                    Some(tn) => self.ty_node(tn)?,
+                    Some(tn) => self.binding_ty_node(tn)?,
                     None => {
                         if let Some(t) = wparams.get(i).copied() {
                             t

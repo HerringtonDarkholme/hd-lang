@@ -1,6 +1,0 @@
-# test: a lifetime parameter takes no bound
-trait Named:
-    fn name(self) -> string
-
-data View[^doc < Named]:  # diagnostic: syntax-error
-    at: usize

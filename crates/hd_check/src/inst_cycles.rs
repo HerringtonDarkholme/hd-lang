@@ -375,9 +375,7 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
         | TyData::Never
         | TyData::Poison
         | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Lifetime(_)
-        | TyData::Lifetimes(_) => {}
+        | TyData::Canon(_) => {}
     }
 }
 

@@ -201,9 +201,6 @@ pub struct Generic {
     pub mut_bound: bool,
     /// The declared variance marker: `+T` is 1, `-T` is -1, unmarked 0.
     pub variance: i8,
-    /// A lifetime parameter (`^a`), which follows every type parameter
-    /// (`own.lifetime-param.last`).
-    pub lifetime: bool,
 }
 
 impl Generic {
@@ -217,7 +214,6 @@ impl Generic {
             row: false,
             mut_bound: false,
             variance: 0,
-            lifetime: false,
         }
     }
 }
@@ -789,10 +785,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             -1 => 0b1000,
             _ => 0,
         };
-        w.u8(u8::from(g.row)
-            | (u8::from(g.mut_bound) << 1)
-            | variance
-            | (u8::from(g.lifetime) << 4));
+        w.u8(u8::from(g.row) | (u8::from(g.mut_bound) << 1) | variance);
     }
     Ok(())
 }
@@ -822,7 +815,6 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
                 0b1000 => -1,
                 _ => 0,
             },
-            lifetime: flags & 0b1_0000 != 0,
         });
     }
     Some(out)
@@ -1819,22 +1811,11 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
         ),
         TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
         TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
-        TyData::Borrow {
-            ty,
-            mutable,
-            lifetimes,
-        } => format!(
-            "^{}{}{}",
-            show_lifetimes(names, pool, lifetimes, " "),
+        TyData::Borrow { ty, mutable } => format!(
+            "^{}{}",
             if mutable { "mut " } else { "" },
             show_ty_opts(names, pool, ty, rows)
         ),
-        TyData::Lifetimes(l) => format!("^{}", show_lifetimes(names, pool, l, "")),
-        TyData::Lifetime(hd_types::Lifetime::Static) => "static".into(),
-        TyData::Lifetime(hd_types::Lifetime::Input(i)) => format!("#{i}"),
-        TyData::Lifetime(hd_types::Lifetime::Field { input, path }) => {
-            format!("#{input}.{}", field_path(names, path))
-        }
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,
@@ -1880,29 +1861,6 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
         TyData::Row(r) => show_row_in(names, pool, r),
         TyData::Context(r) => format!("$.Context[{}]", show_row_in(names, pool, r)),
     }
-}
-
-/// A lifetime set as written after `^`, then `gap`; nothing when empty.
-fn show_lifetimes(names: &Names<'_>, pool: hd_types::Types<'_>, l: TyList, gap: &str) -> String {
-    let items = pool.list_items(l);
-    if items.is_empty() {
-        return String::new();
-    }
-    let parts: Vec<String> = items.iter().map(|t| show_ty_in(names, pool, *t)).collect();
-    format!("{{{}}}{gap}", parts.join(", "))
-}
-
-/// The dotted field names of a lifetime's field path (`addr.city`).
-#[must_use]
-pub fn field_path(names: &Names<'_>, path: DefId) -> String {
-    let mut segs = Vec::new();
-    let mut p = PathId::from_raw(path.raw());
-    while p.get().is_some() && names.paths.kind(p) == PathKind::Member {
-        segs.push(names.paths.segment(p).to_owned());
-        p = names.paths.parent(p);
-    }
-    segs.reverse();
-    segs.join(".")
 }
 
 /// A row as a user reads it, after `$`: its keys in content order

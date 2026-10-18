@@ -1,8 +1,0 @@
-# test: lifetime arguments follow every positional type argument
-data Conn:
-    fd: i32
-
-data Pair[A, ^a]:
-    left: ^{a} A
-
-fn paired(c: ^Conn) -> Pair[^{c}, Conn]: Pair { left: c }  # diagnostic: syntax-error

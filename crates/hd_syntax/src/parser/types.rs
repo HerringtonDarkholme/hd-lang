@@ -67,24 +67,13 @@ impl Parser<'_> {
         done
     }
 
-    /// `^T`, `^mut T`, `^{a, b} mut T` (own.syntax.borrow). A `?` after
-    /// it wraps the marked type (own.syntax.optional), as the caller's loop
-    /// does for `mut T?`.
+    /// `^T`, `^mut T` (own.syntax.borrow). A `?` after it wraps the
+    /// marked type (own.syntax.optional), as the caller's loop does for
+    /// `mut T?`.
     fn ty_marked(&mut self, rows: bool) -> Done {
         let marker = self.start();
         self.bump(); // ^
-        if self.at(TokenKind::LBrace) {
-            self.lifetime_set();
-        }
         self.eat(TokenKind::KwMut);
-        if self.at(TokenKind::LBrace) {
-            // own.syntax.borrow-lifetime
-            self.error(
-                Code::SyntaxError,
-                "the lifetime set comes right after '^': write '^{a} mut T'",
-            );
-            self.lifetime_set();
-        }
         if self.at(TokenKind::Caret) || self.at(TokenKind::KwMut) {
             // own.syntax.one-mark
             self.error(Code::SyntaxError, ONE_MARK);
@@ -95,70 +84,6 @@ impl Parser<'_> {
             self.ty_reference(rows);
         }
         self.complete(marker, SyntaxKind::BorrowType)
-    }
-
-    /// `{ lifetime, ... }` after `^` (own.lifetime.set).
-    pub(crate) fn lifetime_set(&mut self) -> Done {
-        let marker = self.start();
-        self.bump(); // {
-        if self.at(TokenKind::RBrace) {
-            // own.lifetime.set
-            self.error(
-                Code::SyntaxError,
-                "a lifetime set names at least one lifetime",
-            );
-        }
-        while !self.at(TokenKind::RBrace) && self.current().is_some() {
-            let before = self.pos();
-            self.lifetime();
-            if !self.eat(TokenKind::Comma) || self.pos() == before {
-                break;
-            }
-        }
-        self.expect(TokenKind::RBrace, "'}'");
-        self.complete(marker, SyntaxKind::LifetimeSet)
-    }
-
-    /// A lifetime name: a variable or `self`, either followed by a field
-    /// path such as `u.addr`, a lifetime parameter, a requirement key such
-    /// as `$K`, or `static` (own.lifetime.named-by, own.lifetime.field-path).
-    fn lifetime(&mut self) -> Done {
-        let marker = self.start();
-        if self.eat(TokenKind::Dollar) {
-            self.expect_name("a requirement key after '$'");
-        } else if !self.eat(TokenKind::KwSelfValue) {
-            self.expect_name("a lifetime name");
-        }
-        while self.at(TokenKind::Dot)
-            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
-        {
-            self.bump();
-            self.bump();
-        }
-        self.complete(marker, SyntaxKind::Lifetime)
-    }
-
-    /// Whether the `^` here starts a lifetime argument, `^` or `^{...}`
-    /// before `,` or `]`, rather than a borrowed type argument
-    /// (own.lifetime-arg.vs-borrow).
-    pub(crate) fn at_lifetime_argument(&mut self) -> bool {
-        if !self.at(TokenKind::Caret) {
-            return false;
-        }
-        let mut n = 1;
-        if self.nth(1) == Some(TokenKind::LBrace) {
-            n = 2;
-            loop {
-                match self.nth(n) {
-                    Some(TokenKind::RBrace) => break,
-                    None => return false,
-                    Some(kind) if kind.opens() || kind.closes() => return false,
-                    Some(_) => n += 1,
-                }
-            }
-            n += 1;
-        }
-        matches!(self.nth(n), Some(TokenKind::Comma | TokenKind::RBracket))
     }
 
     fn ty_reference(&mut self, rows: bool) -> Done {
@@ -252,25 +177,9 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // [
         let mut saw_binding = false;
-        let mut saw_lifetime = false;
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
             let before = self.pos();
-            if self.at_lifetime_argument() {
-                if saw_binding {
-                    // own.lifetime-arg.last
-                    self.error(
-                        Code::SyntaxError,
-                        "lifetime arguments come before the bindings",
-                    );
-                }
-                saw_lifetime = true;
-                let argument = self.start();
-                self.bump(); // ^
-                if self.at(TokenKind::LBrace) {
-                    self.lifetime_set();
-                }
-                self.complete(argument, SyntaxKind::LifetimeArgument);
-            } else if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
+            if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {
                 if !bindings {
@@ -292,12 +201,6 @@ impl Parser<'_> {
                     self.error(
                         Code::SyntaxError,
                         "bindings follow every positional type argument",
-                    );
-                } else if saw_lifetime {
-                    // own.lifetime-arg.last
-                    self.error(
-                        Code::SyntaxError,
-                        "lifetime arguments follow every type argument",
                     );
                 }
                 self.ty_argument();

@@ -88,7 +88,7 @@ mod tests {
     }
 
     /// Every borrow mark form of `spec/conformance/parse/valid/ownership`
-    /// (`13-ownership.md`, own.syntax.*, own.lifetime*, own.receiver.forms)
+    /// (`13-ownership.md`, own.syntax.*, own.receiver.forms)
     /// round-trips and formats as a
     /// fixed point, and trailing whitespace after a mark is trimmed
     /// (`cli.fmt.meaning`, `cli.fmt.idempotent`).
@@ -103,7 +103,7 @@ mod tests {
             .filter(|path| path.extension().is_some_and(|extension| extension == "hd"))
             .collect();
         files.sort();
-        assert!(files.len() >= 10, "ownership fixtures missing");
+        assert!(files.len() >= 5, "ownership fixtures missing");
         for path in files {
             let src = std::fs::read_to_string(&path).expect("read fixture");
             assert_eq!(round_trip(&src), src, "{}", path.display());
@@ -122,11 +122,11 @@ mod tests {
                 .collect();
             assert_eq!(format(&spaced).expect("parses"), src, "{}", path.display());
         }
-        let marks = "fn f(a: ^File, b: ^{a} mut File) -> ^File?:   \n    let x = a  \n";
+        let marks = "fn f(a: ^File, b: ^mut File?) -> void:   \n    let x = a  \n";
         let once = format(marks).expect("parses");
         assert_eq!(
             once,
-            "fn f(a: ^File, b: ^{a} mut File) -> ^File?:\n    let x = a\n"
+            "fn f(a: ^File, b: ^mut File?) -> void:\n    let x = a\n"
         );
         assert_eq!(format(&once).expect("parses"), once);
     }

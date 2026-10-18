@@ -14,7 +14,7 @@ use crate::body::{Ck, unsupported};
 
 /// What a body with an ownership mark gets until the ownership
 /// prototype's later slices check marks (13-ownership.md, issue #163).
-pub(crate) const OWNERSHIP_GAP: &str = "a borrow mark (`^`, or a lifetime argument)";
+pub(crate) const OWNERSHIP_GAP: &str = "a borrow mark (`^`)";
 
 /// What a (possibly qualified) name in a body reaches.
 #[derive(Clone, Copy, Debug)]
@@ -234,8 +234,6 @@ impl Ck<'_, '_> {
                         let name = self.cx.src.text(t).to_owned();
                         bound.push((name, self.ty_node(ty)?));
                     }
-                } else if a.kind() == SyntaxKind::LifetimeArgument {
-                    return self.gap(a, OWNERSHIP_GAP);
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
                     arg_nodes.push(a);
@@ -573,6 +571,23 @@ impl Ck<'_, '_> {
         self.ty_node_as(n, NameRole::Type)
     }
 
+    /// The type of a binding, a closure parameter, or a function type's
+    /// parameter: the places in a body where a mark is written
+    /// (`own.header.placement`).
+    pub(crate) fn binding_ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+        if n.kind() != SyntaxKind::BorrowType {
+            return self.ty_node(n);
+        }
+        let ty = match n.children().find(|c| c.kind().is_type()) {
+            Some(c) => self.ty_node(c)?,
+            None => Ty::VOID,
+        };
+        let mutable = n
+            .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
+            .is_some();
+        Ok(self.pool().intern_ty(&TyData::Borrow { ty, mutable }))
+    }
+
     /// A type written in an explicit type-argument list of an expression:
     /// the expression infers the arguments it leaves out. In the slot of a
     /// row parameter (`row_slot`), a bare key is a kind error whose fix
@@ -752,7 +767,11 @@ impl Ck<'_, '_> {
                         row = self.row_of(c)?;
                     } else if c.kind().is_type() {
                         let after = arrow.is_some_and(|a| self.cx.src.first(c).raw() > a);
-                        let t = self.ty_node(c)?;
+                        let t = if after {
+                            self.ty_node(c)?
+                        } else {
+                            self.binding_ty_node(c)?
+                        };
                         if after {
                             result = t;
                         } else {
@@ -774,20 +793,17 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
-            // A named lifetime in a body is checked by a later section.
-            SyntaxKind::BorrowType if Src::child(n, SyntaxKind::LifetimeSet).is_some() => {
-                return self.gap(n, OWNERSHIP_GAP);
-            }
+            // `own.header.placement`: a mark here is not on a binding's or
+            // a parameter's type. The marked type is poisoned, so its uses
+            // report nothing more.
             SyntaxKind::BorrowType => {
-                let ty = first(self, n)?;
-                let mutable = n
-                    .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
-                    .is_some();
-                pool.intern_ty(&TyData::Borrow {
-                    ty,
-                    mutable,
-                    lifetimes: hd_types::TyList::EMPTY,
-                })
+                first(self, n)?;
+                self.err(
+                    Code::MisplacedBorrow,
+                    n,
+                    "a `^` mark is written only on a parameter, a receiver, a local binding, or a function type's parameter",
+                );
+                Ty::POISON
             }
             // A row in a row slot, as an explicit argument for a row
             // parameter (`req.row.slot.list`).

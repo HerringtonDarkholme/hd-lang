@@ -253,15 +253,7 @@ impl InferTable {
             },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
-            TyData::Borrow {
-                ty,
-                mutable,
-                lifetimes,
-            } => TyData::Borrow {
-                ty: r(ty),
-                mutable,
-                lifetimes,
-            },
+            TyData::Borrow { ty, mutable } => TyData::Borrow { ty: r(ty), mutable },
             TyData::Fn {
                 params,
                 result,
@@ -460,18 +452,11 @@ impl InferTable {
                 self.unify(pool, r1, r2)
             }
             (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
-            (
-                TyData::Borrow {
-                    ty: x,
-                    mutable: m1,
-                    lifetimes: l1,
-                },
-                TyData::Borrow {
-                    ty: y,
-                    mutable: m2,
-                    lifetimes: l2,
-                },
-            ) if m1 == m2 && l1 == l2 => self.unify(pool, x, y),
+            (TyData::Borrow { ty: x, mutable: m1 }, TyData::Borrow { ty: y, mutable: m2 })
+                if m1 == m2 =>
+            {
+                self.unify(pool, x, y)
+            }
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..

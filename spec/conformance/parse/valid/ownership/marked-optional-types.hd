@@ -2,8 +2,8 @@
 data File:
     fd: i32
 
-data Slot[^a]:
-    held: ^{a} File?
+data Slot:
+    held: ^File?
 
 fn peek(files: ^List[File]) -> ^File?: files.at(0)
 

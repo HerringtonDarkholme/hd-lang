@@ -1,0 +1,5 @@
+# test: a result is never borrowed, so a mark on a result type is misplaced-borrow
+data File:
+    fd: i32
+
+fn view(f: ^File) -> ^File: f  # diagnostic: misplaced-borrow

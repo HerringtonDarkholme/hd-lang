@@ -1,13 +1,10 @@
 Root
   DataDecl data Parser :
-    GenericParameterList [ , ]
+    GenericParameterList [ ]
       GenericParameter T
-      LifetimeParameter ^ doc
     Block
       DataField source :
         BorrowType ^
-          LifetimeSet { }
-            Lifetime doc
           NamedType Document
       DataField items :
         OptionalType ?
@@ -15,14 +12,9 @@ Root
             TypeArgumentList [ ]
               NamedType T
   ImplDecl impl :
-    GenericParameterList [ ]
-      LifetimeParameter ^ doc
     NamedType Parser
-      TypeArgumentList [ , ]
+      TypeArgumentList [ ]
         NamedType Item
-        LifetimeArgument ^
-          LifetimeSet { }
-            Lifetime doc
     Block
       FnDecl fn take -> :
         ParameterList ( , )
@@ -35,11 +27,6 @@ Root
                   BorrowType ^
                     NamedType Item
         BorrowType ^ mut
-          LifetimeSet { , , , }
-            Lifetime self
-            Lifetime xs . len
-            Lifetime $ Log
-            Lifetime static
           NamedType Item
         Block
           ExprStmt
@@ -51,9 +38,8 @@ Root
         BorrowType ^
           FunctionType fn ( ) ->
             NamedType Parser
-              TypeArgumentList [ , ]
+              TypeArgumentList [ ]
                 NamedType Item
-                LifetimeArgument ^
         Block
           ExprStmt
             LiteralExpr pass
@@ -65,16 +51,14 @@ Root
             NamedType Suspend
               TypeArgumentList [ ]
                 BorrowType ^
-                  LifetimeSet { }
-                    Lifetime d
                   NamedType Doc
           Parameter e :
             NamedType Pair
               TypeArgumentList [ , ]
-                LifetimeArgument ^
-                LifetimeArgument ^
-                  LifetimeSet { }
-                    Lifetime e
+                BorrowType ^
+                  NamedType A
+                BorrowType ^ mut
+                  NamedType B
         NamedType void
         Block
           ExprStmt

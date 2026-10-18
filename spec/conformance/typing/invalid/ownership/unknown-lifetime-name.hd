@@ -1,5 +1,0 @@
-# test: a lifetime name that is no parameter, lifetime parameter, or static is unknown-name
-data User:
-    pub name: string
-
-fn named(u: ^User) -> ^{w} string: panic("stub")  # diagnostic: unknown-name

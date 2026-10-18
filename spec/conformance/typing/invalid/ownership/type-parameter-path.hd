@@ -1,5 +1,0 @@
-# test: a lifetime path names fields, never a type parameter
-data Conn:
-    fd: i32
-
-fn stored(items: ^List[Conn]) -> ^{items.T} Conn: panic("stub")  # diagnostic: unknown-field

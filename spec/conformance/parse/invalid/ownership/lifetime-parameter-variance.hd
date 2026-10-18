@@ -1,3 +1,0 @@
-# test: a lifetime parameter takes no variance marker
-data View[+^doc]:  # diagnostic: syntax-error
-    at: usize

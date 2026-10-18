@@ -38,27 +38,15 @@ fn upload!(w: Writer, bytes: List[u8]) -> Result[void, NetError]:
 fn primary(pool: ^List[Conn]) -> Option[^Conn]:
     pool.at(0)
 
-fn busier(a: ^Conn, b: ^Conn) -> ^{a, b} Conn:
-    if a.sent() > b.sent(): a else: b
+fn busier(a: ^Conn, b: ^Conn) -> usize:
+    if a.sent() > b.sent(): a.sent() else: b.sent()
 
 data Document:
     lines: List[string]
 
-data Parser[^doc]:
-    source: ^{doc} Document
-    at: usize
-
-fn parser(d: ^Document) -> Parser[^]:
-    Parser { source: d, at: 0 }
-
-data Export[^doc, ^out]:
-    out: ^{out} mut File
-    source: ^{doc} Document
-
 fn export(d: ^Document, path: string) -> void:
     f := open(path)
-    let job = Export { out: f, source: d }
-    run(job)
+    write_lines(f, d)
 
 data Pool:
     idle: List[Conn]
@@ -84,12 +72,8 @@ fn total(xs: ^List[i32]) -> i32:
 fn on_close(f: File) -> fn() -> void:
     fn() -> void: archive(f)
 
-fn counter(c: ^Conn) -> ^{c} fn() -> usize:
-    fn() -> usize: c.sent()
-
-data Flusher[^f]:
-    out: ^{f} mut File
-    written: usize
+fn counter(c: ^Conn, report: ^fn(usize) -> void) -> void:
+    report(c.sent())
 
 fn first[T](items: ^List[T]) -> Option[^T]:
     items.at(0)
@@ -105,13 +89,6 @@ fn both!(a: string, b: string) -> (Conn, Conn):
 
 fn emit!(sink: ^mut dyn Sink) -> void:
     sink.write!()
-
-fn settings() -> ^{static} Settings:
-    let s: ^Settings = CONFIG
-    s
-
-enum LinkError[^c]:
-    Broken(conn: ^{c} Conn)
 
 fn prune(pool: ^mut Pool) -> List[string]:
     pool.idle.retain(fn(c: ^Conn) -> bool: c.sent() > 0)

@@ -1,0 +1,7 @@
+# test: a field is always plain, so a mark on a field's type is misplaced-borrow
+data File:
+    fd: i32
+
+data Reader:
+    source: ^File  # diagnostic: misplaced-borrow
+    at: usize

@@ -1,5 +1,0 @@
-# test: a bare ^ in a result with two borrowed parameters is ambiguous-lifetime
-data File:
-    fd: i32
-
-fn busier(a: ^File, b: ^File) -> ^File: panic("stub")  # diagnostic: ambiguous-lifetime

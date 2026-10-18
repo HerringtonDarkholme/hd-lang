@@ -1,5 +1,0 @@
-# test: the lifetime set comes right after ^, before mut
-data File:
-    fd: i32
-
-fn write(f: ^mut {g} File, g: ^File) -> void: pass  # diagnostic: syntax-error

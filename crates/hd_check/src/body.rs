@@ -957,13 +957,13 @@ fn fn_body_steps(
         let (tail, _) = ck.block_value(body, Some(ret))?;
         Ok((tail, ret))
     })?;
-    // `own.body.result-written`: an owned or borrowed result is written.
+    // `own.body.result-plain`: a result is never borrowed, so an omitted
+    // one that would be is written as a plain type.
     let pool = ck.pool();
     let shown = ck.infer.resolve(pool, ret);
     if ck.result_omitted && pool.has_mode(shown) {
         let msg = format!(
-            "this function's result is {}, and an owned or borrowed result is written: add `-> {}`",
-            ck.show(shown),
+            "this function's result would be {}, and a result is never borrowed: write a plain result type",
             ck.show(shown)
         );
         ck.err(Code::MissingResultType, node, &msg);
@@ -3385,48 +3385,12 @@ impl Ck<'_, '_> {
                 });
                 self.normalize(x).unwrap_or(x)
             }
-            TyData::Borrow {
-                ty,
-                mutable,
-                lifetimes,
-            } => {
+            TyData::Borrow { ty, mutable } => {
                 let ty = self.zonk(ty);
-                let lifetimes = self.zonk_lifetimes(lifetimes);
-                pool.intern_ty(&TyData::Borrow {
-                    ty,
-                    mutable,
-                    lifetimes,
-                })
-            }
-            TyData::Lifetimes(l) => {
-                let l = self.zonk_lifetimes(l);
-                pool.intern_ty(&TyData::Lifetimes(l))
+                pool.intern_ty(&TyData::Borrow { ty, mutable })
             }
             _ => Ty::POISON,
         }
-    }
-
-    /// A lifetime set with its variables solved; a lifetime variable
-    /// nothing constrained is the empty set, which a later section of
-    /// 13-ownership.md checks.
-    fn zonk_lifetimes(&mut self, l: TyList) -> TyList {
-        let pool = self.pool();
-        let items: Vec<Ty> = pool
-            .list_items(l)
-            .to_vec()
-            .into_iter()
-            .map(|t| {
-                let r = self.infer.resolve(pool, t);
-                if matches!(pool.get(r), TyData::Infer(_)) {
-                    let empty = pool.intern_ty(&TyData::Lifetimes(TyList::EMPTY));
-                    let _ = self.infer.unify(pool, r, empty);
-                    empty
-                } else {
-                    self.zonk(r)
-                }
-            })
-            .collect();
-        pool.list(&items)
     }
 
     /// A row with its variables solved; a row variable nothing constrained
@@ -3584,11 +3548,7 @@ impl Ck<'_, '_> {
         let generic = self
             .generic_vars
             .iter()
-            .find(|(v, _)| {
-                let t = self.infer.resolve(pool, *v);
-                pool.has_mode(t)
-                    && !matches!(pool.get(t), TyData::Lifetimes(_) | TyData::Lifetime(_))
-            })
+            .find(|(v, _)| pool.has_mode(self.infer.resolve(pool, *v)))
             .map(|(_, at)| *at);
         let at = cleanup
             .map(|i| body.syn[i])

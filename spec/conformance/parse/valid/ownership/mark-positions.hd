@@ -2,13 +2,13 @@
 data File:
     fd: i32
 
-data Holder[^a]:
-    view: ^{a} File
-    files: List[^{a} File]
+data Holder:
+    view: ^File
+    files: List[^File]
 
-enum Outcome[^a]:
-    Done(file: ^{a} mut File)
-    Seen(^{a} File)
+enum Outcome:
+    Done(file: ^mut File)
+    Seen(^File)
 
 fn parameter(g: ^File, h: ^mut File) -> void: pass
 

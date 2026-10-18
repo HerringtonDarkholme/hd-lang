@@ -341,9 +341,6 @@ fn layout_in(
         // a mode changes what the checker allows, never the value's
         // representation.
         TyData::Borrow { ty: inner, .. } => layout_in(pool, env, inner, memo)?,
-        TyData::Lifetime(_) | TyData::Lifetimes(_) => {
-            return Err(NotImplemented::new(Stage::Emit, "the layout of a lifetime"));
-        }
         TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
@@ -631,9 +628,8 @@ pub fn canon(
             canon_list(pool, path_hash, memo, args, &mut h);
         }
         // Inference variables and canonical placeholders never reach an
-        // instance key; encode the form only, never a run-local number. A
-        // lifetime names no run-time difference.
-        TyData::Infer(_) | TyData::Lifetime(_) | TyData::Lifetimes(_) => h.u8(12),
+        // instance key; encode the form only, never a run-local number.
+        TyData::Infer(_) => h.u8(12),
         TyData::Canon(n) => {
             h.u8(13);
             h.u8(n);
