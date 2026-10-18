@@ -1,0 +1,6 @@
+hd> double(+1)
+hd> bonus()
+7 : i32
+hd> use self.util.{double}
+hd> double(bonus())
+14 : i32

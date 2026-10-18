@@ -1,0 +1,4 @@
+use self.util.{double}
+double(+4)
+use self.main.{main}
+main()

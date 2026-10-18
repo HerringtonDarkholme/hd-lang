@@ -86,7 +86,7 @@ fn runtime_command(words: &[String]) -> Option<(usize, bool)> {
     let index = 0;
     match before.get(index)?.as_str() {
         "test" => Some((index, true)),
-        "run" => Some((index, false)),
+        "run" | "repl" => Some((index, false)),
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
         | "build" | "check" => None,
         _ if before.iter().any(|w| {
@@ -130,11 +130,22 @@ fn select_engine(
         engine
     } else if let Some(engine) = mode.forced_engine() {
         // Keep `run` as the command; standalone files allow leading options.
-        let at = if matches!(words[command].as_str(), "run" | "test") {
+        let at = if matches!(words[command].as_str(), "run" | "test" | "repl") {
             command + 1
         } else {
             0
         };
+        selected.splice(at..at, ["--engine".to_owned(), engine.to_owned()]);
+        engine
+    } else if words[command] == "repl" {
+        // A session names its engine in every mode, so a mode that leaves
+        // program commands alone still judges the session on one engine.
+        let engine = if fallback.is_empty() {
+            "node"
+        } else {
+            fallback
+        };
+        let at = command + 1;
         selected.splice(at..at, ["--engine".to_owned(), engine.to_owned()]);
         engine
     } else {
@@ -505,6 +516,8 @@ struct Step {
     stdout_json: Option<String>,
     stderr: Vec<String>,
     stderr_json: Option<String>,
+    /// `transcript: PATH`: standard output is the text of this file.
+    transcript: Option<String>,
     files: Vec<(bool, String)>,
 }
 
@@ -579,6 +592,11 @@ fn parse_expect(text: &str) -> Result<Vec<Step>, String> {
             "stderr" => step.stderr.push(unescape(value)?),
             "stdout-json" => step.stdout_json = Some(value.to_owned()),
             "stderr-json" => step.stderr_json = Some(value.to_owned()),
+            "transcript" => {
+                if step.transcript.replace(value.to_owned()).is_some() {
+                    return Err(format!("transcript given twice: {line}"));
+                }
+            }
             "file" => step.files.push((true, value.to_owned())),
             "no-file" => step.files.push((false, value.to_owned())),
             _ => return Err(format!("unknown expect.txt line: {line}")),
@@ -825,6 +843,17 @@ fn judge_step(dir: &Path, step: &Step, ran: &Ran) -> Result<(), String> {
         return Err(format!("exit: want {want}, got {code}; stderr {stderr:?}"));
     }
     judge_stream("stdout", &stdout, &step.stdout, step.stdout_json.as_ref())?;
+    if let Some(path) = &step.transcript {
+        let want = std::fs::read_to_string(dir.join(path))
+            .map_err(|e| format!("transcript {path}: {e}"))?;
+        // Line ends are LF on both sides: a Windows checkout of the
+        // transcript has CRLF.
+        let want = want.replace("\r\n", "\n");
+        let got = stdout.replace("\r\n", "\n");
+        if want != got {
+            return Err(format!("transcript {path}: want {want:?}, got {got:?}"));
+        }
+    }
     judge_stream("stderr", &stderr, &step.stderr, step.stderr_json.as_ref())?;
     for (exists, path) in &step.files {
         let present = dir.join(path).symlink_metadata().is_ok();

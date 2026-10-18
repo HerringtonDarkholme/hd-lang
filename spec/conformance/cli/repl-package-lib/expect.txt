@@ -1,0 +1,3 @@
+# The session runs the inputs of session.in. Standard output is the transcript.
+run: hd repl --script session.in
+transcript: transcript.txt

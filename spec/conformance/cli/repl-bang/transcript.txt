@@ -1,0 +1,12 @@
+hd> use std.fs.{read_text}
+hd> use std.path.{Path}
+hd> read_text!(Path("notes.txt")).is_ok()
+true : bool
+hd> text := read_text!(Path("notes.txt"))
+hd> text
+Result.Ok("from the case directory") : Result[string, FsError]
+hd> fn load!() -> string:
+...     read_text!(Path("notes.txt")).unwrap_or("none")
+...
+hd> load!()
+"from the case directory" : string

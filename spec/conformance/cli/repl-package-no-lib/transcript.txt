@@ -1,0 +1,5 @@
+hd> use self.util.{double}
+hd> double(+4)
+8 : i32
+hd> use self.main.{main}
+hd> main()

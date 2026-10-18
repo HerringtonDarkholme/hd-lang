@@ -1,0 +1,14 @@
+let log: mut List[string] = []
+fn record_then_read(entries: mut List[string]) -> string:
+    entries.push("started")
+    entries[5]
+
+line := record_then_read(log)
+log
+line := "fresh"
+line
+fn lost() -> i32:
+    +2
+_ := [+1][3]
+fn lost() -> i32: +3
+lost()

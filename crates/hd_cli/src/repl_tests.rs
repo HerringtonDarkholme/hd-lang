@@ -2,6 +2,13 @@
 //! test per `cli.repl.*` rule the CLI meets. Each test runs a whole
 //! session: the session thread, the prelude, and each input built as
 //! `repl#N` and run on wasmtime.
+//!
+//! A rule a transcript of standard output can judge has a session case under
+//! `spec/conformance/cli/repl-*` instead (`spec/conformance/README.md`,
+//! "Session Cases"). The tests here check what a transcript cannot: the
+//! text of diagnostics and panic reports, the standard error stream, a
+//! session that starts below the package root, interrupts, `:reload`,
+//! history, completion and the line editor.
 
 use std::collections::VecDeque;
 use std::io::Write;
@@ -177,14 +184,6 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     assert_eq!(crate::take_built(), [pipeline, pipeline]);
 }
 
-/// `cli.repl.value`: an expression input shows its value as `dbg` prints
-/// it, then ` : ` and its type.
-#[test]
-fn an_expression_shows_its_value_and_type() {
-    let t = session(&["[3, 6]", "1 + 2"]);
-    assert_eq!(t.out, "[3, 6] : List[usize]\n3 : usize\n");
-}
-
 /// `cli.dbg.repl`: an input's `dbg` lines print before its value line.
 /// The `dbg` lines are on standard error; standard output holds the
 /// input's own output and its value line.
@@ -221,44 +220,6 @@ fn output_then_dbg_then_value_on_one_terminal() {
     assert_eq!(t.out, "out\nrepl#1:3:5: x = 5\n6 : i32\n");
 }
 
-/// `cli.repl.value.stream`: the value line is on standard output and
-/// nothing else is; standard error stays empty.
-#[test]
-fn the_value_line_is_on_standard_output_alone() {
-    let dir = Scratch::new(SCRATCH, "repl-value-stdout");
-    let stdout = Buffer::default();
-    let t = session_with(
-        &dir,
-        Script::of(&["[3, 6]", "1 + 2"]),
-        |_| {},
-        Some(&stdout),
-        Bounds::default(),
-    );
-    assert_eq!(stdout.text(), "[3, 6] : List[usize]\n3 : usize\n");
-    assert_eq!(t.out, "");
-}
-
-/// `cli.repl.input-types`: each input is checked on its own; `x := 21`
-/// is a `usize`, and a later input does not change it.
-#[test]
-fn each_input_keeps_its_own_literal_types() {
-    let t = session(&["x := 21", "y := -21", "x * 2", "y"]);
-    assert_eq!(t.out, "42 : usize\n-21 : i32\n");
-}
-
-/// `cli.repl.declarations.bindings`: a declaration reads an earlier
-/// input's binding; the spec's `rate` example.
-#[test]
-fn a_declaration_reads_an_earlier_binding() {
-    let t = session(&[
-        "rate := +3",
-        "fn price(n: i32) -> i32: n * rate",
-        "fn total() -> i32: price(+2)",
-        "total()",
-    ]);
-    assert_eq!(t.out, "6 : i32\n");
-}
-
 /// `cli.repl.redeclare.binding`: an input must not declare a function an
 /// earlier input declared; the diagnostic names `repl#N:LINE:COL`. A
 /// `let` binding is assigned, not declared again.
@@ -280,22 +241,6 @@ fn a_function_is_not_declared_again() {
         t.out
     );
     assert_eq!(lines[1], "2 : i32");
-}
-
-/// A session is one scope, as a module is: a later input constructs an
-/// earlier input's type and reads its private fields.
-#[test]
-fn a_later_input_uses_an_earlier_type_s_private_fields() {
-    let t = session(&[
-        "data Point:",
-        "    x: i32",
-        "    y: i32",
-        "",
-        "p := Point { x: 12, y: 23 }",
-        "p",
-        "p.x + p.y",
-    ]);
-    assert_eq!(t.out, "Point { x: 12, y: 23 } : Point\n35 : i32\n");
 }
 
 /// `cli.repl.redeclare.type`: nor a type an earlier input declared.
@@ -382,33 +327,6 @@ fn a_second_impl_is_an_error() {
         t.out
     );
     assert_eq!(lines[1], "\"first\" : string");
-}
-
-/// A session is one module for implementation placement: a later input
-/// implements a trait and adds methods for an earlier input's type, and
-/// the input after calls them on a value.
-#[test]
-fn a_later_input_implements_for_an_earlier_type() {
-    let t = session(&[
-        "data Point:",
-        "    pub x: i32",
-        "    pub y: i32",
-        "",
-        "impl Display for Point:",
-        "    fn to_string(self) -> string: \"(${self.x}, ${self.y})\"",
-        "",
-        "impl Point:",
-        "    fn sum(self) -> i32: self.x + self.y",
-        "",
-        "p := Point { x: +12, y: +23 }",
-        "\"${p}\"",
-        "p.sum()",
-        "p.to_string()",
-    ]);
-    assert_eq!(
-        t.out,
-        "\"(12, 23)\" : string\n35 : i32\n\"(12, 23)\" : string\n"
-    );
 }
 
 /// A session is one module for derivation blocks too
@@ -704,44 +622,6 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     assert_eq!(t.out, "cancelled\n[\"cleanup\"] : List[string]\n");
 }
 
-/// `cli.repl.host.once`: an input's host calls happen once, when it runs;
-/// a later input that calls an earlier one's function repeats none.
-#[test]
-fn host_calls_happen_once() {
-    let t = session(&[
-        "fn twice(x: i32) -> i32: x * +2",
-        "println(\"one\")",
-        "twice(+21)",
-    ]);
-    assert_eq!(t.out, "one\n42 : i32\n");
-}
-
-/// `cli.repl.host.default-profile` and `.args`: an input may call the
-/// default profile's traits; `Args` gives an empty program name and no
-/// arguments.
-#[test]
-fn args_are_empty() {
-    let t = session(&[
-        "use std.host.{args, Args}",
-        "fn name() -> string $ Args: $.use(Args).program()",
-        "name()",
-        "args()",
-    ]);
-    assert_eq!(t.out, "\"\" : string\n[] : List[string]\n");
-}
-
-/// `cli.repl.host.cwd`: relative paths resolve from the working directory
-/// of `hd`, which for the tests is this crate's directory.
-#[test]
-fn relative_paths_resolve_from_the_working_directory() {
-    let t = session(&[
-        "use std.fs.{read_text}",
-        "use std.path.{Path}",
-        "read_text!(Path(\"Cargo.toml\")).is_ok()",
-    ]);
-    assert_eq!(t.out, "true : bool\n");
-}
-
 /// `cli.repl.uses.other`: a use that names a module reaches later inputs.
 #[test]
 fn a_module_use_reaches_later_inputs() {
@@ -918,34 +798,6 @@ fn a_broken_lib_stops_only_the_inputs_that_name_it() {
     );
 }
 
-/// `cli.repl.package.dependencies`: the session may use the package's
-/// dependencies and its dev dependencies.
-#[test]
-fn a_package_session_uses_its_dependencies() {
-    let dir = Scratch::new(SCRATCH, "repl-deps");
-    write_files(
-        &dir,
-        &[
-            (
-                "shop/hd.toml",
-                "[package]\nname = \"shop\"\n\n[dependencies]\nbilling = { path = \"../billing\" }\n\n[dev-dependencies]\nfixtures = { path = \"../fixtures\" }\n",
-            ),
-            ("shop/src/lib.hd", "fn bonus() -> i32: +7\n"),
-            ("billing/hd.toml", "[package]\nname = \"billing\"\n"),
-            ("billing/src/lib.hd", "pub fn tax(x: i32) -> i32: x + +1\n"),
-            ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
-            ("fixtures/src/lib.hd", "pub fn sample() -> i32: +10\n"),
-        ],
-    );
-    let script = Script::of(&[
-        "use dep.billing.{tax}",
-        "use dep.fixtures.{sample}",
-        "tax(sample())",
-    ]);
-    let t = session_in(&dir.join("shop"), script, |_| {});
-    assert_eq!(t.out, "11 : i32\n");
-}
-
 /// An input continues while the parser stops inside it: after a block
 /// header until an empty line, and inside open brackets. Continuation
 /// lines start indented; each line joins the session's history.
@@ -989,14 +841,6 @@ fn an_interrupt_at_the_prompt_drops_the_input() {
     let dir = Scratch::new(SCRATCH, "repl-interrupt");
     let t = session_in(&dir, script, |_| {});
     assert_eq!(t.out, "5 : i32\n");
-}
-
-/// `:quit` ends the session; later lines are not read.
-#[test]
-fn quit_ends_the_session() {
-    let t = session(&["+1", ":quit", "+2"]);
-    assert_eq!(t.out, "1 : i32\n");
-    assert_eq!(t.script.prompts, ["hd> ", "hd> "]);
 }
 
 /// Diagnostics of a later line of an input name its line in `repl#N`.

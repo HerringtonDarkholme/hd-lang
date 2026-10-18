@@ -1,0 +1,4 @@
+hd> use self.util
+hd> use std.cmp.{max}
+hd> max(+3, +4)
+4 : i32

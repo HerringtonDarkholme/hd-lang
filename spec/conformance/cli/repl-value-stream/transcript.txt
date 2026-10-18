@@ -1,0 +1,10 @@
+hd> println("out")
+out
+hd> fn show(x: i32) -> i32:
+...     println("shown")
+...     dbg(x)
+...     x + +1
+...
+hd> show(+5)
+shown
+6 : i32

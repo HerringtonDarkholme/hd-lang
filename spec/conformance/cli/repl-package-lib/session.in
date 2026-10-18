@@ -1,0 +1,4 @@
+double(+1)
+bonus()
+use self.util.{double}
+double(bonus())

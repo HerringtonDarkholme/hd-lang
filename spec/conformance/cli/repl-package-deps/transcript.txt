@@ -1,0 +1,4 @@
+hd> use dep.billing.{tax}
+hd> use dep.fixtures.{sample}
+hd> tax(sample())
+11 : i32

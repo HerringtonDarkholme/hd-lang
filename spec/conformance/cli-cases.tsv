@@ -180,3 +180,16 @@ test-handle-leak	cli.test.leak,cli.test.leak.message,cli.test.leak.closed,cli.te
 manifest-invalid-capabilities	cli.manifest.invalid,cli.manifest.invalid.cases,cli.cap.table.keys,cli.cap.value.unscoped,cli.json.diagnostic.fields,cli.exit.hd-failure
 manifest-invalid-tables	cli.manifest.invalid,cli.manifest.invalid.cases,cli.exe.table,cli.json.diagnostic.fields,cli.exit.hd-failure
 manifest-invalid-syntax	cli.manifest.invalid.syntax,cli.manifest.invalid,cli.json.diagnostic.fields,cli.exit.hd-failure
+repl-value	cli.repl.script,cli.repl.script.lines,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream,cli.repl.input-types
+repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
+repl-declarations	cli.repl.declarations.bindings,cli.repl.redeclare.binding,cli.repl.redeclare.type
+repl-member	cli.repl.declarations.bindings,cli.repl.value
+repl-bang	cli.repl.input.driver,cli.repl.host.cwd,cli.repl.host.default-profile
+repl-panic	cli.repl.panic,cli.repl.panic.binding,cli.repl.panic.mutations,cli.repl.panic.declarations,cli.repl.script.exit
+repl-host	cli.repl.host.once,cli.repl.host.args,cli.repl.host.default-profile
+repl-quit	cli.repl.script,cli.repl.script.engine,cli.repl.command.quit
+repl-outside	cli.repl.outside
+repl-package-lib	cli.repl.package.lib,cli.repl.uses.other
+repl-package-no-lib	cli.repl.package.no-lib,cli.repl.package.no-lib.main
+repl-package-deps	cli.repl.package.dependencies
+repl-workspace	cli.workspace.repl

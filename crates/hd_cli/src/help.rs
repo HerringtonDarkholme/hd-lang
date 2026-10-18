@@ -63,6 +63,20 @@ const COMMANDS: &[Command] = &[
         flags: &[ENGINE, CAP, TIME_LIMIT],
     },
     Command {
+        name: "repl",
+        summary: "run a REPL session from the inputs of a file",
+        usage: "hd repl [--engine NAME] --script FILE",
+        about: &[
+            "Run a REPL session whose inputs are the lines of FILE, as a user would type them.",
+            "The transcript goes to standard output: each input line after its prompt,",
+            "then what the input writes. The session ends at the end of FILE or at :quit.",
+        ],
+        flags: &[
+            ENGINE,
+            ("--script FILE", "read the session's input lines from FILE"),
+        ],
+    },
+    Command {
         name: "build",
         summary: "build the package's executables, or the module of one FILE in the package",
         usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",

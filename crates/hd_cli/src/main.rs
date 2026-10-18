@@ -41,6 +41,7 @@ const USAGE: &str = "usage:
   hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
   hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
+  hd repl [--engine NAME] --script FILE
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
   hd doc [--private] [--out DIR] [--open] [--format json]
@@ -111,6 +112,7 @@ fn main() -> ExitCode {
             )),
         },
         ("test", rest) => test_cmd::command(rest),
+        ("repl", rest) => repl_script_command(rest),
         ("new", rest) => new_cmd::command(rest),
         ("clean", rest) => clean_cmd::command(rest),
         ("cache", rest) => cache_cmd::command(rest),
@@ -157,12 +159,66 @@ fn repl_command() -> ExitCode {
     )
 }
 
+/// `hd repl [--engine NAME] --script FILE` (`cli.repl.script`): a session
+/// whose inputs are the lines of FILE. The REPL runs on wasmtime only, so
+/// any other engine is refused (`cli.engine.unknown`).
+fn repl_script_command(args: &[OsString]) -> ExitCode {
+    let mut script: Option<PathBuf> = None;
+    let mut engine = None;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--script" {
+            let Some(file) = args.get(i + 1) else {
+                return fail("`--script` needs FILE");
+            };
+            if script.replace(PathBuf::from(file)).is_some() {
+                return fail("`--script` is given once");
+            }
+            i += 2;
+        } else if let Some(flag) = engine::engine_flag(args, i) {
+            match flag {
+                Ok((kind, used)) => {
+                    engine = Some(kind);
+                    i += used;
+                }
+                Err(error) => return fail(&error),
+            }
+        } else {
+            return usage();
+        }
+    }
+    let engine = match engine {
+        Some(kind) => kind,
+        None => match engine::from_env() {
+            Ok(kind) => kind,
+            Err(error) => return fail(&error),
+        },
+    };
+    let Some(script) = script else {
+        return usage();
+    };
+    if engine != engine::EngineKind::Wasmtime {
+        return fail("the REPL runs on the wasmtime engine only; name it with `--engine wasmtime`");
+    }
+    repl_script(&script)
+}
+
+#[cfg(feature = "wasmtime")]
+fn repl_script(script: &Path) -> ExitCode {
+    repl::script(script)
+}
+
+#[cfg(not(feature = "wasmtime"))]
+fn repl_script(_script: &Path) -> ExitCode {
+    repl_command()
+}
+
 /// Follow command dispatch: a source argument to `fmt` is not a program run.
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
         "run" | "build" | "check" | "test" | "doc" | "fix" => true,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
-        | "cache" => false,
+        | "cache" | "repl" => false,
         _ => arguments
             .iter()
             .take_while(|a| *a != "--")

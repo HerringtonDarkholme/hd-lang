@@ -1,0 +1,22 @@
+hd> data Point:
+...     x: i32
+...     y: i32
+...
+hd> p := Point { x: 12, y: 23 }
+hd> p
+Point { x: 12, y: 23 } : Point
+hd> p.x + p.y
+35 : i32
+hd> impl Display for Point:
+...     fn to_string(self) -> string: "(${self.x}, ${self.y})"
+...
+hd> impl Point:
+...     fn sum(self) -> i32: self.x + self.y
+...
+hd> q := Point { x: +12, y: +23 }
+hd> "${q}"
+"(12, 23)" : string
+hd> q.sum()
+35 : i32
+hd> q.to_string()
+"(12, 23)" : string

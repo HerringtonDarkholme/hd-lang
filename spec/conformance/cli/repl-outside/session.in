@@ -1,0 +1,3 @@
+use self.util
+use std.cmp.{max}
+max(+3, +4)

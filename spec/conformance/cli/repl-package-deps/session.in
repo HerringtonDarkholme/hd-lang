@@ -1,0 +1,3 @@
+use dep.billing.{tax}
+use dep.fixtures.{sample}
+tax(sample())

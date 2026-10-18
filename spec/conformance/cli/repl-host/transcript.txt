@@ -1,0 +1,11 @@
+hd> fn twice(x: i32) -> i32: x * +2
+hd> println("one")
+one
+hd> twice(+21)
+42 : i32
+hd> use std.host.{args, Args}
+hd> fn name() -> string $ Args: $.use(Args).program()
+hd> name()
+"" : string
+hd> args()
+[] : List[string]

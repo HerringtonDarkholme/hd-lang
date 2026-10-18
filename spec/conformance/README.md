@@ -649,7 +649,8 @@ The runner ignores all other output.
 A CLI case judges the `hd` command line itself: exit statuses, the files a
 command writes, and the machine output of `--format json`. It covers the
 `cli.*` rules of [Command Line](../cli/command-line.md) that have such an
-observable contract. The REPL, the wording of messages, and agent tooling
+observable contract. A REPL session is a CLI case too, in the form of
+[Session Cases](#session-cases). The wording of messages and agent tooling
 are not CLI cases.
 
 The CLI tier is separate from the `cases.tsv` suite. A CLI case needs a
@@ -766,11 +767,12 @@ the next `run:`, are that step's assertions. A line before the first
 | `stdout-json: JSON` | The step's standard output is JSON lines that match `JSON`, as below. At most one. Excludes `stdout:`. |
 | `stderr: TEXT` | One line of the step's exact standard error, as `stdout:` states for standard output. May repeat. Excludes `stderr-json:`. |
 | `stderr-json: JSON` | The same, for standard error. At most one. Excludes `stderr:`. |
+| `transcript: PATH` | The step's standard output is exactly the text of the file `PATH`, as [Session Cases](#session-cases) state. `PATH` is relative to the case directory and has no `..`. At most one. Excludes `stdout:` and `stdout-json:`. |
 | `file: PATH` | After the step, `PATH` exists, as a file or a directory. `PATH` is relative to the case directory and has no `..`. |
 | `no-file: PATH` | After the step, `PATH` does not exist. |
 
-A step with neither `stdout:` nor `stdout-json:` does not judge standard
-output, and one with neither `stderr:` nor `stderr-json:` does not judge
+A step with none of `stdout:`, `stdout-json:`, and `transcript:` does not
+judge standard output, and one with neither `stderr:` nor `stderr-json:` does not judge
 standard error.
 Diagnostic message text is free text and no line asserts it.
 
@@ -800,3 +802,51 @@ run: hd check --format json src/cart.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":null,"file":"src/cart.hd","line":3},{"kind":"summary","errors":1,"status":101}]
 ```
+
+### Session Cases
+
+A session case judges one REPL session. Its directory holds the inputs of the
+session in a file and the expected transcript in another, and its
+`expect.txt` has a step that runs
+[`hd repl --script`](../cli/command-line.md#r-cli.repl.script) on the first
+and judges standard output against the second:
+
+```sh
+cli/repl-value/
+  expect.txt       # run: hd repl --script session.in
+                   # transcript: transcript.txt
+  session.in       # one line typed at the prompt per line
+  transcript.txt   # the expected standard output
+```
+
+- `NAME` is any [CLI case](#cli-cases) name, and the case has a row in
+  `cli-cases.tsv` that cites the `cli.repl.*` rules the session checks.
+- The inputs file holds UTF-8 text. Each line is one line typed at the
+  prompt ([`cli.repl.script.lines`](../cli/command-line.md#r-cli.repl.script.lines)).
+  A case never relies on the line end of the file: a Windows checkout may
+  have CRLF there, and the implementation strips it.
+- The transcript file is the exact standard output of the step, which
+  [`cli.repl.script.echo`](../cli/command-line.md#r-cli.repl.script.echo)
+  defines: each line read after its prompt, and what its input writes to
+  standard output after it. A runner replaces each CRLF with LF in the
+  transcript file and in the output before it compares them, and compares
+  the rest byte for byte.
+- A session writes standard error as a terminal session does. A step that
+  names no `stderr:` line leaves it unjudged, and messages are free text, so
+  a case shows that an input failed by what the later lines of the transcript
+  show.
+- The step's exit status is 0, by
+  [`cli.repl.script.exit`](../cli/command-line.md#r-cli.repl.script.exit),
+  even when an input panicked, so a case seldom names an `exit:` line.
+- The case's working directory is the case directory, so its files form the
+  package or the files that the session reaches: a case without an `hd.toml`
+  is a session outside any package, and a case with one is a session in that
+  package. The inputs file is among them and is no part of the package's
+  sources.
+- A runner that tests one engine at a time puts `--engine NAME` after `repl`.
+  An implementation whose engine does not run sessions fails the case.
+
+A session that needs a host effect writes it to the case directory and reads
+it back in a later input, since the directory is the working directory
+([`cli.repl.host.cwd`](../cli/command-line.md#r-cli.repl.host.cwd)). A case
+never asserts what a panic report, a diagnostic, or a `dbg` line says.

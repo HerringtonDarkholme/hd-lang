@@ -1,0 +1,7 @@
+println("out")
+fn show(x: i32) -> i32:
+    println("shown")
+    dbg(x)
+    x + +1
+
+show(+5)

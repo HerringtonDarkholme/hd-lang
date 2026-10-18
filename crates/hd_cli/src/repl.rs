@@ -204,6 +204,76 @@ pub(crate) fn command() -> ExitCode {
     }
 }
 
+/// The lines of a session script (`hd repl --script`): each input line is
+/// echoed after its prompt, as a terminal shows what a user typed, so the
+/// standard output is the session's transcript (`cli.repl.script.echo`).
+struct ScriptLines {
+    lines: std::vec::IntoIter<String>,
+}
+
+impl Lines for ScriptLines {
+    fn read(&mut self, prompt: &str, _initial: &str) -> Line {
+        let Some(line) = self.lines.next() else {
+            return Line::Eof;
+        };
+        let prompt = prompt.trim_end();
+        let mut out = std::io::stdout().lock();
+        let _ = if line.is_empty() {
+            writeln!(out, "{prompt}")
+        } else {
+            writeln!(out, "{prompt} {line}")
+        };
+        let _ = out.flush();
+        Line::Text(line)
+    }
+
+    fn remember(&mut self, _line: &str) {}
+}
+
+/// `hd repl --script FILE` (`cli.repl.script`): a session over the lines of
+/// `file`, in the package around the working directory or outside any
+/// package, until the end of `file` or `:quit`.
+pub(crate) fn script(file: &Path) -> ExitCode {
+    let text = match std::fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(e) => return crate::fail(&format!("{}: {e}", file.display())),
+    };
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(e) => return crate::fail(&format!("the working directory: {e}")),
+    };
+    let program = match disk::load_session(&cwd) {
+        Ok(program) => program,
+        Err(e) => return crate::fail(&e),
+    };
+    let mut rep = report::Reporter::stderr(false);
+    if rep.diags(&program.problems) {
+        return rep.finish(HD_FAILURE);
+    }
+    let streams = Streams {
+        io: HostIo::process(),
+        diags: Box::new(std::io::stderr()),
+    };
+    let mut lines = ScriptLines {
+        lines: text
+            .lines()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+            .into_iter(),
+    };
+    match run(
+        &mut lines,
+        &cwd,
+        program,
+        streams,
+        Bounds::default(),
+        |_| {},
+    ) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => crate::fail(&e),
+    }
+}
+
 /// The session loop: reads inputs from `lines` until its end or `:quit`,
 /// and runs each in a session over `program`, loaded from `cwd`, within
 /// `bounds`. `:reload` loads the session's

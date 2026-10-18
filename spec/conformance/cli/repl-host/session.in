@@ -1,0 +1,7 @@
+fn twice(x: i32) -> i32: x * +2
+println("one")
+twice(+21)
+use std.host.{args, Args}
+fn name() -> string $ Args: $.use(Args).program()
+name()
+args()

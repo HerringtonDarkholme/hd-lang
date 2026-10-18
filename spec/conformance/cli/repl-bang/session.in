@@ -1,0 +1,9 @@
+use std.fs.{read_text}
+use std.path.{Path}
+read_text!(Path("notes.txt")).is_ok()
+text := read_text!(Path("notes.txt"))
+text
+fn load!() -> string:
+    read_text!(Path("notes.txt")).unwrap_or("none")
+
+load!()

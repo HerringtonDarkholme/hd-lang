@@ -1,0 +1,16 @@
+hd> [3, 6]
+[3, 6] : List[usize]
+hd> 1 + 2
+3 : usize
+hd> x := 21
+hd> y := -21
+hd> x * 2
+42 : usize
+hd> y
+-21 : i32
+hd> println("hello")
+hello
+hd> [1, 2, 3].len()
+3 : usize
+hd> "text"
+"text" : string
