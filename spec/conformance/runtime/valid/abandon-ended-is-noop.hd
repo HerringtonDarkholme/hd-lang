@@ -1,0 +1,32 @@
+# expect-stdout: completed finished
+# expect-stdout: cancelled finished
+# expect-stdout: cold abandoned []
+# test: abandoning a completed job, or one whose cleanup ended, does nothing, even twice; abandoning a cold job marks it without running its body, and later cancels return .Abandoned
+# Spec lang/11 Abandoning: req.abandon.ended, req.abandon.cold, req.abandon.result.
+
+fn record!(log: mut List[string]) -> string:
+    defer: log.push("cleanup")
+    log.push("body")
+    "done"
+
+fn ended!(job: mut Suspend[string]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+pub fn main!() -> void $ Console:
+    let log: mut List[string] = []
+    let done: mut Suspend[string] = record(log)
+    _ := done!()
+    done.abandon()
+    done.abandon()
+    println("completed ${ended!(done)}")
+    let stopped: mut Suspend[string] = record(log)
+    _ := stopped.cancel!()
+    stopped.abandon()
+    stopped.abandon()
+    println("cancelled ${ended!(stopped)}")
+    let quiet: mut List[string] = []
+    let cold: mut Suspend[string] = record(quiet)
+    cold.abandon()
+    println("cold ${ended!(cold)} ${debug(quiet)}")

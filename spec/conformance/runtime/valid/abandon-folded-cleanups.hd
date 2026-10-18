@@ -1,0 +1,55 @@
+# expect-stdout: abandon, a closing, a defer, b closing, b defer
+# expect-stdout: c closing, abandon, c defer, waiter abandoned
+# test: abandon() abandons every cleanup folded into the job: the children all! started, and a shared cleanup the job waits on in cancel!(), whose other waiter gets .Abandoned
+# Spec lang/11 Abandoning: req.abandon.folded, req.abandon.dispose.unstarted, req.abandon.result.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, s, sleep}
+
+data Conn:
+    name: string
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("${self.name} defer")
+        self.log.push("${self.name} closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("${self.name} closed")
+
+fn worker!(name: string, log: mut List[string]) -> i32 $ Clock:
+    using conn = Conn { name: name, log: log, closing: sleep(s(60)) }
+    sleep!(s(60))
+    +1
+
+fn pair!(log: mut List[string]) -> i32 $ Clock:
+    let (a, b) = all!(worker("a", log), worker("b", log))
+    a + b
+
+fn waiter!(job: mut Suspend[i32], log: mut List[string]) -> i32:
+    end := job.cancel!()
+    match end:
+        .Finished => log.push("waiter finished")
+        .Abandoned => log.push("waiter abandoned")
+    +2
+
+fn ready!() -> i32:
+    +0
+
+fn stop!(job: mut Suspend[i32], log: mut List[string]) -> i32:
+    log.push("abandon")
+    job.abandon()
+    +3
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[i32] = pair(log)
+    _ := race!(job, stop(job, log))
+    println(log.join(", "))
+    let other: mut List[string] = []
+    let shared: mut Suspend[i32] = worker("c", other)
+    let holder: mut Suspend[i32] = waiter(shared, other)
+    _ := all!(race(shared, ready()), waiter(shared, other), race(holder, stop(holder, other)))
+    println(other.join(", "))

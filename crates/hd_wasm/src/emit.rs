@@ -23,10 +23,10 @@ use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 
 use crate::asm::Asm;
 use crate::layout::{
-    ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
-    F_STATE, Lay, Layouts, M_GROWN, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, UNWINDING,
-    box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
-    witness_ty,
+    ABANDONED, ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL,
+    F_SAVED, F_STATE, Lay, Layouts, M_GROWN, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape,
+    UNWINDING, box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base,
+    task_base, witness_ty,
 };
 use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
@@ -2907,7 +2907,7 @@ impl Em<'_> {
                 self.store_from(i, &result)
             }
             // `Suspend[T].cancel!`'s cleanup frame (`req.cancel.wait`): a
-            // `Suspend[void]` that starts or continues the task's one
+            // `Suspend[bool]` that starts or continues the task's one
             // cleanup and waits it out (`crates/hd_wasm/DESIGN.md` §14.6).
             "task_cleanup_frame" => {
                 let Shape::Suspend { base, .. } = self.lay.shape(ty)? else {
@@ -2920,6 +2920,39 @@ impl Em<'_> {
                 self.a
                     .call(Sym::Helper(Helper::CleanupCold { base: base.clone() }));
                 self.store_from(i, &[VT::r(base)])
+            }
+            // `Suspend[T].abandon` (`req.abandon.unwind`): the task's own
+            // cancel, run with the `abandon()` depth raised, so it unwinds
+            // at once and kills every shielded `dispose!` it reaches
+            // (`crates/hd_wasm/DESIGN.md` §14.6, "Abandoning").
+            "task_abandon" => {
+                let Shape::Suspend { base, .. } = self.lay.shape(self.ty_of(args[0]))? else {
+                    return unsupported("`abandon` of a value that is not a suspension");
+                };
+                let s = self.a.local(VT::r(base.clone()));
+                let before = self.a.local(VT::I32);
+                self.comp(args[0], 0, &VT::r(base.clone()))?;
+                self.a.set(s);
+                self.a.get(s);
+                self.a.struct_get(&base, F_FLAGS);
+                self.a.set(before);
+                abandon_by(&mut self.a, 1);
+                self.a.get(s);
+                self.a.get(s);
+                self.a.struct_get(&base, F_CANCEL);
+                self.a.call_ref(&cancel_fn());
+                abandon_by(&mut self.a, -1);
+                // An abandon that did something may have ended a cleanup
+                // that parties wait on with no wake: the entry polls again.
+                self.a.get(s);
+                self.a.struct_get(&base, F_FLAGS);
+                self.a.get(before);
+                self.a.s().i32_ne();
+                self.a.if_();
+                self.a.i32(1);
+                self.a.global_set(crate::rt::rewake_global());
+                self.a.end();
+                Ok(())
             }
             "bytes_len" => {
                 let (_, span) = self.str_view(args[0])?;
@@ -5485,6 +5518,102 @@ impl<'a> Em<'a> {
         self.a.end();
     }
 
+    /// Opens a shielded point's block (`crates/hd_wasm/DESIGN.md` §14.6,
+    /// "Abandoning"). Resumed into under `abandon()`, the point kills its
+    /// waiting child, the `dispose!`, with no step: it leaves the block
+    /// with `out` null and the results zero, so the suite goes on as if
+    /// the dispose returned. Otherwise the child is stepped inside the
+    /// dispose (`indisp`), with `depfail` clear; the returned local holds
+    /// the outer `depfail`.
+    fn shield_enter(&mut self, k: u32, child: u32, tmp: &[u32], out: u32) -> StageResult<u32> {
+        let (_, _, _, pc) = self.susp_parts()?;
+        let (aband, indisp, dep) = (
+            crate::rt::abandoning_global(),
+            crate::rt::in_dispose_global(),
+            crate::rt::dep_failed_global(),
+        );
+        self.a.block();
+        self.open(Ctl::Plain);
+        self.a.get(pc);
+        self.a.i32(k.cast_signed());
+        self.a.s().i32_eq();
+        self.a.global_get(aband);
+        self.a.s().i32_eqz().i32_eqz().i32_and();
+        self.a.if_();
+        self.cancel_task(child);
+        let out_ty = self.a.decl(out);
+        self.a.zero(&out_ty);
+        self.a.set(out);
+        for l in tmp {
+            let v = self.a.decl(*l);
+            self.a.zero(&v);
+            self.a.set(*l);
+        }
+        self.a.br(1);
+        self.a.end();
+        let saved = self.a.local(VT::I32);
+        self.a.global_get(dep.clone());
+        self.a.set(saved);
+        self.a.i32(0);
+        self.a.global_set(dep);
+        self.a.global_get(indisp.clone());
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.global_set(indisp);
+        Ok(saved)
+    }
+
+    /// Closes a shielded point's block after the child step left its
+    /// pending child in `out` (null when it returned). A child left
+    /// pending under `abandon()`, or one whose step polled a cancelled
+    /// suspension (a failed dependency, `req.abandon.dependency`), is
+    /// abandoned, and `out` is cleared, so the suite goes on; a failed
+    /// dependency marks this frame's cleanup `ABANDONED`.
+    fn shield_leave(&mut self, saved: u32, out: u32) {
+        let (aband, indisp, dep) = (
+            crate::rt::abandoning_global(),
+            crate::rt::in_dispose_global(),
+            crate::rt::dep_failed_global(),
+        );
+        let frame = self.susp.as_ref().map(|s| (s.frame_ty.clone(), s.frame));
+        self.a.global_get(indisp.clone());
+        self.a.i32(1);
+        self.a.s().i32_sub();
+        self.a.global_set(indisp);
+        let failed = self.a.local(VT::I32);
+        self.a.global_get(dep.clone());
+        self.a.set(failed);
+        self.a.get(saved);
+        self.a.global_set(dep);
+        self.a.raw_get(out);
+        self.a.s().ref_is_null().i32_eqz();
+        self.a.global_get(aband.clone());
+        self.a.get(failed);
+        self.a.s().i32_or().i32_eqz().i32_eqz().i32_and();
+        self.a.if_();
+        if let Some((ft, f)) = frame {
+            self.a.raw_get(f);
+            self.a.s().ref_is_null().i32_eqz();
+            self.a.if_();
+            self.a.raw_get(f);
+            self.a.raw_get(f);
+            self.a.struct_get(&ft, F_FLAGS);
+            self.a.i32(ABANDONED);
+            self.a.s().i32_or();
+            self.a.struct_set(&ft, F_FLAGS);
+            self.a.end();
+        }
+        abandon_by(&mut self.a, 1);
+        self.cancel_task(out);
+        abandon_by(&mut self.a, -1);
+        let out_ty = self.a.decl(out);
+        self.a.zero(&out_ty);
+        self.a.set(out);
+        self.a.end();
+        self.ctrl.pop();
+        self.a.end();
+    }
+
     /// A suspension point (`crates/hd_wasm/DESIGN.md` §14.2 to §14.6).
     fn point(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let Some(k) = self.susp.as_ref().and_then(|s| s.states.get(&i).copied()) else {
@@ -5643,6 +5772,18 @@ impl<'a> Em<'a> {
         self.a.ref_cast(&gbase, true);
         self.a.set(ch);
         self.a.end();
+        let tmp: Vec<u32> = gres.iter().map(|v| self.a.local(v.dflt())).collect();
+        let nc = self.a.local(VT::rn(gbase));
+        // A point in a `using` binding's dispose suite is shielded: under
+        // `abandon()`, or when its `dispose!` loses a dependency, it kills
+        // the `dispose!` instead of waiting (`crates/hd_wasm/DESIGN.md`
+        // §14.6, "Abandoning").
+        let shielded = self.shield > 0;
+        let saved = if shielded {
+            Some(self.shield_enter(k, ch, &tmp, nc)?)
+        } else {
+            None
+        };
         self.a.raw_get(ch);
         let pool = self.pool();
         let mut ps = Vec::new();
@@ -5655,11 +5796,12 @@ impl<'a> Em<'a> {
         }
         self.push_call_providers(t.item, t.args)?;
         self.a.call(Sym::Part(t.key, Part::Body));
-        let tmp: Vec<u32> = gres.iter().map(|v| self.a.local(v.dflt())).collect();
-        let nc = self.a.local(VT::rn(gbase));
         self.a.set(nc);
         for l in tmp.iter().rev() {
             self.a.set(*l);
+        }
+        if let Some(saved) = saved {
+            self.shield_leave(saved, nc);
         }
         self.a.raw_get(nc);
         self.a.s().ref_is_null().i32_eqz();
@@ -5701,18 +5843,45 @@ impl<'a> Em<'a> {
         fresh(self, &base)?;
         self.a.set(s);
         self.a.end();
+        let tmp: Vec<u32> = stored.iter().map(|v| self.a.local(v.dflt())).collect();
+        let ready = self.a.local(VT::I32);
+        // A point in a `using` binding's dispose suite is shielded: under
+        // `abandon()`, or when its `dispose!` loses a dependency, it kills
+        // the `dispose!` instead of waiting (`crates/hd_wasm/DESIGN.md`
+        // §14.6, "Abandoning"). `gone` is the child left to wait on.
+        let shielded = self.shield > 0;
+        let gone = self.a.local(VT::rn(base.clone()));
+        let saved = if shielded {
+            Some(self.shield_enter(k, s, &tmp, gone)?)
+        } else {
+            None
+        };
         self.a.raw_get(s);
         self.a.s().ref_as_non_null();
         self.a.raw_get(s);
         self.a.s().ref_as_non_null();
         self.a.struct_get(&base, F_POLL);
         self.a.call_ref(&poll);
-        let tmp: Vec<u32> = stored.iter().map(|v| self.a.local(v.dflt())).collect();
-        let ready = self.a.local(VT::I32);
         for l in tmp.iter().rev() {
             self.a.set(*l);
         }
         self.a.set(ready);
+        if let Some(saved) = saved {
+            self.a.ref_null(&base);
+            self.a.set(gone);
+            self.a.get(ready);
+            self.a.s().i32_eqz();
+            self.a.if_();
+            self.a.raw_get(s);
+            self.a.set(gone);
+            self.a.end();
+            self.shield_leave(saved, gone);
+        }
+        if shielded {
+            self.a.raw_get(gone);
+            self.a.s().ref_is_null();
+            self.a.set(ready);
+        }
         self.a.get(ready);
         self.a.s().i32_eqz();
         self.a.if_();
@@ -6898,7 +7067,17 @@ fn emit_suspending(
         a.get(0);
         a.ref_cast(&ft, false);
         a.set(f);
-        flag_checks(&mut a, f, &ft, true);
+        // The runtime checks (`rt::Helper::PollCheck`); a failed
+        // dependency of a dispose answers Pending.
+        a.get(f);
+        a.call(Sym::Helper(Helper::PollCheck));
+        a.if_();
+        a.i32(0);
+        for v in &dres {
+            a.zero(v);
+        }
+        a.s().return_();
+        a.end();
         a.get(f);
         a.get(f);
         a.struct_get(&ft, F_FLAGS);
@@ -6946,19 +7125,27 @@ fn emit_suspending(
     // f$cancel (§14.6): a frame that never waited only gets marked. A
     // frame that is unwinding (`UNWINDING`) continues: its shielded
     // `dispose!` waits, and the flag clears once its body completes.
+    // Under `abandon()` the frame is marked `ABANDONED`, and the
+    // `ABANDONED` bits of the cancels it makes carry up into it
+    // (`req.abandon.carry`, `crate::rt::abandon_seen_global`).
     let mut a = Asm::new(vec![VT::Eq]);
     let f = a.local(VT::r(ft.clone()));
     let back = a.local(VT::rn(base.clone()));
+    let seen = a.local(VT::I32);
     a.get(0);
     a.ref_cast(&ft, false);
     a.set(f);
-    cancel_checks(&mut a, f, &ft);
+    a.call(Sym::Helper(Helper::CancelEnter));
+    a.set(seen);
+    a.block();
+    a.get(f);
+    a.call(Sym::Helper(Helper::CancelCheck));
+    a.s().i32_eqz();
+    a.br_if(0);
     a.get(f);
     a.struct_get(&ft, F_STATE);
     a.s().i32_eqz();
-    a.if_();
-    a.s().return_();
-    a.end();
+    a.br_if(0);
     a.get(f);
     for v in &logical[1..] {
         a.zero(&v.dflt());
@@ -6978,6 +7165,10 @@ fn emit_suspending(
     a.i32(UNWINDING);
     a.s().i32_mul().i32_or();
     a.struct_set(&ft, F_FLAGS);
+    a.end();
+    a.get(f);
+    a.get(seen);
+    a.call(Sym::Helper(Helper::CancelLeave));
     let cancel = a.finish(vec![]);
     // A held body never runs: a direct caller passes a null frame on the
     // fresh path, so build the frame through the cold constructor and
@@ -7017,70 +7208,12 @@ fn emit_suspending(
     Ok(code)
 }
 
-/// The checks of `f$cancel` (§14.6): an active frame is a re-entrant
-/// cancel; a completed or cancelled frame returns, unless it is unwinding,
-/// which continues; else the frame is marked cancelled.
-fn cancel_checks(a: &mut Asm, f: u32, ft: &WTy) {
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(ACTIVE);
-    a.s().i32_and();
-    a.if_();
-    a.call(Sym::Helper(Helper::Panic(
-        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
-    )));
-    a.s().unreachable();
-    a.end();
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(UNWINDING);
-    a.s().i32_and();
-    a.if_();
-    a.else_();
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(DONE | CANCELLED);
-    a.s().i32_and();
-    a.if_();
-    a.s().return_();
-    a.end();
-    a.get(f);
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(CANCELLED);
-    a.s().i32_or();
-    a.struct_set(ft, F_FLAGS);
-    a.end();
-}
-
-/// The runtime checks of `f$poll` and `f$cancel` (§14.3, §14.6): an
-/// active frame is a re-entrant poll; a poll of a completed or cancelled
-/// frame is invalid, and a cancel of one does nothing.
-fn flag_checks(a: &mut Asm, f: u32, ft: &WTy, poll: bool) {
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(ACTIVE);
-    a.s().i32_and();
-    a.if_();
-    a.call(Sym::Helper(Helper::Panic(
-        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
-    )));
-    a.s().unreachable();
-    a.end();
-    a.get(f);
-    a.struct_get(ft, F_FLAGS);
-    a.i32(DONE | CANCELLED);
-    a.s().i32_and();
-    a.if_();
-    if poll {
-        a.call(Sym::Helper(Helper::Panic(
-            "suspension-invalid-state: a completed or cancelled suspension was polled".into(),
-        )));
-        a.s().unreachable();
-    } else {
-        a.s().return_();
-    }
-    a.end();
+/// Adds `by` to the `abandon()` depth (`crate::rt::abandoning_global`).
+fn abandon_by(a: &mut Asm, by: i32) {
+    a.global_get(crate::rt::abandoning_global());
+    a.i32(by);
+    a.s().i32_add();
+    a.global_set(crate::rt::abandoning_global());
 }
 
 /// The entry exports (`crates/hd_mono/DESIGN.md` §13.1, `crates/hd_wasm/DESIGN.md` §14.4): `hd.init`

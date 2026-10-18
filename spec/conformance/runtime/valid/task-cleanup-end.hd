@@ -2,7 +2,7 @@
 # expect-stdout: CleanupEnd.Finished CleanupEnd.Abandoned
 # expect-stdout: true false
 # test: CleanupEnd has two variants with Eq and Debug, and cancel!() of a cold or completed suspension returns .Finished
-# Spec std/task Cleanup End: std-task.cleanup-end.decl, std-task.cleanup-end.finished, std-task.cleanup-end.abandoned, std-task.cleanup-end.debug.
+# Spec std/task Cleanup End: std-task.cleanup-end.decl, std-task.cleanup-end.finished, std-task.cleanup-end.debug.
 use std.task.CleanupEnd
 
 fn fetch!() -> string:

@@ -705,7 +705,7 @@ callee-private `$F_f` extends that base:
 ```text
 $Task      = (sub (struct (field $cancel (ref null $CancelFn))
                           (field $state (mut i32))      ;; resume point; 0 = not started
-                          (field $flags (mut i32))))    ;; ACTIVE, DONE, CANCELLED bits
+                          (field $flags (mut i32))))    ;; ACTIVE, DONE, CANCELLED, UNWINDING, ABANDONED bits
 $Suspend_L = (sub $Task (struct ... $Task fields ...
                           (field $poll (ref null $PollFn_L))
                           (field $driver (mut anyref))))
@@ -951,8 +951,12 @@ needs nothing here.
    synchronous code.
 
 A frame that was never polled has no registered suite, so cancelling it
-only marks it. Raw abandonment of a started frame runs nothing, as the
-spec says.
+only marks it. Dropping a started frame without a cancel runs nothing, as
+the spec says.
+
+Implementation differs: steps 1 to 3 are the shared helper
+`rt::Helper::CancelCheck`, and `f$poll`'s checks are
+`rt::Helper::PollCheck`, so each frame's parts hold one call each.
 
 **Shielded disposes.** A `using` binding's dispose suite holds a
 suspension point ([`flow.using.cancel`](../../spec/lang/06-control-flow.md#r-flow.using.cancel)),
@@ -997,8 +1001,52 @@ cleanup frame that the `task_cleanup_frame` intrinsic builds
   `race!`'s loser cancels therefore run under no waker node
   (`rt::unwatched`), and a Pending poll restores `wregs`, so it counts as
   unregistered. An `all!` then polls such a party again on every poll.
-- `CleanupEnd` is always `.Finished` for now: nothing cuts a cleanup
-  short yet.
+- The cleanup frame is a `Suspend[bool]`: Ready with whether the task's
+  frame carries `ABANDONED`, which `cancel!` turns into `CleanupEnd`.
+
+**Abandoning.** `Suspend[T].abandon` is std hd over the `task_abandon`
+intrinsic, which calls the task's `f$cancel` with the runtime global
+`aband` raised
+([`req.abandon.unwind`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.unwind)):
+
+- `CancelCheck` marks every frame it lets go on `ABANDONED` (flag 32)
+  while `aband` is set. That flag is the kept result every later
+  `cancel!` reads
+  ([`req.abandon.result`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.result)).
+- A shielded point (§14.6 above) gets a block around its child step
+  (`Em::shield_enter`, `Em::shield_leave`). Resumed into while `aband`
+  is set, it cancels its waiting `dispose!` without stepping it, and the
+  suite goes on as if the dispose returned. A fresh dispose that goes
+  Pending while `aband` is set is cancelled the same way, so it runs to
+  its first suspension point only. That cancel runs under `aband` too:
+  the dispose's own registered suites run, and its pending host leaf
+  aborts and closes nothing.
+- Nothing else changes: a cancellation branch's child never stays
+  UNWINDING under `aband`, so the cancel ends in one call, innermost
+  first, in the ladders' order. `race!`'s and the cleanup frame's
+  cancels reach their children through the same `f$cancel`s.
+- **Carry.** Each `f$cancel` brackets its work with `CancelEnter` and
+  `CancelLeave` over the global `abseen`: the `ABANDONED` bits that the
+  cancels it made saw mark its frame, and it adds its own bit for its
+  caller. So a cleanup that folds an abandoned one ends abandoned too
+  ([`req.abandon.carry`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.carry)).
+- **Waking.** Waiters on the ended cleanup registered no wake (above),
+  and no host operation is left to wake them. An abandon that changed
+  its task's flags sets the global `rewake`, and the entry's `hd.poll`
+  polls the root again while it is set. `block_on` does not check it,
+  so a waiter driven by `block_on` whose cleanup is abandoned from
+  inside the same drive still reports a deadlock.
+- **A failed dependency**
+  ([`req.abandon.dependency`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.dependency)).
+  A shielded point steps its `dispose!` with the global `indisp` raised
+  and `depfail` clear. `PollCheck` answers a poll of a cancelled frame
+  made while `indisp` is set with Pending and sets `depfail`, instead of
+  panicking. The shielded point then cancels the dispose under `aband`,
+  marks its own frame `ABANDONED`, and goes on with the rest of the
+  ladder. A `race!` that a sibling wins restores `depfail`, so a loser
+  that hit a cancelled suspension does not kill the dispose. Only
+  generated frames have `PollCheck`; a `std.task` frame or a host stub
+  polled after a cancel still panics.
 
 ### 14.7 Hook Points
 

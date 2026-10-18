@@ -1060,8 +1060,9 @@ pub trait Disposable:
 16. r[flow.using.not-forbidden] A dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
 17. r[flow.using.panic] A runtime panic does not run pending disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
 18. r[flow.using.cancel] Cancellation unwinds a task as any exit does: its registered disposes run, in last-in, first-out order with its `defer` suites.
-19. r[flow.using.cancel.shield] Each dispose runs to its end. A `dispose!` that suspends is shielded from the cancellation, and it takes no cancellation of its own.
-20. r[flow.using.cancel.wait] The cancellation of a task completes only once its disposes have. A suspension whose cancellation reaches a child waits for the child's disposes before it runs its own.
+19. r[flow.using.cancel.shielded] A `dispose!` that suspends is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
+20. r[flow.using.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut a dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
+21. r[flow.using.cancel.wait] The cancellation of a task completes only once its disposes have. A suspension whose cancellation reaches a child waits for the child's disposes before it runs its own.
 
 ```text
 use std.ops.Disposable
@@ -1101,6 +1102,8 @@ fn plain(id: i32) -> void:
 > [`req.cancel.wait`](11-requirements-and-suspension.md#r-req.cancel.wait),
 > and a cancel that arrives during a dispose takes it over, by
 > [`req.cancel.takeover`](11-requirements-and-suspension.md#r-req.cancel.takeover).
+> `abandon()` stops a waiting dispose instead, and a handle the dispose
+> owns needs a `defer` in the dispose that closes it.
 > `using` does not stop an alias of the value from outliving its scope.
 
 ## Unreachable Code

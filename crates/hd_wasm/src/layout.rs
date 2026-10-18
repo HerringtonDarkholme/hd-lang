@@ -266,6 +266,10 @@ pub const CANCELLED: i32 = 8;
 /// shielded from the cancellation (flow.using.cancel): each later cancel
 /// call continues it, and the flag clears once its body completes.
 pub const UNWINDING: i32 = 16;
+/// A frame whose cleanup was cut short (`req.abandon.result`): it was
+/// abandoned, a cleanup folded into it was, or one of its disposes lost a
+/// dependency. It is the kept result every later `cancel!` returns.
+pub const ABANDONED: i32 = 32;
 
 /// The cancel function's type: `(frame) -> ()`, one for every layout.
 #[must_use]

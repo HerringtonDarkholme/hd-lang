@@ -1,0 +1,62 @@
+# expect-stdout: won
+# expect-stdout: send close, channel defer, plain closed
+# expect-stdout: cancelled abandoned
+# expect-stdout: value
+# expect-stdout: send close, channel defer
+# expect-stdout: completed abandoned
+# test: a dispose! that awaits a job cancelled elsewhere unwinds from that await as an abandon would, the rest of the cleanup goes on, and the cleanup ends .Abandoned; after an ordinary return the job still completes with its value
+# Spec lang/11 Abandoning: req.abandon.dependency, req.abandon.dependency.result, req.abandon.dependency.completed.
+use std.ops.Disposable
+use std.task.race
+use std.time.{Clock, s, sleep}
+
+data Channel:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Channel:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("channel defer")
+        self.log.push("send close")
+        let mut wait = self.ack
+        wait!()
+        self.log.push("acked")
+
+data Plain:
+    log: mut List[string]
+
+impl Disposable for Plain:
+    fn dispose!(mut self) -> void:
+        self.log.push("plain closed")
+
+fn talk!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+    using plain = Plain { log: log }
+    using channel = Channel { log: log, ack: ack }
+    sleep!(s(60))
+    "late"
+
+fn quick!(log: mut List[string], ack: mut Suspend[void]) -> string:
+    using channel = Channel { log: log, ack: ack }
+    "value"
+
+fn ready!() -> string:
+    "won"
+
+fn ended!(job: mut Suspend[string]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+pub fn main!() -> void $ Console + Clock:
+    let ack: mut Suspend[void] = sleep(s(60))
+    _ := ack.cancel!()
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = talk(log, ack)
+    println(race!(job, ready()))
+    println(log.join(", "))
+    println("cancelled ${ended!(job)}")
+    let other: mut List[string] = []
+    let done: mut Suspend[string] = quick(other, ack)
+    println(done!())
+    println(other.join(", "))
+    println("completed ${ended!(done)}")

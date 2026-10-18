@@ -1219,6 +1219,7 @@ data Suspend[T]: pass
 impl[T] Suspend[T]:
     fn poll(mut self, context: PollContext) -> Poll[T]
     fn cancel!(mut self) -> CleanupEnd
+    fn abandon(mut self) -> void
 ```
 
 1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error, because `Suspend` names a built-in type and no trait. Error: `unknown-trait`.
@@ -1300,7 +1301,7 @@ fn demo!() -> string:
 
 1. r[req.discard.cold] Discarding a cold suspension that has never been polled has no cleanup work to perform.
 2. r[req.discard.started] Once polling has begun, a host or driver that stops owning the suspension must cancel it before discarding it.
-3. r[req.discard.abandoned] Raw abandonment of a started suspension does not run its registered `defer` suites.
+3. r[req.discard.dropped] Dropping a started suspension without cancelling or abandoning it does not run its registered `defer` suites.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
@@ -1404,8 +1405,8 @@ pub fn rejected_construction() -> void:
 ## Cancellation
 
 This section defines `cancel!`, which stops a suspension and waits until
-its cleanup has ended, and how the standard combinators cancel their
-children.
+its cleanup has ended, `abandon`, which stops it and cuts its cleanup
+short, and how the standard combinators cancel their children.
 
 ```text
 use std.ops.Disposable
@@ -1480,6 +1481,72 @@ fn stop!(job: mut Suspend[i32]) -> void:
 
 > **Note.** A cancel that waits keeps the code after it from running. In
 > the example, `stopper` logs only after the close has finished.
+
+### Abandoning
+
+`abandon()` stops a suspension and unwinds it at once, cutting short every
+`dispose!` that waits:
+
+```text
+use std.ops.Disposable
+use std.task.race
+use std.time.{Clock, ms, s, sleep}
+
+data Release:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Release:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("dispose defer")
+        self.log.push("dispose start")
+        let mut wait = self.closing
+        wait!()                        # abandon() stops the dispose here
+        self.log.push("dispose end")
+
+fn ordered!(res: mut Release, log: mut List[string]) -> string $ Clock:
+    defer: log.push("outer")
+    using r = res
+    defer: log.push("tail")
+    sleep!(s(60))
+    "late"
+
+fn stop!(job: mut Suspend[string]) -> string:
+    job.abandon()   # returns once the unwinding has ended
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = ordered(Release { log: log, closing: sleep(ms(5)) }, log)
+    println(race!(job, stop(job)))   # stopped
+    println(log.join(", "))          # tail, dispose start, dispose defer, outer
+```
+
+1. r[req.abandon.method] `Suspend[T]` has the method `abandon(mut self) -> void`. It does not suspend, so any function may call it.
+2. r[req.abandon.unwind] It marks the suspension cancelled and unwinds it once, synchronously. The unwinding has ended when the call returns, before any other task runs.
+3. r[req.abandon.order] The unwinding runs the cleanup as one last-in, first-out list, from the innermost frame outward. `defer` suites and disposes keep the order of [`flow.using.order`](06-control-flow.md#r-flow.using.order).
+4. r[req.abandon.defer] Every registered `defer` suite runs once, including those of a `dispose!` that is running. A `defer` suite never registered does not run.
+5. r[req.abandon.dispose] A `dispose!` that waits is stopped at its suspension point, after its own registered `defer` suites run. The code after that point never runs.
+6. r[req.abandon.dispose.unstarted] A dispose that has not started yet starts. It runs to its first suspension point and is stopped there the same way.
+7. r[req.abandon.host] A pending host operation is aborted as that operation's own cancellation rule says. Abandoning closes no handle: one that a dispose borrows, or that the operation uses, stays open.
+8. r[req.abandon.folded] Every cleanup that cancellation folds into the suspension is abandoned the same way. That includes an unfinished child's cleanup, the children's of `all!` and `race!`, and a cleanup the suspension waits on in `cancel!()`.
+9. r[req.abandon.result] Every `cancel!()` waiting on the suspension's cleanup returns `.Abandoned`, and so does every later `cancel!()` of it.
+10. r[req.abandon.carry] A cleanup that folds an abandoned cleanup ends `.Abandoned` too, even when its own part ran to its end.
+11. r[req.abandon.cold] Abandoning a cold suspension marks it cancelled without running its body.
+12. r[req.abandon.ended] Abandoning a suspension that has ended does nothing: one that completed, or one whose cleanup ended. Abandoning it twice is the same as once.
+13. r[req.abandon.active] Abandoning a suspension while it or one of its descendants is active on the current poll stack panics, as cancelling it does by [`req.check.cancel-active`](#r-req.check.cancel-active). Panic: `suspension-reentrant-poll`.
+14. r[req.abandon.dependency] A `dispose!` that awaits a suspension cancelled elsewhere is unwound from that await as an abandon would unwind it. Its registered `defer` suites run, and the code after the await never runs.
+15. r[req.abandon.dependency.result] The cleanup that the dispose belongs to then ends `.Abandoned`. The rest of that cleanup goes on as usual.
+16. r[req.abandon.dependency.completed] If that dispose ran after an ordinary exit, the suspension still completes with its value. Only its kept cleanup result is `.Abandoned`.
+
+> **Why.** asyncpg pairs a graceful `close()` with a synchronous
+> `terminate()`; `cancel!()` and `abandon()` are that pair. A killed wait
+> closes nothing, because a dispose may wait on a handle it only borrows;
+> a dispose that owns a handle registers a `defer` that closes it.
+
+> **Note.** A `dispose!` is shielded from the cancellation of its task,
+> but no shield can produce the value of a suspension that was cancelled
+> elsewhere, so that one await ends its dispose early.
 
 ### Standard Combinators
 

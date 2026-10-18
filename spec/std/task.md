@@ -278,7 +278,7 @@ pub enum CleanupEnd:
 
 1. r[std-task.cleanup-end.decl] `std.task` declares the enum `CleanupEnd` with the two variants above. `CleanupEnd` implements `Eq` and `Debug`. Code imports it with `use std.task.CleanupEnd`.
 2. r[std-task.cleanup-end.finished] `.Finished` means the whole cleanup ran to its end, with nothing in it cut short.
-3. r[std-task.cleanup-end.abandoned] `.Abandoned` means a part of the cleanup was cut short. No operation of this specification cuts a cleanup short yet, so `cancel!()` returns `.Finished`.
+3. r[std-task.cleanup-end.cut-short] `.Abandoned` means a part of the cleanup was cut short: by [`abandon()`](../lang/11-requirements-and-suspension.md#r-req.abandon.result), or by a dispose whose awaited suspension was cancelled elsewhere, by [`req.abandon.dependency.result`](../lang/11-requirements-and-suspension.md#r-req.abandon.dependency.result).
 4. r[std-task.cleanup-end.best-effort] `.Finished` does not mean that every close succeeded: a `dispose!` returns `void`, by [`flow.using.best-effort`](../lang/06-control-flow.md#r-flow.using.best-effort).
 5. r[std-task.cleanup-end.debug] The `Debug` text of each variant is `CleanupEnd.` followed by the variant's name, as in `CleanupEnd.Finished`.
 

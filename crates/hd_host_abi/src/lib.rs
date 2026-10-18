@@ -572,6 +572,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("downcast_mut", Lowering::Compiler),
     ("task_race_frame", Lowering::Compiler),
     ("task_cleanup_frame", Lowering::Compiler),
+    ("task_abandon", Lowering::Compiler),
     ("task_all_frame", Lowering::Compiler),
     ("task_all", Lowering::Compiler),
     ("test_case", Lowering::Compiler),

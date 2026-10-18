@@ -1,0 +1,52 @@
+# expect-stdout: won stopped
+# expect-stdout: closing, abandon child, parent defer
+# expect-stdout: parent abandoned
+# expect-stdout: child abandoned
+# test: a parent whose cleanup folds a child's waiting cleanup ends .Abandoned when that child is abandoned directly, though its own part ran to its end
+# Spec lang/11 Abandoning: req.abandon.carry, req.abandon.result.
+use std.ops.Disposable
+use std.task.{all, race}
+use std.time.{Clock, s, sleep}
+
+data Conn:
+    log: mut List[string]
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        self.log.push("closing")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed")
+
+fn child!(log: mut List[string]) -> string $ Clock:
+    using conn = Conn { log: log, closing: sleep(s(60)) }
+    sleep!(s(60))
+    "child"
+
+fn parent!(kid: mut Suspend[string], log: mut List[string]) -> string:
+    defer: log.push("parent defer")
+    kid!()
+
+fn ready!() -> string:
+    "won"
+
+fn ended!(job: mut Suspend[string]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
+
+fn stop!(kid: mut Suspend[string], log: mut List[string]) -> string:
+    log.push("abandon child")
+    kid.abandon()
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let kid: mut Suspend[string] = child(log)
+    let top: mut Suspend[string] = parent(kid, log)
+    let (winner, stopped) = all!(race(top, ready()), stop(kid, log))
+    println("${winner} ${stopped}")
+    println(log.join(", "))
+    println("parent ${ended!(top)}")
+    println("child ${ended!(kid)}")

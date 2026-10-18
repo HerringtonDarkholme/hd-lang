@@ -739,6 +739,14 @@ runtime/valid/cancel-takes-over-exit-dispose.hd	runtime	accept	lang/11-requireme
 runtime/valid/cancel-cancelled-waiter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.nested
 runtime/valid/cancel-cold-is-lazy.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.cold
 typing/invalid/cancel-cold-discarded.hd	type	reject:discarded-must-use-value	lang/11-requirements-and-suspension.md#r-req.cancel.cold.discard
+runtime/valid/abandon-unwind-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.order
+runtime/valid/abandon-kills-waiting-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.dispose
+runtime/valid/abandon-keeps-handle-open.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.host
+runtime/valid/abandon-folded-cleanups.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.folded
+runtime/valid/abandon-carries-to-parent.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.carry
+runtime/valid/abandon-ended-is-noop.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.ended
+runtime/valid/abandon-dispose-dependency.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.dependency
+runtime/panic/abandon-active-ancestor.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#r-req.abandon.active
 typing/valid/defer-indirect-block-on-checks.hd	type	accept	lang/06-control-flow.md#r-flow.defer.block-on.direct
 typing/invalid/defer-bang-call-cold-twin.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/nested-provider-restoration.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-scopes

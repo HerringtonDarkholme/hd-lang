@@ -2,7 +2,7 @@
 # expect-stdout: open b, open a, defer inner, closing a, closed a, defer outer, closing b, closed b
 # expect-stdout: done
 # test: a race! loser holding using bindings whose dispose! suspends still disposes each, innermost frame first, and the race result is the winner's
-# Spec lang/06 Using Bindings: flow.using.cancel, flow.using.cancel.shield, flow.using.cancel.wait; lang/11 req.combinator.race-losers-disposed.
+# Spec lang/06 Using Bindings: flow.using.cancel, flow.using.cancel.shielded, flow.using.cancel.wait; lang/11 req.combinator.race-losers-disposed.
 use std.ops.Disposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}

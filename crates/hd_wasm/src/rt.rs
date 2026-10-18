@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::asm::Asm;
 use crate::boundary::BTy;
 use crate::layout::{
-    ACTIVE, CANCELLED, DONE, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, UNWINDING,
-    cancel_fn, storage, task_base,
+    ABANDONED, ACTIVE, CANCELLED, DONE, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE,
+    UNWINDING, cancel_fn, storage, task_base,
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
@@ -189,6 +189,46 @@ pub fn all_polls() -> GSym {
     GSym::Rt("allpolls".into(), VT::I32)
 }
 
+/// How many `abandon()` calls are running (`crates/hd_wasm/DESIGN.md`
+/// §14.6, "Abandoning"): while it is not zero, every frame a cancel
+/// reaches is abandoned, and a shielded `dispose!` is killed at its
+/// suspension point instead of waited for.
+#[must_use]
+pub fn abandoning_global() -> GSym {
+    GSym::Rt("aband".into(), VT::I32)
+}
+
+/// How many shielded `dispose!` calls are being stepped: while it is not
+/// zero, a poll of a cancelled suspension is a failed dependency of a
+/// dispose (`req.abandon.dependency`) instead of a panic.
+#[must_use]
+pub fn in_dispose_global() -> GSym {
+    GSym::Rt("indisp".into(), VT::I32)
+}
+
+/// Set by a poll of a cancelled suspension inside a dispose; the shielded
+/// point stepping that dispose reads it and kills the dispose.
+#[must_use]
+pub fn dep_failed_global() -> GSym {
+    GSym::Rt("depfail".into(), VT::I32)
+}
+
+/// The `ABANDONED` bits that the cancels a frame's cancel made have
+/// seen: each frame's cancel ORs in its own, so an abandoned cleanup
+/// carries up through every cleanup that folds it (`req.abandon.carry`).
+#[must_use]
+pub fn abandon_seen_global() -> GSym {
+    GSym::Rt("abseen".into(), VT::I32)
+}
+
+/// Set by an `abandon()` that ended a cleanup: pending parties that
+/// waited on it registered no wake, so the entry polls its root again
+/// (`crates/hd_wasm/DESIGN.md` §14.6, "Abandoning").
+#[must_use]
+pub fn rewake_global() -> GSym {
+    GSym::Rt("rewake".into(), VT::I32)
+}
+
 /// The forbidden-context counter (`crates/hd_wasm/DESIGN.md` §14.9): how many forbidden
 /// contexts are running; `block_on` panics while it is not zero.
 #[must_use]
@@ -262,10 +302,15 @@ pub fn hash_seed_import() -> Sym {
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 10] {
+pub fn runtime_globals() -> [GSym; 15] {
     [
         wake_table(),
         forbid_global(),
+        abandoning_global(),
+        in_dispose_global(),
+        dep_failed_global(),
+        abandon_seen_global(),
+        rewake_global(),
         root_global(),
         owner_global(),
         wake_cur_node(),
@@ -470,6 +515,23 @@ pub enum Helper {
     /// of the program raises the forbidden-context counter
     /// ([`forbid_check`]).
     ForbidCheck,
+    /// `() -> i32`: opens a frame's cancel (`crates/hd_wasm/DESIGN.md`
+    /// §14.6): returns the `abseen` bits of the cancels made so far and
+    /// clears them, so the frame sees only its own children's.
+    CancelEnter,
+    /// `(frame) -> i32`: the checks of a frame's cancel. An active frame
+    /// panics; a completed or cancelled one gives 0, unless it unwinds;
+    /// else the frame is marked cancelled, and `ABANDONED` too under
+    /// `abandon()`, and it gives 1, so the cancel goes on.
+    CancelCheck,
+    /// `(frame, seen)`: closes a frame's cancel: an `ABANDONED` child cleanup
+    /// marks the frame, and `abseen` becomes `seen` with the frame's own bit.
+    CancelLeave,
+    /// `(frame) -> i32`: the checks of a frame's poll. An active frame
+    /// panics, and so does a completed or cancelled one, except a
+    /// cancelled one polled inside a dispose: a failed dependency, which
+    /// sets `depfail` and gives 1, so the poll answers Pending.
+    PollCheck,
     /// `(h)`: host handle `h` went Pending under the current waker node
     /// and slot (§14.4).
     WakeRegister,
@@ -496,11 +558,11 @@ pub enum Helper {
         result: Vec<VT>,
     },
     /// `cancel!`'s cleanup frame (std's `task_cleanup_frame` intrinsic):
-    /// `(task) -> frame`, a `Suspend[void]` over `base` that waits out the
+    /// `(task) -> frame`, a `Suspend[bool]` over `base` that waits out the
     /// task's one cleanup (`crates/hd_wasm/DESIGN.md` §14.6).
     CleanupCold { base: WTy },
     /// Its poll: starts or continues the task's cleanup, and is Ready once
-    /// the task no longer unwinds.
+    /// the task no longer unwinds, with whether the cleanup was cut short.
     CleanupPoll { base: WTy },
     /// Its cancel: continues the task's cleanup, and unwinds while the
     /// task does, so a cancelled waiter keeps the cleanup going.
@@ -819,6 +881,10 @@ impl Helper {
             Helper::EraseI32 => w.u8(43),
             Helper::UneraseI32 => w.u8(44),
             Helper::ForbidCheck => w.u8(41),
+            Helper::CancelEnter => w.u8(48),
+            Helper::CancelCheck => w.u8(49),
+            Helper::CancelLeave => w.u8(50),
+            Helper::PollCheck => w.u8(51),
             Helper::WakeRegister => w.u8(39),
             Helper::WakeUp => w.u8(40),
             Helper::RaceCold {
@@ -1049,6 +1115,10 @@ impl Helper {
             43 => Helper::EraseI32,
             44 => Helper::UneraseI32,
             41 => Helper::ForbidCheck,
+            48 => Helper::CancelEnter,
+            49 => Helper::CancelCheck,
+            50 => Helper::CancelLeave,
+            51 => Helper::PollCheck,
             39 => Helper::WakeRegister,
             40 => Helper::WakeUp,
             t @ 15..=17 => {
@@ -1751,6 +1821,16 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
         Helper::UneraseI32 => unerase_i32(),
         // Empty until link finds a forbidden context (`forbid_check`).
         Helper::ForbidCheck => forbid_check(false),
+        Helper::CancelEnter => {
+            let mut a = Asm::new(vec![]);
+            a.global_get(abandon_seen_global());
+            a.i32(0);
+            a.global_set(abandon_seen_global());
+            a.finish(vec![VT::I32])
+        }
+        Helper::CancelCheck => cancel_check(),
+        Helper::CancelLeave => cancel_leave(),
+        Helper::PollCheck => poll_check(),
         Helper::WakeRegister => wake_register(false),
         Helper::WakeUp => wake_up(),
         Helper::RaceCold {
@@ -2036,10 +2116,30 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                     )));
                     a.s().unreachable();
                     a.end();
+                    // An `abandon()` during the poll may have ended a
+                    // cleanup that pending parties wait on with no wake
+                    // (`crates/hd_wasm/DESIGN.md` §14.6, "Abandoning"), so
+                    // the root is polled again while one asks for it.
+                    let got: Vec<u32> = prs.iter().map(|v| a.local(v.clone())).collect();
+                    a.loop_();
+                    a.i32(0);
+                    a.global_set(rewake_global());
                     a.get(root);
                     a.get(root);
                     a.struct_get(base, F_POLL);
                     a.call_ref(poll);
+                    for l in got.iter().rev() {
+                        a.set(*l);
+                    }
+                    a.get(got[0]);
+                    a.s().i32_eqz();
+                    a.global_get(rewake_global());
+                    a.s().i32_and();
+                    a.br_if(0);
+                    a.end();
+                    for l in &got {
+                        a.raw_get(*l);
+                    }
                     // Ready: the report of the result; else -1.
                     if let Some((k, want)) = report {
                         let tmp: Vec<u32> = prs[1..].iter().map(|v| a.local(v.clone())).collect();
@@ -2254,6 +2354,111 @@ fn race_frame(list: &WTy, base: &WTy, result: &[VT]) -> WTy {
     crate::layout::frame_of(base, &fields)
 }
 
+/// [`Helper::CancelCheck`] (`crates/hd_wasm/DESIGN.md` §14.6).
+fn cancel_check() -> Code {
+    let task = task_base();
+    let mut a = Asm::new(vec![VT::r(task.clone())]);
+    let flags = a.local(VT::I32);
+    a.get(0);
+    a.struct_get(&task, F_FLAGS);
+    a.set(flags);
+    a.get(flags);
+    a.i32(ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(flags);
+    a.i32(UNWINDING);
+    a.s().i32_and().i32_eqz();
+    a.if_();
+    a.get(flags);
+    a.i32(DONE | CANCELLED);
+    a.s().i32_and();
+    a.if_();
+    a.i32(0);
+    a.s().return_();
+    a.end();
+    a.end();
+    a.get(0);
+    a.get(flags);
+    a.i32(CANCELLED);
+    a.s().i32_or();
+    a.global_get(abandoning_global());
+    a.s().i32_eqz().i32_eqz();
+    a.i32(ABANDONED);
+    a.s().i32_mul().i32_or();
+    a.struct_set(&task, F_FLAGS);
+    a.i32(1);
+    a.finish(vec![VT::I32])
+}
+
+/// [`Helper::CancelLeave`]: the `ABANDONED` bits that the frame's
+/// cancels saw mark it (`req.abandon.carry`); then `abseen` holds the
+/// bits seen before the frame's cancel with the frame's own.
+fn cancel_leave() -> Code {
+    let task = task_base();
+    let mut a = Asm::new(vec![VT::r(task.clone()), VT::I32]);
+    a.get(0);
+    a.get(0);
+    a.struct_get(&task, F_FLAGS);
+    a.global_get(abandon_seen_global());
+    a.i32(ABANDONED);
+    a.s().i32_and().i32_or();
+    a.struct_set(&task, F_FLAGS);
+    a.get(1);
+    a.get(0);
+    a.struct_get(&task, F_FLAGS);
+    a.i32(ABANDONED);
+    a.s().i32_and().i32_or();
+    a.global_set(abandon_seen_global());
+    a.finish(vec![])
+}
+
+/// [`Helper::PollCheck`] (`crates/hd_wasm/DESIGN.md` §14.3, §14.6).
+fn poll_check() -> Code {
+    let task = task_base();
+    let mut a = Asm::new(vec![VT::r(task.clone())]);
+    let flags = a.local(VT::I32);
+    a.get(0);
+    a.struct_get(&task, F_FLAGS);
+    a.set(flags);
+    a.get(flags);
+    a.i32(ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(flags);
+    a.i32(DONE | CANCELLED);
+    a.s().i32_and();
+    a.if_();
+    a.get(flags);
+    a.i32(CANCELLED);
+    a.s().i32_and().i32_eqz();
+    a.global_get(in_dispose_global());
+    a.s().i32_eqz().i32_or();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-invalid-state: a completed or cancelled suspension was polled".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.i32(1);
+    a.global_set(dep_failed_global());
+    a.i32(1);
+    a.s().return_();
+    a.end();
+    a.i32(0);
+    a.finish(vec![VT::I32])
+}
+
 /// `cancel!`'s cleanup frame: a suspension holding the task whose
 /// cleanup it waits out.
 fn cleanup_frame(base: &WTy) -> WTy {
@@ -2306,7 +2511,8 @@ fn continue_cleanup(a: &mut Asm, f: u32, fr: &WTy, wait: u32) {
 /// The cleanup frame's poll (`crates/hd_wasm/DESIGN.md` §14.6): the task's
 /// own cancel starts its cleanup, or continues it while it unwinds, and
 /// does nothing once it ended. Pending while the task unwinds; a Pending
-/// poll registers no wake, so an `all!` polls it again.
+/// poll registers no wake, so an `all!` polls it again. Ready with whether
+/// the cleanup was cut short: the task's kept `ABANDONED` bit.
 fn cleanup_poll(base: &WTy) -> Code {
     let fr = cleanup_frame(base);
     let mut a = Asm::new(vec![VT::Eq]);
@@ -2336,13 +2542,20 @@ fn cleanup_poll(base: &WTy) -> Code {
     a.get(regs);
     a.global_set(wake_regs());
     a.i32(0);
+    a.i32(0);
     a.s().return_();
     a.end();
     a.get(f);
     a.i32(DONE);
     a.struct_set(&fr, F_FLAGS);
     a.i32(1);
-    a.finish(vec![VT::I32])
+    a.get(f);
+    a.struct_get(&fr, F_CHILD);
+    a.s().ref_as_non_null();
+    a.struct_get(&task_base(), F_FLAGS);
+    a.i32(ABANDONED);
+    a.s().i32_and().i32_eqz().i32_eqz();
+    a.finish(vec![VT::I32, VT::I32])
 }
 
 /// Cancels every child of a race frame in list order, but `skip`, and
@@ -2424,13 +2637,15 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
         a.local(VT::I32),
     );
     let tmp: Vec<u32> = result.iter().map(|v| a.local(v.dflt())).collect();
-    let wake_count = a.local(VT::I32);
+    let (wake_count, dep) = (a.local(VT::I32), a.local(VT::I32));
     let first = F_SAVED;
     a.get(0);
     a.ref_cast(&fr, false);
     a.set(f);
     a.global_get(wake_regs());
     a.set(wake_count);
+    a.global_get(dep_failed_global());
+    a.set(dep);
     a.get(f);
     a.struct_get(&fr, F_FLAGS);
     a.i32(DONE | CANCELLED | ACTIVE);
@@ -2448,8 +2663,12 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     // Settling: the winner's value waits in the frame while a loser's
     // shielded `dispose!` runs (flow.using.cancel). The losers' leaves
     // register under no node (`unwatched`), so a settling race registers
-    // no wake either, and an `all!` polls it again.
+    // no wake either, and an `all!` polls it again. A loser that polled a
+    // cancelled suspension inside a dispose (`req.abandon.dependency`)
+    // lost the race, so its `depfail` is dropped.
     let settle = |a: &mut Asm| {
+        a.get(dep);
+        a.global_set(dep_failed_global());
         a.get(wait);
         a.if_();
         a.get(wake_count);
@@ -3114,6 +3333,10 @@ impl Helper {
             Helper::EraseI32 => "erase_i32".into(),
             Helper::UneraseI32 => "unerase_i32".into(),
             Helper::ForbidCheck => "forbid_check".into(),
+            Helper::CancelEnter => "cancel_enter".into(),
+            Helper::CancelCheck => "cancel_check".into(),
+            Helper::CancelLeave => "cancel_leave".into(),
+            Helper::PollCheck => "poll_check".into(),
             Helper::WakeRegister => "wake_register".into(),
             Helper::WakeUp => "wake_up".into(),
             Helper::RaceCold { .. } => "race_cold".into(),
@@ -3134,7 +3357,7 @@ impl Helper {
 
 #[cfg(test)]
 mod tests {
-    use super::{Helper, helper_code, owner_global, root_global, str_eq_same_view};
+    use super::{Helper, helper_code, owner_global, rewake_global, root_global, str_eq_same_view};
     use crate::asm::Asm;
     use crate::{Reloc, Sym, VT};
     use hd_base::Hash128;
@@ -3154,7 +3377,7 @@ mod tests {
             providers: vec![],
             results: u32::try_from(results.len()).unwrap(),
             bang: Some((base.clone(), poll.clone())),
-            report: report.then_some((report_key, results)),
+            report: report.then_some((report_key, results.clone())),
             then: vec![],
         })
         .unwrap();
@@ -3168,6 +3391,23 @@ mod tests {
             .expect("root call_ref");
         let mut expected = Asm::new(vec![VT::I32]);
         expected.local(VT::r(base.clone()));
+        // The poll's results, kept while an `abandon()` asks for another
+        // poll (`rewake`).
+        let mut prs = vec![VT::I32];
+        prs.extend(results.iter().cloned());
+        let got: Vec<u32> = prs.iter().map(|v| expected.local(v.clone())).collect();
+        for l in got.iter().rev() {
+            expected.set(*l);
+        }
+        expected.get(got[0]);
+        expected.s().i32_eqz();
+        expected.global_get(rewake_global());
+        expected.s().i32_and();
+        expected.br_if(0);
+        expected.end();
+        for l in &got {
+            expected.raw_get(*l);
+        }
         if report {
             let first = expected.local(VT::I64);
             let second = expected.local(VT::Eq);
