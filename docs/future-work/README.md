@@ -22,7 +22,7 @@ action at a distance.
   hour-sized slices, each with its spec rules and fixtures, over an in-process transport.
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): a design study for #163 after `Disposable`: a non-escaping `^` mode without lifetimes, worker isolation and shared bytes on Wasm today, frozen data later, and a re-plan of the ownership prototype.
 - [Rust Model Study](RUST_MODEL_STUDY.md): whether hd should adopt Rust's ownership, borrows and lifetimes with no tracing collector, and whether a `Gc[T]` can replace `Rc<RefCell<T>>`, priced on three programs written three ways (#163).
-- [Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md): cancelling a task gracefully with `cancel!()` or forcibly with `abandon()`; how `race!`, `all!` and `timeout!` compose.
+- [Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md): cancelling a task gracefully with `cancel!()` or forcibly with `abandon()`; one cleanup per job, cleanup order under abandonment, and how `race!`, `all!` and `timeout!` compose and bound cleanup.
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
