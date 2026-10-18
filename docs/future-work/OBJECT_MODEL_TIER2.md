@@ -985,14 +985,19 @@ and partial moves do not.
 
 ## 15. Migration
 
-Tier 2 is opt-in: a program writes no marks unless it wants them, and
-its meaning does not change. What can change is whether it compiles:
-once std gains tier 2 headers, a few tier 1 programs of the shapes
-below are rejected. std gains those headers by hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
+Tier 2 is opt-in: a program writes no marks unless it wants them. When
+std gains tier 2 headers, a tier 1 program can change in two ways: a
+few programs of the shapes below stop compiling, and a program whose
+callback writes, through another alias, an object that std now borrows
+for the call panics with `borrow-conflict` where it used to run (section
+6.4). Neither change alters what a program that still compiles and runs
+computes. std gains those headers by hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
 because global arguments still convert; it breaks only a std body that
 stored what it now promises not to keep, which the checker reports in
-that body. A result that gains a set breaks no correct caller: one that
-stores it in a global place gets it promoted (section 8.4). A caller
+that body. A result that gains a set and is stored in a global place
+is promoted when its shape allows (a view type always backed by a
+counted buffer, or a value holding such views, section 8.4); any other
+scoped result stored globally is rejected. A caller
 that holds a borrowed result across a change to its source is rejected,
 and rightly:
 
