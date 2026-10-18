@@ -153,10 +153,10 @@ cancellation does. No value is invented and nothing panics.
 waits for the loser's cleanup; if the parent is cancelled during that
 wait, the winner was never bound by `using`, so nothing disposes it.
 `all!` has the same gap for a value that completed while a sibling is
-still pending. Until resources are released by their count (the planned
-object model, in which dropping the last reference disposes a
-`Disposable`), bind each resource with `using` inside the child that
-opens it and return plain values:
+still pending. Bind each resource with `using` inside the child that
+opens it and return plain values. Under the planned counted object model
+the gap is at least loud: a `Disposable` whose count reaches zero without
+being disposed is reported as a leak at once, with its site.
 
 ```text
 fn with_connection![T](open: fn!() -> mut Connection, work: fn!(mut Connection) -> T) -> T:
