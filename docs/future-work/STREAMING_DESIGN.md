@@ -1,5 +1,7 @@
 # Streaming: One Reader And Writer Shape
 
+**Superseded in part (owner, 2026-10-17, late):** handles are plain `Disposable`/`AsyncDisposable` values bound with `using`, not owned values (see the note at the top of [Ownership And Borrows](OWNERSHIP_DESIGN.md)). The reader and writer shapes, line reading, copy, backpressure and the section 13 answers stand; the owned-handle mechanics (drops, `own fn!()` blocks, owned scripted fakes) are to be rewritten on `using`.
+
 **Owner decisions (2026-10-17).** Handles cross the host boundary as
 plain descriptors: a host method returns a plain id, and std wraps it in
 an `own` handle whose drop calls the host's close, as Rust's `File` wraps
