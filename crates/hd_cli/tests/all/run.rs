@@ -892,8 +892,9 @@ fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
     let r = ran(&dir, &["run"]);
     assert_eq!(r.code, Some(101));
     assert!(
-        r.err
-            .starts_with("error: hd.toml:5:1: `Time` is no host capability trait"),
+        r.err.starts_with(
+            "error: hd.toml:5:1: invalid-manifest: `Time` is no host capability trait"
+        ),
         "{}",
         r.err
     );

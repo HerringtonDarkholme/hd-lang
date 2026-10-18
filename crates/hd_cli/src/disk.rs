@@ -615,15 +615,63 @@ fn unlisted_member(root: &Path) -> Result<Option<Diag>, String> {
         if listed(&w.members, &rel) || listed(&w.exclude, &rel) {
             return Ok(None);
         }
-        return Ok(Some(Diag::error(
-            None,
+        let file = format!("{}hd.toml", "../".repeat(rel.split('/').count()));
+        let text = std::fs::read_to_string(dir.join("hd.toml")).map_err(|e| e.to_string())?;
+        let mut d = Diag::error(
+            Some(Code::InvalidManifest),
             &format!(
                 "this package lies under the workspace manifest `{}`, which neither lists `{rel}` in `members` nor in `exclude`; add it to one",
                 dir.join("hd.toml").display()
             ),
-        )));
+        )
+        .at(&file, Some(w.line as usize));
+        for (key, message) in [
+            ("members", format!("add `{rel}` to `members`")),
+            ("exclude", format!("add `{rel}` to `exclude`")),
+        ] {
+            if let Some(new) = hd_project::edit::add_to_workspace_list(&text, key, &rel)
+                && let Some(edit) = text_edit(&file, &text, &new)
+            {
+                d.fixes.push(Fix {
+                    message,
+                    edits: vec![edit],
+                    exact: false,
+                });
+            }
+        }
+        return Ok(Some(d));
     }
     Ok(None)
+}
+
+/// The one edit that turns `old` into `new`: it replaces what lies between
+/// their shared start and shared end.
+fn text_edit(file: &str, old: &str, new: &str) -> Option<Edit> {
+    let mut start = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !(old.is_char_boundary(start) && new.is_char_boundary(start)) {
+        start -= 1;
+    }
+    let room = old.len().min(new.len()) - start;
+    let mut tail = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take(room)
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !(old.is_char_boundary(old.len() - tail) && new.is_char_boundary(new.len() - tail)) {
+        tail -= 1;
+    }
+    Some(Edit {
+        file: file.to_owned(),
+        start: u32::try_from(start).ok()?,
+        end: u32::try_from(old.len() - tail).ok()?,
+        text: new[start..new.len() - tail].to_owned(),
+    })
 }
 
 /// The package name of a root directory: from its `hd.toml`.

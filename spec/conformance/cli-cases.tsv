@@ -50,7 +50,7 @@ manifest-unknown-key	cli.manifest.unknown-key,cli.exit.success
 build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release
 dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build,cli.dep.reached,cli.dep.no-prompt
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.workspace.members
-member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.mode.member.shared,cli.mode.member.unlisted.fix
+member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.mode.member.shared,cli.mode.member.unlisted.fix,cli.manifest.invalid,cli.manifest.invalid.cases,cli.manifest.invalid.unlisted,cli.json.diagnostic.fixes
 ambiguous-import	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.hd-failure
 test-unit-fakes	cli.test.env.unit,cli.test.tasks.file,cli.exit.hd-failure
 test-integration-env	cli.test.env.integration,cli.test.env.cwd,cli.test.env.args,cli.test.env.args.program,cli.test.env.stdin,cli.test.env.temp-dir,cli.test.runner,cli.test.program,cli.test.seed,cli.test.seed.flag,cli.test.env.temp-dir.removed,cli.test.env.grant,cli.test.env.grant.table,cli.test.env.grant.fs-read,cli.test.env.grant.fs-write,cli.test.env.grant.fs-added
@@ -177,3 +177,5 @@ result-expect-error-text	cli.exit.test-failure,cli.json.test.result.fields
 test-snapshot-update	cli.test.snapshot.update,cli.test.snapshot.update.passing,cli.test.snapshot.update.form,cli.test.snapshot.update.omitted,cli.test.snapshot.update.rows,cli.test.snapshot.update.continue,cli.test.snapshot.update.accepted
 test-doc-snapshot-update	cli.test.doc.update-prefix,cli.test.snapshot.update.form,cli.test.snapshot.update.omitted,cli.test.snapshot.update.accepted
 test-handle-leak	cli.test.leak,cli.test.leak.message,cli.test.leak.closed,cli.test.env.integration
+manifest-invalid-capabilities	cli.manifest.invalid,cli.manifest.invalid.cases,cli.cap.table.keys,cli.cap.value.unscoped,cli.json.diagnostic.fields,cli.exit.hd-failure
+manifest-invalid-tables	cli.manifest.invalid,cli.manifest.invalid.cases,cli.exe.table,cli.json.diagnostic.fields,cli.exit.hd-failure

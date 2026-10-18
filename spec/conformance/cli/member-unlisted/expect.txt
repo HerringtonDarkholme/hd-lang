@@ -1,7 +1,8 @@
 # A package under a workspace manifest that neither lists nor excludes it
-# is an error that names the manifest.
+# is an invalid-manifest error at the manifest's members line, with two
+# fix-its.
 run: hd check app/src/main.hd
 run: hd check --format json loose/src/main.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":null,"severity":"error","message":null,"file":null},{"kind":"summary","errors":1,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"../hd.toml","line":2,"fixes":[{"message":null,"edits":null},{"message":null,"edits":null}]},{"kind":"summary","errors":1,"status":101}]
 run: hd check tools/src/main.hd

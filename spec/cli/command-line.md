@@ -1,3 +1,6 @@
+3. r[cli.manifest.invalid] An error in the content of `hd.toml` for which no other rule names a code is an error at its line in `hd.toml`. Error: `invalid-manifest`.
+4. r[cli.manifest.invalid.cases] These errors include a bad key or value of [Capability Grants](#capability-grants), an `[[executable]]` table without a string `name` and `module`, and a `[source] root` that is no source root. They also include a package that its workspace manifest neither lists nor excludes.
+5. r[cli.manifest.invalid.unlisted] For the unlisted package, the diagnostic's file is the workspace manifest, and its line is that of the manifest's `members` key, or of its `[workspace]` header when it has no `members`.
 # Command Line
 
 Status: command-line specification draft.

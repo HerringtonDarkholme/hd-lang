@@ -1,0 +1,7 @@
+[package]
+name = "grants"
+
+[capabilities]
+Bogus = true
+Console = ["stdout"]
+Clock = true

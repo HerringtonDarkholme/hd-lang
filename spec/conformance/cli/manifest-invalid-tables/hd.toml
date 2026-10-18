@@ -1,0 +1,8 @@
+[package]
+name = "tables"
+
+[source]
+root = "../lib"
+
+[[executable]]
+name = "tool"

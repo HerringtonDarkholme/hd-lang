@@ -56,6 +56,9 @@ pub struct Executable {
 pub struct Workspace {
     pub members: Vec<String>,
     pub exclude: Vec<String>,
+    /// The 1-based line of its `members` key, or of the `[workspace]`
+    /// table when there is none.
+    pub line: u32,
 }
 
 /// What a capability grant gives one host capability trait
@@ -327,6 +330,10 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
                 m.workspace = Some(Workspace {
                     members: strings(w.get("members")),
                     exclude: strings(w.get("exclude")),
+                    line: lines
+                        .get("workspace.members")
+                        .copied()
+                        .unwrap_or_else(|| at("workspace")),
                 });
             }
             ("executable", toml::Value::Array(items)) => {
@@ -701,7 +708,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
         };
         if let Some(message) = why {
             out.push(Problem {
-                code: None,
+                code: Some(Code::InvalidManifest),
                 severity: Severity::Error,
                 line: Some(*line),
                 message,
@@ -716,7 +723,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                 .all(|seg| !seg.is_empty() && seg != "." && seg != "..");
         if !plain || matches!(root.as_str(), "tests" | "tasks" | "build") {
             out.push(Problem {
-                code: None,
+                code: Some(Code::InvalidManifest),
                 severity: Severity::Error,
                 line: Some(*line),
                 message: format!(
@@ -728,7 +735,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     for e in &m.executables {
         if e.name.is_none() || e.module.is_none() {
             out.push(Problem {
-                code: None,
+                code: Some(Code::InvalidManifest),
                 severity: Severity::Error,
                 line: Some(e.line),
                 message: "an `[[executable]]` table has a string `name` and a string `module`"

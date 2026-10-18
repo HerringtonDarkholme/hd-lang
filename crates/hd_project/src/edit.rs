@@ -64,29 +64,41 @@ fn quoted(s: &str) -> String {
 /// table. A member already listed is not added again.
 #[must_use]
 pub fn add_member(text: &str, member: &str) -> Option<String> {
-    let m = crate::parse_manifest(text).ok()?;
-    let w = m.workspace?;
-    if w.members.iter().any(|x| x == member) {
+    add_to_workspace_list(text, "members", member)
+}
+
+/// The manifest with `entry` added to its `[workspace]` list `key`, as
+/// `members` or `exclude` (`cli.mode.member.unlisted.fix`), or `None` when
+/// it has no `[workspace]` table. An entry already listed is not added
+/// again.
+#[must_use]
+pub fn add_to_workspace_list(text: &str, key: &str, entry: &str) -> Option<String> {
+    let w = crate::parse_manifest(text).ok()?.workspace?;
+    let mut entries = if key == "members" {
+        w.members
+    } else {
+        w.exclude
+    };
+    if entries.iter().any(|x| x == entry) {
         return Some(text.to_owned());
     }
-    let mut members = w.members;
-    members.push(member.to_owned());
+    entries.push(entry.to_owned());
     let list = format!(
         "[{}]",
-        members
+        entries
             .iter()
             .map(|x| quoted(x))
             .collect::<Vec<_>>()
             .join(", ")
     );
-    if let Some((value, _)) = spans(text, "workspace", "members") {
+    if let Some((value, _)) = spans(text, "workspace", key) {
         return Some(format!(
             "{}{list}{}",
             &text[..value.start],
             &text[value.end..]
         ));
     }
-    // No `members` key yet: it goes right under the `[workspace]` header.
+    // No such key yet: it goes right under the `[workspace]` header.
     let header = text.find("[workspace]")?;
     let after = text[header..]
         .find('\n')
@@ -97,7 +109,7 @@ pub fn add_member(text: &str, member: &str) -> Option<String> {
         ""
     };
     Some(format!(
-        "{}{newline}members = {list}\n{}",
+        "{}{newline}{key} = {list}\n{}",
         &text[..after],
         &text[after..]
     ))
@@ -227,7 +239,7 @@ pub fn set_value(text: &str, table: &str, key: &str, written: &str) -> Option<St
 
 #[cfg(test)]
 mod tests {
-    use super::{add_member, remove_key, set_key};
+    use super::{add_member, add_to_workspace_list, remove_key, set_key};
 
     #[test]
     fn members_grow_in_place() {
@@ -240,6 +252,15 @@ mod tests {
             Some("[workspace]\nmembers = [\"lib\"]\nexclude = []\n")
         );
         assert_eq!(add_member("[package]\nname = \"x\"\n", "lib"), None);
+    }
+
+    #[test]
+    fn an_exclude_entry_grows_in_place() {
+        assert_eq!(
+            add_to_workspace_list("[workspace]\nmembers = [\"app\"]\n", "exclude", "tools")
+                .as_deref(),
+            Some("[workspace]\nexclude = [\"tools\"]\nmembers = [\"app\"]\n")
+        );
     }
 
     #[test]

@@ -1,0 +1,5 @@
+# A [capabilities] key that names no host capability trait, and a list for a
+# trait without scope entries, are invalid-manifest errors at their lines.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":5},{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":6},{"kind":"summary","errors":2,"status":101}]
