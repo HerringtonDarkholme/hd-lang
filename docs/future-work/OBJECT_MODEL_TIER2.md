@@ -985,8 +985,10 @@ and partial moves do not.
 
 ## 15. Migration
 
-Tier 2 is opt-in, so no program changes. std gains tier 2 headers by
-hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
+Tier 2 is opt-in: a program writes no marks unless it wants them, and
+its meaning does not change. What can change is whether it compiles:
+once std gains tier 2 headers, a few tier 1 programs of the shapes
+below are rejected. std gains those headers by hand, chunk by chunk. A parameter that gains `{}` breaks no caller,
 because global arguments still convert; it breaks only a std body that
 stored what it now promises not to keep, which the checker reports in
 that body. A result that gains a set breaks no correct caller: one that
@@ -1009,7 +1011,9 @@ with `first` reading the old buffer. Reading a reference into a list
 just replaced is almost always a mistake, so tier 2 std may reject the
 few safe tier 1 programs of this shape: a borrowed result held across a
 change or replacement of its source. The fix-it copies the value out
-first. Applications adopt marks where `--explain-escapes`
+first, when it can: a value that holds a `&mut` at any depth cannot be
+copied out of a borrow, so there the fix is to take a global reference
+in place of the borrowed result. Applications adopt marks where `--explain-escapes`
 shows a cost.
 
 ## 16. Implementation Plan
