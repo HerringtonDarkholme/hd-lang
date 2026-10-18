@@ -148,6 +148,24 @@ cancelled too, as asyncio raises `CancelledError` at such an `await`:
 `all!` stops, and its cleanup, which includes the job's, unwinds as any
 cancellation does. No value is invented and nothing panics.
 
+A `dispose!` is shielded from the cancellation of its own task, but no
+shield can produce a value that will never arrive. So when a dispose
+awaits a job that was cancelled elsewhere (a shared acknowledgement it
+needs before sending its close frame, say), that dispose is unwound from
+the await exactly as `abandon()` would unwind it: its registered `defer`
+blocks run, the code after the await is skipped, and its cleanup ends
+`.Abandoned`, which carries up as any abandonment does. Cancelling the
+task itself still never drops cleanup; here a dependency of the cleanup
+failed, and `.Abandoned` says the close did not finish.
+
+`block_on` is the one driver whose caller cannot be cancelled: it is
+synchronous code expecting a value. So `block_on` returns
+`Result[T, Cancelled]`. When the suspension it drives is cancelled, by
+code running inside the same drive that holds another reference to it,
+`block_on` drives the cleanup to its end and returns
+`.Err(Cancelled { cleanup })`, where `cleanup` is the `CleanupEnd`, as
+`TimedOut` reports it. A suspension that completes gives `.Ok(value)`.
+
 **A resource a combinator has already won has no owner yet.** In
 `using c = race!(open_a(), open_b())`, `race!` holds the winner while it
 waits for the loser's cleanup; if the parent is cancelled during that
@@ -362,7 +380,11 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
   rules and closes no handle; owners close handles through their
   fallbacks.
 - Awaiting the value of a job that another frame cancelled cancels the
-  awaiter.
+  awaiter; inside a `dispose!` it unwinds that dispose as an abandon
+  would, with `.Abandoned`.
+- `block_on` returns `Result[T, Cancelled]`; a new std type `Cancelled`
+  in `std.task` carries the `CleanupEnd`. Its callers in std (`println`,
+  `eprintln`) match the new result.
 - A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
   `hd.cancel`) follows the same rules with the host as the waiter. The
   host waits with a default cleanup bound, a host setting that behaves as
