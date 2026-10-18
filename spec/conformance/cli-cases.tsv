@@ -193,3 +193,4 @@ repl-package-lib	cli.repl.package.lib,cli.repl.uses.other
 repl-package-no-lib	cli.repl.package.no-lib,cli.repl.package.no-lib.main
 repl-package-deps	cli.repl.package.dependencies
 repl-workspace	cli.workspace.repl
+test-err-exit-zero	cli.exit.test-failure,cli.json.test.result

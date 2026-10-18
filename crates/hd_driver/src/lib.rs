@@ -104,14 +104,18 @@ fn embedded_std() -> &'static EmbeddedStd {
 }
 
 /// `std.rt`: the hd the compiler roots after an entry point or a test case
-/// returns (module.entry.exit-report, module.testing.pass): the status
+/// returns (module.entry.exit-report, module.testing.passes): the status
 /// `report()` gives, after an `.Err`'s report on standard error
 /// (module.entry.err-stream). The driver picks one by the result type:
 /// `entry_status` for any `Termination`, `entry_status_error` for a
 /// `Result` whose error type implements `Error` and `entry_status_dyn`
 /// for the erased `dyn Error`; the last two print the cause chain
 /// (module.entry.err-render-chain), on standard output for an error whose
-/// `exit_code` is 0 and on standard error otherwise (module.entry.err-stream). It is compiler-supplied, like
+/// `exit_code` is 0 and on standard error otherwise (module.entry.err-stream).
+/// A test case's `Result` goes through `test_status_error` and
+/// `test_status_dyn` instead: the same report always on standard error,
+/// and status 1 for an `.Err` whose `exit_code` is 0
+/// (module.testing.fails). It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
 pub const RT_SOURCE: &str = "\
 # std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
@@ -136,6 +140,23 @@ fn entry_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
             code := error.exit_code()
             entry_report(report_of(error).to_string(), code)
             u8(code)
+
+fn test_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(report_of(error).to_string())
+            test_failed(error.exit_code())
+
+fn test_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(report_of(error).to_string())
+            test_failed(error.exit_code())
+
+fn test_failed(code: i32) -> u8:
+    if code == 0: 1 else: u8(code)
 
 fn entry_report(text: string, code: i32) -> void:
     if code == 0:
@@ -7724,11 +7745,24 @@ impl Run<'_> {
         let a = pool.list_items(args);
         let (ok, err) = (a[0], a[1]);
         let error = known.error;
+        let tests = matches!(self.goal, Goal::Tests { .. });
         match pool.get(err) {
-            TyData::TraitValue { def, .. } if def == error => {
-                Some((rt("entry_status_dyn"), pool.list(&[ok])))
-            }
-            _ => Some((rt("entry_status_error"), args)),
+            TyData::TraitValue { def, .. } if def == error => Some((
+                rt(if tests {
+                    "test_status_dyn"
+                } else {
+                    "entry_status_dyn"
+                }),
+                pool.list(&[ok]),
+            )),
+            _ => Some((
+                rt(if tests {
+                    "test_status_error"
+                } else {
+                    "entry_status_error"
+                }),
+                args,
+            )),
         }
     }
 

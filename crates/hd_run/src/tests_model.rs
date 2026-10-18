@@ -52,7 +52,7 @@ pub enum CaseResult {
     Failed {
         message: String,
     },
-    /// The body panicked (`module.testing.fail`).
+    /// The body panicked (`module.testing.fails`).
     Panicked {
         category: String,
         message: String,

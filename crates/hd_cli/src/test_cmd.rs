@@ -1375,7 +1375,7 @@ fn run(
     Ok(())
 }
 
-/// A finished case's outcome (`module.testing.pass`, `module.testing.fail`,
+/// A finished case's outcome (`module.testing.passes`, `module.testing.fails`,
 /// `module.testing.expect-panic-fail`).
 fn judge(case: &TestCase, run: &CaseRun, frames: Vec<String>) -> CaseResult {
     if run.trapped {

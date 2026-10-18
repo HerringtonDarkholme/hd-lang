@@ -1,0 +1,12 @@
+# A test case whose result holds an .Err fails even when the error's exit_code
+# is 0, and the runner prints the error; an .Ok result still passes. The rule
+# holds for it, it_each and it_prop bodies alike.
+run: hd test --filter Err
+exit: 1
+stdout: FAIL src/lib.hd:23: fails on an Err whose exit code is 0
+stdout:     notice: help
+stdout:     repro: hd test src/lib.hd --filter "fails on an Err whose exit code is 0"
+stdout: test result: FAILED. 0 passed; 1 failed; 0 ignored
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"passes on an Ok result","outcome":"passed"},{"kind":"test","name":"fails on an Err whose exit code is 0","outcome":"failed","message":null},{"kind":"test","name":"each row follows the rule[0]","outcome":"passed"},{"kind":"test","name":"each row follows the rule[1]","outcome":"failed","message":null},{"kind":"test","name":"a property follows the rule","outcome":"failed","message":null},{"kind":"summary","passed":2,"failed":3,"status":1}]

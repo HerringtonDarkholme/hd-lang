@@ -42,7 +42,7 @@ wins.
 | `std.inspect` | `downcast_val`, and `downcast` and `downcast_mut` | downcasting needs intrinsic bodies; `Inspectable` and `TypeId` stay in `inspect.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it`, `assert_equal` | intrinsic bodies (`test_case`, `assert_equal`) |
-| `std.rt` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `entry_report`, `entry_write`, `entry_write_out` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` and `entry_write_out` intrinsics |
+| `std.rt` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `test_status_error`, `test_status_dyn`, `test_failed`, `entry_report`, `entry_write`, `entry_write_out` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` and `entry_write_out` intrinsics |
 
 | Fixed, non-exporting prelude use | Why the compiler needs it |
 | --- | --- |

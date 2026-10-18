@@ -1,7 +1,7 @@
 # A test case whose body returns .Err fails, and the runner reports the error
 # and its cause chain in its own report on standard output, in text and JSON
 # alike; nothing goes to standard error.
-# Spec 10 Test Outcomes: module.testing.err-print, module.testing.fail.
+# Spec 10 Test Outcomes: module.testing.err-print, module.testing.fails.
 run: hd test
 exit: 1
 stderr-json: []
