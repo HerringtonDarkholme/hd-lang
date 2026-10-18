@@ -1,0 +1,18 @@
+use std.process.{Command, ProcessError}
+use std.testing.assert_equal
+
+# std-process.stdin.unread: the child ignores a large stdin and exits nonzero.
+it("retains output and status when the child ignores stdin"):
+    let input = "line\n"
+    for _ in 0..18:
+        input = input + input
+    output := match Command::new("ignore").stdin(input).run!():
+        .Ok(value) => value
+        .Err(error) => panic("${error}")
+    assert_equal(output.stdout, "out\n", reason="stdout is retained")
+    assert_equal(output.stderr, "", reason="stderr is retained")
+    assert_equal(output.status, 7, reason="the child status is retained")
+
+it("a missing program remains an error with stdin"):
+    output := Command::new("missing").stdin("input").run!()
+    assert_equal(output, .Err(ProcessError.NotFound(program="missing")), reason="no child started")

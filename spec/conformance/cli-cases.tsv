@@ -198,3 +198,4 @@ script-top-level-try	cli.file.run,cli.exit.program,cli.host.script-binding,cli.h
 script-grant-no-manifest	cli.file.run,cli.host.script-binding,cli.cap.source.flags-only,cli.cap.order.default,cli.host.default-profile.granted
 script-grant-package	cli.file.run,cli.host.script-binding,cli.cap.source.package,cli.cap.value.list,cli.cap.partial.refuse,cli.cap.order.deny,cli.cap.flag.commands,cli.cap.total.refuse,cli.cap.total.status
 test-command-env-dir	cli.test.process.tasks
+process-unread-stdin	cli.test.program

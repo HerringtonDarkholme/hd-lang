@@ -1,0 +1,3 @@
+# std-process.stdin.unread, through the package test Process provider.
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"retains output and status when the child ignores stdin","outcome":"passed"},{"kind":"test","name":"a missing program remains an error with stdin","outcome":"passed"},{"kind":"summary","passed":2,"failed":0,"status":0}]

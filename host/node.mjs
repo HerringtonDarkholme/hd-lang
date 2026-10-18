@@ -682,7 +682,7 @@ function processProvider({ grant, env, left }) {
     // its stdin breaks the pipe; the rest is dropped and the run is `.Ok`.
     // A child that never started has neither a status nor a signal.
     const stdinClosed =
-      (r.error?.code === "EPIPE" || r.error?.code === "ECONNRESET") &&
+      ["EPIPE", "ECONNRESET", "ENOTCONN"].includes(r.error?.code) &&
       (r.status !== null || r.signal !== null);
     if (r.error && !stdinClosed) {
       const code = r.error.code;

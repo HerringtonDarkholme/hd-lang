@@ -91,8 +91,9 @@ fn commit!(repo: Path) -> Result[string, ProcessError] $ Process:
 7. r[std-process.command.stdin] `stdin(mut self, text: string) -> mut Command` sets `stdin` to `text`, replacing an earlier text, and returns the command. A command that gets no `stdin` call passes the empty string.
 8. r[std-process.command.run] `run!(self) -> Result[ProcessOutput, ProcessError] $ Process` calls `run!(self)` on the covering `Process` provider, so a program need not write `$.use(Process)`. Its row is exactly `Process`, and it is a bang function, as the method it calls is.
 9. r[std-process.stdin.unread] When the child exits or closes its standard input before reading all of `stdin`, the rest is dropped. The call still returns `.Ok` with the child's output and status.
-10. r[std-process.command.eq] `Command` implements `Eq`; two commands are equal when `program`, `args`, `env`, `current_dir`, and `stdin` are each equal.
-11. r[std-process.command.debug] `Command` implements `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types).
+10. r[std-process.stdin.start-failure] A failure to start the child returns `.Err`, even when `stdin` is nonempty.
+11. r[std-process.command.eq] `Command` implements `Eq`; two commands are equal when `program`, `args`, `env`, `current_dir`, and `stdin` are each equal.
+12. r[std-process.command.debug] `Command` implements `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types).
 
 > **Why.** Rust's `Command` and Go's `exec.Cmd` carry the arguments, the
 > environment, and the directory beside the program, so no call fixes one
