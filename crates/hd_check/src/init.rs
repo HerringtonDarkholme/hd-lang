@@ -334,9 +334,15 @@ pub enum TopLevel {
     /// A module that is not the entry: requirement-free
     /// (`module.init.requirement-free`).
     Module,
-    /// A program's entry module: an inferred entry row
-    /// (`module.init.script-row`).
+    /// The entry module of a program that has a `main`: an inferred entry
+    /// row.
     Entry,
+    /// A script, the entry module with no `main`: a driver context, as
+    /// `main!`'s body is, so it may make bang calls
+    /// (`module.init.script-driver`). Its row is inferred under the default
+    /// profile (`module.init.script-profile`), and `?` returns from it
+    /// (`module.init.script-try`).
+    Script,
     /// A REPL input: an inferred row too, and a driver context, as
     /// `main!`'s body is, so it may make bang calls. An input that is one
     /// expression shows its value (`cli.repl.value`).
@@ -464,20 +470,34 @@ fn init_steps(
     } else {
         RowId::EMPTY
     };
+    // A script whose top level uses `?` returns `Result[void, dyn Error]`,
+    // as `main!` with an erased error type does (`module.init.script-try`).
+    let script_try = top == TopLevel::Script
+        && stmts
+            .iter()
+            .any(|s| s.kind() != SyntaxKind::FnDecl && crate::tests::has_try(*s));
+    let ret = if script_try {
+        let known = cx.names.known;
+        let dyn_error = pool.intern_ty(&hd_types::TyData::TraitValue {
+            def: known.error,
+            args: hd_types::TyList::EMPTY,
+            bindings: vec![],
+        });
+        pool.intern_ty(&hd_types::TyData::Adt {
+            def: known.result,
+            args: pool.list(&[Ty::VOID, dyn_error]),
+        })
+    } else {
+        Ty::VOID
+    };
     let local = hd_types::LocalPool::new();
-    let mut ck = new_ck(
-        cx,
-        &local,
-        item,
-        item,
-        BodyKind::Init,
-        (Ty::VOID, row),
-        diags,
-    );
+    let mut ck = new_ck(cx, &local, item, item, BodyKind::Init, (ret, row), diags);
     ck.module_init = Some(module.to_owned());
     ck.forbidden = (!entry).then_some("a module's initialization");
-    if top == TopLevel::Input {
+    if matches!(top, TopLevel::Script | TopLevel::Input) {
         ck.suspends = vec![true];
+    }
+    if top == TopLevel::Input {
         ck.shown = shown_statement(cx, stmts).map(|s| (s.index(), None));
     }
     let blk = ck.b.open_block();
@@ -543,7 +563,16 @@ fn init_steps(
         g.ty = ck.zonk(g.ty);
     }
     cx.init.borrow_mut().globals = globals.into_iter().collect();
-    let root = ck.b.close_block(blk, None, Ty::VOID, NodeIdx::NONE);
+    let root = if script_try {
+        // The statements ran to the end: `.Ok(void)`.
+        let rec = ck.b.refs_record(&[]);
+        let unit = ck.b.emit(Tag::NewTuple, NONE, rec, Ty::VOID, NodeIdx::NONE);
+        let rec = ck.b.refs_record(&[unit]);
+        let ok = ck.b.emit(Tag::NewVariant, 0, rec, ret, NodeIdx::NONE);
+        ck.b.close_block(blk, Some(ok), ret, NodeIdx::NONE)
+    } else {
+        ck.b.close_block(blk, None, Ty::VOID, NodeIdx::NONE)
+    };
     let body = ck.finish_body(root)?;
     Ok((body, per_stmt))
 }

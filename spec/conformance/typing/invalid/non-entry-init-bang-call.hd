@@ -1,0 +1,11 @@
+# test: top-level code of an imported module is not a driver context, so a bang call there is an error even though a script's top level is one
+# Spec 10 Entry Behavior: module.init.script-driver; Spec 11: req.bang.top-level-module.
+# The primary file is an ordinary module of the tree's package.
+# fixture-package-tree: lib-root/src/catalog.hd
+fn count_boxes!() -> i32:
+    3
+
+total := count_boxes!()  # diagnostic: bang-call-outside-suspension
+
+pub fn item_count() -> i32:
+    total

@@ -1,0 +1,9 @@
+use std.fs.read_text
+use std.path.Path
+use std.time.{ms, sleep}
+
+sleep!(ms(1))
+for name in ["data/a.txt", "b.txt"]:
+    match read_text!(Path(name)):
+        .Ok(text) => println("${name}: ${text.trim()}")
+        .Err(_) => println("${name}: unreadable")

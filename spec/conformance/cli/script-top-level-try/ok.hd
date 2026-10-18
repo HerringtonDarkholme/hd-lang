@@ -1,0 +1,8 @@
+use std.time.{ms, sleep}
+
+fn halve(n: i32) -> Result[i32, string]:
+    if n % +2 == +0: .Ok(n / +2) else: .Err("odd")
+
+sleep!(ms(1))
+half := halve(+8)?
+println("half ${half}")

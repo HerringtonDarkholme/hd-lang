@@ -7144,6 +7144,7 @@ pub fn script_entry(
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
     own: &[hd_base::Hash128],
+    report: Option<hd_base::Hash128>,
     boundary: &hd_mono::BoundaryMap,
 ) -> StageResult<Vec<(String, Helper)>> {
     let (before, after): (Vec<_>, Vec<_>) = match inits.iter().position(|k| *k == key) {
@@ -7154,13 +7155,20 @@ pub fn script_entry(
             own.iter().copied().filter(|k| *k != key).collect(),
         ),
     };
+    // A `?` at the top level returns from the whole init, which a module
+    // cycle that splits the statements into runs cannot honor.
+    if report.is_some() && after.iter().any(|k| own.contains(k)) {
+        return unsupported("a script using `?` whose module cycle runs after its first statement");
+    }
     let before = before.into_iter().map(|k| (k, true)).collect();
     let after = after.into_iter().map(|k| (k, !own.contains(&k))).collect();
     Ok(vec![
         ("hd.init".into(), Helper::EntryInit { inits: before }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, lowering, init, key, None, after, boundary)?,
+            root_poll(
+                pool, env, path, lowering, init, key, report, after, boundary,
+            )?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -7332,8 +7340,9 @@ fn root_poll(
     } else {
         None
     };
-    // A script's top level is not a suspension driver
-    // (`module.init.script-not-driver`).
+    // A script's top level is a suspension driver
+    // (`module.init.script-driver`), which one poll export runs; a module
+    // cycle that splits the statements into runs has no single poll.
     if bang.is_some() && !then.is_empty() {
         return unsupported(
             "a suspending script whose module cycle runs after its first statement",

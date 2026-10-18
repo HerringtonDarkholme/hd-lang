@@ -286,7 +286,7 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 
 ## Host Capabilities
 
-1. r[cli.host.entry-row] When `hd` runs an executable, a task, or a single file, it binds each host capability trait that its entry module's requirement row names. That row is the row of `main` or `main!`, or a [script's inferred row](../lang/10-modules.md#r-module.init.script-row).
+1. r[cli.host.entry-binding] When `hd` runs an executable, a task, or a single file that has a `main`, it binds each host capability trait that the row of `main` or `main!` names.
 
 `hd FILE`, `hd run`, a task, and the [REPL](../cli/command-line.md#repl) use the **default
 profile**, which binds these traits:
@@ -306,13 +306,14 @@ profile**, which binds these traits:
 | `Sys` | `std.sys` | the host's operating system, architecture, host name, and processor count |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
-3. r[cli.host.default-profile.row] The entry module's row still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-row`](#r-cli.host.entry-row).
-4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
-5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
-6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
-7. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
-8. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
-9. r[cli.host.handles.exit] A **host handle** is a value that a default profile provider opens and keeps in the host, such as a `Net` socket. When the program of `hd FILE`, `hd run`, or a task ends, `hd` closes every host handle it left open, and writes nothing about them.
+3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
+4. r[cli.host.default-profile.main-row] The row of `main` or `main!` still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-binding`](#r-cli.host.entry-binding).
+5. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
+6. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
+7. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
+8. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
+9. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
+10. r[cli.host.handles.exit] A **host handle** is a value that a default profile provider opens and keeps in the host, such as a `Net` socket. When the program of `hd FILE`, `hd run`, or a task ends, `hd` closes every host handle it left open, and writes nothing about them.
 
 ```sh
 cat src/main.hd

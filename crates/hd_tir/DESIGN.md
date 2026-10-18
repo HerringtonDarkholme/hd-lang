@@ -238,7 +238,7 @@ lexical frame. An expected context type is matched by type equality, so
 
 - `!` is part of the name, so suspension needs no inference.
 - A bang call outside a driver context is `bang-call-outside-suspension`
-  ([`req.bang.driver-contexts`](../../spec/lang/11-requirements-and-suspension.md#r-req.bang.driver-contexts)).
+  ([`req.bang.driver-forms`](../../spec/lang/11-requirements-and-suspension.md#r-req.bang.driver-forms)).
 - **The `block_on` ban is direct-only.** In `defer` suites, default
   expressions, fact expressions and module initialization, a call whose
   resolved callee is `block_on` or `println` is an error. The check reads

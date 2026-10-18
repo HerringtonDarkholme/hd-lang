@@ -106,7 +106,7 @@ impl Ck<'_, '_> {
             choice,
         };
         // `dispose!` is a bang call, so the existing driver-context rules
-        // decide where a `using` may stand (`req.bang.driver-contexts`,
+        // decide where a `using` may stand (`req.bang.driver-forms`,
         // `flow.defer.suspend`).
         self.emit_call(&c, &[recv], Ty::VOID, sig.suspends, true, s);
         let suite = self.b.close_block(m, None, Ty::VOID, s.index());

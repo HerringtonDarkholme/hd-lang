@@ -1,0 +1,10 @@
+# The script lies in a package, so the table of hd.toml applies, as for
+# hd run. FsRead covers data/ alone: the read of b.txt is refused at that
+# call with NotGranted, and the script goes on. A flag that denies FsRead
+# totally refuses to start the script, so it prints nothing.
+run: hd scan.hd
+stdout: data/a.txt: from data
+stdout: b.txt: not granted
+run: hd --cap FsRead=false scan.hd
+exit: 101
+stdout-json: []

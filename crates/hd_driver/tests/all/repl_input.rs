@@ -472,32 +472,41 @@ fn other_inputs_write_no_value_line() {
 }
 
 /// An input's top level is a driver context, as `main!`'s body is: it
-/// may make bang calls. A program's top level still may not
-/// (`module.init.script-not-driver`).
+/// may make bang calls. So does a script's (`module.init.script-driver`),
+/// but not the top level of a module that has a `main`.
 #[test]
-fn an_input_may_make_bang_calls_at_top_level() {
+fn an_input_and_a_script_may_make_bang_calls_at_top_level() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
     let text = "use std.time.{sleep, Duration}\n\nsleep!(Duration.milliseconds(+1))\n";
     repl.input(1, text);
-    let mut src = MemorySources::default();
-    src.insert("src/main.hd", text);
-    let host = Host {
-        render_tir: &[],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
+    let build = |text: &str| {
+        let mut src = MemorySources::default();
+        src.insert("src/main.hd", text);
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        build_packages(&host, "app", &Packages::default(), &goal)
     };
-    let goal = Goal::Program {
-        entry: "main".into(),
-    };
-    let out = build_packages(&host, "app", &Packages::default(), &goal);
+    let script = build(text);
     assert!(
-        out.render().contains("bang-call-outside-suspension"),
+        !script.render().contains("bang-call-outside-suspension"),
         "{}",
-        out.render()
+        script.render()
+    );
+    let with_main = build(&format!("{text}\npub fn main() -> void:\n    pass\n"));
+    assert!(
+        with_main.render().contains("bang-call-outside-suspension"),
+        "{}",
+        with_main.render()
     );
 }
 

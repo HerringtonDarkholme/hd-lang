@@ -1126,8 +1126,8 @@ A bang call ends in the `suspension_call_suffix` of
 
 1. r[req.bang.suffix] This suffix is part of `postfix_suffix` at ordinary call precedence.
 2. r[req.bang.not-negation] It follows a completed operand, so it never collides with prefix logical `!` at the start of an operand. `!fetch!(id)` is a legal negation of a bang call's `bool` result.
-3. r[req.bang.driver-contexts] A bang call is valid only in a **driver context**. A driver context is exactly one of: a suspending function or closure body, or the host executor driving `main!`. A test body is a suspending closure.
-4. r[req.bang.top-level] Module top level is not a driver context. A bang call outside a driver context is an error. Error: `bang-call-outside-suspension`.
+3. r[req.bang.driver-forms] A bang call is valid only in a **driver context**. A driver context is exactly one of: a suspending function or closure body, the host executor driving `main!`, or the top level of a [script](10-modules.md#r-module.init.script-driver) or of a [REPL input](../cli/command-line.md#r-cli.repl.input.driver). A test body is a suspending closure.
+4. r[req.bang.top-level-module] The top level of any other module is not a driver context. A bang call outside a driver context is an error. Error: `bang-call-outside-suspension`.
 5. r[req.bang.active] A driver is **active** while its executor is evaluating or polling that driver context on the current program-instance call stack.
 6. r[req.bang.pending-not-active] A pending invocation retained by the host between polls is unfinished but not active.
 7. r[req.bang.test-driven] The test runner drives each test body as a suspension, so a driver is active throughout the test, including calls through non-suspending helpers.

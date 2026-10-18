@@ -1988,7 +1988,7 @@ impl Ck<'_, '_> {
     }
 
     /// A bang call needs a suspending callee (`not-suspending`) and a
-    /// driver context (`req.bang.driver-contexts`).
+    /// driver context (`req.bang.driver-forms`).
     pub(crate) fn check_bang(&mut self, callee_suspends: bool, n: NodeRef<'_>) {
         if !callee_suspends {
             self.err(

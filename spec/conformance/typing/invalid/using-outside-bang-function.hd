@@ -1,5 +1,5 @@
 # test: a using binding outside a bang function is a bang call outside a driver context
-# Spec lang/06 Using Bindings: flow.using.bang; lang/11 req.bang.driver-contexts.
+# Spec lang/06 Using Bindings: flow.using.bang; lang/11 req.bang.driver-forms.
 use std.ops.Disposable
 
 data Session:

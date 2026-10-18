@@ -1,0 +1,5 @@
+# Outside a package there is no hd.toml, so the script gets every
+# capability of the default profile with no limit: both reads succeed.
+run: hd scan.hd
+stdout: data/a.txt: from data
+stdout: b.txt: beside

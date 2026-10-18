@@ -1,0 +1,7 @@
+# test: a ? at a script's top level leaves it as main! with a Result does, so an optional operand is an error
+# Spec 10 Entry Behavior: module.init.script-try.
+fn first_box() -> i32?:
+    .Some(3)
+
+boxes := first_box()?  # diagnostic: invalid-result-propagation
+println("${boxes}")

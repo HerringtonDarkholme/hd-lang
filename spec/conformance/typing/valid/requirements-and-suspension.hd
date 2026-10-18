@@ -10,7 +10,7 @@
 # req.context.spread.suffix, req.suspend.marker, req.suspend.two-forms,
 # req.suspend.type.equivalent, req.suspend.type.spellings,
 # req.suspend.type.plain-call, req.suspend.type.bang, req.bang.suffix,
-# req.bang.not-negation, req.bang.driver-contexts,
+# req.bang.not-negation, req.bang.driver-forms,
 # req.bang.requirements-not-suspending.
 trait Database:
     fn get_user!(self, id: string) -> Result[User?, DbError]

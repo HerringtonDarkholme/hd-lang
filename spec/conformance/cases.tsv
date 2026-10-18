@@ -2853,7 +2853,10 @@ runtime/valid/init-group-statements-by-identity.hd	runtime	accept	lang/10-module
 typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free
 typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts
 runtime/valid/script-top-level-runs.hd	runtime	accept	lang/10-modules.md#r-module.init.script-body
-typing/invalid/script-top-level-bang-call.hd	type	reject:bang-call-outside-suspension	lang/10-modules.md#r-module.init.script-not-driver
+typing/invalid/main-module-top-level-bang-call.hd	type	reject:bang-call-outside-suspension	lang/10-modules.md#r-module.init.script-driver
+typing/invalid/non-entry-init-bang-call.hd	type	reject:bang-call-outside-suspension	lang/11-requirements-and-suspension.md#r-req.bang.top-level-module
+typing/invalid/script-top-level-try-optional.hd	type	reject:invalid-result-propagation	lang/10-modules.md#r-module.init.script-try
+runtime/valid/script-top-level-bang.hd	runtime	accept	lang/10-modules.md#r-module.init.script-driver
 runtime/valid/test-case-fresh-instance.hd	runtime	accept	lang/10-modules.md#r-module.testing.instance
 runtime/valid/module-scope-before-initialization.hd	runtime	accept	lang/10-modules.md#r-module.init.declarations
 typing/invalid/child-module-not-in-parent.hd	type	reject:unknown-import	lang/10-modules.md#r-module.path.no-child-import

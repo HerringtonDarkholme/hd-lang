@@ -1,0 +1,17 @@
+# test: a script's top level is a driver context, so it makes bang calls and uses ? with no main!
+# Spec 10 Entry Behavior: module.init.script-driver, module.init.script-profile, module.init.script-try, module.init.script-body.
+# Standard input is closed, so read_line! returns .Ok(.None).
+# expect-stdout: waited
+# expect-stdout: no input
+use std.console.read_line
+use std.time.{ms, sleep}
+
+fn label(text: string?) -> string:
+    match text:
+        .Some(line) => line
+        .None => "no input"
+
+sleep!(ms(1))
+println("waited")
+line := read_line!()?
+println(label(line))

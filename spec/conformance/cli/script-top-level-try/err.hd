@@ -1,0 +1,19 @@
+use std.error.Error
+use std.time.{ms, sleep}
+
+pub data Refused:
+    reason: string
+
+impl Display for Refused:
+    fn to_string(self) -> string: "refused: ${self.reason}"
+
+impl Error for Refused:
+    fn exit_code(self) -> i32: 3
+
+fn check(ok: bool) -> Result[void, Refused]:
+    if ok: .Ok(()) else: .Err(Refused { reason: "no" })
+
+sleep!(ms(1))
+println("before")
+check(false)?
+println("after")

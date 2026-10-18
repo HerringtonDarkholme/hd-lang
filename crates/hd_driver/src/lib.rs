@@ -886,6 +886,9 @@ enum Roots {
         def: DefId,
         key: Hash128,
         own: Vec<Hash128>,
+        /// The report function of a result that `?` makes
+        /// (`module.init.script-try`).
+        report: Option<Hash128>,
     },
     /// The inputs of a joined REPL build ([`Packages::inputs_from`]), in
     /// order, each a script.
@@ -2581,7 +2584,7 @@ impl Run<'_> {
 
     /// Whether module `m`'s top-level statements are its program's entry
     /// behavior in this run (`module.init.script-body`), and so may use
-    /// the script's inferred row (`module.init.script-row`), rather than
+    /// the default profile's row (`module.init.script-profile`), rather than
     /// requirement-free module initialization
     /// (`module.init.requirement-free`). Every REPL input runs as one. A
     /// program runs its entry module's. `hd check` checks each entry module
@@ -5071,6 +5074,8 @@ impl Run<'_> {
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             let top = if input {
                 hd_check::init::TopLevel::Input
+            } else if entry && self.skim_of(m).file.public_main.is_none() {
+                hd_check::init::TopLevel::Script
             } else if entry {
                 hd_check::init::TopLevel::Entry
             } else {
@@ -7373,9 +7378,14 @@ impl Run<'_> {
         }
         let reports: Vec<Option<(DefId, TyList)>> = roots
             .iter()
-            .map(|(d, _)| {
-                // A script has no `main`, so there is no result to report.
-                if script {
+            .enumerate()
+            .map(|(i, (d, _))| {
+                let d = if script && i == 0 { &root } else { d };
+                // A REPL input reports no result. A script's result is
+                // `Result[void, dyn Error]` when its top level uses `?`
+                // (`module.init.script-try`), else `void`: its entry is
+                // its init.
+                if matches!(self.goal, Goal::ReplInput { .. }) {
                     return None;
                 }
                 self.report_fn(env.ret(*d).unwrap_or(Ty::VOID))
@@ -7463,6 +7473,7 @@ impl Run<'_> {
                     def: root,
                     key: collected.table.key[0],
                     own: entry_inits,
+                    report: reports[0].as_ref().and_then(key_of_extra),
                 }
             }
             Goal::Program { .. } => Roots::Main {
@@ -7842,6 +7853,7 @@ impl Run<'_> {
                 i.key,
                 &i.inits,
                 &i.own,
+                None,
                 &c.collected.boundary,
             )?;
             for (name, helper) in entry {
@@ -8280,7 +8292,12 @@ impl Run<'_> {
                 *report,
                 &c.collected.boundary,
             ),
-            Roots::Script { def, key, own } => hd_wasm::script_entry(
+            Roots::Script {
+                def,
+                key,
+                own,
+                report,
+            } => hd_wasm::script_entry(
                 &self.pool,
                 &env,
                 &path,
@@ -8289,6 +8306,7 @@ impl Run<'_> {
                 *key,
                 &c.collected.inits,
                 own,
+                *report,
                 &c.collected.boundary,
             ),
             Roots::Inputs(inputs) => self.joined_exports(inputs, &env, &path, c),
@@ -9359,8 +9377,9 @@ impl Env<'_> {
     }
 
     /// The row keys of a module init, which has no signature. An entry
-    /// module's init has an inferred entry row (`module.init.script-row`),
-    /// so its keys are those of the callees its top level calls.
+    /// module's init has an entry row inferred under the default profile
+    /// (`module.init.script-profile`), so its keys are those of the callees
+    /// its top level calls.
     fn init_keys(&self, def: DefId) -> Vec<Ty> {
         let Some((b, _)) = self.run.body_of(self.p, def) else {
             return Vec::new();
@@ -9401,6 +9420,13 @@ impl ProgramEnv for Env<'_> {
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
         if let Some(b) = self.default_body(def) {
+            return b.sub_root.first().map(|&r| b.ty[r as usize]);
+        }
+        // A script's init returns `Result[void, dyn Error]` when its top
+        // level uses `?` (`module.init.script-try`).
+        if let Some((b, _)) = self.run.body_of(self.p, def)
+            && b.kind == hd_tir::BodyKind::Init
+        {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
         self.sig(def).map(|s| s.ret)

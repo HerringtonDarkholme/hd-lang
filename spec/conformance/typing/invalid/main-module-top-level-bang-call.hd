@@ -1,0 +1,9 @@
+# test: only a script's top level is a driver context, so a bang call at the top level of a module that has a main is an error
+# Spec 10 Entry Behavior: module.init.script-driver; Spec 11: req.bang.top-level-module.
+fn count_boxes!() -> i32:
+    3
+
+boxes := count_boxes!()  # diagnostic: bang-call-outside-suspension
+
+pub fn main() -> void $ Console:
+    println("${boxes}")

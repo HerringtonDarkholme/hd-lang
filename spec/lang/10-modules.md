@@ -1677,12 +1677,15 @@ fn first_name() -> string:
 ### Entry Behavior
 
 1. r[module.init.script-body] After dependency initialization, a script executes its top-level statements as that module's initialization.
-2. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
-3. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
-4. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
-5. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
-6. r[module.init.tests.no-entry] A test run runs no entry behavior. So the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
-7. r[module.init.tests.requirement-free] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free`](#r-module.init.requirement-free). Error: `missing-requirement`.
+2. r[module.init.script-driver] A script's top level is a suspension driver context, as `main!`'s body is, so it may make bang calls. The whole script runs as one suspending entry. It stays one module, and `hd` replays no statement. The top level of any other module is not a driver context, also when it is an entry module that has a `main`.
+3. r[module.init.script-profile] A script declares no requirement row. Its top level may use every host capability trait of the [default profile](../cli/command-line.md#r-cli.host.default-profile), as a REPL input may by [`cli.repl.host.default-profile`](../cli/command-line.md#r-cli.repl.host.default-profile).
+4. r[module.init.script-try] A `?` at a script's top level leaves the script as `main!` leaves with a `Result[void, dyn Error]`. The operand is a `Result` whose error type implements `Error`. An `.Err` is then handled by [Entry Results](#entry-results): the host prints it, and the script exits with the status of its `report()`. A `?` on an optional there is an error. Error: `invalid-result-propagation`.
+5. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
+6. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
+7. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
+8. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
+9. r[module.init.tests.no-entry] A test run runs no entry behavior. So the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
+10. r[module.init.tests.requirement-free] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free`](#r-module.init.requirement-free). Error: `missing-requirement`.
 
 ```text
 # tasks/seed.hd, under `hd test`
@@ -1701,13 +1704,27 @@ tests:
 > the part of `main`. The runner binds no host for initialization, so a
 > tested script keeps its work in `main`, as a Go or Rust program does.
 
+A script reads, waits, and ends on an error, with no `main!`:
+
+```hd
+use std.console.read_line
+use std.time.{ms, sleep}
+
+sleep!(ms(10))
+name := read_line!()?                  # an .Err ends the script with status 1
+println("hello ${name.unwrap_or("world")}")
+```
+
+> **Why.** A script is the REPL's top level kept in a file. The REPL
+> already runs an input as a driver context under the default profile, so
+> a script that works there works from a file. Making `main!` necessary
+> for one bang call would send every quick script through a boilerplate
+> entry point.
+
 ### Requirement-Free Initialization
 
 1. r[module.init.requirement-free] Top-level code in a non-entry module must be requirement-free initialization.
 2. r[module.init.requirement-free.forms] It must not use `$.use`, enter a provider scope, make a bang call, or call a callable whose requirement row is not empty.
-3. r[module.init.script-row] A script module may use requirements and suspension only through an inferred entry requirement row.
-4. r[module.init.script-row.report] The compiler reports that row alongside `main!` rows for host configuration.
-5. r[module.init.script-not-driver] A script's top level is not itself a suspension driver. Bang calls must occur in a suspending entry function or another specified driver context. A REPL input is a driver context, by [`cli.repl.input.driver`](../cli/command-line.md#r-cli.repl.input.driver).
 
 ```hd
 limit := +10

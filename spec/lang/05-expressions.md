@@ -2182,7 +2182,7 @@ by_id := {for user in users if user.active => user.id: user}
 ### Comprehension Restrictions
 
 1. r[expr.comp.eager] Comprehensions are eager.
-2. r[expr.comp.suspension] A comprehension follows the loops it abbreviates. So a bang call inside it is valid exactly where it would be valid in those loops: in a [driver context](11-requirements-and-suspension.md#r-req.bang.driver-contexts). Outside one it is an error. Error: `bang-call-outside-suspension`.
+2. r[expr.comp.suspension] A comprehension follows the loops it abbreviates. So a bang call inside it is valid exactly where it would be valid in those loops: in a [driver context](11-requirements-and-suspension.md#r-req.bang.driver-forms). Outside one it is an error. Error: `bang-call-outside-suspension`.
 3. r[expr.comp.suspension.sequential] The bang calls of a comprehension run one at a time, in the order the loops reach them. Each call completes before the comprehension evaluates any later clause, guard, key, or element.
 4. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
 5. r[expr.comp.no-let] There is no comprehension `let` clause.
