@@ -9,7 +9,7 @@ data Port:
     number: i32
 
 fn port(c: mut Choices) -> Port:
-    Port { number: c.int(1024, 65535) }
+    Port { number: c.int(1024..=65535) }
 
 @derive(Arbitrary)  # diagnostic: member-not-derivable
 data Server:

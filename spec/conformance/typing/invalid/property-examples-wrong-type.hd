@@ -3,7 +3,7 @@
 use std.testing.{Choices, it_prop_with}
 
 fn small(c: mut Choices) -> i32:
-    c.int(0, 9)
+    c.int(0..=9)
 
 tests:
     it_prop_with("small values", gen=small, examples=["zero"], prop=fn!(n: i32):  # diagnostic: type-mismatch

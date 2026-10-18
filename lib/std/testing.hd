@@ -8,7 +8,8 @@
 # is `lib/std/testing/arbitrary.hd`.
 use std.format.debug
 use std.hash.Hash
-use std.num.{Float, Integer, parse_i64}
+use std.num.{Float, Integer}
+use std.ops.Range
 use std.random.{Random, SeededRandom}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 # `std.testing.arbitrary` stays a child module: after `use std.testing` the
@@ -156,43 +157,70 @@ impl Choices:
             reach = i64(1) << u32(3 + self.size)
         if reach < bound: reach else: bound
 
-    # A recorded draw from `lo` to `hi`. A range wider than `i64` picks a
-    # half first.
-    # Callers pass `lo <= hi`, so `hi - lo` overflows only when `lo` is
-    # negative and `hi` is past the largest `i64` plus `lo`.
-    fn between(mut self, lo: i64, hi: i64) -> i64:
-        let largest: i64 = 9223372036854775807
-        if lo >= 0 || hi <= largest + lo:
-            # The edge draws are `lo`, `hi`, and 0 when it lies between them.
-            zero := if lo <= 0 && hi >= 0 && lo > -largest: -lo else: -1
-            return lo + self.next_edge(hi - lo, 0, hi - lo, zero)
-        if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
+    # A recorded offset from 0 to `last`; the shrunk offset moves toward 0.
+    # An offset past the largest `i64` picks a half first. `zero` is the
+    # offset of the zero edge, or -1 for none (r-std-testing.edge.plan).
+    fn offset(mut self, last: u64, zero: u64?) -> u64:
+        let half: u64 = 0x7FFFFFFFFFFFFFFF
+        let edge: i64 = -1
+        match zero:
+            .Some(at) => if at <= half: edge = i64(at)
+            .None => pass
+        if last <= half:
+            return u64(self.next_edge(i64(last), 0, i64(last), edge))
+        if self.next(1) == 0:
+            return u64(self.next_edge(i64(half), 0, i64(half), edge))
+        half + 1 + u64(self.next(i64(last - half - 1)))
 
-    # An integer from `lo` to `hi`; the simplest is 0, or the bound nearest 0.
-    ## Draws an integer from `lo` to `hi`.
-    ## See [std-testing.choices.int-generic](../../spec/std/testing.md#r-std-testing.choices.int-generic).
-    pub fn int[N < Integer](mut self, lo: N, hi: N) -> N:
-        if hi <= lo:
-            return lo
+    # An integer of `range`; the simplest is 0, or the bound nearest 0. A
+    # range of at most one value returns its start without a draw.
+    ## Draws an integer of `range`.
+    ## See [std-testing.choices.int-range](../../spec/std/testing.md#r-std-testing.choices.int-range).
+    pub fn int[N < Integer](mut self, range: Range[N]) -> N:
         zero := N::zero()
+        one := N::one()
+        let last: N = range.end
+        if !range.inclusive:
+            if range.end <= range.start:
+                return range.start
+            last = range.end - one
+        start := range.start
+        if last <= start:
+            return start
         if self.spent():
-            return if lo > zero: lo else if hi < zero: hi else: zero
-        N::from_i64(self.between(wide(lo), wide(hi)))
+            return if start > zero: start else if last < zero: last else: zero
+        if start >= zero:
+            offset := self.offset(last.to_u64() - start.to_u64(), if start == zero: .Some(0) else: .None)
+            return N::from_u64(start.to_u64() + offset)
+        # The magnitude of a negative bound, `-(b + 1) + 1`, which cannot overflow.
+        low := (zero - (start + one)).to_u64() + 1
+        let count: u64 = 0
+        if last >= zero:
+            count = last.to_u64() + low
+        else:
+            count = low - ((zero - (last + one)).to_u64() + 1)
+        offset := self.offset(count, if last >= zero: .Some(low) else: .None)
+        if offset < low:
+            # A negative result: `-(low - offset)`, written as `-(low - offset - 1) - 1`.
+            return (zero - N::from_u64(low - offset - 1)) - one
+        N::from_u64(offset - low)
 
-    # A finite float from `lo` to `hi`; the simplest is 0.0, or the bound
-    # nearest 0.0.
-    ## Draws a finite float from `lo` to `hi`.
-    ## See [std-testing.choices.float-generic](../../spec/std/testing.md#r-std-testing.choices.float-generic).
-    pub fn float[F < Float](mut self, lo: F, hi: F) -> F:
+    # A finite float of `range`; the simplest is 0.0, or the bound nearest
+    # 0.0. The `..` form never returns its end.
+    ## Draws a finite float of `range`.
+    ## See [std-testing.choices.float-range](../../spec/std/testing.md#r-std-testing.choices.float-range).
+    pub fn float[F < Float](mut self, range: Range[F]) -> F:
+        lo := range.start
+        hi := range.end
         if !(lo < hi):
             return lo
         zero := F::zero()
         if self.spent():
             return if lo > zero: lo else if hi < zero: hi else: zero
         steps := F::from_i64(1000000)
-        t := F::from_i64(self.next(1000000)) / steps
+        t := F::from_i64(self.next(if range.inclusive: 1000000 else: 999999)) / steps
         value := lo * (F::one() - t) + hi * t
-        if value < lo: lo else if value > hi: hi else: value
+        if value < lo: lo else if value >= hi && !range.inclusive: lo else if value > hi: hi else: value
 
     ## Draws a `bool`.
     ## See [std-testing.choices.bool](../../spec/std/testing.md#r-std-testing.choices.bool).
@@ -299,13 +327,6 @@ impl Choices:
             index = index + 1
         entries
 
-# The `i64` value of an integer. A `u64` above the largest `i64` reads as
-# the largest `i64`, so the prototype never draws it.
-fn wide[N < Integer](n: N) -> i64:
-    match parse_i64(n.to_string()):
-        .Ok(value) => value
-        .Err(_) => 9223372036854775807
-
 # A type's default generator (spec/std/testing.md#property-tests).
 ## A type's default generator, which `it_prop` and `Choices.draw` use.
 ## See [std-testing.arbitrary](../../spec/std/testing.md#r-std-testing.arbitrary).
@@ -359,7 +380,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
                 ordered.push(v)
         if ordered.len() == 1:
             return .Ok(ordered[0])
-        .Ok(ordered[self.c.int(0, ordered.len() - 1)])
+        .Ok(ordered[self.c.int(0..=ordered.len() - 1)])
 
     # The members in declaration order, each once.
     fn next(mut self, members: Members[S]) -> Result[Key[S], NoFiniteValue]:
@@ -387,64 +408,64 @@ impl[S] Source[S] for ArbitrarySource[S]:
 # now and then the smallest or the largest value of the type
 # (r-std-testing.edge.int-type).
 impl Arbitrary for i8:
-    fn arbitrary(c: mut Choices) -> i8: c.int(-128, 127)
+    fn arbitrary(c: mut Choices) -> i8: c.int(-128..=127)
 
 impl Arbitrary for i16:
-    fn arbitrary(c: mut Choices) -> i16: c.int(-32768, 32767)
+    fn arbitrary(c: mut Choices) -> i16: c.int(-32768..=32767)
 
 impl Arbitrary for i32:
     fn arbitrary(c: mut Choices) -> i32:
         match c.extreme():
             8 => -2147483648
             9 => 2147483647
-            _ => c.int(-1000, 1000)
+            _ => c.int(-1000..=1000)
 
 impl Arbitrary for i64:
     fn arbitrary(c: mut Choices) -> i64:
         match c.extreme():
             8 => -9223372036854775807 - 1
             9 => 9223372036854775807
-            _ => c.int(-1000, 1000)
+            _ => c.int(-1000..=1000)
 
 impl Arbitrary for u8:
-    fn arbitrary(c: mut Choices) -> u8: c.int(0, 255)
+    fn arbitrary(c: mut Choices) -> u8: c.int(0..=255)
 
 impl Arbitrary for u16:
-    fn arbitrary(c: mut Choices) -> u16: c.int(0, 65535)
+    fn arbitrary(c: mut Choices) -> u16: c.int(0..=65535)
 
 impl Arbitrary for u32:
     fn arbitrary(c: mut Choices) -> u32:
         match c.extreme():
             8 => 0
             9 => 4294967295
-            _ => c.int(0, 1000)
+            _ => c.int(0..=1000)
 
 impl Arbitrary for usize:
     fn arbitrary(c: mut Choices) -> usize:
         match c.extreme():
             8 => 0
             9 => 4294967295
-            _ => c.int(0, 1000)
+            _ => c.int(0..=1000)
 
 impl Arbitrary for u64:
     fn arbitrary(c: mut Choices) -> u64:
         match c.extreme():
             8 => 0
             9 => 18446744073709551615
-            _ => c.int(0, 1000)
+            _ => c.int(0..=1000)
 
 # Any `f64`, NaN, both infinities, -0.0, and subnormals included
 # (r-std-testing.arbitrary.float). The simplest is 0.0.
 impl Arbitrary for f64:
     fn arbitrary(c: mut Choices) -> f64:
         let zero: f64 = 0.0
-        match c.int(0, 9):
+        match c.int(0..=9):
             5 => zero / zero
             6 => if c.bool(): -1.0 / zero else: 1.0 / zero
             7 => zero * -1.0
-            8 => f64(c.int(1, 1000000)) * 4.9406564584124654e-324
-            9 => c.float(-1.0, 1.0) * 1.7976931348623157e308
-            _ => c.float(-1000.0, 1000.0)
+            8 => f64(c.int(1..=1000000)) * 4.9406564584124654e-324
+            9 => c.float(Range { start: -1.0, end: 1.0, inclusive: true }) * 1.7976931348623157e308
+            _ => c.float(Range { start: -1000.0, end: 1000.0, inclusive: true })
 
 impl Arbitrary for f32:
     fn arbitrary(c: mut Choices) -> f32:
@@ -454,13 +475,13 @@ impl Arbitrary for f32:
         let low: f32 = -1000.0
         let high: f32 = 1000.0
         let unit: f32 = 1.0
-        match c.int(0, 9):
+        match c.int(0..=9):
             5 => zero / zero
             6 => if c.bool(): -unit / zero else: unit / zero
             7 => zero * -unit
-            8 => f32(c.int(1, 1000)) * tiny
-            9 => c.float(-unit, unit) * huge
-            _ => c.float(low, high)
+            8 => f32(c.int(1..=1000)) * tiny
+            9 => c.float(Range { start: -unit, end: unit, inclusive: true }) * huge
+            _ => c.float(Range { start: low, end: high, inclusive: true })
 
 impl Arbitrary for bool:
     fn arbitrary(c: mut Choices) -> bool: c.bool()

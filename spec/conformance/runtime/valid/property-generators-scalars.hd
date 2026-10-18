@@ -1,6 +1,6 @@
 # test: it_prop and it_prop_with run generated scalar cases whose draws obey the bounds of int and the default generators
-# Spec std/testing Choices And Arbitrary: std-testing.choices.int-generic, std-testing.arbitrary.std, std-testing.arbitrary.float, std-testing.prop.discard.
-# Also covers std-testing.choices.float-generic, std-testing.choices.bool,
+# Spec std/testing Choices And Arbitrary: std-testing.choices.int-range, std-testing.arbitrary.std, std-testing.arbitrary.float, std-testing.prop.discard.
+# Also covers std-testing.choices.float-range, std-testing.choices.bool,
 # std-testing.choices.string-max-chars, std-testing.choices.assume,
 # std-testing.choices.draw, std-testing.choices.from-case,
 # std-testing.choices.no-size, std-testing.choices.string-limit,
@@ -9,15 +9,15 @@
 use std.testing.{assert, Choices, it_prop, it_prop_with}
 
 fn small(c: mut Choices) -> i64:
-    c.int(0, 9)
+    c.int(0..=9)
 
 fn even(c: mut Choices) -> i64:
-    let value: i64 = c.int(0, 100)
+    let value: i64 = c.int(0..=100)
     c.assume(value % 2 == 0)
     value
 
 fn byte(c: mut Choices) -> u8:
-    c.int(250, 255)
+    c.int(250..=255)
 
 tests:
     it_prop("addition commutes", prop=fn!(value: i64):

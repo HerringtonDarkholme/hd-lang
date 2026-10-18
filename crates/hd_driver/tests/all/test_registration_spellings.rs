@@ -64,7 +64,7 @@ tests:
 
     testing.it_each(\"halves\", [2, 4], body=fn!(value: i32): assert(value > 0, reason=\"positive\"))
 
-    testing.it_prop_with(\"picks\", gen=fn(choices: mut testing.Choices) -> i32: choices.int(1, 3),
+    testing.it_prop_with(\"picks\", gen=fn(choices: mut testing.Choices) -> i32: choices.int(1..=3),
                          prop=fn!(value: i32): assert(value > 0, reason=\"positive\"))
 ";
 

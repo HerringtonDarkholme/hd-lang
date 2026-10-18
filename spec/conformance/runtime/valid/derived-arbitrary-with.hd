@@ -5,7 +5,7 @@ use std.testing.{Arbitrary, Choices, assert, it_prop}
 use std.testing.arbitrary
 
 fn cents(c: mut Choices) -> i32:
-    c.int(7, 7)
+    c.int(7..=7)
 
 @derive(Arbitrary, Debug)
 data Item:

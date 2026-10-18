@@ -7,7 +7,7 @@ fn pick_region(regions: List[string]) -> string $ TestRunner:
     regions[$.use(TestRunner).row(regions.len())]
 
 fn small_quantity(choices: mut Choices) -> i32:
-    choices.int(1, 10)
+    choices.int(1..=10)
 
 tests:
     it("timed body picks a region", timeout=1s):

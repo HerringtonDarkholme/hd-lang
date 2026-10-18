@@ -1,19 +1,20 @@
 # test: generic integer and float draws, a string limit in chars, and a map draw
-# std Testing, Property Tests: std-testing.choices.int-generic, .float-generic, .string-chars,
+# std Testing, Property Tests: std-testing.choices.int-range, .float-range, .string-chars,
 # and .map (Testing PT3-PT5).
 use std.testing.Choices
+use std.ops.Range
 
 fn label(c: mut Choices) -> string:
     c.string(max_chars=8)
 
 fn stock(c: mut Choices) -> Map[string, i32]:
-    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0, 99))
+    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0..=99))
 
 fn byte(c: mut Choices) -> u8:
-    c.int(0, 255)
+    c.int(0..=255)
 
 fn ratio(c: mut Choices) -> f32:
-    c.float(0.0, 1.0)
+    c.float(Range { start: 0.0, end: 1.0, inclusive: true })
 
 fn any_float(c: mut Choices) -> f64:
     c.draw::[f64]()

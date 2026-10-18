@@ -4,7 +4,7 @@
 use std.testing.{Arbitrary, Choices, With, with}
 
 fn cents(c: mut Choices) -> i32:
-    c.int(0, 10)
+    c.int(0..=10)
 
 fn make(c: mut Choices) -> With[i32]:
     with(cents)

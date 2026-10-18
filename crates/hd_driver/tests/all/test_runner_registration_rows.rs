@@ -41,7 +41,7 @@ fn pick(regions: List[string]) -> string $ TestRunner:
     regions[$.use(TestRunner).row(regions.len())]
 
 fn small(choices: mut Choices) -> i32:
-    choices.int(1, 10)
+    choices.int(1..=10)
 
 tests:
     it(\"timed\", timeout=1s):

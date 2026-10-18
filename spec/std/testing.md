@@ -52,8 +52,8 @@ trait Arbitrary:
 
 | Rule | Member of `Choices` | Draws |
 | --- | --- | --- |
-| r[std-testing.choices.int-generic] Integer | `fn int[N < Integer](mut self, lo: N, hi: N) -> N` | an integer from `lo` to `hi` |
-| r[std-testing.choices.float-generic] Float | `fn float[F < Float](mut self, lo: F, hi: F) -> F` | a finite float from `lo` to `hi` |
+| r[std-testing.choices.int-range] Integer | `fn int[N < Integer](mut self, range: Range[N]) -> N` | an integer of `range` |
+| r[std-testing.choices.float-range] Float | `fn float[F < Float](mut self, range: Range[F]) -> F` | a finite float of `range` |
 | r[std-testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
 | r[std-testing.choices.choose] Choose | `fn choose[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
 | r[std-testing.choices.list-max] List | `fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
@@ -68,18 +68,22 @@ trait Arbitrary:
 4. r[std-testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
 5. r[std-testing.choices.map.duplicate] When `key` draws a key that the map already holds, the later value replaces the earlier one. So the map may hold fewer entries than were drawn.
 6. r[std-testing.choices.choose.empty] `choose` on an empty list panics. Panic: `explicit-panic`.
-7. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
-8. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-9. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-10. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-11. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-12. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-13. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-14. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-15. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-16. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-17. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-18. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+7. r[std-testing.choices.int-range.empty] An `int` range that holds at most one value, such as `5..5`, `5..=5`, or `6..=5`, returns its `start` and records no draw.
+8. r[std-testing.choices.int-range.convert] `int` works through the [`Integer`](num.md#r-std-num.u64.members) conversions, so any integer type is a valid `N`, and the range may span the whole type, `0..=255` for `u8` or `0..=18446744073709551615` for `u64`. It never converts a value to text.
+9. r[std-testing.choices.float-range.literal] A `float` range is written as a `Range` value, `Range { start: 0.0, end: 1.0, inclusive: true }`, because a range expression takes integer bounds ([`expr.range.bound.integer`](../lang/05-expressions.md#r-expr.range.bound.integer)).
+10. r[std-testing.choices.float-range.end] A `float` range whose `inclusive` is `false` never returns its `end`, and one whose `inclusive` is `true` may. A range whose `start` is not below its `end` returns `start` and records no draw.
+11. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
+12. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+13. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
+14. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
+15. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+16. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+17. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+18. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+19. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+20. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+21. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+22. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -90,16 +94,16 @@ data Point:
 
 impl Arbitrary for Point:
     fn arbitrary(c: mut Choices) -> Point:
-        Point { x: c.int(0, 9), y: c.int(-5, 5) }
+        Point { x: c.int(0..=9), y: c.int(-5..=5) }
 
 fn small_counts(c: mut Choices) -> List[i64]:
-    c.list(3, fn(inner: mut Choices) -> i64: inner.int(0, 10))
+    c.list(3, fn(inner: mut Choices) -> i64: inner.int(0..=10))
 
 fn label(c: mut Choices) -> string:
     c.string(max_chars=8)
 
 fn stock(c: mut Choices) -> Map[string, i32]:
-    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0, 99))
+    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0..=99))
 ```
 
 ```text
@@ -110,7 +114,7 @@ data Reading:
 
 impl Arbitrary for Reading:
     fn arbitrary(c: mut Choices) -> Reading:
-        Reading { level: c.int(0, 9) }
+        Reading { level: c.int(0..=9) }
 
 tests:
     it_prop("levels stay small", prop=fn!(reading: Reading):  # error: unsatisfied-trait-bound
@@ -151,12 +155,12 @@ enum Tree:
     Node(left: Tree, right: Tree)
 
 fn tree(c: mut Choices) -> Tree:
-    match c.int(0, 2):
+    match c.int(0..=2):
         0 => .Leaf
         _ => .Node(tree(c), tree(c))
 ```
 
-Once the limit is spent, `c.int(0, 2)` returns `0`, so `tree` returns
+Once the limit is spent, `c.int(0..=2)` returns `0`, so `tree` returns
 `.Leaf`.
 
 ## Edge Values
@@ -166,11 +170,11 @@ property meets `0`, the bounds of a range, the smallest and largest value
 of an integer type, and an empty collection early. Each edge case takes
 one edge, which its seed picks:
 
-| Rule | Edge | `Choices.int(lo, hi)` returns | A default integer generator returns | `list`, `map`, and `string` return |
+| Rule | Edge | `Choices.int(range)` returns | A default integer generator returns | `list`, `map`, and `string` return |
 | --- | --- | --- | --- | --- |
-| r[std-testing.edge.low] Seed modulo 4 is 0: low | `lo` | the smallest value of the type | an empty collection |
-| r[std-testing.edge.high] Seed modulo 4 is 1: high | `hi` | the largest value of the type | any collection |
-| r[std-testing.edge.zero] Seed modulo 4 is 2: zero | `0` when `lo <= 0 <= hi`, else any value | `0` | any collection |
+| r[std-testing.edge.low] Seed modulo 4 is 0: low | the range's first value | the smallest value of the type | an empty collection |
+| r[std-testing.edge.high] Seed modulo 4 is 1: high | the range's last value | the largest value of the type | any collection |
+| r[std-testing.edge.zero] Seed modulo 4 is 2: zero | `0` when the range holds `0`, else any value | `0` | any collection |
 | r[std-testing.edge.none] Seed modulo 4 is 3: none | any value | any value | any collection |
 
 1. r[std-testing.edge.cases] A generated case is an edge case when its `size` is below 4. Every other case takes no edge.
@@ -184,7 +188,7 @@ one edge, which its seed picks:
 use std.testing.{assert, Choices, it_prop_with}
 
 fn span(c: mut Choices) -> i64:
-    c.int(-10, 10)
+    c.int(-10..=10)
 
 tests:
     # the first generated cases draw the edges: -10, 10, and 0
@@ -242,7 +246,7 @@ use std.testing.{Arbitrary, Choices, assert, it_prop}
 use std.testing.arbitrary
 
 fn cents(c: mut Choices) -> i32:
-    c.int(0, 10_000)
+    c.int(0..=10_000)
 
 @derive(Arbitrary, Debug)
 data Item:
@@ -275,7 +279,7 @@ data Job:
 
 impl Arbitrary for Job:
     fn arbitrary(c: mut Choices) -> Job:
-        n := c.int(0, 9)
+        n := c.int(0..=9)
         Job { run: fn() -> i32: n }
 ```
 
@@ -688,7 +692,7 @@ See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 use std.testing.{assert, Choices, it_prop_with}
 
 fn even(c: mut Choices) -> i64:
-    let value: i64 = c.int(0, 100)
+    let value: i64 = c.int(0..=100)
     c.assume(value % 2 == 0)   # a false assumption discards the case
     value
 

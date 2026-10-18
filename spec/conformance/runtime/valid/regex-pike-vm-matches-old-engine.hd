@@ -318,7 +318,7 @@ fn literal_text(c: char) -> string:
     "$c"
 
 fn gen_alternation(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
-    count := if depth >= 3: 1 else: c.int(1, 3)
+    count := if depth >= 3: 1 else: c.int(1..=3)
     let branches: mut List[Node] = []
     let texts: mut List[string] = []
     while branches.len() < count:
@@ -330,7 +330,7 @@ fn gen_alternation(c: mut Choices, depth: usize, names: mut List[string]) -> Bui
     Built { node: Node.Alternate(branches), text: texts.join("|") }
 
 fn gen_concat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
-    count := c.int(0, if depth >= 3: 2 else: 4)
+    count := c.int(0..=(if depth >= 3: 2 else: 4))
     let items: mut List[Node] = []
     let text = ""
     while items.len() < count:
@@ -345,7 +345,7 @@ fn gen_concat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
 
 fn gen_repeat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     atom := gen_atom(c, depth, names)
-    kind := c.int(0, 9)
+    kind := c.int(0..=9)
     if kind < 4:
         return atom
     greedy := c.bool()
@@ -356,16 +356,16 @@ fn gen_repeat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
         return Built { node: Node.Repeat(atom.node, 1, .None, greedy), text: atom.text + "+" + lazy }
     if kind == 6:
         return Built { node: Node.Repeat(atom.node, 0, .Some(1), greedy), text: atom.text + "?" + lazy }
-    low := c.int(0, 3)
+    low := c.int(0..=3)
     if kind == 7:
         return Built { node: Node.Repeat(atom.node, low, .Some(low), greedy), text: atom.text + "{$low}" + lazy }
     if kind == 8:
         return Built { node: Node.Repeat(atom.node, low, .None, greedy), text: atom.text + "{$low,}" + lazy }
-    high := low + c.int(0, 2)
+    high := low + c.int(0..=2)
     Built { node: Node.Repeat(atom.node, low, .Some(high), greedy), text: atom.text + "{$low,$high}" + lazy }
 
 fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
-    kind := c.int(0, if depth >= 3: 7 else: 11)
+    kind := c.int(0..=(if depth >= 3: 7 else: 11))
     if kind <= 3:
         value := c.choose(literal_chars())
         return Built { node: Node.Literal(value), text: literal_text(value) }
@@ -395,7 +395,7 @@ fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     Built { node: Node.Group(inner.node, index), text: open + inner.text + ")" }
 
 fn gen_perl(c: mut Choices) -> (ClassItem, string):
-    match c.int(0, 5):
+    match c.int(0..=5):
         0 => (ClassItem.Digit(false), "\\d")
         1 => (ClassItem.Digit(true), "\\D")
         2 => (ClassItem.Word(false), "\\w")
@@ -405,11 +405,11 @@ fn gen_perl(c: mut Choices) -> (ClassItem, string):
 
 fn gen_class(c: mut Choices) -> Built:
     negated := c.bool()
-    count := c.int(1, 3)
+    count := c.int(1..=3)
     let items: mut List[ClassItem] = []
     let text = if negated: "[^" else: "["
     while items.len() < count:
-        if c.int(0, 2) == 0:
+        if c.int(0..=2) == 0:
             item := gen_perl(c)
             items.push(item._0)
             text = text + item._1
@@ -433,11 +433,11 @@ enum Piece:
     Name(value: string)
 
 fn gen_piece(c: mut Choices, groups: usize) -> Piece:
-    match c.int(0, 4):
+    match c.int(0..=4):
         0 => Piece.Literal(c.choose(["<", ">", "é", "x"]))
         1 => Piece.Dollar
-        2 => Piece.Name("g${c.int(0, groups + 1)}")
-        _ => Piece.Index(c.int(0, groups + 1))
+        2 => Piece.Name("g${c.int(0..=groups + 1)}")
+        _ => Piece.Index(c.int(0..=groups + 1))
 
 fn template_text(pieces: List[Piece], braced: bool) -> string:
     let parts: mut List[string] = []
@@ -481,7 +481,7 @@ fn long_text(seed: u64, count: usize) -> string:
 fn long_case_gen(c: mut Choices) -> Case:
     let names: mut List[string] = [""]
     built := gen_alternation(c, 0, names)
-    text := long_text(c.int(u64(0), u64(1000000000)), c.int(100, 400))
+    text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(3, fn(inner: mut Choices) -> Piece: gen_piece(inner, names.len()))
     template := template_text(pieces, true)
     Case { pattern: built.text, text: text, template: template, expected: old_summary(built.node, names, text, pieces) }

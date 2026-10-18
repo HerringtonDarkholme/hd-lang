@@ -7,7 +7,7 @@ data Reading:
 
 impl Arbitrary for Reading:
     fn arbitrary(c: mut Choices) -> Reading:
-        Reading { level: c.int(0, 9) }
+        Reading { level: c.int(0..=9) }
 
 tests:
     it_prop("levels stay small", prop=fn!(reading: Reading):  # diagnostic: unsatisfied-trait-bound

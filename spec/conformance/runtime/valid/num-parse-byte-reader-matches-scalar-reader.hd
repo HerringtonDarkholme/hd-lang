@@ -185,7 +185,7 @@ PIECES := [
 ]
 
 fn text_gen(c: mut Choices) -> string:
-    if c.int(0, 3) == 0:
+    if c.int(0..=3) == 0:
         return c.choose(EDGES)
     parts := c.list(24, fn(inner: mut Choices) -> string: inner.choose(PIECES))
     parts.join("")
@@ -193,7 +193,7 @@ fn text_gen(c: mut Choices) -> string:
 # Digits only, up to 22 of them with an optional sign: reaches every width's range.
 fn number_gen(c: mut Choices) -> string:
     sign := c.choose(["", "", "+", "-"])
-    digits := c.list(22, fn(inner: mut Choices) -> string: "${inner.int(0, 9)}")
+    digits := c.list(22, fn(inner: mut Choices) -> string: "${inner.int(0..=9)}")
     "$sign${digits.join("")}"
 
 tests:

@@ -1,6 +1,7 @@
 # test: encode writes the same text as the compact text of to_json, encode_pretty the same as its pretty text, and Display and pretty match the byte-by-byte renderer they replaced
 # Spec std/json Encode And Decode, Compact Text, Pretty Text: std-json.encode, std-json.encode-pretty, std-json.display.text, std-json.display.escapes, std-json.pretty.layout, std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.std.float-special (issue 359).
 use std.json.{encode, encode_pretty, to_json, Json, JsonObject, Number}
+use std.ops.Range
 use std.serde.{Serialize, Serializer}
 use std.structure.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
@@ -164,43 +165,43 @@ fn text_gen(c: mut Choices) -> string:
     parts.join("")
 
 fn float_gen(c: mut Choices) -> f64:
-    if c.int(0, 2) == 0:
-        return c.float(-1000000.0, 1000000.0)
+    if c.int(0..=2) == 0:
+        return c.float(Range { start: -1000000.0, end: 1000000.0, inclusive: true })
     zero := 0.0
     c.choose([0.0, -0.0, 0.5, -2.25, 1.0 / 3.0, 1e21, 1e-7, 123456789.125, 1.7976931348623157e308, 5e-324, zero / zero, 1.0 / zero, -1.0 / zero])
 
 fn numbers_gen(c: mut Choices) -> Numbers:
     Numbers {
-        small: c.int(i8(-128), i8(127)),
-        short: c.int(i16(-32768), i16(32767)),
-        medium: c.int(-2147483648, 2147483647),
-        wide: c.choose([-9223372036854775807 - 1, 9223372036854775807, 0, -1, c.int(-1000000000000, 1000000000000)]),
-        byte: c.int(u8(0), u8(255)),
-        ushort: c.int(u16(0), u16(65535)),
-        umedium: c.int(u32(0), u32(4294967295)),
-        uwide: c.choose([u64(0), u64(18446744073709551615), u64(9223372036854775808), c.int(u64(0), u64(1000000000000))]),
-        size: c.int(usize(0), usize(4294967295)),
+        small: c.int(i8(-128)..=i8(127)),
+        short: c.int(i16(-32768)..=i16(32767)),
+        medium: c.int(-2147483648..=2147483647),
+        wide: c.choose([-9223372036854775807 - 1, 9223372036854775807, 0, -1, c.int(-1000000000000..=1000000000000)]),
+        byte: c.int(u8(0)..=u8(255)),
+        ushort: c.int(u16(0)..=u16(65535)),
+        umedium: c.int(u32(0)..=u32(4294967295)),
+        uwide: c.choose([u64(0), u64(18446744073709551615), u64(9223372036854775808), c.int(u64(0)..=u64(1000000000000))]),
+        size: c.int(usize(0)..=usize(4294967295)),
         single: f32(float_gen(c)),
         double: float_gen(c),
     }
 
 fn shape_gen(c: mut Choices, depth: i32) -> Shape:
-    pick := c.int(0, if depth < 2: 4 else: 3)
+    pick := c.int(0..=(if depth < 2: 4 else: 3))
     match pick:
-        0 => Shape.Circle(c.int(u32(0), u32(4294967295)))
-        1 => Shape.Rect(c.int(-5, 5), c.int(-5, 5))
-        2 => Shape.Point(c.int(-5, 5), c.int(-5, 5))
+        0 => Shape.Circle(c.int(u32(0)..=u32(4294967295)))
+        1 => Shape.Rect(c.int(-5..=5), c.int(-5..=5))
+        2 => Shape.Point(c.int(-5..=5), c.int(-5..=5))
         3 => Shape.Empty
         _ =>
             let inner: Shape? = if c.bool(): .Some(shape_gen(c, depth + 1)) else: .None
             Shape.Labeled(text_gen(c), inner)
 
 fn json_gen(c: mut Choices, depth: i32) -> Json:
-    pick := c.int(0, if depth < 2: 7 else: 5)
+    pick := c.int(0..=(if depth < 2: 7 else: 5))
     match pick:
         0 => Json.Null
         1 => Json.Bool(c.bool())
-        2 => Json.Number(Number::from_i64(c.int(-1000000, 1000000)))
+        2 => Json.Number(Number::from_i64(c.int(-1000000..=1000000)))
         3 =>
             match Number::from_f64(float_gen(c)):
                 .Some(number) => Json.Number(number)
@@ -209,7 +210,7 @@ fn json_gen(c: mut Choices, depth: i32) -> Json:
         5 => Json.Array([])
         6 =>
             let items: mut List[Json] = []
-            for _ in 0..c.int(0, 4):
+            for _ in 0..c.int(0..=4):
                 items.push(json_gen(c, depth + 1))
             Json.Array(items)
         _ =>
@@ -219,13 +220,13 @@ fn json_gen(c: mut Choices, depth: i32) -> Json:
             Json.Object(fields)
 
 fn item_gen(c: mut Choices, depth: i32) -> Item:
-    let nested: i64?? = match c.int(0, 2):
+    let nested: i64?? = match c.int(0..=2):
         0 => .None
         1 => .Some(.None)
-        _ => .Some(.Some(c.int(-9, 9)))
+        _ => .Some(.Some(c.int(-9..=9)))
     let children: mut List[Item] = []
     if depth < 2:
-        for _ in 0..c.int(0, 3):
+        for _ in 0..c.int(0..=3):
             children.push(item_gen(c, depth + 1))
     Item {
         name: text_gen(c),
@@ -235,7 +236,7 @@ fn item_gen(c: mut Choices, depth: i32) -> Item:
         note: if c.bool(): .Some(text_gen(c)) else: .None,
         nested: nested,
         tags: c.list(4, text_gen),
-        attrs: c.map(20, text_gen, fn(inner: mut Choices) -> i32: inner.int(-100, 100)),
+        attrs: c.map(20, text_gen, fn(inner: mut Choices) -> i32: inner.int(-100..=100)),
         shape: shape_gen(c, 0),
         raw: json_gen(c, 0),
         children: children,
@@ -293,15 +294,15 @@ KEYS := ["a", "b", "ab", "ba", "a\"", "é"]
 fn script_gen(c: mut Choices) -> Script:
     let steps: mut List[Step] = []
     let depth = 0
-    count := c.int(0, 24)
+    count := c.int(0..=24)
     let index = 0
     while index < count:
         index = index + 1
-        pick := c.int(0, 10)
+        pick := c.int(0..=10)
         if pick == 0:
             steps.push(Step.Null)
         else if pick == 1:
-            steps.push(Step.Int(c.int(-3, 3)))
+            steps.push(Step.Int(c.int(-3..=3)))
         else if pick == 2:
             steps.push(Step.Text(c.choose(KEYS)))
         else if pick == 3:

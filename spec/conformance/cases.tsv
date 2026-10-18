@@ -1848,7 +1848,7 @@ typing/invalid/error-message-prefixed.hd	type	reject:invalid-error-marker	lang/1
 typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.argument
 typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.argument
 typing/valid/error-interpolated-bound.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.interpolated
-typing/valid/choices-generic-draws.hd	type	accept	std/testing.md#r-std-testing.choices.int-generic
+typing/valid/choices-generic-draws.hd	type	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/property-draw-budget.hd	runtime	accept	std/testing.md#r-std-testing.limit
 runtime/valid/derived-arbitrary-with.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.with
 typing/invalid/property-examples-wrong-type.hd	type	reject:type-mismatch	std/testing.md#r-std-testing.prop.examples
@@ -2718,7 +2718,7 @@ runtime/valid/handle-fact-exact-type.hd	runtime	accept	lang/14-annotations.md#r-
 runtime/valid/sized-integer-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.arith.checked
 runtime/valid/numeric-casts-in-range.hd	runtime	accept	lang/04-type-system.md#r-types.cast.float-int-saturate
 runtime/valid/list-and-optional-map.hd	runtime	accept	std/iter.md#r-std-iter.method.map
-runtime/valid/property-generators-scalars.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-generic
+runtime/valid/property-generators-scalars.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/property-generators-collections.hd	runtime	accept	std/testing.md#r-std-testing.choices.list-max
 runtime/valid/map-key-types.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
 runtime/valid/derived-equality-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.eq
@@ -3485,3 +3485,4 @@ runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.
 runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
 runtime/valid/hasher-write-methods.hd	runtime	accept	lang/09-traits.md#r-trait.hash.hasher-methods
+runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
