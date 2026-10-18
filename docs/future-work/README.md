@@ -18,6 +18,8 @@ action at a distance.
   questions. It holds only open questions.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
   study of serializable closures and remote calls (#166).
+- [Serializable Closure Prototype Plan](SERIALIZABLE_CLOSURE_PROTOTYPE.md): 31
+  hour-sized slices, each with its spec rules and fixtures, over an in-process transport.
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): a design study for #163 after `Disposable`: a non-escaping `^` mode without lifetimes, worker isolation and shared bytes on Wasm today, frozen data later, and a re-plan of the ownership prototype.
 - [Ownership And Borrows: Design Study](OWNERSHIP_DESIGN.md): the owner's
   Rust-model design for #163: `own` at the use site, `^` borrows, lifetimes
