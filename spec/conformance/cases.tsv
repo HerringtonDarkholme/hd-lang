@@ -3484,5 +3484,6 @@ runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
-runtime/valid/hasher-write-methods.hd	runtime	accept	lang/09-traits.md#r-trait.hash.hasher-methods
+runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.write-methods
+runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range

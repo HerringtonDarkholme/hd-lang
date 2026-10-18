@@ -439,7 +439,7 @@ lang/09-traits.md	9	mixed	typing/invalid/missing-supertrait-implementation.hd|ty
 lang/09-traits.md	10	mixed	typing/invalid/child-trait-redeclares-supertrait-member.hd
 lang/09-traits.md	11	accept	typing/valid/trait-features.hd
 lang/09-traits.md	12	mixed	typing/invalid/ambiguous-projection.hd
-lang/09-traits.md	13	accept	typing/valid/prelude-surface.hd
+lang/09-traits.md	13	accept	typing/valid/prelude-surface.hd|runtime/valid/hasher-write-methods.hd
 lang/09-traits.md	14	mixed	typing/invalid/derived-hash-field-not-hash.hd|typing/invalid/derived-generic-bound.hd
 lang/09-traits.md	15	mixed	typing/invalid/derive-beside-written-impl.hd
 lang/09-traits.md	16	mixed	typing/invalid/mixed-derived-law.hd
