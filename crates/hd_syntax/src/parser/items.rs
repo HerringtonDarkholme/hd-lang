@@ -99,10 +99,6 @@ impl Parser<'_> {
                     Code::OldExportDeclaration,
                     "'export' was replaced by 'pub use'",
                 )),
-                "struct" => Some((
-                    Code::OldStructDeclaration,
-                    "'struct' was replaced by 'data'",
-                )),
                 _ => None,
             };
             if let Some((code, message)) = old {
@@ -159,6 +155,7 @@ impl Parser<'_> {
             ),
             Some(
                 TokenKind::KwData
+                | TokenKind::KwStruct
                 | TokenKind::KwEnum
                 | TokenKind::KwTrait
                 | TokenKind::KwImpl
@@ -185,7 +182,7 @@ impl Parser<'_> {
         }
         match self.current() {
             Some(TokenKind::KwFn) => self.fn_decl(marker, Owner::Free),
-            Some(TokenKind::KwData) => self.data_decl(marker),
+            Some(TokenKind::KwData | TokenKind::KwStruct) => self.data_decl(marker),
             Some(TokenKind::KwEnum) => self.enum_decl(marker),
             Some(TokenKind::KwTrait) => self.trait_decl(marker),
             Some(TokenKind::KwImpl) => {
@@ -577,8 +574,14 @@ impl Parser<'_> {
     // --------------------------------------------------------- data, enum
 
     fn data_decl(&mut self, marker: Marker) {
-        self.bump(); // data
-        self.expect_name("a data type name");
+        // `data` or `struct` (data.struct.decl): one member grammar.
+        let what = if self.at(TokenKind::KwStruct) {
+            "a struct name"
+        } else {
+            "a data type name"
+        };
+        self.bump();
+        self.expect_name(what);
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }

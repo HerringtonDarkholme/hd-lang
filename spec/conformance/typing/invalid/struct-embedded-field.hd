@@ -1,0 +1,8 @@
+# Spec 08 Struct Declarations: data.struct.no-embedding.
+struct Vec2:
+    x: f64
+    y: f64
+
+struct Pair:
+    Vec2  # diagnostic: embedded-non-data
+    weight: f64

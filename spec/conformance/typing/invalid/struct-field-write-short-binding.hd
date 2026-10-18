@@ -1,0 +1,8 @@
+# Spec 04 Writable Places: types.value.write.short.
+struct Point:
+    x: i32
+    y: i32
+
+fn demo() -> void:
+    origin := Point { x: 0, y: 0 }
+    origin.x = 1  # diagnostic: non-reassignable-binding

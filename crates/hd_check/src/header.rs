@@ -417,6 +417,7 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
+        self.value_item(it, skip_self);
         // The bounds the item writes are written types too
         // (`trait.bound.no-implied.positions`); they report at the header.
         let gens: &[Generic] = match &it.data {
@@ -986,6 +987,15 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
                 self.check_bound(t)?;
             }
+            TyData::Mut(i) if self.is_struct(i) => {
+                // `types.value.no-mut`: a struct is a value with no views.
+                let message = format!(
+                    "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
+                    self.show(i)
+                );
+                self.report(slot, Code::MutOnStruct, message);
+                self.check_ty(i, slot)?;
+            }
             TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, slot)?,
             TyData::Tuple { elems, rest } => {
                 for e in pool.list_items(elems).iter().copied().chain(rest) {
@@ -1008,6 +1018,56 @@ impl<'a> ItemCheck<'_, 'a> {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Whether `t` is a struct type (`data.struct.decl`).
+    fn is_struct(&self, t: Ty) -> bool {
+        matches!(self.pool().get(t), TyData::Adt { def, .. }
+            if self.cx.lookup.item(def).is_some_and(|i| i.is_struct))
+    }
+
+    /// The struct rules of a declaration: a method's `mut self` on a
+    /// struct (`data.struct.no-mut-self`), and a struct that holds itself
+    /// through its value fields (`data.struct.no-recursion`).
+    fn value_item(&mut self, it: &Item, has_self: bool) {
+        match &it.data {
+            ItemData::Method { sig, .. } if has_self => {
+                if let Some(TyData::Mut(i)) = sig.params.first().map(|p| self.pool().get(p.1))
+                    && self.is_struct(i)
+                {
+                    let message = format!(
+                        "{} is a struct, so a method takes `self`, its own copy, rather than `mut self`",
+                        self.show(i)
+                    );
+                    self.report(1, Code::MutOnStruct, message);
+                }
+            }
+            ItemData::Data(fs) if it.is_struct => {
+                for (i, f) in fs.iter().enumerate() {
+                    let mut seen = Vec::new();
+                    if crate::value::holds_struct(
+                        self.pool(),
+                        self.cx.lookup,
+                        f.ty,
+                        it.def,
+                        &mut seen,
+                    ) {
+                        let message = format!(
+                            "the struct `{}` holds itself through the field `{}`; a value cannot contain itself, so hold it through a collection or a data type",
+                            self.cx.names.display_name(it.def),
+                            self.cx.names.text(f.name)
+                        );
+                        self.report(
+                            u32::try_from(i + 1).unwrap_or(0),
+                            Code::RecursiveValueType,
+                            message,
+                        );
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     /// A delegation target: the embedded field `by` implements the trait.

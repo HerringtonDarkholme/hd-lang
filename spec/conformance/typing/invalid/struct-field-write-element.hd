@@ -1,0 +1,7 @@
+# Spec 04 Writable Places: types.value.write.other, for a list element.
+struct Point:
+    x: i32
+    y: i32
+
+fn demo(points: mut List[Point]) -> void:
+    points[0].x = 1  # diagnostic: readonly-root

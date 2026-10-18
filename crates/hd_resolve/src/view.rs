@@ -56,7 +56,10 @@ impl<'a> Src<'a> {
         let mut seen = false;
         for t in self.tokens(n) {
             match self.tkind(t) {
-                Some(k) if k == kw => seen = true,
+                // `struct` heads a data declaration as `data` does.
+                Some(k) if k == kw || (kw == TokenKind::KwData && k == TokenKind::KwStruct) => {
+                    seen = true;
+                }
                 Some(TokenKind::Ident | TokenKind::RawIdent) if seen => return Some(t),
                 _ => {}
             }

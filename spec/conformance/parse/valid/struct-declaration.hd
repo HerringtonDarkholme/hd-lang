@@ -1,0 +1,16 @@
+# Spec 01 Keywords And Reserved Words: lex.keyword.struct. Spec 02 Data Types: grammar.data.struct.
+struct Empty: pass
+
+pub struct Point[T]:
+    pub x: T
+    y: T
+
+@derive(Eq)
+struct Config:
+    retries: i32 = 3
+    name: string
+
+fn demo() -> i32:
+    struct Local:
+        n: i32
+    Local { n: 1 }.n

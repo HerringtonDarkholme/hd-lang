@@ -1,0 +1,13 @@
+# Spec 04 Writable Places: types.value.write.let, types.value.reassign.
+struct Point:
+    x: i32
+    y: i32
+
+fn demo() -> i32:
+    origin := Point { x: 0, y: 0 }
+    let start = origin
+    start = Point { x: 2, y: 0 }
+    start.x = 2  # diagnostic: readonly-root
+    let mut cur = start
+    cur.x = 3
+    cur.x

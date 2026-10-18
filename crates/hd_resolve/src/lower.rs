@@ -3976,6 +3976,9 @@ impl Lower<'_, '_, '_> {
                 self.derived(h, &generics, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
+                it.is_struct = n
+                    .direct_token(&self.src.parse.tokens, TokenKind::KwStruct)
+                    .is_some();
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
                 it.fact_pattern = self.annotate_pattern(n, &gn);

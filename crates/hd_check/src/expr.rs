@@ -2261,7 +2261,9 @@ impl Ck<'_, '_> {
         };
         let mut vals = vec![Ref(NONE); fields.len()];
         let mut seen = vec![false; fields.len()];
-        let mut fresh_mut = true;
+        // A struct literal is a plain value (`types.value.no-view`).
+        let value = item.is_struct;
+        let mut fresh_mut = !value;
         // `expr.update.form`: a leading spread supplies every field the
         // literal does not name. The fields it names are replaced.
         let spread = kids[1..]
@@ -2381,7 +2383,8 @@ impl Ck<'_, '_> {
             };
             // A readonly value in a direct `mut U` field makes the literal
             // readonly (types.fresh.readonly-field).
-            let ft = if matches!(pool.get(fields[i].ty), TyData::Mut(_))
+            let ft = if !value
+                && matches!(pool.get(fields[i].ty), TyData::Mut(_))
                 && !fields[i].embedded
                 && self.is_composite(t)
                 && !self.has_mut_access(t)

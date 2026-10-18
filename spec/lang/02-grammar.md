@@ -495,7 +495,7 @@ fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-v
 ### Data Types
 
 ```ebnf
-data_decl = "data", identifier, [ type_params ], ":", data_suite ;
+data_decl = ( "data" | "struct" ), identifier, [ type_params ], ":", data_suite ;
 
 data_suite = "pass", SUITE_END
              | NEWLINE, INDENT,
@@ -515,6 +515,7 @@ embedded_field = named_type ;
 3. r[grammar.data.embedded] An embedded field must denote a data type and must not include `mut`.
 4. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a data body is an error. Error: `syntax-error`.
 5. r[grammar.data.default] Data-field default expressions have the requirement-free constraint specified in [Data Types and Enums](08-data-and-enums.md#data-declarations).
+6. r[grammar.data.struct] A declaration written with `struct` in place of `data` has the same body grammar, and declares a struct ([Struct Declarations](08-data-and-enums.md#struct-declarations)).
 
 ```text
 pub data Base:

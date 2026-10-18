@@ -1,0 +1,39 @@
+# Spec 08 Struct Declarations: data.struct.decl, data.struct.methods, data.struct.contains.ends.
+# Spec 02 Data Types: grammar.data.struct. Spec 04 Value Types: types.value.no-view, types.value.let-mut, types.value.field-type.
+@derive(Eq, Debug)
+pub struct Pair[T]:
+    pub first: T
+    pub second: T
+    count: i32 = 2
+
+impl[T] Pair[T]:
+    fn swapped(self) -> Pair[T]:
+        Pair { ...self, first: self.second, second: self.first }
+
+struct Node:
+    value: i32
+    children: List[Node]
+
+data Holder:
+    node: Node
+    peers: mut List[Node]
+
+struct Log:
+    lines: mut List[string]
+
+fn note(log: Log, line: string) -> void:
+    log.lines.push(line)
+
+fn build() -> Pair[i32]:
+    let mut p: Pair[i32] = Pair { first: 1, second: 2 }
+    p.first = 3
+    let q: Pair[i32] = p.swapped()
+    q
+
+fn tree() -> Node:
+    leaf := Node { value: 1, children: [] }
+    Node { value: 0, children: [leaf, leaf] }
+
+fn hold(h: mut Holder) -> void:
+    h.node.value = 5
+    h.peers.push(h.node)

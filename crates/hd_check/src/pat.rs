@@ -569,6 +569,12 @@ impl Ck<'_, '_> {
             _ => t,
         };
         let l = self.bind_local(name, t, p);
+        if self.let_view.is_some()
+            && p.direct_tokens()
+                .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
+        {
+            self.mut_locals.push(l);
+        }
         binds.push((p.index(), l));
         Ok(())
     }
@@ -873,11 +879,11 @@ impl Ck<'_, '_> {
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
         // types.bind.let-mut-tuple).
         let mut t = t;
-        if pat.kind() == SyntaxKind::BindingPattern
+        let let_mut = pat.kind() == SyntaxKind::BindingPattern
             && pat
                 .direct_tokens()
-                .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
-        {
+                .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
+        if let_mut {
             self.let_mut_binding(t, annot.is_some(), pat);
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
             // `x := e` and `let x = e` bind the readonly view
@@ -908,6 +914,9 @@ impl Ck<'_, '_> {
                 }
                 None => self.bind_local(name, t, pat),
             };
+            if let_mut {
+                self.mut_locals.push(l);
+            }
             self.set_local(l, r, at.index());
             return Ok(());
         }

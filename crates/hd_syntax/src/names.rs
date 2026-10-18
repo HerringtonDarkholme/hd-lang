@@ -78,7 +78,9 @@ fn declaration(text: &str, tokens: &TokenBuf, range: Range<usize>, out: &mut Vec
         }
     };
     match kind(at) {
-        Some(T::KwFn | T::KwType | T::KwData | T::KwEnum | T::KwTrait) => name(at + 1, out),
+        Some(T::KwFn | T::KwType | T::KwData | T::KwStruct | T::KwEnum | T::KwTrait) => {
+            name(at + 1, out);
+        }
         Some(T::KwLet) => name(at + 1 + usize::from(kind(at + 1) == Some(T::KwMut)), out),
         Some(T::Ident) if word(at) == "use" && kind(at + 1) == Some(T::Ident) => {
             for i in at + 1..range.end {

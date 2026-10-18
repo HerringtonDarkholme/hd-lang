@@ -197,11 +197,6 @@ const ROWS: &[(&str, &str, &str)] = &[
         "requirement keys are joined with '+': write '$ A + B'",
     ),
     (
-        "struct Foo:\n    x: i32\n",
-        "old-struct-declaration",
-        "'struct' was replaced by 'data'",
-    ),
-    (
         "fn f():\n    Pair.Values(left=l, r)\n",
         "argument-order",
         "positional arguments must precede named arguments",

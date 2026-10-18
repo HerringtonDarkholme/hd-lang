@@ -42,6 +42,9 @@ pub struct Global {
     pub at: u32,
     /// Bound with `:=`: not reassignable (expr.bind.one-name).
     pub short: bool,
+    /// Bound with `let mut`: a struct value in it changes in place
+    /// (`types.value.writable`).
+    pub mutable: bool,
 }
 
 impl Global {
@@ -52,19 +55,21 @@ impl Global {
             def: self.def,
             ty: self.ty,
             short: self.short,
+            mutable: self.mutable,
         }
     }
 }
 
 /// A top-level binding as a REPL input's interface carries it for later
 /// inputs (`cli.repl.declarations.bindings`): its item, whose path names
-/// its storage, its final type, and whether it was bound with `:=`, so not
-/// reassignable.
+/// its storage, its final type, whether it was bound with `:=`, so not
+/// reassignable, and whether with `let mut`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InputBinding {
     pub def: DefId,
     pub ty: Ty,
     pub short: bool,
+    pub mutable: bool,
 }
 
 /// The top-level bindings of the module `cx` checked, as its input
@@ -406,6 +411,7 @@ fn poison_bindings(cx: &BodyCx<'_>, module: &str, stmts: &[NodeRef<'_>]) {
                     stmt: i,
                     at: cx.src.span(*s).lo,
                     short: s.kind() == SyntaxKind::ExprStmt,
+                    mutable: false,
                 });
             }
         }
@@ -684,6 +690,9 @@ impl Ck<'_, '_> {
                 stmt: i,
                 at: self.cx.src.span(s).lo,
                 short: false,
+                mutable: pat
+                    .direct_tokens()
+                    .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)),
             },
         );
     }
@@ -801,6 +810,7 @@ impl Ck<'_, '_> {
                     stmt: self.init_stmt,
                     at: self.cx.src.span(s).lo,
                     short: s.kind() == SyntaxKind::ExprStmt,
+                    mutable: self.mut_locals.contains(&l),
                 },
             );
             let a = self.b.refs_record(&[Ref(def.raw())]);
@@ -867,10 +877,10 @@ impl Ck<'_, '_> {
             None => (r, t),
         };
         // The binding forms' views (types.bind.short, types.bind.let-mut-infer).
-        let t = if pat
+        let mutable = pat
             .direct_tokens()
-            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
-        {
+            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
+        let t = if mutable {
             self.let_mut_binding(t, annot.is_some(), pat);
             t
         } else if annot.is_none() {
@@ -888,6 +898,7 @@ impl Ck<'_, '_> {
                 stmt: self.init_stmt,
                 at: self.cx.src.span(s).lo,
                 short: s.kind() == SyntaxKind::ExprStmt,
+                mutable,
             },
         );
         let a = self.b.refs_record(&[Ref(def.raw())]);

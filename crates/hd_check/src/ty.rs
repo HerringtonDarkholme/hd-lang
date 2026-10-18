@@ -698,6 +698,15 @@ impl Ck<'_, '_> {
                     );
                     return Ok(t);
                 }
+                // `types.value.no-mut`: a struct is a value with no views.
+                if self.is_struct_ty(t) {
+                    let msg = format!(
+                        "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
+                        self.show(t)
+                    );
+                    self.err(hd_diag::Code::MutOnStruct, n, &msg);
+                    return Ok(t);
+                }
                 pool.intern_ty(&TyData::Mut(t))
             }
             SyntaxKind::ParenType => first(self, n)?,

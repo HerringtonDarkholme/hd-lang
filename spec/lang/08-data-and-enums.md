@@ -2,11 +2,12 @@
 
 Status: language specification draft.
 
-This chapter defines data types and enums.
+This chapter defines data types, structs, and enums.
 
 1. r[data.kind.data] A **data type** is a nominal product type with reference semantics.
 2. r[data.kind.enum] An **enum** is a nominal sum type.
 3. r[data.kind.no-class] Neither is a class, and neither creates an inheritance hierarchy.
+4. r[data.kind.struct] A **struct** is a nominal product type with value semantics, and is not a class either.
 
 ```hd
 data Point:
@@ -156,16 +157,59 @@ fn demo() -> usize:
 
 See also: [Composite Values And Access Permission](04-type-system.md#composite-values-and-access-permission).
 
-### Obsolete `struct` Declarations
+## Struct Declarations
 
-1. r[data.decl.no-struct] `struct` is not a declaration keyword, and `struct Name:` must be diagnosed. Error: `old-struct-declaration`.
+A `struct` declaration defines a struct with named, typed fields, as a
+`data` declaration does. A struct value is copied, never shared.
 
-```text
-struct Legacy: pass  # error: old-struct-declaration
+```hd
+struct Vec2:
+    x: f64
+    y: f64 = 0.0
+
+fn demo() -> f64:
+    let mut a = Vec2 { x: 1.0 }
+    b := a      # b is a copy of a
+    a.x = 5.0   # changes a only
+    b.x         # 1.0
 ```
 
-> **Why.** The dedicated diagnostic keeps obsolete source from masquerading
-> as a sequence of identifiers.
+1. r[data.struct.decl] `struct Name:` declares a struct. Its body has the grammar of a data body: named fields, defaults, visibility, decorators, and generic parameters.
+2. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
+3. r[data.struct.data-rules] The rules of [Data Declarations](#data-declarations) and [Construction And Access](#construction-and-access) apply to a struct, except as this section states.
+4. r[data.struct.methods] A method of a struct takes `self` by value: its own copy of the receiver.
+5. r[data.struct.no-mut-self] A struct method that takes `mut self` is an error. Error: `mut-on-struct`.
+6. r[data.struct.no-embedding] A struct declares no embedded field, so a bare type-name member of a struct is an error. Error: `embedded-non-data`.
+7. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
+8. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
+9. r[data.struct.contains.ends] A data type, a collection, a trait value, or a function value holds a reference, so containment ends there.
+
+```text
+struct Vec2:
+    x: f64
+    y: f64
+
+struct Pair:
+    Vec2          # error: embedded-non-data
+    weight: f64
+
+struct Chain:
+    next: Chain?  # error: recursive-value-type
+
+impl Vec2:
+    fn reset(mut self) -> void:  # error: mut-on-struct
+        pass
+```
+
+> **Why.** A struct holds its fields inline, so one that contained itself
+> would have no finite size. Recursion goes through a data type or a
+> collection, which holds a reference, as `next: List[Chain]` does.
+
+> **Note.** A struct is not a data type, so a data declaration cannot embed
+> one, as [`data.embed.data-only`](#r-data.embed.data-only) states.
+
+See also: [Value Types](04-type-system.md#value-types),
+[Writable Places](04-type-system.md#writable-places).
 
 ## Construction And Access
 

@@ -1,0 +1,10 @@
+# Spec 04 Writable Places: types.value.write.data, types.path.store.readonly-root.
+struct Point:
+    x: i32
+    y: i32
+
+data Marker:
+    at: Point
+
+fn move(marker: Marker) -> void:
+    marker.at.x = 1  # diagnostic: readonly-root

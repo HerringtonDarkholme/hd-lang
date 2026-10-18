@@ -1,0 +1,3 @@
+# Spec 08 Struct Declarations: data.struct.no-recursion, data.struct.contains, through an optional.
+struct Chain:
+    next: Chain?  # diagnostic: recursive-value-type

@@ -59,6 +59,7 @@ such a field or element. The spec allows either form
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: `i8` for `bool`, `u8`, `i8`; `i16` for 16-bit integers; else the scalar |
 | `data T` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
+| `struct T` | `(ref $T)`: the same struct as a data type's, which nothing writes after `struct.new` ("Struct values" below) | same |
 | embedded part | a separate struct, referenced by an immutable field of the outer struct ([`data.part.unobservable`](../../spec/lang/08-data-and-enums.md#r-data.part.unobservable)) | same |
 | payloadless enum | `i32` tag | `i8` or `i16` when the variant count fits |
 | enum with payloads, within the bound | `multi`: `(i32 tag, shared payload slots...)` (§15.1) | the same fields; a structure of arrays in an array |
@@ -79,6 +80,32 @@ such a field or element. The spec allows either form
 | `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
 | `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `data TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
+
+**Struct values: immutable objects, rebuilt on a field write.** A
+`struct` value has no identity and is copied on every binding, store and
+call ([Value Types](../../spec/lang/04-type-system.md#value-types)). On
+Wasm GC it is emulated, not laid out inline: a struct value is the GC
+object a data type of the same fields would be, and the checker never
+emits a store into one. A field write to a writable place,
+`a.b.x = v`, is lowered in TIR (`crates/hd_check/src/value.rs`) as
+`a = A { ...a, b: B { ...a.b, x: v } }`: one `CopyData` per struct on the
+path, then a `LocalSet`, `GlobalSet` or `FieldSet` of the place's root.
+
+- **Why not a copy on every copy.** Copying at each read needs the
+  concrete type at every read, which an erased or `A1` generic body does
+  not have (`List[Point]` stores `eqref`), and a missed copy is a silent
+  aliasing bug. An object that never changes can be shared by any number
+  of places, so a copy is a reference move and nothing can be missed.
+- **Why not the tuple value layout.** Flattening a struct into its
+  fields' values (multi within the bound, a box over it) changes every
+  layout that holds one, the erased storage included; the object model's
+  backend move (OBJECT_MODEL_TIER1.md job 11, REFCOUNT_RUNTIME.md)
+  replaces this layout anyway.
+- **Cost.** A field write allocates one object per struct on the path,
+  so a loop that writes a field of a `let mut` struct allocates per
+  iteration; a data type's field write allocates nothing. Reads cost what
+  a data field read costs. Correct first: inline layout and in-place
+  writes come with the linear-memory backend.
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are

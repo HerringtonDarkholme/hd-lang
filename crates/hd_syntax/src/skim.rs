@@ -184,6 +184,7 @@ fn can_open_suite(kinds: &[TokenKind]) -> bool {
             kind,
             TokenKind::KwFn
                 | TokenKind::KwData
+                | TokenKind::KwStruct
                 | TokenKind::KwEnum
                 | TokenKind::KwTrait
                 | TokenKind::KwImpl
@@ -201,7 +202,7 @@ fn can_open_suite(kinds: &[TokenKind]) -> bool {
 fn header_kind(kind: TokenKind) -> HeaderKind {
     match kind {
         TokenKind::KwFn => HeaderKind::Function,
-        TokenKind::KwData => HeaderKind::Data,
+        TokenKind::KwData | TokenKind::KwStruct => HeaderKind::Data,
         TokenKind::KwEnum => HeaderKind::Enum,
         TokenKind::KwTrait => HeaderKind::Trait,
         TokenKind::KwImpl => HeaderKind::Impl,
@@ -285,6 +286,7 @@ fn decl_line_starts(tokens: &TokenBuf) -> Vec<u32> {
             tokens.kind.get(i),
             Some(
                 TokenKind::KwData
+                    | TokenKind::KwStruct
                     | TokenKind::KwEnum
                     | TokenKind::KwTrait
                     | TokenKind::KwImpl
@@ -491,6 +493,7 @@ fn top_level_statements(
             kind,
             TokenKind::KwFn
                 | TokenKind::KwData
+                | TokenKind::KwStruct
                 | TokenKind::KwEnum
                 | TokenKind::KwTrait
                 | TokenKind::KwImpl

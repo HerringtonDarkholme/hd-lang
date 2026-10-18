@@ -1,0 +1,7 @@
+# Spec 04 Value Types: types.value.no-mut, in a signature.
+struct Point:
+    x: i32
+    y: i32
+
+fn nudge(p: mut Point) -> void:  # diagnostic: mut-on-struct
+    pass

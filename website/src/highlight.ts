@@ -32,6 +32,7 @@ export const KEYWORDS: ReadonlySet<string> = new Set([
   "pub",
   "return",
   "self",
+  "struct",
   "tests",
   "trait",
   "true",

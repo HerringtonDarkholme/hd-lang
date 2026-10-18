@@ -1,0 +1,8 @@
+# Spec 04 Writable Places: types.value.write.param, for `self`. Spec 08 Struct Declarations: data.struct.methods.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn reset(self) -> void:
+        self.x = 0  # diagnostic: non-reassignable-parameter-binding

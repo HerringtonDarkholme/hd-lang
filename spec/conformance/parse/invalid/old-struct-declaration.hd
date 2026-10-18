@@ -1,3 +1,0 @@
-# Spec 08 Obsolete struct Declarations: data.decl.no-struct.
-
-struct Legacy: pass  # diagnostic: old-struct-declaration

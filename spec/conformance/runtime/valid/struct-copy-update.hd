@@ -1,0 +1,19 @@
+# test: a struct literal fills defaults and shorthand fields, and a copy-update builds a new struct value without changing its source
+# Spec 08 Struct Declarations: data.struct.data-rules; Spec 08 Copy-Update Literals.
+# expect-stdout: 1 0 shop
+# expect-stdout: 1 4 shop
+# expect-stdout: 3 0 cart
+struct Config:
+    retries: i32
+    delay: i32 = 0
+    name: string
+
+pub fn main() -> void $ Console:
+    name := "shop"
+    base := Config { retries: 1, name }
+    slower := Config { ...base, delay: 4 }
+    println("${base.retries} ${base.delay} ${base.name}")
+    println("${slower.retries} ${slower.delay} ${slower.name}")
+    let mut edited = Config { ...base, name: "cart" }
+    edited.retries = 3
+    println("${edited.retries} ${edited.delay} ${edited.name}")

@@ -1,0 +1,23 @@
+# test: derived Eq and Hash on a struct compare field values, derived Debug renders its fields, and a struct pattern tests and binds fields
+# Spec 08 Struct Declarations: data.struct.data-rules; Spec 08 Data Patterns; Spec 04 Value Types: types.value.copy.
+# expect-stdout: true false
+# expect-stdout: Key { id: 1, tag: "a" }
+# expect-stdout: 10
+# expect-stdout: one a
+@derive(Eq, Hash, Debug)
+struct Key:
+    id: i32
+    tag: string
+
+pub fn main() -> void $ Console:
+    k := Key { id: 1, tag: "a" }
+    let mut other = k
+    println("${k == other} ${k == Key { ...k, id: 2 }}")
+    println(debug(k))
+    let counts: mut Map[Key, i32] = {}
+    counts[k] = 10
+    other.tag = "a"
+    println(counts[other])
+    match k:
+        Key { id: 1, tag } => println("one ${tag}")
+        _ => println("other")

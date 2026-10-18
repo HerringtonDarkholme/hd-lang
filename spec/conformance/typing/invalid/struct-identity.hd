@@ -1,0 +1,7 @@
+# Spec 04 Value Types: types.value.anyval.
+struct Point:
+    x: i32
+    y: i32
+
+fn same(a: Point, b: Point) -> bool:
+    a is b  # diagnostic: identity-requires-references

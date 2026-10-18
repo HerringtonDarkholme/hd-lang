@@ -1,0 +1,6 @@
+# Spec 08 Struct Declarations: data.struct.no-recursion, data.struct.contains, through a generic struct's field.
+struct Wrap[T]:
+    inner: T
+
+struct Nest:
+    wrap: Wrap[Nest]  # diagnostic: recursive-value-type

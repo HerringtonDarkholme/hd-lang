@@ -15,8 +15,8 @@ use hd_syntax::TokenKind as T;
 /// and `use`, which is one in a use declaration.
 const KEYWORDS: &[&str] = &[
     "Self", "break", "continue", "data", "defer", "dyn", "else", "enum", "false", "fn", "for",
-    "if", "impl", "in", "is", "let", "match", "mut", "pass", "pub", "return", "self", "tests",
-    "trait", "true", "type", "use", "while",
+    "if", "impl", "in", "is", "let", "match", "mut", "pass", "pub", "return", "self", "struct",
+    "tests", "trait", "true", "type", "use", "while",
 ];
 
 const COMMANDS: &[&str] = &[":help", ":quit", ":reload"];

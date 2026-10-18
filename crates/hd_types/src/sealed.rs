@@ -60,6 +60,8 @@ impl SealedTraits {
 pub enum TypeDecl {
     /// A data type, or a std type with no declaration (`List`, `Map`).
     Data,
+    /// A `struct`: a value type (`types.value.struct`).
+    Struct,
     Enum,
     /// A newtype and its base type, over the newtype's own parameters.
     Newtype(Ty),
@@ -106,7 +108,7 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
         }
         TyData::TraitValue { .. } => Category::Ref,
         TyData::Adt { def, args } => match decls.type_decl(def) {
-            TypeDecl::Enum => Category::Val,
+            TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Data => Category::Ref,
             TypeDecl::Newtype(base) => {
                 let argv = pool.list_items(args);

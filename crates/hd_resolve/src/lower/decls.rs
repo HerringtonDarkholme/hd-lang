@@ -391,7 +391,7 @@ impl Folder<'_, '_> {
             TyData::Adt { def, .. } => {
                 def != known.list
                     && def != known.map
-                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data))
+                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data) && !i.is_struct)
             }
             _ => false,
         };
@@ -399,6 +399,7 @@ impl Folder<'_, '_> {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
                 let Some(Item {
                     data: ItemData::Data(fields),
+                    is_struct,
                     ..
                 }) = self.own.get(&h.def).copied()
                 else {
@@ -409,6 +410,15 @@ impl Folder<'_, '_> {
                     .flat_map(NodeRef::children)
                     .filter(|c| c.kind() == SyntaxKind::EmbeddedField);
                 for (f, node) in fields.iter().filter(|f| f.embedded).zip(nodes) {
+                    // `data.struct.no-embedding`: a struct embeds nothing.
+                    if *is_struct {
+                        let msg = format!(
+                            "a struct has no embedded fields; write `{}` as a named field",
+                            self.names.text(f.name)
+                        );
+                        diags.error(Code::EmbeddedNonData, m.src.span(node), &msg);
+                        continue;
+                    }
                     if !pool.has_poison(f.ty) && !is_data(f.ty) {
                         let msg = format!(
                             "`{}` is not a data type, so it cannot be embedded",

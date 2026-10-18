@@ -1,0 +1,60 @@
+# test: a struct value is copied on binding, assignment, passing and return, so a field write changes only its own writable place
+# Spec 04 Value Types: types.value.copy, types.value.writable, types.value.field-write, types.value.write-once.
+# Spec 08 Struct Declarations: data.struct.decl, data.struct.methods.
+# expect-stdout: 5 1
+# expect-stdout: 2 5
+# expect-stdout: 6 5
+# expect-stdout: 7 1 2
+# expect-stdout: 9 0
+# expect-stdout: 2
+# expect-stdout: 3
+struct Vec2:
+    x: i32
+    y: i32
+
+impl Vec2:
+    fn moved(self, dx: i32) -> Vec2:
+        let mut next = self
+        next.x += dx
+        next
+
+struct Body:
+    pos: Vec2
+    vel: Vec2
+
+fn shifted(v: Vec2) -> Vec2:
+    let mut w = v
+    w.x += 1
+    w
+
+let mut origin = Vec2 { x: 0, y: 0 }
+
+fn bump_origin() -> void:
+    origin.y += 1
+
+pub fn main() -> void $ Console:
+    let mut a = Vec2 { x: 1, y: 2 }
+    b := a
+    a.x = 5
+    println("${a.x} ${b.x}")
+    let mut c = b
+    c = a
+    a.y = 9
+    println("${c.y} ${c.x}")
+    s := shifted(a)
+    println("${s.x} ${a.x}")
+    let mut body = Body { pos: b, vel: b }
+    body.pos.x = 7
+    println("${body.pos.x} ${body.vel.x} ${b.y}")
+    m := a.moved(4)
+    println("${m.x} ${origin.y}")
+    let mut counter = Vec2 { x: 0, y: 0 }
+    tick := fn() -> void:
+        counter.x += 1
+    tick()
+    tick()
+    println(counter.x)
+    bump_origin()
+    bump_origin()
+    bump_origin()
+    println(origin.y)

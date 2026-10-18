@@ -1006,6 +1006,87 @@ fn demo() -> i32:
     x
 ```
 
+## Value Types
+
+A **value type** has values without identity: binding a value copies it,
+and nothing shares it. A struct type is a value type.
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn moved(p: Point) -> Point:
+    let mut q = p  # q is a copy of p
+    q.x += 1       # p is unchanged
+    q
+```
+
+1. r[types.value.struct] A struct type is a value type. Each struct declaration introduces a distinct nominal type, as a data or enum declaration does.
+2. r[types.value.copy] Binding, assigning, passing, and returning a struct value copies it. A later change to the copy leaves the source unchanged, and the reverse.
+3. r[types.value.stored] A struct value stored in a data field, a list element, a map value, a tuple element, or an enum payload is a copy, and reading it out yields a copy.
+4. r[types.value.no-view] A struct type has no readonly or `mut` view, so a struct literal or copy-update has the plain struct type.
+5. r[types.value.no-mut] A struct type written with `mut`, as in `mut Point`, is an error. Error: `mut-on-struct`.
+6. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct. A `field: mut U` keeps its `mut`.
+7. r[types.value.anyval] A struct type implements `AnyVal`, so `is` with a struct operand is an error. Error: `identity-requires-references`.
+
+```text
+struct Point:
+    x: i32
+    y: i32
+
+fn nudge(p: mut Point) -> void:  # error: mut-on-struct
+    pass
+
+fn same(a: Point, b: Point) -> bool:
+    a is b  # error: identity-requires-references
+```
+
+> **Why.** A struct value has no identity, so a `mut` view of one would
+> name no shared object, and `is` would have nothing to compare.
+
+### Writable Places
+
+A field of a struct value changes in place only through a writable place.
+
+1. r[types.value.writable] A place is **writable** when it is a `let mut` binding, local or top-level, a field of a data value with mutable access, or a struct field of a writable place.
+2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
+3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
+4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
+5. r[types.value.reassign] A plain `let` binding of a struct may be reassigned as a whole. A `:=` binding and a parameter never change.
+
+A field write through a struct that is not in a writable place is an error,
+by what holds the struct:
+
+| Rule | The struct is held by | Error |
+| --- | --- | --- |
+| r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
+| r[types.value.write.param] Parameter | a value parameter or `self` | `non-reassignable-parameter-binding` |
+| r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
+| r[types.value.write.other] Other value | a call result, a collection element, an unwrapped value, or a pattern binding | `readonly-root` |
+| r[types.value.write.data] Data field | a field of a data value without mutable access | as [Mutation Checks](#mutation-checks) states |
+
+```text
+struct Point:
+    x: i32
+    y: i32
+
+fn shift(p: Point) -> void:
+    p.x += 1  # error: non-reassignable-parameter-binding
+
+fn demo() -> void:
+    origin := Point { x: 0, y: 0 }
+    origin.x = 1  # error: non-reassignable-binding
+    let start = origin
+    start.x = 2  # error: readonly-root
+    start = Point { x: 2, y: 0 }  # valid: reassigned as a whole
+    let mut cur = start
+    cur.x = 3  # valid: cur is writable
+```
+
+See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),
+[Places](05-expressions.md#places).
+
 ## Composite Values And Access Permission
 
 Composite values are shared by reference, and `mut` grants mutable access to

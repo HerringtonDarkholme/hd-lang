@@ -8542,8 +8542,8 @@ fn decode_summary(
 }
 
 /// A REPL input's top-level bindings in its `check` entry (its input
-/// interface): the type tables, then each binding's item, type and `:=`
-/// flag, in statement order.
+/// interface): the type tables, then each binding's item, type and flags
+/// (bit 0 `:=`, bit 1 `let mut`), in statement order.
 fn encode_bindings(bindings: &[InputBinding], names: &Names<'_>) -> StageResult<Vec<u8>> {
     let mut t = hd_types::wire::TableWriter::new(names.pool, names.paths, names.syms);
     let mut body = Writer::default();
@@ -8551,7 +8551,7 @@ fn encode_bindings(bindings: &[InputBinding], names: &Names<'_>) -> StageResult<
     for b in bindings {
         body.u32(t.def(b.def));
         body.u32(t.ty(b.ty)?);
-        body.u8(u8::from(b.short));
+        body.u8(u8::from(b.short) | (u8::from(b.mutable) << 1));
     }
     let mut w = Writer::default();
     t.write(&mut w);
@@ -8566,8 +8566,13 @@ fn decode_bindings(b: &[u8], names: &Names<'_>) -> Option<Vec<InputBinding>> {
     for _ in 0..r.count() {
         let def = t.def(r.u32())?;
         let ty = t.ty(r.u32())?;
-        let short = r.u8() != 0;
-        out.push(InputBinding { def, ty, short });
+        let flags = r.u8();
+        out.push(InputBinding {
+            def,
+            ty,
+            short: flags & 1 != 0,
+            mutable: flags & 2 != 0,
+        });
     }
     r.ok().then_some(out)
 }

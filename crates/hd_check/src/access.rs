@@ -35,7 +35,9 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
             TyData::Mut(i) => self.is_composite(i),
-            TyData::Adt { .. } | TyData::TraitValue { .. } => true,
+            // A struct is a value with no views (`types.value.no-view`).
+            TyData::Adt { def, .. } => !self.is_struct_def(def),
+            TyData::TraitValue { .. } => true,
             _ => false,
         }
     }
@@ -51,8 +53,23 @@ impl Ck<'_, '_> {
             TyData::Mut(_) => true,
             TyData::Param(_) => (0..self.env.clause_self.len())
                 .any(|i| self.env.clause_self[i] == t && self.env.clause_mut[i]),
-            TyData::Adt { .. } | TyData::TraitValue { .. } => false,
+            TyData::Adt { def, .. } => self.is_struct_def(def),
+            TyData::TraitValue { .. } => false,
             _ => true,
+        }
+    }
+
+    /// Whether `def` is a `struct` declaration (`data.struct.decl`).
+    pub(crate) fn is_struct_def(&self, def: hd_base::DefId) -> bool {
+        self.cx.lookup.item(def).is_some_and(|i| i.is_struct)
+    }
+
+    /// Whether `t` is a struct type, `mut` or not (`types.value.struct`).
+    pub(crate) fn is_struct_ty(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        match pool.get(self.strip_mut(t)) {
+            TyData::Adt { def, .. } => self.is_struct_def(def),
+            _ => false,
         }
     }
 

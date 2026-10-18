@@ -221,6 +221,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The locals bound with `using`, which are not reassignable
     /// (`flow.using.binding`).
     pub using_locals: Vec<LocalId>,
+    /// The locals bound with `let mut`: a struct value in one changes in
+    /// place (`types.value.writable`).
+    pub mut_locals: Vec<LocalId>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -486,6 +489,7 @@ pub(crate) fn new_ck<'a, 'c>(
         gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
+        mut_locals: Vec::new(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -2964,7 +2968,7 @@ impl Ck<'_, '_> {
                         .or_else(|| init.earlier.get(&name).copied())
                 };
                 if self.find_local(name).is_none()
-                    && let Some(crate::init::InputBinding { def, ty, short }) = global
+                    && let Some(crate::init::InputBinding { def, ty, short, .. }) = global
                 {
                     // A mutable top-level binding (`GlobalSet`).
                     if short {
@@ -3031,6 +3035,17 @@ impl Ck<'_, '_> {
                 };
                 let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                // A struct field changes in a writable place only
+                // (`types.value.writable`).
+                if self.is_struct_ty(bt) {
+                    return self.struct_field_assign(
+                        (br, bt),
+                        (base, *lhs, *rhs, s),
+                        &fname,
+                        compound,
+                        copy,
+                    );
+                }
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
                     // Tuple elements and shared enum data are selected but

@@ -1,0 +1,10 @@
+# Spec 04 Writable Places: types.value.write.other, for a call result.
+struct Point:
+    x: i32
+    y: i32
+
+fn origin() -> Point:
+    Point { x: 0, y: 0 }
+
+fn demo() -> void:
+    origin().x = 1  # diagnostic: readonly-root
