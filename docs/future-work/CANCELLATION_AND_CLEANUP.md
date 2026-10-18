@@ -159,12 +159,19 @@ task itself still never drops cleanup; here a dependency of the cleanup
 failed, and `.Abandoned` says the close did not finish.
 
 `block_on` is the one driver whose caller cannot be cancelled: it is
-synchronous code expecting a value. So `block_on` returns
-`Result[T, Cancelled]`. When the suspension it drives is cancelled, by
-code running inside the same drive that holds another reference to it,
-`block_on` drives the cleanup to its end and returns
-`.Err(Cancelled { cleanup })`, where `cleanup` is the `CleanupEnd`, as
-`TimedOut` reports it. A suspension that completes gives `.Ok(value)`.
+synchronous code expecting a value. So `block_on` returns a `BlockOn[T]`
+that names all three ways the drive can end:
+
+```text
+match block_on(call):
+    .Completed(value) => use(value)
+    .Cancelled => pass        # cancelled; its cleanup ran to its end
+    .Abandoned => pass        # cancelled; its cleanup was cut short
+```
+
+The suspension can only be cancelled by code running inside the same
+drive that holds another reference to it; `block_on` then drives the
+cleanup to its end, or to its abandonment, before it returns.
 
 **A resource a combinator has already won has no owner yet.** In
 `using c = race!(open_a(), open_b())`, `race!` holds the winner while it
@@ -382,9 +389,9 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
 - Awaiting the value of a job that another frame cancelled cancels the
   awaiter; inside a `dispose!` it unwinds that dispose as an abandon
   would, with `.Abandoned`.
-- `block_on` returns `Result[T, Cancelled]`; a new std type `Cancelled`
-  in `std.task` carries the `CleanupEnd`. Its callers in std (`println`,
-  `eprintln`) match the new result.
+- `block_on` returns a new std enum `BlockOn[T]` in `std.task`
+  (`.Completed(T)`, `.Cancelled`, `.Abandoned`). Its callers in std
+  (`println`, `eprintln`) match it.
 - A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
   `hd.cancel`) follows the same rules with the host as the waiter. The
   host waits with a default cleanup bound, a host setting that behaves as
