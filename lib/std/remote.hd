@@ -1,0 +1,84 @@
+# std.remote, slice 1 of the remote-call prototype (spec/std/remote.md,
+# issue #166): the error of a failed hop `RemoteError`, the requirement
+# `Caller` and the `Principal` it returns, and the host capability trait
+# `Remote`. No transport and no call path exist yet: `Remote.call!` is the
+# method a remote call's stub will use (docs/future-work/
+# SERIALIZABLE_CLOSURE_PROTOTYPE.md, "The Loopback Transport"), and the
+# default profile does not bind `Remote` (hd_host_abi::default_profile).
+use std.error.Error
+use std.format.DebugWriter
+
+## Why a remote call failed on its way, never the called function's own error.
+## See [std-remote.error.decl](../../spec/std/remote.md#r-std-remote.error.decl).
+pub enum RemoteError:
+    Unreachable
+    OutcomeUnknown
+    Incompatible
+    Rejected(message: string)
+    Panicked(category: string)
+
+impl Eq for RemoteError:
+    fn eq(self, other: RemoteError) -> bool:
+        match (self, other):
+            (.Unreachable, .Unreachable) => true
+            (.OutcomeUnknown, .OutcomeUnknown) => true
+            (.Incompatible, .Incompatible) => true
+            (.Rejected(left), .Rejected(right)) => left == right
+            (.Panicked(left), .Panicked(right)) => left == right
+            _ => false
+
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl Debug for RemoteError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Unreachable => out.write("RemoteError.Unreachable")
+            .OutcomeUnknown => out.write("RemoteError.OutcomeUnknown")
+            .Incompatible => out.write("RemoteError.Incompatible")
+            .Rejected(message) => out.debug_tuple("RemoteError.Rejected").named_field("message", message).finish()
+            .Panicked(category) => out.debug_tuple("RemoteError.Panicked").named_field("category", category).finish()
+
+impl Display for RemoteError:
+    fn to_string(self) -> string:
+        match self:
+            .Unreachable => "the remote call never started"
+            .OutcomeUnknown => "the remote call started, and no result arrived"
+            .Incompatible => "the receiver has no function or closure with this identity"
+            .Rejected(message) => "the receiver rejected the arguments: ${message}"
+            .Panicked(category) => "the remote run panicked: ${category}"
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for RemoteError
+
+## Who made the remote call that the current run serves.
+## See [std-remote.principal.decl](../../spec/std/remote.md#r-std-remote.principal.decl).
+pub enum Principal:
+    User(name: string)
+    Service(name: string)
+    Anonymous
+
+impl Eq for Principal:
+    fn eq(self, other: Principal) -> bool:
+        match (self, other):
+            (.User(left), .User(right)) => left == right
+            (.Service(left), .Service(right)) => left == right
+            (.Anonymous, .Anonymous) => true
+            _ => false
+
+impl Debug for Principal:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .User(name) => out.debug_tuple("Principal.User").named_field("name", name).finish()
+            .Service(name) => out.debug_tuple("Principal.Service").named_field("name", name).finish()
+            .Anonymous => out.write("Principal.Anonymous")
+
+## The requirement that names the caller of the remote call being served.
+## See [std-remote.caller.decl](../../spec/std/remote.md#r-std-remote.caller.decl).
+pub trait Caller:
+    fn principal(self) -> Principal
+
+## The host capability to make remote calls; its method serves the
+## compiler's remote-call stubs, not programs.
+## See [std-remote.remote.decl](../../spec/std/remote.md#r-std-remote.remote.decl).
+pub trait Remote:
+    fn call!(self, request: List[u8]) -> Result[List[u8], RemoteError]

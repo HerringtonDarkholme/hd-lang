@@ -1,0 +1,6 @@
+# test: Caller is no host capability trait, so no entry profile binds it in main's row
+# Spec std/remote Callers: std-remote.caller.not-host; module.entry.row.host.
+use std.remote.Caller
+
+pub fn main() -> void $ Caller:  # diagnostic: nonhost-entry-requirement
+    pass

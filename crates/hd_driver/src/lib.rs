@@ -1609,8 +1609,7 @@ pub fn build_packages(
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
     let profile = packages.profile.clone().unwrap_or_else(|| {
-        hd_host_abi::TABLE
-            .iter()
+        hd_host_abi::default_profile()
             .map(|t| t.std_path.to_owned())
             .collect()
     });
@@ -7596,7 +7595,7 @@ impl Run<'_> {
     /// gets (`module.testing.unit-row.test-runner`); an integration test
     /// case also gets the host capability traits of the default profile
     /// (`module.testing.integration-row`, `module.profile.default`), as the
-    /// host ABI table lists them. The kind decides (`module.testing.kind-decides`).
+    /// host ABI table's default profile lists them. The kind decides (`module.testing.kind-decides`).
     fn test_profile(&self, m: usize) -> hd_types::RowId {
         let module = &self.table.modules[m];
         let integration = module.role == Role::Test
@@ -7607,7 +7606,7 @@ impl Run<'_> {
                 .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Test);
         let mut paths = vec!["std.testing.TestRunner"];
         if integration {
-            paths.extend(hd_host_abi::TABLE.iter().map(|t| t.std_path));
+            paths.extend(hd_host_abi::default_profile().map(|t| t.std_path));
         }
         let names = self.names();
         let keys = paths

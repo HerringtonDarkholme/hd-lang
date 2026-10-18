@@ -296,6 +296,7 @@ fn width(text: string) -> Result[i32, dyn Error]:
 | `CliError` | `std.cli` |
 | `EnvError` | `std.host` |
 | `RegexError` | `std.regex` |
+| `RemoteError` | `std.remote` |
 | `ResourceError[E]`, when `E < Error` | `std.resource` |
 
 1. r[std-error.std-types.impl] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, dyn Error]`, by [`trait.error.result`](../lang/09-traits.md#r-trait.error.result), and `context` accepts it.

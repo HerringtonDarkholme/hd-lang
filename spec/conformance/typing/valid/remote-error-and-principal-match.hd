@@ -1,0 +1,29 @@
+# test: a match covers every RemoteError variant and every Principal that Caller returns
+# Spec std/remote Remote Errors and Callers: std-remote.error.decl, std-remote.principal.decl, std-remote.caller.decl.
+# Also covers std-remote.error.unreachable, std-remote.error.outcome-unknown,
+# std-remote.error.incompatible, std-remote.error.rejected,
+# std-remote.error.panicked, std-remote.principal.user,
+# std-remote.principal.service, std-remote.principal.anonymous,
+# std-remote.caller.plain, and std-remote.remote.decl.
+# expect: accept
+use std.remote.{Caller, Principal, Remote, RemoteError}
+
+fn describe(error: RemoteError) -> string:
+    match error:
+        .Unreachable => "offline"
+        .OutcomeUnknown => "unknown"
+        .Incompatible => "reload"
+        .Rejected(message) => "rejected: ${message}"
+        .Panicked(category) => "failed: ${category}"
+
+fn greet() -> string $ Caller:
+    match $.use(Caller).principal():
+        .User(name) => "hello, ${name}"
+        .Service(name) => "service ${name}"
+        .Anonymous => "please sign in"
+
+fn same(a: Principal, b: Principal) -> bool:
+    a == b
+
+fn uses_remote() -> void $ Remote:
+    pass

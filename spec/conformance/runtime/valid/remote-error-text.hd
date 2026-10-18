@@ -1,0 +1,42 @@
+# test: RemoteError compares, debugs, and displays each variant, and a Caller provider answers principal
+# Spec std/remote Remote Errors: std-remote.error.traits, std-remote.error.text.
+# Also covers std-remote.principal.traits and std-remote.caller.plain.
+# expect: test
+use std.remote.{Caller, Principal, RemoteError}
+
+data Fixed:
+    who: Principal
+
+impl Caller for Fixed:
+    fn principal(self) -> Principal:
+        self.who
+
+fn signed_in() -> string? $ Caller:
+    match $.use(Caller).principal():
+        .User(name) => .Some(name)
+        _ => .None
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("each variant has its text"):
+        assert_equal(RemoteError.Unreachable.to_string(), "the remote call never started", reason="never started")
+        assert_equal(RemoteError.OutcomeUnknown.to_string(), "the remote call started, and no result arrived", reason="no result")
+        assert_equal(RemoteError.Incompatible.to_string(), "the receiver has no function or closure with this identity", reason="no identity")
+        assert_equal(RemoteError.Rejected("bad text").to_string(), "the receiver rejected the arguments: bad text", reason="refused")
+        assert_equal(RemoteError.Panicked("index-out-of-bounds").to_string(), "the remote run panicked: index-out-of-bounds", reason="panicked")
+
+    it("errors compare and debug by variant and payload"):
+        assert(RemoteError.Rejected("a") == RemoteError.Rejected("a"), reason="same payload")
+        assert(RemoteError.Rejected("a") != RemoteError.Rejected("b"), reason="other payload")
+        assert(RemoteError.Incompatible != RemoteError.Unreachable, reason="other variant")
+        assert_equal(debug(RemoteError.Panicked("explicit-panic")), "RemoteError.Panicked(category=\"explicit-panic\")", reason="named field")
+        assert_equal(debug(RemoteError.OutcomeUnknown), "RemoteError.OutcomeUnknown", reason="unit variant")
+
+    it("a Caller provider answers principal"):
+        $.with(Caller=Fixed { who: .User("ann") }):
+            assert_equal(signed_in(), .Some("ann"), reason="a user")
+        $.with(Caller=Fixed { who: .Service("billing") }):
+            assert_equal(signed_in(), .None, reason="a service is no user")
+            assert_equal($.use(Caller).principal(), Principal.Service("billing"), reason="the service's name")
+        assert_equal(debug(Principal.Anonymous), "Principal.Anonymous", reason="unit variant")

@@ -322,7 +322,37 @@ pub static TABLE: &[HostTrait] = &[
             m("list", &[], B("List[string]"), Wait::Never, None),
         ],
     },
+    // A remote call's stub sends the call identity and the canonical
+    // arguments, and gets the result bytes or the failed hop
+    // (`docs/future-work/SERIALIZABLE_CLOSURE_PROTOTYPE.md`, "The Loopback
+    // Transport"). No host binds it yet, and the default profile leaves it
+    // out (`default_profile`).
+    HostTrait {
+        key: "Remote",
+        std_path: "std.remote.Remote",
+        methods: &[m(
+            "call",
+            &[B("List[u8]")],
+            B("Result[List[u8], RemoteError]"),
+            Wait::May,
+            None,
+        )],
+    },
 ];
+
+/// The `TABLE` keys the default profile does not bind yet: `Remote` waits
+/// for the remote-call path, and for the owner's choice of the places that
+/// bind it (spec/lang/15-places-and-remote-calls.md, status note).
+const NOT_IN_DEFAULT_PROFILE: &[&str] = &["Remote"];
+
+/// The host capability traits of the default profile
+/// (`module.profile.default`): `TABLE` without `NOT_IN_DEFAULT_PROFILE`.
+#[must_use]
+pub fn default_profile() -> impl Iterator<Item = &'static HostTrait> {
+    TABLE
+        .iter()
+        .filter(|t| !NOT_IN_DEFAULT_PROFILE.contains(&t.key))
+}
 
 /// The test runner's host traits (§16.4, `docs/compiler/engines-and-test-runner.md` §19;
 /// `std-testing.runner.declares`): imported from `hd:<Key>` like a
@@ -676,8 +706,18 @@ pub enum SlotState {
 #[cfg(test)]
 mod tests {
     use super::{
-        HANDLES, Handle, INTRINSICS, RUNNERS, TABLE, imports_of, intrinsic, is_known_import,
+        HANDLES, Handle, INTRINSICS, RUNNERS, TABLE, default_profile, imports_of, intrinsic,
+        is_known_import,
     };
+
+    #[test]
+    fn the_default_profile_leaves_out_remote() {
+        let keys: Vec<_> = default_profile().map(|t| t.key).collect();
+        assert!(keys.contains(&"Console") && keys.contains(&"Args"));
+        assert!(!keys.contains(&"Remote"));
+        assert_eq!(keys.len() + 1, TABLE.len());
+        assert!(is_known_import("hd:Remote", "call.start"));
+    }
 
     #[test]
     fn waiting_methods_import_a_start_finish_pair() {
