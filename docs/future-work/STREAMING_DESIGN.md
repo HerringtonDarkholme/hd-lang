@@ -29,6 +29,8 @@ best-effort disposal with an explicit `finish!()` for errors, a runtime
 descriptor table. Every name below is a placeholder, and so is the
 `using name = value` spelling.
 
+**Owner decision (2026-10-17, night):** `Disposable` handles suspension by default: one trait with `fn dispose!(mut self)`, no separate `AsyncDisposable`; `using` needs a `!` function. What a cancelled scope does with a suspending dispose is open. Where this doc says `AsyncDisposable` or a synchronous dispose, this note overrides it.
+
 ## 1. The Problem
 
 Three buffered terminals cover the common case and stay as they are:

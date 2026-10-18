@@ -28,6 +28,8 @@ Contents:
 - [5. What Stays Parked](#5-what-stays-parked)
 - [6. Questions For The Owner](#6-questions-for-the-owner)
 
+**Owner decisions (2026-10-17, night).** Approved: the primitive batch (wrapping_add/sub/mul, count_ones, leading_zeros, rotate_left/right, string_to_bytes, a list copy and a private list reserve, a map upsert for counts), each a plain hd signature with a one- or two-instruction body; and the size rule: a speed fix never grows hello.wasm, and may grow programs that use the feature when it gains at least 5% speed per 10% size. Questions 2, 4 and 5 are still open.
+
 ## 1. Summary
 
 The standard library review of 2026-10-17 found that hd is not slow
