@@ -33,9 +33,12 @@ They differ only at those suspension points:
 
 - `cancel!()` waits at each one until the dispose finishes, then returns
   how the cleanup ended, `.Finished` or `.Abandoned`, so a program can log
-  an abrupt close. `.Finished` means the whole cleanup closed gracefully,
-  including every child cleanup folded into it; if any part was abandoned,
-  the result is `.Abandoned`. It is a suspending call, so only a `!`
+  an abrupt close. `.Finished` means the whole cleanup ran to its end,
+  including every child cleanup folded into it, with nothing abandoned;
+  if any part was abandoned, the result is `.Abandoned`. It does not mean
+  every close succeeded: a dispose returns `void` and does its best, so
+  code that must know a close protocol succeeded calls an explicit close
+  that returns a `Result`. It is a suspending call, so only a `!`
   function makes it.
 - `abandon()` kills each dispose at its suspension point and returns at
   once. Any function can call it.
@@ -132,6 +135,38 @@ order fixes it.
 is itself cancelled, the cleanup in progress goes on as part of the outer
 task's cleanup: the same cleanup continues, and no new one is made.
 
+**Awaiting a cancelled job cancels the awaiter.** One frame may be waiting
+for a job's value while another cancels the job:
+
+```text
+fn supervise!(job: mut Suspend[void]) -> void $ Clock:
+    _ := all!(job, stop_later(job))     # stop_later cancels job after 1 s
+```
+
+The value `all!` waits for will never come. So the frame awaiting it is
+cancelled too, as asyncio raises `CancelledError` at such an `await`:
+`all!` stops, and its cleanup, which includes the job's, unwinds as any
+cancellation does. No value is invented and nothing panics.
+
+**A resource a combinator has already won has no owner yet.** In
+`using c = race!(open_a(), open_b())`, `race!` holds the winner while it
+waits for the loser's cleanup; if the parent is cancelled during that
+wait, the winner was never bound by `using`, so nothing disposes it.
+`all!` has the same gap for a value that completed while a sibling is
+still pending. Until resources are released by their count (the planned
+object model, in which dropping the last reference disposes a
+`Disposable`), bind each resource with `using` inside the child that
+opens it and return plain values:
+
+```text
+fn with_connection![T](open: fn!() -> mut Connection, work: fn!(mut Connection) -> T) -> T:
+    using connection = open!()
+    work!(connection)
+```
+
+Acquiring resources one after another with `using` avoids the gap too, at
+the cost of concurrency.
+
 ## Abandoning
 
 `abandon()` runs in the caller, synchronously. It unwinds the job's stack
@@ -143,7 +178,9 @@ once, innermost frame first, as one last-in-first-out list:
    never reached was never registered and does not run.
 2. A `dispose!` that was waiting is killed at its suspension point, after
    its own registered `defer` blocks run. A pending host operation, such as
-   the flush it waits on, is cancelled, and the host closes that handle.
+   the read or flush it waits on, is aborted as that operation's own
+   cancellation rule says (a cancelled read keeps its unread bytes). The
+   handle itself stays open.
 3. A `using` value whose dispose has not started yet starts it now; the
    dispose runs to its first suspension point and is killed there in the
    same way.
@@ -170,15 +207,18 @@ records before its first wait, including that dispose's own `defer`
 blocks, then `outer`.
 
 **Abandonment releases what synchronous code releases.** Killing a wait
-closes the handle that the wait was on, and nothing else. A dispose may be
-waiting on something that is not a handle at all. A pool, for example,
+aborts the operation it waited on and closes nothing. The handle a dispose
+waits on may not even be its own: a logical channel may wait for an
+acknowledgement on a control socket that other channels share, and
+closing it would cut them all off. A dispose may also be waiting on
+something that is not a handle at all. A pool, for example,
 first waits for its borrowed connections to come back, then closes its
 idle sockets. Killing that wait identifies no socket. The host cannot tell
 which handles the pool owns either; closing every handle reachable from
 it would also close connections it only borrowed.
 
-So a dispose that holds handles across a wait registers a synchronous
-fallback before it waits:
+So the code that owns a handle decides what is closed: a dispose that holds
+handles across a wait registers a synchronous fallback before it waits:
 
 ```text
 impl Disposable for Pool:
@@ -236,6 +276,15 @@ the losing cancel, which only continues inside the race's own cleanup, and
 the race then waits for it. Only an explicit `abandon()` ends a cleanup
 early, and the parameter performs one.
 
+The `cleanup` bound is extra time after the work is cancelled, not a total
+budget. A close that was already waiting when the limit passed keeps the
+time it has used and then gets the whole bound. A total limit on waiting
+is `cleanup = 0s`: cancel at the limit, then abandon whatever still waits.
+
+```text
+timeout!(1s, cleanup = 0s): close!()   # waits at most 1 s in all, cooperatively
+```
+
 ## Seeing An Abrupt Close
 
 Three places learn that a cleanup was abandoned:
@@ -268,8 +317,10 @@ fails the case, so the missing `await` shows up in the first test run. A
 job holding only in-memory resources leaves nothing for the host to see;
 a test of such a resource asserts its state itself.
 
-Handles closed by an explicit `abandon()` are intended. `hd test` lists them
-as abandoned, not leaked, and does not fail the case for them.
+`abandon()` itself closes no handle. Handles that their owners' fallbacks
+close during an abandon are closed as usual, and a handle still open when
+a case ends is leaked, abandoned or not, so an abandon never hides a
+missing fallback.
 
 ## How Other Languages Do It
 
@@ -307,8 +358,11 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
   any.
 - Std wrappers of host handles register a synchronous fallback before
   their dispose waits.
-- The host lists abandoned handles separately from leaked ones in
-  `hd test`.
+- `abandon()` aborts pending host operations by their own cancellation
+  rules and closes no handle; owners close handles through their
+  fallbacks.
+- Awaiting the value of a job that another frame cancelled cancels the
+  awaiter.
 - A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
   `hd.cancel`) follows the same rules with the host as the waiter. The
   host waits with a default cleanup bound, a host setting that behaves as
