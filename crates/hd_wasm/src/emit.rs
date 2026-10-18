@@ -2687,12 +2687,30 @@ impl Em<'_> {
                     self.a.end();
                     return Ok(());
                 }
-                self.int_text(i, args[0], self_ty, v)
+                let (_, signed, _) = num(&self.lay, self_ty);
+                self.comp(args[0], 0, v)?;
+                self.a.call(Sym::Helper(Helper::IntToStr {
+                    wide: *v == VT::I64,
+                    signed,
+                }));
+                self.store(i)
             }
             // A float's text is std's `f64_text` and `f32_text`, the same
             // host primitives its `Display` implementation calls.
             ("to_string", Shape::Scalar(VT::F64)) => self.host_primitive(i, "format_f64", args, ty),
             ("to_string", Shape::Scalar(VT::F32)) => self.host_primitive(i, "format_f32", args, ty),
+            // `f64.sqrt` and `f32.sqrt` (std-num.float-sqrt): the one
+            // correctly rounded IEEE 754 square-root instruction.
+            ("sqrt", Shape::Scalar(VT::F64)) => {
+                self.comp(args[0], 0, &VT::F64)?;
+                self.a.s().f64_sqrt();
+                self.store(i)
+            }
+            ("sqrt", Shape::Scalar(VT::F32)) => {
+                self.comp(args[0], 0, &VT::F32)?;
+                self.a.s().f32_sqrt();
+                self.store(i)
+            }
             ("to_string", Shape::Str) => {
                 self.load(args[0])?;
                 self.store(i)
@@ -2760,19 +2778,6 @@ impl Em<'_> {
             self.a.i32(1);
             self.a.get(tag);
         }
-        self.store(i)
-    }
-
-    /// An integer's decimal text through the runtime's `IntToStr`
-    /// helper, which writes the digits into one buffer: the built-in
-    /// `to_string` and std's `format_int` primitive.
-    fn int_text(&mut self, i: u32, arg: u32, t: Ty, v: &VT) -> StageResult<()> {
-        let (_, signed, _) = num(&self.lay, t);
-        self.comp(arg, 0, v)?;
-        self.a.call(Sym::Helper(Helper::IntToStr {
-            wide: *v == VT::I64,
-            signed,
-        }));
         self.store(i)
     }
 
@@ -2951,15 +2956,6 @@ impl Em<'_> {
                 self.store(i)
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
-            // std's `format_int[N < Integer](value: N)`: the helper of the
-            // argument's width and signedness.
-            "format_int" => {
-                let t = self.lay.erase(self.ty_of(args[0]));
-                let Shape::Scalar(v @ (VT::I32 | VT::I64)) = self.lay.shape(t)? else {
-                    return unsupported("`format_int` of a value that is not an integer");
-                };
-                self.int_text(i, args[0], t, &v)
-            }
             // The run's map hash key: the runtime global, filled from the
             // host's `hash_seed` import on first use. A host that draws 0
             // is asked again, and answers 0 again.

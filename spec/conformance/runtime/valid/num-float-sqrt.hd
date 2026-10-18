@@ -1,0 +1,37 @@
+# test: sqrt on f64 and f32 is correctly rounded, keeps -0.0 and +inf, and gives NaN for a negative value or NaN
+# Spec std/num Square Root: std-num.float-sqrt, std-num.float-sqrt.widths, std-num.float-sqrt.rounded, std-num.float-sqrt.zero, std-num.float-sqrt.special, std-num.float-sqrt.negative, std-num.float-sqrt.no-panic.
+fn distance(dx: f64, dy: f64) -> f64:
+    (dx * dx + dy * dy).sqrt()
+
+fn negative_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value < 0.0
+
+fn positive_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value > 0.0
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("f64"):
+        assert_equal(4.0.sqrt(), 2.0, reason="a perfect square")
+        assert_equal(2.25.sqrt(), 1.5, reason="an exact root below an integer")
+        assert_equal(2.0.sqrt(), 1.4142135623730951, reason="the shortest text of sqrt(2.0)")
+        assert_equal(distance(3.0, 4.0), 5.0, reason="a right triangle")
+        assert_equal(2.0.sqrt().to_bits(), 4609047870845172685, reason="sqrt(2.0) is the nearest f64, 0x3FF6A09E667F3BCD")
+        assert_equal(1e-320.sqrt() > 0.0, true, reason="a subnormal has a positive root")
+        assert(positive_zero(0.0.sqrt()), "0.0 gives 0.0")
+        assert(negative_zero((-0.0).sqrt()), "-0.0 gives -0.0")
+        let infinity = 1.0 / 0.0
+        assert_equal(infinity.sqrt(), infinity, reason="inf gives inf")
+        assert((-1.0).sqrt().is_nan(), "a negative value gives NaN")
+        assert((-infinity).sqrt().is_nan(), "-inf gives NaN")
+        assert((0.0 / 0.0).sqrt().is_nan(), "NaN gives NaN")
+
+    it("f32"):
+        assert_equal(f32(9.0).sqrt(), f32(3.0), reason="a perfect square")
+        assert_equal(f32(2.0).sqrt().to_bits(), u32(1068827891), reason="sqrt(2.0) is the nearest f32, 0x3FB504F3")
+        assert(positive_zero(f64(f32(0.0).sqrt())), "0.0 gives 0.0")
+        assert(negative_zero(f64(f32(-0.0).sqrt())), "-0.0 gives -0.0")
+        assert(f32(-1.0).sqrt().is_nan(), "a negative value gives NaN")
+        let infinity: f32 = f32(1.0 / 0.0)
+        assert_equal(infinity.sqrt(), infinity, reason="inf gives inf")

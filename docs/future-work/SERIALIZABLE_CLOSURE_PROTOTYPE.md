@@ -22,8 +22,6 @@ handle as a plain value that holds a live host handle.
 - [4. Hard Cases By Slice](#4-hard-cases-by-slice)
 - [5. Questions For The Owner](#5-questions-for-the-owner)
 
-**On hold (owner, 2026-10-17 night): "wait on remote. i need to think and review it more deeply."** No slice runs until the owner finishes reviewing the design and this plan. Slice 1's unfinished work is parked on the local branch `park/remote-slice1`.
-
 ## 1. What The Prototype Proves
 
 The design was stress-tested on paper with 39 cases and parsed as

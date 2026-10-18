@@ -717,6 +717,21 @@ impl f32:
     pub fn round(self) -> f32:
         f32(f64(self).round())
 
+# The square root is an intrinsic method (spec/lang/09-traits.md#intrinsic-methods):
+# the compiler supplies its body, the one correctly rounded IEEE 754
+# square-root instruction of the width.
+impl f64:
+    ## The correctly rounded square root; a negative value gives NaN.
+    ## See [std-num.float-sqrt](../../spec/std/num.md#r-std-num.float-sqrt).
+    @intrinsic
+    pub fn sqrt(self) -> f64
+
+impl f32:
+    ## The correctly rounded square root; a negative value gives NaN.
+    ## See [std-num.float-sqrt](../../spec/std/num.md#r-std-num.float-sqrt).
+    @intrinsic
+    pub fn sqrt(self) -> f32
+
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
 # Every scalar before the first invalid one is ASCII, so the scalar index
 # that `InvalidDigit` reports is also its byte offset (Strings STR10).

@@ -5,7 +5,6 @@
 # (Testing T48, T53, T54).
 
 use std.function.Tuple
-use std.num.Integer
 use std.structure.{Structure, Walker, Variant, Field}
 
 # A value's text in string interpolation
@@ -371,39 +370,39 @@ impl Display for char:
 
 impl Display for i8:
     fn to_string(self) -> string:
-        format_int(self)
+        signed_text(i64(self))
 
 impl Display for i16:
     fn to_string(self) -> string:
-        format_int(self)
+        signed_text(i64(self))
 
 impl Display for i32:
     fn to_string(self) -> string:
-        format_int(self)
+        signed_text(i64(self))
 
 impl Display for i64:
     fn to_string(self) -> string:
-        format_int(self)
+        signed_text(self)
 
 impl Display for u8:
     fn to_string(self) -> string:
-        format_int(self)
+        unsigned_text(u64(self))
 
 impl Display for u16:
     fn to_string(self) -> string:
-        format_int(self)
+        unsigned_text(u64(self))
 
 impl Display for u32:
     fn to_string(self) -> string:
-        format_int(self)
+        unsigned_text(u64(self))
 
 impl Display for usize:
     fn to_string(self) -> string:
-        format_int(self)
+        unsigned_text(u64(self))
 
 impl Display for u64:
     fn to_string(self) -> string:
-        format_int(self)
+        unsigned_text(self)
 
 impl Display for f32:
     fn to_string(self) -> string:
@@ -412,6 +411,39 @@ impl Display for f32:
 impl Display for f64:
     fn to_string(self) -> string:
         f64_text(self)
+
+# A negative value's digits come from negative remainders, so the minimum
+# value is never negated.
+fn signed_text(value: i64) -> string:
+    if value >= 0:
+        return unsigned_text(u64(value))
+    let text = ""
+    let rest = value
+    while rest != 0:
+        text = digit_text(i32(0 - rest % 10)) + text
+        rest = rest / 10
+    "-" + text
+
+fn unsigned_text(value: u64) -> string:
+    let text = digit_text(i32(value % 10))
+    let rest = value / 10
+    while rest != 0:
+        text = digit_text(i32(rest % 10)) + text
+        rest = rest / 10
+    text
+
+fn digit_text(digit: i32) -> string:
+    match digit:
+        0 => "0"
+        1 => "1"
+        2 => "2"
+        3 => "3"
+        4 => "4"
+        5 => "5"
+        6 => "6"
+        7 => "7"
+        8 => "8"
+        _ => "9"
 
 # The one-scalar string of the Unicode scalar value `point`: its UTF-8
 # encoding in one to four bytes.
@@ -444,12 +476,6 @@ fn char_scalar(value: char) -> u32:
 # The string of `bytes`, which the caller has checked are UTF-8.
 @intrinsic("string_from_bytes")
 fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")
-
-# An integer's decimal digits, with `-` when negative: the runtime writes
-# them into one buffer.
-@intrinsic("format_int")
-fn format_int[N < Integer](value: N) -> string:
     panic("intrinsic")
 
 @intrinsic("format_f64")
@@ -545,12 +571,12 @@ fn escape_char(each: char, quote: char) -> string:
     if each == '$' && quote == '"':
         return "\\$"
     if scalar < 32 || scalar == 127:
-        return "\\u{" + format_int(scalar / 16) + hex_digit(scalar % 16) + "}"
+        return "\\u{" + digit_text(i32(scalar / 16)) + hex_digit(scalar % 16) + "}"
     scalar_text(i32(scalar))
 
 fn hex_digit(digit: u32) -> string:
     if digit < 10:
-        return format_int(digit)
+        return digit_text(i32(digit))
     scalar_text(i32(87 + digit))
 
 impl[T < Debug] Debug for List[T]:

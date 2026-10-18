@@ -3441,6 +3441,7 @@ runtime/panic/num-pow-overflow-u32.hd	runtime	panic:integer-overflow	std/num.md#
 runtime/panic/num-pow-overflow-i64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
 runtime/panic/num-pow-overflow-u64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
 runtime/valid/num-float-round.hd	runtime	accept	std/num.md#r-std-num.float-round.round
+runtime/valid/num-float-sqrt.hd	runtime	accept	std/num.md#r-std-num.float-sqrt
 typing/invalid/power-type-parameter-unbounded.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.power.type-parameter
 runtime/valid/power-type-parameter-bound.hd	runtime	accept	lang/05-expressions.md#r-expr.power.type-parameter
 runtime/valid/tuple-rest-only-empty.hd	runtime	accept	lang/05-expressions.md#r-expr.tuple.rest.collect
@@ -3483,5 +3484,4 @@ runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
-runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.write-methods
-runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
+runtime/valid/hasher-write-methods.hd	runtime	accept	lang/09-traits.md#r-trait.hash.hasher-methods

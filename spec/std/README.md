@@ -67,7 +67,6 @@ a `char`, or a list.
 | `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `concat_all` | `(parts: List[string]) -> string` | allocates one string's representation for every part, sized first, so `join` and `StringBuilder.build` copy each byte once; hd has no byte buffer |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
-| `format_int` | `[N < Integer](value: N) -> string` | builds the decimal text of an integer, with `-` when negative, in one string buffer; hd would build a byte list first, which is slower and adds code to every program that shows an integer |
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
 | `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
@@ -158,6 +157,7 @@ and the compiler specializes it for each type.
 | `Eq.eq` | every number type, `char`, and `bool` | compares the machine values; floats follow IEEE 754 |
 | `PartialOrd.partial_cmp` | every number type and `char` | compares the machine values; a NaN operand is unordered |
 | `Ord.cmp` | every integer type and `char` | compares the machine values |
+| `sqrt` | `f32` and `f64` | the correctly rounded IEEE 754 square root, one machine instruction ([`std-num.float-sqrt`](num.md#r-std-num.float-sqrt)) |
 
 `string`'s `Add`, `Eq`, `PartialOrd`, and `Ord` are not intrinsic: `lib/std`
 writes them in hd.

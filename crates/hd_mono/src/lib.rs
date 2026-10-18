@@ -1437,6 +1437,24 @@ impl Cx<'_> {
                 kind: TargetKind::Intrinsic(key),
             });
         }
+        // A body-less inherent method is an intrinsic method of std
+        // (`trait.impl.intrinsic`), such as `f64.sqrt`: the backend lowers
+        // it per self type, the impl's head under the call's arguments.
+        if self.env.body(def).is_none()
+            && let Some((owner, _)) = self.env.parent(def)
+            && let Some((head, _, _)) = self.env.impl_head(owner)
+        {
+            return Ok(CallTarget {
+                key: Hash128(0),
+                item: def,
+                args: TyList::EMPTY,
+                ret: subst(self.pool, self.env, def, args, ret),
+                kind: TargetKind::Builtin {
+                    method: String::new(),
+                    self_ty: subst(self.pool, self.env, def, args, head),
+                },
+            });
+        }
         if self.env.body(def).is_none() {
             return Err(NotImplemented::new(
                 Stage::Collect,

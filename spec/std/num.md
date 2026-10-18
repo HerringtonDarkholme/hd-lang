@@ -16,6 +16,7 @@ ordinary hd over the language tier:
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
 - `abs` on the signed integers and the floats, and `pow` on the integers;
 - `trunc`, `floor`, `ceil`, and `round` on the floats;
+- `sqrt` on the floats, an intrinsic method;
 - integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
   `parse_usize`, and `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
@@ -642,4 +643,39 @@ In this section, `F` is `f32` or `f64`.
 > the saturating `f64` to `i64` cast
 > ([`types.cast.saturate`](../lang/04-type-system.md#r-types.cast.saturate))
 > below 2 to the power 52, where every `f64` fits an `i64`, so no new
-> primitive is needed. `sqrt` is not here: no float operation builds it.
+> primitive is needed. `sqrt` is not here: no float operation builds it,
+> so it is an intrinsic method ([Square Root](#square-root)).
+
+## Square Root
+
+`sqrt` returns the square root of a float, in the float's own type:
+
+```text
+fn distance(dx: f64, dy: f64) -> f64:
+    (dx * dx + dy * dy).sqrt()
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.float-sqrt] `sqrt` | `fn sqrt(self) -> F` | the square root of `self` |
+
+In this section, `F` is `f32` or `f64`.
+
+1. r[std-num.float-sqrt.widths] `sqrt` exists on `f32` and on `f64`, and returns the receiver's type. It is an [intrinsic method](../lang/09-traits.md#intrinsic-methods): its signature is a plain declaration, and the compiler supplies its body.
+2. r[std-num.float-sqrt.rounded] The result is the square root of `self` correctly rounded to `F`, as IEEE 754 `squareRoot` rounds to nearest. So `4.0.sqrt()` is exactly `2.0`, and `2.0.sqrt()` is the `f64` nearest the square root of 2.
+3. r[std-num.float-sqrt.zero] `sqrt` returns a zero as is, so `(-0.0).sqrt()` is `-0.0` and `0.0.sqrt()` is `0.0`.
+4. r[std-num.float-sqrt.special] Positive infinity gives positive infinity, and a NaN gives a NaN.
+5. r[std-num.float-sqrt.negative] A value below zero, negative infinity included, gives a NaN. So `(-1.0).sqrt()` is a NaN.
+6. r[std-num.float-sqrt.no-panic] `sqrt` never panics.
+
+| Call | Result |
+| --- | --- |
+| `4.0.sqrt()`, `2.25.sqrt()` | `2.0`, `1.5` |
+| `2.0.sqrt()` | `1.4142135623730951` |
+| `(-0.0).sqrt()` | `-0.0` |
+| `(-1.0).sqrt()` | a NaN |
+
+> **Why.** The method and its edge cases are Rust's `f64::sqrt`. One Wasm
+> instruction, `f64.sqrt` or `f32.sqrt`, computes the correctly rounded
+> root, while an hd body built from `+`, `*`, and `/` would be slower and
+> could round the last bit wrong.

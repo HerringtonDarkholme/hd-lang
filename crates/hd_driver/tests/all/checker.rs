@@ -106,14 +106,14 @@ fn every_std_body_checks_with_no_diagnostic() {
 
 /// The golden TIR of a few std bodies: `println` (rows, `$.use`, a cold
 /// suspending call, `block_on`, interpolation, `match` on a `Result`),
-/// `simple_escape` (integer patterns), `Option.map` (an `Option` match with a
+/// `digit_text` (integer patterns), `Option.map` (an `Option` match with a
 /// closure call) and `Iterator.take` (a closure capturing and assigning).
 /// `HD_UPDATE_GOLDEN=1` rewrites the files.
 #[test]
 fn std_bodies_match_golden_tir() {
     let bodies = [
         ("std/console/println", "println"),
-        ("std/text/simple_escape", "simple_escape"),
+        ("std/format/digit_text", "digit_text"),
         ("std/option/impl [ T ] T ?.map", "option_map"),
         ("std/iter/impl [ T ] Iterator [ T ].take", "iterator_take"),
     ];

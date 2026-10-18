@@ -711,7 +711,11 @@ cache lookup. When collection selects it, it maps the intrinsic key plus
 the substituted self and trait arguments to the compiler-generated body
 and continues the same worklist from that body. A body-less method that
 has no registered intrinsic mapping is an internal unsupported case; it
-must not silently disappear from the reachable program.
+must not silently disappear from the reachable program. A body-less
+inherent method of std, such as `f64.sqrt`, collects no instance: its
+call target is the built-in lowering at the impl's self type, which the
+backend emits inline, and the backend reports any self type and method it
+has no lowering for.
 
 **Derived newtype methods reuse the base implementation.** A derived
 newtype impl has a head and no method bodies. Generate nothing: a newtype is erased to its base at runtime
