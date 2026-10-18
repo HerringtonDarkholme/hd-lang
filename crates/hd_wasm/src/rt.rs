@@ -557,6 +557,15 @@ pub enum Helper {
     /// Its cancel: continues the task's cleanup, and unwinds while the
     /// task does, so a cancelled waiter keeps the cleanup going.
     CleanupCancel { base: WTy },
+    /// A frame that never completes (std's `task_pending_frame`
+    /// intrinsic): `() -> frame`, a suspension over `base` with the result
+    /// layout `result` (`crates/hd_wasm/DESIGN.md` §14.6, "A frame that
+    /// never completes").
+    PendingCold { base: WTy, result: Vec<VT> },
+    /// Its poll: the runtime checks, then Pending with no wake registered.
+    PendingPoll { result: Vec<VT> },
+    /// Its cancel: the runtime checks, which mark it cancelled.
+    PendingCancel,
     /// A vtable slot over a concrete impl method: unerases the receiver.
     /// The slot's last `2 * keys` parameters are its row's providers; the
     /// target takes, per key of its own row, provider `provs[j]` of them.
@@ -918,6 +927,16 @@ impl Helper {
                 w.u8(47);
                 enc_wty(base, w);
             }
+            Helper::PendingCold { base, result } => {
+                w.u8(53);
+                enc_wty(base, w);
+                encode_vts(result, w);
+            }
+            Helper::PendingPoll { result } => {
+                w.u8(54);
+                encode_vts(result, w);
+            }
+            Helper::PendingCancel => w.u8(55),
             Helper::Adapter {
                 sig,
                 self_vts,
@@ -1140,6 +1159,14 @@ impl Helper {
             45 => Helper::CleanupCold { base: dec_wty(r)? },
             46 => Helper::CleanupPoll { base: dec_wty(r)? },
             47 => Helper::CleanupCancel { base: dec_wty(r)? },
+            53 => Helper::PendingCold {
+                base: dec_wty(r)?,
+                result: decode_vts(r)?,
+            },
+            54 => Helper::PendingPoll {
+                result: decode_vts(r)?,
+            },
+            55 => Helper::PendingCancel,
             18 => Helper::EntryInit {
                 inits: (0..r.count()).map(|_| (r.hash(), r.u8() != 0)).collect(),
             },
@@ -1945,6 +1972,49 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.i32(UNWINDING);
             a.s().i32_mul().i32_or();
             a.struct_set(&fr, F_FLAGS);
+            a.finish(vec![])
+        }
+        Helper::PendingCold { base, result } => {
+            let fr = crate::layout::frame_of(base, &[]);
+            let mut a = Asm::new(vec![]);
+            let f = a.local(VT::r(fr.clone()));
+            a.struct_new_default(&fr);
+            a.set(f);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::PendingCancel));
+            a.struct_set(&fr, F_CANCEL);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::PendingPoll {
+                result: result.clone(),
+            }));
+            a.struct_set(&fr, F_POLL);
+            a.get(f);
+            a.finish(vec![VT::r(base.clone())])
+        }
+        Helper::PendingPoll { result } => {
+            let task = task_base();
+            let mut res = vec![VT::I32];
+            res.extend(result.iter().map(VT::dflt));
+            let mut a = Asm::new(vec![VT::Eq]);
+            // Pending whether or not it was cancelled: a cancelled one
+            // cancels its awaiter (`req.cancel.await`), a live one never
+            // completes. It registers no wake, since nothing will wake it.
+            a.get(0);
+            a.ref_cast(&task, false);
+            a.call(Sym::Helper(Helper::PollCheck));
+            a.s().drop();
+            for v in &res {
+                a.zero(v);
+            }
+            a.finish(res)
+        }
+        Helper::PendingCancel => {
+            let task = task_base();
+            let mut a = Asm::new(vec![VT::Eq]);
+            a.get(0);
+            a.ref_cast(&task, false);
+            a.call(Sym::Helper(Helper::CancelCheck));
+            a.s().drop();
             a.finish(vec![])
         }
         Helper::Adapter {
@@ -3433,6 +3503,9 @@ impl Helper {
             Helper::CleanupCold { .. } => "cleanup_cold".into(),
             Helper::CleanupPoll { .. } => "cleanup_poll".into(),
             Helper::CleanupCancel { .. } => "cleanup_cancel".into(),
+            Helper::PendingCold { .. } => "pending_cold".into(),
+            Helper::PendingPoll { .. } => "pending_poll".into(),
+            Helper::PendingCancel => "pending_cancel".into(),
             Helper::Adapter { .. } => "adapter".into(),
             Helper::EntryInit { .. } => "entry_init".into(),
             Helper::EntryPoll { .. } => "entry_poll".into(),

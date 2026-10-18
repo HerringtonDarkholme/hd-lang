@@ -2939,6 +2939,21 @@ impl Em<'_> {
                     .call(Sym::Helper(Helper::CleanupCold { base: base.clone() }));
                 self.store_from(i, &[VT::r(base)])
             }
+            // A suspension that never completes, for std's `timeout!`: its
+            // cleanup bound waits in a `dispose!` of a `race!` child that
+            // must stay live until the race cancels it
+            // (`crates/hd_wasm/DESIGN.md` §14.6, "A frame that never
+            // completes").
+            "task_pending_frame" => {
+                let Shape::Suspend { base, result, .. } = self.lay.shape(ty)? else {
+                    return unsupported("a pending frame of a type that is not a suspension");
+                };
+                self.a.call(Sym::Helper(Helper::PendingCold {
+                    base: base.clone(),
+                    result,
+                }));
+                self.store_from(i, &[VT::r(base)])
+            }
             // `Suspend[T].abandon` (`req.abandon.unwind`): the task's own
             // cancel, run with the `abandon()` depth raised, so it unwinds
             // at once and kills every shielded `dispose!` it reaches

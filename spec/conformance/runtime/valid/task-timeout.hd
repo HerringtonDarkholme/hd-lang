@@ -3,7 +3,7 @@
 # expect-stdout: gave up
 # expect-stdout: done
 # test: timeout! returns .Ok when the work finishes first and .Err(TimedOut) when the limit passes first
-# Spec std/task Timeout: std-task.timeout.type, .decl, .race, .ok, .err, .tie, and .cancel-loser (issue #369).
+# Spec std/task Timeout: std-task.timeout.fields, .display, .decl-cleanup, .race, .ok, .err-cleanup, .tie, and .cancel-loser (issue #369).
 use std.task.{TimedOut, timeout}
 use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
 
@@ -39,7 +39,7 @@ pub fn main!() -> void $ Console + Clock:
     println("done")
 
 tests:
-    use std.testing.assert_equal
+    use std.testing.{assert, assert_equal}
 
     it("returns .Ok when the work finishes first"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
@@ -55,6 +55,9 @@ tests:
             assert_equal(result, .Ok(7), reason="the work is polled first")
 
     it("TimedOut has an Eq and a Display text"):
-        error := TimedOut { limit: 1500ms }
-        assert_equal(error, TimedOut { limit: 1500ms }, reason="equal limits")
+        error := TimedOut { limit: 1500ms, cleanup: .Finished }
+        assert_equal(error, TimedOut { limit: 1500ms, cleanup: .Finished }, reason="equal fields")
+        assert(error != TimedOut { limit: 1500ms, cleanup: .Abandoned }, reason="the cleanup ends differ")
         assert_equal(error.to_string(), "timed out after 1.5s", reason="the limit is shown")
+        cut := TimedOut { limit: 1500ms, cleanup: .Abandoned }
+        assert_equal(cut.to_string(), "timed out after 1.5s, cleanup abandoned", reason="an abandoned cleanup is shown")

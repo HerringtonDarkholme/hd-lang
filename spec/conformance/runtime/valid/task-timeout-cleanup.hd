@@ -1,0 +1,55 @@
+# expect-stdout: timed out after 5s, cleanup abandoned
+# expect-stdout: upload closed
+# expect-stdout: abandoned at 6000
+# expect-stdout: timed out after 5s
+# expect-stdout: upload acknowledged, upload closed
+# expect-stdout: finished at 5000
+# test: with cleanup=1s, timeout! abandons a cleanup still waiting 1s after the limit, and a cleanup that ends in time is .Finished
+# Spec std/task Cleanup Bound: std-task.timeout.cleanup-deadline, .cleanup-abandon, .cleanup-ended, .cleanup-end; Timeout: std-task.timeout.fields, .display, .decl-cleanup, .err-cleanup.
+use std.ops.Disposable
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, s}
+use std.time.{ManualClock, Timestamp, sleep}
+
+data Upload:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Upload:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("upload closed")
+        let mut ack = self.ack
+        ack!()                          # waits for the peer
+        self.log.push("upload acknowledged")
+
+fn send!(log: mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+    timeout!(5s, cleanup=1s):
+        using upload = Upload { log: log, ack: ack }
+        reply!()
+
+# The reply and the acknowledgement wait on the host's clock, so they are
+# still pending when the manual clock's limit and deadline pass.
+fn silent!() -> string $ Clock:
+    sleep!(60s)
+    "reply"
+
+fn acknowledged!() -> void:
+    pass
+
+fn attempt!(ack: mut Suspend[void]) -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let reply: mut Suspend[string] = silent()
+    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        result := send!(log, reply, ack)
+        match result:
+            .Ok(value) => println(value)
+            .Err(error) =>
+                println(error.to_string())
+                println(log.join(", "))
+                ended := if error == TimedOut { limit: 5s, cleanup: .Abandoned }: "abandoned" else: "finished"
+                println("${ended} at ${clock.now().unix_milliseconds()}")
+
+pub fn main!() -> void $ Console + Clock:
+    attempt!(sleep(60s))
+    attempt!(acknowledged())

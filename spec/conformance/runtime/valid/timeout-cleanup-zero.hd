@@ -1,0 +1,41 @@
+# expect-stdout: timed out after 5s, cleanup abandoned
+# expect-stdout: closing, closed
+# expect-stdout: clock 5000
+# test: with cleanup=0s, timeout! cancels the work at the limit and abandons its cleanup at the first wait, after the synchronous part ran
+# Spec std/task Cleanup Bound: std-task.timeout.cleanup-zero, .cleanup-abandon.
+use std.ops.Disposable
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, ManualClock, Timestamp, s, sleep}
+
+data Close:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Close:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("closed")
+        self.log.push("closing")
+        let mut ack = self.ack
+        ack!()
+        self.log.push("acknowledged")
+
+# Waits on the host's clock, so it is still pending at the manual limit.
+fn silent!() -> void $ Clock:
+    sleep!(60s)
+
+fn close!(log: mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, TimedOut] $ Clock:
+    timeout!(5s, cleanup=0s):
+        using close = Close { log: log, ack: ack }
+        reply!()
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let reply: mut Suspend[void] = silent()
+    let ack: mut Suspend[void] = silent()
+    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        match close!(log, reply, ack):
+            .Ok(_) => println("closed in time")
+            .Err(error) => println(error.to_string())
+    println(log.join(", "))
+    println("clock ${clock.now().unix_milliseconds()}")

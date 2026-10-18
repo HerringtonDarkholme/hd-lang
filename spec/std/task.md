@@ -179,18 +179,20 @@ See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#stand
 ```text
 pub data TimedOut:
     pub limit: Duration
+    pub cleanup: CleanupEnd
 
-pub fn timeout![T, $R](limit: Duration, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock
+pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock
 ```
 
-1. r[std-task.timeout.type] `std.task` declares the data type `TimedOut` with the public field `limit`, a `Duration`. `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`, and its `Display` text is `timed out after ` followed by the `Display` text of `limit`.
-2. r[std-task.timeout.decl] `std.task` declares `timeout!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports both, as in `use std.task.{TimedOut, timeout}`.
-3. r[std-task.timeout.race] `timeout!` is a [`race!`](../lang/11-requirements-and-suspension.md#standard-combinators) of two children, in this order: `work`, called once without `!`, and a call of `sleep!(limit)` on the `Clock` provider that covers it.
-4. r[std-task.timeout.ok] When `work` completes first, `timeout!` returns `.Ok` of its value.
-5. r[std-task.timeout.err] When the sleep completes first, `timeout!` returns `.Err(TimedOut { limit: limit })`.
-6. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
-7. r[std-task.timeout.cancel-loser] The losing child is cancelled before `timeout!` returns, as [`req.combinator.race-losers-disposed`](../lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed) states, so a timed-out `work` runs its registered `defer` suites and starts nothing more.
-8. r[std-task.timeout.cancel] Cancelling `timeout!` cancels both children, as [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children) states.
+1. r[std-task.timeout.fields] `std.task` declares the data type `TimedOut` with the public fields `limit`, a `Duration`, and `cleanup`, a [`CleanupEnd`](#cleanup-end). `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`.
+2. r[std-task.timeout.display] The `Display` text of a `TimedOut` is `timed out after ` followed by the `Display` text of `limit`. When `cleanup` is `.Abandoned`, the text ends with `, cleanup abandoned`.
+3. r[std-task.timeout.decl-cleanup] `std.task` declares `timeout!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports both, as in `use std.task.{TimedOut, timeout}`.
+4. r[std-task.timeout.race] `timeout!` is a [`race!`](../lang/11-requirements-and-suspension.md#standard-combinators) of two children, in this order: `work`, called once without `!`, and a call of `sleep!(limit)` on the `Clock` provider that covers it.
+5. r[std-task.timeout.ok] When `work` completes first, `timeout!` returns `.Ok` of its value.
+6. r[std-task.timeout.err-cleanup] When the sleep completes first, `timeout!` returns `.Err(TimedOut { limit: limit, cleanup: end })`, where `end` says how the cleanup of `work` ended.
+7. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
+8. r[std-task.timeout.cancel-loser] The losing child is cancelled before `timeout!` returns, as [`req.combinator.race-losers-disposed`](../lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed) states, so a timed-out `work` runs its registered `defer` suites and starts nothing more.
+9. r[std-task.timeout.cancel] Cancelling `timeout!` cancels both children, as [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children) states.
 
 ```text
 use std.task.{TimedOut, timeout}
@@ -205,21 +207,90 @@ fn lookup_in_time!() -> Result[string, TimedOut] $ Clock:
         lookup!()
 ```
 
-On a real clock, `lookup_in_time!` returns `.Err(TimedOut { limit: 1s })` after
-one second, and the 5 second sleep is cancelled. On a `ManualClock`, every sleep
-completes at once, so `lookup!` finishes first and the result is
-`.Ok("value")`.
+On a real clock, `lookup_in_time!` returns
+`.Err(TimedOut { limit: 1s, cleanup: .Finished })` after one second, and the
+5 second sleep is cancelled. On a `ManualClock`, every sleep completes at once,
+so `lookup!` finishes first and the result is `.Ok("value")`.
 
 > **Why.** Go's `context.WithTimeout` and Rust's `tokio::time::timeout` also
 > return an error value when the limit passes first, and drop or cancel the
-> work. `timeout!` is a race against a sleep, so `lib/std` needs no new
-> intrinsic. Because `race!` needs children of one type, the helper wraps the
-> work's value in `.Ok` and the sleep's result in `.Err`. Work first, then the
+> work. `timeout!` is a race against a sleep, which `lib/std` writes in
+> hd. Because `race!` needs children of one type, the helpers wrap the
+> work's value and the sleep's end in one private enum. Work first, then the
 > sleep, so a deterministic provider such as `ManualClock`, whose sleeps never
 > wait, never reports a timeout for work that can finish without suspending.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
 [Clock Helpers](time.md#clock-helpers), [Manual Clock](time.md#manual-clock).
+
+### Cleanup Bound
+
+A `cleanup` argument bounds how long `timeout!` waits for the cleanup of
+`work` once `work` is cancelled:
+
+```text
+use std.ops.Disposable
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, s}
+
+data Upload:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Upload:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("upload closed")
+        let mut ack = self.ack
+        ack!()                          # waits for the peer
+        self.log.push("upload acknowledged")
+
+fn send!(log: mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+    timeout!(5s, cleanup=1s):
+        using upload = Upload { log: log, ack: ack }
+        reply!()
+```
+
+When neither `reply` nor `ack` completes, the limit cancels the work at 5
+seconds, and its dispose waits for `ack`. At 6 seconds `timeout!` abandons the
+work. The log reads `upload closed`, and `send!` returns
+`.Err(TimedOut { limit: 5s, cleanup: .Abandoned })`, whose text is
+`timed out after 5s, cleanup abandoned`. When `ack` completes in time, the log
+also holds `upload acknowledged`, and `cleanup` is `.Finished`.
+
+1. r[std-task.timeout.cleanup-unbounded] Without `cleanup`, `timeout!` waits for the whole cleanup of a cancelled `work`, however long it takes.
+2. r[std-task.timeout.cleanup-deadline] With `cleanup`, the cleanup of `work` has a deadline: `cleanup` after `work` is first cancelled, by the limit or by a cancel of `timeout!`.
+3. r[std-task.timeout.cleanup-fixed] A later cancel of `timeout!` never moves the deadline.
+4. r[std-task.timeout.cleanup-outlives] Cancelling `timeout!` does not stop the bound. The cleanup of `work` goes on toward the same deadline, as part of the cleanup of `timeout!`.
+5. r[std-task.timeout.cleanup-abandon] When the deadline passes before the cleanup of `work` has ended, `timeout!` calls [`abandon()`](../lang/11-requirements-and-suspension.md#r-req.abandon.unwind) on `work`.
+6. r[std-task.timeout.cleanup-cooperative] The deadline is cooperative. `abandon()` runs at the first point at or after the deadline where the cleanup waits, so synchronous code is never interrupted.
+7. r[std-task.timeout.cleanup-ended] A cleanup that ends before `abandon()` runs is not abandoned.
+8. r[std-task.timeout.cleanup-zero] A `cleanup` of 0 abandons the cleanup at its first wait, so `limit` then bounds all of the waiting.
+9. r[std-task.timeout.cleanup-end] `TimedOut.cleanup` is `.Abandoned` when the deadline cut the cleanup short, or when another part of it was cut short, by [`std-task.cleanup-end.cut-short`](#r-std-task.cleanup-end.cut-short). Otherwise it is `.Finished`.
+
+The deadline is set once, at the first cancel:
+
+| Time | Event |
+| --- | --- |
+| t0 | `timeout!(5s, cleanup=1s)` starts its work. |
+| t5 | The limit passes. The work is cancelled, and the deadline is t6. |
+| t5.2 | The caller cancels `timeout!`. The cleanup goes on, and the deadline stays t6. |
+| t6 | The cleanup has not ended, so `timeout!` abandons the work. |
+
+Had the caller cancelled `timeout!` at t3 instead, the deadline would be t4.
+
+> **Why.** A graceful cancel never drops cleanup, so only an explicit
+> `abandon()` ends a cleanup early, and the `cleanup` argument makes that
+> call. Racing a cancel against a sleep would not bound it, since `race!`
+> cancels the losing cancel, which only continues inside the race's own
+> cleanup. The deadline is fixed at the first cancel, so cancelling again
+> and again cannot stretch the bound.
+
+> **Note.** The bound limits waiting, not computation. A dispose that
+> computes for two seconds before its first wait overruns a one-second
+> bound.
+
+See also: [Cleanup End](#cleanup-end),
+[Abandoning](../lang/11-requirements-and-suspension.md#abandoning).
 
 ## Map All
 

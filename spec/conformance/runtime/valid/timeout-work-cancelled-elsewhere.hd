@@ -36,7 +36,7 @@ fn run!(log: mut List[string], timed: mut Suspend[Result[string, TimedOut]], sto
 pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
     let job: mut Suspend[string] = target(log)
-    let timed: mut Suspend[Result[string, TimedOut]] = timeout(s(60), fn!() -> string: job!())
+    let timed: mut Suspend[Result[string, TimedOut]] = timeout(s(60), work=fn!() -> string: job!())
     let runner: mut Suspend[void] = run(log, timed, stop_later(job, log))
     runner!()
     println(log.join(", "))

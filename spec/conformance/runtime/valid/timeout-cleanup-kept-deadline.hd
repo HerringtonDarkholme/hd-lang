@@ -1,0 +1,48 @@
+# expect-stdout: cancelled
+# expect-stdout: closing, caller cancels, still closing, closed, after deadline
+# test: a cancel of timeout! that arrives after the limit keeps the deadline the limit set
+# Spec std/task Cleanup Bound: std-task.timeout.cleanup-fixed, .cleanup-outlives, .cleanup-deadline.
+use std.ops.Disposable
+use std.task.{all, race, timeout}
+use std.time.{Clock, Duration, ms, s, sleep}
+
+data Close:
+    log: mut List[string]
+    ack: mut Suspend[void]
+
+impl Disposable for Close:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("closed")
+        self.log.push("closing")
+        let mut ack = self.ack
+        ack!()
+        self.log.push("acknowledged")
+
+fn session!(log: mut List[string]) -> string $ Clock:
+    using close = Close { log: log, ack: sleep(s(60)) }
+    sleep!(s(60))
+    "reply"
+
+# The limit passes at 50 ms, so the deadline is 350 ms. The caller's
+# cancel at 150 ms would move it to 450 ms.
+fn request!(log: mut List[string]) -> string $ Clock:
+    result := timeout!(ms(50), cleanup=ms(300)):
+        session!(log)
+    match result:
+        .Ok(value) => value
+        .Err(error) => error.to_string()
+
+fn caller_cancels!(log: mut List[string]) -> string $ Clock:
+    sleep!(ms(150))
+    log.push("caller cancels")
+    "cancelled"
+
+fn mark!(log: mut List[string], at: Duration, text: string) -> void $ Clock:
+    sleep!(at)
+    log.push(text)
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let (outcome, _, _) = all!(race(request(log), caller_cancels(log)), mark(log, ms(250), "still closing"), mark(log, ms(400), "after deadline"))
+    println(outcome)
+    println(log.join(", "))

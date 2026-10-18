@@ -1,0 +1,49 @@
+# expect-stdout: bound 100ms: flushed at 5200, closed at 5200
+# expect-stdout: bound 1s: flushed at 5200, closed at 6000
+# expect-stdout: bound 1s, quick peer: flushed at 5200, acknowledged, closed at 5200
+# test: the cleanup deadline counts from the first cancel, never interrupts a flush that is computing, and abandons only a cleanup that still waits
+# Spec std/task Cleanup Bound: std-task.timeout.cleanup-cooperative, .cleanup-deadline, .cleanup-ended.
+use std.ops.Disposable
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
+
+# The flush spends 200 ms of the manual clock without waiting, then waits
+# for an acknowledgement.
+data Flush:
+    log: mut List[string]
+    clock: mut dyn Clock
+    ack: mut Suspend[void]
+
+impl Disposable for Flush:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("closed at ${self.clock.now().unix_milliseconds()}")
+        self.clock.sleep!(ms(200))
+        self.log.push("flushed at ${self.clock.now().unix_milliseconds()}")
+        let mut ack = self.ack
+        ack!()
+        self.log.push("acknowledged")
+
+# Waits on the host's clock, so it is still pending at the manual limit.
+fn silent!() -> void $ Clock:
+    sleep!(60s)
+
+fn quick!() -> void:
+    pass
+
+fn flush!(log: mut List[string], ack: mut Suspend[void], bound: Duration) -> Result[void, TimedOut] $ Clock:
+    let reply: mut Suspend[void] = silent()
+    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        timeout!(5s, cleanup=bound):
+            using flush = Flush { log: log, clock: $.use(Clock), ack: ack }
+            reply!()
+
+fn attempt!(name: string, ack: mut Suspend[void], bound: Duration) -> void $ Console + Clock:
+    let log: mut List[string] = []
+    _ := flush!(log, ack, bound)
+    println("${name}: ${log.join(", ")}")
+
+pub fn main!() -> void $ Console + Clock:
+    attempt!("bound 100ms", silent(), ms(100))
+    attempt!("bound 1s", silent(), s(1))
+    attempt!("bound 1s, quick peer", quick(), s(1))

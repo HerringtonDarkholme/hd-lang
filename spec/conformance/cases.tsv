@@ -3330,6 +3330,12 @@ runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections
 runtime/valid/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty
 runtime/valid/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.when
 runtime/valid/task-timeout.hd	runtime	accept	std/task.md#r-std-task.timeout.race
+runtime/valid/task-timeout-cleanup.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-abandon
+runtime/valid/timeout-cleanup-zero.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-zero
+runtime/valid/timeout-cleanup-cooperative.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-cooperative
+runtime/valid/timeout-cleanup-kept-deadline.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-fixed
+runtime/valid/timeout-cleanup-cancel-first.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-outlives
+runtime/valid/timeout-cleanup-unbounded.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-unbounded
 runtime/valid/task-cleanup-end.hd	runtime	accept	std/task.md#r-std-task.cleanup-end.decl
 runtime/valid/task-map-all.hd	runtime	accept	std/task.md#r-std-task.map-all.limit
 runtime/valid/clock-elapsed.hd	runtime	accept	std/time.md#r-std-time.helper.elapsed

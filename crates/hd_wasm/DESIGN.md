@@ -1092,6 +1092,21 @@ awaiter reads its child's `CANCELLED` bit:
   through its `f$cancel` instead of its poll, and panics once the root no
   longer unwinds.
 
+**A frame that never completes.** std's `timeout!` bounds its work's
+cleanup from a `dispose!` of a `race!` child that must stay pending until
+the race cancels it, which no hd code can build: every suspension
+completes once a host operation or a child does, and a `ManualClock`
+sleep never waits. The `task_pending_frame` intrinsic builds that child
+(`rt::Helper::PendingCold`), a frame with no fields of its own:
+
+- Its poll (`PendingPoll`) runs `PollCheck` and answers Pending with no
+  wake registered, so its parent counts it as unregistered. A cancelled
+  one answers Pending too, as every cancelled suspension does.
+- Its cancel (`PendingCancel`) runs `CancelCheck`, which marks it
+  CANCELLED, and `ABANDONED` under `aband`. It never unwinds.
+- A root that waits only on it has no host operation, timer, or wake
+  pending, so the entry reports a deadlock (§14.8).
+
 ### 14.7 Hook Points
 
 A `Hook` instruction sits in TIR at each suspension point, resume, frame

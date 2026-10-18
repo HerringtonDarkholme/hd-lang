@@ -6,7 +6,8 @@
 use std.task.all
 use std.error.Error
 use std.format.DebugWriter
-use std.time.{Clock, Duration, sleep}
+use std.ops.Disposable
+use std.time.{Clock, Duration, Instant, sleep}
 
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers-disposed). Its plain signature types every call
@@ -170,41 +171,111 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
         delay = if grown > backoff.max: backoff.max else: grown
     result
 
-# The error of `timeout!` when the limit passes first
-# (spec/std/task.md#timeout).
-## The error of `timeout!`: the work did not finish within `limit`.
-## See [std-task.timeout.type](../../spec/std/task.md#r-std-task.timeout.type).
+# The error of `timeout!` when the limit passes first, with how the work's
+# cleanup ended (spec/std/task.md#timeout).
+## The error of `timeout!`: the work did not finish within `limit`, and `cleanup` says how its cleanup ended.
+## See [std-task.timeout.fields](../../spec/std/task.md#r-std-task.timeout.fields).
 pub data TimedOut:
     pub limit: Duration
+    pub cleanup: CleanupEnd
 
+# The limit, and a note when the cleanup was cut short
+# (r-std-task.timeout.display).
 impl Display for TimedOut:
     fn to_string(self) -> string:
-        "timed out after ${self.limit}"
+        match self.cleanup:
+            .Finished => "timed out after ${self.limit}"
+            .Abandoned => "timed out after ${self.limit}, cleanup abandoned"
 
 impl Eq for TimedOut:
     fn eq(self, other: TimedOut) -> bool:
-        self.limit == other.limit
+        self.limit == other.limit && self.cleanup == other.cleanup
 
 impl Debug for TimedOut:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("TimedOut").field("limit", self.limit).finish()
+        out.debug_struct("TimedOut").field("limit", self.limit).field("cleanup", self.cleanup).finish()
 
 impl Error for TimedOut
 
 # Races `work` against a sleep of `limit` on the covering `Clock`, work
 # first, so work that finishes on its first poll wins a tie. `race!` cancels
-# the loser (spec/std/task.md#timeout).
-## Runs `work` and returns its value, or `.Err(TimedOut)` when `limit` passes first.
-## See [std-task.timeout.decl](../../spec/std/task.md#r-std-task.timeout.decl).
-pub fn timeout![T, $R](limit: Duration, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock:
-    race!(timeout_work(work), timeout_expire(limit))
+# the loser and waits for its cleanup (spec/std/task.md#timeout). The
+# work runs as the cold suspension `job`, so that after the race its kept
+# cleanup result says how the cleanup ended (r-req.cancel.kept).
+#
+# With a `cleanup` bound, a third child comes first: it never completes,
+# and its `using` binding holds the bound. Whatever cancels the race first,
+# the limit (the race cancels its losers) or a cancel of `timeout!` (the
+# race cancels every child), cancels it before the work, so its dispose
+# fixes the deadline at that moment. The dispose is shielded, so a later
+# cancel only continues it and never moves the deadline. It runs beside
+# the work's cleanup, waits for it, and abandons the work once the
+# deadline passes (r-std-task.timeout.cleanup-deadline).
+## Runs `work` and returns its value, or `.Err(TimedOut)` when `limit` passes first; `cleanup` bounds the wait for the work's cleanup.
+## See [std-task.timeout.decl-cleanup](../../spec/std/task.md#r-std-task.timeout.decl-cleanup).
+pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock:
+    let job: mut Suspend[T] = work()
+    let end = match cleanup:
+        .None => race!(timeout_work(job), timeout_expire(limit))
+        .Some(bound) => race!(timeout_bound(job, bound), timeout_work(job), timeout_expire(limit))
+    match end:
+        .Done(value) => .Ok(value)
+        .Expired => .Err(TimedOut { limit: limit, cleanup: job.cancel!() })
 
-fn timeout_work![T, $R](work: fn!() -> T $ R) -> Result[T, TimedOut] $ R:
-    .Ok(work!())
+# Which child of `timeout!`'s race completed first.
+enum TimeoutEnd[T]:
+    Done(T)
+    Expired
 
-fn timeout_expire![T](limit: Duration) -> Result[T, TimedOut] $ Clock:
+fn timeout_work![T](job: mut Suspend[T]) -> TimeoutEnd[T]:
+    .Done(job!())
+
+fn timeout_expire![T](limit: Duration) -> TimeoutEnd[T] $ Clock:
     sleep!(limit)
-    .Err(TimedOut { limit: limit })
+    .Expired
+
+# The bound's child: it waits until the race cancels it, and its dispose
+# bounds the work's cleanup.
+fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
+    using bound = CleanupBound { job: job, cleanup: cleanup, clock: $.use(Clock) }
+    let forever: mut Suspend[TimeoutEnd[T]] = pending_frame()
+    forever!()
+
+# The cleanup bound of `timeout!`: the work, the bound, and the clock that
+# measures it.
+data CleanupBound[T]:
+    job: mut Suspend[T]
+    cleanup: Duration
+    clock: mut dyn Clock
+
+# Runs when the work is first cancelled, so the deadline is `cleanup`
+# from now. It waits for the work's cleanup, and abandons the work once
+# the deadline passes first. Only a sleep is raced, so the wait is
+# cooperative: a cleanup that is computing is never interrupted
+# (r-std-task.timeout.cleanup-cooperative). A finished work's cleanup has
+# ended, so its `cancel!()` wins at once.
+impl[T] Disposable for CleanupBound[T]:
+    fn dispose!(mut self) -> void:
+        started := self.clock.monotonic()
+        _ := race!(self.job.cancel(), cleanup_deadline(self.job, self.clock, self.cleanup, started))
+
+# Abandons `job` once `cleanup` has passed since `started`: at once when
+# it already has, so a bound of 0 abandons whatever still waits
+# (r-std-task.timeout.cleanup-zero).
+fn cleanup_deadline![T](job: mut Suspend[T], clock: mut dyn Clock, cleanup: Duration, started: Instant) -> CleanupEnd:
+    spent := clock.monotonic().as_milliseconds() - started.as_milliseconds()
+    if spent < cleanup.as_milliseconds():
+        clock.sleep!(Duration::milliseconds(cleanup.as_milliseconds() - spent))
+    job.abandon()
+    .Abandoned
+
+# A suspension that never completes: each poll answers Pending and
+# registers no wake, and a cancel only marks it cancelled. The compiler
+# supplies it, since every suspension hd code can build completes once a
+# host operation or a child does, and a `ManualClock` sleep never waits.
+@intrinsic("task_pending_frame")
+fn pending_frame[T]() -> mut Suspend[T]:
+    panic("intrinsic")
 
 # Runs `work` on every item with at most `limit` calls in flight and
 # returns the values in item order (spec/std/task.md#map-all). It starts

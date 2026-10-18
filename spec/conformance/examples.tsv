@@ -776,10 +776,11 @@ std/task.md	6	type-fragment	-
 std/task.md	7	accept	runtime/valid/task-all-list-order.hd
 std/task.md	8	type-fragment	-
 std/task.md	9	accept	runtime/valid/task-timeout.hd
-std/task.md	10	type-fragment	-
-std/task.md	11	accept	runtime/valid/task-map-all.hd
-std/task.md	12	type-fragment	-
-std/task.md	13	accept	runtime/valid/task-cleanup-end.hd
+std/task.md	10	accept	runtime/valid/task-timeout-cleanup.hd
+std/task.md	11	type-fragment	-
+std/task.md	12	accept	runtime/valid/task-map-all.hd
+std/task.md	13	type-fragment	-
+std/task.md	14	accept	runtime/valid/task-cleanup-end.hd
 std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd
