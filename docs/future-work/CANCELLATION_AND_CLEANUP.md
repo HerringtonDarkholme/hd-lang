@@ -12,8 +12,7 @@ where it stopped until the host closes the handle at exit. This proposal
 gives every cancellation one shape: a graceful cancel that composes, and a
 forced abandon that is always explicit.
 
-Hd code below is proposed syntax that no compiler checks yet; `CleanupEnd`
-is a placeholder name. Twelve library-shaped cases, taken from Kotlin,
+Hd code below is proposed syntax that no compiler checks yet. Twelve library-shaped cases, taken from Kotlin,
 Trio, asyncio, asyncpg, hyper, contextlib and websockets, were run against
 an earlier draft. The rules on cleanup order, shared cleanup, deadlines and
 fan-out below come from the places where that draft broke.
@@ -310,14 +309,8 @@ a synchronous `terminate()` as `cancel!()` and `abandon()`.
   their dispose waits.
 - The host lists abandoned handles separately from leaked ones in
   `hd test`.
-- A host's cancellation of the entry, the runtime scenarios' `hd.cancel`,
-  follows the same rules with the host as the waiter.
-
-## Open Points
-
-1. The names `abandon`, `CleanupEnd` and the `cleanup` parameter of
-   `timeout!`.
-2. Whether the host's cancellation of the entry should wait for the
-   entry's cleanup without a bound, or with a default one. With the
-   deadline rule above, a default would behave as `timeout!`'s `cleanup`
-   does: set once at the first cancel, never moved.
+- A host's cancellation of the entry (Ctrl-C, the runtime scenarios'
+  `hd.cancel`) follows the same rules with the host as the waiter. The
+  host waits with a default cleanup bound, a host setting that behaves as
+  `timeout!`'s `cleanup` does: set once at the first cancel, never moved,
+  then `abandon()`. A second Ctrl-C abandons at once.
