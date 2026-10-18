@@ -269,7 +269,7 @@ pub static TABLE: &[HostTrait] = &[
         std_path: "std.process.Process",
         methods: &[m(
             "run",
-            &[B("string"), B("List[string]"), B("string")],
+            &[B("Command")],
             B("Result[ProcessOutput, ProcessError]"),
             Wait::May,
             Some(ResourceArg::Program),

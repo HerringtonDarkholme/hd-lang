@@ -5,9 +5,9 @@ use std::time::Instant;
 
 use tokio::sync::oneshot;
 
-use super::native::failed;
+use super::native::{failed, resolve_dir, validate};
 use crate::Shared;
-use crate::abi::{ProcessError, ProcessOutput};
+use crate::abi::{Command, ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
 use crate::host::{Host, HostIo};
 use crate::runtime::reactor::Done;
@@ -73,23 +73,34 @@ pub(crate) fn start(
     bytes: &[u8],
     grants: &Grants,
     environment: &TestEnvironment,
+    env_overlay: &[(String, String)],
     deadline: Option<Instant>,
 ) -> wasmtime::Result<Start> {
-    let mut arguments = Dec::new(bytes);
-    let name = String::dec(&mut arguments)?;
-    let args = Vec::<String>::dec(&mut arguments)?;
-    let input = Vec::<u8>::dec(&mut arguments)?;
-    if !grants.covers_name("Process", &name) {
+    let call = Command::dec(&mut Dec::new(bytes))?;
+    if !grants.covers_name("Process", &call.program) {
         return Ok(Start::Ready(failed(ProcessError::NotGranted)));
     }
-    let Some(child) = environment.children.iter().find(|child| child.name == name) else {
+    let Some(child) = environment
+        .children
+        .iter()
+        .find(|child| child.name == call.program)
+    else {
         return Ok(Start::Ready(failed(ProcessError::NotFound {
-            program: name,
+            program: call.program,
         })));
     };
+    if let Some(message) = validate(&call) {
+        return Ok(Start::Ready(failed(ProcessError::Other { message })));
+    }
+    let cwd = match resolve_dir(&call, Some(&environment.cwd)) {
+        Ok(dir) => dir.unwrap_or_else(|| environment.cwd.clone()),
+        Err(message) => return Ok(Start::Ready(failed(ProcessError::Other { message }))),
+    };
+    let mut overlay = env_overlay.to_vec();
+    overlay.extend(call.env);
+    let (name, args, input) = (call.program, call.args, call.stdin.into_bytes());
     let stop = Arc::new(AtomicBool::new(false));
     let (sender, result) = oneshot::channel();
-    let cwd = environment.cwd.clone();
     let engine = Arc::clone(&child.engine);
     let module = Arc::clone(&child.module);
     let child_grants = child.grants.clone();
@@ -106,6 +117,7 @@ pub(crate) fn start(
                     args,
                     input,
                     cwd,
+                    env: overlay,
                     grants: child_grants,
                 },
                 deadline,
@@ -125,6 +137,8 @@ struct ChildInput {
     args: Vec<String>,
     input: Vec<u8>,
     cwd: std::path::PathBuf,
+    /// The pairs the command added to the environment, after the parent's.
+    env: Vec<(String, String)>,
     grants: Grants,
 }
 
@@ -154,6 +168,7 @@ fn run(
             child.grants,
             None,
         );
+        host.env_overlay = child.env;
         host.environment = Some(TestEnvironment {
             cwd: child.cwd,
             program: name,

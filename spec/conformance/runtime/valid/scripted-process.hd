@@ -1,14 +1,16 @@
-# test: ScriptedProcess::new answers each scripted program, whatever its arguments, and reports any other as NotFound
-# Spec std/process Scripted Process: std-process.scripted.new, std-process.scripted.run, std-process.scripted.missing.
+# test: ScriptedProcess::new has no replies, replies are served in order with the last repeating, and an unscripted program is NotFound
+# Spec std/process Scripted Process: std-process.scripted.empty, std-process.scripted.reply,
+# std-process.scripted.answer, and std-process.scripted.unqueued.
 # expect: test
-use std.process.{Process, ProcessError, ProcessOutput, ScriptedProcess}
+use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess}
+
 fn version!() -> string $ Process:
-    match $.use(Process).run!("git", ["--version"], ""):
+    match Command::new("git").arg("--version").run!():
         .Ok(output) => output.stdout
         .Err(_) => "no git"
 
 fn missing!() -> bool $ Process:
-    match $.use(Process).run!("make", ["all"], "input"):
+    match Command::new("make").arg("all").stdin("input").run!():
         .Err(error) => error == ProcessError.NotFound(program="make")
         .Ok(_) => false
 
@@ -16,11 +18,35 @@ tests:
     use std.testing.assert_equal
 
     it("answers the scripted program"):
-        let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }})
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "git 2.0" }))
         $.with(Process=process):
             assert_equal(version!(), "git 2.0", reason="git is scripted")
 
     it("an unscripted program is NotFound"):
-        let mut process = ScriptedProcess::new({})
+        let mut process = ScriptedProcess::new()
         $.with(Process=process):
             assert_equal(missing!(), true, reason="make is not scripted")
+
+    it("replies are served in order and the last one repeats"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "one" }))
+        process.reply("git", .Err(ProcessError.Other(message="gone")))
+        process.reply("git", .Ok(ProcessOutput { stdout: "three" }))
+        $.with(Process=process):
+            assert_equal(version!(), "one", reason="the first reply")
+            assert_equal(version!(), "no git", reason="the second reply is an error")
+            assert_equal(version!(), "three", reason="the third reply")
+            assert_equal(version!(), "three", reason="the last reply repeats")
+            assert_equal(version!(), "three", reason="and repeats again")
+
+    it("each program has its own queue"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "git 2.0" }))
+        process.reply("git", .Ok(ProcessOutput { stdout: "git 3.0" }))
+        process.reply("make", .Ok(ProcessOutput { status: 2 }))
+        $.with(Process=process):
+            assert_equal(missing!(), false, reason="make is scripted")
+            assert_equal(version!(), "git 2.0", reason="make did not take git's reply")
+            assert_equal(missing!(), false, reason="make's only reply repeats")
+            assert_equal(version!(), "git 3.0", reason="git's second reply")

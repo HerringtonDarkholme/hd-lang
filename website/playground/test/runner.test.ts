@@ -313,7 +313,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   // Process stays unbound (std-http.playground.unbound).
   const process = await run(
     single(
-      'use std.process.Process\n\npub fn main!() -> void $ Console + Process:\n    _ := $.use(Process).run!("git", [], "")\n',
+      'use std.process.{Command, Process}\n\npub fn main!() -> void $ Console + Process:\n    _ := Command::new("git").run!()\n',
     ),
     "run",
   );

@@ -43,7 +43,13 @@ fn main() {
     std::thread::sleep(Duration::from_millis(50));
 
     let mut p = support::Program::new();
-    let run_true = support::Enc::default().str("true").leb(0).bytes(b"").0;
+    let run_true = support::Enc::default()
+        .str("true")
+        .leb(0)
+        .leb(0)
+        .leb(0)
+        .bytes(b"")
+        .0;
     for _ in 0..CHILDREN {
         // Ok, empty stdout and stderr, status 0.
         p.call_waiting("hd:Process", "run", &run_true, vec![0, 0, 0, 0]);

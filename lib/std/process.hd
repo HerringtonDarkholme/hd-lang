@@ -7,6 +7,7 @@
 # (spec/cli/command-line.md#r-cli.test.process).
 use std.format.DebugWriter
 use std.error.Error
+use std.path.Path
 
 ## The exit status a `main` returns: a small integer the process exits with.
 ## See [module.entry.exit-code](../../spec/lang/10-modules.md#r-module.entry.exit-code).
@@ -32,23 +33,23 @@ impl[T < Termination, E < Error] Termination for Result[T, E]:
             .Err(error) => ExitCode(u8(error.exit_code()))
 
 # The host capability to start a program (spec/lang/10-modules.md#processes).
-## What `run!` returns for a started program: its output and exit status.
+## What `run!` returns for a started program: its output and exit status; the fields default to `""`, `""`, and 0.
 ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
 pub data ProcessOutput:
     ## The text the program wrote to standard output.
     ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
-    pub stdout: string
+    pub stdout: string = ""
     ## The text the program wrote to standard error.
     ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
-    pub stderr: string
+    pub stderr: string = ""
     ## The status the program exited with; non-zero is still an ordinary `.Ok`.
     ## See [module.process.nonzero-ok](../../spec/lang/10-modules.md#r-module.process.nonzero-ok).
-    pub status: i32
+    pub status: i32 = 0
 
-# Why a program did not start (r-module.process.declares). A program that
+# Why a program did not start (r-module.process.decl). A program that
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
 ## Why a program did not start: not found or denied (each naming the program), not granted, or another reason with a message.
-## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
+## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
 pub enum ProcessError:
     NotFound(program: string)
     PermissionDenied(program: string)
@@ -56,49 +57,116 @@ pub enum ProcessError:
     Other(message: string)
     Exited(status: i32, stderr: string)
 
-## The host capability to start a program with arguments and standard input, and wait for it to exit.
-## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
+## A program to start with its arguments, environment, working directory, and standard input. `run!` starts it.
+## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
+pub data Command:
+    ## The program to start.
+    ## See [module.process.run-command](../../spec/lang/10-modules.md#r-module.process.run-command).
+    pub program: string
+    ## The arguments, each one item with no shell.
+    ## See [module.process.args-no-shell](../../spec/lang/10-modules.md#r-module.process.args-no-shell).
+    pub args: mut List[string] = []
+    ## Name and value pairs the child's environment gets beyond the program's own; a later pair for a name wins.
+    ## See [module.process.env](../../spec/lang/10-modules.md#r-module.process.env).
+    pub env: mut List[(string, string)] = []
+    ## The directory the child starts in, or `.None` for the program's own.
+    ## See [module.process.current-dir](../../spec/lang/10-modules.md#r-module.process.current-dir).
+    pub current_dir: Path? = .None
+    ## The text written to the child's standard input.
+    ## See [module.process.stdin](../../spec/lang/10-modules.md#r-module.process.stdin).
+    pub stdin: string = ""
+
+## The host capability to start a program, and wait for it to exit.
+## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
 pub trait Process:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]
 
-# Runs a program through the covering `Process` provider
-# (spec/std/process.md#r-std-process.helper.run).
-## Starts `program` with `args` and `stdin`, waits for it to exit, and returns its output.
-## See [std-process.helper.run](../../spec/std/process.md#r-std-process.helper.run).
-pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process:
-    let mut process = $.use(Process)
-    process.run!(program, args, stdin)
+impl Command:
+    ## Returns a command for `program` with no arguments, no environment, the program's own directory, and no standard input.
+    ## See [std-process.command.new](../../spec/std/process.md#r-std-process.command.new).
+    pub fn new(program: string) -> mut Command:
+        Command { program: program }
 
-# Runs a program and returns its standard output
-# (spec/std/process.md#r-std-process.helper.output).
-## Starts `program` with `args`, and returns its standard output when it exits with status 0.
-## See [std-process.helper.output](../../spec/std/process.md#r-std-process.helper.output).
-pub fn output!(program: string, args: List[string]) -> Result[string, ProcessError] $ Process:
-    let output = run!(program, args)?
-    if output.status == 0:
-        .Ok(output.stdout)
-    else:
-        .Err(.Exited(output.status, output.stderr))
+    ## Appends one argument and returns the command, so calls chain.
+    ## See [std-process.command.arg](../../spec/std/process.md#r-std-process.command.arg).
+    pub fn arg(mut self, value: string) -> mut Command:
+        self.args.push(value)
+        self
 
-# Answers each program with the output scripted for it
+    ## Appends each of `values` as its own argument and returns the command.
+    ## See [std-process.command.args](../../spec/std/process.md#r-std-process.command.args).
+    pub fn args(mut self, values: List[string]) -> mut Command:
+        for value in values:
+            self.args.push(value)
+        self
+
+    ## Appends one environment pair and returns the command.
+    ## See [std-process.command.env](../../spec/std/process.md#r-std-process.command.env).
+    pub fn env(mut self, name: string, value: string) -> mut Command:
+        self.env.push((name, value))
+        self
+
+    ## Sets the directory the child starts in and returns the command.
+    ## See [std-process.command.current-dir](../../spec/std/process.md#r-std-process.command.current-dir).
+    pub fn current_dir(mut self, dir: Path) -> mut Command:
+        self.current_dir = .Some(dir)
+        self
+
+    ## Sets the text written to the child's standard input and returns the command.
+    ## See [std-process.command.stdin](../../spec/std/process.md#r-std-process.command.stdin).
+    pub fn stdin(mut self, text: string) -> mut Command:
+        self.stdin = text
+        self
+
+    ## Starts the program through the covering `Process` provider, waits for it to exit, and returns its output.
+    ## See [std-process.command.run](../../spec/std/process.md#r-std-process.command.run).
+    pub fn run!(self) -> Result[ProcessOutput, ProcessError] $ Process:
+        let mut process = $.use(Process)
+        process.run!(self)
+
+# Answers each program with the results scripted for it
 # (r-std-process.scripted.decl).
-## The deterministic `Process` provider: it answers each program from a table, with no host access.
+## The deterministic `Process` provider: it answers each program from queued results and records each command, with no host access.
 ## See [std-process.scripted.decl](../../spec/std/process.md#r-std-process.scripted.decl).
 pub data ScriptedProcess:
-    outputs: Map[string, ProcessOutput]
+    answers: mut Map[string, mut List[Result[ProcessOutput, ProcessError]]]
+    served: mut Map[string, usize]
+    seen: mut List[Command]
 
 impl ScriptedProcess:
-    # A provider that answers each program in `outputs`
-    # (r-std-process.scripted.new).
-    ## Returns the provider that answers each program with `outputs`' entry for it.
-    ## See [std-process.scripted.new](../../spec/std/process.md#r-std-process.scripted.new).
-    pub fn new(outputs: Map[string, ProcessOutput]) -> mut ScriptedProcess:
-        ScriptedProcess { outputs: outputs }
+    # A provider that has no answer yet (r-std-process.scripted.empty).
+    ## Returns a provider with no replies and no recorded commands.
+    ## See [std-process.scripted.empty](../../spec/std/process.md#r-std-process.scripted.empty).
+    pub fn new() -> mut ScriptedProcess:
+        ScriptedProcess { answers: {}, served: {}, seen: [] }
 
+    # Queues one answer for `program` (r-std-process.scripted.reply).
+    ## Queues `result` as the next answer for `program`; once the queue runs out, its last answer repeats.
+    ## See [std-process.scripted.reply](../../spec/std/process.md#r-std-process.scripted.reply).
+    pub fn reply(mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void:
+        match self.answers.get(program):
+            .Some(queued) => queued.push(result)
+            .None =>
+                let queue: mut List[Result[ProcessOutput, ProcessError]] = [result]
+                self.answers[program] = queue
+
+    # Every command the provider ran, in order (r-std-process.scripted.received).
+    ## The commands the provider ran, in order, including those it answered with `NotFound`.
+    ## See [std-process.scripted.received](../../spec/std/process.md#r-std-process.scripted.received).
+    pub fn received(self) -> List[Command]:
+        self.seen
+
+# Records the command and serves the queued answer
+# (r-std-process.scripted.answer, r-std-process.scripted.unqueued).
 impl Process for ScriptedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
-        match self.outputs.get(program):
-            .Some(output) => .Ok(output)
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+        self.seen.push(command)
+        program := command.program
+        match self.answers.get(program):
+            .Some(queued) =>
+                done := self.served.get_or(program, 0)
+                self.served[program] = done + 1
+                queued[if done < queued.len(): done else: queued.len() - 1]
             .None => .Err(.NotFound(program))
 
 impl Eq for ExitCode:
@@ -108,6 +176,10 @@ impl Eq for ExitCode:
 impl Eq for ProcessOutput:
     fn eq(self, other: ProcessOutput) -> bool:
         self.stdout == other.stdout && self.stderr == other.stderr && self.status == other.status
+
+impl Eq for Command:
+    fn eq(self, other: Command) -> bool:
+        self.program == other.program && self.args == other.args && self.env == other.env && self.current_dir == other.current_dir && self.stdin == other.stdin
 
 impl Eq for ProcessError:
     fn eq(self, other: ProcessError) -> bool:
@@ -155,6 +227,10 @@ impl Debug for ProcessError:
             .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
             .Exited(status, stderr) => out.debug_tuple("ProcessError.Exited").named_field("status", status).named_field("stderr", stderr).finish()
 
+impl Debug for Command:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Command").field("program", self.program).field("args", self.args).field("env", self.env).field("current_dir", self.current_dir).field("stdin", self.stdin).finish()
+
 impl Debug for ScriptedProcess:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("ScriptedProcess").field("outputs", self.outputs).finish()
+        out.debug_struct("ScriptedProcess").field("seen", self.seen).finish()

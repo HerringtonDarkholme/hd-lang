@@ -1,18 +1,19 @@
 # test: run! reports a program outside the run-time grant as NotGranted, apart from the operating system's PermissionDenied
 # Spec Modules, Processes: module.process.not-granted, module.process.denied.
 # expect: test
-use std.process.{Process, ProcessError, ProcessOutput}
+use std.process.{Command, Process, ProcessError, ProcessOutput}
 data GrantedProcess: pass
 
 impl Process for GrantedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+        program := command.program
         match program:
             "git" => .Ok(ProcessOutput { stdout: "ran", stderr: "", status: 0 })
             "locked" => .Err(.PermissionDenied(program))
             _ => .Err(.NotGranted)
 
 fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
-    $.use(Process).run!(program, [], "")
+    $.use(Process).run!(Command { program: program })
 
 tests:
     use std.testing.assert_equal

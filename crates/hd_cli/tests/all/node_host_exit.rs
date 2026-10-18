@@ -195,9 +195,9 @@ fn node_time_limit_ends_a_child_process_wait() {
     let wasm = build(
         &dir,
         "waits",
-        "use std.process.Process\n\n\
+        "use std.process.{Command, Process}\n\n\
          pub fn main!() -> void $ Console + Process:\n    println(\"started\")\n    \
-         match $.use(Process).run!(\"sleep\", [\"30\"], \"\"):\n        .Ok(_) => println(\"ran\")\n        \
+         match Command::new(\"sleep\").arg(\"30\").run!():\n        .Ok(_) => println(\"ran\")\n        \
          .Err(e) => println(\"${e}\")\n",
     );
     let started = Instant::now();

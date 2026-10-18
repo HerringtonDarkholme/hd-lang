@@ -597,38 +597,84 @@ function fsProviders({ grant, flush }) {
   };
 }
 
+// The checks the Rust host makes before it starts a child
+// (module.process.command-env, module.process.command-dir): no NUL byte in
+// the program, an argument, an environment pair or the directory, an
+// environment name that is neither empty nor holds `=`, and a directory
+// that exists.
+const refusal = (name, argv, pairs, dir) => {
+  const other = (message) => Err({ tag: "Other", message });
+  if (name.includes("\0")) return other("program name contains a NUL byte");
+  const arg = argv.findIndex((a) => a.includes("\0"));
+  if (arg >= 0) return other(`process argument ${arg} contains a NUL byte`);
+  const bad = pairs.findIndex(([key]) => key === "" || /[=\0]/.test(key));
+  if (bad >= 0) return other(`process environment name ${bad} is empty or holds = or a NUL byte`);
+  const nul = pairs.findIndex(([, value]) => value.includes("\0"));
+  if (nul >= 0) return other(`process environment value ${nul} contains a NUL byte`);
+  if (dir !== null && dir.includes("\0")) return other("working directory contains a NUL byte");
+  return null;
+};
+const isDirectory = (path) => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+const noDirectory = (dir) => Err({ tag: "Other", message: `working directory not found: ${dir}` });
+
 // `hd:Process`: running host programs (`Process.run!`, cli.host.default-
 // profile, cli.test.process): the test runner's provider starts the
 // package's executables and tasks by name, the default profile's a host
 // program.
 function processProvider({ grant, env, left }) {
-  const run = (name, argv, input) => {
+  const run = ({ program: name, args: argv, env: pairs, current_dir: dir, stdin: text }) => {
     if (!grant.coversName("Process", name)) return Err({ tag: "NotGranted" });
     // The child runs at most until the run's deadline.
     const ms = left();
     if (ms <= 0) throw new TimeLimit();
     const timeout = Number.isFinite(ms) ? Math.ceil(ms) : undefined;
+    // module.process.command-env: the program's environment, then the
+    // command's pairs in order, so a later pair for a name wins.
+    const childEnv = { ...process.env };
+    for (const [key, value] of pairs) {
+      // Windows names variables without case.
+      const own =
+        platform() === "win32"
+          ? Object.keys(childEnv).find((k) => k.toUpperCase() === key.toUpperCase())
+          : undefined;
+      childEnv[own ?? key] = value;
+    }
     let r;
     if (env.programs) {
       const p = env.programs[name];
       if (!p) return Err({ tag: "NotFound", program: name });
+      const bad = refusal(name, argv, pairs, dir);
+      if (bad) return bad;
+      const cwd = dir === null ? p.cwd : resolve(p.cwd, dir);
+      if (!isDirectory(cwd)) return noDirectory(dir);
       r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
-        input,
-        cwd: p.cwd,
+        input: text,
+        cwd,
+        env: childEnv,
         maxBuffer: 1 << 30,
         timeout,
       });
     } else {
+      if (name === "") return Err({ tag: "NotFound", program: name });
+      const bad = refusal(name, argv, pairs, dir);
+      if (bad) return bad;
+      const cwd = dir === null ? process.cwd() : resolve(process.cwd(), dir);
+      if (!isDirectory(cwd)) return noDirectory(dir);
       try {
         r = spawnSync(name, argv, {
-          input,
-          cwd: process.cwd(),
-          env: process.env,
+          input: text,
+          cwd,
+          env: childEnv,
           maxBuffer: 1 << 30,
           timeout,
         });
       } catch (error) {
-        if (name === "") return Err({ tag: "NotFound", program: name });
         return Err({ tag: "Other", message: String(error.message) });
       }
     }

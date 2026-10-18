@@ -13,6 +13,35 @@ use hd_host_abi::{Codec, ResourceArg, Scalar, Wait};
 
 use crate::codec::{Dec, Enc, Handle, Wire};
 
+/// `Command` of `lib/std/process.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Command {
+    pub program: String,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub current_dir: Option<Path>,
+    pub stdin: String,
+}
+
+impl Wire for Command {
+    fn enc(&self, e: &mut Enc) {
+        self.program.enc(e);
+        self.args.enc(e);
+        self.env.enc(e);
+        self.current_dir.enc(e);
+        self.stdin.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self {
+            program: Wire::dec(d)?,
+            args: Wire::dec(d)?,
+            env: Wire::dec(d)?,
+            current_dir: Wire::dec(d)?,
+            stdin: Wire::dec(d)?,
+        })
+    }
+}
+
 /// `ConsoleError` of `lib/std/console.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConsoleError {
@@ -1043,11 +1072,7 @@ pub static METHODS: &[HostMethod] = &[
         name: "run",
         wait: Wait::May,
         resource: Some(ResourceArg::Program),
-        params: &[
-            Codec::Buffer("string"),
-            Codec::Buffer("List[string]"),
-            Codec::Buffer("string"),
-        ],
+        params: &[Codec::Buffer("Command")],
         result: Codec::Buffer("Result[ProcessOutput, ProcessError]"),
     },
     HostMethod {

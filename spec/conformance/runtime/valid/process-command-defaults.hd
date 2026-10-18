@@ -1,0 +1,28 @@
+# test: a Command literal names only the program, and a ProcessOutput literal names only the fields it sets
+# Spec 10 Processes: module.process.decl, module.process.output-defaults, module.process.args-no-shell,
+# module.process.env, module.process.current-dir, module.process.stdin, module.process.names.
+# expect: test
+use std.process.{Command, ProcessOutput}
+
+tests:
+    use std.testing.assert_equal
+
+    it("a Command literal defaults every field but the program"):
+        command := Command { program: "tool" }
+        assert_equal(command.program, "tool", reason="the program")
+        assert_equal(command.args.len(), 0, reason="no arguments")
+        assert_equal(command.env.len(), 0, reason="no environment pairs")
+        assert_equal(command.current_dir, .None, reason="the program's own directory")
+        assert_equal(command.stdin, "", reason="empty standard input")
+
+    it("a Command literal keeps each argument as one item"):
+        command := Command { program: "tool", args: ["a b", "--flag=1 2", ""], env: [("A", "1"), ("A", "2")] }
+        assert_equal(command.args.len(), 3, reason="three arguments, none split")
+        assert_equal(command.env[1], ("A", "2"), reason="pairs keep their order")
+
+    it("a ProcessOutput literal defaults to empty text and status 0"):
+        output := ProcessOutput {}
+        assert_equal(output.stdout, "", reason="stdout")
+        assert_equal(output.stderr, "", reason="stderr")
+        assert_equal(output.status, 0, reason="status")
+        assert_equal(ProcessOutput { status: 3 }.status, 3, reason="a field that is set")

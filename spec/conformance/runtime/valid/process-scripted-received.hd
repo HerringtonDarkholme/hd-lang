@@ -1,0 +1,43 @@
+# test: a scripted Process provider records each command it received, in order, including those it answered with NotFound
+# Spec std/process Scripted Process: std-process.scripted.received, std-process.scripted.answer,
+# and std-process.scripted.no-host.
+# expect: test
+use std.path.Path
+use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess}
+
+fn changes!(repo: Path) -> Result[bool, ProcessError] $ Process:
+    output := Command::new("git").args(["diff", "--quiet"]).current_dir(repo).env("GIT_PAGER", "cat").stdin("none").run!()?
+    .Ok(output.status == 1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("received shows the arguments, environment, directory and stdin"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { status: 1 }))
+        $.with(Process=process):
+            assert_equal(changes!(Path("crates/app")), .Ok(true), reason="status 1 means changes")
+        ran := process.received()
+        assert_equal(ran.len(), 1, reason="one command")
+        assert_equal(ran[0].program, "git", reason="the program")
+        assert_equal(ran[0].args, ["diff", "--quiet"], reason="the arguments")
+        assert_equal(ran[0].env, [("GIT_PAGER", "cat")], reason="the environment")
+        assert_equal(ran[0].current_dir, .Some(Path("crates/app")), reason="the directory")
+        assert_equal(ran[0].stdin, "none", reason="the standard input")
+
+    it("received lists every command in order, answered or not"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput {}))
+        $.with(Process=process):
+            _ := Command::new("git").arg("one").run!()
+            _ := Command::new("make").arg("two").run!()
+            _ := Command::new("git").arg("three").run!()
+        ran := process.received()
+        assert_equal(ran.len(), 3, reason="three commands")
+        assert_equal(ran[0].args, ["one"], reason="first")
+        assert_equal(ran[1].program, "make", reason="the unscripted program is recorded too")
+        assert_equal(ran[2].args, ["three"], reason="third")
+
+    it("a new provider has received nothing"):
+        let process = ScriptedProcess::new()
+        assert_equal(process.received().len(), 0, reason="nothing yet")

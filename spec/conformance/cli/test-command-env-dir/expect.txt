@@ -1,0 +1,6 @@
+# A command's env pairs and current_dir reach the child that an integration
+# test starts by name: a later pair for a name wins, a relative path of the
+# child is from the command's directory, and a command without them leaves
+# both as the test's own.
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"a child sees the environment and directory of its command","outcome":"passed"},{"kind":"test","name":"a child without a command environment or directory sees neither","outcome":"passed"},{"kind":"summary","errors":0,"passed":2,"failed":0,"status":0}]

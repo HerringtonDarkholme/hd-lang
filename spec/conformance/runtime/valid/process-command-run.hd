@@ -1,0 +1,61 @@
+# test: Command builds a program's arguments, environment, directory and stdin, and run! hands the command to the covering Process provider
+# Spec std/process Command: std-process.command.new, std-process.command.arg, std-process.command.args,
+# std-process.command.env, std-process.command.current-dir, std-process.command.stdin, std-process.command.run,
+# std-process.command.eq, and std-process.command.debug.
+# expect: test
+use std.path.Path
+use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess}
+
+fn version!() -> Result[string, ProcessError] $ Process:
+    output := Command::new("git").arg("--version").run!()?
+    .Ok(output.stdout)
+
+fn status_of!(program: string) -> Result[i32, ProcessError] $ Process:
+    output := Command::new(program).args(["x", "y z"]).stdin("input").run!()?
+    .Ok(output.status)
+
+tests:
+    use std.testing.assert_equal
+
+    it("new starts with only the program"):
+        command := Command::new("make")
+        assert_equal(command.program, "make", reason="the program")
+        assert_equal(command.args, [], reason="no arguments")
+        assert_equal(command.env, [], reason="no environment pairs")
+        assert_equal(command.current_dir, .None, reason="no directory")
+        assert_equal(command.stdin, "", reason="stdin defaults to the empty string")
+
+    it("setters append and replace, and calls chain"):
+        command := Command::new("make").arg("-j").args(["all", "docs"]).env("A", "1").env("A", "2").current_dir(Path("a")).current_dir(Path("b")).stdin("x").stdin("y")
+        assert_equal(command.args, ["-j", "all", "docs"], reason="arg and args append, each item its own argument")
+        assert_equal(command.env, [("A", "1"), ("A", "2")], reason="env appends every pair in order")
+        assert_equal(command.current_dir, .Some(Path("b")), reason="current_dir replaces")
+        assert_equal(command.stdin, "y", reason="stdin replaces")
+
+    it("an argument with spaces stays one argument"):
+        command := Command::new("echo").arg("a b").args(["c d", "e"])
+        assert_equal(command.args.len(), 3, reason="no shell splits an argument")
+
+    it("commands compare and print by their fields"):
+        left := Command::new("git").arg("log").env("A", "1")
+        right := Command::new("git").arg("log").env("A", "1")
+        assert_equal(left == right, true, reason="the same fields")
+        assert_equal(left == Command::new("git").arg("log"), false, reason="another environment")
+        assert_equal(debug(Command::new("git").arg("log")), "Command { program: \"git\", args: [\"log\"], env: [], current_dir: Option.None, stdin: \"\" }", reason="Debug")
+
+    it("run! answers from the provider"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "git 2.0" }))
+        $.with(Process=process):
+            assert_equal(version!(), .Ok("git 2.0"), reason="git is scripted")
+
+    it("run! passes a non-zero status through as Ok"):
+        let mut process = ScriptedProcess::new()
+        process.reply("make", .Ok(ProcessOutput { stderr: "boom", status: 2 }))
+        $.with(Process=process):
+            assert_equal(status_of!("make"), .Ok(2), reason="status is data")
+
+    it("run! reports an unscripted program as NotFound"):
+        let mut process = ScriptedProcess::new()
+        $.with(Process=process):
+            assert_equal(status_of!("nope"), .Err(ProcessError.NotFound(program="nope")), reason="not scripted")

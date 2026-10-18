@@ -17,7 +17,7 @@ use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 # (spec/lang/10-modules.md#r-module.path.no-std-child-import). These re-exports
 # are the way to its items.
 pub use std.testing.arbitrary.{With, with}
-use std.process.{Process, Termination}
+use std.process.{Command, Process, Termination}
 use std.time.Duration
 use std.format.DebugWriter
 use std.path.Path
@@ -688,7 +688,7 @@ pub data RunOutput:
 ## Runs the package's executable or task `name` with `args` and `stdin`, and waits for it to exit.
 ## See [std-testing.hd-run.runs](../../spec/std/testing.md#r-std-testing.hd-run.runs).
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
-    match $.use(Process).run!(name, args, stdin):
+    match Command::new(name).args(args).stdin(stdin).run!():
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
         .Err(.NotFound(_)) => panic("hd_run!: the package has no executable or task named '${name}'")
         .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")

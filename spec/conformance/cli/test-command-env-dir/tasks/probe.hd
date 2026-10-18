@@ -1,0 +1,9 @@
+use std.host.{Env, env}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + Env + FsRead:
+    println(env("HD_COMMAND_NAME").unwrap_or("(none)"))
+    match read_text!(Path("marker.txt")):
+        .Ok(text) => println(text)
+        .Err(error) => println("${error}")

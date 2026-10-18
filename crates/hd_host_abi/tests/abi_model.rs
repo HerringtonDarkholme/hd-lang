@@ -61,6 +61,8 @@ fn ty(p: &Parse, src: &str, n: NodeRef<'_>) -> Option<String> {
     n.children()
         .find(|c| c.kind().is_type())
         .map(|c| text(p, src, c))
+        // A `mut` mode is not part of the type that crosses the boundary.
+        .map(|t| t.strip_prefix("mut ").map_or(t.clone(), str::to_owned))
 }
 
 fn generics(p: &Parse, src: &str, n: NodeRef<'_>) -> Vec<String> {

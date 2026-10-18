@@ -218,9 +218,15 @@ fn process_arguments(body: Body) -> Vec<u8> {
     use crate::codec::Enc;
     let mut arguments = Enc::default();
     if matches!(body, Body::ProcessSleep) {
-        arguments.str("/bin/sleep").leb(1).str("1").bytes(&[]);
+        arguments
+            .str("/bin/sleep")
+            .leb(1)
+            .str("1")
+            .leb(0)
+            .leb(0)
+            .bytes(&[]);
     } else {
-        arguments.str("/bin/pwd").leb(0).bytes(&[]);
+        arguments.str("/bin/pwd").leb(0).leb(0).leb(0).bytes(&[]);
     }
     arguments.done().to_vec()
 }
@@ -243,7 +249,7 @@ fn environment_with(body: Body, cwd: std::path::PathBuf) -> TestEnvironment {
 
 fn child_arguments() -> crate::codec::Enc {
     let mut arguments = crate::codec::Enc::default();
-    arguments.str("child").leb(0).bytes(&[]);
+    arguments.str("child").leb(0).leb(0).leb(0).bytes(&[]);
     arguments
 }
 
@@ -253,7 +259,15 @@ fn start_child(
     deadline: Option<std::time::Instant>,
 ) -> test_child::ChildRun {
     let arguments = child_arguments();
-    match test_child::start(arguments.done(), &Grants::default(), environment, deadline).unwrap() {
+    match test_child::start(
+        arguments.done(),
+        &Grants::default(),
+        environment,
+        &[],
+        deadline,
+    )
+    .unwrap()
+    {
         test_child::Start::Run(run) => run,
         test_child::Start::Ready(_) => panic!("the child starts"),
     }

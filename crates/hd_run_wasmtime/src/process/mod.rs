@@ -36,7 +36,13 @@ pub(crate) fn call(
     let host = caller.data_mut();
     match &host.environment {
         Some(environment) if host.testing.is_some() => {
-            match test_child::start(&b, &host.grants, environment, host.deadline())? {
+            match test_child::start(
+                &b,
+                &host.grants,
+                environment,
+                &host.env_overlay,
+                host.deadline(),
+            )? {
                 test_child::Start::Ready(e) => Ret::ready(e),
                 test_child::Start::Run(run) => {
                     pending(host.reactor.offload(run.wait()), test_child::not_run)

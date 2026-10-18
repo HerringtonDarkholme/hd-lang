@@ -41,7 +41,7 @@
       { "name": "bind_udp", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[UdpSocket, NetError]" }
     ]},
     { "key": "Process", "std": "std.process.Process", "methods": [
-      { "name": "run", "wait": "may", "resource": "program", "params": ["string", "List[string]", "string"], "result": "Result[ProcessOutput, ProcessError]" }
+      { "name": "run", "wait": "may", "resource": "program", "params": ["Command"], "result": "Result[ProcessOutput, ProcessError]" }
     ]},
     { "key": "Sys", "std": "std.sys.Sys", "methods": [
       { "name": "os", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
@@ -98,6 +98,7 @@
     ]}
   ],
   "types": {
+    "Command": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "program", "type": "string" }, { "name": "args", "type": "List[string]" }, { "name": "env", "type": "List[(string, string)]" }, { "name": "current_dir", "type": "Path?" }, { "name": "stdin", "type": "string" }] },
     "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
       { "name": "Closed", "fields": [] }
     ] },

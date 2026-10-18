@@ -22,7 +22,7 @@ use hd_run::Grants;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 
-use crate::abi::{ProcessError, ProcessOutput};
+use crate::abi::{Command as Call, ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
 use crate::runtime::reactor::Done;
 
@@ -37,12 +37,14 @@ pub(crate) enum Start {
     Run(Request),
 }
 
-/// A child to run: the program, its arguments, its standard input, and
-/// the working directory it starts in (the process's own when `None`).
+/// A child to run: the program, its arguments, its standard input, the
+/// pairs added to its environment, and the working directory it starts in
+/// (the process's own when `None`).
 pub(crate) struct Request {
     pub(crate) name: String,
     pub(crate) argv: Vec<String>,
     pub(crate) input: Vec<u8>,
+    pub(crate) env: Vec<(String, String)>,
     pub(crate) cwd: Option<PathBuf>,
 }
 
@@ -57,29 +59,49 @@ pub(crate) struct Ran {
 }
 
 /// `run.start`'s checks, in the Node host's order: the grant, the empty
-/// name, then NUL bytes.
+/// name, then NUL bytes, then the working directory. `cwd` is the directory
+/// a relative `current_dir` is from (the process's own when `None`).
 pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Result<Start> {
-    let mut d = Dec::new(bytes);
-    let name = String::dec(&mut d)?;
-    let argv = Vec::<String>::dec(&mut d)?;
-    let input = Vec::<u8>::dec(&mut d)?;
-    if !grants.covers_name("Process", &name) {
+    let call = Call::dec(&mut Dec::new(bytes))?;
+    if !grants.covers_name("Process", &call.program) {
         return Ok(Start::Refused(failed(ProcessError::NotGranted)));
     }
-    if name.is_empty() {
+    if call.program.is_empty() {
         return Ok(Start::Refused(failed(ProcessError::NotFound {
-            program: name,
+            program: call.program,
         })));
     }
-    if let Some(message) = validate_process(&name, &argv) {
+    if let Some(message) = validate(&call) {
         return Ok(Start::Refused(failed(ProcessError::Other { message })));
     }
+    let dir = match resolve_dir(&call, cwd) {
+        Ok(dir) => dir,
+        Err(message) => return Ok(Start::Refused(failed(ProcessError::Other { message }))),
+    };
     Ok(Start::Run(Request {
-        name,
-        argv,
-        input,
-        cwd: cwd.map(Path::to_path_buf),
+        name: call.program,
+        argv: call.args,
+        input: call.stdin.into_bytes(),
+        env: call.env,
+        cwd: dir,
     }))
+}
+
+/// The directory a child starts in: `current_dir`, from `base` when it is
+/// relative, or `base` itself. A directory that does not exist is refused
+/// here, so a missing directory is not read as a missing program.
+pub(crate) fn resolve_dir(call: &Call, base: Option<&Path>) -> Result<Option<PathBuf>, String> {
+    let dir = match (&call.current_dir, base) {
+        (Some(dir), Some(base)) => Some(base.join(&dir.0)),
+        (Some(dir), None) => Some(PathBuf::from(&dir.0)),
+        (None, base) => base.map(Path::to_path_buf),
+    };
+    if let (Some(given), Some(dir)) = (&call.current_dir, &dir)
+        && !dir.is_dir()
+    {
+        return Err(format!("working directory not found: {}", given.0));
+    }
+    Ok(dir)
 }
 
 /// The encoded result of a start that cannot run its task.
@@ -130,13 +152,36 @@ impl Ran {
     }
 }
 
-fn validate_process(name: &str, argv: &[String]) -> Option<String> {
-    if name.contains('\0') {
+/// The first reason a command cannot start, in the Node host's order.
+pub(crate) fn validate(call: &Call) -> Option<String> {
+    if call.program.contains('\0') {
         return Some("program name contains a NUL byte".into());
     }
-    argv.iter()
-        .position(|arg| arg.contains('\0'))
-        .map(|index| format!("process argument {index} contains a NUL byte"))
+    if let Some(index) = call.args.iter().position(|arg| arg.contains('\0')) {
+        return Some(format!("process argument {index} contains a NUL byte"));
+    }
+    if let Some(index) = call
+        .env
+        .iter()
+        .position(|(name, _)| name.is_empty() || name.contains(['=', '\0']))
+    {
+        return Some(format!(
+            "process environment name {index} is empty or holds = or a NUL byte"
+        ));
+    }
+    if let Some(index) = call.env.iter().position(|(_, value)| value.contains('\0')) {
+        return Some(format!(
+            "process environment value {index} contains a NUL byte"
+        ));
+    }
+    if call
+        .current_dir
+        .as_ref()
+        .is_some_and(|dir| dir.0.contains('\0'))
+    {
+        return Some("working directory contains a NUL byte".into());
+    }
+    None
 }
 
 /// Spawns the child, feeds its input while draining both outputs, and
@@ -155,6 +200,9 @@ async fn run_child(request: &Request) -> io::Result<Output> {
     if let Some(cwd) = &request.cwd {
         command.current_dir(cwd);
     }
+    // The program's environment, then the pairs in order: a later pair for a
+    // name wins.
+    command.envs(request.env.iter().map(|(name, value)| (name, value)));
     let mut child = command.spawn()?;
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let mut group = Group::new(child);

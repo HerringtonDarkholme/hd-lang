@@ -733,3 +733,108 @@ fn a_warm_run_compiles_no_function() {
         last = packs;
     }
 }
+
+/// `module.process.command-env` and `module.process.command-dir`, on a host
+/// program: the child sees the program's environment with the command's
+/// pairs added (a later pair for a name wins) and starts in the command's
+/// directory, and a directory that does not exist is an error naming it.
+#[cfg(unix)]
+#[test]
+fn a_child_sees_its_command_environment_and_directory() {
+    let dir = program(
+        "command-env-dir",
+        "use std.process.{Command, Process}
+use std.path.Path
+
+fn show!(command: Command) -> void $ Console + Process:
+    match command.run!():
+        .Ok(out) => println(\"[${out.stdout}] ${out.status}\")
+        .Err(error) => println(\"${error}\")
+
+pub fn main!() -> void $ Console + Process:
+    probe := \"printf '%s|%s|%s' \\\"\\$HD_CMD_A\\\" \\\"\\$HD_CMD_KEPT\\\" \\\"\\$(basename \\\"\\$PWD\\\")\\\"\"
+    show!(Command::new(\"sh\").args([\"-c\", probe]).env(\"HD_CMD_A\", \"first\").env(\"HD_CMD_A\", \"second\").current_dir(Path(\"kid\")))
+    show!(Command::new(\"sh\").args([\"-c\", probe]).current_dir(Path(\"nowhere\")))
+",
+    );
+    std::fs::create_dir(dir.join("kid")).expect("kid");
+    let out = both_with(
+        &dir,
+        &["--cap", "Process=sh", "main.hd"],
+        "",
+        &[("HD_CMD_KEPT", "inherited")],
+    );
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        "[second|inherited|kid] 0\nworking directory not found: nowhere\n"
+    );
+}
+
+/// The same for a test runner's child, a package task started by name: its
+/// `Env` reads the command's pairs and its relative paths are from the
+/// command's directory.
+#[test]
+fn a_test_child_sees_its_command_environment_and_directory() {
+    let dir = work("command-env-dir-test");
+    for (path, content) in [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("src/lib.hd", "pub fn rows() -> i32:\n    2\n"),
+        ("kid/marker.txt", "from kid"),
+        (
+            "tasks/probe.hd",
+            "use std.host.{Env, env}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + Env + FsRead:
+    println(env(\"HD_CMD_A\").unwrap_or(\"(none)\"))
+    println(env(\"HD_CMD_KEPT\").unwrap_or(\"(none)\"))
+    match read_text!(Path(\"marker.txt\")):
+        .Ok(text) => println(text)
+        .Err(error) => println(\"${error}\")
+",
+        ),
+        (
+            "tests/run.hd",
+            "use std.process.{Command, ProcessError}
+use std.path.Path
+use std.testing.assert_equal
+
+it(\"a child sees its env and directory\"):
+    command := Command::new(\"probe\").env(\"HD_CMD_A\", \"first\").env(\"HD_CMD_A\", \"second\").current_dir(Path(\"kid\"))
+    match command.run!():
+        .Ok(out) => assert_equal(out.stdout, \"second\\ninherited\\nfrom kid\\n\", reason=\"the child's report\")
+        .Err(error) => assert_equal(\"${error}\", \"\", reason=\"the child starts\")
+
+it(\"a missing directory is an error\"):
+    match Command::new(\"probe\").current_dir(Path(\"nowhere\")).run!():
+        .Ok(_) => assert_equal(\"ran\", \"\", reason=\"no directory\")
+        .Err(error) => assert_equal(\"${error}\", \"working directory not found: nowhere\", reason=\"the error\")
+",
+        ),
+    ] {
+        let file = dir.join(path);
+        std::fs::create_dir_all(file.parent().expect("parent")).expect("dir");
+        std::fs::write(file, content).expect("write");
+    }
+    let out = both_with(
+        &dir,
+        &["test", "--format", "json"],
+        "",
+        &[("HD_CMD_KEPT", "inherited")],
+    );
+    let stdout = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{}", text(&out.stderr));
+    for name in [
+        "a child sees its env and directory",
+        "a missing directory is an error",
+    ] {
+        assert!(
+            stdout.contains(&format!(
+                "{{\"kind\":\"test\",\"name\":\"{name}\",\"outcome\":\"passed\""
+            )),
+            "{stdout}"
+        );
+    }
+}

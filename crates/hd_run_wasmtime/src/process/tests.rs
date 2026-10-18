@@ -1,4 +1,5 @@
 use super::native::{Output, Request, Start, finish, start};
+use crate::abi::Command;
 use crate::codec::{Enc, Wire};
 use crate::runtime::reactor::{Done, Reactor, Work};
 use hd_run::{Grants, Limit};
@@ -15,8 +16,24 @@ fn request(name: &str, argv: &[String], input: &[u8]) -> Request {
         name: name.into(),
         argv: argv.to_vec(),
         input: input.to_vec(),
+        env: Vec::new(),
         cwd: None,
     }
+}
+
+/// The encoded arguments of `Process.run` for `name` and `argv`, with no
+/// environment pairs, directory or input.
+fn call(name: &str, argv: &[&str]) -> Vec<u8> {
+    let command = Command {
+        program: name.into(),
+        args: argv.iter().map(|arg| (*arg).to_owned()).collect(),
+        env: Vec::new(),
+        current_dir: None,
+        stdin: String::new(),
+    };
+    let mut e = Enc::default();
+    command.enc(&mut e);
+    e.done().to_vec()
 }
 
 /// Offloads the run of `request` onto the `hd-io` runtime, as `.start`
@@ -68,23 +85,17 @@ fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
 
 #[test]
 fn process_grant_precedes_spawn_and_missing_program_is_not_found() {
-    let mut args = Enc::default();
-    args.str("hd-no-such-program-for-process-test")
-        .leb(0)
-        .bytes(&[]);
+    let args = call("hd-no-such-program-for-process-test", &[]);
     let grants = Grants {
         limits: vec![("Process".into(), Limit::Entries(vec![]))],
     };
-    assert_eq!(process(args.done(), &grants), [1, 2]);
+    assert_eq!(process(&args, &grants), [1, 2]);
     let mut missing = Enc::default();
     missing
         .leb(1)
         .leb(0)
         .str("hd-no-such-program-for-process-test");
-    assert_eq!(
-        process(args.done(), &Grants::default()),
-        missing.done().to_vec()
-    );
+    assert_eq!(process(&args, &Grants::default()), missing.done().to_vec());
 }
 
 #[test]
@@ -97,25 +108,61 @@ fn process_invalid_names_and_arguments_are_typed_errors() {
             "process argument 1 contains a NUL byte",
         ),
     ] {
-        let mut args = Enc::default();
-        args.str(name);
-        argv.iter()
-            .map(|arg| (*arg).to_owned())
-            .collect::<Vec<String>>()
-            .enc(&mut args);
-        args.bytes(&[]);
+        let args = call(name, &argv);
         let mut error = Enc::default();
         error.leb(1).leb(3).str(expected);
-        assert_eq!(
-            process(args.done(), &Grants::default()),
-            error.done().to_vec()
-        );
+        assert_eq!(process(&args, &Grants::default()), error.done().to_vec());
         let denied = Grants {
             limits: vec![("Process".into(), Limit::Deny)],
         };
-        assert_eq!(process(args.done(), &denied), [1, 2]);
+        assert_eq!(process(&args, &denied), [1, 2]);
     }
-    let mut args = Enc::default();
-    args.str("").leb(0).bytes(&[]);
-    assert_eq!(process(args.done(), &Grants::default()), [1, 0, 0]);
+    assert_eq!(process(&call("", &[]), &Grants::default()), [1, 0, 0]);
+}
+
+/// A command with an environment name or value, or a directory, that a
+/// child cannot take is refused with a typed error, and a directory that
+/// does not exist is not read as a missing program.
+#[test]
+fn process_invalid_environment_and_directory_are_typed_errors() {
+    let other = |message: &str| {
+        let mut error = Enc::default();
+        error.leb(1).leb(3).str(message);
+        error.done().to_vec()
+    };
+    let with = |env: &[(&str, &str)], dir: Option<&str>| {
+        let command = Command {
+            program: "sh".into(),
+            args: Vec::new(),
+            env: env
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect(),
+            current_dir: dir.map(|dir| crate::abi::Path(dir.into())),
+            stdin: String::new(),
+        };
+        let mut e = Enc::default();
+        command.enc(&mut e);
+        process(e.done(), &Grants::default())
+    };
+    assert_eq!(
+        with(&[("A", "1"), ("B=C", "2")], None),
+        other("process environment name 1 is empty or holds = or a NUL byte")
+    );
+    assert_eq!(
+        with(&[("", "1")], None),
+        other("process environment name 0 is empty or holds = or a NUL byte")
+    );
+    assert_eq!(
+        with(&[("A", "a\0b")], None),
+        other("process environment value 0 contains a NUL byte")
+    );
+    assert_eq!(
+        with(&[], Some("a\0b")),
+        other("working directory contains a NUL byte")
+    );
+    assert_eq!(
+        with(&[], Some("hd-no-such-directory-for-process-test")),
+        other("working directory not found: hd-no-such-directory-for-process-test")
+    );
 }

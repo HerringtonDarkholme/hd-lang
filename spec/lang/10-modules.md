@@ -1078,13 +1078,20 @@ See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#drivin
 
 ### Processes
 
-`std.process` declares the host capability trait that starts a program:
+`std.process` declares the host capability trait that starts a program, and the `Command` it takes:
 
 ```text
+pub data Command:
+    pub program: string
+    pub args: mut List[string] = []
+    pub env: mut List[(string, string)] = []
+    pub current_dir: Path? = .None
+    pub stdin: string = ""
+
 pub data ProcessOutput:
-    pub stdout: string
-    pub stderr: string
-    pub status: i32
+    pub stdout: string = ""
+    pub stderr: string = ""
+    pub status: i32 = 0
 
 pub enum ProcessError:
     NotFound(program: string)
@@ -1094,37 +1101,42 @@ pub enum ProcessError:
     Exited(status: i32, stderr: string)
 
 pub trait Process:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]
 ```
 
-1. r[module.process.declares] `Process` is a host capability trait that `std.process` declares, with the data type `ProcessOutput` and the enum `ProcessError`.
-2. r[module.process.run] `run!(program, args, stdin)` starts the program named `program` with the arguments `args` and the standard input `stdin`, and completes when that program exits.
-3. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
-4. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
-5. r[module.process.not-found-program] `run!` returns `.Err(ProcessError.NotFound(program))` when its provider has no program named `program`.
-6. r[module.process.denied] It returns `.Err(ProcessError.PermissionDenied(program))` when the program exists but the operating system does not allow starting it.
-7. r[module.process.not-granted] It returns `.Err(ProcessError.NotGranted)` when its provider refuses `program` because the program's run-time grant does not cover it.
-8. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
-9. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
-10. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
-11. r[module.process.import.names] `Process`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
+1. r[module.process.decl] `Process` is a host capability trait that `std.process` declares, with the data types `Command` and `ProcessOutput` and the enum `ProcessError`.
+2. r[module.process.run-command] `run!(command)` starts the program named `command.program` as the rules below say, and completes when that program exits.
+3. r[module.process.args-no-shell] Each item of `command.args` is one argument of the program. No shell reads the arguments, so no item is split, expanded, or unquoted.
+4. r[module.process.env] The program starts with the environment of the program that calls `run!`, then each pair of `command.env`, in order: a later pair for a name replaces an earlier one.
+5. r[module.process.current-dir] The program starts in `command.current_dir` when it is `.Some`, a relative path being from the working directory of the program that calls `run!`, and in that working directory when it is `.None`. A directory that does not exist gives `.Err(ProcessError.Other(message))`, with a message that names the directory.
+6. r[module.process.stdin] The program reads `command.stdin` from its standard input, and finds the end of its input after it.
+7. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
+8. r[module.process.output-defaults] The fields `stdout` and `stderr` of a `ProcessOutput` default to `""`, and `status` to 0.
+9. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
+10. r[module.process.not-found-program] `run!` returns `.Err(ProcessError.NotFound(program))` when its provider has no program named `program`.
+11. r[module.process.denied] It returns `.Err(ProcessError.PermissionDenied(program))` when the program exists but the operating system does not allow starting it.
+12. r[module.process.not-granted] It returns `.Err(ProcessError.NotGranted)` when its provider refuses `program` because the program's run-time grant does not cover it.
+13. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
+14. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
+15. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
+16. r[module.process.names] `Process`, `Command`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
 
 A scripted provider answers each program from a table:
 
 ```text
-use std.process.{Process, ProcessError, ProcessOutput}
+use std.process.{Command, Process, ProcessError, ProcessOutput}
 
 data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
-        match self.outputs.get(program):
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+        match self.outputs.get(command.program):
             .Some(output) => .Ok(output)
-            .None => .Err(.NotFound(program))
+            .None => .Err(.NotFound(command.program))
 
 fn version!() -> string $ Process:
-    match $.use(Process).run!("git", ["--version"], ""):
+    match $.use(Process).run!(Command { program: "git", args: ["--version"] }):
         .Ok(output) => output.stdout
         .Err(.NotFound(_)) => "no git"
         .Err(error) => "git did not start: ${error}"
@@ -1136,12 +1148,10 @@ fn version!() -> string $ Process:
 > The run-time grant that `NotGranted` reports is CLI tier
 > ([Capability Grants](../cli/command-line.md#capability-grants)).
 
-> **Note.** `Exited` is the only variant that no provider returns from
-> `run!`: `std.process.output!` produces it
-> ([`std-process.helper.output`](../std/process.md#r-std-process.helper.output)).
-> The `Display` text of each `ProcessError` variant and the
-> stdlib provider `ScriptedProcess` are stdlib tier:
-> [Process](../std/process.md) in `std.process`.
+> **Note.** No provider returns `Exited` from `run!`.
+> The builder methods of `Command`, the `Display` text of each
+> `ProcessError` variant, and the stdlib provider `ScriptedProcess` are
+> stdlib tier: [Process](../std/process.md) in `std.process`.
 
 > **Why.** Starting a program is a host capability like any other. So a
 > function that starts one states it in its row, and a test can install a

@@ -1,18 +1,19 @@
 # test: run! reports a refused start as .Err, and a non-zero exit status as an ordinary .Ok
 # Spec Modules, Processes: module.process.nonzero-ok, module.process.denied, module.process.other, module.process.error-traits.
 # expect: test
-use std.process.{Process, ProcessError, ProcessOutput}
+use std.process.{Command, Process, ProcessError, ProcessOutput}
 data RefusingProcess: pass
 
 impl Process for RefusingProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+        program := command.program
         match program:
             "locked" => .Err(.PermissionDenied(program))
             "broken" => .Err(.Other(message="exec format error"))
             _ => .Ok(ProcessOutput { stdout: "", stderr: "failed", status: 2 })
 
 fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
-    $.use(Process).run!(program, [], "")
+    $.use(Process).run!(Command { program: program })
 
 tests:
     use std.testing.assert_equal

@@ -1322,8 +1322,8 @@ fn a_rebuild_builds_a_panicked_input_alone() {
 /// The session inputs that declare a `run!` over the `Process` provider.
 #[cfg(unix)]
 const PROCESS_INPUTS: [&str; 2] = [
-    "use std.process.{Process, ProcessError, ProcessOutput}\n",
-    "fn run!(program: string, args: List[string]) -> Result[ProcessOutput, ProcessError] $ Process:\n    $.use(Process).run!(program, args, \"\")\n",
+    "use std.process.{Command, Process, ProcessError, ProcessOutput}\n",
+    "fn run!(program: string, args: List[string]) -> Result[ProcessOutput, ProcessError] $ Process:\n    Command::new(program).args(args).run!()\n",
 ];
 
 /// A private temporary path for a session test's fixture.

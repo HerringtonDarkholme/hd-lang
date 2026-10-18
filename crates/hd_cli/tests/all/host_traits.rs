@@ -226,8 +226,8 @@ fn process_runs_a_granted_host_program() {
     let dir = work("host-process");
     write(
         &dir.join("main.hd"),
-        "use std.process.Process\n\nfn start!(program: string, args: List[string], input: string) -> string $ Process:\n    \
-         match $.use(Process).run!(program, args, input):\n        \
+        "use std.process.{Command, Process}\n\nfn start!(program: string, args: List[string], input: string) -> string $ Process:\n    \
+         match Command::new(program).args(args).stdin(input).run!():\n        \
          .Ok(out) => \"${out.status} [${out.stdout}] [${out.stderr}]\"\n        \
          .Err(e) => \"${e}\"\n\npub fn main!() -> void $ Console + Process:\n    \
          println(start!(\"sh\", [\"-c\", \"cat; echo oops >&2; exit 3\"], \"fed\"))\n    \

@@ -636,10 +636,30 @@ fn filesystem_permission_denied_matches_node() {
 }
 
 fn process_args(name: &str, argv: &[&str], input: &[u8]) -> Vec<u8> {
+    process_command(name, argv, &[], None, input)
+}
+
+/// The arguments of `Process.run` for a `Command`: its program, arguments,
+/// environment pairs, directory and standard input.
+fn process_command(
+    name: &str,
+    argv: &[&str],
+    env: &[(&str, &str)],
+    dir: Option<&str>,
+    input: &[u8],
+) -> Vec<u8> {
     let mut e = Enc::default().str(name).leb(argv.len() as u64);
     for arg in argv {
         e = e.str(arg);
     }
+    e = e.leb(env.len() as u64);
+    for (key, value) in env {
+        e = e.str(key).str(value);
+    }
+    e = match dir {
+        Some(dir) => e.leb(1).str(dir),
+        None => e.leb(0),
+    };
     e.bytes(input).0
 }
 
@@ -803,6 +823,59 @@ fn process_scope_is_exact_and_refusal_precedes_lookup() {
         vec![("Process", Limit::Entries(vec!["node".into()]))],
         || {},
     );
+}
+
+// module.process.command-env and module.process.command-dir: a child sees
+// the program's environment with the command's pairs added (a later pair for
+// a name wins) and starts in the command's directory; a directory that does
+// not exist is a typed error, not a missing program, on both hosts.
+#[test]
+fn process_child_sees_its_environment_and_directory() {
+    let scratch = Scratch::new();
+    let dir = scratch.at("child-dir");
+    fs::create_dir(&dir).unwrap();
+    let missing = scratch.at("no-such-dir");
+    let script = "process.stdout.write((process.env.HD_PARITY_VAR ?? '') + '|' + (process.env.HD_PARITY_OTHER ?? '') + '|' + require('node:path').basename(process.cwd()))";
+    let env_only = "process.stdout.write((process.env.HD_PARITY_VAR ?? '') + '|' + (process.env.HD_PARITY_OTHER ?? ''))";
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_command(
+            "node",
+            &["-e", script],
+            &[
+                ("HD_PARITY_VAR", "first"),
+                ("HD_PARITY_OTHER", "kept"),
+                ("HD_PARITY_VAR", "second"),
+            ],
+            Some(path(&dir)),
+            b"",
+        ),
+        Enc::default()
+            .leb(0)
+            .str("second|kept|child-dir")
+            .str("")
+            .leb(0)
+            .0,
+    );
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_command("node", &["-e", env_only], &[], None, b""),
+        Enc::default().leb(0).str("|").str("").leb(0).0,
+    );
+    p.call_waiting(
+        "hd:Process",
+        "run",
+        process_command("node", &["-e", script], &[], Some(path(&missing)), b""),
+        Enc::default()
+            .leb(1)
+            .leb(3)
+            .str(&format!("working directory not found: {}", path(&missing)))
+            .0,
+    );
+    assert_program(&scratch, p, vec![], || {});
 }
 
 // A SIGTERM-ended child reports 143, 128 plus the signal

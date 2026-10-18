@@ -64,6 +64,10 @@ pub struct Host {
     pub(crate) fixture: crate::profiles::State,
     pub(crate) testing: Option<crate::testing::State>,
     pub(crate) environment: Option<crate::test_engine::TestEnvironment>,
+    /// Pairs a test child's command added to the process's environment,
+    /// in order: `Env` reads a later pair for a name before the process's
+    /// own value.
+    pub(crate) env_overlay: Vec<(String, String)>,
     base_deadline: Option<Instant>,
     /// A session's stop flag: set from another thread, read at every
     /// deadline check and epoch tick.
@@ -113,6 +117,7 @@ impl Host {
             fixture: crate::profiles::State::default(),
             testing: None,
             environment: None,
+            env_overlay: Vec::new(),
             base_deadline: deadline,
             interrupt: None,
             timeout_millis: None,

@@ -7,17 +7,16 @@ ordinary hd over the language tier:
 
 - the `Display` text of `ProcessError`;
 - the traits of `ExitCode` and `ProcessOutput`;
-- the free helpers `run!` and `output!`;
+- the builder `Command` and its terminal `run!`;
 - the test provider `ScriptedProcess`;
-- what a child process inherits, the status a signal leaves, and what
-  cancelling `run!` does.
+- the status a signal leaves, and what cancelling `run!` does.
 
 The language tier keeps what the compiler and the test runner name:
 
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `ExitCode`, `Termination` | lang items that an entry point's result reports through ([Exit Status](../lang/10-modules.md#exit-status)) |
-| `Process`, `ProcessOutput`, `ProcessError` | the host capability trait that the test runner binds ([Processes](../lang/10-modules.md#processes)) |
+| `Process`, `Command`, `ProcessOutput`, `ProcessError` | the host capability trait that the test runner binds, and the values it takes and returns ([Processes](../lang/10-modules.md#processes)) |
 
 ## Process Errors
 
@@ -43,10 +42,9 @@ fn explain(error: ProcessError) -> string:
 3. r[std-process.error.error] `ProcessError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
 > **Why.** `Exited` is added after `Other`, so the host's variant tags
-> keep their numbers. The host never returns it; `output!` produces it
-> from a `ProcessOutput` whose status is not 0. The host's message is the
-> whole text of `Other`, as `FsError`
-> keeps it. `NotFound` and `PermissionDenied` name the program, as
+> keep their numbers. The host never returns it, and nothing in
+> `std.process` produces it yet. The host's message is the whole text of
+> `Other`, as `FsError` keeps it. `NotFound` and `PermissionDenied` name the program, as
 > `FsError.NotFound(path)` names its path, so a message such as
 > `program not found: git` needs no caller to add the name.
 
@@ -69,81 +67,80 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 2. r[std-process.output.eq] `ProcessOutput` implements `Eq`; two outputs are equal when `stdout`, `stderr`, and `status` are each equal.
 3. r[std-process.debug-text] `ExitCode` and `ProcessOutput` implement `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types). An `ExitCode` writes its constructor call, as `ExitCode(0)`.
 
-## Run Helper
+## Command
 
-`run!` starts a program through the covering provider, so a program need
-not write `$.use(Process)`:
+`Command` is the builder that `run!` starts a program from. Each setter
+takes `mut self` and returns the command, so calls chain, and the one
+terminal `run!` starts the program:
 
 ```text
-use std.process.{Process, ProcessError, run}
+use std.path.Path
+use std.process.{Command, Process, ProcessError}
 
-fn commit!() -> Result[string, ProcessError] $ Process:
-    output := run!("git", ["rev-parse", "--short", "HEAD"])?
+fn commit!(repo: Path) -> Result[string, ProcessError] $ Process:
+    output := Command::new("git").args(["rev-parse", "--short", "HEAD"]).current_dir(repo).run!()?
     .Ok(output.stdout.trim())
 ```
 
-1. r[std-process.helper.run] `std.process` declares `pub fn run!(program: string, args: List[string], stdin: string = "") -> Result[ProcessOutput, ProcessError] $ Process`, which calls `run!(program, args, stdin)` on the covering `Process` provider.
-2. r[std-process.helper.stdin-default] A call that gives no `stdin` passes the empty string.
-3. r[std-process.stdin.unread] When the child exits or closes its standard input before reading all of `stdin`, the rest is dropped. The call still returns `.Ok` with the child's output and status.
-4. r[std-process.helper.row] The helper's row is exactly `Process`.
-5. r[std-process.helper.suspends] `run!` is a bang function, as the method it calls is.
+1. r[std-process.command.decl] `Command` is the data type that [`module.process.decl`](../lang/10-modules.md#r-module.process.decl) declares, with public fields `program`, `args`, `env`, `current_dir`, and `stdin`. `std.process` gives it the methods below.
+2. r[std-process.command.new] `Command::new(program: string) -> mut Command` returns a command for `program` with no arguments, no environment pairs, no `current_dir`, and an empty `stdin`.
+3. r[std-process.command.arg] `arg(mut self, value: string) -> mut Command` appends `value` to `args` as one item and returns the command.
+4. r[std-process.command.args] `args(mut self, values: List[string]) -> mut Command` appends each item of `values` to `args`, in order, as its own item and returns the command.
+5. r[std-process.command.env] `env(mut self, name: string, value: string) -> mut Command` appends the pair `(name, value)` to `env` and returns the command. A later pair for a name replaces an earlier one, as [`module.process.env`](../lang/10-modules.md#r-module.process.env) says.
+6. r[std-process.command.current-dir] `current_dir(mut self, dir: Path) -> mut Command` sets `current_dir` to `.Some(dir)`, replacing an earlier directory, and returns the command.
+7. r[std-process.command.stdin] `stdin(mut self, text: string) -> mut Command` sets `stdin` to `text`, replacing an earlier text, and returns the command. A command that gets no `stdin` call passes the empty string.
+8. r[std-process.command.run] `run!(self) -> Result[ProcessOutput, ProcessError] $ Process` calls `run!(self)` on the covering `Process` provider, so a program need not write `$.use(Process)`. Its row is exactly `Process`, and it is a bang function, as the method it calls is.
+9. r[std-process.stdin.unread] When the child exits or closes its standard input before reading all of `stdin`, the rest is dropped. The call still returns `.Ok` with the child's output and status.
+10. r[std-process.command.eq] `Command` implements `Eq`; two commands are equal when `program`, `args`, `env`, `current_dir`, and `stdin` are each equal.
+11. r[std-process.command.debug] `Command` implements `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types).
 
-> **Why.** Go's `exec.Command(...).Output()` and Python's `subprocess.run`
-> take no stdin by default. A non-zero status stays `.Ok`, as
-> [`module.process.nonzero-ok`](../lang/10-modules.md#r-module.process.nonzero-ok) says.
-
-## Output Helper
-
-`output!` runs a program and reads its standard output as one call:
-
-```text
-use std.process.{Process, ProcessError, output}
-
-fn branch!() -> Result[string, ProcessError] $ Process:
-    text := output!("git", ["branch", "--show-current"])?
-    .Ok(text.trim())
-```
-
-1. r[std-process.helper.output] `std.process` declares `pub fn output!(program: string, args: List[string]) -> Result[string, ProcessError] $ Process`, which calls `run!(program, args)` and returns `.Ok(stdout)` when the status is 0.
-2. r[std-process.helper.output-exited] When the status is not 0, `output!` returns `.Err(ProcessError.Exited(status, stderr))`, with the status and the standard error text of the `ProcessOutput`.
-3. r[std-process.helper.output-start] A program that does not start gives the `ProcessError` that `run!` returned, unchanged.
-4. r[std-process.helper.output-row] The helper's row is exactly `Process`, and it passes no standard input.
-
-> **Why.** Go's `exec.Command(...).Output()` returns an `ExitError` that
-> carries the stderr for a non-zero exit, and Rust's `Command::output`
-> leaves the status to the caller. Most callers want the text or a
-> failure, so `output!` does that; `run!` stays for a caller that reads a
-> non-zero status as data.
+> **Why.** Rust's `Command` and Go's `exec.Cmd` carry the arguments, the
+> environment, and the directory beside the program, so no call fixes one
+> combination of them. Go's `exec.Command(...).Output()` and Python's
+> `subprocess.run` take no stdin by default. A non-zero status stays `.Ok`,
+> as [`module.process.nonzero-ok`](../lang/10-modules.md#r-module.process.nonzero-ok)
+> says. `arg` and `env` append in place, in O(1), and the output text
+> passes on without a copy.
 
 ## Scripted Process
 
-`ScriptedProcess` is the deterministic `Process` provider:
+`ScriptedProcess` is the deterministic `Process` provider. A test queues
+the answers it needs, runs the code under test, and reads back the
+commands that code started:
 
 ```text
-use std.process.{Process, ProcessOutput, ScriptedProcess}
+use std.process.{Command, Process, ProcessOutput, ScriptedProcess}
+
 fn version!() -> string $ Process:
-    match $.use(Process).run!("git", ["--version"], ""):
+    match Command::new("git").arg("--version").run!():
         .Ok(output) => output.stdout
         .Err(_) => "no git"
 
 tests:
     use std.testing.assert_equal
 
-    it("answers the scripted program"):
-        let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }})
+    it("answers the scripted program and records its arguments"):
+        let mut process = ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "git 2.0" }))
         $.with(Process=process):
             assert_equal(version!(), "git 2.0", reason="git is scripted")
+        assert_equal(process.received()[0].args, ["--version"], reason="the arguments")
 ```
 
 1. r[std-process.scripted.decl] `std.process` declares `ScriptedProcess`, which implements `Process` and `Debug`, with private fields. Code imports it, as in `use std.process.ScriptedProcess`.
-2. r[std-process.scripted.new] `ScriptedProcess::new(outputs: Map[string, ProcessOutput]) -> mut ScriptedProcess` returns a provider that answers each program in `outputs`.
-3. r[std-process.scripted.run] `run!(program, args, stdin)` returns `.Ok` of the output that `outputs` holds for `program`, whatever `args` and `stdin` are.
-4. r[std-process.scripted.missing] For a program that `outputs` does not hold, `run!` returns `.Err(ProcessError.NotFound(program))`.
-5. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
+2. r[std-process.scripted.empty] `ScriptedProcess::new() -> mut ScriptedProcess` returns a provider with no replies and no recorded commands.
+3. r[std-process.scripted.reply] `reply(mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void` queues `result` as an answer for `program`, after the answers already queued for it.
+4. r[std-process.scripted.answer] `run!(command)` records `command`, then returns the first answer queued for `command.program` that no earlier run of that program has taken. When every queued answer is taken, it returns the last one again. The arguments, environment, directory, and standard input of `command` do not change the answer.
+5. r[std-process.scripted.unqueued] For a program that has no queued answer, `run!` returns `.Err(ProcessError.NotFound(program))`.
+6. r[std-process.scripted.received] `received(self) -> List[Command]` returns every command that `run!` received, in order, including those answered with `NotFound`.
+7. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
 
 > **Why.** Every host capability trait has a deterministic provider
-> beside it, so a test never touches the host. A constructor keeps the
-> fields private, as `MemoryConsole::new` and `ManualClock::new` do.
+> beside it, so a test never touches the host. A queue per program with a
+> repeating last answer is how Python's `responses` library serves them.
+> `received` lets a test check the arguments, which a table of outputs
+> could not. A constructor keeps the fields private, as `MemoryConsole::new`
+> and `ManualClock::new` do.
 
 ## Child Processes
 
@@ -151,16 +148,15 @@ A program that `run!` starts on the host is a child of the program that
 calls it:
 
 ```hd
-use std.process.{Process, ProcessError}
+use std.process.{Command, Process, ProcessError}
 
 fn killed!(tool: string) -> Result[bool, ProcessError] $ Process:
-    output := $.use(Process).run!(tool, [], "")?
+    output := Command::new(tool).run!()?
     .Ok(output.status == 128 + 9)   # SIGKILL, signal 9, ended the tool
 ```
 
-1. r[std-process.child.inherit] A child inherits the program's environment and working directory, and the host adds nothing to either.
-2. r[std-process.child.signal] When a signal ends a child, its `status` is 128 plus the signal number.
-3. r[std-process.cancel] Cancelling the suspension of `run!` kills the child and its process group.
+1. r[std-process.child.signal] When a signal ends a child, its `status` is 128 plus the signal number.
+2. r[std-process.cancel] Cancelling the suspension of `run!` kills the child and its process group.
 
 > **Why.** 128 plus the signal number is the shell's convention, so a
 > status reads the same in hd and in a shell script.

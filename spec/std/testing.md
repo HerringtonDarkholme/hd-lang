@@ -444,7 +444,7 @@ It is plain hd over the host trait
 [`Process`](../lang/10-modules.md#processes):
 
 ```text
-use std.process.Process
+use std.process.{Command, Process}
 
 pub data RunOutput:
     pub stdout: string
@@ -452,7 +452,7 @@ pub data RunOutput:
     pub status: i32
 
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
-    match $.use(Process).run!(name, args, stdin):
+    match Command::new(name).args(args).stdin(stdin).run!():
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
         .Err(.NotFound) => panic("hd_run!: the package has no executable or task named '${name}'")
         .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")

@@ -21,6 +21,14 @@ import {
 } from "../wire.mjs";
 
 // Each std type a host method crosses, from its declaration in lib/std.
+export const Path = newtype(str);
+export const Command = data({
+  program: str,
+  args: list(str),
+  env: list(tuple(str, str)),
+  current_dir: option(Path),
+  stdin: str,
+});
 export const ConsoleError = variants({
   Closed: {},
 });
@@ -32,7 +40,6 @@ export const Datagram = data({
 export const Duration = data({
   millis: signed64,
 });
-export const Path = newtype(str);
 export const EntryKind = variants({
   File: {},
   Directory: {},
@@ -413,7 +420,7 @@ export const METHODS = {
     run: {
       wait: "may",
       resource: "program",
-      params: [str, list(str), str],
+      params: [Command],
       result: result(ProcessOutput, ProcessError),
     },
   },

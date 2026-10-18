@@ -1,0 +1,17 @@
+# test: ProcessError.Exited compares by status and stderr, prints its fields, and shows its text
+# Spec std/process Process Errors: std-process.error.display.exited, std-process.error.debug-fields,
+# and std-process.error.equal.
+# expect: test
+use std.process.ProcessError
+
+tests:
+    use std.testing.assert_equal
+
+    it("Exited compares by status and stderr and prints its fields"):
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=1, stderr="a"), true, reason="same")
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=2, stderr="a"), false, reason="other status")
+        assert_equal(ProcessError.Exited(status=1, stderr="a") == ProcessError.Exited(status=1, stderr="b"), false, reason="other stderr")
+        assert_equal(debug(ProcessError.Exited(status=2, stderr="boom")), "ProcessError.Exited(status=2, stderr=\"boom\")", reason="Debug")
+
+    it("Exited shows the status and the standard error"):
+        assert_equal(ProcessError.Exited(status=2, stderr="boom").to_string(), "program exited with status 2: boom", reason="Display")
