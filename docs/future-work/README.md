@@ -50,6 +50,7 @@ action at a distance.
   owner did not make explicitly, kept for the stdlib audit.
 - [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): proposed std
   primitives for byte scans, and what blocks SIMD on GC strings (#428).
+- [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Native Backend](NATIVE_BACKEND.md): native executables, a collector
   and threads without a Wasm engine, priced against wasmtime AOT (#188).
 
