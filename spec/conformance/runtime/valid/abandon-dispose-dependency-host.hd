@@ -4,7 +4,7 @@
 # expect-stdout: won
 # expect-stdout: gate closing, gate closed
 # expect-stdout: finished
-# test: a dispose! that awaits a host call cancelled elsewhere unwinds from that await, and its cleanup ends .Abandoned; a race! inside a dispose! that a live child wins does not cut the dispose short
+# test: a dispose! that awaits a host call cancelled elsewhere unwinds from that await, and its cleanup ends .Abandoned; a race! inside a dispose! that a live child wins before the cancelled one is polled does not cut the dispose short
 # Spec lang/11 Cancellation: req.cancel.await.dispose, req.cancel.await.kinds; Abandoning: req.abandon.dependency.
 use std.ops.Disposable
 use std.task.race
@@ -29,7 +29,7 @@ data Gate:
 impl Disposable for Gate:
     fn dispose!(mut self) -> void:
         self.log.push("gate closing")
-        race!(self.ack, nothing())
+        race!(nothing(), self.ack)
         self.log.push("gate closed")
 
 fn nothing!() -> void:

@@ -1,0 +1,45 @@
+# expect-stdout: run body, target defer, target cancelled, runner defer
+# expect-stdout: abandoned
+# test: when another task cancels the job that timeout!'s work awaits, the timeout! is cancelled at once and never returns .Err(TimedOut)
+# Spec lang/11 Standard Combinators: req.combinator.race-child-cancelled; Cancellation: req.cancel.await.propagate, req.cancel.await.dispose.
+use std.ops.Disposable
+use std.task.{TimedOut, all, timeout}
+use std.time.{Clock, ms, s, sleep}
+
+data Runner:
+    log: mut List[string]
+    timed: mut Suspend[Result[string, TimedOut]]
+    stop: mut Suspend[void]
+
+impl Disposable for Runner:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("runner defer")
+        let (result, _) = all!(self.timed, self.stop)
+        match result:
+            .Ok(value) => self.log.push("work gave ${value}")
+            .Err(_) => self.log.push("timed out")
+
+fn target!(log: mut List[string]) -> string $ Clock:
+    defer: log.push("target defer")
+    sleep!(s(60))
+    "late"
+
+fn stop_later!(target: mut Suspend[string], log: mut List[string]) -> void $ Clock:
+    sleep!(ms(1))
+    _ := target.cancel!()
+    log.push("target cancelled")
+
+fn run!(log: mut List[string], timed: mut Suspend[Result[string, TimedOut]], stop: mut Suspend[void]) -> void:
+    using runner = Runner { log: log, timed: timed, stop: stop }
+    log.push("run body")
+
+pub fn main!() -> void $ Console + Clock:
+    let log: mut List[string] = []
+    let job: mut Suspend[string] = target(log)
+    let timed: mut Suspend[Result[string, TimedOut]] = timeout(s(60), fn!() -> string: job!())
+    let runner: mut Suspend[void] = run(log, timed, stop_later(job, log))
+    runner!()
+    println(log.join(", "))
+    match runner.cancel!():
+        .Finished => println("finished")
+        .Abandoned => println("abandoned")

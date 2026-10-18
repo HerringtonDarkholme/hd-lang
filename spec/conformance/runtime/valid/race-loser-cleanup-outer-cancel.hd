@@ -1,9 +1,9 @@
-# expect-stdout: stopped
+# expect-stdout: won stopped
 # expect-stdout: loser closing, loser closed, racer defer, cancel finished
-# test: a cancel that reaches a race! while a loser's dispose! waits continues that dispose inside the race's own cleanup
+# test: a cancel that reaches a race! while a loser's dispose! waits continues that dispose inside the cleanup of the race's task, and a cancel!() of that task waits for it
 # Spec lang/11 Standard Combinators: req.combinator.race-outer-cancel.
 use std.ops.Disposable
-use std.task.race
+use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
 data Conn:
@@ -41,5 +41,6 @@ fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string $ Clock:
 pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
     let job: mut Suspend[string] = racer(log)
-    println(race!(job, stopper(job, log)))
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    println("${winner} ${stopped}")
     println(log.join(", "))

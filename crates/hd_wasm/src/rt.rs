@@ -2681,7 +2681,7 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
         a.local(VT::I32),
     );
     let tmp: Vec<u32> = result.iter().map(|v| a.local(v.dflt())).collect();
-    let (wake_count, gone) = (a.local(VT::I32), a.local(VT::I32));
+    let wake_count = a.local(VT::I32);
     let first = F_SAVED;
     a.get(0);
     a.ref_cast(&fr, false);
@@ -2775,33 +2775,15 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     cancel_list(&mut a, f, &fr, list, Some(i), wait);
     settle(&mut a);
     a.end();
-    // Pending: count the children that another task cancelled, which
-    // never complete.
+    // Pending from a child that another task cancelled: its value never
+    // comes, so the race is cancelled at once
+    // (`req.combinator.race-child-cancelled`). Every child's cleanup goes
+    // on, in list order, and the race unwinds while one waits
+    // (`req.combinator.cancel-order`).
     a.get(c);
     a.struct_get(base, F_FLAGS);
     a.i32(CANCELLED);
     a.s().i32_and();
-    a.if_();
-    a.get(gone);
-    a.i32(1);
-    a.s().i32_add();
-    a.set(gone);
-    a.end();
-    a.get(i);
-    a.i32(1);
-    a.s().i32_add();
-    a.set(i);
-    a.br(0);
-    a.end();
-    a.end();
-    // No child completed, and every child turned out cancelled, so no
-    // value can come: the race is cancelled (`req.combinator.race-cancelled`).
-    // Every child's cleanup goes on, in list order, and the race unwinds
-    // while one waits (`req.combinator.cancel-order`).
-    a.get(gone);
-    a.get(l);
-    a.struct_get(list, 0);
-    a.s().i32_eq();
     a.if_();
     cancel_list(&mut a, f, &fr, list, None, wait);
     a.get(f);
@@ -2815,6 +2797,17 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.struct_set(&fr, F_FLAGS);
     a.get(wake_count);
     a.global_set(wake_regs());
+    for v in &res {
+        a.zero(v);
+    }
+    a.s().return_();
+    a.end();
+    a.get(i);
+    a.i32(1);
+    a.s().i32_add();
+    a.set(i);
+    a.br(0);
+    a.end();
     a.end();
     for v in &res {
         a.zero(v);

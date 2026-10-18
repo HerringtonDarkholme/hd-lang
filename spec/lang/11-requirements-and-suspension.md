@@ -1469,7 +1469,7 @@ pub fn main!() -> void $ Console + Clock:
 18. r[req.cancel.await.kinds] The rule holds for every suspension: a compiler-generated frame, a `std.task` combinator or cancel, and a pending host operation.
 19. r[req.cancel.await.propagate] A task that awaits a task cancelled this way is cancelled the same way, up to the first task where the chain ends.
 20. r[req.cancel.await.dispose] Inside a `dispose!`, the await unwinds that dispose instead, by [`req.abandon.dependency`](#r-req.abandon.dependency), and the chain ends there.
-21. r[req.cancel.await.end] The chain also ends at a `race!` that has a child left, by [`req.combinator.race-cancelled`](#r-req.combinator.race-cancelled), and at a driver, by [`req.check.driver-cancelled`](#r-req.check.driver-cancelled).
+21. r[req.cancel.await.driver] The chain also ends at a driver, by [`req.check.driver-cancelled`](#r-req.check.driver-cancelled).
 22. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
 23. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
 24. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
@@ -1643,7 +1643,7 @@ pub fn main!() -> void $ Console + Clock:
 3. r[req.combinator.cancel-parent-last] The task that awaits the combinator runs its own cleanup only after every child's cleanup has ended, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
 4. r[req.combinator.race-outer-cancel] A cancel that reaches `race!` while a loser's cleanup runs continues that cleanup as part of the race's own cleanup.
 5. r[req.combinator.all-cancelled] An `all!` child that turns out cancelled cancels the task that awaits the `all!`, by [`req.cancel.await`](#r-req.cancel.await).
-6. r[req.combinator.race-cancelled] A `race!` child that turns out cancelled cannot win, and the race goes on with the others. The race is cancelled only when every child turned out cancelled and none completed.
+6. r[req.combinator.race-child-cancelled] A `race!` child that turns out cancelled cancels the task that awaits the `race!` at once, as an `all!` child does by [`req.cancel.await`](#r-req.cancel.await). A child that completed earlier on the same poll wins instead.
 
 > **Note.** In the example, the connections' dispose waits until the
 > acceptor stops accepting, and the acceptor's `defer` is what stops it.
@@ -1651,8 +1651,10 @@ pub fn main!() -> void $ Console + Clock:
 > acceptor would never reach that `defer`. A dispose that waits for its
 > own parent's `defer` still never ends, since the parent cleans up last.
 
-> **Why.** A cancelled child's value never comes, but another `race!`
-> child may still win, so only `race!` outlives a cancelled child.
+> **Why.** A child cancelled from outside means the structure around it
+> is being torn down, so `race!` stops as `all!` does. Otherwise
+> `timeout!`, a race of work and a sleep, would wait out its limit and
+> report `TimedOut` for work that was cancelled.
 
 #### Typing `all!`
 

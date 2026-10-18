@@ -929,9 +929,10 @@ result types:
   A loser left UNWINDING (§14.6) keeps the race Pending: the winner's value
   waits in the frame (`F_STATE` 1), and each later poll cancels the
   losers again, which continues them, until none unwinds.
-- A child that answers Pending while `CANCELLED` cannot win. A poll on
-  which no child completes and every child is `CANCELLED` cancels the race
-  itself (§14.6, "Awaiting a cancelled suspension").
+- A child that answers Pending while `CANCELLED` cancels the race at
+  once, as it would cancel any awaiter (§14.6, "Awaiting a cancelled
+  suspension"); a child earlier in the list that completed on the same
+  poll wins first.
 - An empty list at run time panics `explicit-panic`.
 
 `all_list!` is std hd over nested `all!` (std's task chapter), so it
@@ -1050,8 +1051,9 @@ intrinsic, which calls the task's `f$cancel` with the runtime global
   ends CANCELLED or unwinds. A shielded point whose stepped `dispose!`
   is CANCELLED cancels it under `aband`, which cuts short what is left,
   marks its own frame `ABANDONED`, and goes on with the rest of the
-  ladder. A `race!` inside the dispose that a live child wins never
-  turns CANCELLED, so it does not kill the dispose.
+  ladder. A `race!` inside the dispose that a live child wins before
+  the cancelled one is polled never turns CANCELLED, so it does not kill
+  the dispose.
 
 **Awaiting a cancelled suspension**
 ([`req.cancel.await`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.await)).
@@ -1074,9 +1076,9 @@ awaiter reads its child's `CANCELLED` bit:
   awaiter sees that frame CANCELLED, so the cancellation climbs one
   awaiter at a time: through `f$poll`'s Pending, and through a direct
   call's returned frame.
-- `race!` counts its CANCELLED children on a poll with no winner, and
-  cancels itself only when all of them are; it then cancels every child
-  in list order and unwinds while one does.
+- `race!` checks each child that answers Pending: a CANCELLED one
+  cancels the race at once. It cancels every child in list order and
+  unwinds while one does.
 - A pending host operation that is aborted gets no completion, and its
   awaiter may be another task than the canceller. `HostCancel` therefore
   calls `rt::Helper::WakeAborted`: it sets `rewake`, so `hd.poll` polls

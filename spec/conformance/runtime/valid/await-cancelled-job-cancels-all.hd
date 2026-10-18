@@ -1,21 +1,16 @@
-# expect-stdout: fallback
-# expect-stdout: conn closing, conn closed, supervise cleanup, outer defer
-# expect-stdout: finished
-# test: an all! whose child another task cancelled is cancelled instead of panicking: it folds the child's cleanup into its own, and its awaiter is cancelled in turn
-# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Standard Combinators: req.combinator.all-cancelled.
+# expect-stdout: run body, conn closed, stopper finished, supervise cleanup, outer defer, runner defer
+# expect-stdout: abandoned
+# test: an all! whose child another task cancelled is cancelled instead of panicking, and so is each task that awaits it in turn, up to the dispose! that awaits the chain
+# Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate, req.cancel.await.dispose; Standard Combinators: req.combinator.all-cancelled.
 use std.ops.Disposable
-use std.task.{all, race}
+use std.task.all
 use std.time.{Clock, ms, s, sleep}
 
 data Conn:
     log: mut List[string]
-    closing: mut Suspend[void]
 
 impl Disposable for Conn:
     fn dispose!(mut self) -> void:
-        self.log.push("conn closing")
-        let mut wait = self.closing
-        wait!()
         self.log.push("conn closed")
 
 data Report:
@@ -25,8 +20,19 @@ impl Disposable for Report:
     fn dispose!(mut self) -> void:
         self.log.push("supervise cleanup")
 
+data Runner:
+    log: mut List[string]
+    job: mut Suspend[string]
+
+impl Disposable for Runner:
+    fn dispose!(mut self) -> void:
+        defer: self.log.push("runner defer")
+        let mut job = self.job
+        value := job!()
+        self.log.push("runner got ${value}")
+
 fn work!(log: mut List[string]) -> void $ Clock:
-    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    using conn = Conn { log: log }
     sleep!(s(60))
     log.push("work never")
 
@@ -45,16 +51,19 @@ fn outer!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
     defer: log.push("outer defer")
     supervise!(job, log)
 
-fn fallback!() -> string $ Clock:
-    sleep!(ms(20))
-    "fallback"
+fn run!(log: mut List[string], job: mut Suspend[string]) -> void:
+    using runner = Runner { log: log, job: job }
+    log.push("run body")
+
+fn ended!(job: mut Suspend[void]) -> string:
+    match job.cancel!():
+        .Finished => "finished"
+        .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
     let job: mut Suspend[void] = work(log)
-    let sup: mut Suspend[string] = outer(job, log)
-    println(race!(sup, fallback()))
+    let runner: mut Suspend[void] = run(log, outer(job, log))
+    runner!()
     println(log.join(", "))
-    match sup.cancel!():
-        .Finished => println("finished")
-        .Abandoned => println("abandoned")
+    println(ended!(runner))

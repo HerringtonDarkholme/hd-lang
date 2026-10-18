@@ -3408,4 +3408,5 @@ runtime/valid/await-cancelled-std-task-frame.hd	runtime	accept	lang/11-requireme
 runtime/valid/abandon-dispose-dependency-host.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.await.dispose
 runtime/valid/combinator-cancel-fan-out.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.cancel-order
 runtime/valid/race-loser-cleanup-outer-cancel.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-outer-cancel
-runtime/valid/race-cancelled-child.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-cancelled
+runtime/valid/race-cancelled-child.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-child-cancelled
+runtime/valid/timeout-work-cancelled-elsewhere.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.race-child-cancelled
