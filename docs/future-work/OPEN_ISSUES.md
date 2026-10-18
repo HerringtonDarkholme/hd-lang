@@ -236,17 +236,14 @@ propagate it through containers and captures, and use `defer` at the cleanup
 boundary. General dependent returns would also need provenance rather than only
 a binary marker. (2) Add affine/owned handle types with borrow checking. (3)
 Add a scoped callback protocol whose handle cannot escape. (4) Keep unrestricted
-aliasing and rely on checked `ResourceError.Disposed` results.
+aliasing and rely on checked `Closed` results.
 
-**Direction.** Option 2 is chosen (owner, 2026-10-16), with `defer` as the
-cleanup mechanism: Rust's ownership model, `own` written at the usage site,
-and `^` borrows with lifetimes named by variables. The NonEscapable category
-of option 1 is dropped. The design and its open points are in
-[Ownership And Borrows](OWNERSHIP_DESIGN.md). Still open beyond it:
-asynchronous or fallible cleanup. Retain checked disposal errors.
-Resources then moved off ownership (owner, 2026-10-17): handles are plain
-values that a `using` binding disposes through `Disposable`
-([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
+**Direction.** Handles are plain values that a `using` binding disposes
+through `Disposable`
+([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)); a
+leaked handle is a runtime report and a call after disposal is `Closed`.
+Escape checking for locals is the `^` mode of
+[Parallelism And Locality](PARALLELISM_AND_LOCALITY.md).
 
 **Unblocks.** Leak-resistant files/sockets, safe cancellation, fallible cleanup
 design, stronger sandbox guarantees, and possibly complete per-tool authority
