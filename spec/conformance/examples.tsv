@@ -286,9 +286,9 @@ lang/05-expressions.md	71	accept	typing/valid/pipe-steps.hd
 lang/05-expressions.md	72	mixed	typing/invalid/pipe-call-step-without-placeholder.hd|typing/invalid/pipe-suspending-bare-step.hd
 lang/05-expressions.md	73	mixed	typing/invalid/pipe-multi-line-step.hd
 lang/05-expressions.md	74	mixed	typing/invalid/placeholder-outside-pipe.hd
-lang/05-expressions.md	75	accept	typing/valid/range-types.hd
+lang/05-expressions.md	75	accept	typing/valid/range-types.hd|runtime/valid/range-float-bounds.hd
 lang/05-expressions.md	76	type-fragment	-
-lang/05-expressions.md	77	mixed	typing/invalid/range-float-bound.hd|typing/invalid/range-mixed-signedness.hd|typing/invalid/no-widening-range-bounds.hd
+lang/05-expressions.md	77	mixed	typing/invalid/range-bound-not-numeric.hd|typing/invalid/range-mixed-signedness.hd|typing/invalid/no-widening-range-bounds.hd
 lang/05-expressions.md	78	accept	typing/valid/names-and-scopes.hd
 lang/05-expressions.md	79	accept	typing/valid/collections.hd
 lang/05-expressions.md	80	accept	typing/valid/collections.hd
@@ -306,7 +306,7 @@ lang/06-control-flow.md	8	accept	runtime/valid/iterator-from-fn.hd
 lang/06-control-flow.md	9	accept	typing/valid/for-over-mut-iterator.hd|runtime/valid/iterator-single-pass.hd
 lang/06-control-flow.md	10	mixed	typing/invalid/readonly-iterator-in-comprehension.hd|typing/invalid/for-over-non-iterable.hd|typing/invalid/iterator-step-private.hd|typing/invalid/for-over-string.hd|typing/invalid/readonly-iterator-iterable-bound.hd
 lang/06-control-flow.md	11	accept	runtime/valid/range-iteration.hd
-lang/06-control-flow.md	12	mixed	typing/invalid/range-to-not-iterable.hd|typing/invalid/range-full-not-iterable.hd
+lang/06-control-flow.md	12	mixed	typing/invalid/range-to-not-iterable.hd|typing/invalid/range-full-not-iterable.hd|typing/invalid/for-float-range.hd
 lang/06-control-flow.md	13	accept	typing/valid/control-flow.hd
 lang/06-control-flow.md	14	accept	runtime/valid/infinite-loop-return.hd
 lang/06-control-flow.md	15	mixed	typing/invalid/break-outside-loop.hd

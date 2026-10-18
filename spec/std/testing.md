@@ -70,20 +70,19 @@ trait Arbitrary:
 6. r[std-testing.choices.choose.empty] `choose` on an empty list panics. Panic: `explicit-panic`.
 7. r[std-testing.choices.int-range.empty] An `int` range that holds at most one value, such as `5..5`, `5..=5`, or `6..=5`, returns its `start` and records no draw.
 8. r[std-testing.choices.int-range.convert] `int` works through the [`Integer`](num.md#r-std-num.u64.members) conversions, so any integer type is a valid `N`, and the range may span the whole type, `0..=255` for `u8` or `0..=18446744073709551615` for `u64`. It never converts a value to text.
-9. r[std-testing.choices.float-range.literal] A `float` range is written as a `Range` value, `Range { start: 0.0, end: 1.0, inclusive: true }`, because a range expression takes integer bounds ([`expr.range.bound.integer`](../lang/05-expressions.md#r-expr.range.bound.integer)).
-10. r[std-testing.choices.float-range.end] A `float` range whose `inclusive` is `false` never returns its `end`, and one whose `inclusive` is `true` may. A range whose `start` is not below its `end` returns `start` and records no draw.
-11. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
-12. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-13. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-14. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-15. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-16. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-17. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-18. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-19. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-20. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-21. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-22. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+9. r[std-testing.choices.float-range.end] A `float` range whose `inclusive` is `false` never returns its `end`, and one whose `inclusive` is `true` may. A range whose `start` is not below its `end` returns `start` and records no draw.
+10. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
+11. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+12. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
+13. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
+14. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+15. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+16. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+17. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+18. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+19. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+20. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+21. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -98,6 +97,9 @@ impl Arbitrary for Point:
 
 fn small_counts(c: mut Choices) -> List[i64]:
     c.list(3, fn(inner: mut Choices) -> i64: inner.int(0..=10))
+
+fn ratio(c: mut Choices) -> f64:
+    c.float(0.0..=1.0)
 
 fn label(c: mut Choices) -> string:
     c.string(max_chars=8)
@@ -217,15 +219,15 @@ through the template of `Arbitrary`.
 7. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
 8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../lang/14-annotations.md#self-references) computes it from the member types.
 9. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive. Its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
-10. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
-11. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../lang/14-annotations.md#r-annot.structure.name) is the type's declared name.
-12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way. The compiler does not reject the type either. Panic: `explicit-panic`.
-13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
-14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
-17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact.typed), and draws the member by its `gen`.
-18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
+9. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
+10. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../lang/14-annotations.md#r-annot.structure.name) is the type's declared name.
+11. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way. The compiler does not reject the type either. Panic: `explicit-panic`.
+12. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
+13. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
+14. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+15. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
+16. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact.typed), and draws the member by its `gen`.
+17. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
 
 ```text
 @annotate::[F](.Field)
@@ -465,8 +467,8 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
 7. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
 8. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables and tasks, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
 9. r[std-testing.hd-run.unknown-name] When `name` names neither an executable nor a task of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
-10. r[std-testing.hd-run.start-failure] When the program exists but does not start, so `run!` returns `PermissionDenied`, `NotGranted`, or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
-11. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+9. r[std-testing.hd-run.start-failure] When the program exists but does not start, so `run!` returns `PermissionDenied`, `NotGranted`, or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
+10. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
 
 The integration test that `hd new --app` writes for a package `hello`:
 
@@ -631,10 +633,10 @@ pub data PropertyCase:
 7. r[std-testing.runner.show-before-body] `std.testing` calls `show` once for each case, after it has drawn or taken the input and before the property body runs.
 8. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider value, so it records its draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
 9. r[std-testing.runner.replay] The draw at position `i` of a case returns `replay[i]`, limited to the draw's bound, when `replay` holds a value at `i`. Every other draw is fresh.
-10. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
-11. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
-12. r[std-testing.runner.case.size-count] The `size` of a run's first generated case is 0. Each later generated case has one more than the case before it, a discarded case not counting.
-13. r[std-testing.runner.case.seed-step] The `seed` of each case of a run, a discarded one included, is one more than the `seed` of the case before it.
+9. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
+10. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
+11. r[std-testing.runner.case.size-count] The `size` of a run's first generated case is 0. Each later generated case has one more than the case before it, a discarded case not counting.
+12. r[std-testing.runner.case.seed-step] The `seed` of each case of a run, a discarded one included, is one more than the `seed` of the case before it.
 
 ```text
 use std.testing.{PropertyRunner, TestRunner}

@@ -1,0 +1,5 @@
+# test: a float range does not implement Iterable, so a loop over it is an error
+# Spec 06 Range Iteration: flow.for.range.float (issue 513).
+fn invalid() -> void:
+    for x in 0.0..1.0:  # diagnostic: unsatisfied-trait-bound
+        _ := x

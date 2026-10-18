@@ -1,0 +1,4 @@
+# test: a range bound must have an integer or floating-point type
+# Spec 05 Range Expressions: expr.range.bound.numeric (issue 513).
+fn invalid(name: string) -> void:
+    a := name..name  # diagnostic: type-mismatch

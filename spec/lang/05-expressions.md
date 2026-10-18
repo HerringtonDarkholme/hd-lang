@@ -2059,16 +2059,19 @@ fn wide(limit: i64) -> Range[i64]:
 
 fn closed(limit: i64) -> Range[i64]:
     0..=limit
+
+fn unit() -> Range[f64]:
+    0.0..=1.0
 ```
 
 | Rule | Form | Type | Holds |
 | --- | --- | --- | --- |
-| r[expr.range.form.half-open] Half-open | `a..b` | `Range[T]` | the integers from `a` up to, not including, `b` |
-| r[expr.range.form.from] From | `a..` | `RangeFrom[T]` | the integers from `a` up, with no end |
-| r[expr.range.form.to] To | `..b` | `RangeTo[T]` | the integers below `b`, with no start |
-| r[expr.range.form.through] Inclusive | `a..=b` | `Range[T]` | the integers from `a` through `b` |
-| r[expr.range.form.to-through] To inclusive | `..=b` | `RangeTo[T]` | the integers up to and including `b`, with no start |
-| r[expr.range.form.full] Full | `..` | `RangeFull` | every integer, with no start and no end |
+| r[expr.range.form.half-open] Half-open | `a..b` | `Range[T]` | the values from `a` up to, not including, `b` |
+| r[expr.range.form.from] From | `a..` | `RangeFrom[T]` | the values from `a` up, with no end |
+| r[expr.range.form.to] To | `..b` | `RangeTo[T]` | the values below `b`, with no start |
+| r[expr.range.form.through] Inclusive | `a..=b` | `Range[T]` | the values from `a` through `b` |
+| r[expr.range.form.to-through] To inclusive | `..=b` | `RangeTo[T]` | the values up to and including `b`, with no start |
+| r[expr.range.form.full] Full | `..` | `RangeFull` | every value, with no start and no end |
 
 `std.ops` declares the range types in this shape:
 
@@ -2094,22 +2097,24 @@ pub data RangeFull: pass
 4. r[expr.range.not-prelude] The range types are not prelude names. Code that names one in a type imports it, as in `use std.ops.Range`, but a range expression needs no use.
 5. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
 6. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
-7. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
+7. r[expr.range.bound.numeric] Each bound must have an integer or a floating-point type, or be a type parameter bounded by `Integer` or `Float`. A bound of any other type is an error. Error: `type-mismatch`.
 8. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators). A literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
 9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
 12. r[expr.range.literal-bounds] With no expected type, literal bounds are one [literal class](04-type-system.md#r-types.literal.local.class): `0..3` is a `Range[usize]`, and `-3..3` is a `Range[i32]`.
+13. r[expr.range.float-literal-bounds] Float literal bounds default as a float literal does, so `0.0..=1.0` and `0.5..2.0` are `Range[f64]`. Bounds of type `f32` make a `Range[f32]`.
 
 ```text
-fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
-    a := 0.5..x        # error: type-mismatch
+fn invalid(name: string, count: u32, limit: i32, large: i64) -> void:
+    a := name..name    # error: type-mismatch
     b := count..limit  # error: mixed-signedness
     c := limit..large  # error: type-mismatch
 ```
 
-> **Note.** `for` iterates `a..b`, `a..`, and `a..=b`, as
-> [Range Iteration](06-control-flow.md#range-iteration) states. An index
+> **Note.** `for` iterates `a..b`, `a..`, and `a..=b` of an integer type, as
+> [Range Iteration](06-control-flow.md#range-iteration) states. A float range
+> is not iterable. An index
 > of a range type slices a string or a list with unsigned bounds, as
 > [Slicing](#slicing) states. A `match` takes the range forms but `..b` and `..` as
 > [range patterns](06-control-flow.md#range-patterns).
@@ -2117,6 +2122,11 @@ fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
 > **Why.** As in Rust, a range is an ordinary `std.ops` value. One syntax
 > then serves loops, slicing, and any function that takes a range, with no
 > separate `range` function.
+
+> **Why.** Float bounds let a function that takes a range of floats read
+> like one that takes integers, as `c.float(0.0..=1.0)` reads like
+> `c.int(1..=6)`. Rust's range expressions also take float bounds and
+> do not iterate them.
 
 > **Why.** `a..b` and `a..=b` share one type, as `..b` and `..=b` do, so a
 > function that takes a `Range[i64]` accepts both forms. The types still

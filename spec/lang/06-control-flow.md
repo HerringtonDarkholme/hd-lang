@@ -334,12 +334,15 @@ fn first_square_over(limit: i32) -> i32:
 7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
 8. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
 9. r[flow.for.range.full] `RangeFull` does not implement `Iterable` either, so a loop over `..` is an error. Error: `unsatisfied-trait-bound`.
+10. r[flow.for.range.float] A range of a floating-point type does not implement `Iterable`, so a loop over `0.0..1.0` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 fn invalid(n: i32) -> void:
     for i in ..n:  # error: unsatisfied-trait-bound
         pass
     for i in ..:   # error: unsatisfied-trait-bound
+        pass
+    for x in 0.0..1.0:  # error: unsatisfied-trait-bound
         pass
 ```
 

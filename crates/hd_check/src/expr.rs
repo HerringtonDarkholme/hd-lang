@@ -1245,6 +1245,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether a type may be a range bound (`expr.range.bound.numeric`):
+    /// integer-like, floating-point, or a parameter bounded by `Float`.
+    fn range_bound_like(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.infer.shallow(pool, self.strip_mut(t));
+        self.integer_like(t)
+            || self.float_like(t)
+            || matches!(pool.get(t), TyData::Param(_))
+                && (0..self.env.clause_self.len()).any(|i| {
+                    self.env.clause_self[i] == t
+                        && self.env.clause_trait[i] == self.cx.names.known.float
+                })
+    }
+
     /// Whether a type is floating-point, or a floating literal's variable.
     fn float_like(&self, t: Ty) -> bool {
         let pool = self.pool();
@@ -2769,7 +2783,9 @@ impl Ck<'_, '_> {
             )
         {
             let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
-            if self.numeric(et) {
+            // A float range is not iterable (`flow.for.range.float`), so it
+            // goes through the general `Iterable` call below and fails there.
+            if self.numeric(et) && self.integer_like(et) {
                 return self.range_loop(pat, (sr, et), els, e, body);
             }
         }
@@ -2819,8 +2835,11 @@ impl Ck<'_, '_> {
                     args: pool.list(&[et]),
                 };
                 // The element is often a literal still open here: its
-                // impl is chosen when the loop's uses fix it.
-                if !pool.has_infer(self.infer.resolve(pool, et)) {
+                // impl is chosen when the loop's uses fix it. A float
+                // literal's range has no impl whatever type it takes
+                // (`flow.for.range.float`), so it is required now.
+                let open = pool.has_infer(self.infer.resolve(pool, et));
+                if !open || self.float_like(self.infer.resolve(pool, et)) {
                     self.require_ref(tref, src)?;
                 }
                 let method = self.cx.names.member(iterable, PathKind::Member, "iter");
@@ -3831,13 +3850,14 @@ impl Ck<'_, '_> {
         {
             self.expect(e, bw, fields[0], "range bound", ExpectPosition::Operand);
         }
-        // `expr.range.bound.integer`: the element type is an integer type.
-        // The one error lands on the first bound that is not.
-        if !self.integer_like(et)
-            && let Some(i) = bound_tys.iter().position(|t| !self.integer_like(*t))
+        // `expr.range.bound.numeric`: the element type is an integer or a
+        // floating-point type. The one error lands on the first bound that
+        // is neither.
+        if !self.range_bound_like(et)
+            && let Some(i) = bound_tys.iter().position(|t| !self.range_bound_like(*t))
         {
             let msg = format!(
-                "a range bound must have an integer type, found {}",
+                "a range bound must have an integer or floating-point type, found {}",
                 self.show(bound_tys[i])
             );
             self.err(Code::TypeMismatch, fields[i], &msg);

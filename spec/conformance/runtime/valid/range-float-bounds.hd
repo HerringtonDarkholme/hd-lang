@@ -1,0 +1,36 @@
+# test: a range takes floating-point bounds, so 0.0..=1.0 and 0.5..2.0 are Range[f64] and f32 bounds make a Range[f32]
+# Spec 05 Range Expressions: expr.range.bound.numeric, expr.range.float-literal-bounds, expr.range.element-type, expr.range.inclusive-field (issue 513).
+use std.ops.{Range, RangeFrom, RangeTo}
+use std.num.Float
+
+fn unit() -> Range[f64]:
+    0.0..=1.0
+
+fn narrow(lo: f32, hi: f32) -> Range[f32]:
+    lo..hi
+
+fn span[F < Float](lo: F, hi: F) -> Range[F]:
+    lo..=hi
+
+tests:
+    use std.testing.assert_equal
+
+    it("float literal bounds make a Range[f64]"):
+        let closed: Range[f64] = 0.0..=1.0
+        let half: Range[f64] = 0.5..2.0
+        assert_equal(closed.end, unit().end, reason="0.0..=1.0 is a Range[f64]")
+        assert_equal(closed.inclusive, true, reason="..= sets inclusive")
+        assert_equal(half.start, 0.5, reason="the start bound")
+        assert_equal(half.inclusive, false, reason=".. leaves inclusive false")
+
+    it("f32 bounds make a Range[f32]"):
+        r := narrow(1.5, 2.5)
+        let lo: f32 = 1.5
+        assert_equal(r.start, lo, reason="an f32 start")
+        assert_equal(span(lo, lo).inclusive, true, reason="a Float parameter bound")
+
+    it("the one-bound forms take a float"):
+        let from: RangeFrom[f64] = 1.5..
+        let to: RangeTo[f32] = ..=2.0
+        assert_equal(from.start, 1.5, reason="a..")
+        assert_equal(to.inclusive, true, reason="..=b")

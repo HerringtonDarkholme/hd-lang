@@ -1,7 +1,6 @@
 # test: generators draw from Choices, and Arbitrary gives a type its default generator
 # std Testing, Property Tests: std-testing.choices.declare and the Choices members (Testing T53).
 use std.testing.{Arbitrary, Choices}
-use std.ops.Range
 
 data Point:
     x: i64
@@ -16,4 +15,4 @@ fn small_counts(c: mut Choices) -> List[i64]:
 
 fn anything(c: mut Choices) -> (Point, bool, string, f64, string):
     c.assume(true)
-    (c.draw::[Point](), c.bool(), c.string(8), c.float(Range { start: 0.0, end: 1.0, inclusive: true }), c.choose(["a", "b"]))
+    (c.draw::[Point](), c.bool(), c.string(8), c.float(0.0..=1.0), c.choose(["a", "b"]))

@@ -1,6 +1,5 @@
 # test: Choices.int and Choices.float take a range and stay inside it for every integer type, the empty forms return start
 # Spec std/testing Choices: std-testing.choices.int-range, std-testing.choices.int-range.empty, std-testing.choices.int-range.convert, std-testing.choices.float-range, std-testing.choices.float-range.end.
-use std.ops.Range
 use std.testing.{assert, assert_equal, Choices, it_prop_with}
 
 fn die(c: mut Choices) -> i64:
@@ -32,10 +31,10 @@ fn whole_i64(c: mut Choices) -> i64:
     c.int(-9223372036854775807 - 1..=9223372036854775807)
 
 fn half_open(c: mut Choices) -> f64:
-    c.float(Range { start: 0.0, end: 1.0, inclusive: false })
+    c.float(0.0..1.0)
 
 fn closed(c: mut Choices) -> f32:
-    c.float(Range { start: -2.0, end: 2.0, inclusive: true })
+    c.float(-2.0..=2.0)
 
 @derive(Debug)
 data Ends:
@@ -45,7 +44,7 @@ data Ends:
     float: f64
 
 fn empty(c: mut Choices) -> Ends:
-    Ends { half_open: c.int(5..5), closed: c.int(5..=5), reversed: c.int(6..=5), float: c.float(Range { start: 1.5, end: 1.5, inclusive: false }) }
+    Ends { half_open: c.int(5..5), closed: c.int(5..=5), reversed: c.int(6..=5), float: c.float(1.5..1.5) }
 
 tests:
     it_prop_with("a die stays from 1 to 6", gen=die, cases=200, prop=fn!(n: i64):

@@ -464,8 +464,8 @@ impl Arbitrary for f64:
             6 => if c.bool(): -1.0 / zero else: 1.0 / zero
             7 => zero * -1.0
             8 => f64(c.int(1..=1000000)) * 4.9406564584124654e-324
-            9 => c.float(Range { start: -1.0, end: 1.0, inclusive: true }) * 1.7976931348623157e308
-            _ => c.float(Range { start: -1000.0, end: 1000.0, inclusive: true })
+            9 => c.float(-1.0..=1.0) * 1.7976931348623157e308
+            _ => c.float(-1000.0..=1000.0)
 
 impl Arbitrary for f32:
     fn arbitrary(c: mut Choices) -> f32:
@@ -480,8 +480,8 @@ impl Arbitrary for f32:
             6 => if c.bool(): -unit / zero else: unit / zero
             7 => zero * -unit
             8 => f32(c.int(1..=1000)) * tiny
-            9 => c.float(Range { start: -unit, end: unit, inclusive: true }) * huge
-            _ => c.float(Range { start: low, end: high, inclusive: true })
+            9 => c.float(-unit..=unit) * huge
+            _ => c.float(low..=high)
 
 impl Arbitrary for bool:
     fn arbitrary(c: mut Choices) -> bool: c.bool()
