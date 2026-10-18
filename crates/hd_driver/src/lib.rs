@@ -5844,11 +5844,6 @@ impl Run<'_> {
             if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
                 continue;
             }
-            // `OwnOnly` by structure is a compiler rule with no template
-            // (`own.structure.declare`): the ownership classifier reads it.
-            if *trait_ == names.known.own_only {
-                continue;
-            }
             let template = hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_);
             // A derivation block needs a template, and a comparison trait is
             // derived only with `@derive` (`annot.block.template`). An
@@ -9360,32 +9355,6 @@ impl Env<'_> {
 impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
-    }
-    fn drop_items(&self) -> Option<(DefId, DefId, DefId)> {
-        let k = &self.run.known;
-        let Some(ItemData::Trait(t)) = self.p.items.get(&k.drop_own).map(|i| &i.data) else {
-            return None;
-        };
-        let method = t.methods.first()?.1;
-        (k.drop != DefId::NONE).then_some((k.drop_own, method, k.drop))
-    }
-    fn drop_body(&self, ty: Ty, drop_impl: Option<DefId>) -> StageResult<Body> {
-        // The drop glue of `ty` (spec/lang/13-ownership.md, Drops).
-        let names = self.run.names();
-        let cx = hd_structure::Cx {
-            names: &names,
-            items: self.p,
-            stage: Stage::Collect,
-        };
-        let d = match (drop_impl, self.drop_items()) {
-            (Some(impl_), Some((trait_, method, _))) => Some(hd_structure::DropImpl {
-                trait_,
-                method,
-                impl_,
-            }),
-            _ => None,
-        };
-        hd_structure::drop_body(&cx, self.run.known.drop, ty, d)
     }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.sig(def)

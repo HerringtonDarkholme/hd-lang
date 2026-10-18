@@ -11,9 +11,9 @@ or borrowed.
 > implementation diagnoses a program that uses it, as
 > [Specification Status](../README.md#specification-status) requires.
 >
-> So far the chapter checks marks in declarations, ownership by structure,
-> the modes values meet in bodies, the prototype's limits, and providers
-> and boundaries. Loans are not specified yet.
+> So far the chapter checks marks in declarations, the modes values meet
+> in bodies, the prototype's limits, and providers and boundaries. Loans
+> are not specified yet.
 >
 > A body is diagnosed when it passes a moded type argument to a type
 > parameter, or names a lifetime. So is a moded value that a closure
@@ -249,153 +249,6 @@ fn named(u: ^User) -> ^{w} string: panic("stub")        # error: unknown-name
 > an argument, and keeping it to `pub` fields means a signature never shows
 > a private field to another module.
 
-## Ownership Traits
-
-The module `std.ownership` declares two traits that the compiler knows by
-name. Both are prelude names
-([Prelude](10-modules.md#prelude)).
-
-```text
-pub trait OwnOnly
-
-pub trait DropOwn < OwnOnly:
-    fn drop(^mut self) -> void
-```
-
-```text
-data File:
-    fd: i32
-
-impl OwnOnly for File
-
-impl DropOwn for File:
-    fn drop(^mut self) -> void: pass
-
-data Pool[^a]:
-    idle: List[^{a} File]
-    first: ^{a} mut File?
-
-impl[^a] OwnOnly for Pool[^{a}]
-
-fn size(f: ^File) -> usize: 0
-```
-
-1. r[own.own-only.marker] `OwnOnly` is a marker trait with no members. A type that implements it is always borrowed.
-2. r[own.own-only.plain] A plain position, that is one that no `^` wraps directly, of a type that implements `OwnOnly` is an error. A receiver is a position, so `self` and `mut self` count. Error: `own-type-plain`.
-3. r[own.own-only.written] Only a written declaration's positions are checked; a derived or delegated method has the signature its trait gives it.
-4. r[own.own-only.field] A data type or an enum with a field or payload written `^mut T`, under any number of `?`, must implement `OwnOnly`. Error: `own-field-plain-type`.
-5. r[own.own-only.module] An `impl OwnOnly` is declared in the module that declares its target type. Elsewhere in the target's package it is an error. Error: `nonlocal-impl`. In another package it is an error. Error: `orphan-impl`.
-6. r[own.own-only.unconditional] A written `impl OwnOnly for Box[T]` makes every instance of `Box` implement `OwnOnly`, whatever `T` is.
-7. r[own.drop-own.trait] `DropOwn` extends `OwnOnly`, so only an `OwnOnly` type implements it; an `impl DropOwn` for any other type is `missing-supertrait-implementation`. Its `drop` takes `^mut self` and returns `void`.
-
-```text
-data File:
-    fd: i32
-
-impl OwnOnly for File
-
-data Holder[^a]:
-    file: ^{a} mut File                  # error: own-field-plain-type
-
-data Plain:
-    fd: i32
-
-impl DropOwn for Plain:                  # error: missing-supertrait-implementation
-    fn drop(^mut self) -> void: pass
-
-fn bad(f: File) -> void: pass            # error: own-type-plain
-fn many(fs: ^List[File]) -> void: pass   # error: own-type-plain
-impl OwnOnly for i32                     # error: orphan-impl
-```
-
-> **Why.** A plain value may already have aliases, so a plain `File` could
-> be read after it was closed. Requiring `^` at every use of an `OwnOnly`
-> type means no producer hands out a plain one.
-
-## Ownership By Structure
-
-A generic type keeps a plain header and may take its ownership from its
-fields: an instance implements `OwnOnly` exactly when some field's type
-owns, after substitution.
-
-```text
-use std.structure.Structure
-
-data Conn:
-    fd: i32
-
-impl OwnOnly for Conn
-
-data Batch[T]:
-    values: List[T]
-
-impl[T] OwnOnly for Batch[T] by Structure
-
-@derive(OwnOnly)
-enum Outcome[A, B]:
-    Good(value: A)
-    Bad(error: B)
-
-@derive(OwnOnly)
-data Chain[T]:
-    value: T
-    next: Chain[T]?
-
-fn sum(batch: Batch[i32]) -> i32: 0                         # plain: nothing owns
-fn settle(result: Outcome[i32, string]) -> void: pass
-fn walk(chain: ^Chain[^Conn]) -> void: pass                 # a borrow owns nothing
-```
-
-1. r[own.structure.declare] `@derive(OwnOnly)`, or `impl[T] OwnOnly for Box[T] by Structure`, declares that `Box` implements `OwnOnly` by structure. Like a written impl, it is declared in the module that declares its target type.
-2. r[own.structure.instance] An instance of a type that implements `OwnOnly` by structure implements `OwnOnly` when the type of one of its fields or payloads owns, after substituting the instance's type arguments.
-3. r[own.structure.owns] A type **owns** by the table below.
-4. r[own.structure.recursive] A recursive type owns only when the table reaches an owning part without going around the recursion, that is the least solution of the table.
-5. r[own.structure.builtin] `T?` and tuples take ownership from their elements by the table, and `List[T]` and `Map[K, V]` from `T` and `V`, with no declaration.
-7. r[own.structure.exclusive] A `^mut` field makes no instance own, so a type with one implements `OwnOnly` by a written impl, as [own.own-only.field](#r-own.own-only.field) requires.
-8. r[own.structure.drop-own] An `impl DropOwn` must cover only instances that implement `OwnOnly`, so a type that owns only for some arguments by structure has no `DropOwn` for every instance. Error: `missing-supertrait-implementation`.
-9. r[own.own-only.field-tuple] A tuple element of a field's or payload's type counts as a field for [own.own-only.field](#r-own.own-only.field), so `(^{a} mut Conn, i32)` needs an `OwnOnly` holder. Error: `own-field-plain-type`.
-
-| A part of type | Owns |
-| --- | --- |
-| `^U` | never, whatever `U` is |
-| `^mut U` | never; see [own.structure.exclusive](#r-own.structure.exclusive) |
-| `mut U`, `U?` | when `U` owns |
-| a tuple | when one of its elements owns |
-| a function type | never, whatever its result is |
-| a type parameter | when its argument owns |
-| `List[U]`, `Map[K, U]` | when `U` owns |
-| a type that implements `OwnOnly` by structure | by [own.structure.instance](#r-own.structure.instance) |
-| a type that implements `OwnOnly` by a written impl | always |
-| a primitive type, or another type | never |
-
-```text
-data Conn:
-    fd: i32
-
-data File:
-    fd: i32
-
-@derive(OwnOnly)
-data Writer[^a]:
-    file: ^{a} mut File                                 # error: own-field-plain-type
-
-@derive(OwnOnly)
-data Tracked[T]:
-    value: T
-
-impl[T] DropOwn for Tracked[T]:                        # error: missing-supertrait-implementation
-    fn drop(^mut self) -> void: pass
-
-data Pair[^a]:
-    both: (^{a} mut Conn, i32)                         # error: own-field-plain-type
-```
-
-> **Why.** A container owns exactly when it holds a value that owns, so
-> `Batch[i32]` stays plain. A `^mut` field asks for a written impl, so a
-> holder of an exclusive borrow is always `OwnOnly` on purpose.
-
-See also: [Ownership Traits](#ownership-traits).
-
 ## Modes In Bodies
 
 Inside a body, a value meets a position's mode where it is passed,
@@ -457,33 +310,6 @@ fn helper(f: ^File): view(f)                # error: missing-result-type
 
 > **Why.** Lending marks nothing at the call site, so a call reads the
 > same whether it borrows or not.
-
-See also: [Ownership By Structure](#ownership-by-structure).
-
-## Drops
-
-`DropOwn.drop` is the destructor of an `OwnOnly` type
-([Ownership Traits](#ownership-traits)).
-
-1. r[own.drop.direct] A call or reference of a type's `drop` method is an error; it runs only when a value drops. Error: `direct-drop-call`.
-
-```text
-data File:
-    fd: i32
-
-impl OwnOnly for File
-
-impl DropOwn for File:
-    fn drop(^mut self) -> void: pass
-
-fn close_twice(f: ^mut File) -> void:
-    f.drop()                          # error: direct-drop-call
-```
-
-> **Why.** A destructor that a program could call by hand would run a
-> second time when its value drops.
-
-See also: [Ownership Traits](#ownership-traits).
 
 ## Prototype Limits
 

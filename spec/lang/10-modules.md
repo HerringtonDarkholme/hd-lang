@@ -738,7 +738,6 @@ every module has:
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.testing` | `it` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
-| `std.ownership` | `OwnOnly`, `DropOwn` |
 
 1. r[module.prelude.in-scope] Every module implicitly has the public standard-library names in the table in scope, but for the `std.testing` row.
 2. r[module.prelude.test-only] The names of the `std.testing` row are in scope only in [test code](#r-module.test.code): `tests:` blocks, test modules, and integration test modules.

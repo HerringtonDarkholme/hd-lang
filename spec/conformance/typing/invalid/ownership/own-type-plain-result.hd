@@ -1,7 +1,0 @@
-# test: a plain result of an OwnOnly type is own-type-plain
-data File:
-    fd: i32
-
-impl OwnOnly for File
-
-fn open(path: string) -> File: panic("stub")  # diagnostic: own-type-plain

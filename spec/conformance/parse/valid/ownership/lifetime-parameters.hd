@@ -25,7 +25,5 @@ trait Cursor[T, ^items]:
 
 type View[^d] = Parser[^{d}]
 
-impl[^doc, ^out] OwnOnly for Export[^{doc}, ^{out}]
-
 impl[^doc] Parser[^{doc}]:
     fn line(^self) -> usize: self.at

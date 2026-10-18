@@ -315,8 +315,6 @@ struct ItemCheck<'c, 'a> {
     /// Whether the fuel ran out: `item-too-complex` is reported, and no
     /// further goal is asked.
     too_complex: bool,
-    /// The structure summaries this item read (`own.structure.owns`).
-    structure: crate::own::StructureMemo,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -333,7 +331,6 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             item: it.def,
             out,
             too_complex: false,
-            structure: crate::own::StructureMemo::default(),
         }
     }
 }
@@ -409,10 +406,6 @@ impl<'a> ItemCheck<'_, 'a> {
             } else {
                 0
             };
-            // A receiver is a position too (`own.own-only.plain`).
-            if !matches!(it.data, ItemData::Impl { .. } | ItemData::Alias(_)) {
-                self.own_only(it, t, slot)?;
-            }
             if skip_self && i == 0 {
                 continue;
             }
@@ -811,51 +804,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// (`trait.bound.depth.limit`) and is not a failure. A goal that runs
     /// out of fuel is one `item-too-complex` on the item, at its header
     /// (`fn.limit.complexity.error`), and no goal is asked after it.
-    /// `OwnOnly` is answered by the ownership classifier, which reads
-    /// written impls and ownership by structure (`own.structure.owns`).
     fn fails(&mut self, t: Ty, bound: Ty, slot: u32) -> StageResult<bool> {
-        let pool = self.pool();
-        if let TyData::TraitValue { def, .. } = pool.get(bound)
-            && def == self.cx.names.known.own_only
-        {
-            if self.too_complex {
-                return Ok(false);
-            }
-            return Ok(!self.with_classify(|c| c.owns(t))?);
-        }
-        self.solve_fails(t, bound, slot)
-    }
-
-    /// Runs `f` with the ownership classifier of this item.
-    fn with_classify<R>(
-        &mut self,
-        f: impl FnOnce(&mut crate::own::Classify<'_, '_>) -> StageResult<R>,
-    ) -> StageResult<R> {
-        let cx = self.cx;
-        let pool = self.pool();
-        let own_only = pool.intern_ty(&TyData::TraitValue {
-            def: cx.names.known.own_only,
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        let mut memo = std::mem::take(&mut self.structure);
-        let mut written = |t: Ty| -> StageResult<bool> {
-            Ok(!self.solve_fails(t, own_only, 0)? && !self.too_complex)
-        };
-        let mut c = crate::own::Classify {
-            pool,
-            lookup: cx.lookup,
-            impls: Impls::Owned(cx.impls),
-            known: cx.names.known,
-            memo: &mut memo,
-            written: &mut written,
-        };
-        let out = f(&mut c);
-        self.structure = memo;
-        out
-    }
-
-    fn solve_fails(&mut self, t: Ty, bound: Ty, slot: u32) -> StageResult<bool> {
         if self.too_complex {
             return Ok(false);
         }
@@ -909,77 +858,6 @@ impl<'a> ItemCheck<'_, 'a> {
             self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
         }
         Ok(matches!(answer, Answer::Fails(_)))
-    }
-
-    /// `own.own-only.plain`: no position writes an `OwnOnly` type plain.
-    /// `own.own-only.field`: a `^mut` field needs an `OwnOnly` holder. Written declarations only: a derived or delegated method
-    /// has the signature its trait gives it.
-    fn own_only(&mut self, it: &Item, t: Ty, slot: u32) -> StageResult<()> {
-        let pool = self.pool();
-        if let ItemData::Method { owner, .. } = &it.data
-            && let Some(ItemData::Impl { kind, .. }) = self.cx.lookup.item(*owner).map(|o| &o.data)
-            && *kind != ImplKind::Written
-        {
-            return Ok(());
-        }
-        let own_only = pool.intern_ty(&TyData::TraitValue {
-            def: self.cx.names.known.own_only,
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        let mut plain = Vec::new();
-        crate::own::plain_positions(pool, t, false, &mut plain);
-        for p in plain {
-            // A poisoned type was reported already, and a proof out of fuel
-            // proves nothing.
-            if pool.has_poison(p) || self.fails(p, own_only, slot)? || self.too_complex {
-                continue;
-            }
-            {
-                let dyn_ = if matches!(pool.get(p), TyData::TraitValue { .. }) {
-                    "dyn "
-                } else {
-                    ""
-                };
-                let shown = format!("{dyn_}{}", self.show(p));
-                let message = format!(
-                    "{shown} implements `OwnOnly`, so each use writes `^{shown}` or `^mut {shown}`"
-                );
-                self.report(slot, Code::OwnTypePlain, message);
-                return Ok(());
-            }
-        }
-        let exclusive = crate::own::exclusive_part(pool, t);
-        if exclusive && matches!(it.data, ItemData::Data(_) | ItemData::Enum { .. }) {
-            let args: Vec<Ty> = (0..it.generics.len())
-                .map(|i| {
-                    let index = u16::try_from(i).unwrap_or(u16::MAX);
-                    pool.intern_ty(&TyData::Param(ParamRef {
-                        owner: it.def,
-                        index,
-                    }))
-                })
-                .collect();
-            let holder = pool.intern_ty(&TyData::Adt {
-                def: it.def,
-                args: pool.list(&args),
-            });
-            if self.fails(holder, own_only, slot)? {
-                let name = self.cx.names.display_name(it.def);
-                let impls = Impls::Owned(self.cx.impls);
-                let message = if impls.by_structure(pool, self.cx.names.known.own_only, holder) {
-                    format!(
-                        "a `^mut` field makes no instance of {name} `OwnOnly` by structure: write `impl OwnOnly for {name}`"
-                    )
-                } else {
-                    format!(
-                        "a `^mut` field needs an `OwnOnly` holder: add `impl OwnOnly for {name}`"
-                    )
-                };
-                self.report(slot, Code::OwnFieldPlainType, message);
-            }
-        }
-        Ok(())
     }
 
     /// A written requirement key may not be `Inspectable` or extend it

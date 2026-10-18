@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use hd_resolve::{Names, show_ty};
 use hd_tir::Body;
-use hd_tir::ir::{Callee, Coercion, DROP_ENTRY, NONE, Op, Ref, Tag};
+use hd_tir::ir::{Callee, Coercion, NONE, Op, Ref, Tag};
 use hd_types::{Ty, TyList};
 
 fn ty(names: &Names<'_>, t: Ty) -> String {
@@ -153,20 +153,6 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
                             ops.push("[..]".into());
                         } else if tag == Tag::Coerce {
                             ops.push(coercion(names, b, word));
-                        } else if tag == Tag::Scope {
-                            // A suite, or a `DropLocal` registration.
-                            let vals: Vec<String> = b
-                                .record(word)
-                                .iter()
-                                .map(|&x| {
-                                    if x & DROP_ENTRY != 0 {
-                                        format!("drop %{}", x & !DROP_ENTRY)
-                                    } else {
-                                        value(names, b, x)
-                                    }
-                                })
-                                .collect();
-                            ops.push(format!("[{}]", vals.join(" ")));
                         } else if matches!(tag, Tag::SwitchTag | Tag::Payload | Tag::FieldSet) {
                             // Variant and field numbers stay numbers.
                             let r = b.record(word);
@@ -203,10 +189,6 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             ops.join(" "),
             ty(names, b.ty[i])
         );
-    }
-    if !b.drop_mode.is_empty() {
-        let modes: Vec<String> = b.drop_mode.iter().map(|m| format!("{m:?}")).collect();
-        let _ = writeln!(o, "  drop modes {}", modes.join(" "));
     }
     o
 }

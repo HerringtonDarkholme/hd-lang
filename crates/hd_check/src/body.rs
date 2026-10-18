@@ -934,9 +934,6 @@ fn fn_body_steps(
     ck.check_row_patterns(&sig, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
-    // An owned parameter drops when the body ends: the body is a cleanup
-    // scope whose suites are the parameters' `DropLocal`s.
-    let dm = ck.b.drop_mark();
     // Projections in the signature normalize under the bounds, so
     // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
     // (`trait.binding.interchangeable`).
@@ -944,7 +941,6 @@ fn fn_body_steps(
         let ty = ck.norm_ty(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
-        ck.register_drop(l, ty, node.index());
     }
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
@@ -958,11 +954,7 @@ fn fn_body_steps(
     let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
     let (tail, ret) = ck.join_site(want, |ck, ret| {
         ck.rets[0] = ret;
-        let (tail, ty) = ck.block_value(body, Some(ret))?;
-        let tail = match ck.b.close_drops(dm, tail, ty, body.index()) {
-            Some(scope) => tail.map(|_| scope),
-            None => tail,
-        };
+        let (tail, _) = ck.block_value(body, Some(ret))?;
         Ok((tail, ret))
     })?;
     // `own.body.result-written`: an owned or borrowed result is written.
@@ -2243,15 +2235,7 @@ impl Ck<'_, '_> {
                 Err(e) => Err(e),
             }
         } else {
-            // A suite that binds an owned local is a cleanup scope too: its
-            // `DropLocal`s are its suites (13-ownership.md).
-            let dm = self.b.drop_mark();
-            self.lines(block, want).map(|(tail, ty)| {
-                match self.b.close_drops(dm, tail, ty, block.index()) {
-                    Some(scope) => (tail.map(|_| scope), ty),
-                    None => (tail, ty),
-                }
-            })
+            self.lines(block, want)
         };
         self.scopes.pop();
         self.move_to(at);
@@ -2276,8 +2260,6 @@ impl Ck<'_, '_> {
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
-            // Owned temporaries drop at the end of their statement.
-            let stmt_mark = self.b.drop_mark();
             if dead {
                 self.diags.push(
                     Code::UnreachableCode,
@@ -2328,13 +2310,11 @@ impl Ck<'_, '_> {
                     Some(w) => self.coerce(r, t, w, e, "result", ExpectPosition::General),
                     None => r,
                 };
-                self.drop_temps(stmt_mark, Some(r), true);
                 tail = Some(r);
                 ty = want.unwrap_or(t);
                 continue;
             }
             let t = self.stmt(s, last && !value && self.fn_body == Some(block.index()))?;
-            self.drop_temps(stmt_mark, None, t != Ty::NEVER);
             diverged |= t == Ty::NEVER;
             if matches!(
                 s.kind(),
@@ -3792,9 +3772,6 @@ impl Ck<'_, '_> {
         }
         self.fallback_rows(&open);
         self.mode_gate(n)?;
-        if !self.prototype_limit && (0..n).any(|i| pool.has_mode(self.b.body_mut().ty[i])) {
-            self.check_drop_calls(n);
-        }
         let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];
@@ -4020,10 +3997,6 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
             return None;
         }
         u32::try_from(row.keys.len()).ok()
-    }
-    fn owns(&self, _ty: Ty) -> Option<bool> {
-        // With no owned mode, no value holds an owned one.
-        Some(false)
     }
 }
 

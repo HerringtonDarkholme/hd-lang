@@ -512,7 +512,6 @@ pub struct Body {
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
-    pub drop_mode: Vec<DropMode>,       // Always | Flag | Never, one per DropLocal in instruction order
 }
 pub struct Inst(pub u32);
 pub struct Ref(pub u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
@@ -724,7 +723,7 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Block` | a: `[instructions]`, b: tail value or `NONE` | the tail's type, or `void` |
-| `Scope` | a: body `Block`, b: `[defer suites and drops]`: a suite `Block`, or `DROP_ENTRY` (bit 31) plus a `DropLocal` the body block lists, in instruction order | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
+| `Scope` | a: body `Block`, b: `[defer suite Blocks]`, in instruction order | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
 | `Defer` | a: suite number in the enclosing `Scope` | `void`; registers that suite here |
 | `If` | a: condition, b: `[then Block, else Block]` | the join of both |
 | `Loop` | a: body `Block`, b: else `Block` or `NONE` | the join of its `Break` values, or `void` |
@@ -734,32 +733,6 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | `Continue` | a: target label of a `Loop` | `never` |
 | `Return` | a: value, or `NONE` for a bare `return` in a `void` body | `never` |
 | `Unreachable` | none | `never`; the default of an exhaustive switch |
-
-**Ownership** ([Ownership and Borrows](../../spec/lang/13-ownership.md)).
-The checker decides every ownership fact and the builder records it, so
-collection and emission never derive one again.
-
-| Tag | Operands | Type rule |
-| --- | --- | --- |
-| `DropLocal` | a: an owned local | `void`; registers the local's drop in the enclosing `Scope`, where the local is bound |
-| `DropTemp` | a: an owned temporary | `void`; drops it at the end of its statement |
-
-A block that binds an owned local, and a function with an owned
-parameter, is a `Scope` whose suites include those `DropLocal`s
-(`TirSink::drop_mark` and `close_drops` wrap the statements after the
-fact, so a block without one is built as before). Bindings and `defer`
-suites thus drop in one last-in, first-out order, and the exit ladder
-and the cancellation record that serve `defer` serve drops too. Each
-`DropLocal` has a `drop_mode` row (always, by flag, or never); the
-checker writes `Always` for every one. The checker emits a
-`DropTemp` at the end of a statement, or of an `if` or `while`
-condition, for each owned value made there that no use takes
-(`hd_check/src/temps.rs`). Collection gives each `DropLocal`, `DropTemp`,
-and each `LocalSet` or `FieldSet` that overwrites an owned value, a call
-of `std.ownership.drop` at the dropped value's type, whose body the
-compiler supplies as the type's drop glue (`hd_mono/src/drops.rs`,
-`hd_structure/src/drop.rs`); emission keeps a flag per owned local that
-may drop (`hd_wasm/src/emit/drops.rs`).
 
 An exit (`Break`, `Continue`, `Return`, or falling off a scope) runs the
 registered suites of every `Scope` it leaves, innermost first. Which
@@ -972,20 +945,16 @@ The verifier checks each of these:
     earlier parameters, in order, and it precedes the call in the block.
 16. (Unused.)
 17. A `CallDyn` has one evidence operand per method-level bound.
-18. A `DropLocal` names a local whose type may need a drop, and exactly
-    one `Scope` lists it; `drop_mode` has one row per `DropLocal`. A
-    `DropTemp`'s operand may need a drop.
+18. (Unused.)
 19. (Unused.)
 
-Implementation differs: `verify` checks invariants 1 to 15, 17 and 18
+Implementation differs: `verify` checks invariants 1 to 15 and 17
 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
 `verify` alone.
 - **Partial checks.**
-  - 18: the types (may need a drop) only with the checker's facts
-    (`VerifyCx::owns`).
   - 1: only def-before-use.
   - 2: only block lists.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
@@ -1058,7 +1027,6 @@ with its per-item interface hash), for code keys.
 | tables | the body's own entry-local string, path and type tables; every `Symbol`, `DefId` and `Ty` in that body is a row in them |
 | item, kind | the item's path row, the body kind |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
-| ownership | `drop_mode`: only when it is not empty, so a body without drops encodes as before; the reader finds it before the hashed length ends |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs

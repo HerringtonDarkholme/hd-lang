@@ -1223,21 +1223,6 @@ Across a module cycle, `InitOrder(F)` orders statements from the
 summaries (`stages::cycle_order`;
 [§4.13.10](../hd_tir/DESIGN.md#41310-module-initialization)).
 
-### 8.5 Drops
-
-**Temporaries: at each statement's end, while checking.** When a
-statement, or the condition of an `if` or `while`, is checked, its
-instructions in the open block (`TirSink::statement_items`) are scanned
-for owned values that are not a place read (`temps.rs`). No type holds an
-owned value without an owned mode, so the scan finds none.
-One that every later use only lends, reads a field of, or stores into
-gets a `DropTemp`, newest first. A statement that holds no type with a
-mode skips the scan. A temporary that a later `return`, `break`,
-`continue`, `?` or closure in its statement could leave behind, or whose
-borrow the statement keeps, is an ownership gap until loans and frames
-land. A call or reference of `DropOwn.drop` or a method implementing it
-is `direct-drop-call`.
-
 ## 9. Omitted Result Types (M1)
 
 ### 9.1 Who Can Omit

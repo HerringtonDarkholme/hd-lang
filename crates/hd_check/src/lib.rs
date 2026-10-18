@@ -42,7 +42,6 @@ pub mod results;
 mod rows;
 pub mod stages;
 pub mod structure;
-mod temps;
 pub mod tests;
 mod trial;
 mod ty;

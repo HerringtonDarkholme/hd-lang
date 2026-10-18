@@ -1,7 +1,0 @@
-# test: a ^mut field makes no instance own by structure, so it needs a written impl OwnOnly
-data File:
-    fd: i32
-
-@derive(OwnOnly)
-data Writer[^a]:
-    file: ^{a} mut File  # diagnostic: own-field-plain-type

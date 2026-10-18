@@ -1,8 +1,0 @@
-# test: a plain field of an OwnOnly type is own-type-plain
-data File:
-    fd: i32
-
-impl OwnOnly for File
-
-data Log:
-    file: File  # diagnostic: own-type-plain

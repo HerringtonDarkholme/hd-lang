@@ -231,15 +231,8 @@ impl HeadKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ImplOrigin {
     Written,
-    Derived {
-        template: DefId,
-    },
-    /// `OwnOnly` by structure (`own.structure.declare`): a compiler rule,
-    /// not a row the solver matches; the ownership classifier reads it.
-    Structure,
-    Delegated {
-        field: u16,
-    },
+    Derived { template: DefId },
+    Delegated { field: u16 },
     Error,
     NumericFamily,
     TupleTemplate,
@@ -1329,7 +1322,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         return M::Yes;
     }
     // A lifetime argument that is one parameter takes the whole argument
-    // (`own.own-only.marker`).
+    // (`own.lifetime-arg.write`).
     if let TyData::Lifetimes(l) = pool.get(pat)
         && let [one] = pool.list_items(l)
         && matches!(pool.get(*one), TyData::Param(p) if p.owner == owner)

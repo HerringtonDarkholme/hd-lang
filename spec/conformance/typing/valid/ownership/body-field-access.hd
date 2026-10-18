@@ -3,8 +3,6 @@ data File:
     fd: i32
     name: string
 
-impl OwnOnly for File
-
 data Buffer:
     bytes: List[u8]
     label: string

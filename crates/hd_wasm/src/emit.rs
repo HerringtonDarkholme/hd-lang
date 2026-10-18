@@ -32,8 +32,6 @@ use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
-mod drops;
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Ctl {
     Plain,
@@ -109,13 +107,6 @@ struct Em<'a> {
     /// While a `using` binding's dispose suite is emitted: its suspension
     /// points are shielded from cancellation (flow.using.cancel).
     shield: u32,
-    /// Each owned local's drop flag (13-ownership.md, Drops; `drops`).
-    drop_flags: HashMap<u32, u32>,
-    /// Per `defer` suite: the owned locals it takes when it registers.
-    defer_takes: HashMap<u32, Vec<drops::Taken>>,
-    /// While a `defer` suite is emitted: the locals it took, each as its
-    /// snapshot's locals and flag.
-    taken: HashMap<u32, (Vec<u32>, u32)>,
     susp: Option<Susp>,
     /// An erased body's thunks (`crates/hd_mono/DESIGN.md` §13.5.1): the local holding
     /// its witness field, that field's struct type, and each open
@@ -286,9 +277,6 @@ impl Em<'_> {
 
     /// The Wasm locals of a body local.
     fn local(&mut self, l: u32) -> StageResult<Vec<u32>> {
-        if let Some((snap, _)) = self.taken.get(&l) {
-            return Ok(snap.clone());
-        }
         if let Some(Some(v)) = self.locals.get(l as usize) {
             return Ok(v.clone());
         }
@@ -751,7 +739,6 @@ impl Em<'_> {
                 // A local's first write with a value declares its Wasm
                 // locals there, written at declaration (#274).
                 let first = !self.cells.contains_key(&a)
-                    && !self.taken.contains_key(&a)
                     && bw != NONE
                     && !matches!(self.locals.get(a as usize), Some(Some(_)));
                 if first {
@@ -769,10 +756,6 @@ impl Em<'_> {
                     for l in &ls {
                         self.a.demote(*l);
                     }
-                } else {
-                    // An owned local that still holds a value drops it
-                    // first (13-ownership.md, Drops).
-                    self.drop_overwritten(i, a)?;
                 }
                 self.load_as(bw, &want)?;
                 if let Some(first) = self.cells.get(&a).copied() {
@@ -788,9 +771,6 @@ impl Em<'_> {
                     for l in ls.iter().rev() {
                         self.a.set(*l);
                     }
-                }
-                if bw != NONE {
-                    self.set_drop_flag(a, true);
                 }
             }
             Tag::Prim => self.prim(i, a, bw)?,
@@ -955,9 +935,6 @@ impl Em<'_> {
                         self.store_from(i, &vs)?;
                     }
                     Some(v) => {
-                        // An owned field's old value drops first
-                        // (13-ownership.md, Drops).
-                        self.drop_field(i, a, &st, start, &vs)?;
                         for (k, w) in vs.iter().enumerate() {
                             self.comp(a, 0, &VT::r(st.clone()))?;
                             self.comp(v, k, w)?;
@@ -1091,7 +1068,7 @@ impl Em<'_> {
                 self.a.s().unreachable();
             }
             Tag::Scope => {
-                if !self.scope_entries(bw).is_empty() {
+                if !self.rec(bw).is_empty() {
                     return self.scope(i, a, bw);
                 }
                 self.result(i)?;
@@ -1212,14 +1189,10 @@ impl Em<'_> {
                 self.store_from(i, &inner)?;
             }
             Tag::Hook => {}
-            // An owned local's registration: it holds its value from here.
-            Tag::DropLocal => self.set_drop_flag(a, true),
-            Tag::DropTemp => self.drop_temp(i, a)?,
             Tag::Defer => {
                 let Some(&f) = self.defer_flags.get(&a) else {
                     return unsupported("a `Defer` outside its scope");
                 };
-                self.take_into_suite(a)?;
                 self.a.i32(1);
                 self.a.set(f);
             }
@@ -4748,9 +4721,6 @@ impl<'a> Em<'a> {
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
             shield: 0,
-            drop_flags: HashMap::default(),
-            defer_takes: HashMap::default(),
-            taken: HashMap::default(),
             susp: None,
             ops: None,
             open_ctx: None,
@@ -5034,17 +5004,23 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// A `Scope` with `defer` suites or owned locals to drop: the exit
-    /// ladder (`crates/hd_mono/DESIGN.md` §12.2). Each suite has a
-    /// "registered" flag and each owned local a drop flag; every exit
-    /// stores its code and branches to the scope's end, which runs the
-    /// registered suites and drops the locals still holding a value, last
-    /// in, first out, then takes the exit.
+    /// A `Scope` with `defer` suites: the exit ladder
+    /// (`crates/hd_mono/DESIGN.md` §12.2). Each suite has a "registered"
+    /// flag; every exit stores its code and branches to the scope's end,
+    /// which runs the registered suites, last in, first out, then takes
+    /// the exit.
     fn scope(&mut self, i: u32, body: u32, rec: u32) -> StageResult<()> {
-        let entries = self.scope_entries(rec);
+        let entries = self.rec(rec);
         self.result(i)?;
         let code = self.a.local(VT::I32);
-        let flags = self.entry_flags(&entries);
+        let flags: Vec<u32> = entries
+            .iter()
+            .map(|&s| {
+                let f = self.a.local(VT::I32);
+                self.defer_flags.insert(s, f);
+                f
+            })
+            .collect();
         self.scopes.insert(
             i,
             ScopeInfo {
@@ -5062,13 +5038,7 @@ impl<'a> Em<'a> {
         })?;
         // A suite that holds a suspension point: a `using` binding's
         // `dispose!` (flow.using.suite-suspends).
-        let waits: Vec<Option<(u32, u32)>> = entries
-            .iter()
-            .map(|e| match e {
-                drops::Entry::Suite(s) => self.range(*s),
-                drops::Entry::Drop(..) => None,
-            })
-            .collect();
+        let waits: Vec<Option<(u32, u32)>> = entries.iter().map(|&s| self.range(s)).collect();
         if waits.iter().any(Option::is_some) {
             return self.waiting_scope(i, body, code, &entries, &flags, &waits);
         }
@@ -5083,11 +5053,32 @@ impl<'a> Em<'a> {
             self.a.get(*f);
             self.a.if_();
             self.open(Ctl::Plain);
-            self.run_entry(e)?;
+            self.run_suite(*e)?;
             self.ctrl.pop();
             self.a.end();
         }
         self.scope_exits(i, code)
+    }
+
+    /// The exit ladder's rung for `defer` suite `s`, whose flag is set.
+    fn run_suite(&mut self, s: u32) -> StageResult<()> {
+        if self.range(s).is_some() {
+            // A suite that waits is a `using` binding's `dispose!`, which
+            // runs under the driver (flow.using.not-forbidden), so it is no
+            // forbidden context; a count held across its wait would leak to
+            // others.
+            self.shield += 1;
+            let r = self.block_into(s, None);
+            self.shield -= 1;
+            return r;
+        }
+        // A `defer` suite is a forbidden context
+        // (`req.drive.block-on.indirect`): `block_on` reached from it
+        // panics. The suite cannot leave early, so the count balances.
+        self.forbid(1);
+        self.block_into(s, None)?;
+        self.forbid(-1);
+        Ok(())
     }
 
     /// The exit ladder of a scope with a suspending entry, a `using`
@@ -5100,7 +5091,7 @@ impl<'a> Em<'a> {
         i: u32,
         body: u32,
         code: u32,
-        entries: &[drops::Entry],
+        entries: &[u32],
         flags: &[u32],
         waits: &[Option<(u32, u32)>],
     ) -> StageResult<()> {
@@ -5129,7 +5120,7 @@ impl<'a> Em<'a> {
             self.open(Ctl::Plain);
             self.a.i32(0);
             self.a.set(*f);
-            self.run_entry(e)?;
+            self.run_suite(*e)?;
             self.ctrl.pop();
             self.a.end();
         }

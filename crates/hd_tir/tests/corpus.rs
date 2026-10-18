@@ -9,7 +9,7 @@ use hd_types::Ty;
 
 /// The checker's facts the rejection cases assume: type 77 is an enum of
 /// three variants, builtin impl 3 answers trait 50, method 60 has two
-/// bounds, item 70's row has one key, and only type 90 owns.
+/// bounds, and item 70's row has one key.
 struct CorpusFacts;
 
 impl VerifyCx for CorpusFacts {
@@ -24,9 +24,6 @@ impl VerifyCx for CorpusFacts {
     }
     fn row_keys(&self, callee: &Callee) -> Option<u32> {
         matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(70)).then_some(1)
-    }
-    fn owns(&self, ty: Ty) -> Option<bool> {
-        Some(ty == Ty(90))
     }
 }
 

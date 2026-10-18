@@ -11,10 +11,6 @@ fn connect!(host: string) -> Conn: sys_connect!(host)
 data File:
     fd: i32
 
-impl OwnOnly for File
-impl DropOwn for File:
-    fn drop(^mut self) -> void: sys_close(self.fd)
-
 fn open(path: string) -> File: File { fd: sys_open(path) }
 fn size(f: ^File) -> usize: sys_size(f.fd)
 fn archive(f: File) -> void: sys_copy(f.fd, "archive/")
@@ -59,8 +55,6 @@ data Export[^doc, ^out]:
     out: ^{out} mut File
     source: ^{doc} Document
 
-impl[^doc, ^out] OwnOnly for Export[^{doc}, ^{out}]
-
 fn export(d: ^Document, path: string) -> void:
     f := open(path)
     let job = Export { out: f, source: d }
@@ -68,8 +62,6 @@ fn export(d: ^Document, path: string) -> void:
 
 data Pool:
     idle: List[Conn]
-
-impl OwnOnly for Pool
 
 impl Pool:
     fn give(^mut self, c: Conn) -> void:
@@ -98,8 +90,6 @@ fn counter(c: ^Conn) -> ^{c} fn() -> usize:
 data Flusher[^f]:
     out: ^{f} mut File
     written: usize
-
-impl[^f] OwnOnly for Flusher[^{f}]
 
 fn first[T](items: ^List[T]) -> Option[^T]:
     items.at(0)

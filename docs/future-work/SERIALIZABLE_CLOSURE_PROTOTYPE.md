@@ -262,7 +262,7 @@ with its issue; no slice is done while it adds one for its own feature.
   host signatures: the structural types of `module.boundary.allowed`,
   minus mutable types, trait values, closures, live handles and moded
   types. Recursive data types take the least fixed point, memoized per
-  instance like the ownership classifier.
+  instance.
 - **Spec.** A rule in [Boundary-Safe Values](../../spec/lang/10-modules.md#boundary-safe-values)
   that `Boundary` is implemented exactly by boundary-safe types; the item
   in `spec/std/remote.md`.

@@ -1,6 +1,0 @@
-# test: a ^mut tuple element of a field needs an OwnOnly holder
-data Conn:
-    fd: i32
-
-data Pair[^a]:
-    both: (^{a} mut Conn, i32)  # diagnostic: own-field-plain-type
