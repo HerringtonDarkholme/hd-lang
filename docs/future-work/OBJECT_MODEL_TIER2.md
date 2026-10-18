@@ -795,13 +795,13 @@ fn first_token(path: &{} string) -> Token[{path}]:
 enum Expr[{s}]:
     Name(text: &{s} string)
     Num(value: f64)
-    Add(left: Expr[{s}], right: Expr[{s}])    # recursive: boxed, as in tier 1
+    Add(left: &Expr[{s}], right: &Expr[{s}])  # recursion through `&`, as in tier 1
 
 impl[{s}] Parser[{s}]:
-    fn expr(&{} mut self) -> Result[Expr[{s}], ParseError]:
-        let left = self.term()?
+    fn expr(&{} mut self) -> Result[&Expr[{s}], ParseError]:
+        let left = self.term()?               # a reference to the first term's node
         while self.eat('+'):                  # advances past a `+` token, if one is next
-            left = .Add(left, self.term()?)
+            left = &Expr.Add(left, self.term()?)   # a new node: `&` on a value allocates
         .Ok(left)
 ```
 

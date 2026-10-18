@@ -57,7 +57,7 @@ Wasm GC, is obsolete.
 | --- | --- | --- |
 | scalars, `bool`, `char` | Wasm values; packed in memory | no |
 | struct | its fields inline: several Wasm values in locals, parameters and results; fields inline in its parent; elements inline in a list buffer | no; its reference fields are counted one by one |
-| enum | tag and payload inline; a recursive enum's payload in a counted cell | the cell |
+| enum | tag and payload inline; recursion goes through a written `&`, a counted object | the referenced object |
 | `string` | a view: address and length of bytes inside a counted buffer, or inside the data segment for a literal; every empty string is one shared static value | the buffer |
 | `List[T]` | a value: a small header referring to a counted buffer of inline elements; copy-on-write; element references pin the buffer | the buffer: owners and pins, two counts |
 | `Map[K, V]` | a value: a counted table of inline entries, copy-on-write | the table |
@@ -353,8 +353,8 @@ Most hd values are never counted:
   page entry anyway (section 5) and skips static pages.
 
 What remains counted is what Go would put on its heap: strings built at
-run time, lists, maps, closures with captures, `dyn` values, boxed
-recursive enums, frames, and the cells that escaping references point
+run time, lists, maps, closures with captures, `dyn` values, the nodes
+of recursive types behind `&`, frames, and the cells that escaping references point
 into.
 
 ### 4.5 Cascading frees

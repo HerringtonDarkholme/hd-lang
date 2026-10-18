@@ -101,13 +101,18 @@ copy whose source is never used again is a move), and passes a value
 argument by pointer when nothing can change the source during the call
 (section 8).
 
-A struct may not contain itself through struct and tuple fields alone;
-a recursive type goes through a reference, an `Option[&T]` or a
-collection, as in Go and Rust. An enum that contains itself, such as an
-expression tree, is boxed implicitly: enum payloads are not places
-(section 6.1), so nobody can tell whether a payload is inline or in an
-immutable counted box. Such boxes are built bottom-up and never form a
-cycle.
+A struct or enum may not contain itself through value fields alone; a
+recursive type goes through a reference, an `Option[&T]` or a
+collection, as in Go, and as Rust goes through `Box`. Nothing is boxed
+behind the program's back: an expression tree writes its indirection.
+
+```text
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+e := Expr.Add(&Expr.Num(1), &Expr.Num(2))   # each `&` on a value allocates a counted object
+```
 
 **Equality and null.** A struct's `==` comes from `@derive(Eq)` or a
 written implementation; values have no `is`. There is no null:
@@ -145,11 +150,19 @@ r4 := &make_point()                   # not a place: a new object holding the re
 applies only to references. `==` between two references is an error
 with two fix-its, `r is s` and `*r == *s`: Go's `==` on pointers
 compares addresses and Rust's compares contents, so an agent from either
-would guess wrong half the time, and contents can recurse around a
-cycle. A derived `Eq` or `Hash`
-compares a reference field by identity, as Go's struct `==` compares
-pointer fields, and a map keyed by identity uses `Id[T]`, a wrapper
-whose `Eq` and `Hash` are the reference's identity.
+would guess wrong half the time.
+
+A derived `Eq` or `Hash` is structural through references: it compares
+and hashes what a reference field points to, so two expression trees
+built alike are equal, and an `Expr` can key a map. `is` keeps identity
+for code that needs it, and a map keyed by identity uses `Id[T]`, a
+wrapper whose `Eq` and `Hash` are the reference's identity. Structural
+comparison could run around a cycle forever, so `Eq` and `Hash` cannot
+be derived for a type that can be part of a cycle (one that can reach
+itself through a `&mut`, the same test the collector uses); such a type
+writes them by hand or keys by `Id[T]`. A hash computed through a
+`&mut` field changes when the object does, so mutable objects make poor
+map keys, as in every language.
 
 **Representation.** A reference into the middle of an object keeps the
 whole object alive: either a fat reference holds base and offset (one
@@ -753,7 +766,7 @@ tier 1 callers unchanged.
 | `List` and `Map` are shared objects; `mut List[T]` | values with copy-on-write; `&mut List[T]` to share |
 | a length change panics an iterator | `for x in xs` iterates a snapshot; element references and `for x in &mut xs` pin |
 | tuples have no places | tuples are anonymous structs; a `let` tuple's elements are places |
-| enums are immutable values; self-recursive payloads boxed | unchanged |
+| enums are immutable values; self-recursive payloads boxed | enums are immutable values; recursion is written with `&` |
 | `is` on `AnyRef` values | `is` on references only; `AnyRef` means reference types |
 | embedding with `...` part copies | an embedded struct is an inline field with promotion; every copy copies, so the markers go |
 | closures share captured storage; one `fn` type, no `mut` form | unchanged, plus per-iteration loop variables |
@@ -823,10 +836,10 @@ them. A std migration chunk that runs long splits into further jobs.
 | 1 | Grammar: `&T` and `&mut T` types, `&e`, `&mut e`, `&T { ... }`, prefix `*`; parser | a "Values And References" chapter skeleton and grammar productions; parse fixtures, valid and invalid |
 | 2 | `struct` values with mutable fields: literals, copies, field writes on `let mut`, `&mut` only from writable places, immutable `:=` and parameters | struct and copy rules; check and run fixtures, one per error |
 | 3 | References in the checker: forming them on places and non-places, writable places, `&mut` to `&`, transitive weakening, auto-dereference, `*r` | reference and writable-path rules; check fixtures per error, with fix-its |
-| 4 | Identity and equality: `is` on references only, `==` between references rejected, derived `Eq` and `Hash` by identity on reference fields, `Id[T]`, `Option[&T]` | identity rules; check and run fixtures |
+| 4 | Identity and equality: `is` on references only, `==` between references rejected, derived `Eq` and `Hash` structural through reference fields and refused for cycle-capable types, `Id[T]`, `Option[&T]` | identity rules; check and run fixtures |
 | 5 | Methods: `self`, `&self`, `&mut self`, auto-address, non-writable receivers, method sets in trait implementations | receiver rules; a fixture per error |
 | 6 | Trait values as `&dyn` and `&mut dyn`, boxing a value into an object, `AnyVal` and `AnyRef` redefined | trait value rules; fixtures |
-| 7 | Recursive types: the struct cycle error, implicit boxing of self-recursive enums, payloads not places | recursion rules; an invalid fixture per error |
+| 7 | Recursive types: the cycle error for structs and enums that contain themselves through values, recursion through `&`, payloads not places | recursion rules; an invalid fixture per error |
 | 8 | Lists and maps as copy-on-write values: element places, map values not addressable, snapshot `for` | std collection rules and `for` rules; run fixtures |
 | 9 | Element references and pins: `&xs[i]`, `for p in &mut xs`, `collection-pinned`, eager copy of a pinned list, release at last use | pin rules; a run fixture for each operation that panics and each that does not |
 | 10 | Closures: capture rules restated for values and cells, per-iteration loop variables | capture rules; run fixtures |
