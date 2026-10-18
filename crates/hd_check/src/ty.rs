@@ -529,6 +529,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             self.require_complete(t, c);
+            let t = self.with_key_bindings(t);
             data.keys.push(t);
         }
         Ok(self.pool().row(&data))
@@ -628,14 +629,24 @@ impl Ck<'_, '_> {
         t
     }
 
+    /// A key with the bindings its trait's supertrait lists fix added, so
+    /// `$ PriceFeed` and `$ PriceFeed[Item = i32]` are one key
+    /// (req.key.binding.identity.super).
+    fn with_key_bindings(&self, t: Ty) -> Ty {
+        let view = hd_resolve::assoc::LookupView {
+            lookup: self.cx.lookup,
+            names: &self.cx.names,
+        };
+        hd_resolve::assoc::with_super_bindings(self.pool(), &view, t)
+    }
+
     /// The type a requirement key names: a trait.
     pub(crate) fn key_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
         let t = self.ty_node_as(n, NameRole::Trait)?;
-        Ok(if self.inspectable_key(t, n) {
-            Ty::POISON
-        } else {
-            t
-        })
+        if self.inspectable_key(t, n) {
+            return Ok(Ty::POISON);
+        }
+        Ok(self.with_key_bindings(t))
     }
 
     pub(crate) fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {

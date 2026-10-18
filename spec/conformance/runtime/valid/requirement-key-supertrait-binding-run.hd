@@ -1,0 +1,47 @@
+# test: a provider given for $ PriceFeed covers a function naming $ PriceFeed[Item = i32], and the reverse
+# Spec 11 Bound Requirement Keys: req.key.binding.identity.super (owner decision D7).
+trait Feed:
+    type Item
+    fn latest(self) -> Self::Item
+
+trait PriceFeed < Feed[Item = i32]:
+    fn label(self) -> string
+
+data Quotes:
+    price: i32
+
+impl Feed for Quotes:
+    type Item = i32
+    fn latest(self) -> i32: self.price
+
+impl PriceFeed for Quotes:
+    fn label(self) -> string: "quotes"
+
+fn short_spelling() -> i32 $ PriceFeed:
+    $.use(PriceFeed).latest()
+
+fn long_spelling() -> i32 $ PriceFeed[Item = i32]:
+    $.use(PriceFeed[Item = i32]).latest()
+
+fn long_calls_short() -> i32 $ PriceFeed[Item = i32]:
+    short_spelling()
+
+fn short_calls_long() -> i32 $ PriceFeed:
+    long_spelling()
+
+fn long_provider() -> i32:
+    $.with(PriceFeed[Item = i32]=Quotes { price: 5 }):
+        short_calls_long() + long_calls_short()
+
+fn short_provider() -> i32:
+    $.with(PriceFeed=Quotes { price: 7 }):
+        long_spelling() + short_spelling()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a provider for the long spelling covers the short one"):
+        assert_equal(long_provider(), 10, reason="both spellings reach one provider")
+
+    it("a provider for the short spelling covers the long one"):
+        assert_equal(short_provider(), 14, reason="both spellings reach one provider")

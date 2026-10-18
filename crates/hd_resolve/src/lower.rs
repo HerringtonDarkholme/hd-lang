@@ -1792,6 +1792,7 @@ impl Lower<'_, '_, '_> {
             }
             if let Some(t) = self.trait_value_from(c, gn, None, found) {
                 self.require_complete(t, self.src.span(c));
+                let t = crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t);
                 data.keys.push(t);
             }
         }

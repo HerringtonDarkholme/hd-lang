@@ -1,0 +1,17 @@
+# test: a row alias and a function row name one key in either spelling when a supertrait fixes the binding
+# expect: accept
+# Spec 11 Bound Requirement Keys: req.key.binding.identity.super (owner decision D7).
+trait Feed:
+    type Item
+    fn latest(self) -> Self::Item
+
+trait PriceFeed < Feed[Item = i32]:
+    fn label(self) -> string
+
+type Prices = $ PriceFeed[Item = i32]
+
+fn short() -> i32 $ PriceFeed:
+    $.use(PriceFeed).latest()
+
+fn through_alias() -> i32 $ Prices:
+    short()

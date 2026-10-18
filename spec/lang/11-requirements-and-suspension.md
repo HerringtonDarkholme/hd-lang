@@ -634,10 +634,11 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings. So a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
 3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types. Order does not matter.
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
-5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
-6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `dyn Store[Item = User]` and its `load` returns `User`.
-7. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
-8. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
+5. r[req.key.binding.identity.super] A binding that the key's trait fixes through its supertrait list counts as written, as for a trait value ([`trait.dyn.binding.identity`](09-traits.md#r-trait.dyn.binding.identity)). So under `trait PriceFeed < Feed[Item = i32]`, `$ PriceFeed` and `$ PriceFeed[Item = i32]` are one key: a provider given for one covers a function that names the other, and `$.use` of either has the same provider value type.
+6. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
+7. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `dyn Store[Item = User]` and its `load` returns `User`.
+8. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
+9. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
 
 ```text
 trait Store:
