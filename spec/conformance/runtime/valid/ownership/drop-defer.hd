@@ -1,0 +1,42 @@
+# test: a defer suite holds the owned locals it reads from its registration and drops them right after it runs
+# expect-stdout: body
+# expect-stdout: size held
+# expect-stdout: closed held
+# expect-stdout: reassigned second
+# expect-stdout: size first
+# expect-stdout: closed first
+# expect-stdout: closed second
+# Spec 13 Drops: own.drop.defer, own.drop.order.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn size(f: ^File) -> i32:
+    log.push("size ${f.name}")
+    1
+
+fn deferred() -> void:
+    f := open("held")
+    defer: size(f)
+    log.push("body")
+
+fn reassigned() -> void:
+    let f = open("first")
+    defer: size(f)
+    f = open("second")
+    log.push("reassigned ${f.name}")
+
+pub fn main() -> void $ Console:
+    deferred()
+    reassigned()
+    for line in log:
+        println(line)

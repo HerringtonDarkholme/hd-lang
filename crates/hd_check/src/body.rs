@@ -2302,6 +2302,8 @@ impl Ck<'_, '_> {
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
+            // Owned temporaries drop at the end of their statement.
+            let stmt_mark = self.b.drop_mark();
             if dead {
                 self.diags.push(
                     Code::UnreachableCode,
@@ -2352,11 +2354,13 @@ impl Ck<'_, '_> {
                     Some(w) => self.coerce(r, t, w, e, "result", ExpectPosition::General),
                     None => r,
                 };
+                self.drop_temps(stmt_mark, Some(r), true);
                 tail = Some(r);
                 ty = want.unwrap_or(t);
                 continue;
             }
             let t = self.stmt(s, last && !value && self.fn_body == Some(block.index()))?;
+            self.drop_temps(stmt_mark, None, t != Ty::NEVER);
             diverged |= t == Ty::NEVER;
             if matches!(
                 s.kind(),
@@ -3831,6 +3835,7 @@ impl Ck<'_, '_> {
         self.fallback_rows(&open);
         self.mode_gate(n)?;
         if !self.prototype_limit && (0..n).any(|i| pool.has_mode(self.b.body_mut().ty[i])) {
+            self.check_drop_calls(n);
             self.settle_part_moves();
             if self.diags.errors_since(self.diag_start) == 0 {
                 self.check_moves(root)?;
@@ -4063,7 +4068,15 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
         u32::try_from(row.keys.len()).ok()
     }
     fn owns(&self, ty: Ty) -> Option<bool> {
-        Some(crate::own::holds_owned(self.cx.names.pool.types(), ty))
+        let pool = self.cx.names.pool.types();
+        // A type parameter may be owned at an instance (`own.bound.argument`).
+        if crate::own::holds_owned(pool, ty) {
+            Some(true)
+        } else if pool.has_param(ty) {
+            None
+        } else {
+            Some(false)
+        }
     }
 }
 

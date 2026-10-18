@@ -1,0 +1,49 @@
+# test: an owned temporary drops at the end of its statement, newest first; a condition's temporaries drop before its branch
+# expect-stdout: closed discarded
+# expect-stdout: after discard
+# expect-stdout: size lent-1
+# expect-stdout: size lent-2
+# expect-stdout: closed lent-2
+# expect-stdout: closed lent-1
+# expect-stdout: after lent
+# expect-stdout: size cond
+# expect-stdout: closed cond
+# expect-stdout: in branch
+# expect-stdout: archived moved
+# expect-stdout: closed moved
+# expect-stdout: after moved
+# Spec 13 Drops: own.drop.temporary, own.drop.condition.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn size(f: ^File) -> i32:
+    log.push("size ${f.name}")
+    1
+
+fn archive(f: own File) -> void:
+    log.push("archived ${f.name}")
+
+fn temps() -> void:
+    open("discarded")
+    log.push("after discard")
+    _ := size(open("lent-1")) + size(open("lent-2"))
+    log.push("after lent")
+    if size(open("cond")) > 0:
+        log.push("in branch")
+    archive(open("moved"))
+    log.push("after moved")
+
+pub fn main() -> void $ Console:
+    temps()
+    for line in log:
+        println(line)

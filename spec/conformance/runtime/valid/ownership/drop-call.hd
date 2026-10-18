@@ -1,0 +1,42 @@
+# test: drop(x) ends an owned value now; a type parameter with an own bound takes an owned argument and drops it, and a plain one drops nothing
+# expect-stdout: closed early
+# expect-stdout: after drop
+# expect-stdout: kept
+# expect-stdout: closed generic
+# expect-stdout: kept
+# expect-stdout: generic end
+# Spec 13 Drops: own.drop.call, own.bound.argument, own.drop.generic, own.drop.nothing.
+use std.ownership.drop
+
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn early() -> void:
+    f := open("early")
+    drop(f)
+    log.push("after drop")
+
+fn keep[T < own Any](value: T) -> void:
+    log.push("kept")
+
+fn generic() -> void:
+    keep(open("generic"))
+    keep(+3)
+    drop("plain")
+    log.push("generic end")
+
+pub fn main() -> void $ Console:
+    early()
+    generic()
+    for line in log:
+        println(line)

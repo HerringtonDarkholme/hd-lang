@@ -513,8 +513,15 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })
             .collect();
-        self.generic_vars
-            .extend(vars.iter().map(|&v| (v, n.index())));
+        // A parameter with an `own` bound takes an owned type argument
+        // (`own.bound.argument`); any other one an owned type solves waits
+        // for the ownership prototype's later slices.
+        self.generic_vars.extend(
+            vars.iter()
+                .zip(&sig.generics)
+                .filter(|(_, g)| !g.own_bound)
+                .map(|(&v, _)| (v, n.index())),
+        );
         vars
     }
 

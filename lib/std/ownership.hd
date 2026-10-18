@@ -12,3 +12,10 @@ pub trait OwnOnly
 ## See [own.drop-own.trait](../../spec/lang/13-ownership.md#r-own.drop-own.trait).
 pub trait DropOwn < OwnOnly:
     fn drop(^mut self) -> void
+
+@intrinsic("drop")
+## Ends `value` now: moves it in and drops it, which runs its type's `drop`
+## when the value owns; the compiler supplies the body at each type.
+## See [own.drop.call](../../spec/lang/13-ownership.md#r-own.drop.call).
+pub fn drop[T < own Any](value: T) -> void:
+    panic("intrinsic")

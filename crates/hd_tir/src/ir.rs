@@ -743,6 +743,9 @@ pub trait TirSink {
     fn drop_temp(&mut self, v: Ref, syn: NodeIdx);
     /// Marks where the open block's next statements start.
     fn drop_mark(&self) -> DropMark;
+    /// The open block's instructions since `m`, the statement just checked
+    /// when `m` marks its start; empty when another block is open.
+    fn statement_items(&self, m: DropMark) -> Vec<u32>;
     /// Wraps the open block's instructions since `m` into a `Scope` when
     /// one of them is a `DropLocal`; `None`, changing nothing, otherwise.
     fn close_drops(&mut self, m: DropMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Option<Ref>;
@@ -1057,6 +1060,15 @@ impl TirSink for TirBuilder {
             open: u32::try_from(self.open.len()).expect("open"),
             scratch: u32::try_from(self.scratch.len()).expect("scratch"),
         }
+    }
+    fn statement_items(&self, m: DropMark) -> Vec<u32> {
+        if m.open as usize != self.open.len() {
+            return Vec::new();
+        }
+        self.scratch
+            .get(m.scratch as usize..)
+            .unwrap_or_default()
+            .to_vec()
     }
     fn close_drops(&mut self, m: DropMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Option<Ref> {
         assert_eq!(m.open as usize, self.open.len(), "drops close in order");

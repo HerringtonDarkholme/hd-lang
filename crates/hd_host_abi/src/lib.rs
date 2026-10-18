@@ -569,6 +569,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("dbg_write", Lowering::Compiler),
     ("repl_write", Lowering::Compiler),
     ("dbg_show", Lowering::Compiler),
+    ("drop", Lowering::Compiler),
     ("map_hash_seed", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),
     ("format_f32", Lowering::HostPrimitive("format_f32")),

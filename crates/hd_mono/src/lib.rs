@@ -7,6 +7,7 @@
 //! emission never selects again. Reads TIR and interfaces only, never
 //! syntax. Bodies of every package (std included) are collected alike.
 
+mod drops;
 pub mod erased;
 pub mod layout;
 pub mod plan;
@@ -35,6 +36,13 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
     fn body(&self, def: DefId) -> Option<&Body>;
+    /// `std.ownership`'s `DropOwn` trait, its `drop` method, and the `drop`
+    /// function whose body the compiler supplies at each type, which every
+    /// drop calls (spec/lang/13-ownership.md, Drops); `None` without them.
+    fn drop_items(&self) -> Option<(DefId, DefId, DefId)>;
+    /// The body of `drop[ty]`: `ty`'s drop glue, which first calls the
+    /// implementation `drop_impl` of `DropOwn` when it has one.
+    fn drop_body(&self, ty: Ty, drop_impl: Option<DefId>) -> StageResult<Body>;
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
@@ -992,6 +1000,9 @@ struct Cx<'a> {
     /// Each body's plan, once per build: by item, and by self type for a
     /// compiler-supplied body.
     plans: HashMap<(DefId, Option<Ty>), Option<Arc<BodyPlan>>>,
+    /// Whether dropping a value of a concrete type runs a `drop`
+    /// (`drops::has_glue`), for the build.
+    glue: HashMap<Ty, bool>,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -1381,7 +1392,10 @@ impl Cx<'_> {
                 || pinned.get(k - own_from).copied().unwrap_or(false)
                 || is_class_ref(self.pool, t)
                 || matches!(self.pool.get(t), TyData::Row(_))
-                || self.env.body(def).is_none();
+                || self.env.body(def).is_none()
+                // Types without a destructor keep sharing one body; one
+                // with drop glue gets its own (13-ownership.md, Drops).
+                || self.has_glue(t);
             a.push(
                 if !exact && a1_class(self.pool, self.env, t)? == A1Class::Ref {
                     class_ref(self.pool)
@@ -1402,6 +1416,13 @@ impl Cx<'_> {
             .filter(|k| matches!(k.as_str(), "dbg" | "dbg_show"))
         {
             return self.dbg_target(def, &key, args, parent);
+        }
+        // `drop(x)` is the drop glue of `x`'s type.
+        if self.env.intrinsic(def).as_deref() == Some("drop") {
+            let Some(&t) = self.pool.list_items(args).first() else {
+                return err("a `drop` without its type argument");
+            };
+            return self.glue_call(def, t, parent);
         }
         // Every other intrinsic goes through the backend's lowering table,
         // even when its std declaration has a source body. That body is only
@@ -2120,7 +2141,7 @@ impl Cx<'_> {
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let map = match pool.get(map) {
-            TyData::Mut(x) => x,
+            TyData::Mut(x) | TyData::Own(x) | TyData::Borrow { ty: x, .. } => x,
             _ => map,
         };
         let TyData::Adt { args, .. } = pool.get(map) else {
@@ -2264,6 +2285,27 @@ impl Cx<'_> {
             match body.tags[i] {
                 Tag::CallHost => {
                     self.out.imports.insert(a);
+                }
+                // Drops (13-ownership.md): a scope's drop of an owned local,
+                // a statement-end temporary, and the old value a store
+                // replaces each call the glue of the dropped value's type.
+                Tag::DropLocal | Tag::DropTemp | Tag::LocalSet | Tag::FieldSet => {
+                    // Only a type with a mode in it, after substitution, can
+                    // hold an owned value.
+                    let Some(t) = drop_ty(pool, env, body, i) else {
+                        continue;
+                    };
+                    if !pool.has_mode(t) && !pool.has_param(t) {
+                        continue;
+                    }
+                    let t = s(t);
+                    if !pool.has_mode(t) {
+                        continue;
+                    }
+                    if let Some(t) = self.drop_target(t, id)? {
+                        self.hash_target(&t, &mut reps);
+                        calls.insert(ix, Target::Call(t));
+                    }
                 }
                 Tag::Call | Tag::Await => {
                     let Some(c) = Callee::from_words(body.record(a)) else {
@@ -2544,6 +2586,42 @@ impl Cx<'_> {
     }
 }
 
+/// The type of the value instruction `i` drops, before substitution: a
+/// `DropLocal`'s local, a `DropTemp`'s operand, the local a `LocalSet`
+/// overwrites, or the field a `FieldSet` overwrites.
+fn drop_ty(pool: &InternPool, env: &dyn ProgramEnv, body: &Body, i: usize) -> Option<Ty> {
+    let [a, b] = body.data[i];
+    let t = match body.tags[i] {
+        Tag::DropLocal | Tag::LocalSet => *body.local_ty.get(a as usize)?,
+        Tag::DropTemp => value_ty(body, a),
+        Tag::FieldSet => {
+            // The stored value has the field's type: a plain one skips the
+            // declaration.
+            let v = value_ty(body, *body.record(b).get(1)?);
+            if !pool.has_mode(v) && !pool.has_param(v) {
+                return None;
+            }
+            let mut base = value_ty(body, a);
+            while let TyData::Own(x) | TyData::Mut(x) | TyData::Borrow { ty: x, .. } =
+                pool.get(base)
+            {
+                base = x;
+            }
+            let TyData::Adt { def, args } = pool.get(base) else {
+                return None;
+            };
+            let field = *body.record(b).first()?;
+            let declared = *env.data_fields(def)?.get(field as usize)?;
+            let argv = pool.list_items(args);
+            pool.subst(declared, &|p: ParamRef| {
+                (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
+            })
+        }
+        _ => return None,
+    };
+    Some(t)
+}
+
 /// The instructions an instance of `sub` does not reach: those inside a
 /// generic local function's body (`sub_flags::GENERIC`) that is neither
 /// `sub` nor a sub enclosing it, so the instance's arguments bind none of
@@ -2821,6 +2899,7 @@ pub fn collect(
         externs: HashMap::default(),
         planner,
         plans: HashMap::default(),
+        glue: HashMap::default(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {

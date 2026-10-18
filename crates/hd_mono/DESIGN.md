@@ -224,6 +224,16 @@ instance.
 | `Await*` | the state machine (§14) |
 | `Hook` | nothing, except in hook builds (§14.7) |
 
+**Drops** (13-ownership.md, Drops). A `Scope`'s record also lists
+`DropLocal`s; each one whose drop mode is not `Never` and whose type has
+glue (§13.2) is a rung of the same ladder, guarded by a drop flag: zeroed
+where the scope starts, set where the local takes a value, cleared where
+it moves. A `defer` suite copies the owned locals it reads into
+snapshots where it registers, reads those, and drops what it did not move
+right after it runs. An assignment drops the old value first when the
+flag is set, and a store into a field with glue drops the field's old
+value first.
+
 **The exit ladder.** Each `Scope` with a `Defer` gets one:
 
 1. Every suite gets a "registered" flag local, set at its `Defer`.
@@ -743,7 +753,13 @@ one non-null reference, `REF?` for one nullable reference, or the scalar
 or `void` class. `REF` and `REF?` stay apart because `T?` differs between
 them: a nullable reference for `REF`, a tag and a reference for `REF?`.
 So `List[Point].push` and `List[User].push` are one instance, emitted,
-cached and compiled once. The callees of a class instance see the class
+cached and compiled once. A type argument with **drop glue** stays exact
+(design 6.4's drop-aware folding): a concrete type has glue when it
+implements `DropOwn` or holds by value a part that has glue, so dropping
+it runs some `drop`. Every drop of a value with glue calls the instance of
+`std.ownership.drop` at its type, keyed with no class, whose TIR the
+compiler supplies from the type's declaration (`ProgramEnv::drop_body`):
+its `drop`, then each part as a statement-end temporary. The callees of a class instance see the class
 as their argument too. The rule reads only the item's signature, its own
 body and the argument's layout, so it is type-only. With bounds decided
 by the signature, only closure types still read the body. At 10k lines the compile study

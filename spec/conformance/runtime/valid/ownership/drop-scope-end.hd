@@ -1,0 +1,61 @@
+# test: owned locals drop at their scope's end, newest first; parameters drop after the body's locals; a value's drop runs before its fields drop
+# expect-stdout: inner end
+# expect-stdout: closed c
+# expect-stdout: outer end
+# expect-stdout: closed b
+# expect-stdout: closed a
+# expect-stdout: params p q
+# expect-stdout: closed local
+# expect-stdout: closed q
+# expect-stdout: closed p
+# expect-stdout: parts end
+# expect-stdout: closed pair
+# expect-stdout: closed first
+# expect-stdout: closed second
+# Spec 13 Drops: own.drop.scope, own.drop.order, own.drop.run, own.drop.parts.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+data Pair:
+    first: own File
+    count: i32
+    second: own File
+
+impl OwnOnly for Pair
+
+impl DropOwn for Pair:
+    fn drop(^mut self) -> void:
+        log.push("closed pair")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn scopes(inner: bool) -> void:
+    _a := open("a")
+    _b := open("b")
+    if inner:
+        _c := open("c")
+        log.push("inner end")
+    log.push("outer end")
+
+fn params(p: own File, q: own File) -> void:
+    _local := open("local")
+    log.push("params ${p.name} ${q.name}")
+
+fn parts() -> void:
+    let own _pair = Pair { first: open("first"), count: 2, second: open("second") }
+    log.push("parts end")
+
+pub fn main() -> void $ Console:
+    scopes(true)
+    params(open("p"), open("q"))
+    parts()
+    for line in log:
+        println(line)

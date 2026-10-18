@@ -1,0 +1,50 @@
+# test: a local moved on some paths only drops on the paths that keep it, exactly once
+# expect-stdout: archived kept-true
+# expect-stdout: closed kept-true
+# expect-stdout: end true
+# expect-stdout: end false
+# expect-stdout: closed kept-false
+# expect-stdout: archived round-1
+# expect-stdout: closed round-1
+# expect-stdout: closed round-2
+# expect-stdout: rounds end
+# expect-stdout: closed round-3
+# Spec 13 Drops: own.drop.moved.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn archive(f: own File) -> void:
+    log.push("archived ${f.name}")
+
+fn maybe_archive(keep: bool) -> void:
+    f := open("kept-${keep}")
+    if keep:
+        archive(f)
+    log.push("end ${keep}")
+
+fn rounds() -> void:
+    let f = open("round-1")
+    let i = +1
+    while i < 3:
+        if i == 1:
+            archive(f)
+        i = i + 1
+        f = open("round-${i}")
+    log.push("rounds end")
+
+pub fn main() -> void $ Console:
+    maybe_archive(true)
+    maybe_archive(false)
+    rounds()
+    for line in log:
+        println(line)

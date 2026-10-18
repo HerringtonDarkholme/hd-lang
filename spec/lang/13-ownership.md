@@ -12,15 +12,17 @@ owned, or borrowed.
 > [Specification Status](../README.md#specification-status) requires.
 >
 > So far the chapter checks marks in declarations, ownership by structure,
-> the modes values meet in bodies, moves, the prototype's limits, and
-> providers and boundaries. Drops and loans are not specified yet.
+> the modes values meet in bodies, moves, drops, the prototype's limits,
+> and providers and boundaries. Loans are not specified yet.
 >
 > A body is diagnosed when it holds a value of a type parameter with an
-> `own` bound, passes a moded type argument, or names a lifetime. So is a
-> moded value that a closure captures, that a pattern, `for`, or a
-> built-in method reads, or that a suspending body holds. A
-> borrow in a plain position and a lifetime named by a requirement key are
-> diagnosed too.
+> `own` bound, passes a moded type argument to a type parameter without
+> one, or names a lifetime. So is a moded value that a closure captures,
+> that a pattern, `for`, or a built-in method reads, or that a suspending
+> body holds. So is an owned temporary that a `return`, `break`,
+> `continue`, or `?` could leave behind. A borrow in a
+> plain position and a lifetime named by a requirement key are diagnosed
+> too.
 
 ## Modes
 
@@ -214,6 +216,7 @@ fn label[T < own Named & Any](x: ^T) -> string: x.name()
 
 1. r[own.bound.own] `own` comes first in a bound list, where `mut` may stand, as in `T < own Any`.
 2. r[own.bound.one-mark] A bound list takes `own` or `mut`, not both. Error: `syntax-error`.
+3. r[own.bound.argument] A type parameter with an `own` bound takes an owned type argument, and a call infers it from an owned argument, as `drop(file)` does ([own.drop.call](#r-own.drop.call)).
 
 ## Modes In Declarations
 
@@ -691,6 +694,89 @@ fn load() -> own Buffer:
 > reached; a `^` local lends the value to it instead.
 
 See also: [Modes In Bodies](#modes-in-bodies).
+
+## Drops
+
+An owned value is **dropped** when its owner gives it up without moving it:
+its type's `drop` runs, then the parts it owns drop.
+
+```text
+use std.ownership.drop
+
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+fn size(f: ^File) -> i32: 1
+fn archive(f: own File) -> void: pass
+
+fn report(keep: bool) -> void:
+    let a = open("a.log")
+    b := open("b.log")
+    if keep:
+        archive(b)                    # `b` moves: this path does not drop it
+    _ := size(open("tmp.log"))        # the temporary drops at the end of the line
+    a = open("c.log")                 # drops "a.log" first
+    drop(a)                           # drops "c.log" now
+    log.push("end")                   # then `b` drops here, unless it moved
+```
+
+### When A Value Drops
+
+1. r[own.drop.scope] An owned local that holds its value when its scope ends is dropped there. A parameter's scope is its function's body.
+2. r[own.drop.exits] A scope ends at its normal end, and at each `return`, `break`, `continue`, or failing `?` that leaves it.
+3. r[own.drop.moved] A local that moved does not drop. When it moved on some paths only, it drops on the other paths, so its value drops exactly once.
+4. r[own.drop.order] At a scope's end, its owned locals drop and its registered `defer` suites run in reverse order of declaration and registration. A body's parameters drop after its locals, the last parameter first.
+5. r[own.drop.assign] An assignment to an owned local that holds its value drops the old value. The new value is computed first, and the old value drops before the store.
+6. r[own.drop.assign-field] An assignment to a field whose type owns, through an owned value or a `^mut` borrow, drops the field's old value before the store.
+7. r[own.drop.temporary] An owned value that its statement makes, and that no binding, owned position, store, or result takes, is a **temporary**. It drops at the end of its statement, the newest temporary first.
+8. r[own.drop.condition] The condition of an `if`, `else if`, or `while` counts as a statement of its own, so its temporaries drop before a branch runs.
+9. r[own.drop.defer] A `defer` suite holds the owned locals it takes when it registers ([own.move.defer](#r-own.move.defer)). What it holds and does not move drops right after the suite runs, the newest local first.
+10. r[own.drop.generic] A local whose type holds a value of a type parameter with an `own` bound, outside any borrow, drops as an owned local does when its type argument owns.
+11. r[own.drop.panic] A panic runs no `drop`.
+
+### What A Drop Runs
+
+1. r[own.drop.run] Dropping a value of a type that implements `DropOwn` first calls its `drop` on the value.
+2. r[own.drop.parts] Then the value's parts drop in order: a data type's fields in declaration order, the payloads of the variant an enum value holds, an optional's payload, and a tuple's elements.
+3. r[own.drop.elements] A list's elements drop in index order, and a map's values in its iteration order.
+4. r[own.drop.nothing] A value whose type has no `drop` and owns no part drops nothing. A borrow never drops the value it refers to.
+
+### Ending A Value Early
+
+1. r[own.drop.call] `std.ownership.drop(value)` takes its argument by move and drops it. Its type parameter has an `own` bound, so a plain argument is allowed and drops nothing.
+2. r[own.drop.direct] A call or reference of a type's `drop` method is an error; it runs only when a value drops. Error: `direct-drop-call`.
+
+```text
+data File:
+    fd: i32
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void: pass
+
+fn open() -> own File: File { fd: 3 }
+
+fn close_twice() -> void:
+    f := open()
+    f.drop()                          # error: direct-drop-call
+```
+
+> **Why.** The compiler knows where each owner gives its value up, so a
+> destructor runs there, once, with no `close` protocol to forget. A flag
+> decides at run time only where a move happens on some paths, as in Rust.
+> Calling `drop` by hand would run it a second time at the scope's end.
+
+See also: [Moves](#moves), [Ownership Traits](#ownership-traits).
 
 ## Prototype Limits
 

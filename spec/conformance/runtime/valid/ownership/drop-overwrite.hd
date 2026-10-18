@@ -1,0 +1,41 @@
+# test: assigning an owned local or an owned field drops the old value first (review U10's reassignment drops the first file)
+# expect-stdout: closed first
+# expect-stdout: holds second
+# expect-stdout: closed second
+# expect-stdout: closed old
+# expect-stdout: field holds new
+# expect-stdout: closed new
+# Spec 13 Drops: own.drop.assign, own.drop.assign-field.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+data Holder:
+    file: own File
+
+impl OwnOnly for Holder
+
+fn open(name: string) -> own File: File { name: name }
+
+fn replace_owned() -> void:
+    let file = open("first")
+    file = open("second")
+    log.push("holds ${file.name}")
+
+fn replace_field() -> void:
+    let own h = Holder { file: open("old") }
+    h.file = open("new")
+    log.push("field holds ${h.file.name}")
+
+pub fn main() -> void $ Console:
+    replace_owned()
+    replace_field()
+    for line in log:
+        println(line)

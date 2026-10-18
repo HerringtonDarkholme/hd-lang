@@ -43,8 +43,10 @@
 //! carried: `doc` is `.None`.
 
 mod dbg;
+mod drop;
 
 pub use dbg::{show_body as dbg_show_body, values_body as dbg_values_body};
+pub use drop::{DropImpl, drop_body};
 
 use hd_base::{DefId, LocalId, NodeIdx, NotImplemented, Stage, StageResult};
 use hd_intern::PathKind;

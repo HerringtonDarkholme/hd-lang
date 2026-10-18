@@ -459,10 +459,36 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether `t` holds a value of a type parameter with an `own` bound
+    /// outside any borrow, as `T`, `T?` or `(T, i32)`: an instance may make
+    /// it owned (`own.bound.argument`).
+    fn holds_own_param(&self, t: Ty) -> bool {
+        if self.own_params.is_empty() {
+            return false;
+        }
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        match pool.get(t) {
+            TyData::Param(p) => self.own_params.contains(&p),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => self.holds_own_param(i),
+            TyData::Tuple { elems, rest } => pool
+                .list_items(elems)
+                .iter()
+                .chain(rest.iter())
+                .any(|&e| self.holds_own_param(e)),
+            TyData::Adt { args, .. } => pool
+                .list_items(args)
+                .iter()
+                .any(|&a| self.holds_own_param(a)),
+            _ => false,
+        }
+    }
+
     /// Registers local `l`'s drop where it is bound, when its type `t`
-    /// holds an owned value (the TIR's `DropLocal`).
+    /// holds an owned value, or one an instance may make owned (the TIR's
+    /// `DropLocal`).
     pub(crate) fn register_drop(&mut self, l: hd_base::LocalId, t: Ty, at: hd_base::NodeIdx) {
-        if self.owned_part(t) {
+        if self.owned_part(t) || self.holds_own_param(t) {
             self.b.drop_local(l, at);
         }
     }
@@ -545,5 +571,57 @@ impl Ck<'_, '_> {
         }
         self.prototype_limit |= !found.is_empty();
         self.prototype_limit
+    }
+}
+
+impl Ck<'_, '_> {
+    /// Whether `def` is `DropOwn.drop` or a method that implements it.
+    fn is_drop_method(&self, def: hd_base::DefId) -> bool {
+        let drop_own = self.cx.names.known.drop_own;
+        let Some(hd_resolve::ItemData::Method { owner, .. }) =
+            self.cx.lookup.item(def).map(|i| &i.data)
+        else {
+            return false;
+        };
+        if *owner == drop_own {
+            return true;
+        }
+        matches!(
+            self.cx.lookup.item(*owner).map(|i| &i.data),
+            Some(hd_resolve::ItemData::Impl { trait_, .. }) if *trait_ == drop_own
+        )
+    }
+
+    /// `own.drop.direct`: a type's `drop` runs only when a value is dropped,
+    /// so a call or reference of it in a body is an error.
+    pub(crate) fn check_drop_calls(&mut self, n: usize) {
+        let mut found = Vec::new();
+        for i in 0..n {
+            let body = self.b.body_mut();
+            let def = match body.tags[i] {
+                Tag::Call => match Callee::from_words(body.record(body.data[i][0])) {
+                    Some(Callee::Item { def, .. }) => def,
+                    Some(Callee::TraitMethod { method, .. }) => method,
+                    None => continue,
+                },
+                Tag::ItemRef => match body.record(body.data[i][0]).first() {
+                    Some(&d) => hd_base::DefId::from_raw(d),
+                    None => continue,
+                },
+                _ => continue,
+            };
+            let at = body.syn[i];
+            if at != hd_base::NodeIdx::NONE && self.is_drop_method(def) {
+                found.push(at);
+            }
+        }
+        for at in found {
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(
+                Code::DirectDropCall,
+                node,
+                "a type's `drop` runs only when one of its values is dropped; end the value with `std.ownership.drop(value)` instead",
+            );
+        }
     }
 }

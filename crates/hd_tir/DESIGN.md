@@ -757,8 +757,15 @@ ownership pass lists them in the `moves` column and decides each
 `finish`. The pass (`hd_check/src/moves.rs`) runs on a body with marks
 and no errors; any other body keeps `Always` for every mode. A `defer`
 moves the owned locals its suite reads where it registers, so the
-suite's own non-lent reads are listed as moves too. Emission runs
-nothing for these forms yet.
+suite's own non-lent reads are listed as moves too. The checker emits a
+`DropTemp` at the end of a statement, or of an `if` or `while`
+condition, for each owned value made there that no use takes
+(`hd_check/src/temps.rs`). Collection gives each `DropLocal`, `DropTemp`,
+and each `LocalSet` or `FieldSet` that overwrites an owned value, a call
+of `std.ownership.drop` at the dropped value's type, whose body the
+compiler supplies as the type's drop glue (`hd_mono/src/drops.rs`,
+`hd_structure/src/drop.rs`); emission keeps a flag per owned local that
+may drop (`hd_wasm/src/emit/drops.rs`).
 
 An exit (`Break`, `Continue`, `Return`, or falling off a scope) runs the
 registered suites of every `Scope` it leaves, innermost first. Which

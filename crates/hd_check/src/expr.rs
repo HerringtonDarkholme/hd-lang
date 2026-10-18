@@ -2501,8 +2501,11 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
+        // A condition's owned temporaries drop before its branch runs.
+        let cm = self.b.drop_mark();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+        self.drop_temps(cm, None, true);
         let first_flow = self.take_cond_flow(cond);
         // `flow.if.value.else`: an `if` used where a value is required
         // must have an `else`. A function-body tail is exempt: there the
@@ -2539,8 +2542,10 @@ impl Ck<'_, '_> {
                 let (c, (when_true, when_false)) = if let Some(first) = flow.take() {
                     first
                 } else {
+                    let cm = this.b.drop_mark();
                     let (c, ct) = this.expr(cond, Some(Ty::BOOL))?;
                     this.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+                    this.drop_temps(cm, None, true);
                     (c, this.take_cond_flow(cond))
                 };
                 // Each branch starts from the condition's `when_true` or
@@ -2635,8 +2640,10 @@ impl Ck<'_, '_> {
             && !Self::has_break(body);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
+        let cm = self.b.drop_mark();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+        self.drop_temps(cm, None, true);
         let (when_true, when_false) = self.take_cond_flow(cond);
         self.loops.push((lp, result));
         let tb = self.b.open_block();

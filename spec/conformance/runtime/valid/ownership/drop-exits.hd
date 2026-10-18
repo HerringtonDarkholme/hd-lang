@@ -1,0 +1,58 @@
+# test: a scope's owned locals drop on return, break, continue and a failing ?, from the innermost scope out
+# expect-stdout: closed ret-b
+# expect-stdout: closed ret-a
+# expect-stdout: closed ret-a
+# expect-stdout: closed loop-0
+# expect-stdout: closed loop-1
+# expect-stdout: after loop
+# expect-stdout: closed try-false
+# expect-stdout: closed try-true
+# Spec 13 Drops: own.drop.exits, own.drop.scope.
+let log: mut List[string] = []
+
+data File:
+    name: string
+
+impl OwnOnly for File
+
+impl DropOwn for File:
+    fn drop(^mut self) -> void:
+        log.push("closed ${self.name}")
+
+fn open(name: string) -> own File: File { name: name }
+
+fn returns(early: bool) -> i32:
+    _a := open("ret-a")
+    if early:
+        _b := open("ret-b")
+        return 1
+    2
+
+fn loops() -> void:
+    let i = +0
+    while i < 3:
+        _f := open("loop-${i}")
+        i = i + 1
+        if i == 1:
+            continue
+        if i == 2:
+            break
+        log.push("unreached")
+    log.push("after loop")
+
+fn step(ok: bool) -> Result[i32, string]:
+    if ok: .Ok(1) else: .Err("failed")
+
+fn tries(ok: bool) -> Result[i32, string]:
+    _f := open("try-${ok}")
+    n := step(ok)?
+    .Ok(n)
+
+pub fn main() -> void $ Console:
+    _ := returns(true)
+    _ := returns(false)
+    loops()
+    _ := tries(false)
+    _ := tries(true)
+    for line in log:
+        println(line)

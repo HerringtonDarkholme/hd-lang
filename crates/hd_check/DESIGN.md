@@ -1241,6 +1241,19 @@ results are `use-after-move` (deduplicated by instruction),
 `Always` when no drop point finds it moved, `Never` when none finds it
 holding, `Flag` otherwise. Each visited instruction charges body fuel.
 
+**Temporaries: at each statement's end, while checking.** When a
+statement, or the condition of an `if` or `while`, is checked, its
+instructions in the open block (`TirSink::statement_items`) are scanned
+for owned values that are not a place read (`temps.rs`,
+[`own.drop.temporary`](../../spec/lang/13-ownership.md#r-own.drop.temporary)).
+One that every later use only lends, reads a field of, or stores into
+gets a `DropTemp`, newest first. A statement that holds no type with a
+mode skips the scan. A temporary that a later `return`, `break`,
+`continue`, `?` or closure in its statement could leave behind, or whose
+borrow the statement keeps, is an ownership gap until loans and frames
+land. A call or reference of `DropOwn.drop` or a method implementing it
+is `direct-drop-call`.
+
 ## 9. Omitted Result Types (M1)
 
 ### 9.1 Who Can Omit

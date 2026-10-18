@@ -89,6 +89,10 @@ pub struct KnownItems {
     pub error: DefId,
     // std.ownership
     pub own_only: DefId,
+    pub drop_own: DefId,
+    /// `std.ownership.drop`, whose body the compiler supplies at each type:
+    /// it is every owned value's drop glue (13-ownership.md, Drops).
+    pub drop: DefId,
     // std.task
     pub suspend: DefId,
     pub block_on: DefId,
@@ -203,6 +207,8 @@ impl KnownItems {
             shl: item("std.ops", "Shl"),
             shr: item("std.ops", "Shr"),
             own_only: item("std.ownership", "OwnOnly"),
+            drop_own: item("std.ownership", "DropOwn"),
+            drop: item("std.ownership", "drop"),
             eq: item("std.cmp", "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),
