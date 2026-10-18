@@ -5,7 +5,7 @@ stdout: commands:
 stdout:   (none)     open the REPL, or run standard input when it is not a terminal
 stdout:   FILE       run FILE as a single-file program, which may use only std
 stdout:   FILE.wasm  run a module that hd build wrote
-stdout:   repl       run a REPL session from the inputs of a file
+stdout:   --repl     run a REPL session whose inputs are the lines of FILE
 stdout:   build      build the package's executables, or the module of one FILE in the package
 stdout:   run        run the package's executable, or the executable or task named NAME
 stdout:   test       run the test cases of the package, or of FILE

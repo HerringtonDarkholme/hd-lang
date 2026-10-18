@@ -808,12 +808,12 @@ stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":null,"file":
 A session case judges one REPL session. Its directory holds the inputs of the
 session in a file and the expected transcript in another, and its
 `expect.txt` has a step that runs
-[`hd repl --script`](../cli/command-line.md#r-cli.repl.script) on the first
+[`hd --repl`](../cli/command-line.md#r-cli.repl.script) on the first
 and judges standard output against the second:
 
 ```sh
 cli/repl-value/
-  expect.txt       # run: hd repl --script session.in
+  expect.txt       # run: hd --repl session.in
                    # transcript: transcript.txt
   session.in       # one line typed at the prompt per line
   transcript.txt   # the expected standard output

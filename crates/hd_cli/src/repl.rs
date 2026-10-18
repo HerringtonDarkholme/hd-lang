@@ -204,7 +204,7 @@ pub(crate) fn command() -> ExitCode {
     }
 }
 
-/// The lines of a session script (`hd repl --script`): each input line is
+/// The lines of a session script (`hd --repl FILE`): each input line is
 /// echoed after its prompt, as a terminal shows what a user typed, so the
 /// standard output is the session's transcript (`cli.repl.script.echo`).
 struct ScriptLines {
@@ -230,7 +230,7 @@ impl Lines for ScriptLines {
     fn remember(&mut self, _line: &str) {}
 }
 
-/// `hd repl --script FILE` (`cli.repl.script`): a session over the lines of
+/// `hd --repl FILE` (`cli.repl.script`): a session over the lines of
 /// `file`, in the package around the working directory or outside any
 /// package, until the end of `file` or `:quit`.
 pub(crate) fn script(file: &Path) -> ExitCode {

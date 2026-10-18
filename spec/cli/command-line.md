@@ -30,7 +30,7 @@ says which program a command starts. Its diagnostic codes are in the
 | Command | Effect |
 | --- | --- |
 | `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
-| `hd repl [--engine NAME] --script FILE` | runs a [REPL session](#session-scripts) whose inputs are the lines of FILE, with no terminal |
+| `hd --repl [--engine NAME] FILE` | runs a [REPL session](#session-scripts) whose inputs are the lines of FILE, with no terminal |
 | `hd [--release] [--engine NAME] FILE` | runs FILE as a [single file](#single-files), in the [build profile](#build-profiles) its flag selects, on the [engine](#engines) NAME |
 | `hd [--engine NAME] FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
 | `hd run [--release] [--engine NAME]`, `hd run [--release] [--engine NAME] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
@@ -1475,15 +1475,15 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 ### Session Scripts
 
 ```sh
-hd repl --engine wasmtime --script session.in
+hd --repl --engine wasmtime session.in
 ```
 
-1. r[cli.repl.script] `hd repl --script FILE` runs a REPL session without a terminal. It reads the session's inputs from FILE, a UTF-8 text file, and ends the session at the end of FILE or at `:quit`. The session starts in the package around the working directory, as `hd` does on a terminal.
+1. r[cli.repl.script] `hd --repl FILE` runs a REPL session without a terminal. It reads the session's inputs from FILE, a UTF-8 text file, and ends the session at the end of FILE or at `:quit`. The session starts in the package around the working directory, as `hd` does on a terminal.
 2. r[cli.repl.script.lines] Each line of FILE, without its LF or CRLF line end, is one line typed at the prompt. So a line that continues an input, and the empty line that ends a block, are lines of FILE.
 3. r[cli.repl.script.echo] Before the session runs a line it has read, it writes the prompt, one space, and the line to standard output, then LF. The prompt is `hd>` for the first line of an input and `...` for each line that continues it. An empty line shows its prompt alone. Standard output is then the session's transcript.
 4. r[cli.repl.script.output] Everything else the session writes goes where a terminal session sends it, by [`cli.repl.value.stream`](#r-cli.repl.value.stream) and [`cli.dbg.repl`](#r-cli.dbg.repl), after the echo of the line that started the input.
 5. r[cli.repl.script.exit] The command exits 0 when the session ends, whether or not an input panicked or was rejected. A FILE that cannot be read, or a session scope that cannot load, is [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-6. r[cli.repl.script.engine] `hd repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag`](#r-cli.engine.flag), and [`cli.engine.select`](#r-cli.engine.select) picks the engine. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
+6. r[cli.repl.script.engine] `hd --repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag`](#r-cli.engine.flag), and [`cli.engine.select`](#r-cli.engine.select) picks the engine, except that with neither `--engine` nor `HD_ENGINE` the session runs on the engine of the terminal REPL. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
 
 > **Note.** A script is how a [conformance CLI case](../conformance/README.md#session-cases)
 > tests the session rules, since a case runs `hd` with a closed standard

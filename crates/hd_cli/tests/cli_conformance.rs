@@ -86,7 +86,7 @@ fn runtime_command(words: &[String]) -> Option<(usize, bool)> {
     let index = 0;
     match before.get(index)?.as_str() {
         "test" => Some((index, true)),
-        "run" | "repl" => Some((index, false)),
+        "run" | "--repl" => Some((index, false)),
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
         | "build" | "check" => None,
         _ if before.iter().any(|w| {
@@ -130,14 +130,14 @@ fn select_engine(
         engine
     } else if let Some(engine) = mode.forced_engine() {
         // Keep `run` as the command; standalone files allow leading options.
-        let at = if matches!(words[command].as_str(), "run" | "test" | "repl") {
+        let at = if matches!(words[command].as_str(), "run" | "test" | "--repl") {
             command + 1
         } else {
             0
         };
         selected.splice(at..at, ["--engine".to_owned(), engine.to_owned()]);
         engine
-    } else if words[command] == "repl" {
+    } else if words[command] == "--repl" {
         // A session names its engine in every mode, so a mode that leaves
         // program commands alone still judges the session on one engine.
         let engine = if fallback.is_empty() {
