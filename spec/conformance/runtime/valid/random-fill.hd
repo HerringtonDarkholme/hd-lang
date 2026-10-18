@@ -1,6 +1,7 @@
-# test: token_hex returns the covering provider's fill bytes as lowercase hex text, two digits per byte
-# Spec std/random Random Source: std-random.token-hex (stdlib audit design finding 14).
-use std.random.{Random, token_hex}
+# test: the free fill returns the covering provider's fill bytes, and hex_encode of it is the token
+# Spec std/random Random Source: std-random.fill-free (stdlib redesign #474).
+use std.encoding.hex_encode
+use std.random.{Random, SeededRandom, fill}
 
 data FixedBytes:
     bytes: List[u8]
@@ -15,12 +16,12 @@ impl Random for FixedBytes:
         out
 
 fn session() -> string $ Random:
-    token_hex(4)
+    hex_encode(fill(4))
 
 tests:
     use std.testing.assert_equal
 
-    it("token_hex is the lowercase hex of fill"):
+    it("fill is the covering provider's bytes"):
         let mut source = FixedBytes { bytes: [0, 15, 171, 255] }
         let made = ""
         $.with(Random=source):
@@ -28,12 +29,11 @@ tests:
         assert_equal(made, "000fabff", reason="two lowercase digits per byte")
 
     it("the count is the number of bytes"):
-        let mut source = FixedBytes { bytes: [1, 2, 3, 4, 5, 6] }
-        let made = ""
+        let mut source = SeededRandom::new(7)
+        let eight = 0
+        let none = 1
         $.with(Random=source):
-            made = token_hex(6)
-        assert_equal(made, "010203040506", reason="six bytes, twelve digits")
-        let none = ""
-        $.with(Random=source):
-            none = token_hex(0)
-        assert_equal(none, "", reason="no bytes, no digits")
+            eight = fill(8).len()
+            none = fill(0).len()
+        assert_equal(eight, 8, reason="eight bytes")
+        assert_equal(none, 0, reason="no bytes")

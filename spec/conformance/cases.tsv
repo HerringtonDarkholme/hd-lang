@@ -2441,7 +2441,7 @@ runtime/panic/rng-int-empty-range.hd	runtime	panic:explicit-panic	std/random.md#
 runtime/valid/rng-shuffle-choose-sample.hd	runtime	accept	std/random.md#lists
 runtime/panic/rng-sample-too-many.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.sample.count
 runtime/valid/rng-from-random.hd	runtime	accept	std/random.md#rng
-runtime/valid/random-token-hex.hd	runtime	accept	std/random.md#random-source
+runtime/valid/random-fill.hd	runtime	accept	std/random.md#random-source
 runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text

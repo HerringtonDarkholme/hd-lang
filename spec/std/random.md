@@ -27,7 +27,7 @@ pub trait Random:
 3. r[std-random.fill] `fill(count)` returns `count` values of that source, as bytes.
 4. r[std-random.plain] Both methods are plain calls, not bang calls.
 5. r[std-random.mut] Both take `mut self`, so `Random` is a mutable requirement trait and a seeded provider may advance its own state.
-6. r[std-random.token-hex] `std.random` declares `pub fn token_hex(count: usize) -> string $ Random`. It returns `fill(count)` of the `Random` provider that covers the call, as lowercase hex text with two digits per byte.
+6. r[std-random.fill-free] `std.random` declares `pub fn fill(count: usize) -> List[u8] $ Random`. It returns `fill(count)` of the `Random` provider that covers the call.
 
 ```text
 use std.random.Random
@@ -40,9 +40,9 @@ fn roll() -> u64 $ Random:
 > does, so it needs no driver. A test installs a seeded provider, and
 > replay records each draw at the boundary.
 
-> **Note.** `Random.fill` and `token_hex` are the calls for a secret, such
-> as a session token, because the default host provider draws from the
-> system source. An [`Rng`](#rng) repeats for one seed, so it is never a
+> **Note.** `Random.fill` and the free `fill` are the calls for a secret,
+> such as a session token (`hex_encode(fill(16))`), because the default
+> host provider draws from the system source. An [`Rng`](#rng) repeats for one seed, so it is never a
 > source of secrets.
 
 > **Note.** A property test's random draws also come from a `Random`
