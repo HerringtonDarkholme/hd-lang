@@ -610,7 +610,6 @@ fn name_into(
         | TyData::Param(_)
         | TyData::Infer(_)
         | TyData::Canon(_)
-        | TyData::Own(_)
         | TyData::Borrow { .. }
         | TyData::Lifetime(_)
         | TyData::Lifetimes(_) => {
@@ -1205,7 +1204,6 @@ impl Cx<'_> {
             | TyData::Param(_)
             | TyData::Infer(_)
             | TyData::Canon(_)
-            | TyData::Own(_)
             | TyData::Borrow { .. }
             | TyData::Lifetime(_)
             | TyData::Lifetimes(_) => {}
@@ -2159,7 +2157,7 @@ impl Cx<'_> {
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let map = match pool.get(map) {
-            TyData::Mut(x) | TyData::Own(x) | TyData::Borrow { ty: x, .. } => x,
+            TyData::Mut(x) | TyData::Borrow { ty: x, .. } => x,
             _ => map,
         };
         let TyData::Adt { args, .. } = pool.get(map) else {
@@ -2620,9 +2618,7 @@ fn drop_ty(pool: &InternPool, env: &dyn ProgramEnv, body: &Body, i: usize) -> Op
                 return None;
             }
             let mut base = value_ty(body, a);
-            while let TyData::Own(x) | TyData::Mut(x) | TyData::Borrow { ty: x, .. } =
-                pool.get(base)
-            {
+            while let TyData::Mut(x) | TyData::Borrow { ty: x, .. } = pool.get(base) {
                 base = x;
             }
             let TyData::Adt { def, args } = pool.get(base) else {

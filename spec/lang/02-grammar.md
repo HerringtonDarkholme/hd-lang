@@ -166,10 +166,10 @@ simple_statement = let_statement
                  | expression_statement
                  ;
 
-let_statement = "let", [ "own" ], pattern, [ ":", type ], "=",
+let_statement = "let", pattern, [ ":", type ], "=",
                 closed_expression ;
 
-let_else_statement = "let", [ "own" ], pattern, [ ":", type ], "=",
+let_else_statement = "let", pattern, [ ":", type ], "=",
                      closed_expression, "else", ":", suite_body ;
 
 using_statement = "using", identifier, [ ":", type ], "=",
@@ -479,7 +479,7 @@ value_parameter = identifier, ":", type, [ "=", expression ]
                 | identifier, "...", ":", type
                 ;
 
-receiver_parameter = [ "mut" | "own" | "^", [ "mut" ] ], "self" ;
+receiver_parameter = [ "mut" | "^", [ "mut" ] ], "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
@@ -694,7 +694,7 @@ type_default = "=", type_argument ;
 variance = "+" | "-" ;
 lifetime_parameter = "^", identifier ;
 
-trait_bounds = [ "mut" | "own" ], bound_trait_type, { "&", bound_trait_type } ;
+trait_bounds = [ "mut" ], bound_trait_type, { "&", bound_trait_type } ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = type_argument, { ",", type_argument },
@@ -810,8 +810,7 @@ type = reference_access_type, { "?" }
      ;
 
 reference_access_type = [ "mut" | type_mode ], reference_type ;
-type_mode = "own"
-          | "^", [ lifetime_set ], [ "mut" ] ;
+type_mode = "^", [ lifetime_set ], [ "mut" ] ;
 lifetime_set = "{", lifetime, { ",", lifetime }, [ "," ], "}" ;
 lifetime = ( identifier | "self" ), { ".", identifier }
          | "$", qualified_name ;
@@ -868,7 +867,7 @@ requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = bound_trait_type ;
 ```
 
-`type_mode`, `lifetime_parameter`, and `lifetime_argument` write ownership
+`type_mode`, `lifetime_parameter`, and `lifetime_argument` write borrow
 marks, which [Mark Syntax](13-ownership.md#mark-syntax) specifies.
 
 ### Requirement Clauses

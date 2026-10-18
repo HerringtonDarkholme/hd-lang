@@ -2,24 +2,23 @@
 data File:
     fd: i32
 
-data Holder:
-    file: own File
-    view: ^File
-    files: own List[own File]
+data Holder[^a]:
+    view: ^{a} File
+    files: List[^{a} File]
 
-enum Outcome:
-    Done(file: own File)
-    Seen(^File)
+enum Outcome[^a]:
+    Done(file: ^{a} mut File)
+    Seen(^{a} File)
 
-fn parameter(f: own File, g: ^File, h: ^mut File) -> void: pass
+fn parameter(g: ^File, h: ^mut File) -> void: pass
 
-fn result() -> own File: File { fd: 1 }
+fn result(f: ^File) -> ^File: f
 
-fn tuple() -> (own File, ^File, i32): (result(), result(), 0)
+fn tuple(f: ^File) -> (^File, i32): (f, 0)
 
-fn callback(run: fn(^File) -> own File, done: own fn() -> void) -> fn(own File) -> ^File: run
+fn callback(run: fn(^File) -> i32, done: ^fn() -> void) -> fn(^File) -> i32: run
 
-fn local(f: own File) -> void:
+fn local(f: File) -> void:
     let view: ^File = f
-    let pair: (own File, i32) = (result(), 0)
-    let back: Option[own File] = .None
+    let pair: (^File, i32) = (f, 0)
+    let back: Option[^File] = .None

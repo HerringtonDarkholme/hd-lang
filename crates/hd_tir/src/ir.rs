@@ -531,9 +531,6 @@ pub struct Body {
     /// none (`flow.panic.report.fallback`). Sorted by instruction. A
     /// location-like column, outside the hash: it changes no code.
     pub fallback: Vec<[u32; 2]>,
-    /// The instructions that move an owned place: a `LocalGet` or `Field`
-    /// no `Lend` wraps, sorted. Written at `finish` by the ownership pass.
-    pub moves: Vec<u32>,
     /// One row per `DropLocal`, in instruction order: how its local drops.
     pub drop_mode: Vec<DropMode>,
 }
@@ -565,7 +562,6 @@ impl Body {
             strings: vec![],
             label: "".into(),
             fallback: vec![],
-            moves: vec![],
             drop_mode: vec![],
         }
     }
@@ -918,12 +914,6 @@ impl TirBuilder {
         self.finish_checked(root, capture_modes, tolerated, Some(cx))
     }
 
-    /// The ownership pass's moves: the `LocalGet` and `Field`
-    /// instructions that move an owned place, sorted.
-    pub fn set_moves(&mut self, moves: Vec<u32>) {
-        self.body.moves = moves;
-    }
-
     /// The ownership pass's drop modes, one per `DropLocal` in
     /// instruction order.
     pub fn set_drop_modes(&mut self, modes: Vec<DropMode>) {
@@ -1236,9 +1226,7 @@ impl VerifyError {
 /// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
 /// the checker's facts ([`VerifyCx`], [`verify_in`]), and 3's `Hole` and
 /// `Poison` half the module's errors ([`poison_sites`]).
-pub const CHECKED_INVARIANTS: &[u8] = &[
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19,
-];
+pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18];
 
 /// What the verifier reads from the checker for the invariants a body
 /// alone cannot show (`crates/hd_tir/DESIGN.md` §4.13.11): read-only facts
@@ -1257,7 +1245,7 @@ pub trait VerifyCx {
     /// the callee's row is closed (invariant 8).
     fn row_keys(&self, callee: &Callee) -> Option<u32>;
     /// Whether a value of `ty` holds an owned value, and so may need a
-    /// drop; `None` when unknown (invariants 18 and 19).
+    /// drop; `None` when unknown (invariant 18).
     fn owns(&self, ty: Ty) -> Option<bool> {
         let _ = ty;
         None
@@ -1275,8 +1263,7 @@ pub trait VerifyCx {
 ///   impl plus one) names one of the callee's trait;
 /// - 17: a `CallDyn` has one evidence operand per method-level bound;
 /// - 18: a `DropLocal` names a local, and a `DropTemp` a value, whose type
-///   owns;
-/// - 19: each move names an owned place.
+///   owns.
 pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
     let mut errs = verify(b);
     let ty_of = |v: u32| {
@@ -1369,17 +1356,6 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
                 err(18, "DropTemp of a value that needs no drop".into());
             }
             _ => {}
-        }
-    }
-    for &m in &b.moves {
-        if let Some(&t) = b.ty.get(m as usize)
-            && cx.owns(t) == Some(false)
-        {
-            errs.push(VerifyError {
-                invariant: 19,
-                inst: m,
-                what: "a move of a place that is not owned".into(),
-            });
         }
     }
     errs
@@ -1613,9 +1589,8 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
     errs
 }
 
-/// Invariants 18 and 19 from the body alone: each `DropLocal` names a
-/// local, is listed by exactly one `Scope`, and has one `drop_mode` row;
-/// `moves` is sorted and names `LocalGet` and `Field` instructions.
+/// Invariant 18 from the body alone: each `DropLocal` names a local, is
+/// listed by exactly one `Scope`, and has one `drop_mode` row.
 fn ownership_forms(b: &Body, errs: &mut Vec<VerifyError>) {
     let mut listed = vec![0u32; b.len()];
     for (i, &tag) in b.tags.iter().enumerate() {
@@ -1661,17 +1636,6 @@ fn ownership_forms(b: &Body, errs: &mut Vec<VerifyError>) {
                 b.drop_mode.len()
             ),
         });
-    }
-    for (k, &m) in b.moves.iter().enumerate() {
-        let ok = matches!(b.tags.get(m as usize), Some(Tag::LocalGet | Tag::Field))
-            && (k == 0 || b.moves[k - 1] < m);
-        if !ok {
-            errs.push(VerifyError {
-                invariant: 19,
-                inst: m,
-                what: "a move names no place, or moves are not sorted".into(),
-            });
-        }
     }
 }
 
@@ -1936,9 +1900,6 @@ pub fn print(b: &Body) -> String {
     for [inst, local] in &b.fallback {
         let _ = writeln!(o, "fallback {inst} {local}");
     }
-    if !b.moves.is_empty() {
-        let _ = writeln!(o, "moves {}", words(&b.moves));
-    }
     if !b.drop_mode.is_empty() {
         let modes: Vec<u32> = b.drop_mode.iter().map(|m| *m as u32).collect();
         let _ = writeln!(o, "dropmode {}", words(&modes));
@@ -2075,7 +2036,6 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
             }
             "extra" => b.extra = nums(1)?,
-            "moves" => b.moves = nums(1)?,
             "dropmode" => {
                 b.drop_mode = nums(1)?
                     .into_iter()

@@ -49,7 +49,7 @@ mod tag {
     pub const ROW: u8 = 14;
     pub const ROW_TY: u8 = 15;
     pub const CONTEXT: u8 = 16;
-    pub const OWN: u8 = 17;
+    // 17 was an owned type, `own T`; it is not reused.
     pub const BORROW: u8 = 18;
     pub const LIFETIME: u8 = 19;
     pub const LIFETIMES: u8 = 20;
@@ -231,7 +231,6 @@ impl<'a> TableWriter<'a> {
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
             TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
             TyData::Context(r) => (tag::CONTEXT, vec![self.row_id(r)?]),
-            TyData::Own(i) => (tag::OWN, vec![self.ty(i)?]),
             TyData::Borrow {
                 ty,
                 mutable,
@@ -354,7 +353,6 @@ impl Tables {
                     .0
                 }
                 tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
-                tag::OWN => pool.intern_ty(&TyData::Own(Ty(row(0)?))).0,
                 tag::BORROW => {
                     pool.intern_ty(&TyData::Borrow {
                         ty: Ty(row(0)?),

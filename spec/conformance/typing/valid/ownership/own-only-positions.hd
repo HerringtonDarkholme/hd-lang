@@ -1,4 +1,4 @@
-# test: every use of an OwnOnly type writes own or ^, and an OwnOnly holder may have own fields
+# test: every use of an OwnOnly type writes ^ or ^mut, and an OwnOnly holder may have ^mut fields
 data File:
     fd: i32
 
@@ -10,26 +10,23 @@ impl DropOwn for File:
 impl File:
     fn peek(^self) -> usize: 0
     fn reset(^mut self) -> void: pass
-    fn release(own self) -> void: pass
 
-data Pool:
-    idle: own List[own File]
-    first: own File?
+data Pool[^a]:
+    idle: List[^{a} File]
+    first: ^{a} mut File?
 
-impl OwnOnly for Pool
+impl[^a] OwnOnly for Pool[^{a}]
 
 data Writer[^out]:
     out: ^{out} mut File
 
 impl[^out] OwnOnly for Writer[^{out}]
 
-fn open(path: string) -> own File: panic("stub")
-
 fn size(f: ^File) -> usize: 0
 
-fn adopt(pool: ^mut Pool, f: own File) -> void: pass
+fn adopt(pool: ^mut Pool[^], f: ^File) -> void: pass
 
-fn writer(f: ^mut File) -> own Writer[^]: panic("stub")
+fn writer(f: ^mut File) -> ^Writer[^]: panic("stub")
 
 pub fn main() -> void:
     pass

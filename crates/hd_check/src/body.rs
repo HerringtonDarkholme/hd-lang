@@ -216,37 +216,20 @@ pub(crate) struct Ck<'a, 'c> {
     pub rets: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
-    /// The type parameters with an `own` bound (`own.bound.own`).
-    pub own_params: Vec<ParamRef>,
     /// Where a value of a moded type met a form a later section of
     /// 13-ownership.md checks.
     pub mode_gap: Option<hd_base::NodeIdx>,
     /// Whether the body met a form the ownership prototype rejects
     /// (`own.limit.*`), which then stands for every later form's gap.
     pub prototype_limit: bool,
-    /// The diagnostics before this body's, so move checking runs only
-    /// over a body without errors of its own.
-    pub diag_start: hd_diag::DiagMark,
-    /// Owned values met in a plain field or payload of a construction,
-    /// which move there when the construction becomes owned
-    /// (`own.move.part`); decided when the body is finished.
-    pub part_moves: Vec<(Ref, hd_base::NodeIdx, String)>,
-    /// Whether the value being coerced fills a part: a field or payload
-    /// of a construction (`Some(false)`), or a store into a plain field
-    /// of an owned value (`Some(true)`).
-    pub own_part: Option<bool>,
     /// The type variables of generic calls: one that a moded type solves
-    /// waits for owned type arguments (13-ownership.md).
+    /// waits for a later section of 13-ownership.md.
     pub generic_vars: Vec<(Ty, hd_base::NodeIdx)>,
-    /// The `let own` being checked (`own.body.let-own`).
-    pub let_own: bool,
     /// The `using` binding being checked (`flow.using.access`).
     pub using_bind: bool,
     /// The locals bound with `using`, which are not reassignable
     /// (`flow.using.binding`).
     pub using_locals: Vec<LocalId>,
-    /// The structure summaries this body read (`own.structure.owns`).
-    pub structure: crate::own::StructureMemo,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -497,7 +480,6 @@ pub(crate) fn new_ck<'a, 'c>(
     diags: &'c mut DiagBuf,
 ) -> Ck<'a, 'c> {
     let pool = cx.names.pool;
-    let diag_start = diags.mark();
     let mut ck = Ck {
         cx,
         local,
@@ -511,17 +493,11 @@ pub(crate) fn new_ck<'a, 'c>(
         memo: BodyMemo::default(),
         rets: vec![ret],
         gens: Vec::new(),
-        own_params: Vec::new(),
         mode_gap: None,
         prototype_limit: false,
-        diag_start,
-        part_moves: Vec::new(),
-        own_part: None,
         generic_vars: Vec::new(),
-        let_own: false,
         using_bind: false,
         using_locals: Vec::new(),
-        structure: crate::own::StructureMemo::default(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -1303,9 +1279,6 @@ impl Ck<'_, '_> {
             let index = u16::try_from(offset + i).unwrap_or(u16::MAX);
             let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             self.gens.push((g.name, p));
-            if g.own_bound {
-                self.own_params.push(ParamRef { owner, index });
-            }
             if g.row {
                 self.row_gens
                     .push((g.name, hd_types::RowParamRef { owner, index }));
@@ -1543,18 +1516,9 @@ impl Ck<'_, '_> {
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
-        // 13-ownership.md Modes In Bodies: owned and borrowed values.
-        if !joined {
-            let part = match what {
-                "field" | "payload" => Some(false),
-                _ => self.own_part,
-            };
-            let outer = std::mem::replace(&mut self.own_part, part);
-            let moded = self.coerce_mode(r, g, w, n);
-            self.own_part = outer;
-            if let Some(r) = moded {
-                return r;
-            }
+        // 13-ownership.md Modes In Bodies: borrowed values.
+        if !joined && let Some(r) = self.coerce_mode(r, g, w, n) {
+            return r;
         }
         if !joined && self.check_upgrade(got, want, n, what) {
             return r;
@@ -3126,9 +3090,8 @@ impl Ck<'_, '_> {
                     return unsupported("a field without a base");
                 };
                 let (br, bt) = self.expr(base, None)?;
-                // An owner and a `^mut` borrow store with mutable access
+                // A `^mut` borrow stores with mutable access
                 // (`own.body.field-read`).
-                let owner = bt;
                 let bt = self.mode_view(bt);
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
@@ -3175,14 +3138,7 @@ impl Ck<'_, '_> {
                     }
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;
-                        // `own.move.part`: an owned value moves into a
-                        // plain field of an owned value.
-                        let into_owner = self.owned_base(owner)?.then_some(true);
-                        let outer = std::mem::replace(&mut self.own_part, into_owner);
-                        let v = self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General);
-                        self.own_part = outer;
-                        self.store_fresh(owner, ft, v, *rhs)?;
-                        v
+                        self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let cur = self.b.emit(Tag::Field, br.0, idx, ft, lhs.index());
@@ -3449,10 +3405,6 @@ impl Ck<'_, '_> {
                 });
                 self.normalize(x).unwrap_or(x)
             }
-            TyData::Own(i) => {
-                let i = self.zonk(i);
-                pool.intern_ty(&TyData::Own(i))
-            }
             TyData::Borrow {
                 ty,
                 mutable,
@@ -3626,29 +3578,19 @@ impl Ck<'_, '_> {
     }
 
     /// The forms of a body that later sections of 13-ownership.md check
-    /// stay `unsupported`: a value of a type parameter with an `own`
-    /// bound, a generic call that a moded type argument solves, a closure
-    /// that captures a moded local, a moded value in a body that
-    /// suspends, and a moded value meeting a form no section checks yet.
-    /// A body that met a form the prototype rejects (`own.limit.*`) reports
-    /// that instead.
+    /// stay `unsupported`: a generic call that a moded type argument
+    /// solves, a closure that captures a moded local, a moded value in a
+    /// body that suspends, and a moded value meeting a form no section
+    /// checks yet. A body that met a form the prototype rejects
+    /// (`own.limit.*`) reports that instead.
     fn mode_gate(&mut self, n: usize) -> StageResult<()> {
         let pool = self.pool();
-        let body = self.b.body_mut();
-        let own_param = (0..n).find(|&i| {
-            let t = body.ty[i];
-            let mut ps = Vec::new();
-            if !self.own_params.is_empty() && pool.has_param(t) {
-                crate::inst_cycles::params_in(pool, t, &mut ps);
-            }
-            body.tags[i] != Tag::Block && ps.iter().any(|p| self.own_params.contains(p))
-        });
-        let moded = (0..n).find(|&i| pool.has_mode(body.ty[i]));
         // A form the prototype rejects is the body's diagnostic for it.
-        if moded.is_some() && self.prototype_limits(n) || self.prototype_limit {
+        if self.prototype_limit {
             return Ok(());
         }
         let body = self.b.body_mut();
+        let moded = (0..n).find(|&i| pool.has_mode(body.ty[i]));
         let waits = |t: Tag| {
             matches!(
                 t,
@@ -3668,8 +3610,7 @@ impl Ck<'_, '_> {
                     && !matches!(pool.get(t), TyData::Lifetimes(_) | TyData::Lifetime(_))
             })
             .map(|(_, at)| *at);
-        let at = own_param
-            .or(cleanup)
+        let at = cleanup
             .map(|i| body.syn[i])
             .or(generic)
             .or(self.mode_gap)
@@ -3853,10 +3794,6 @@ impl Ck<'_, '_> {
         self.mode_gate(n)?;
         if !self.prototype_limit && (0..n).any(|i| pool.has_mode(self.b.body_mut().ty[i])) {
             self.check_drop_calls(n);
-            self.settle_part_moves();
-            if self.diags.errors_since(self.diag_start) == 0 {
-                self.check_moves(root)?;
-            }
         }
         let ret = self.zonk(ret);
         for i in 0..n {
@@ -4084,16 +4021,9 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
         }
         u32::try_from(row.keys.len()).ok()
     }
-    fn owns(&self, ty: Ty) -> Option<bool> {
-        let pool = self.cx.names.pool.types();
-        // A type parameter may be owned at an instance (`own.bound.argument`).
-        if crate::own::holds_owned(pool, ty) {
-            Some(true)
-        } else if pool.has_param(ty) {
-            None
-        } else {
-            Some(false)
-        }
+    fn owns(&self, _ty: Ty) -> Option<bool> {
+        // With no owned mode, no value holds an owned one.
+        Some(false)
     }
 }
 

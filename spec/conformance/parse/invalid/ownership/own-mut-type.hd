@@ -1,5 +1,0 @@
-# test: own already grants mutation, so own mut T is not a type
-data File:
-    fd: i32
-
-fn reset(f: own mut File) -> void: pass  # diagnostic: syntax-error

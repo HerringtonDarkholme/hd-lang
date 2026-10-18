@@ -1,8 +1,0 @@
-# test: an own type argument of a type that is OwnOnly neither by structure nor for every instance is own-in-plain-type
-data Conn:
-    fd: i32
-
-data Box[T]:
-    item: T
-
-fn keep(b: own Box[own Conn]) -> void: pass  # diagnostic: own-in-plain-type

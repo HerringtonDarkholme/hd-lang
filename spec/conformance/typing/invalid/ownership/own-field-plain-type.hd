@@ -1,6 +1,0 @@
-# test: an own field needs an OwnOnly holder
-data File:
-    fd: i32
-
-data Holder:
-    file: own File  # diagnostic: own-field-plain-type

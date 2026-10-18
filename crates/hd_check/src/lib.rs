@@ -33,7 +33,6 @@ mod join;
 mod literals;
 mod local;
 mod modes;
-mod moves;
 mod own;
 mod pat;
 mod privacy;

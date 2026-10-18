@@ -1,5 +1,0 @@
-# test: a type takes one mark, so own ^T combines two
-data File:
-    fd: i32
-
-fn keep(f: own ^File) -> void: pass  # diagnostic: syntax-error

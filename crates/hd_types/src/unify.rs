@@ -253,7 +253,6 @@ impl InferTable {
             },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
-            TyData::Own(i) => TyData::Own(r(i)),
             TyData::Borrow {
                 ty,
                 mutable,
@@ -329,7 +328,7 @@ impl InferTable {
                 .copied()
                 .chain(rest)
                 .any(|x| self.occurs(pool, v, x)),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => self.occurs(pool, v, i),
+            TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
             TyData::Borrow { ty, .. } => self.occurs(pool, v, ty),
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
@@ -460,9 +459,7 @@ impl InferTable {
                 self.unify_lists(pool, e1, e2, a, b)?;
                 self.unify(pool, r1, r2)
             }
-            (TyData::Option(x), TyData::Option(y)) | (TyData::Own(x), TyData::Own(y)) => {
-                self.unify(pool, x, y)
-            }
+            (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
             (
                 TyData::Borrow {
                     ty: x,

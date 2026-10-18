@@ -1,12 +1,10 @@
-# test: a ? after a marked type wraps the marked type, as own T? is Option[own T]
+# test: a ? after a marked type wraps the marked type, as ^T? is Option[^T]
 data File:
     fd: i32
 
-data Slot:
-    held: own File?
+data Slot[^a]:
+    held: ^{a} File?
 
-fn first(files: own List[own File]) -> own File?: files.pop()
+fn peek(files: ^List[File]) -> ^File?: files.at(0)
 
-fn peek(files: ^List[own File]) -> ^File?: files.at(0)
-
-fn nested(x: own File??) -> void: pass
+fn nested(x: ^mut File??) -> void: pass

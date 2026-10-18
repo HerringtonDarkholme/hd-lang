@@ -3917,7 +3917,7 @@ impl Ck<'_, '_> {
             let resolved = self.infer.resolve(pool, t);
             if pool.has_mode(resolved) {
                 let msg = format!(
-                    "a provider is a plain value, but this is {}; pass an owned or borrowed service as a parameter",
+                    "a provider is a plain value, but this is {}; pass a borrowed service as a parameter",
                     self.show(t)
                 );
                 self.err(Code::ProviderNotPlain, *vn, &msg);

@@ -21,12 +21,12 @@ fn emit(sink: ^mut dyn Sink) -> void:
 fn counter(c: ^Conn) -> ^{c} fn() -> usize:
     fn() -> usize: size(c)
 
-fn primary(pool: ^List[own Conn]) -> Option[^Conn]: pool.at(0)
+fn primary(pool: ^List[Conn]) -> Option[^Conn]: pool.at(0)
 
-fn peek(pool: ^List[own Conn]) -> ^Conn?: pool.at(0)
+fn peek(pool: ^List[Conn]) -> ^Conn?: pool.at(0)
 
 fn add[^c](dst: ^mut List[^{c} Conn], conn: ^{c} Conn) -> void: pass
 
-fn view(d: own Document) -> void:
+fn view(d: mut Document) -> void:
     let v: ^Document = d
     let w: ^mut Document = d

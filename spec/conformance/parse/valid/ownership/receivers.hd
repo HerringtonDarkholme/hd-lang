@@ -1,15 +1,13 @@
-# test: a receiver is self, mut self, own self, ^self, or ^mut self
+# test: a receiver is self, mut self, ^self, or ^mut self
 data Pool:
     size: usize
 
 impl Pool:
     fn plain(self) -> usize: self.size
     fn grow(mut self) -> void: pass
-    fn close(own self) -> void: pass
     fn peek(^self) -> usize: self.size
     fn give(^mut self, extra: usize) -> void: pass
 
 trait Socket:
     fn send(^self, bytes: List[u8]) -> void
     fn reset(^mut self) -> void
-    fn finish(own self) -> void

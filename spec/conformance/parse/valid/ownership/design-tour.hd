@@ -1,4 +1,4 @@
-# test: the ownership design's tour examples parse as written
+# test: the borrow tour examples parse as written
 trait Socket:
     fn send!(^self, bytes: List[u8]) -> void
     fn read!(^self) -> string
@@ -6,7 +6,7 @@ trait Socket:
 
 type Conn = dyn Socket
 
-fn connect!(host: string) -> own Conn: sys_connect!(host)
+fn connect!(host: string) -> Conn: sys_connect!(host)
 
 data File:
     fd: i32
@@ -15,16 +15,16 @@ impl OwnOnly for File
 impl DropOwn for File:
     fn drop(^mut self) -> void: sys_close(self.fd)
 
-fn open(path: string) -> own File: File { fd: sys_open(path) }
+fn open(path: string) -> File: File { fd: sys_open(path) }
 fn size(f: ^File) -> usize: sys_size(f.fd)
-fn archive(f: own File) -> void: sys_copy(f.fd, "archive/")
+fn archive(f: File) -> void: sys_copy(f.fd, "archive/")
 
 fn adopt!(host: string, pool: ^mut Pool) -> void:
     c := connect!(host)
     check!(c)
     pool.give(c)
 
-fn with_verbose!(job: own fn!() -> void) -> void:
+fn with_verbose!(job: fn!() -> void) -> void:
     set_verbose(true)
     defer: set_verbose(false)
     job()
@@ -35,11 +35,11 @@ fn copy_log(path: string) -> void:
     defer: report_size(view)
     append(f, "done")
 
-fn upload!(w: own Writer, bytes: List[u8]) -> Result[void, NetError]:
+fn upload!(w: Writer, bytes: List[u8]) -> Result[void, NetError]:
     w.write!(bytes)?
     w.finish!()
 
-fn primary(pool: ^List[own Conn]) -> Option[^Conn]:
+fn primary(pool: ^List[Conn]) -> Option[^Conn]:
     pool.at(0)
 
 fn busier(a: ^Conn, b: ^Conn) -> ^{a, b} Conn:
@@ -63,22 +63,22 @@ impl[^doc, ^out] OwnOnly for Export[^{doc}, ^{out}]
 
 fn export(d: ^Document, path: string) -> void:
     f := open(path)
-    let own job = Export { out: f, source: d }
+    let job = Export { out: f, source: d }
     run(job)
 
 data Pool:
-    idle: own List[own Conn]
+    idle: List[Conn]
 
 impl OwnOnly for Pool
 
 impl Pool:
-    fn give(^mut self, c: own Conn) -> void:
+    fn give(^mut self, c: Conn) -> void:
         self.idle.push(c)
     fn peek(^self) -> Option[^Conn]:
         self.idle.at(0)
 
 fn warm!(hosts: List[string]) -> void:
-    let own pool = Pool { idle: [] }
+    let pool = Pool { idle: [] }
     for h in hosts:
         pool.give(connect!(h))
     serve!(pool)
@@ -89,7 +89,7 @@ fn total(xs: ^List[i32]) -> i32:
         sum = sum + x
     sum
 
-fn on_close(f: own File) -> own fn() -> void:
+fn on_close(f: File) -> fn() -> void:
     fn() -> void: archive(f)
 
 fn counter(c: ^Conn) -> ^{c} fn() -> usize:
@@ -104,13 +104,13 @@ impl[^f] OwnOnly for Flusher[^{f}]
 fn first[T](items: ^List[T]) -> Option[^T]:
     items.at(0)
 
-fn take_first[T < own Any](xs: own List[T]) -> Option[T]:
+fn take_first[T](xs: List[T]) -> Option[T]:
     xs.into_iter().next()
 
 fn mirror!(a: ^Conn, b: ^Conn) -> void:
     _ := all!(echo(a), echo(b))
 
-fn both!(a: string, b: string) -> (own Conn, own Conn):
+fn both!(a: string, b: string) -> (Conn, Conn):
     all!(connect(a), connect(b))
 
 fn emit!(sink: ^mut dyn Sink) -> void:

@@ -179,7 +179,7 @@ pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
                 stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
                 stack.extend(rest.map(|r| (r, false)));
             }
-            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) | TyData::Borrow { ty: i, .. } => {
+            TyData::Option(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } => {
                 stack.push((i, false));
             }
             _ => {}
@@ -337,10 +337,10 @@ fn layout_in(
         }
         // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
         TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-        // An owned or borrowed value is laid out as its plain type
-        // (13-ownership.md): a mode changes what the checker allows, never
-        // the value's representation.
-        TyData::Own(inner) | TyData::Borrow { ty: inner, .. } => layout_in(pool, env, inner, memo)?,
+        // A borrowed value is laid out as its plain type (13-ownership.md):
+        // a mode changes what the checker allows, never the value's
+        // representation.
+        TyData::Borrow { ty: inner, .. } => layout_in(pool, env, inner, memo)?,
         TyData::Lifetime(_) | TyData::Lifetimes(_) => {
             return Err(NotImplemented::new(Stage::Emit, "the layout of a lifetime"));
         }
@@ -446,10 +446,9 @@ impl ValueGraph {
                     todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
                     todo.extend(rest.map(|r| (f, r)));
                 }
-                TyData::Option(i)
-                | TyData::Mut(i)
-                | TyData::Own(i)
-                | TyData::Borrow { ty: i, .. } => todo.push((f, i)),
+                TyData::Option(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } => {
+                    todo.push((f, i));
+                }
                 TyData::Assoc { .. } => {
                     self.opaque.insert(f);
                 }
@@ -643,12 +642,7 @@ pub fn canon(
             h.u8(14);
             canon_row(pool, path_hash, memo, r, &mut h);
         }
-        // A mode keeps two instances apart: `drop[own File]` drops a file,
-        // `drop[^File]` nothing (13-ownership.md).
-        TyData::Own(i) => {
-            h.u8(15);
-            h.hash(canon(pool, path_hash, memo, i));
-        }
+        // 15 was an owned type, `own T`; it is not reused.
         TyData::Borrow { ty, mutable, .. } => {
             h.u8(16);
             h.u8(u8::from(mutable));

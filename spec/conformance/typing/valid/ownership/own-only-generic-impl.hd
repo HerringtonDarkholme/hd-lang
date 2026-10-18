@@ -1,4 +1,4 @@
-# test: a written impl OwnOnly for a generic type makes every instance owned
+# test: a written impl OwnOnly for a generic type makes every instance OwnOnly
 data Cell[T]:
     value: T
 
@@ -6,7 +6,7 @@ impl[T] OwnOnly for Cell[T]
 
 fn fill(c: ^mut Cell[i32]) -> void: pass
 
-fn take(c: own Cell[string]) -> void: pass
+fn peek(c: ^Cell[string]) -> void: pass
 
 pub fn main() -> void:
     pass

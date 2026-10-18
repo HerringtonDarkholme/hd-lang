@@ -5,7 +5,7 @@ use hd_diag::Code;
 use super::{Done, Parser, REST_ELSEWHERE};
 
 /// own.syntax.one-mark
-const ONE_MARK: &str = "a type takes one mark: 'mut', 'own', or a borrow '^'";
+const ONE_MARK: &str = "a type takes one mark: 'mut' or a borrow '^'";
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -36,7 +36,7 @@ impl Parser<'_> {
             return self.ty_function(rows);
         }
         let marker = self.start();
-        let mut done = if self.at(TokenKind::Caret) || self.at_own_type() {
+        let mut done = if self.at(TokenKind::Caret) {
             self.abandon(marker);
             self.ty_marked(rows)
         } else if self.at(TokenKind::KwMut) {
@@ -47,7 +47,7 @@ impl Parser<'_> {
                 // grammar.type.mut.no-function
                 self.error(Code::SyntaxError, "'mut' cannot directly precede 'fn'");
             }
-            if self.at(TokenKind::Caret) || self.at_own_type() {
+            if self.at(TokenKind::Caret) {
                 // own.syntax.one-mark
                 self.error(Code::SyntaxError, ONE_MARK);
                 self.ty_marked(rows);
@@ -67,59 +67,25 @@ impl Parser<'_> {
         done
     }
 
-    /// `own` as a mark: the contextual word directly before a type on its
-    /// line (own.syntax.contextual). Elsewhere `own` names a type.
-    fn at_own_type(&mut self) -> bool {
-        self.at_word("own")
-            && !self.nth_line_first(1)
-            && matches!(
-                self.nth(1),
-                Some(
-                    TokenKind::Ident
-                        | TokenKind::RawIdent
-                        | TokenKind::KwSelfType
-                        | TokenKind::KwDyn
-                        | TokenKind::KwFn
-                        | TokenKind::LParen
-                        | TokenKind::KwMut
-                        | TokenKind::Caret
-                )
-            )
-    }
-
-    /// `own T`, `^T`, `^mut T`, `^{a, b} mut T` (own.syntax.own,
-    /// own.syntax.borrow). A `?` after it wraps the marked type
-    /// (own.syntax.optional), as the caller's loop does for `mut T?`.
+    /// `^T`, `^mut T`, `^{a, b} mut T` (own.syntax.borrow). A `?` after
+    /// it wraps the marked type (own.syntax.optional), as the caller's loop
+    /// does for `mut T?`.
     fn ty_marked(&mut self, rows: bool) -> Done {
         let marker = self.start();
-        let kind = if self.at(TokenKind::Caret) {
-            self.bump();
-            if self.at(TokenKind::LBrace) {
-                self.lifetime_set();
-            }
-            self.eat(TokenKind::KwMut);
-            if self.at(TokenKind::LBrace) {
-                // own.syntax.borrow-lifetime
-                self.error(
-                    Code::SyntaxError,
-                    "the lifetime set comes right after '^': write '^{a} mut T'",
-                );
-                self.lifetime_set();
-            }
-            SyntaxKind::BorrowType
-        } else {
-            self.bump(); // own
-            if self.at(TokenKind::KwMut) {
-                // own.syntax.no-own-mut
-                self.error(
-                    Code::SyntaxError,
-                    "'own' already grants mutation: write 'own T', not 'own mut T'",
-                );
-                self.bump();
-            }
-            SyntaxKind::OwnType
-        };
-        if self.at(TokenKind::Caret) || self.at_own_type() || self.at(TokenKind::KwMut) {
+        self.bump(); // ^
+        if self.at(TokenKind::LBrace) {
+            self.lifetime_set();
+        }
+        self.eat(TokenKind::KwMut);
+        if self.at(TokenKind::LBrace) {
+            // own.syntax.borrow-lifetime
+            self.error(
+                Code::SyntaxError,
+                "the lifetime set comes right after '^': write '^{a} mut T'",
+            );
+            self.lifetime_set();
+        }
+        if self.at(TokenKind::Caret) || self.at(TokenKind::KwMut) {
             // own.syntax.one-mark
             self.error(Code::SyntaxError, ONE_MARK);
             self.ty_inner(rows);
@@ -128,7 +94,7 @@ impl Parser<'_> {
         } else {
             self.ty_reference(rows);
         }
-        self.complete(marker, kind)
+        self.complete(marker, SyntaxKind::BorrowType)
     }
 
     /// `{ lifetime, ... }` after `^` (own.lifetime.set).

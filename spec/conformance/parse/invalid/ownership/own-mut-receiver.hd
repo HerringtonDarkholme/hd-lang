@@ -1,6 +1,0 @@
-# test: own already grants mutation, so own mut self is not a receiver
-data File:
-    fd: i32
-
-impl File:
-    fn reset(own mut self) -> void: pass  # diagnostic: syntax-error

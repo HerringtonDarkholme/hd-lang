@@ -81,7 +81,7 @@ impl Ck<'_, '_> {
         }
         match pool.get(t) {
             TyData::Borrow { .. } => true,
-            TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => self.holds_borrow(i),
+            TyData::Option(i) | TyData::Mut(i) => self.holds_borrow(i),
             TyData::Tuple { elems, rest } => pool
                 .list_items(elems)
                 .iter()
@@ -99,9 +99,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Drops the owned temporaries of the statement that started at `m`
-    /// (`own.drop.temporary`): every owned value it made that no use takes,
-    /// newest first. `keep` is the statement's own value when it leaves as
+    /// Drops the owned temporaries of the statement that started at `m`:
+    /// every owned value it made that no use takes, newest first. `keep` is the statement's own value when it leaves as
     /// its block's result. A statement that cannot complete drops nothing.
     pub(crate) fn drop_temps(&mut self, m: DropMark, keep: Option<Ref>, done: bool) {
         if !done {

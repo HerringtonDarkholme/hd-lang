@@ -1,7 +1,7 @@
-# test: an own enum payload needs an OwnOnly enum
+# test: a ^mut enum payload needs an OwnOnly enum
 data File:
     fd: i32
 
-enum Slot:
-    Full(file: own File)  # diagnostic: own-field-plain-type
+enum Slot[^a]:
+    Full(file: ^{a} mut File)  # diagnostic: own-field-plain-type
     Empty

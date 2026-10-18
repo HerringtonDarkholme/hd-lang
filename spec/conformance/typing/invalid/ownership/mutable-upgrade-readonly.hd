@@ -2,19 +2,6 @@
 data File:
     fd: i32
 
-impl File:
-    fn close(own self) -> void: pass
-    fn plain(self) -> i32: self.fd
-
-data Buffer:
-    bytes: List[u8]
-
-fn open() -> own File: File { fd: 3 }
-
-fn archive(f: own File) -> void: pass
-
-fn count(f: File) -> i32: f.fd
-
 fn reset(f: ^mut File) -> void: pass
 
 fn change(f: File) -> void:

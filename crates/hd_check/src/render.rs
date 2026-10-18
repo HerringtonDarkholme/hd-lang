@@ -204,10 +204,6 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             ty(names, b.ty[i])
         );
     }
-    if !b.moves.is_empty() {
-        let moves: Vec<String> = b.moves.iter().map(|m| format!("%{m}")).collect();
-        let _ = writeln!(o, "  moves {}", moves.join(" "));
-    }
     if !b.drop_mode.is_empty() {
         let modes: Vec<String> = b.drop_mode.iter().map(|m| format!("{m:?}")).collect();
         let _ = writeln!(o, "  drop modes {}", modes.join(" "));

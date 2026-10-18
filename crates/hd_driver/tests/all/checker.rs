@@ -137,9 +137,9 @@ fn std_bodies_match_golden_tir() {
     }
 }
 
-/// The golden TIR of one owned body: `item` of `main` checked alone,
-/// against `tests/tir/{golden}`. `HD_UPDATE_GOLDEN=1` rewrites the file.
-fn owned_golden(main: &str, item: &str, golden: &str) {
+/// The golden TIR of one body: `item` of `main` checked alone, against
+/// `tests/tir/{golden}`. `HD_UPDATE_GOLDEN=1` rewrites the file.
+fn body_golden(main: &str, item: &str, golden: &str) {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
     let store = MemoryStore::default();
@@ -167,29 +167,15 @@ fn owned_golden(main: &str, item: &str, golden: &str) {
     assert_eq!(got, &want, "TIR differs from {}", golden.display());
 }
 
-/// The golden TIR of a small owned body (ownership prototype slices 8
-/// and 9): an owned parameter and an owned local each register a
-/// `DropLocal` in the `Scope` around their statements, and each lending
-/// is a `Lend` coercion. The give-away is the one move, so the local
-/// never drops and the parameter always does.
+/// The golden TIR of a small body that lends (`own.body.lend`): each
+/// value passed to a `^` parameter or receiver is a `Lend` coercion, a
+/// plain local and a borrowed parameter alike, and nothing drops.
 #[test]
-fn owned_body_matches_golden_tir() {
-    owned_golden(
-        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn report(keep: own File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    archive(f)\n    n + keep.size()\n\npub fn main() -> void:\n    pass\n",
+fn borrowed_body_matches_golden_tir() {
+    body_golden(
+        "data File:\n    fd: i32\n\nimpl File:\n    fn size(^self) -> i32: self.fd\n\nfn open(path: string) -> File: File { fd: 3 }\n\nfn total(f: ^File) -> i32: f.fd\n\nfn report(keep: ^File) -> i32:\n    f := open(\"app.log\")\n    n := f.size()\n    n + total(f) + keep.size()\n\npub fn main() -> void:\n    pass\n",
         "app/main/report",
-        "owned_body.tir",
-    );
-}
-
-/// The drop modes the move pass decides (ownership prototype slice 9):
-/// a local moved on one branch drops by flag, one moved before a `break`
-/// inside a loop by flag too, and one moved on every path never.
-#[test]
-fn owned_moves_match_golden_tir() {
-    owned_golden(
-        "data File:\n    fd: i32\n\nimpl OwnOnly for File\n\nfn open(path: string) -> own File: File { fd: 3 }\n\nfn archive(f: own File) -> void: pass\n\nfn flags(done: bool, more: bool) -> void:\n    branch := open(\"a\")\n    if done:\n        archive(branch)\n    looped := open(\"b\")\n    while more:\n        archive(looped)\n        break\n    given := open(\"c\")\n    archive(given)\n\npub fn main() -> void:\n    pass\n",
-        "app/main/flags",
-        "owned_moves.tir",
+        "borrowed_body.tir",
     );
 }
 

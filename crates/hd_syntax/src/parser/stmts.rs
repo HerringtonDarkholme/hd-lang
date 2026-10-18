@@ -160,23 +160,6 @@ impl Parser<'_> {
         }
     }
 
-    /// `own` after `let`, before a pattern on its line: an identifier,
-    /// `mut`, `_`, or a spaced `(` (own.syntax.contextual).
-    fn at_let_own(&mut self) -> bool {
-        self.at_word("own")
-            && !self.nth_line_first(1)
-            && match self.nth(1) {
-                Some(
-                    TokenKind::Ident
-                    | TokenKind::RawIdent
-                    | TokenKind::KwMut
-                    | TokenKind::Placeholder,
-                ) => true,
-                Some(TokenKind::LParen) => !self.nth_glued(1),
-                _ => false,
-            }
-    }
-
     /// `using` at the start of a statement, before a name on its line
     /// (grammar.stmt.using).
     fn at_using(&mut self) -> bool {
@@ -202,17 +185,6 @@ impl Parser<'_> {
     fn let_statement(&mut self, ctx: Ctx) {
         let marker = self.start();
         self.bump(); // let
-        if self.at_let_own() {
-            // own.binding.let-own
-            self.token_node(SyntaxKind::ModeMark);
-            if self.at(TokenKind::KwMut) {
-                // own.syntax.no-own-mut
-                self.error(
-                    Code::SyntaxError,
-                    "'own' already grants mutation: write 'let own name = ...'",
-                );
-            }
-        }
         self.pattern(true);
         if !matches!(self.current(), Some(TokenKind::Colon | TokenKind::Eq)) {
             // grammar.stmt.let-list.bare and friends.

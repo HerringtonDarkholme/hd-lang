@@ -61,7 +61,7 @@ const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
 
 /// What a header with an ownership mark gets until the ownership
 /// prototype's later slices check marks (13-ownership.md, issue #163).
-const OWNERSHIP_GAP: &str = "an ownership mark (`own`, `^`, or a lifetime parameter or argument)";
+const OWNERSHIP_GAP: &str = "a borrow mark (`^`, or a lifetime parameter or argument)";
 
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
@@ -2310,7 +2310,7 @@ impl Lower<'_, '_, '_> {
         let (first, rest) = fields.split_first()?;
         let pool = self.names.pool;
         let mut t = t;
-        while let TyData::Own(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } = pool.get(t) {
+        while let TyData::Mut(i) | TyData::Borrow { ty: i, .. } = pool.get(t) {
             t = i;
         }
         let TyData::Adt { def, .. } = pool.get(t) else {
@@ -2337,7 +2337,7 @@ impl Lower<'_, '_, '_> {
         let list = |l: TyList| pool.list_items(l).iter().any(|x| self.lends(*x));
         match pool.get(t) {
             TyData::Borrow { .. } | TyData::Lifetimes(_) => true,
-            TyData::Own(i) | TyData::Mut(i) | TyData::Option(i) => self.lends(i),
+            TyData::Mut(i) | TyData::Option(i) => self.lends(i),
             TyData::Adt { args, .. } | TyData::Tuple { elems: args, .. } => list(args),
             _ => false,
         }
@@ -2541,30 +2541,6 @@ impl Lower<'_, '_, '_> {
                 })
             }
             SyntaxKind::InferType => Ty::POISON,
-            SyntaxKind::OwnType => {
-                let t = first_ty(self, n);
-                match pool.get(t) {
-                    // `own.header.own-on-value`
-                    TyData::Prim(_) => {
-                        self.diags.error(
-                            Code::OwnOnValue,
-                            self.src.span(n),
-                            "a primitive value is immutable and has no owner: drop `own`",
-                        );
-                        t
-                    }
-                    // `own.header.own-on-type-parameter`
-                    TyData::Param(_) if !self.names_self(n) => {
-                        self.diags.error(
-                            Code::OwnOnTypeParameter,
-                            self.src.span(n),
-                            "a generic writes no `own T`; bound the parameter with `T < own Any`",
-                        );
-                        t
-                    }
-                    _ => pool.intern_ty(&TyData::Own(t)),
-                }
-            }
             SyntaxKind::BorrowType => {
                 let lifetimes = self.lifetimes(Src::child(n, SyntaxKind::LifetimeSet), gn, n);
                 let ty = first_ty(self, n);
@@ -2685,7 +2661,6 @@ impl Lower<'_, '_, '_> {
             self.generic_default_rules(&params, position, row, &mut defaulted);
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
-                g.own_bound = Src::child(bl, SyntaxKind::ModeMark).is_some();
                 g.mut_bound = bl
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
@@ -2967,17 +2942,12 @@ impl Lower<'_, '_, '_> {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
                     let pool = self.names.pool;
                     // `own.receiver.forms`: the receiver's mark is its mode.
-                    let mark = Src::child(p, SyntaxKind::ModeMark);
-                    let st = if let Some(m) =
-                        mark.filter(|m| m.direct_token(toks, TokenKind::Caret).is_some())
-                    {
+                    let st = if let Some(m) = Src::child(p, SyntaxKind::ModeMark) {
                         pool.intern_ty(&TyData::Borrow {
                             ty: st,
                             mutable: m.direct_token(toks, TokenKind::KwMut).is_some(),
                             lifetimes: TyList::EMPTY,
                         })
-                    } else if mark.is_some() {
-                        pool.intern_ty(&TyData::Own(st))
                     } else if p.direct_token(toks, TokenKind::KwMut).is_some() {
                         pool.intern_ty(&TyData::Mut(st))
                     } else {
@@ -4205,9 +4175,6 @@ impl Lower<'_, '_, '_> {
     fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> Vec<Ty> {
         let mut supers = Vec::new();
         if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
-            if Src::child(bl, SyntaxKind::ModeMark).is_some() {
-                self.gap(OWNERSHIP_GAP);
-            }
             for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                 if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
                     // A supertrait bound lists a trait once
@@ -4696,7 +4663,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(pool.list_items(elems));
             kids.extend(rest);
         }
-        TyData::Option(i) | TyData::Mut(i) | TyData::Own(i) => kids.push(i),
+        TyData::Option(i) | TyData::Mut(i) => kids.push(i),
         TyData::Borrow { ty, lifetimes, .. } => {
             kids.push(ty);
             kids.extend(pool.list_items(lifetimes));

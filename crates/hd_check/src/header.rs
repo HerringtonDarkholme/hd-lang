@@ -912,8 +912,7 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// `own.own-only.plain`: no position writes an `OwnOnly` type plain.
-    /// `own.own-only.field`: an `own` or `^mut` field needs an `OwnOnly`
-    /// holder. Written declarations only: a derived or delegated method
+    /// `own.own-only.field`: a `^mut` field needs an `OwnOnly` holder. Written declarations only: a derived or delegated method
     /// has the signature its trait gives it.
     fn own_only(&mut self, it: &Item, t: Ty, slot: u32) -> StageResult<()> {
         let pool = self.pool();
@@ -944,34 +943,11 @@ impl<'a> ItemCheck<'_, 'a> {
                 };
                 let shown = format!("{dyn_}{}", self.show(p));
                 let message = format!(
-                    "{shown} implements `OwnOnly`, so each use writes `own {shown}` or `^{shown}`"
+                    "{shown} implements `OwnOnly`, so each use writes `^{shown}` or `^mut {shown}`"
                 );
                 self.report(slot, Code::OwnTypePlain, message);
                 return Ok(());
             }
-        }
-        for (part, index) in crate::own::owned_arguments(pool, t) {
-            if pool.has_poison(part) || self.with_classify(|c| c.admits(part, index))? {
-                continue;
-            }
-            if self.too_complex {
-                return Ok(());
-            }
-            let map_key =
-                matches!(pool.get(part), TyData::Adt { def, .. } if def == self.cx.names.known.map);
-            let message = if map_key {
-                format!(
-                    "{}: a map's keys stay plain, only its values may be owned",
-                    self.show(part)
-                )
-            } else {
-                format!(
-                    "{} cannot hold an owned argument: its type implements `OwnOnly` neither by structure nor for every instance",
-                    self.show(part)
-                )
-            };
-            self.report(slot, Code::OwnInPlainType, message);
-            return Ok(());
         }
         let exclusive = crate::own::exclusive_part(pool, t);
         if exclusive && matches!(it.data, ItemData::Data(_) | ItemData::Enum { .. }) {
@@ -997,7 +973,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     )
                 } else {
                     format!(
-                        "an `own` or `^mut` field needs an `OwnOnly` holder: add `impl OwnOnly for {name}`"
+                        "a `^mut` field needs an `OwnOnly` holder: add `impl OwnOnly for {name}`"
                     )
                 };
                 self.report(slot, Code::OwnFieldPlainType, message);
@@ -1208,8 +1184,8 @@ fn sig_tys(sig: &FnSig) -> Vec<Ty> {
 /// `std.serde.Serialize` and in only through `std.serde.Deserialize`
 /// (`module.boundary.out`, `module.boundary.in`). A signature with a type
 /// that would cross without it is an error there, once per signature
-/// (`module.boundary.error`), and so is one with an owned or borrowed
-/// type (`own.boundary.not-safe`).
+/// (`module.boundary.error`), and so is one with a borrowed type
+/// (`own.boundary.not-safe`).
 pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     let ItemData::Trait(t) = &trait_.data else {
@@ -1233,11 +1209,11 @@ pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
             .chain([(sig.ret, deserialize)])
             .collect();
         for (t, tr) in crossing {
-            // `own.boundary.not-safe`: an owned or borrowed value, or one
-            // that holds either, is not boundary-safe.
+            // `own.boundary.not-safe`: a borrowed value, or one that holds
+            // one, is not boundary-safe.
             if cx.names.pool.has_mode(t) {
                 let message = format!(
-                    "{} is owned or borrowed, or holds an owned or borrowed part, so it is not boundary-safe and cannot cross a host call",
+                    "{} is borrowed, or holds a borrowed part, so it is not boundary-safe and cannot cross a host call",
                     hc.show(t)
                 );
                 hc.report(0, Code::NotBoundarySafe, message);

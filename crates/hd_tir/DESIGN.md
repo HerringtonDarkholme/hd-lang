@@ -512,7 +512,6 @@ pub struct Body {
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
-    pub moves: Vec<u32>,                // the LocalGet and Field instructions that move an owned place, sorted
     pub drop_mode: Vec<DropMode>,       // Always | Flag | Never, one per DropLocal in instruction order
 }
 pub struct Inst(pub u32);
@@ -750,14 +749,9 @@ parameter, is a `Scope` whose suites include those `DropLocal`s
 (`TirSink::drop_mark` and `close_drops` wrap the statements after the
 fact, so a block without one is built as before). Bindings and `defer`
 suites thus drop in one last-in, first-out order, and the exit ladder
-and the cancellation record that serve `defer` serve drops too. A move is
-a `LocalGet` or `Field` of an owned place that no `Lend` wraps; the
-ownership pass lists them in the `moves` column and decides each
-`DropLocal`'s `drop_mode` (always, by flag, or never), both written at
-`finish`. The pass (`hd_check/src/moves.rs`) runs on a body with marks
-and no errors; any other body keeps `Always` for every mode. A `defer`
-moves the owned locals its suite reads where it registers, so the
-suite's own non-lent reads are listed as moves too. The checker emits a
+and the cancellation record that serve `defer` serve drops too. Each
+`DropLocal` has a `drop_mode` row (always, by flag, or never); the
+checker writes `Always` for every one. The checker emits a
 `DropTemp` at the end of a statement, or of an `if` or `while`
 condition, for each owned value made there that no use takes
 (`hd_check/src/temps.rs`). Collection gives each `DropLocal`, `DropTemp`,
@@ -981,18 +975,17 @@ The verifier checks each of these:
 18. A `DropLocal` names a local whose type may need a drop, and exactly
     one `Scope` lists it; `drop_mode` has one row per `DropLocal`. A
     `DropTemp`'s operand may need a drop.
-19. Each row of `moves` names an owned place, a `LocalGet` or `Field`,
-    and the rows are sorted.
+19. (Unused.)
 
-Implementation differs: `verify` checks invariants 1 to 15 and 17 to 19
+Implementation differs: `verify` checks invariants 1 to 15, 17 and 18
 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
 `verify` alone.
 - **Partial checks.**
-  - 18 and 19: the types (may need a drop, owned) only with the
-    checker's facts (`VerifyCx::owns`).
+  - 18: the types (may need a drop) only with the checker's facts
+    (`VerifyCx::owns`).
   - 1: only def-before-use.
   - 2: only block lists.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
@@ -1065,7 +1058,7 @@ with its per-item interface hash), for code keys.
 | tables | the body's own entry-local string, path and type tables; every `Symbol`, `DefId` and `Ty` in that body is a row in them |
 | item, kind | the item's path row, the body kind |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
-| ownership | `moves`, `drop_mode`: only when either is not empty, so a body without marks encodes as before; the reader finds them before the hashed length ends |
+| ownership | `drop_mode`: only when it is not empty, so a body without drops encodes as before; the reader finds it before the hashed length ends |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs

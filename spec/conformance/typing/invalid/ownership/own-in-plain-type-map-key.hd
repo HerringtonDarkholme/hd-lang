@@ -1,5 +1,0 @@
-# test: a map's keys stay plain
-data Conn:
-    fd: i32
-
-fn index(m: ^Map[own Conn, i32]) -> void: pass  # diagnostic: own-in-plain-type

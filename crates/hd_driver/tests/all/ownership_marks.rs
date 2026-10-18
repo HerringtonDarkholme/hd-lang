@@ -1,4 +1,4 @@
-//! Ownership marks parse in every program (13-ownership.md, Mark Syntax).
+//! Borrow marks parse in every program (13-ownership.md, Mark Syntax).
 //! Headers check them (Modes In Declarations), and bodies check modes
 //! (Modes In Bodies); what later sections check stays `unsupported`
 //! (issue #163), and a program without marks stays clean.
@@ -43,16 +43,13 @@ pub fn main() -> void:
 #[test]
 fn header_marks_check() {
     let forms = [
-        "fn archive(f: own File) -> void: pass\n",
         "fn size(f: ^File) -> i32: 0\n",
         "fn fill(f: ^mut File) -> void: pass\n",
         "fn view(a: ^File) -> ^{a} File: panic(\"stub\")\n",
-        "fn job(run: own fn() -> void) -> void: pass\n",
+        "fn job(run: ^fn() -> void) -> void: pass\n",
         "data Parser[^doc]:\n    at: i32\n",
         "data Parser[^doc]:\n    at: i32\n\nfn parse(p: Parser[^]) -> void: pass\n",
-        "fn keep[T < own Any](x: i32) -> i32: x\n",
         "fn first[^c](x: ^List[^{c} File]) -> ^{c} File: panic(\"stub\")\n",
-        "impl File:\n    fn close(own self) -> void: pass\n",
         "impl File:\n    fn peek(^self) -> i32: 0\n",
         "impl File:\n    fn reset(^mut self) -> void: pass\n",
     ];
@@ -63,16 +60,13 @@ fn header_marks_check() {
     }
 }
 
-/// Bodies check modes (Modes In Bodies): lending, owned results, fresh
-/// values, `let own`, and owned and borrowed locals.
+/// Bodies check modes (Modes In Bodies): lending plain values and
+/// borrowed locals.
 #[test]
 fn body_marks_check() {
     let forms = [
         "fn size(f: ^File) -> i32: f.fd\n",
-        "fn open() -> own File: File { fd: 1 }\n",
         "fn size(f: ^File) -> i32: 0\n\nfn call(f: File) -> i32: size(f)\n",
-        "fn make() -> i32:\n    let own f = File { fd: 1 }\n    f.fd\n",
-        "fn make() -> i32:\n    let f: own File = File { fd: 1 }\n    f.fd\n",
         "fn make(f: File) -> i32:\n    let v: ^File = f\n    v.fd\n",
     ];
     for form in forms {
@@ -83,19 +77,16 @@ fn body_marks_check() {
 }
 
 /// What later sections check stays `unsupported` (the note of
-/// 13-ownership.md): a value of an `own`-bounded type parameter, owned
-/// type arguments, captures, iteration and patterns over moded values,
-/// and marks in a supertrait list.
+/// 13-ownership.md): borrowed type arguments that a generic call solves,
+/// captures, iteration and patterns over borrowed values, and a borrow
+/// in a plain position.
 #[test]
 fn later_body_forms_are_unsupported() {
     let forms = [
-        "fn keep[T < own Any](x: T) -> T: x\n",
-        "fn make() -> void:\n    fn inner[T < own Any](x: T) -> T: x\n    pass\n",
-        "trait Keeper < own Named:\n    fn keep(self) -> void\n",
-        "fn id[T](x: T) -> T: x\n\nfn make(f: own File) -> i32:\n    g := id(f)\n    g.fd\n",
-        "fn size(f: ^File) -> i32: f.fd\n\nfn make(f: own File) -> i32:\n    g := fn() -> i32: size(f)\n    g()\n",
-        "fn walk(xs: ^List[own File]) -> void:\n    for x in xs:\n        pass\n",
-        "fn pick(f: own File?) -> void:\n    match f:\n        .Some(_) => pass\n        .None => pass\n",
+        "fn id[T](x: T) -> T: x\n\nfn make(f: ^File) -> i32:\n    g := id(f)\n    g.fd\n",
+        "fn size(f: ^File) -> i32: f.fd\n\nfn make(f: ^File) -> i32:\n    g := fn() -> i32: size(f)\n    g()\n",
+        "fn walk(xs: ^List[^File]) -> void:\n    for x in xs:\n        pass\n",
+        "fn pick(f: ^File?) -> void:\n    match f:\n        .Some(_) => pass\n        .None => pass\n",
         "fn plain(f: ^File) -> File: f\n",
     ];
     for form in forms {
@@ -106,28 +97,19 @@ fn later_body_forms_are_unsupported() {
 }
 
 /// The prototype's limits (13-ownership.md, Prototype Limits) and the
-/// plain-only providers and boundaries reject with their own codes, and
-/// stand for the body's other ownership gaps.
+/// plain-only providers reject with their own codes, and stand for the
+/// body's other ownership gaps.
 #[test]
 fn prototype_limits_reject() {
     let limit = Code::NotInOwnershipPrototype;
     let forms = [
-        ("let own TOP = File { fd: 1 }\n", limit),
-        (
-            "fn open() -> own File: File { fd: 1 }\n\nTOP := open()\n",
-            limit,
-        ),
         ("TOP := File { fd: 1 }\n\nlet VIEW: ^File = TOP\n", limit),
         (
             "TOP := File { fd: 1 }\n\nfn size(f: ^File) -> i32: f.fd\n\nfn read() -> i32: size(TOP)\n",
             limit,
         ),
         (
-            "fn handle!(f: own File) -> void: pass\n\nfn later(f: own File) -> void:\n    _ := handle(f)\n",
-            limit,
-        ),
-        (
-            "impl Named for File:\n    fn name(self) -> string: \"file\"\n\nfn named(f: own File) -> void:\n    $.with(Named = f):\n        pass\n",
+            "impl Named for File:\n    fn name(self) -> string: \"file\"\n\nfn named(f: ^File) -> void:\n    $.with(Named = f):\n        pass\n",
             Code::ProviderNotPlain,
         ),
     ];
@@ -138,8 +120,9 @@ fn prototype_limits_reject() {
     }
 }
 
+/// `own` is an ordinary name: no mark writes it.
 #[test]
-fn the_word_own_without_a_mark_stays_clean() {
+fn the_word_own_stays_a_name() {
     let program = format!(
         "{PRELUDE}\nfn twice(own: i32) -> i32:\n    let mine = own\n    own + mine\n\nfn xor(a: i32, b: i32) -> i32: a ^ b\n"
     );

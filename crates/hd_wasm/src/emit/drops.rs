@@ -9,10 +9,9 @@
 //!   value (its `DropLocal`, an assignment) and cleared where it moves. Its
 //!   scope's exit ladder drops it when the flag is set, in one last-in,
 //!   first-out order with the scope's `defer` suites.
-//! - A `defer` suite takes the owned locals it reads when it registers
-//!   (`own.move.defer`): each is copied into a snapshot with a flag of its
-//!   own, the suite reads the snapshot, and what the suite did not move
-//!   drops right after it.
+//! - A `defer` suite takes the owned locals it reads when it registers:
+//!   each is copied into a snapshot with a flag of its own, the suite reads
+//!   the snapshot, and what the suite did not move drops right after it.
 //! - An assignment drops the old value first when the flag is set; a store
 //!   into an owned field drops the field's old value first.
 
@@ -90,13 +89,6 @@ impl Em<'_> {
         if let Some(f) = self.drop_flag(l) {
             self.a.i32(i32::from(on));
             self.a.set(f);
-        }
-    }
-
-    /// After `LocalGet` `i` of `l`: a move clears the flag.
-    pub(super) fn note_move(&mut self, i: u32, l: u32) {
-        if self.b.moves.binary_search(&i).is_ok() {
-            self.set_drop_flag(l, false);
         }
     }
 
@@ -200,7 +192,7 @@ impl Em<'_> {
     }
 
     /// The owned locals with glue that `defer` suite `s` reads, at any
-    /// depth (`own.move.defer`), each once, newest first.
+    /// depth, each once, newest first.
     fn suite_takes(&self, s: u32) -> Vec<(u32, CallTarget)> {
         let mut locals = Vec::new();
         self.suite_reads(s, &mut locals);

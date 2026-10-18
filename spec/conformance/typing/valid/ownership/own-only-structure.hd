@@ -1,8 +1,10 @@
-# test: an instance of a type that implements OwnOnly by structure owns when a field's type owns
+# test: an instance of a type that implements OwnOnly by structure owns only when a field's type owns
 use std.structure.Structure
 
 data Conn:
     fd: i32
+
+impl OwnOnly for Conn
 
 data Batch[T]:
     values: List[T]
@@ -19,24 +21,13 @@ data Chain[T]:
     value: T
     next: Chain[T]?
 
-@derive(OwnOnly)
-data Holder[T]:
-    conn: own Conn
-    extra: T
-
-fn accept(batch: own Batch[own Conn]) -> void: pass
-
-fn settle(result: own Outcome[own Conn, string]) -> void: pass
-
-fn either(result: own Outcome[i32, own Conn]) -> void: pass
-
 fn sum(batch: Batch[i32]) -> i32: 0
 
-fn walk(chain: ^Chain[own Conn]) -> void: pass
+fn settle(result: Outcome[i32, string]) -> void: pass
+
+fn walk(chain: ^Chain[^Conn]) -> void: pass
 
 fn count(chain: Chain[i32]) -> i32: 0
-
-fn hold(h: ^mut Holder[i32]) -> void: pass
 
 pub fn main() -> void:
     pass

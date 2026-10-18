@@ -62,7 +62,6 @@ pub(crate) struct Checkpoint {
     call_params: usize,
     joins: usize,
     row_waits: usize,
-    part_moves: usize,
     undo: usize,
     bound: usize,
     depths: [usize; 6],
@@ -224,7 +223,6 @@ impl Ck<'_, '_> {
             call_params: self.call_params.len(),
             joins: self.joins.mark(),
             row_waits: self.row_waits.len(),
-            part_moves: self.part_moves.len(),
             undo: self.undo.len(),
             bound: self.bound.len(),
             depths: self.depths(),
@@ -262,7 +260,6 @@ impl Ck<'_, '_> {
         self.call_params.truncate(c.call_params);
         self.joins.rollback(c.joins);
         self.row_waits.truncate(c.row_waits);
-        self.part_moves.truncate(c.part_moves);
         self.bound.truncate(c.bound);
         self.cond_flow = None;
         // A check that stopped with "not implemented" may leave frames

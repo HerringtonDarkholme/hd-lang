@@ -1,6 +1,0 @@
-# test: own already grants mutation, so let own mut is not a binding form
-data Buffer:
-    size: usize
-
-fn make() -> void:
-    let own mut buf = Buffer { size: 0 }  # diagnostic: syntax-error

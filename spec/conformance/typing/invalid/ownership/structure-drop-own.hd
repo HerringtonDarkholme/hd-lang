@@ -3,5 +3,5 @@
 data Tracked[T]:
     value: T
 
-impl[T < own Any] DropOwn for Tracked[T]:  # diagnostic: missing-supertrait-implementation
+impl[T] DropOwn for Tracked[T]:  # diagnostic: missing-supertrait-implementation
     fn drop(^mut self) -> void: pass

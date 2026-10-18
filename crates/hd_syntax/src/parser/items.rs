@@ -29,9 +29,6 @@ pub(crate) enum Owner {
 const LIFETIME_PARAMETER_PLAIN: &str =
     "a lifetime parameter takes no variance marker, bound, or default";
 
-/// own.bound.one-mark
-const BOUND_ONE_MARK: &str = "a bound list takes 'own' or 'mut', not both";
-
 /// Which generic parameter list a declaration takes.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Generics {
@@ -472,34 +469,11 @@ impl Parser<'_> {
         }
     }
 
-    /// `own` at the start of a bound list, before a trait name
-    /// (own.bound.own).
-    fn at_own_bound(&mut self) -> bool {
-        self.at_word("own")
-            && !self.nth_line_first(1)
-            && matches!(
-                self.nth(1),
-                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwMut)
-            )
-    }
-
-    /// `< [mut | own] Bound & Bound ...` as a `BoundList`.
+    /// `< [mut] Bound & Bound ...` as a `BoundList`.
     pub(crate) fn bound_list(&mut self) {
         let marker = self.start();
         self.bump(); // <
-        let mutable = self.eat(TokenKind::KwMut);
-        if self.at_own_bound() {
-            if mutable {
-                // own.bound.one-mark
-                self.error(Code::SyntaxError, BOUND_ONE_MARK);
-            }
-            self.token_node(SyntaxKind::ModeMark);
-            if self.at(TokenKind::KwMut) {
-                // own.bound.one-mark
-                self.error(Code::SyntaxError, BOUND_ONE_MARK);
-                self.bump();
-            }
-        }
+        self.eat(TokenKind::KwMut);
         self.ty_bound_trait(true);
         loop {
             if self.eat(TokenKind::Amp) {
@@ -539,10 +513,9 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::Error);
     }
 
-    /// `own self`, `own mut self`, `^self`, or `^mut self` ahead.
+    /// `^self` or `^mut self` ahead.
     fn at_receiver_mark(&mut self) -> bool {
-        let first = self.at(TokenKind::Caret) || self.at_word("own");
-        first
+        self.at(TokenKind::Caret)
             && match self.nth(1) {
                 Some(TokenKind::KwSelfValue) => true,
                 Some(TokenKind::KwMut) => self.nth(2) == Some(TokenKind::KwSelfValue),
@@ -593,20 +566,8 @@ impl Parser<'_> {
                 } else if self.at_receiver_mark() {
                     // own.receiver.forms
                     let mark = self.start();
-                    if self.at(TokenKind::Caret) {
-                        self.bump();
-                        self.eat(TokenKind::KwMut);
-                    } else {
-                        self.bump(); // own
-                        if self.at(TokenKind::KwMut) {
-                            // own.syntax.no-own-mut
-                            self.error(
-                                Code::SyntaxError,
-                                "'own' already grants mutation: write 'own self', not 'own mut self'",
-                            );
-                            self.bump();
-                        }
-                    }
+                    self.bump(); // ^
+                    self.eat(TokenKind::KwMut);
                     self.complete(mark, SyntaxKind::ModeMark);
                     self.bump(); // self
                 } else if self.at(TokenKind::KwMut) {

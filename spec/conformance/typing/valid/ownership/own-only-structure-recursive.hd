@@ -1,7 +1,4 @@
 # test: recursive and mutually recursive types own only through an owning part
-data Conn:
-    fd: i32
-
 @derive(OwnOnly)
 data Tree[T]:
     kids: Forest[T]
@@ -17,8 +14,6 @@ data Nest[T]:
     here: T
 
 fn plain_tree(t: Tree[i32], f: Forest[string], n: Nest[i32]) -> void: pass
-
-fn owned_tree(t: own Tree[own Conn], n: own Nest[own Conn]) -> void: pass
 
 pub fn main() -> void:
     pass

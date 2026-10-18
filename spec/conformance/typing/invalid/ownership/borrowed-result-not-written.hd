@@ -1,0 +1,7 @@
+# test: a function whose result is borrowed writes its result type
+data File:
+    fd: i32
+
+fn view(f: ^File) -> ^File: f
+
+fn helper(f: ^File): view(f)  # diagnostic: missing-result-type

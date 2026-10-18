@@ -1,0 +1,19 @@
+app/main/report (Fn)
+  local $0 keep: ^File flags=33
+  local $1 f: File flags=67
+  local $2 n: i32 flags=67
+  %0 = Call app/main/open[] ("app.log") : File
+  %1 = LocalSet $1 %0 : ()
+  %2 = LocalGet $1 : File
+  %3 = Coerce %2 [Lend -] : ^File
+  %4 = Call app/main/impl File.size[] (%3) : i32
+  %5 = LocalSet $2 %4 : ()
+  %6 = LocalGet $2 : i32
+  %7 = LocalGet $1 : File
+  %8 = Coerce %7 [Lend -] : ^File
+  %9 = Call app/main/total[] (%8) : i32
+  %10 = Prim #0 [%6 %9] : i32
+  %11 = LocalGet $0 : ^File
+  %12 = Call app/main/impl File.size[] (%11) : i32
+  %13 = Prim #0 [%10 %12] : i32
+  %14 = Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12 %13] %13 : i32

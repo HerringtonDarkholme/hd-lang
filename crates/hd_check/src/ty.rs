@@ -14,7 +14,7 @@ use crate::body::{Ck, unsupported};
 
 /// What a body with an ownership mark gets until the ownership
 /// prototype's later slices check marks (13-ownership.md, issue #163).
-pub(crate) const OWNERSHIP_GAP: &str = "an ownership mark (`own`, `^`, or a lifetime argument)";
+pub(crate) const OWNERSHIP_GAP: &str = "a borrow mark (`^`, or a lifetime argument)";
 
 /// What a (possibly qualified) name in a body reaches.
 #[derive(Clone, Copy, Debug)]
@@ -774,10 +774,6 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
-            SyntaxKind::OwnType => {
-                let t = first(self, n)?;
-                self.own_ty(t, n)
-            }
             // A named lifetime in a body is checked by a later section.
             SyntaxKind::BorrowType if Src::child(n, SyntaxKind::LifetimeSet).is_some() => {
                 return self.gap(n, OWNERSHIP_GAP);

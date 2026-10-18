@@ -204,9 +204,6 @@ pub struct Generic {
     /// A lifetime parameter (`^a`), which follows every type parameter
     /// (`own.lifetime-param.last`).
     pub lifetime: bool,
-    /// An `own` bound (`T < own Any`): the parameter takes owned types too
-    /// (`own.bound.own`).
-    pub own_bound: bool,
 }
 
 impl Generic {
@@ -221,7 +218,6 @@ impl Generic {
             mut_bound: false,
             variance: 0,
             lifetime: false,
-            own_bound: false,
         }
     }
 }
@@ -796,8 +792,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
         w.u8(u8::from(g.row)
             | (u8::from(g.mut_bound) << 1)
             | variance
-            | (u8::from(g.lifetime) << 4)
-            | (u8::from(g.own_bound) << 5));
+            | (u8::from(g.lifetime) << 4));
     }
     Ok(())
 }
@@ -828,7 +823,6 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
                 _ => 0,
             },
             lifetime: flags & 0b1_0000 != 0,
-            own_bound: flags & 0b10_0000 != 0,
         });
     }
     Some(out)
@@ -1828,7 +1822,6 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
         ),
         TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
         TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
-        TyData::Own(i) => format!("own {}", show_ty_opts(names, pool, i, rows)),
         TyData::Borrow {
             ty,
             mutable,

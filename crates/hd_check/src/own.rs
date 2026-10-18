@@ -17,7 +17,7 @@ pub(crate) fn parts(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
         }
     };
     match pool.get(t) {
-        TyData::Own(i) | TyData::Mut(i) | TyData::Option(i) => parts(pool, i, out),
+        TyData::Mut(i) | TyData::Option(i) => parts(pool, i, out),
         TyData::Borrow { ty, lifetimes, .. } => {
             kids(lifetimes, out);
             parts(pool, ty, out);
@@ -34,8 +34,8 @@ pub(crate) fn parts(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
     }
 }
 
-/// The plain positions of `t` that hold a named type: those that no
-/// `own` or `^` wraps directly (`own.own-only.plain`).
+/// The plain positions of `t` that hold a named type: those that no `^`
+/// wraps directly (`own.own-only.plain`).
 pub(crate) fn plain_positions(pool: Types<'_>, t: Ty, marked: bool, out: &mut Vec<Ty>) {
     let kids = |l: hd_types::TyList, out: &mut Vec<Ty>| {
         for &x in pool.list_items(l) {
@@ -43,7 +43,7 @@ pub(crate) fn plain_positions(pool: Types<'_>, t: Ty, marked: bool, out: &mut Ve
         }
     };
     match pool.get(t) {
-        TyData::Own(i) | TyData::Borrow { ty: i, .. } => plain_positions(pool, i, true, out),
+        TyData::Borrow { ty: i, .. } => plain_positions(pool, i, true, out),
         TyData::Mut(i) | TyData::Option(i) => plain_positions(pool, i, false, out),
         TyData::Adt { args: l, .. } | TyData::TraitValue { args: l, .. } => {
             if !marked {
@@ -89,8 +89,7 @@ pub(crate) fn field_paths(
             at = names.paths.parent(at);
         }
         for seg in segs.iter().rev() {
-            while let TyData::Own(i) | TyData::Mut(i) | TyData::Borrow { ty: i, .. } = pool.get(ty)
-            {
+            while let TyData::Mut(i) | TyData::Borrow { ty: i, .. } = pool.get(ty) {
                 ty = i;
             }
             let fields = match pool.get(ty) {
@@ -169,14 +168,13 @@ impl Sum {
 }
 
 impl Classify<'_, '_> {
-    /// Whether a value of type `t` owns (`own.structure.owns`): an `own`
-    /// part, or an instance of a type that implements `OwnOnly`, written
-    /// or by structure. A borrow, a function type and a type parameter
+    /// Whether a value of type `t` owns (`own.structure.owns`): an
+    /// instance of a type that implements `OwnOnly`, written or by
+    /// structure. A borrow, a function type and a type parameter
     /// own nothing.
     pub fn owns(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool;
         Ok(match pool.get(t) {
-            TyData::Own(_) => true,
             TyData::Mut(i) | TyData::Option(i) => self.owns(i)?,
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems).iter().chain(rest.iter()) {
@@ -213,20 +211,6 @@ impl Classify<'_, '_> {
             TyData::TraitValue { .. } => (self.written)(t)?,
             _ => false,
         })
-    }
-
-    /// Whether `D[args]` admits an owned argument at `index`
-    /// (`own.structure.admission`): a built-in container's item, a type
-    /// that declares `OwnOnly` by structure, or an instance a written impl
-    /// makes `OwnOnly`.
-    pub fn admits(&mut self, t: Ty, index: usize) -> StageResult<bool> {
-        let TyData::Adt { def, .. } = self.pool.get(t) else {
-            return Ok(true);
-        };
-        if let Some(at) = self.container_item(def) {
-            return Ok(at == index);
-        }
-        Ok(self.impls.by_structure(self.pool, self.known.own_only, t) || (self.written)(t)?)
     }
 
     /// The item argument of a built-in container: a list's element, a
@@ -293,7 +277,6 @@ impl Classify<'_, '_> {
         let pool = self.pool;
         let mut out = Sum::default();
         match pool.get(t) {
-            TyData::Own(_) => out.always = true,
             TyData::Mut(i) | TyData::Option(i) => out = self.sum_ty(owner, i, work)?,
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems).iter().chain(rest.iter()) {
@@ -341,58 +324,18 @@ impl Classify<'_, '_> {
     }
 }
 
-/// Whether a field type has an `own` or `^mut` part that the holder holds
-/// directly: through `?`, `mut` and tuple elements, not inside another
-/// type's arguments, a shared borrow, or a function type
-/// (`own.own-only.field`).
+/// Whether a field type has a `^mut` part that the holder holds directly:
+/// through `?`, `mut` and tuple elements, not inside another type's
+/// arguments, a shared borrow, or a function type (`own.own-only.field`).
 pub(crate) fn exclusive_part(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
-        TyData::Own(_) | TyData::Borrow { mutable: true, .. } => true,
+        TyData::Borrow { mutable: true, .. } => true,
         TyData::Mut(i) | TyData::Option(i) => exclusive_part(pool, i),
         TyData::Tuple { elems, rest } => pool
             .list_items(elems)
             .iter()
             .chain(rest.iter())
             .any(|&e| exclusive_part(pool, e)),
-        _ => false,
-    }
-}
-
-/// The `D[args]` parts of `t` and the indices of their `own` arguments
-/// (`own.structure.admission`); a function type's inputs and result
-/// count, a trait value's arguments do not.
-pub(crate) fn owned_arguments(pool: Types<'_>, t: Ty) -> Vec<(Ty, usize)> {
-    let mut all = Vec::new();
-    parts(pool, t, &mut all);
-    let mut out = Vec::new();
-    for p in all {
-        if let TyData::Adt { args, .. } = pool.get(p) {
-            for (i, &a) in pool.list_items(args).iter().enumerate() {
-                if matches!(pool.get(a), TyData::Own(_)) {
-                    out.push((p, i));
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Whether `t` holds an owned value outside any borrow: an owned type, or
-/// an optional, tuple, or type argument that holds one. A value of such a
-/// type may need a drop (the TIR's `DropLocal`, invariant 18).
-pub(crate) fn holds_owned(pool: Types<'_>, t: Ty) -> bool {
-    if !pool.has_mode(t) {
-        return false;
-    }
-    match pool.get(t) {
-        TyData::Own(_) => true,
-        TyData::Option(i) | TyData::Mut(i) => holds_owned(pool, i),
-        TyData::Tuple { elems, rest } => pool
-            .list_items(elems)
-            .iter()
-            .chain(rest.iter())
-            .any(|&e| holds_owned(pool, e)),
-        TyData::Adt { args, .. } => pool.list_items(args).iter().any(|&a| holds_owned(pool, a)),
         _ => false,
     }
 }

@@ -240,10 +240,9 @@ pub fn write_body(
         w.str(st);
     }
     w.str(&b.label);
-    // The ownership columns only when a body has them, so a body without
-    // marks encodes, and hashes, as before they existed.
-    if !b.moves.is_empty() || !b.drop_mode.is_empty() {
-        u32s(&mut w, b.moves.iter().copied());
+    // The drop column only when a body has it, so a body without drops
+    // encodes, and hashes, as before it existed.
+    if !b.drop_mode.is_empty() {
         u32s(&mut w, b.drop_mode.iter().map(|m| *m as u32));
     }
     // Locations last, outside the hashed prefix: moving a body in its file
@@ -339,7 +338,6 @@ pub fn read_body(
     }
     b.label = r.str().into();
     if r.pos() < hashed {
-        b.moves = col(&mut r);
         b.drop_mode = col(&mut r)
             .into_iter()
             .map(DropMode::from_u32)
@@ -464,7 +462,7 @@ mod tests {
     }
 
     /// The ownership forms cross the wire: a `Lend`, a `DropLocal` in its
-    /// `Scope`, a `DropTemp`, and the `moves` and `drop_mode` columns.
+    /// `Scope`, a `DropTemp`, and the `drop_mode` column.
     #[test]
     fn ownership_forms_round_trip() {
         let (pool, paths, syms) = (
@@ -478,7 +476,7 @@ mod tests {
             def: paths.item("app", "main", "File"),
             args: pool.list(&[]),
         });
-        let owned = pool.intern_ty(&TyData::Own(file));
+        let owned = file;
         let borrowed = pool.intern_ty(&TyData::Borrow {
             ty: file,
             mutable: false,
@@ -508,7 +506,6 @@ mod tests {
             .close_drops(mark, Some(call), Ty::I32, n)
             .expect("a scope");
         let root = b.close_block(blk, Some(scope), Ty::I32, n);
-        b.set_moves(vec![temp.0]);
         b.set_drop_modes(vec![DropMode::Flag]);
         let body = b.finish(root, &[]).expect("verifies");
         let s = scope.0 as usize;
@@ -529,7 +526,6 @@ mod tests {
             ShardedInterner::default(),
         );
         let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
-        assert_eq!(back.moves, body.moves);
         assert_eq!(back.drop_mode, vec![DropMode::Flag]);
         assert_eq!(back.tags, body.tags);
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");

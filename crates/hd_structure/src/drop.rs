@@ -84,7 +84,7 @@ impl Gen<'_, '_> {
     fn core(&self, t: Ty) -> Ty {
         let pool = self.names.pool;
         let mut t = t;
-        while let TyData::Own(i) | TyData::Mut(i) = pool.get(t) {
+        while let TyData::Mut(i) = pool.get(t) {
             t = i;
         }
         t

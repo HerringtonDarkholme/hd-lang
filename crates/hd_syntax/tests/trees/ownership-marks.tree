@@ -11,11 +11,9 @@ Root
           NamedType Document
       DataField items :
         OptionalType ?
-          OwnType own
-            NamedType List
-              TypeArgumentList [ ]
-                OwnType own
-                  NamedType T
+          NamedType List
+            TypeArgumentList [ ]
+              NamedType T
   ImplDecl impl :
     GenericParameterList [ ]
       LifetimeParameter ^ doc
@@ -29,7 +27,7 @@ Root
       FnDecl fn take -> :
         ParameterList ( , )
           Parameter self
-            ModeMark own
+            ModeMark ^ mut
           Parameter xs :
             BorrowType ^ mut
               NamedType List
@@ -50,7 +48,7 @@ Root
         ParameterList ( )
           Parameter self
             ModeMark ^
-        OwnType own
+        BorrowType ^
           FunctionType fn ( ) ->
             NamedType Parser
               TypeArgumentList [ , ]
@@ -84,19 +82,15 @@ Root
   FnDecl fn pick -> :
     GenericParameterList [ ]
       GenericParameter T
-        BoundList <
-          ModeMark own
-          NamedType Any
     ParameterList ( , )
       Parameter a :
-        OwnType own
+        BorrowType ^
           DynType dyn
             NamedType Show
       Parameter own :
         NamedType i32
     TupleType ( , )
-      OwnType own
-        NamedType T
+      NamedType T
       OptionalType ?
         BorrowType ^
           NamedType T
@@ -108,7 +102,6 @@ Root
     NamedType void
     Block
       LetStmt let =
-        ModeMark own
         BindingPattern x
         CallExpr
           NameExpr make

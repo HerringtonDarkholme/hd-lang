@@ -1,6 +1,6 @@
-# test: an own tuple element of a field needs an OwnOnly holder
+# test: a ^mut tuple element of a field needs an OwnOnly holder
 data Conn:
     fd: i32
 
-data Pair:
-    both: (own Conn, i32)  # diagnostic: own-field-plain-type
+data Pair[^a]:
+    both: (^{a} mut Conn, i32)  # diagnostic: own-field-plain-type

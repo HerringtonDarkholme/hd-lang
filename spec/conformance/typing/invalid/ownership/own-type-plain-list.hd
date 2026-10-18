@@ -1,5 +1,0 @@
-# test: a list of owned elements owns, so a plain position of it is own-type-plain
-data Conn:
-    fd: i32
-
-fn many(xs: List[own Conn]) -> void: pass  # diagnostic: own-type-plain

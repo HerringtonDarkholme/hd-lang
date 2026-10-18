@@ -1,3 +1,0 @@
-# test: own on string is own-on-value
-data Label:
-    text: own string  # diagnostic: own-on-value

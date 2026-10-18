@@ -9,7 +9,7 @@ use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{ImplKind, ItemData, Src};
+use hd_resolve::{ImplKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
@@ -683,19 +683,15 @@ impl Ck<'_, '_> {
             _ => {}
         }
         // `own.limit.top-level`: the statement reports one prototype limit
-        // at most, whether a mark, a borrow, or the binding's type finds it.
+        // at most, whether a borrow or the binding's type finds it.
         let had = std::mem::take(&mut self.prototype_limit);
-        if let Some(mark) = Src::child(s, SyntaxKind::ModeMark) {
-            self.top_level_limit(mark);
-        }
         let out = self.top_level_binding(s);
         self.prototype_limit |= had;
         out
     }
 
-    /// `own.limit.top-level`: an owned or borrowed top-level binding, or
-    /// one whose type holds an owned or borrowed part, is not in the
-    /// ownership prototype.
+    /// `own.limit.top-level`: a top-level binding whose type holds a
+    /// borrowed part is not in the ownership prototype.
     fn top_level_limit(&mut self, n: NodeRef<'_>) {
         if self.prototype_limit {
             return;
@@ -703,7 +699,7 @@ impl Ck<'_, '_> {
         self.err(
             Code::NotInOwnershipPrototype,
             n,
-            "an owned or borrowed top-level binding is not in the ownership prototype; bind a plain value, or move the binding into a function",
+            "a borrowed top-level binding is not in the ownership prototype; bind a plain value, or move the binding into a function",
         );
         self.prototype_limit = true;
     }
@@ -717,13 +713,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A top-level statement after its marks: a simple binding becomes a
-    /// global.
+    /// A top-level statement: a simple binding becomes a global.
     fn top_level_binding(&mut self, s: NodeRef<'_>) -> StageResult<()> {
-        let kids: Vec<NodeRef<'_>> = s
-            .children()
-            .filter(|k| k.kind() != SyntaxKind::ModeMark)
-            .collect();
+        let kids: Vec<NodeRef<'_>> = s.children().collect();
         let binding = match s.kind() {
             SyntaxKind::LetStmt => {
                 let pat = kids.first().copied();

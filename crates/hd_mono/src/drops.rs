@@ -37,7 +37,7 @@ impl Cx<'_> {
         }
         let pool = self.pool;
         let parts: Vec<Ty> = match pool.get(t) {
-            TyData::Own(i) | TyData::Mut(i) | TyData::Option(i) => vec![i],
+            TyData::Mut(i) | TyData::Option(i) => vec![i],
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().copied().chain(rest).collect()
             }
@@ -99,7 +99,7 @@ impl Cx<'_> {
         let (trait_, _, _) = self.env.drop_items()?;
         let pool = self.pool;
         let mut core = t;
-        while let TyData::Own(i) | TyData::Mut(i) = pool.get(core) {
+        while let TyData::Mut(i) = pool.get(core) {
             core = i;
         }
         if !matches!(pool.get(core), TyData::Adt { .. }) {

@@ -2,20 +2,20 @@
 # (spec/lang/13-ownership.md#ownership-traits). Both are prelude names
 # (spec/lang/10-modules.md#prelude); the compiler knows them by name.
 
-## A marker for a type whose every value is owned or borrowed: each use
-## writes `own T` or `^T`, never a plain `T`.
+## A marker for a type whose every value is borrowed: each use writes
+## `^T` or `^mut T`, never a plain `T`.
 ## See [own.own-only.marker](../../spec/lang/13-ownership.md#r-own.own-only.marker).
 pub trait OwnOnly
 
-## A destructor: `drop` runs when an owned value of the type is dropped.
+## A destructor: `drop` runs when a value of the type is dropped.
 ## Only an `OwnOnly` type implements it.
 ## See [own.drop-own.trait](../../spec/lang/13-ownership.md#r-own.drop-own.trait).
 pub trait DropOwn < OwnOnly:
     fn drop(^mut self) -> void
 
 @intrinsic("drop")
-## Ends `value` now: moves it in and drops it, which runs its type's `drop`
-## when the value owns; the compiler supplies the body at each type.
-## See [own.drop.call](../../spec/lang/13-ownership.md#r-own.drop.call).
-pub fn drop[T < own Any](value: T) -> void:
+## Ends `value` now: drops it, which runs its type's `drop` when the value
+## owns; the compiler supplies the body at each type.
+## See [Drops](../../spec/lang/13-ownership.md#drops).
+pub fn drop[T](value: T) -> void:
     panic("intrinsic")

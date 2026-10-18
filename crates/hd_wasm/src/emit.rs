@@ -744,7 +744,6 @@ impl Em<'_> {
                     }
                 }
                 self.store(i)?;
-                self.note_move(i, a);
             }
             Tag::LocalSet => {
                 let t = self.sub(self.b.local_ty[a as usize]);

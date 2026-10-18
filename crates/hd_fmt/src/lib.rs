@@ -87,9 +87,9 @@ mod tests {
         assert!(format("fn main(:\n").is_err());
     }
 
-    /// Every ownership mark form of `spec/conformance/parse/valid/ownership`
-    /// (`13-ownership.md`, own.syntax.*, own.lifetime*, own.binding.let-own,
-    /// own.receiver.forms, own.bound.own) round-trips and formats as a
+    /// Every borrow mark form of `spec/conformance/parse/valid/ownership`
+    /// (`13-ownership.md`, own.syntax.*, own.lifetime*, own.receiver.forms)
+    /// round-trips and formats as a
     /// fixed point, and trailing whitespace after a mark is trimmed
     /// (`cli.fmt.meaning`, `cli.fmt.idempotent`).
     #[test]
@@ -122,11 +122,11 @@ mod tests {
                 .collect();
             assert_eq!(format(&spaced).expect("parses"), src, "{}", path.display());
         }
-        let marks = "fn f(a: own File, b: ^{a} mut File) -> ^File?:   \n    let own x = a  \n";
+        let marks = "fn f(a: ^File, b: ^{a} mut File) -> ^File?:   \n    let x = a  \n";
         let once = format(marks).expect("parses");
         assert_eq!(
             once,
-            "fn f(a: own File, b: ^{a} mut File) -> ^File?:\n    let own x = a\n"
+            "fn f(a: ^File, b: ^{a} mut File) -> ^File?:\n    let x = a\n"
         );
         assert_eq!(format(&once).expect("parses"), once);
     }
