@@ -156,11 +156,14 @@ A derived `Eq` or `Hash` is structural through references: it compares
 and hashes what a reference field points to, so two expression trees
 built alike are equal, and an `Expr` can key a map. `is` keeps identity
 for code that needs it, and a map keyed by identity uses `Id[T]`, a
-wrapper whose `Eq` and `Hash` are the reference's identity. Structural
-comparison could run around a cycle forever, so `Eq` and `Hash` cannot
-be derived for a type that can be part of a cycle (one that can reach
-itself through a `&mut`, the same test the collector uses); such a type
-writes them by hand or keys by `Id[T]`. A hash computed through a
+wrapper whose `Eq` and `Hash` are the reference's identity. Deriving
+them is allowed on every type, as in Rust. On a structure that really
+contains a cycle, the derived comparison runs around it until the stack
+is exhausted and the program panics with `stack-exhausted`; that tells
+the author the structure needs a cycle-aware comparison. std provides
+one, `deep_equal`, which, like Go's `reflect.DeepEqual`, remembers the
+pairs it is comparing and counts a pair met again as equal, so it
+always ends. A hash computed through a
 `&mut` field changes when the object does, so mutable objects make poor
 map keys, as in every language.
 
@@ -836,7 +839,7 @@ them. A std migration chunk that runs long splits into further jobs.
 | 1 | Grammar: `&T` and `&mut T` types, `&e`, `&mut e`, `&T { ... }`, prefix `*`; parser | a "Values And References" chapter skeleton and grammar productions; parse fixtures, valid and invalid |
 | 2 | `struct` values with mutable fields: literals, copies, field writes on `let mut`, `&mut` only from writable places, immutable `:=` and parameters | struct and copy rules; check and run fixtures, one per error |
 | 3 | References in the checker: forming them on places and non-places, writable places, `&mut` to `&`, transitive weakening, auto-dereference, `*r` | reference and writable-path rules; check fixtures per error, with fix-its |
-| 4 | Identity and equality: `is` on references only, `==` between references rejected, derived `Eq` and `Hash` structural through reference fields and refused for cycle-capable types, `Id[T]`, `Option[&T]` | identity rules; check and run fixtures |
+| 4 | Identity and equality: `is` on references only, `==` between references rejected, derived `Eq` and `Hash` structural through reference fields, std's cycle-safe `deep_equal`, `Id[T]`, `Option[&T]` | identity rules; check and run fixtures |
 | 5 | Methods: `self`, `&self`, `&mut self`, auto-address, non-writable receivers, method sets in trait implementations | receiver rules; a fixture per error |
 | 6 | Trait values as `&dyn` and `&mut dyn`, boxing a value into an object, `AnyVal` and `AnyRef` redefined | trait value rules; fixtures |
 | 7 | Recursive types: the cycle error for structs and enums that contain themselves through values, recursion through `&`, payloads not places | recursion rules; an invalid fixture per error |
