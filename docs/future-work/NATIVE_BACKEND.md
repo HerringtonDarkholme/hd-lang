@@ -5,6 +5,8 @@ in it is decided, and nothing in it is in the spec. Numbers marked
 "estimate" are not measurements; line counts of existing crates were
 counted on 2026-10-17.
 
+**Owner, later the same night: "don't do native first".** No native work is scheduled now, phase 1 included; the plan below waits until the owner reprioritizes it. The earlier note records what was approved as a direction.
+
 **Owner decision (2026-10-17, night).** Approved: native executables first from the Wasm path (`hd build --target exe` over wasmtime AOT); a true native backend (Cranelift, precise mark-sweep then Immix) only if phase 0 benchmarks show at least 1.5x or the owner wants stage C on native. The one `unsafe` call phase 1 needs (wasmtime `Module::deserialize` of bytes embedded in the same file) is allowed; the native runtime's unsafe crate only if phase 4 starts.
 
 ## 1. Motivation
