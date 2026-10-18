@@ -65,11 +65,14 @@ pub struct KnownItems {
     pub ord: DefId,
     pub ordering: DefId,
     pub hash: DefId,
-    /// `std.hash.hash_of`, which a map hashes a non-inline key by.
-    pub hash_of: DefId,
-    /// `std.hash.string_bucket_hash`, the keyed hash a map buckets a
-    /// string key by (spec/std/hash.md#r-std-hash.map.bucket-hash).
+    /// The keyed hashes a map buckets its keys by
+    /// (spec/std/hash.md#r-std-hash.map.bucket-hash): `std.hash`'s
+    /// `key_bucket_hash` for a key that is not inline,
+    /// `string_bucket_hash` for a string and `int_bucket_hash` for any
+    /// other inline key.
+    pub key_bucket_hash: DefId,
     pub string_bucket_hash: DefId,
+    pub int_bucket_hash: DefId,
     pub display: DefId,
     pub debug: DefId,
     /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
@@ -205,8 +208,9 @@ impl KnownItems {
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
             hash: item("std.hash", "Hash"),
-            hash_of: item("std.hash", "hash_of"),
+            key_bucket_hash: item("std.hash", "key_bucket_hash"),
             string_bucket_hash: item("std.hash", "string_bucket_hash"),
+            int_bucket_hash: item("std.hash", "int_bucket_hash"),
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
             dbg: item("std.format", "dbg"),

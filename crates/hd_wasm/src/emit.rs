@@ -4085,26 +4085,35 @@ impl Em<'_> {
     }
 
     /// How instruction `i`'s map hashes and compares keys of type `kt`
-    /// (`crates/hd_mono/DESIGN.md` §13.12): inline for an integer, `bool` or `char`;
-    /// for a `string`, through the keyed bucket hash collection selected
-    /// and an inline comparison; else through the `hash_of` and `Eq.eq`
+    /// (`crates/hd_mono/DESIGN.md` §13.12): for an integer, `bool`, `char` or
+    /// `string`, through the keyed bucket hash collection selected and an
+    /// inline comparison; else through the `key_bucket_hash` and `Eq.eq`
     /// instances that collection selected at the key type.
     fn key_ops(&self, i: u32, kt: Ty, key: &[VT]) -> StageResult<KeyOps> {
-        if let Some(Target::MapString(hash)) = self.calls.get(&i) {
-            if self.key_params(hash, 0)? != key || self.vts(hash.ret)? != [VT::I32] {
-                return unsupported("a string bucket hash that takes or returns other values");
+        if let Some(Target::MapInline(hash)) = self.calls.get(&i) {
+            if !inline_map_key(self.pool(), self.env(), kt) || self.vts(hash.ret)? != [VT::I32] {
+                return unsupported("an inline map key's bucket hash that returns other values");
             }
-            return Ok(KeyOps::Str(Box::new(Sym::Inst(hash.key))));
+            let params = self.key_params(hash, 0)?;
+            let sym = Box::new(Sym::Inst(hash.key));
+            return Ok(match key {
+                [VT::I32] if params == [VT::I64] => KeyOps::I32(sym),
+                [VT::I64] if params == [VT::I64] => KeyOps::I64(sym),
+                [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes && params == key => {
+                    KeyOps::Str(sym)
+                }
+                _ => return unsupported("an inline map key of another layout"),
+            });
         }
         if let Some(Target::MapKey { hash, eq }) = self.calls.get(&i) {
             let params = self.key_params(hash, 0)?;
             if params.len() != key.len()
                 || self.key_params(eq, 0)? != params
                 || self.key_params(eq, 1)? != params
-                || self.vts(hash.ret)? != [VT::I64]
+                || self.vts(hash.ret)? != [VT::I32]
                 || self.vts(eq.ret)? != [VT::I32]
             {
-                return unsupported("a map key whose `hash_of` or `eq` takes other values");
+                return unsupported("a map key whose bucket hash or `eq` takes other values");
             }
             return Ok(KeyOps::Call {
                 hash: Box::new(Sym::Inst(hash.key)),
@@ -4112,17 +4121,7 @@ impl Em<'_> {
                 params,
             });
         }
-        if !inline_map_key(self.pool(), self.env(), kt) {
-            return unsupported("a map key whose operations collection did not select");
-        }
-        Ok(match key {
-            [VT::I32] => KeyOps::I32,
-            [VT::I64] => KeyOps::I64,
-            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => {
-                return unsupported("a string map key without its bucket hash");
-            }
-            _ => return unsupported("an inline map key of another layout"),
-        })
+        unsupported("a map key whose operations collection did not select")
     }
 
     /// The values parameter `k` of a key operation's instance takes.

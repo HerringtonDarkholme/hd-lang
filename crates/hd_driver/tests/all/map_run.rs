@@ -297,3 +297,96 @@ pub fn main() -> void $ Console:
         "65,536 colliding keys took {took:?}"
     );
 }
+
+/// Integer keys that collided under the fixed mix the map once bucketed
+/// integers by (#511): `x * 0x9E3779B1`, then `h ^ (h >> 16)`. Key `a`
+/// is `p * 0x9E3779B1^-1` for `p = (a << 16) | a`, so its old hash was
+/// `a << 16`, and all 65,536 keys fell into two runs of the index; as a
+/// `u64` the key sits in the high half, which the old mix folded onto the
+/// low one. Each insertion and lookup then probed half the earlier keys,
+/// about 4 * 10^9 probes over the two maps. Keyed by the run's seed
+/// (`std.hash.int_bucket_hash`), they spread.
+#[test]
+fn integer_keys_chosen_to_collide_under_a_fixed_mix_stay_fast() {
+    let main = "\
+pub fn main() -> void $ Console:
+    let narrow: mut Map[u32, u64] = {}
+    let wide: mut Map[u64, u64] = {}
+    let a: u64 = 0
+    while a < 65536:
+        key := ((a << 16) | a) * 244002641 & 4294967295
+        narrow[u32(key)] = a
+        wide[key << 32] = a
+        a = a + 1
+    let found: u64 = 0
+    a = 0
+    while a < 65536:
+        key := ((a << 16) | a) * 244002641 & 4294967295
+        if narrow.get(u32(key)).unwrap_or(0) == a && wide.get(key << 32).unwrap_or(0) == a:
+            found = found + 1
+        a = a + 1
+    println(narrow.len())
+    println(wide.len())
+    println(found)
+";
+    let start = std::time::Instant::now();
+    assert_eq!(output_of("collide-int", main), "65536\n65536\n65536\n");
+    let took = start.elapsed();
+    assert!(
+        took < std::time::Duration::from_secs(8),
+        "65,536 colliding integer keys took {took:?}"
+    );
+}
+
+/// Composite keys whose `Hash` bytes collide under the unkeyed FNV-1a-64
+/// `hash_of` the map once bucketed them by (#511): each name picks one
+/// 11-letter block of each pair, and both blocks of a pair lead from the
+/// same 64-bit FNV state to the same state (found by Pollard's rho), so
+/// all 2^15 tuples `(name, 7)`, and the derived `Entry` values that write
+/// the same bytes, had one hash. Every insertion then compared the key
+/// with all the earlier ones, about 10^9 `eq` calls over the two maps.
+/// Keyed by the run's seed (`std.hash.key_bucket_hash`), they spread.
+#[test]
+fn composite_keys_chosen_to_collide_under_hash_of_stay_fast() {
+    let main = "\
+PAIRS := [(\"xLFsLJjiINP\", \"7Gg3RxEK0PE\"), (\"JdU9jHX4TqJ\", \"OM0YyM0u85J\"), (\"AugSUBgW75L\", \"cnjpGuWGzZD\"), (\"m5sdyq21BBG\", \"_giiglMbqlL\"), (\"4JKsnCMsoUG\", \"Gq8caPsJwuE\"), (\"ggLC_EYaqEH\", \"1OD6Nfm_0eN\"), (\"8m63a_auFPM\", \"wpZBVqlGciB\"), (\"U5oBHizR2DJ\", \"d7xyPoQOXFI\"), (\"NlD.hxb.YLB\", \"J.FHPO4huuF\"), (\"rdo2YOCChAO\", \"jnkEdU0xbkA\"), (\"SeahsXPklTG\", \".RY30hrErLK\"), (\"EXcYViwLM3N\", \"mk0qPgfDxJC\"), (\"fONkr.v1G5E\", \"0Wh3F4JFuQH\"), (\"qdyN48b8gHM\", \"UQManoGiTKL\"), (\"waw.LRB_iqI\", \"A34Z3EbN1.F\")]
+
+@derive(Eq, Hash)
+data Entry:
+    name: string
+    n: i32
+
+fn name_of(mask: usize) -> string:
+    let parts: mut List[string] = []
+    let b: usize = 0
+    while b < 15:
+        pair := PAIRS[b]
+        parts.push(if (mask >> b) & 1 == 1: pair._1 else: pair._0)
+        b = b + 1
+    parts.join(\"\")
+
+pub fn main() -> void $ Console:
+    let pairs: mut Map[(string, i32), usize] = {}
+    let entries: mut Map[Entry, usize] = {}
+    let mask: usize = 0
+    while mask < 32768:
+        name := name_of(mask)
+        pairs[(name, 7)] = mask
+        entries[Entry { name: name, n: 7 }] = mask
+        mask = mask + 1
+    println(pairs.len())
+    println(entries.len())
+    println(pairs.get((\"xLFsLJjiINPJdU9jHX4TqJAugSUBgW75Lm5sdyq21BBG4JKsnCMsoUGggLC_EYaqEH8m63a_auFPMU5oBHizR2DJNlD.hxb.YLBrdo2YOCChAOSeahsXPklTGEXcYViwLM3NfONkr.v1G5EqdyN48b8gHMwaw.LRB_iqI\", 7)).unwrap_or(1))
+    println(entries.get(Entry { name: \"7Gg3RxEK0PEOM0YyM0u85JcnjpGuWGzZD_giiglMbqlLGq8caPsJwuE1OD6Nfm_0eNwpZBVqlGciBd7xyPoQOXFIJ.FHPO4huuFjnkEdU0xbkA.RY30hrErLKmk0qPgfDxJC0Wh3F4JFuQHUQManoGiTKLA34Z3EbN1.F\", n: 7 }).unwrap_or(1))
+";
+    let start = std::time::Instant::now();
+    assert_eq!(
+        output_of("collide-composite", main),
+        "32768\n32768\n0\n32767\n"
+    );
+    let took = start.elapsed();
+    assert!(
+        took < std::time::Duration::from_secs(8),
+        "32,768 colliding composite keys took {took:?}"
+    );
+}

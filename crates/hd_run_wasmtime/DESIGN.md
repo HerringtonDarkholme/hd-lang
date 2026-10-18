@@ -157,8 +157,8 @@ wasmtime, never enabled by the default host.
 | runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)`, `panic()`, `fact(len)`, `hash_seed() -> i64` | |
 | host primitive | `hd:prim` `name`, no receiver, never waits | `format_f64` |
 
-`hash_seed()` returns 64 random bits: the key of the map's string hash
-(`std-hash.map.bucket-hash`). The instance asks once, on the first string
+`hash_seed()` returns 64 random bits: the key of the map's bucket hash
+(`std-hash.map.bucket-hash`). The instance asks once, on the first map
 key it hashes, and keeps the answer in the runtime global `rt.hseed`,
 which a session's inputs share and never reset. A session's journal
 records the call as a `Call` row, so a rebuild hashes with the same key.

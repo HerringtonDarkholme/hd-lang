@@ -149,14 +149,16 @@ fn bucket(key: string) -> u64:
 
 > **Note.** A fixed algorithm makes hash values reproducible, so a test
 > may assert one. It also means that keys chosen to collide stay
-> colliding, so the built-in `Map` does not bucket strings by it.
+> colliding, so the built-in `Map` does not bucket keys by it.
 
 > **Why.** Keys chosen to collide make every insertion probe the whole
 > table, and a map built from untrusted JSON takes its keys from the
-> sender. So the reference implementation buckets a string key by
-> HalfSipHash-1-3 under a random key that the host draws once per run,
-> as Rust keys SipHash-1-3 per process and Go seeds its hash per map. A
-> REPL session's journal records the key, so a rebuild replays exactly.
+> sender. So the reference implementation buckets every key by a hash
+> under a random key that the host draws once per run, as Rust keys
+> SipHash-1-3 per process and Go seeds its hash per map. A string, or
+> the `Hash` bytes of a tuple or other key, goes through HalfSipHash-1-3;
+> an integer through the keyed multiply mix Go uses on 32-bit platforms.
+> A REPL session's journal records the key, so a rebuild replays exactly.
 > Iteration order does not depend on the hash
 > ([`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic)),
 > so the key changes no output.

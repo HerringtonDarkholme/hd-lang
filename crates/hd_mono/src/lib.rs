@@ -130,11 +130,13 @@ pub trait ProgramEnv: LayoutEnv {
     fn debug_trait(&self) -> DefId;
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
-    /// names `Self`) and `std.hash.hash_of`.
+    /// names `Self`) and `std.hash.key_bucket_hash`, the keyed hash a map
+    /// buckets a key that is not inline by.
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
-    /// `std.hash.string_bucket_hash`, the keyed hash a map buckets a
-    /// string key by (`crates/hd_mono/DESIGN.md` §13.12).
-    fn string_bucket_hash(&self) -> DefId;
+    /// The keyed hash a map buckets an inline key by (`crates/hd_mono/DESIGN.md`
+    /// §13.12): `std.hash.string_bucket_hash` for a `string`, else
+    /// `std.hash.int_bucket_hash`, which takes the key's bits as a `u64`.
+    fn inline_bucket_hash(&self, string: bool) -> DefId;
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
     fn build_profile(&self) -> BuildProfile;
@@ -238,16 +240,16 @@ pub enum Target {
     /// field.
     KnownClosure(Hash128),
     /// A map operation on a key that is not inline
-    /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
-    /// (`crates/hd_mono/DESIGN.md` §13.12).
+    /// (`layout::inline_map_key`): `key_bucket_hash` and `Eq.eq` at the
+    /// key type (`crates/hd_mono/DESIGN.md` §13.12).
     MapKey {
         hash: CallTarget,
         eq: CallTarget,
     },
-    /// A map operation on a `string` key: the keyed bucket hash
-    /// `std.hash.string_bucket_hash` (`crates/hd_mono/DESIGN.md` §13.12);
-    /// equality stays inline.
-    MapString(CallTarget),
+    /// A map operation on an inline key: its keyed bucket hash,
+    /// `std.hash.string_bucket_hash` or `std.hash.int_bucket_hash`
+    /// (`crates/hd_mono/DESIGN.md` §13.12); equality stays inline.
+    MapInline(CallTarget),
     /// An open instruction of an erased body (`crates/hd_mono/DESIGN.md` §13.5.1): it
     /// calls thunk `k` of the witness the body was passed.
     Open(u32),
@@ -2112,15 +2114,10 @@ impl Cx<'_> {
     }
 
     /// The key operations of a map of type `map` (`crates/hd_mono/DESIGN.md` §13.12):
-    /// `None` for an inline integer key, the keyed bucket hash for a
-    /// string key, else `hash_of` and `Eq.eq` at the key type, selected
-    /// here so the TIR carries only the key type.
-    fn map_key(
-        &mut self,
-        map: Ty,
-        parent: InstId,
-        reps: &mut StableHasher,
-    ) -> StageResult<Option<Target>> {
+    /// the keyed bucket hash of an inline key, else `key_bucket_hash` and
+    /// `Eq.eq` at the key type, selected here so the TIR carries only the
+    /// key type.
+    fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let map = match pool.get(map) {
             TyData::Mut(x) => x,
@@ -2134,21 +2131,19 @@ impl Cx<'_> {
         };
         if layout::inline_map_key(pool, self.env, key) {
             let stripped = layout::strip_newtype(pool, self.env, key);
-            if !matches!(pool.get(stripped), TyData::Prim(Prim::String)) {
-                return Ok(None);
-            }
-            let hash = self.target(self.env.string_bucket_hash(), TyList::EMPTY, parent)?;
+            let string = matches!(pool.get(stripped), TyData::Prim(Prim::String));
+            let hash = self.target(self.env.inline_bucket_hash(string), TyList::EMPTY, parent)?;
             self.hash_target(&hash, reps);
-            return Ok(Some(Target::MapString(hash)));
+            return Ok(Target::MapInline(hash));
         }
-        let Some((eq_trait, eq_method, hash_of)) = self.env.map_key_items() else {
+        let Some((eq_trait, eq_method, key_hash)) = self.env.map_key_items() else {
             return err("an `Eq` trait without its method");
         };
         let eq = self.method_target(eq_trait, eq_method, key, &[], None, parent)?;
-        let hash = self.target(hash_of, pool.list(&[key]), parent)?;
+        let hash = self.target(key_hash, pool.list(&[key]), parent)?;
         self.hash_target(&eq, reps);
         self.hash_target(&hash, reps);
-        Ok(Some(Target::MapKey { hash, eq }))
+        Ok(Target::MapKey { hash, eq })
     }
 
     /// The plan of `body`, the body of `def` or the one supplied for it at
@@ -2509,9 +2504,8 @@ impl Cx<'_> {
                 // inserts each entry, and lookup, insertion and removal
                 // hash and compare the key through its impls.
                 Tag::NewMap if !body.record(b).is_empty() => {
-                    if let Some(t) = self.map_key(ty, id, &mut reps)? {
-                        calls.insert(ix, t);
-                    }
+                    let t = self.map_key(ty, id, &mut reps)?;
+                    calls.insert(ix, t);
                 }
                 Tag::Intrinsic
                     if matches!(
@@ -2527,9 +2521,8 @@ impl Cx<'_> {
                     let Some(&m) = body.record(b).first() else {
                         return err("a map operation without its map");
                     };
-                    if let Some(t) = self.map_key(s(value_ty(body, m)), id, &mut reps)? {
-                        calls.insert(ix, t);
-                    }
+                    let t = self.map_key(s(value_ty(body, m)), id, &mut reps)?;
+                    calls.insert(ix, t);
                 }
                 _ => {}
             }

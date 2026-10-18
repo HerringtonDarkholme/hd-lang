@@ -238,8 +238,8 @@ pub fn owner_global() -> GSym {
     GSym::Rt("owner".into(), VT::I32)
 }
 
-/// The run's map hash key (`map_hash_seed`): 0 until the first string
-/// key is hashed, which asks the host's `hash_seed` import. It is a
+/// The run's map hash key (`map_hash_seed`): 0 until the first map key
+/// is hashed, which asks the host's `hash_seed` import. It is a
 /// runtime global, so the inputs of a session share one key and a map
 /// built by one input is found by the next.
 #[must_use]
@@ -300,16 +300,19 @@ pub enum OptForm {
 /// How a map hashes and compares its key (`crates/hd_mono/DESIGN.md` §13.12).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KeyOps {
-    /// An integer, `bool` or `char` in one `i32`.
-    I32,
-    /// A 64-bit integer.
-    I64,
+    /// An integer, `bool` or `char` in one `i32`: a call of the keyed
+    /// bucket hash `std.hash.int_bucket_hash` over its bits, zero-extended
+    /// to a `u64`; equality is `i32.eq`.
+    I32(Box<Sym>),
+    /// A 64-bit integer: a call of `std.hash.int_bucket_hash`; equality
+    /// is `i64.eq`.
+    I64(Box<Sym>),
     /// A string: a call of the keyed bucket hash
     /// `std.hash.string_bucket_hash` over its viewed bytes; equality is
     /// `StrEq`.
     Str(Box<Sym>),
-    /// Calls of the key type's `hash_of` and `Eq.eq` instances, which take
-    /// the key's values as `params`.
+    /// Calls of the key type's `key_bucket_hash` and `Eq.eq` instances,
+    /// which take the key's values as `params`.
     Call {
         hash: Box<Sym>,
         eq: Box<Sym>,
@@ -583,8 +586,14 @@ fn dec_opt(r: &mut Reader<'_>) -> Option<OptForm> {
 impl KeyOps {
     fn encode(&self, w: &mut Writer) {
         match self {
-            KeyOps::I32 => w.u8(0),
-            KeyOps::I64 => w.u8(1),
+            KeyOps::I32(hash) => {
+                w.u8(0);
+                hash.encode(w);
+            }
+            KeyOps::I64(hash) => {
+                w.u8(1);
+                hash.encode(w);
+            }
             KeyOps::Str(hash) => {
                 w.u8(2);
                 hash.encode(w);
@@ -599,8 +608,8 @@ impl KeyOps {
     }
     fn decode(r: &mut Reader<'_>) -> Option<KeyOps> {
         Some(match r.u8() {
-            0 => KeyOps::I32,
-            1 => KeyOps::I64,
+            0 => KeyOps::I32(Box::new(Sym::decode(r)?)),
+            1 => KeyOps::I64(Box::new(Sym::decode(r)?)),
             2 => KeyOps::Str(Box::new(Sym::decode(r)?)),
             _ => KeyOps::Call {
                 hash: Box::new(Sym::decode(r)?),

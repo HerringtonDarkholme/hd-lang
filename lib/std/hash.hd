@@ -209,17 +209,109 @@ impl[T < Tuple] Hash for T by Structure:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
 
-# The bucket hash of a string key in the built-in `Map`
-# (r-std-hash.map.bucket-hash), which the compiler calls for every string
-# key: HalfSipHash-1-3, the 32-bit-lane SipHash, keyed by the run's 64-bit
-# seed, so keys that collide cannot be chosen without the seed. Each lane
-# lives in a `u64`, masked after each step: the sum of two lanes never
-# overflows, so the same code runs in a debug build, where `+` checks,
-# and in a release build. SipHash-1-3's 64-bit lanes would need a
-# wrapping `u64` addition, which std can only build from 32-bit halves
-# today; that measures 2.5 times slower on short keys. A message word is
-# four bytes, little-endian; the last word holds the leftover bytes, with
-# the length's low byte on top. One round per word, then three.
+# The keyed hasher the built-in `Map` buckets its keys by
+# (r-std-hash.map.bucket-hash): HalfSipHash-1-3, the 32-bit-lane SipHash,
+# keyed by the run's 64-bit seed, so keys that collide cannot be chosen
+# without the seed. A key that is not an integer or a string writes its
+# `Hash` bytes to one (`key_bucket_hash`); a string key gets the same
+# digest of its bytes without a copy (`string_bucket_hash`). An integer
+# key takes a cheaper keyed mix of its bits (`int_bucket_hash`), since
+# this hasher would cost twice the map operation. Each lane lives in a
+# `u64`, masked after each step: the sum of two lanes never overflows, so
+# the same code runs in a debug build, where `+` checks, and in a release
+# build. SipHash-1-3's 64-bit lanes would need a wrapping `u64` addition,
+# which std can only build from 32-bit halves today; that measures 2.5
+# times slower on short keys. A message word is four bytes,
+# little-endian; the last word holds the leftover bytes, with the
+# length's low byte on top. One round per word, then three.
+data BucketHasher:
+    v0: u64
+    v1: u64
+    v2: u64
+    v3: u64
+    # The bytes of the word being filled, little-endian.
+    word: u64
+    # The bytes written so far.
+    count: usize
+
+impl BucketHasher:
+    fn new() -> mut BucketHasher:
+        seed := map_hash_seed()
+        v0 := seed & 4294967295
+        v1 := seed >> 32
+        BucketHasher { v0: v0, v1: v1, v2: v0 ^ 1819895653, v3: v1 ^ 1952801890, word: 0, count: 0 }
+
+    # One full message word.
+    fn absorb(mut self, m: u64) -> void:
+        self.v3 = self.v3 ^ m
+        self.round()
+        self.v0 = self.v0 ^ m
+
+    fn round(mut self) -> void:
+        mask := u64(4294967295)
+        self.v0 = (self.v0 + self.v1) & mask
+        self.v1 = ((self.v1 << 5) | (self.v1 >> 27)) & mask
+        self.v1 = self.v1 ^ self.v0
+        self.v0 = ((self.v0 << 16) | (self.v0 >> 16)) & mask
+        self.v2 = (self.v2 + self.v3) & mask
+        self.v3 = ((self.v3 << 8) | (self.v3 >> 24)) & mask
+        self.v3 = self.v3 ^ self.v2
+        self.v0 = (self.v0 + self.v3) & mask
+        self.v3 = ((self.v3 << 7) | (self.v3 >> 25)) & mask
+        self.v3 = self.v3 ^ self.v0
+        self.v2 = (self.v2 + self.v1) & mask
+        self.v1 = ((self.v1 << 13) | (self.v1 >> 19)) & mask
+        self.v1 = self.v1 ^ self.v2
+        self.v2 = ((self.v2 << 16) | (self.v2 >> 16)) & mask
+
+    # The last word, then the three finishing rounds.
+    fn finish(mut self) -> u32:
+        self.absorb(self.word | (u64(self.count & 255) << 24))
+        self.v2 = self.v2 ^ 255
+        self.round()
+        self.round()
+        self.round()
+        u32(self.v1 ^ self.v3)
+
+impl Hasher for BucketHasher:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.word = self.word | (u64(byte) << ((self.count & 3) * 8))
+            self.count = self.count + 1
+            if self.count & 3 == 0:
+                self.absorb(self.word)
+                self.word = 0
+
+# The bucket hash of a key that is not an integer or a string: its `Hash`
+# bytes under a fresh `BucketHasher`.
+fn key_bucket_hash[T < Hash](value: T) -> u32:
+    let mut hasher = BucketHasher::new()
+    value.hash(hasher)
+    hasher.finish()
+
+# The bucket hash of an integer, `bool` or `char` key, given its bits:
+# the keyed mix Go's runtime hashes an 8-byte key by on 32-bit platforms
+# (`memhash64Fallback`), three 32 x 32 -> 64-bit products, with the seed's
+# halves as Go's secret `hashkey` words. No product overflows a `u64`, so
+# a debug build's check never fires.
+fn int_bucket_hash(value: u64) -> u32:
+    mask := u64(4294967295)
+    seed := map_hash_seed()
+    k1 := seed & mask
+    k2 := seed >> 32
+    let c = k1 * (k2 ^ 8)
+    let a = (c & mask) ^ (value & mask)
+    let b = (c >> 32) ^ (value >> 32)
+    c = (a ^ k1) * (b ^ k2)
+    a = c & mask
+    b = c >> 32
+    c = (a ^ k1) * (b ^ k2)
+    u32((c & mask) ^ (c >> 32))
+
+# The bucket hash of a string key: the `BucketHasher` digest of its bytes,
+# read in place, with the lanes in locals. Feeding a `BucketHasher`
+# instead measures 15 to 25 percent slower on short keys, since each round
+# then reads and writes the hasher's fields.
 fn string_bucket_hash(key: string) -> u32:
     mask := u64(4294967295)
     seed := map_hash_seed()

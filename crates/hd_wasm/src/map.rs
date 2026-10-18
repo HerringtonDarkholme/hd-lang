@@ -61,53 +61,38 @@ fn mask_of(a: &mut Asm, idx: u32, mask: u32) {
     a.set(mask);
 }
 
-/// `(key...) -> i32`: the bucket hash, the key's 32 bits mixed into a
-/// non-negative `i32`. Integers hash inline; a string through the keyed
-/// `std.hash.string_bucket_hash`, whose output needs no further mixing;
-/// any other key through its `hash_of` instance.
+/// `(key...) -> i32`: the bucket hash, a call of the key's keyed bucket
+/// hash (`std.hash`'s `int_bucket_hash`, `string_bucket_hash` or the key
+/// type's `key_bucket_hash` instance), whose output needs no further
+/// mixing, made non-negative.
 pub fn hash_code(key: &[VT], ops: &KeyOps) -> StageResult<Code> {
     let mut a = Asm::new(key.to_vec());
-    let hv = a.local(VT::I32);
     match ops {
-        KeyOps::I32 => a.get(0),
-        KeyOps::I64 => {
+        KeyOps::I32(hash) => {
             a.get(0);
+            a.s().i64_extend_i32_u();
+            a.call((**hash).clone());
+        }
+        KeyOps::I64(hash) => {
             a.get(0);
-            a.i64(32);
-            a.s().i64_shr_u().i64_xor().i32_wrap_i64();
+            a.call((**hash).clone());
         }
         KeyOps::Str(hash) => {
             a.get(0);
             a.get(1);
             a.call((**hash).clone());
-            a.i32(0x7FFF_FFFF);
-            a.s().i32_and();
-            return Ok(a.finish(vec![VT::I32]));
         }
         KeyOps::Call { hash, params, .. } => {
             if params.len() != key.len() {
                 return unsupported("a map key whose hash takes other values");
             }
-            let x = a.local(VT::I64);
             for (k, (have, want)) in key.iter().zip(params).enumerate() {
                 a.get(n32(k));
                 a.conv(have, want);
             }
             a.call((**hash).clone());
-            a.set(x);
-            a.get(x);
-            a.get(x);
-            a.i64(32);
-            a.s().i64_shr_u().i64_xor().i32_wrap_i64();
         }
     }
-    a.i32(0x9E37_79B1_u32.cast_signed());
-    a.s().i32_mul();
-    a.set(hv);
-    a.get(hv);
-    a.get(hv);
-    a.i32(16);
-    a.s().i32_shr_u().i32_xor();
     a.i32(0x7FFF_FFFF);
     a.s().i32_and();
     Ok(a.finish(vec![VT::I32]))
@@ -122,12 +107,12 @@ fn key_eq(a: &mut Asm, map: &WTy, key: &[VT], ops: &KeyOps, e: u32, k0: u32) {
         a.array_get(&comp_arr(&key[k]));
     };
     match ops {
-        KeyOps::I32 => {
+        KeyOps::I32(_) => {
             stored(a, 0);
             a.get(k0);
             a.s().i32_eq();
         }
-        KeyOps::I64 => {
+        KeyOps::I64(_) => {
             stored(a, 0);
             a.get(k0);
             a.s().i64_eq();

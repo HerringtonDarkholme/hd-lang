@@ -540,14 +540,18 @@ JavaScript's `Map` (`layout::map_ty`):
   hash, then compares the key. Removal marks the entry; growth drops
   removed entries and keeps order. Iteration walks entries and skips
   removed ones, in insertion order.
-- **Hashing.** An integer, `bool`, `char` or 64-bit integer key is
-  hashed and compared inline by the map's helpers (`rt::KeyOps`). A
-  string key is compared inline and hashed by `std.hash.string_bucket_hash`,
-  HalfSipHash-1-3 keyed by the run's seed, which the instance asks the
-  host's `hd:rt` `hash_seed` import for once and keeps in a runtime
-  global. Any other key calls its `hash_of` and `Eq.eq` instances. This is better than
-  the design, which sent every key through the `Hash` protocol and a
-  `dyn Hasher`: common keys hash with no allocation and no indirect call.
+- **Hashing.** Every key hashes by a function keyed by the run's seed,
+  which the first call asks the host's `hd:rt` `hash_seed` import for
+  and keeps in a runtime global. An integer, `bool`, `char` or 64-bit
+  integer key is compared inline by the map's helpers (`rt::KeyOps`) and
+  hashed by `std.hash.int_bucket_hash`, a keyed multiply mix of its bits.
+  A string key is compared inline and hashed by
+  `std.hash.string_bucket_hash`, HalfSipHash-1-3. Any other key calls
+  its `key_bucket_hash` instance, which feeds the key's `Hash` impl a
+  `BucketHasher` (the same HalfSipHash-1-3), and its `Eq.eq` instance.
+  This is better than the design, which sent every key through the
+  `Hash` protocol and a `dyn Hasher`: common keys hash with no
+  allocation and no indirect call.
   The bucket hash is an implementation detail
   ([`std-hash.map.bucket-hash`](../../spec/std/hash.md#r-std-hash.map.bucket-hash)),
   so this is sound. Implementing `Map` in hd instead of runtime helpers:

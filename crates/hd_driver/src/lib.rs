@@ -9601,10 +9601,14 @@ impl ProgramEnv for Env<'_> {
             return None;
         };
         let method = t.methods.first()?.1;
-        Some((eq, method, self.run.known.hash_of))
+        Some((eq, method, self.run.known.key_bucket_hash))
     }
-    fn string_bucket_hash(&self) -> DefId {
-        self.run.known.string_bucket_hash
+    fn inline_bucket_hash(&self, string: bool) -> DefId {
+        if string {
+            self.run.known.string_bucket_hash
+        } else {
+            self.run.known.int_bucket_hash
+        }
     }
     fn build_profile(&self) -> BuildProfile {
         self.run.build_profile
