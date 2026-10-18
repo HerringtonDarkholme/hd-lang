@@ -944,6 +944,10 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
             None => return rep.fail(&no_package("run")),
         },
     };
+    if let Some(d) = disk::manifest_syntax_problem(&root) {
+        rep.diag(&d);
+        return rep.finish(HD_FAILURE);
+    }
     let package = match disk::package_name(&root) {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
@@ -1161,6 +1165,10 @@ fn build_package(
     (release, pipeline): (bool, Pipeline),
     rep: &mut Reporter,
 ) -> Result<(), ExitCode> {
+    if let Some(d) = disk::manifest_syntax_problem(root) {
+        rep.diag(&d);
+        return Err(rep.finish(HD_FAILURE));
+    }
     let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
     let executables = disk::executables(root, &package);
     if executables.is_empty() {

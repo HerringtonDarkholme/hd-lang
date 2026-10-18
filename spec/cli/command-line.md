@@ -1,6 +1,3 @@
-3. r[cli.manifest.invalid] An error in the content of `hd.toml` for which no other rule names a code is an error at its line in `hd.toml`. Error: `invalid-manifest`.
-4. r[cli.manifest.invalid.cases] These errors include a bad key or value of [Capability Grants](#capability-grants), an `[[executable]]` table without a string `name` and `module`, and a `[source] root` that is no source root. They also include a package that its workspace manifest neither lists nor excludes.
-5. r[cli.manifest.invalid.unlisted] For the unlisted package, the diagnostic's file is the workspace manifest, and its line is that of the manifest's `members` key, or of its `[workspace]` header when it has no `members`.
 # Command Line
 
 Status: command-line specification draft.
@@ -1900,9 +1897,13 @@ version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
 
 1. r[cli.manifest.unknown-key] A table or key of `hd.toml` that the table above does not list is a warning at its line. Warning: `unknown-manifest-key`.
 2. r[cli.manifest.known-key] A listed key whose value breaks the rule that gives it a meaning stays an error.
-3. r[cli.manifest.toolchain-keys] `[package] hd` is the minimum toolchain version of [`module.toolchain.minimum`](../lang/10-modules.md#r-module.toolchain.minimum), and `[toolchain] pin` is the exact version of [`module.toolchain.pin`](../lang/10-modules.md#r-module.toolchain.pin). Each is a version string.
-4. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
-5. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
+3. r[cli.manifest.invalid] An error in the content of `hd.toml` for which no other rule names a code is an error at its line in `hd.toml`. Error: `invalid-manifest`.
+4. r[cli.manifest.invalid.cases] These errors include a bad key or value of [Capability Grants](#capability-grants), an `[[executable]]` table without a string `name` and `module`, and a `[source] root` that is no source root. They also include a package that its workspace manifest neither lists nor excludes.
+5. r[cli.manifest.invalid.unlisted] For the unlisted package, the diagnostic's file is the workspace manifest, and its line is that of the manifest's `members` key, or of its `[workspace]` header when it has no `members`.
+6. r[cli.manifest.invalid.syntax] A TOML syntax error in `hd.toml` is also an `invalid-manifest` error, at the line and column where the syntax error starts.
+7. r[cli.manifest.toolchain-keys] `[package] hd` is the minimum toolchain version of [`module.toolchain.minimum`](../lang/10-modules.md#r-module.toolchain.minimum), and `[toolchain] pin` is the exact version of [`module.toolchain.pin`](../lang/10-modules.md#r-module.toolchain.pin). Each is a version string.
+8. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
+9. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Workspaces](../lang/10-modules.md#workspaces),

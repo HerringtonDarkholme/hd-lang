@@ -1,0 +1,8 @@
+# A TOML syntax error in hd.toml is an invalid-manifest error at the line
+# and column where it starts, for check and for run.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":5,"column":11},{"kind":"summary","errors":1,"status":101}]
+run: hd run --format json
+exit: 101
+stderr-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":5,"column":11},{"kind":"summary","errors":1,"status":101}]

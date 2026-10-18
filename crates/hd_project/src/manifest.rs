@@ -6,7 +6,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use hd_base::{NotImplemented, Stage, StageResult};
 use hd_diag::{Code, Severity};
 
 /// A parsed `hd.toml`.
@@ -269,12 +268,39 @@ fn strings(v: Option<&toml::Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// A TOML syntax error in `hd.toml`, with the 1-based line and column it
+/// starts at when the parser gives a span.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManifestError {
+    pub message: String,
+    pub at: Option<(u32, u32)>,
+}
+
+impl std::fmt::Display for ManifestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ManifestError {}
+
 /// Parses `hd.toml` by the Package Tooling table: each table and key it
 /// lists is read, and every other one is recorded as unknown
 /// (`cli.manifest.unknown-key`).
-pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
+pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
-        NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
+        let before = e.span().and_then(|r| text.get(..r.start));
+        ManifestError {
+            message: e.message().to_owned(),
+            at: before.map(|b| {
+                let line = b.matches('\n').count() + 1;
+                let col = b.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+                (
+                    u32::try_from(line).unwrap_or(u32::MAX),
+                    u32::try_from(col).unwrap_or(u32::MAX),
+                )
+            }),
+        }
     })?;
     let lines = key_lines(text);
     let at = |path: &str| lines.get(path).copied().unwrap_or(1);

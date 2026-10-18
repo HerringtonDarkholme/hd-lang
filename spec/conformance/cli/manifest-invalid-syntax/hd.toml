@@ -1,0 +1,5 @@
+[package]
+name = "broken"
+
+[capabilities]
+Console = tru

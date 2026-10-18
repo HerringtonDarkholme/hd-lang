@@ -856,6 +856,29 @@ const SESSION_PACKAGE: &str = "repl";
 /// The whole package at `root`, with the packages it requires, and the
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
+    if let Some(d) = manifest_syntax_problem(root) {
+        // Nothing else of the package can be read: the program has no
+        // sources, and its one problem stops the command.
+        return Ok(Program {
+            sources: DiskSources {
+                root: root.to_path_buf(),
+                files: Vec::new(),
+                src: None,
+                synthetic: Vec::new(),
+            },
+            package: default_name(root),
+            entry: module_below(entry),
+            requires: Vec::new(),
+            dev_requires: Vec::new(),
+            deps: Vec::new(),
+            problems: vec![d],
+            single_file: false,
+            as_written: None,
+            capabilities: Vec::new(),
+            package_dir: Some(root.to_path_buf()),
+            entries: Vec::new(),
+        });
+    }
     let (sources, package) = sources_of(root)?;
     let Dependencies {
         requires,
@@ -883,6 +906,23 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         package_dir: Some(root.to_path_buf()),
         entries,
     })
+}
+
+/// A TOML syntax error in the package's `hd.toml`, as the diagnostic
+/// `invalid-manifest` at the position it starts at
+/// (`cli.manifest.invalid.syntax`).
+pub fn manifest_syntax_problem(root: &Path) -> Option<Diag> {
+    let text = std::fs::read_to_string(root.join("hd.toml")).ok()?;
+    let e = parse_manifest(&text).err()?;
+    let mut d = Diag::error(
+        Some(Code::InvalidManifest),
+        &format!("`hd.toml` is not valid TOML: {}", e.message),
+    )
+    .at("hd.toml", e.at.map(|(l, _)| l as usize));
+    if let Some((_, c)) = e.at {
+        d.column = Some(c as usize);
+    }
+    Some(d)
 }
 
 /// The valid keys of a package's `[capabilities]` table (`cli.cap.table`);

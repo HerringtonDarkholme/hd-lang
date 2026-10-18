@@ -179,3 +179,4 @@ test-doc-snapshot-update	cli.test.doc.update-prefix,cli.test.snapshot.update.for
 test-handle-leak	cli.test.leak,cli.test.leak.message,cli.test.leak.closed,cli.test.env.integration
 manifest-invalid-capabilities	cli.manifest.invalid,cli.manifest.invalid.cases,cli.cap.table.keys,cli.cap.value.unscoped,cli.json.diagnostic.fields,cli.exit.hd-failure
 manifest-invalid-tables	cli.manifest.invalid,cli.manifest.invalid.cases,cli.exe.table,cli.json.diagnostic.fields,cli.exit.hd-failure
+manifest-invalid-syntax	cli.manifest.invalid.syntax,cli.manifest.invalid,cli.json.diagnostic.fields,cli.exit.hd-failure
