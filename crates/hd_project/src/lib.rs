@@ -366,6 +366,9 @@ pub struct UseRoots {
     pub dev: Vec<(String, String, bool)>,
     /// What the module's own uses may name of the dev dependencies.
     pub access: DevAccess,
+    /// A synthetic doc test uses the integration-test library view
+    /// (`module.test.doc.view`), even when its source is an executable.
+    pub doc_test: bool,
 }
 
 /// Which dev dependencies a use may name (`module.test.non-test-use.*`,
@@ -1246,6 +1249,7 @@ impl ModuleTable {
         };
         let ident = |p: u16| self.roots[usize::from(p)].clone();
         UseRoots {
+            doc_test: module.path.contains(".$tests.$doc"),
             pkg: self.roots[package].clone(),
             base: module.base.clone(),
             floor: module.floor.clone(),

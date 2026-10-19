@@ -293,8 +293,10 @@ impl string:
     ## Returns the characters from byte offset `start` up to `end`, sharing the string's bytes.
     ## See [module.string.slice](../../spec/lang/10-modules.md#r-module.string.slice).
     pub fn slice(self, start: usize, end: usize) -> string:
-        if start > end || !boundary(self, start) || !boundary(self, end):
+        if start > end || end > bytes_len(self):
             panic_with("index-out-of-bounds", "string slice out of bounds")
+        if !boundary(self, start) || !boundary(self, end):
+            panic_with("index-out-of-bounds", "string slice offset is inside a character")
         bytes_slice(self, start, end)
 
     # A copy of the bytes.

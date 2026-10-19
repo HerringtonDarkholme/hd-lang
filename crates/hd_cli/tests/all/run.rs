@@ -612,6 +612,47 @@ fn string_slice_off_boundary_panics() {
     assert_eq!(output.status.code(), Some(3));
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("panic: index-out-of-bounds"), "{err}");
+    assert!(
+        err.contains("string slice offset is inside a character"),
+        "{err}"
+    );
+}
+
+#[test]
+fn string_slice_messages_distinguish_boundaries_from_bounds() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-str-slice-cause");
+    let file = dir.join("bad.hd");
+    let cached = cache("hd-cache-str-slice-cause");
+    for engine in ["node", "wasmtime"] {
+        if engine == "wasmtime" && !cfg!(feature = "wasmtime") {
+            continue;
+        }
+        for (start, end, message) in [
+            (0, 2, "string slice offset is inside a character"),
+            (2, 3, "string slice offset is inside a character"),
+            (0, 7, "string slice out of bounds"),
+            (4, 3, "string slice out of bounds"),
+        ] {
+            std::fs::write(
+                &file,
+                format!(
+                    "pub fn main() -> void $ Console:\n    println(\"héllo\".slice({start}, {end}))\n"
+                ),
+            )
+            .expect("write");
+            let output = hd(&cached)
+                .args(["--engine", engine])
+                .arg(&file)
+                .output()
+                .expect("run hd");
+            assert_eq!(output.status.code(), Some(3), "{engine} {start}..{end}");
+            let err = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                err.contains(&format!("panic: index-out-of-bounds: {message}")),
+                "{engine} {start}..{end}: {err}"
+            );
+        }
+    }
 }
 
 /// A closure that assigns a captured `let` shares one cell with its owner:

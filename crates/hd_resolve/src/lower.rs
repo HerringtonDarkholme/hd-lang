@@ -214,12 +214,33 @@ pub struct UseDecl {
     pub root_error: Option<UseRootError>,
     /// The path's first segment as written, before `path` resolved it.
     pub written_root: String,
+    /// The path before its roots were rewritten, for a missing module's
+    /// message when its absolute path names compiler-owned test code.
+    written_path: String,
+    /// A synthetic doc-test module sees only the package's library view.
+    doc_test: bool,
 }
 
 impl UseDecl {
     #[must_use]
     pub fn module(&self) -> String {
         self.path.join(".")
+    }
+
+    fn missing_module(&self, module: &str) -> String {
+        let written = self.doc_test
+            || self
+                .path
+                .iter()
+                .any(|s| matches!(s.as_str(), "$tests" | "$tasks"));
+        let path = if written { &self.written_path } else { module };
+        let mut message = format!("no module named `{path}`");
+        if self.doc_test && self.written_root == "pkg" {
+            message.push_str(
+                "; doc tests see only library modules, not the executable's declarations",
+            );
+        }
+        message
     }
 }
 
@@ -316,6 +337,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         _ => alias,
     };
     let written_root = path.first().cloned().unwrap_or_default();
+    let written_path = path.join(".");
     let (path, root_error) = match absolute {
         Ok(abs) => (abs, None),
         Err(e) => (path, Some(e)),
@@ -328,6 +350,8 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         span: src.span(item),
         root_error,
         written_root,
+        written_path,
+        doc_test: roots.doc_test,
     }
 }
 
@@ -1236,7 +1260,7 @@ fn bind_uses(
         if let Some(group) = &u.group {
             {
                 if !r.module_exists(&module) {
-                    let msg = format!("no module named `{module}`");
+                    let msg = u.missing_module(&module);
                     diags.error(Code::UnknownModule, u.span, &msg);
                     poison_use(scope, names, u, row);
                     continue;
@@ -1305,7 +1329,7 @@ fn bind_uses(
                     bind_item(scope, local, d, Origin::Use, row);
                     kinds.insert(d, k);
                 } else if !r.module_exists(&parent) {
-                    let msg = format!("no module named `{parent}`");
+                    let msg = u.missing_module(&parent);
                     diags.error(Code::UnknownModule, u.span, &msg);
                     bind_poison(scope, local, use_origin(u), row);
                 } else {

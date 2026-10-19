@@ -478,20 +478,46 @@ fn tests_and_all_widen_what_check_covers() {
 
 /// `module.test.integration.no-path`, `cli.task.no-path`: test and task
 /// code has no module path, so no message names one; a use that misses
-/// names the directory instead.
+/// names the path as written instead.
 #[test]
 fn messages_name_test_and_task_code_by_file() {
     let dir = code_kinds("hd-check-no-path");
     std::fs::write(dir.join("tasks/seed.hd"), "use self.nothing\n").expect("write");
     std::fs::create_dir_all(dir.join("tests/common")).expect("dir");
     std::fs::write(dir.join("tests/common/mod.hd"), "use super.up\n").expect("write");
+    std::fs::write(dir.join("tests/common/up.hd"), "").expect("write");
     for format in ["text", "json"] {
         let r = check(&dir, &["--all", "--format", format]);
         assert_eq!(r.code, Some(101));
         let all = format!("{}{}", r.out, r.err);
         assert!(!all.contains('$'), "{all}");
-        assert!(all.contains("no module named `tasks`"), "{all}");
-        assert!(all.contains("no module named `tests`"), "{all}");
+        assert!(all.contains("no module named `self.nothing`"), "{all}");
+        assert!(all.contains("no module named `super.up`"), "{all}");
+    }
+}
+
+/// `module.test.doc.view`, `module.test.integration.pkg-root`: doc tests
+/// of an executable cannot import its entry module through `pkg`.
+#[test]
+fn messages_name_doc_tests_library_view() {
+    let dir = scratch("hd-check-doc-library-view");
+    std::fs::create_dir_all(dir.join("src")).expect("dir");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"app2\"\n").expect("write");
+    std::fs::write(
+        dir.join("src/main.hd"),
+        "## ```hd\n## use pkg.parse_version\n## pass\n## ```\n\
+         pub fn parse_version() -> i32: +1\n\n\
+         pub fn main() -> void: pass\n",
+    )
+    .expect("write");
+    for format in ["text", "json"] {
+        for _ in 0..2 {
+            let r = check(&dir, &["--tests", "--format", format]);
+            assert_eq!(r.code, Some(101));
+            let all = format!("{}{}", r.out, r.err);
+            assert!(all.contains("no module named `pkg.parse_version`"), "{all}");
+            assert!(all.contains("doc tests see only library modules"), "{all}");
+        }
     }
 }
 
