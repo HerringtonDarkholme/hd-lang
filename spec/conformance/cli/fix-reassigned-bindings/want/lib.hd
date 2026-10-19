@@ -1,0 +1,22 @@
+# café keeps edit offsets in UTF-8 bytes.
+fn sum(values: List[i32]) -> i32:
+    let total = +0
+    for value in values:
+        total = total + value
+    total = total + 1
+    total
+
+fn shadowed() -> usize:
+    total := 10
+    inner := if true:
+        let total = 1
+        total = 2
+        total
+    else:
+        0
+    total + inner
+
+fn unicode() -> usize:
+    let café = 0
+    café = 1
+    café

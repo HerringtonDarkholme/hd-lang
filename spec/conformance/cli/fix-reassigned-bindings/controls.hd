@@ -1,0 +1,22 @@
+struct Counter:
+    value: usize
+
+fn field() -> usize:
+    counter := Counter { value: 0 }
+    counter.value = 1
+    counter.value
+
+fn nested() -> usize:
+    outer := inner := 1
+    inner = 2
+    outer = 3
+    outer + inner
+
+fn function_value() -> usize:
+    action := fn() -> usize: 1
+    action = fn() -> usize: 2
+    action()
+
+fn parameter(value: usize) -> usize:
+    value = 1
+    value

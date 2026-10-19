@@ -3444,6 +3444,73 @@ impl Ck<'_, '_> {
         Ok(Ty::VOID)
     }
 
+    /// A whole-name assignment requires `let`, without granting field mutation.
+    fn reassignable_binding_fix(&mut self, local: LocalId) {
+        let syn = self.b.body_mut().local_syn[local.idx()];
+        let tree = &self.cx.src.parse.tree;
+        if syn == hd_base::NodeIdx::NONE || syn.raw() < 2 || syn.idx() >= tree.len() {
+            return;
+        }
+        let ty = self.b.local_ty(local);
+        if matches!(
+            self.pool().get(self.infer.resolve(self.pool(), ty)),
+            TyData::Fn { .. }
+        ) {
+            return;
+        }
+        let pattern = tree.node(syn);
+        // Nodes are in preorder, and both wrappers must own their first child.
+        let binding = tree.node(hd_base::NodeIdx::from_raw(syn.raw() - 1));
+        let statement = tree.node(hd_base::NodeIdx::from_raw(syn.raw() - 2));
+        if pattern.kind() != SyntaxKind::BindingPattern
+            || binding.kind() != SyntaxKind::BindingExpr
+            || statement.kind() != SyntaxKind::ExprStmt
+            || binding.children().next().map(NodeRef::index) != Some(syn)
+            || statement.children().next().map(NodeRef::index) != Some(binding.index())
+        {
+            return;
+        }
+        let Some(rhs) = binding.children().nth(1) else {
+            return;
+        };
+        if matches!(
+            rhs.kind(),
+            SyntaxKind::ClosureExpr | SyntaxKind::BindingExpr
+        ) {
+            return;
+        }
+        // Bound the work repeated for each failed assignment to this binding.
+        for (index, node) in rhs.descendants().enumerate() {
+            if index == 64
+                || matches!(
+                    node.kind(),
+                    SyntaxKind::ClosureExpr | SyntaxKind::BindingExpr
+                )
+            {
+                return;
+            }
+        }
+        let Some(operator) = binding.direct_token(&self.cx.src.parse.tokens, TokenKind::ColonEq)
+        else {
+            return;
+        };
+        let span = self.cx.src.span(pattern);
+        self.diags.add_fix(
+            "declare the reassigned name with `let`",
+            hd_diag::FixSafety::Exact,
+            &[
+                (
+                    Span {
+                        hi: span.lo,
+                        ..span
+                    },
+                    "let ",
+                ),
+                (self.cx.src.token_span(operator), "="),
+            ],
+        );
+    }
+
     /// `x = e`, `x op= e`, `a.f = e`, `a[i] = e`, `v() = e`.
     fn assign(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
         let [lhs, rhs] = kids else {
@@ -3531,6 +3598,7 @@ impl Ck<'_, '_> {
                         self.cx.names.text(name)
                     );
                     self.err(Code::NonReassignableBinding, *lhs, &msg);
+                    self.reassignable_binding_fix(l);
                 } else if flags & local_flags::PARAM != 0 && !self.mut_params.contains(&l) {
                     let msg = format!(
                         "parameter `{}` cannot be reassigned",
