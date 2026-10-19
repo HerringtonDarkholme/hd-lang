@@ -20,3 +20,4 @@ spec/conformance/cli/fix-private-main-bang/src/*.hd text eol=lf
 spec/conformance/cli/fix-private-main-clash/src/*.hd text eol=lf
 spec/conformance/cli/fix-private-main-unsafe/src/*.hd text eol=lf
 spec/conformance/cli/fix-discarded-debug/** text eol=lf
+spec/conformance/cli/trait-reference-messages/** text eol=lf

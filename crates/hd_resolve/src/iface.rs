@@ -1951,14 +1951,18 @@ fn show_ty_opts(
         ),
         TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows, qualified)),
         TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows, qualified)),
-        TyData::Ref {
-            inner,
-            mutable: false,
-        } => format!("&{}", show_ty_opts(names, pool, inner, rows, qualified)),
-        TyData::Ref {
-            inner,
-            mutable: true,
-        } => format!("&mut {}", show_ty_opts(names, pool, inner, rows, qualified)),
+        TyData::Ref { inner, mutable } => {
+            let dyn_prefix = if matches!(pool.get(inner), TyData::TraitValue { .. }) {
+                "dyn "
+            } else {
+                ""
+            };
+            format!(
+                "&{}{dyn_prefix}{}",
+                if mutable { "mut " } else { "" },
+                show_ty_opts(names, pool, inner, rows, qualified)
+            )
+        }
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,

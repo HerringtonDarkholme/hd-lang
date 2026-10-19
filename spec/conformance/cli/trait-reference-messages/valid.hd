@@ -1,0 +1,11 @@
+trait Gauge:
+    fn bump(&mut self) -> void
+
+fn shared(gauge: &dyn Gauge) -> &dyn Gauge:
+    gauge
+
+fn mutable(gauge: &mut dyn Gauge) -> &mut dyn Gauge:
+    gauge
+
+fn weaken(gauge: &mut dyn Gauge) -> &dyn Gauge:
+    gauge

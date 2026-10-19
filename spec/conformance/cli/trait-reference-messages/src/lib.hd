@@ -1,0 +1,27 @@
+# café exercises JSON locations alongside the rendered types.
+use pkg.left
+use pkg.right
+
+trait Gauge:
+    fn bump(&mut self) -> void
+
+trait Sampler[T]:
+    fn sample(&self) -> T
+
+struct Reading:
+    value: i32
+
+fn upgrade(gauge: &dyn Gauge) -> &mut dyn Gauge:
+    gauge
+
+fn generic_upgrade(sampler: &dyn Sampler[i32]) -> &mut dyn Sampler[i32]:
+    sampler
+
+fn nested(gauges: List[&dyn Gauge]) -> List[&mut dyn Gauge]:
+    gauges
+
+fn concrete(reading: &Reading) -> &mut Reading:
+    reading
+
+fn qualified(gauge: &dyn left.Gauge) -> &dyn right.Gauge:
+    gauge
