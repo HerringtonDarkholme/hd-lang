@@ -75,8 +75,11 @@ fn std_interfaces_build_with_no_diagnostic() {
         );
     }
     let folders: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
-    assert_eq!(folders, ["app", "std", "std.prelude", "std.testing"]);
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 4);
+    assert_eq!(
+        folders,
+        ["app", "std", "std.prelude", "std.rt", "std.testing"]
+    );
+    assert_eq!(out.report.tally(Stage::FolderIface).ok, 5);
 }
 
 #[test]
@@ -189,7 +192,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 4);
+    assert_eq!(base.len(), 5);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -260,8 +263,8 @@ fn std_typed_signatures_compile_through_headers() {
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (5, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 5);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (6, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 6);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

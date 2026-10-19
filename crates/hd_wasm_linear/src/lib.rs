@@ -46,9 +46,30 @@ pub enum Entry {
         after: Vec<(Hash128, bool)>,
         report: Option<Hash128>,
     },
-    /// An entry this backend does not build yet: test programs, scenarios
-    /// and REPL inputs.
+    /// A test program (`crates/hd_wasm/DESIGN.md` §15.4): `hd.init.N`
+    /// runs module `N`'s `inits[N]`, each a forbidden context, and
+    /// `hd.test.N` runs `cases[N]`, an item, its instance key and the
+    /// report of its result, as `hd.poll` runs `main`.
+    Tests {
+        cases: Vec<(DefId, Hash128, Option<Hash128>)>,
+        inits: Vec<Vec<Hash128>>,
+    },
+    /// An entry this backend does not build yet: scenarios and REPL
+    /// inputs.
     Unsupported(&'static str),
+}
+
+impl Entry {
+    /// Whether `item` is a root of the entry that only the entry calls:
+    /// `main`, or a test case.
+    #[must_use]
+    pub fn root(&self, item: DefId) -> bool {
+        match self {
+            Entry::Main { main, .. } => *main == item,
+            Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
+            Entry::Script { .. } | Entry::Unsupported(_) => false,
+        }
+    }
 }
 
 /// What [`build`] reads: the program's instances in content order, with

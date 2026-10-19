@@ -71,6 +71,7 @@ every key in `lib/std` has a row.
 | `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
 | `dbg`, `dbg_text`, `dbg_write`, `dbg_show`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `assert_equal`, `downcast_val`, `downcast`, `downcast_mut`, `entry_write`, `entry_write_out` | seeded items and `rt.hd` | compiler |
+| `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler, linear backend only; on Wasm GC a build that reaches one is `unsupported`, and only std can |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
 | `string_lower`, `string_upper` | `text.hd` | host primitive |
 | `parse_f64`, `format_f64_fixed` | `num.hd` | host primitive |
@@ -128,12 +129,16 @@ needs no self-derivation.
 
 | Folder | Modules | Outgoing folder edges |
 | --- | --- | --- |
-| `std` (`lib/std`) | 36: virtual `core` and `rt`, plus the root files other than `prelude.hd` and `testing.hd` | none |
+| `std` (`lib/std`) | 34: virtual `core`, plus the root files other than `prelude.hd` and `testing.hd` | none |
+| `std.rt` (`lib/std/rt`) | `std.rt` from the virtual `rt.hd`, plus `std.rt.memory` | `std` |
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std` |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`; `std.testing`, through the test-only re-export of `it` |
 
 The graph is acyclic. Under
 [`module.folder.parent-file`](../../spec/lang/10-modules.md#r-module.folder.parent-file),
 `testing.hd` and `testing/arbitrary.hd` share folder `std.testing`, so the
-re-export between them adds no edge. Every prelude origin is in folder
+re-export between them adds no edge, and the virtual `rt.hd` joins folder
+`std.rt` with `rt/memory.hd`. No module of folder `std` may use a runtime
+module, since `std.rt` uses `std.process` and `std.error`: the compiler
+calls the runtime by name instead. Every prelude origin is in folder
 `std`, so the fixed uses give every other folder an edge to `std`.

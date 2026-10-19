@@ -1713,3 +1713,43 @@ stops short of the layout above:
 - **Not yet.** No `hd.lines` or `hd.positions` section, so a panic
   report names no frames; no `hd.wake` or `hd.cancel`; no test or
   scenario entry.
+
+### 23.12 What Job 4 Adds
+
+Job 4 gives std the heap: the memory intrinsics, and the test programs
+that run their hd tests.
+
+- **`std.rt.memory`.** spec/lang/10-modules.md "Memory Intrinsics": plain
+  hd declarations in `lib/std/rt/memory.hd` whose bodies are
+  `@intrinsic`, with the `mem_` keys of `hd_host_abi::INTRINSICS`. The
+  linear backend lowers each to one instruction on memory 1: a
+  little-endian load or store at any address, `memory.size`,
+  `memory.grow` with its `-1` read as `.None`, `memory.copy`, which
+  allows overlap, and `memory.fill`. The Wasm GC backend has no heap and
+  lowers none of them: a build that reaches one fails as `unsupported`,
+  and only std can reach one.
+- **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
+  `std.rt` or a module under it from any package but std, as
+  `std-only-use` (`module.rt.std-only.error`).
+- **The folder `std.rt`.** With `lib/std/rt/`, the virtual `rt.hd` is its
+  parent file (`module.folder.parent-file`), so `std.rt` and its child
+  modules form folder `std.rt`, with an edge to `std`. The driver reaches
+  that folder for every program, since it roots `std.rt`'s result
+  functions whatever the program uses. No module of folder `std` may use
+  a runtime module, or the two folders would form a cycle; emitted code
+  calls the runtime by name instead.
+- **Bump allocation beside `grow`.** `rt:alloc` keeps the end of its own
+  pages in the global `HeapEnd`. An allocation that does not fit grows
+  fresh pages and starts on them, so it never writes a page that `grow`
+  gave std (`module.rt.memory.grow.owner`).
+- **Test programs.** The linear backend builds `hd.init.N` and
+  `hd.test.N` as §15.4 describes, each case's poll an entry poll of its
+  own. A test case is a suspending function; a root that only the entry
+  calls, `main` or a case, is built as a plain function, since until job
+  13 any suspension point in it is refused, and a body that never
+  suspends ends on its first poll.
+- **The hd tests.** `crates/hd_driver/tests/std_rt/` holds std's own hd
+  tests of its runtime modules. The conformance runner adds each file to
+  std's sources and runs its cases on the linear backend, on the engines
+  of its mode (`STD_RT_TESTS`). The wasmtime test pool allows two
+  memories per module for it.

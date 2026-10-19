@@ -1,0 +1,95 @@
+# The hd tests of std.rt.memory (spec/lang/10-modules.md#memory-intrinsics).
+# Only std may use a runtime module, so the conformance runner adds this
+# file to std as `std.rt.memory_tests` and runs its cases on the linear
+# backend (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case
+# runs in an instance of its own, so each starts with a fresh heap.
+use std.rt.memory.{copy, fill, grow, load_u8, load_u16, load_u32, load_u64, pages, store_u8, store_u16, store_u32, store_u64}
+
+# The address of a page this case grows the heap by, which no other part of
+# the program uses (module.rt.memory.grow.owner).
+fn fresh_page() -> usize:
+    match grow(1):
+        .Some(before) => before * 65536
+        .None => panic("the heap cannot grow by one page")
+
+tests:
+    use std.testing.{assert, it}
+
+    it("grow adds pages and gives the size before them"):
+        before := pages()
+        assert(before > 0, "the heap starts with a page")
+        assert(grow(2) == .Some(before), "grow gives the size before")
+        assert(pages() == before + 2, "the heap is 2 pages larger")
+        assert(grow(0) == .Some(before + 2), "grow(0) gives the size")
+        assert(pages() == before + 2, "grow(0) adds nothing")
+
+    it("a grow past the largest heap is refused and changes nothing"):
+        before := pages()
+        assert(grow(65536) == .None, "no heap holds 65,537 pages")
+        assert(pages() == before, "a refused grow keeps the size")
+
+    it("grown pages read as zero"):
+        at := fresh_page()
+        assert(load_u64(at) == 0, "the first bytes are 0")
+        assert(load_u8(at + 65535) == 0, "the last byte is 0")
+
+    it("each width stores and loads its bytes, least significant first"):
+        at := fresh_page()
+        store_u32(at, 0x04030201)
+        assert(load_u8(at) == 0x01, "the low byte comes first")
+        assert(load_u8(at + 3) == 0x04, "the high byte comes last")
+        assert(load_u16(at + 1) == 0x0302, "a u16 inside a u32")
+        assert(load_u32(at) == 0x04030201, "the u32 reads back")
+        store_u64(at + 8, 0x0807060504030201)
+        assert(load_u32(at + 12) == 0x08070605, "the high half of a u64")
+        assert(load_u64(at + 8) == 0x0807060504030201, "the u64 reads back")
+        store_u16(at + 5, 0xbeef)
+        assert(load_u8(at + 5) == 0xef, "the low byte of a u16")
+        assert(load_u8(at + 6) == 0xbe, "the high byte of a u16")
+        store_u8(at + 7, 0xff)
+        assert(load_u64(at) == 0xffbeef0004030201, "the 8 bytes together")
+
+    it("the largest value of each width reads back whole"):
+        at := fresh_page()
+        store_u64(at, 18446744073709551615)
+        assert(load_u64(at) == 18446744073709551615, "the largest u64")
+        store_u32(at, 4294967295)
+        assert(load_u32(at) == 4294967295, "the largest u32")
+        assert(load_u64(at) == 18446744073709551615, "every bit stays set")
+
+    it("an address need not be aligned"):
+        at := fresh_page()
+        store_u64(at + 3, 0x1122334455667788)
+        assert(load_u64(at + 3) == 0x1122334455667788, "an unaligned u64")
+        assert(load_u32(at + 5) == 0x33445566, "an unaligned u32")
+
+    it("fill sets each byte of its range and no other"):
+        at := fresh_page()
+        fill(at + 1, 0xab, 6)
+        assert(load_u8(at) == 0, "the byte before is untouched")
+        assert(load_u8(at + 1) == 0xab, "the first byte is set")
+        assert(load_u8(at + 6) == 0xab, "the last byte is set")
+        assert(load_u8(at + 7) == 0, "the byte after is untouched")
+        fill(at, 0x11, 0)
+        assert(load_u8(at) == 0, "a fill of 0 bytes sets none")
+
+    it("copy moves bytes between ranges that overlap, in either direction"):
+        at := fresh_page()
+        store_u64(at, 0x0807060504030201)
+        copy(at + 2, at, 4)
+        assert(load_u64(at) == 0x0807040302010201, "a copy to a later address")
+        store_u64(at, 0x0807060504030201)
+        copy(at, at + 2, 4)
+        assert(load_u64(at) == 0x0807060506050403, "a copy to an earlier address")
+
+    it("a string the runtime allocates leaves a grown page alone"):
+        at := fresh_page()
+        fill(at, 0x5a, 65536)
+        let text = "ab"
+        let count: usize = 0
+        while count < 17:
+            text = "${text}${text}"
+            count = count + 1
+        assert(load_u8(at) == 0x5a, "the page's first byte is kept")
+        assert(load_u8(at + 65535) == 0x5a, "the page's last byte is kept")
+        assert(text != "ab", "the text grew")

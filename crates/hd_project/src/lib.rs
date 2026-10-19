@@ -401,6 +401,9 @@ pub enum UseRootError {
     /// `dep.NAME` is a dev dependency that depends back on the package,
     /// and the use is in a unit test (`module.test.cyclic-dev-unit`).
     CyclicTest,
+    /// The path names a runtime module, `std.rt` or one under it, and the
+    /// use is not in std (`module.rt.std-only`).
+    StdOnly,
 }
 
 impl UseRoots {
@@ -468,6 +471,12 @@ impl UseRoots {
             _ => return Err(UseRootError::UnknownRoot),
         };
         out.extend(rest.iter().map(|s| s.as_ref().to_owned()));
+        if out.first().is_some_and(|s| s == "std")
+            && out.get(1).is_some_and(|s| s == "rt")
+            && self.pkg != "std"
+        {
+            return Err(UseRootError::StdOnly);
+        }
         Ok(out)
     }
 }
@@ -2104,5 +2113,36 @@ mod tests {
         );
         assert!(roots("shop.$tests.flow").absolute(&["dep", "back"]).is_ok());
         assert!(roots("shop.$tasks.seed").absolute(&["dep", "back"]).is_ok());
+    }
+
+    /// Only std may use a runtime module (`module.rt.std-only`): `std.rt`
+    /// and the modules under it, by any path.
+    #[test]
+    fn only_std_uses_a_runtime_module() {
+        let roots = |pkg: &str| super::UseRoots {
+            pkg: pkg.to_owned(),
+            base: pkg.to_owned(),
+            floor: pkg.to_owned(),
+            ..super::UseRoots::default()
+        };
+        let app = roots("app");
+        for path in [&["std", "rt"][..], &["std", "rt", "memory", "load_u8"]] {
+            assert_eq!(app.absolute(path), Err(UseRootError::StdOnly), "{path:?}");
+            assert_eq!(app.absolute_in_tests(path), Err(UseRootError::StdOnly));
+        }
+        assert!(app.absolute(&["std", "text", "rt"]).is_ok());
+        assert!(app.absolute(&["std", "rtx"]).is_ok());
+        assert_eq!(
+            roots("std").absolute(&["std", "rt", "memory"]).as_deref(),
+            Ok(&["std".to_owned(), "rt".to_owned(), "memory".to_owned()][..])
+        );
+        let rt = super::UseRoots {
+            base: "std.rt".to_owned(),
+            ..roots("std")
+        };
+        assert_eq!(
+            rt.absolute(&["self", "memory"]).as_deref(),
+            Ok(&["std".to_owned(), "rt".to_owned(), "memory".to_owned()][..])
+        );
     }
 }

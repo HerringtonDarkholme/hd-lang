@@ -2785,6 +2785,12 @@ impl Run<'_> {
                 reached.union(&self.module_closure_in(g, m));
             }
         }
+        // The compiler roots `std.rt`'s result functions after an entry or
+        // a test case (`RT_SOURCE`), whatever the program uses, and its
+        // folder holds the runtime modules under it too.
+        if let Some(rt) = self.table.module("std.rt") {
+            reached.union(&self.module_closure_in(g, rt.idx()));
+        }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
             // `hd check` needs fetched bodies too, to report their `dbg`
@@ -8553,7 +8559,10 @@ impl Run<'_> {
                 None => hd_wasm_linear::Entry::Unsupported("a script whose init is not run"),
             },
             Roots::Inputs(_) => hd_wasm_linear::Entry::Unsupported("REPL inputs"),
-            Roots::Tests { .. } => hd_wasm_linear::Entry::Unsupported("test programs"),
+            Roots::Tests { cases, inits } => hd_wasm_linear::Entry::Tests {
+                cases: cases.clone(),
+                inits: inits.clone(),
+            },
             Roots::Scenario { .. } => hd_wasm_linear::Entry::Unsupported("runtime scenarios"),
         };
         let input = hd_wasm_linear::Input {

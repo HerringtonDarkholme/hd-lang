@@ -81,6 +81,9 @@ impl TestEngine {
             // One exchange linear memory and one GC backing memory per store.
             // Wasmtime 49 allocates both from the same memory-slot pool.
             .total_memories(memories)
+            // A linear-backend module defines its exchange buffer and its
+            // heap, and no GC heap (`crates/hd_wasm/DESIGN.md` §23.2).
+            .max_memories_per_module(2)
             .total_tables(slots)
             .total_gc_heaps(slots);
         // Pool GC and linear reservations must agree in pinned Wasmtime 49.

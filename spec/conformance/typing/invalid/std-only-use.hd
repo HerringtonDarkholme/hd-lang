@@ -1,0 +1,6 @@
+# test: a use of a runtime module outside the standard library is an error at the use
+# Spec 10 Runtime Modules: module.rt.std-only.error (#541).
+use std.rt.memory.{grow, load_u32}  # diagnostic: std-only-use
+
+pub fn main() -> void:
+    _ := grow(1)

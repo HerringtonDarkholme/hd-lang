@@ -4,7 +4,7 @@
 //! and the host provider stubs. Each is a [`Helper`], built once on its
 //! first request.
 
-use hd_base::{Hash128, StageResult};
+use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction};
 
@@ -84,26 +84,53 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             after,
             report,
         } => (*init, *key, before.clone(), after.clone(), *report),
+        Entry::Tests { cases, inits } => {
+            // The module under test is not an entry module
+            // (`module.init.tests.no-entry`), so every init is forbidden.
+            for (j, ks) in inits.iter().enumerate() {
+                let inits = ks.iter().map(|k| (*k, true)).collect();
+                m.export(
+                    format!("hd.init.{j}"),
+                    Sym::Helper(Helper::EntryInit { inits }),
+                );
+            }
+            for (i, (def, key, report)) in cases.iter().enumerate() {
+                let poll = poll(input, m, *def, *key, *report, Vec::new())?;
+                m.export(format!("hd.test.{i}"), poll);
+            }
+            return Ok(());
+        }
         Entry::Unsupported(what) => return unsupported(*what),
     };
+    m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: before }));
+    let poll = poll(input, m, main, key, report, after)?;
+    m.export("hd.poll", poll);
+    Ok(())
+}
+
+/// The poll of a root: item `main`'s instance `key` with its host
+/// providers, its result reported by `report`, then the inits `then`.
+fn poll(
+    input: &Input<'_>,
+    m: &mut Module,
+    main: DefId,
+    key: Hash128,
+    report: Option<Hash128>,
+    then: Vec<(Hash128, bool)>,
+) -> StageResult<Sym> {
     let mut providers = Vec::new();
     for k in input.env.row_keys(main, TyList::EMPTY) {
         providers.push(host_vtable(input, m, k)?);
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let results = crate::layout::vals(input.pool, input.env, ret)?.len();
-    m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: before }));
-    m.export(
-        "hd.poll",
-        Sym::Helper(Helper::EntryPoll {
-            main: key,
-            providers,
-            results: u32::try_from(results).expect("results"),
-            report,
-            then: after,
-        }),
-    );
-    Ok(())
+    Ok(Sym::Helper(Helper::EntryPoll {
+        main: key,
+        providers,
+        results: u32::try_from(results).expect("results"),
+        report,
+        then,
+    }))
 }
 
 /// The vtable of the host's provider of capability `key`, in the trait's
@@ -359,54 +386,73 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
     }
 }
 
-/// [`Helper::Alloc`].
+/// [`Helper::Alloc`]: a bump allocation from `HeapTop` up to `HeapEnd`,
+/// the end of the pages it owns. One that does not fit starts on pages it
+/// grows for itself, so it never reaches a page that `std.rt.memory.grow`
+/// gave std (`module.rt.memory.grow.owner`); the rest of its old pages is
+/// left unused.
 fn alloc() -> Func {
     let mut f = Func::new("rt:alloc", vec![Val::I32], vec![Val::I32]);
-    let (at, end) = (f.local(Val::I32), f.local(Val::I32));
-    f.global_get(Global::HeapTop);
-    f.set(at);
-    // end = (at + size + 7) & !7, refusing a wrap past 4 GiB.
-    f.get(at);
+    let (at, n, pages) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let exhausted = |f: &mut Func| {
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Panic(
+            "heap-exhausted: an allocation does not fit the heap".into(),
+        ));
+        f.op(Instruction::End);
+    };
+    // n = (size + 7) & !7, refusing a wrap past 4 GiB.
     f.get(0);
-    f.op(Instruction::I32Add);
     f.i32(7);
     f.op(Instruction::I32Add);
     f.i32(-8);
     f.op(Instruction::I32And);
-    f.set(end);
-    f.get(end);
-    f.get(at);
+    f.set(n);
+    f.get(n);
+    f.get(0);
     f.op(Instruction::I32LtU);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "heap-exhausted: an allocation does not fit the heap".into(),
-    ));
-    f.op(Instruction::End);
-    f.get(end);
-    f.op(Instruction::MemorySize(HEAP));
-    f.i32(16);
-    f.op(Instruction::I32Shl);
+    exhausted(&mut f);
+    f.global_get(Global::HeapTop);
+    f.set(at);
+    // It fits when n <= HeapEnd - at.
+    f.get(n);
+    f.global_get(Global::HeapEnd);
+    f.get(at);
+    f.op(Instruction::I32Sub);
     f.op(Instruction::I32GtU);
     f.op(Instruction::If(BlockType::Empty));
-    f.get(end);
-    f.op(Instruction::MemorySize(HEAP));
-    f.i32(16);
-    f.op(Instruction::I32Shl);
-    f.op(Instruction::I32Sub);
-    f.i32(0xffff);
-    f.op(Instruction::I32Add);
+    // pages = n / 64 KiB, rounded up.
+    f.get(n);
     f.i32(16);
     f.op(Instruction::I32ShrU);
+    f.get(n);
+    f.i32(0xffff);
+    f.op(Instruction::I32And);
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32Add);
+    f.set(pages);
+    f.get(pages);
     f.op(Instruction::MemoryGrow(HEAP));
+    f.set(at);
+    f.get(at);
     f.i32(-1);
     f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "heap-exhausted: an allocation does not fit the heap".into(),
-    ));
+    exhausted(&mut f);
+    f.get(at);
+    f.get(pages);
+    f.op(Instruction::I32Add);
+    f.i32(16);
+    f.op(Instruction::I32Shl);
+    f.global_set(Global::HeapEnd);
+    f.get(at);
+    f.i32(16);
+    f.op(Instruction::I32Shl);
+    f.set(at);
     f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.get(end);
+    f.get(at);
+    f.get(n);
+    f.op(Instruction::I32Add);
     f.global_set(Global::HeapTop);
     f.get(at);
     f

@@ -1252,6 +1252,14 @@ fn bind_uses(
                         "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
                     ),
                 ),
+                // `module.rt.std-only.error`.
+                UseRootError::StdOnly => (
+                    Code::StdOnlyUse,
+                    format!(
+                        "`{}` is a runtime module, which only the standard library may use",
+                        u.path.iter().take(3).cloned().collect::<Vec<_>>().join(".")
+                    ),
+                ),
             };
             diags.error(code, u.span, &msg);
             poison_use(scope, names, u, row);

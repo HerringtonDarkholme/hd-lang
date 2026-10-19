@@ -1583,6 +1583,63 @@ See also: [Snapshot Files](../std/testing.md#snapshot-files) in the stdlib
 tier, for how `snapshot` and `snapshot_file` compare text, update runs, and
 where snapshot files live.
 
+## Runtime Modules
+
+The **runtime modules** hold the standard library's own runtime: the code
+that reports an entry's result, and the memory intrinsics that a
+linear-memory runtime is written over. Only std code uses them:
+
+```text
+use std.rt.memory.{grow, load_u32}  # error: std-only-use
+
+pub fn main() -> void:
+    _ := grow(1)
+```
+
+1. r[module.rt.modules] The runtime modules are `std.rt` and every module whose path begins with `std.rt.`.
+2. r[module.rt.std-only] Only a module of the standard library may use a runtime module, or a name declared in one.
+3. r[module.rt.std-only.error] So a use declaration in any other package whose path names a runtime module, or a name inside one, is an error. Error: `std-only-use`.
+
+> **Why.** The runtime can then change how it represents values, or what
+> its functions take, without breaking any program.
+
+### Memory Intrinsics
+
+`std.rt.memory` declares the intrinsics that read and write the heap:
+
+```text
+pub fn pages() -> usize
+pub fn grow(count: usize) -> Option[usize]
+pub fn load_u8(address: usize) -> u8
+pub fn load_u16(address: usize) -> u16
+pub fn load_u32(address: usize) -> u32
+pub fn load_u64(address: usize) -> u64
+pub fn store_u8(address: usize, value: u8) -> void
+pub fn store_u16(address: usize, value: u16) -> void
+pub fn store_u32(address: usize, value: u32) -> void
+pub fn store_u64(address: usize, value: u64) -> void
+pub fn copy(to: usize, from: usize, count: usize) -> void
+pub fn fill(to: usize, byte: u8, count: usize) -> void
+```
+
+1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg`](#r-module.dbg.signature).
+2. r[module.rt.memory.heap] The **heap** is an array of bytes in one program instance, at the `usize` addresses from 0. Its size is a whole number of pages of 65,536 bytes, and it never shrinks.
+3. r[module.rt.memory.pages] `pages()` returns the heap's size in pages.
+4. r[module.rt.memory.grow] `grow(count)` adds `count` pages at the heap's end and returns `.Some(before)`, where `before` is the heap's size in pages before the call. Every added byte is 0.
+5. r[module.rt.memory.grow.refused] When the heap cannot grow by `count` pages, `grow(count)` returns `.None` and the heap keeps its size. A heap never holds more than 65,536 pages.
+6. r[module.rt.memory.grow.owner] The pages that a `grow` call adds belong to its caller. No other part of the program reads or writes them.
+7. r[module.rt.memory.load] `load_u8`, `load_u16`, `load_u32`, and `load_u64` return the 1, 2, 4, or 8 bytes from `address` as an unsigned integer, least significant byte first.
+8. r[module.rt.memory.store] `store_u8`, `store_u16`, `store_u32`, and `store_u64` write the bytes of `value` from `address`, least significant byte first.
+9. r[module.rt.memory.unaligned] A load or a store may use any address, aligned or not.
+10. r[module.rt.memory.copy] `copy(to, from, count)` writes the `count` bytes from `from` to the `count` bytes from `to`. The two ranges may overlap: the bytes written are the ones read before the call.
+11. r[module.rt.memory.fill] `fill(to, byte, count)` sets each of the `count` bytes from `to` to `byte`.
+12. r[module.rt.memory.bounds] A call that reaches a byte outside the heap stops the program instance with no panic category. Only the standard library makes these calls, and it never makes one that reaches outside.
+
+> **Note.** The heap is the memory of a linear-memory implementation. The
+> bytes below the size the heap starts with hold what the implementation
+> places there, such as static data, so std code reads and writes only the
+> pages it grew.
+
 ## Module Initialization
 
 This section defines which modules initialize, in what order, and what their

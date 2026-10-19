@@ -106,6 +106,9 @@ struct Fixture {
     deps: Vec<(String, MemorySources)>,
     /// The backend its builds link with.
     backend: Backend,
+    /// The package its sources are: `fixture`, or `std` for the hd tests
+    /// of std's runtime modules ([`STD_RT_TESTS`]).
+    package: &'static str,
 }
 
 fn root() -> PathBuf {
@@ -242,6 +245,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         tree,
         deps,
         backend: Backend::WasmGc,
+        package: "fixture",
     })
 }
 
@@ -390,7 +394,7 @@ fn build_for(
         backend: fixture.backend,
         ..Packages::default()
     };
-    build_packages(&host, "fixture", &packages, goal)
+    build_packages(&host, fixture.package, &packages, goal)
 }
 
 /// The host capability traits of the fixture's runtime profile, as the
@@ -729,6 +733,14 @@ impl EngineMode {
 }
 
 impl EngineMode {
+    /// The engine that judges this mode's runs, as the summaries name it.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Node => "node",
+            Self::Compare | Self::WasmtimeOnly => "wasmtime",
+        }
+    }
+
     /// The target of the builds this mode judges: wasmtime judges both
     /// wasmtime modes, so they build for `Wasmtime`; Node builds for `V8`.
     const fn judged_target(self) -> EngineTarget {
@@ -1863,6 +1875,58 @@ fn linear_case(case: &Case, fixture: Fixture, store: &MemoryStore, serial: usize
         .insert(case.path.clone(), verdict);
 }
 
+/// The std package's own hd tests of its runtime modules: only std may use
+/// a runtime module (`module.rt.std-only`), so no fixture can. Each file
+/// under `tests/std_rt/` joins std's sources at the path given here.
+const STD_RT_TESTS: &[(&str, &str)] =
+    &[("rt/memory_tests.hd", include_str!("std_rt/memory_tests.hd"))];
+
+/// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
+/// on the engines of the mode, as a `tests` case of the suite would.
+#[test]
+fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
+    let store = MemoryStore::default();
+    for (serial, (path, text)) in STD_RT_TESTS.iter().enumerate() {
+        let mut sources = hd_driver::std_sources();
+        sources.insert(path, text);
+        let fixture = Fixture {
+            sources,
+            primary: (*path).to_owned(),
+            text: (*text).to_owned(),
+            tree: false,
+            deps: Vec::new(),
+            backend: Backend::Linear,
+            package: "std",
+        };
+        let case = Case {
+            path: format!("std/{path}"),
+            phase: Phase::Runtime,
+            expectation: "accept".to_owned(),
+            specification: "lang/10-modules.md#memory-intrinsics".to_owned(),
+        };
+        let goal = Goal::Tests {
+            module: Some(hd_project::module_path("std", path)),
+            filter: None,
+        };
+        let built = build_runnable(&fixture, &fixture.sources, &store, &goal);
+        let mut run = TestRun::default();
+        let verdict = run_tests(&case, &built, "tests", (1 << 41) + serial, &mut run)
+            .map_or_else(|verdict| verdict, |()| judge_tests(&case, &run));
+        assert_eq!(
+            verdict,
+            Verdict::Pass,
+            "{path}: {:#?}\n{}",
+            run.panicked,
+            built.out.render()
+        );
+        println!(
+            "std runtime hd tests (linear backend) on {}: {path}, {} cases pass",
+            engine_mode().name(),
+            built.out.tests.len()
+        );
+    }
+}
+
 /// A single-file fixture with source `text`, for the runner's own tests.
 fn unit_fixture(text: &str) -> Fixture {
     let mut sources = MemorySources::default();
@@ -1874,6 +1938,7 @@ fn unit_fixture(text: &str) -> Fixture {
         tree: false,
         deps: Vec::new(),
         backend: Backend::WasmGc,
+        package: "fixture",
     }
 }
 
@@ -2265,10 +2330,7 @@ fn specification_conformance_passes_except_known_failures() {
         print_filtered(&cases, &results, &store);
         return;
     }
-    let engine = match mode {
-        EngineMode::Node => "node",
-        EngineMode::Compare | EngineMode::WasmtimeOnly => "wasmtime",
-    };
+    let engine = mode.name();
     let outcomes: Vec<Outcome<'_>> = cases
         .iter()
         .zip(&results)

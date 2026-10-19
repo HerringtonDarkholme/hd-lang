@@ -89,6 +89,9 @@ pub enum Global {
     /// The first free heap address of the bump allocation that serves
     /// until the std allocator (job 5) takes over.
     HeapTop,
+    /// The end of the pages that bump allocation owns: at first the heap's
+    /// initial size, then the end of the pages it last grew.
+    HeapEnd,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -97,7 +100,7 @@ pub enum Global {
 impl Global {
     const fn val(&self) -> Val {
         match self {
-            Global::Forbid | Global::HeapTop => Val::I32,
+            Global::Forbid | Global::HeapTop | Global::HeapEnd => Val::I32,
             Global::Storage(_, _, v) => *v,
         }
     }
@@ -449,8 +452,9 @@ impl Module {
             page_size_log2: None,
         });
         // Memory 1: the heap, whose first pages hold static data.
+        let heap_pages = heap_base.div_ceil(1 << 16).max(1);
         memories.memory(MemoryType {
-            minimum: u64::from(heap_base).div_ceil(1 << 16).max(1),
+            minimum: u64::from(heap_pages),
             maximum: None,
             memory64: false,
             shared: false,
@@ -461,6 +465,7 @@ impl Module {
             let v = g.val();
             let init = match (g, v) {
                 (Global::HeapTop, _) => ConstExpr::i32_const(heap_base.cast_signed()),
+                (Global::HeapEnd, _) => ConstExpr::i32_const((heap_pages << 16).cast_signed()),
                 (_, Val::I32) => ConstExpr::i32_const(0),
                 (_, Val::I64) => ConstExpr::i64_const(0),
                 (_, Val::F32) => ConstExpr::f32_const(wasm_encoder::Ieee32::from(0.0)),

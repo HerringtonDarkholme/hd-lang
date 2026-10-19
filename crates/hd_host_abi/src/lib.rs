@@ -549,8 +549,10 @@ pub enum Lowering {
 /// `std.task.all` and `std.testing.it`, `assert_equal` to
 /// `std.testing.assert_equal`, `entry_write` to `std.rt`,
 /// `downcast_val`, `downcast`, `downcast_mut` and `type_id_of` to `std.inspect`,
-/// `ref_serial` to the compiler-supplied `std.core.ref_serial`, and
-/// `ref_identity` to `std.cmp.identity_of`, which the checker lowers.
+/// `ref_serial` to the compiler-supplied `std.core.ref_serial`,
+/// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
+/// the `mem_` keys to the runtime module `std.rt.memory`, which only the
+/// linear backend lowers (`crates/hd_wasm/DESIGN.md` §23.12).
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),
@@ -592,6 +594,18 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("ref_serial", Lowering::Compiler),
     ("ref_identity", Lowering::Compiler),
     ("format_int", Lowering::Compiler),
+    ("mem_pages", Lowering::Compiler),
+    ("mem_grow", Lowering::Compiler),
+    ("mem_load_u8", Lowering::Compiler),
+    ("mem_load_u16", Lowering::Compiler),
+    ("mem_load_u32", Lowering::Compiler),
+    ("mem_load_u64", Lowering::Compiler),
+    ("mem_store_u8", Lowering::Compiler),
+    ("mem_store_u16", Lowering::Compiler),
+    ("mem_store_u32", Lowering::Compiler),
+    ("mem_store_u64", Lowering::Compiler),
+    ("mem_copy", Lowering::Compiler),
+    ("mem_fill", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),
     ("format_f32", Lowering::HostPrimitive("format_f32")),
     ("string_lower", Lowering::HostPrimitive("string_lower")),

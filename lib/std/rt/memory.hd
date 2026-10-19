@@ -1,0 +1,78 @@
+# std.rt.memory: the heap's memory intrinsics
+# (spec/lang/10-modules.md#memory-intrinsics). The runtime that a
+# linear-memory backend runs (the allocator, release, the collector) is hd
+# over these. Each declaration is ordinary hd and only its body is the
+# compiler's. A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only).
+
+@intrinsic("mem_pages")
+## The heap's size in pages of 65,536 bytes.
+## See [module.rt.memory.pages](../../../spec/lang/10-modules.md#r-module.rt.memory.pages).
+pub fn pages() -> usize:
+    panic("intrinsic")
+
+@intrinsic("mem_grow")
+## Adds `count` zeroed pages at the heap's end and gives the size in pages before them, or `.None` when the heap cannot grow that far.
+## See [module.rt.memory.grow](../../../spec/lang/10-modules.md#r-module.rt.memory.grow).
+pub fn grow(count: usize) -> Option[usize]:
+    panic("intrinsic")
+
+@intrinsic("mem_load_u8")
+## The byte at `address`.
+## See [module.rt.memory.load](../../../spec/lang/10-modules.md#r-module.rt.memory.load).
+pub fn load_u8(address: usize) -> u8:
+    panic("intrinsic")
+
+@intrinsic("mem_load_u16")
+## The 2 bytes from `address`, least significant first.
+## See [module.rt.memory.load](../../../spec/lang/10-modules.md#r-module.rt.memory.load).
+pub fn load_u16(address: usize) -> u16:
+    panic("intrinsic")
+
+@intrinsic("mem_load_u32")
+## The 4 bytes from `address`, least significant first.
+## See [module.rt.memory.load](../../../spec/lang/10-modules.md#r-module.rt.memory.load).
+pub fn load_u32(address: usize) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_load_u64")
+## The 8 bytes from `address`, least significant first.
+## See [module.rt.memory.load](../../../spec/lang/10-modules.md#r-module.rt.memory.load).
+pub fn load_u64(address: usize) -> u64:
+    panic("intrinsic")
+
+@intrinsic("mem_store_u8")
+## Writes `value` at `address`.
+## See [module.rt.memory.store](../../../spec/lang/10-modules.md#r-module.rt.memory.store).
+pub fn store_u8(address: usize, value: u8) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_store_u16")
+## Writes the 2 bytes of `value` from `address`, least significant first.
+## See [module.rt.memory.store](../../../spec/lang/10-modules.md#r-module.rt.memory.store).
+pub fn store_u16(address: usize, value: u16) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_store_u32")
+## Writes the 4 bytes of `value` from `address`, least significant first.
+## See [module.rt.memory.store](../../../spec/lang/10-modules.md#r-module.rt.memory.store).
+pub fn store_u32(address: usize, value: u32) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_store_u64")
+## Writes the 8 bytes of `value` from `address`, least significant first.
+## See [module.rt.memory.store](../../../spec/lang/10-modules.md#r-module.rt.memory.store).
+pub fn store_u64(address: usize, value: u64) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_copy")
+## Copies the `count` bytes from `from` to `to`, as though through a separate buffer, so the two ranges may overlap.
+## See [module.rt.memory.copy](../../../spec/lang/10-modules.md#r-module.rt.memory.copy).
+pub fn copy(to: usize, from: usize, count: usize) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_fill")
+## Sets the `count` bytes from `to` to `byte`.
+## See [module.rt.memory.fill](../../../spec/lang/10-modules.md#r-module.rt.memory.fill).
+pub fn fill(to: usize, byte: u8, count: usize) -> void:
+    panic("intrinsic")

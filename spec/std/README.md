@@ -87,6 +87,13 @@ raises with a category other than `explicit-panic`.
 | `facts_of` | the compiler builds each call's facts value ([Function Facts](../lang/14-annotations.md#function-facts)) |
 | `task_race_frame`, `task_all_frame` | the polling frames of `race!` and `all!`, which are compiler intrinsics ([`req.combinator.intrinsic`](../lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic)) |
 
+**Runtime.** The memory intrinsics of `std.rt.memory` are language tier,
+because the compiler knows them by name, so
+[Memory Intrinsics](../lang/10-modules.md#memory-intrinsics) defines them.
+They are `pub`, but only std may use a
+[runtime module](../lang/10-modules.md#runtime-modules), so still no
+program calls them.
+
 **Host.** The host supplies these, for now.
 
 | Primitive | Signature | Why it is a primitive |

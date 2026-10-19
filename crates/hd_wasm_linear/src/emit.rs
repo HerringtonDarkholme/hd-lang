@@ -35,7 +35,10 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let Some(b) = (input.body)(id) else {
         return unsupported("an instance without TIR");
     };
-    if input.env.suspends(item) {
+    // A suspending root that no code but the entry calls runs as a plain
+    // function: until job 13 any suspension point in it is refused, and a
+    // body that never suspends ends on its first poll.
+    if input.env.suspends(item) && !input.entry.root(item) {
         return unsupported("suspending functions (job 13)");
     }
     let mut em = Em {
@@ -180,8 +183,11 @@ impl Em<'_, '_, '_> {
         num(self.pool(), t)
     }
 
-    /// Pushes every value of `r`.
+    /// Pushes every value of `r`. `NONE` is the unit value, which has none.
     fn push(&mut self, r: u32) -> StageResult<()> {
+        if r == NONE {
+            return Ok(());
+        }
         if Ref(r).as_inst().is_none() {
             return self.konst(r);
         }
@@ -829,8 +835,49 @@ impl Em<'_, '_, '_> {
                 self.comp(args[0], 1)?;
                 self.store(i)
             }
+            key if key.starts_with("mem_") => self.memory(i, key, args),
             other => unsupported(format!("the intrinsic `{other}`")),
         }
+    }
+
+    /// `std.rt.memory`'s intrinsics on the heap, memory 1
+    /// (`module.rt.memory.*`): each is one instruction. A load or a store
+    /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
+    /// `.None`; `copy` is `memory.copy`, which allows overlap.
+    fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
+        let op = match key {
+            "mem_pages" => I::MemorySize(HEAP),
+            "mem_grow" => {
+                self.push(args[0])?;
+                self.f.op(I::MemoryGrow(HEAP));
+                let before = self.f.local(Val::I32);
+                self.f.set(before);
+                self.f.get(before);
+                self.f.i32(-1);
+                self.f.op(I::I32Ne);
+                self.f.get(before);
+                return self.store(i);
+            }
+            "mem_load_u8" => I::I32Load8U(mem(HEAP, 0, 0)),
+            "mem_load_u16" => I::I32Load16U(mem(HEAP, 0, 1)),
+            "mem_load_u32" => I::I32Load(mem(HEAP, 0, 2)),
+            "mem_load_u64" => I::I64Load(mem(HEAP, 0, 3)),
+            "mem_store_u8" => I::I32Store8(mem(HEAP, 0, 0)),
+            "mem_store_u16" => I::I32Store16(mem(HEAP, 0, 1)),
+            "mem_store_u32" => I::I32Store(mem(HEAP, 0, 2)),
+            "mem_store_u64" => I::I64Store(mem(HEAP, 0, 3)),
+            "mem_copy" => I::MemoryCopy {
+                src_mem: HEAP,
+                dst_mem: HEAP,
+            },
+            "mem_fill" => I::MemoryFill(HEAP),
+            other => return unsupported(format!("the intrinsic `{other}`")),
+        };
+        for a in args {
+            self.push(*a)?;
+        }
+        self.f.op(op);
+        self.store(i)
     }
 
     /// `block_on(s)` (`req.drive.block-on.*`): polls the suspension's frame
