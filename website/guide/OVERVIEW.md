@@ -18,7 +18,7 @@ overview focuses on the common design that serves both.
 ### Readable, explicit programs
 
 Python-style indentation keeps common code compact. Explicit types, nominal
-data declarations, traits, visible error values, and declared dependencies
+`struct` declarations, traits, visible error values, and declared dependencies
 make larger programs reviewable. The language avoids hidden registration,
 ambient authority, and behavior inferred from naming conventions.
 
@@ -41,15 +41,20 @@ the runtime. They do not each introduce separate syntax.
 
 ### Data, traits, and explicit failure
 
-Programs model application data with nominal `data` and `enum` declarations.
+Programs model application data with nominal `struct` and `enum` declarations.
 Traits express shared behavior and generic constraints, with explicit
 conformance. Absence is represented by `T?`; recoverable failure is represented
 by `Result[T, E]`. Panics are reserved for defects and violated runtime
 contracts rather than ordinary application errors.
 
-Composite values use shared-reference semantics. `mut` expresses permission to mutate
-through a reference; it does not imply ownership, uniqueness, or deep
-immutability.
+Structs, enums, tuples, `List`, `Map`, and `string` are values: assigning,
+passing, or returning one copies it, and a copy never changes the original.
+Sharing is written where it happens. `&T` reads a value where it lives,
+`&mut T` also writes it, and `&mut T { ... }` makes a new object that every
+holder of the reference sees change. `let mut` marks a variable whose value
+changes in place, and a method that changes its receiver says `&mut self`.
+A `&mut` reference is not exclusive, so it expresses permission to write,
+not ownership or uniqueness.
 
 ### Requirements, providers, and suspension
 

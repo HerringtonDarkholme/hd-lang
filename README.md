@@ -29,27 +29,27 @@ provider is a `missing-requirement` compile error, not a runtime surprise.
 use std.time.{Clock, ManualClock, Timestamp}
 
 trait Mailer:
-    fn send!(mut self, to: string, body: string) -> void
+    fn send!(&mut self, to: string, body: string) -> void
 
 # The signature says it all: this sends mail and reads the clock.
 fn welcome!(email: string) -> void $ Mailer + Clock:
-    let mut mailer = $.use(Mailer)
+    mailer := $.use(Mailer)
     mailer.send!(email, "Welcome, joined at ${$.use(Clock).now()}")
 
-data Outbox:
-    sent: mut List[string]
+struct Outbox:
+    sent: List[string]
 
 impl Mailer for Outbox:
-    fn send!(mut self, to: string, body: string) -> void:
+    fn send!(&mut self, to: string, body: string) -> void:
         self.sent.push("$to: $body")
 
 tests:
     use std.testing.assert_equal
 
     it("welcome sends one mail at the fixed time"):
-        let outbox: mut Outbox = Outbox { sent: [] }
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
-        $.with(Mailer=outbox, Clock=clock):
+        let mut outbox = Outbox { sent: [] }
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Mailer=&mut outbox, Clock=clock):
             welcome!("ada@example.com")
         assert_equal(outbox.sent, ["ada@example.com: Welcome, joined at 1970-01-01T00:00:00Z"], reason="one mail")
 ```
@@ -71,7 +71,7 @@ other code.
 
 ```hd
 @derive(Serialize, Deserialize, Table)
-data User:
+struct User:
     @column("user_id")
     id: i64
     email: string
@@ -91,7 +91,7 @@ use std.json.encode
 use std.serde.{Serialize, Deserialize}
 use std.structure.{Structure, Describer, Field, Variant}
 
-data Column:
+struct Column:
     name: string
 
 fn column(name: string) -> Column:
@@ -102,20 +102,20 @@ trait Table:
 
 impl[T] Table for T by Structure:
     fn columns() -> string:
-        let list: mut ColumnList = ColumnList { names: "" }
-        _ := T::describe(list)
+        let mut list = ColumnList { names: "" }
+        _ := T::describe(&mut list)
         list.names
 
-data ColumnList:
+struct ColumnList:
     names: string
 
 impl[S] Describer[S] for ColumnList:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         name := match h.info.facts.find::[Column]():
             .Some(column) => column.name
             .None => h.info.name

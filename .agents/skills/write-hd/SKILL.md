@@ -1,6 +1,6 @@
 ---
 name: write-hd
-description: Write hd code that checks on the first or second try - a compact syntax reference by example (entry points, bindings and +0, functions, data, enums and match, Result and ?, traits and dyn, operator traits, requirement rows and $.with, bang calls, modules, tests:), the prelude and where std names live, and a table of the mistakes agents make most with their fixes. Use before writing or editing any .hd file. Pair it with the hd-cli skill for the check loop.
+description: Write hd code that checks on the first or second try - a compact syntax reference by example (entry points, bindings and +0, values and references, functions, structs, enums and match, Result and ?, traits and trait values, operator traits, requirement rows and $.with, bang calls, modules, tests:), the prelude and where std names live, and a table of the mistakes agents make most with their fixes. Use before writing or editing any .hd file. Pair it with the hd-cli skill for the check loop.
 ---
 
 # Write hd Code
@@ -79,8 +79,10 @@ needs `$ FsRead` and returns `Result[string, FsError]`.
 - An integer literal with no context is `usize`. Write `+0` for an `i32`.
   `len()` returns `usize` too, and `usize` does not mix with `i32`: cast
   with `i32(n)` or `usize(n)`. Casts are calls; nothing is implicit.
-- A list or map you change is `mut`: `let xs: mut List[string] = []`.
-  `mut` goes on the type, never `let mut x` for a number or string.
+- A list, map or struct you change in place is `let mut`:
+  `let mut xs: List[string] = []`. A number or string needs only `let`,
+  which is already reassignable; `let mut n = 0` is the `redundant-let-mut`
+  warning.
 - Tuples: `pair._0`, `pair._1`, or `let (a, b) = pair`.
 
 ```hd
@@ -91,10 +93,10 @@ fn square(x: i32) -> i32: x * x
 pub fn main() -> void $ Console:
     let count = +0
     count = count + square(LIMIT)
-    let names: mut List[string] = []
+    let mut names: List[string] = []
     names.push("Ada")
     pair := (+1, "one")
-    let counts: mut Map[string, usize] = {}
+    let mut counts: Map[string, usize] = {}
     for word in "a b a".split_whitespace():
         counts[word] = counts.get(word).unwrap_or(0) + 1
     more := [names..., "Grace"]
@@ -108,6 +110,59 @@ To build text in a loop, push to a `StringBuilder` (`use std.text.StringBuilder`
 `out := StringBuilder::new()`, `out.push(s)`,
 `out.build()`) or collect parts and `join` them. `out = out + s` in a loop
 copies the whole text every time, as Go's `s += t` does.
+
+## Values And References
+
+A `struct`, an enum, a tuple, a `List`, a `Map` and a `string` are values:
+assigning, passing or returning one copies it, and a copy never changes
+the original. Sharing is written at the place it happens.
+
+- `&T` reads a value where it lives, with no copy. `&mut T` also writes
+  it. A `&mut` is not exclusive: two copies of one reference see each
+  other's writes.
+- `&x` and `&mut x` refer to the variable or field `x` itself. `&mut`
+  needs a writable place: a `let mut` variable, a field of one, or
+  anything reached through a `&mut`. A `:=` binding, a plain `let` and a
+  parameter are not writable.
+- `&mut Point { ... }` (or `&Point { ... }`) on anything that is not a
+  place makes a new object that every holder of the reference shares.
+- A method takes `&self` to read and `&mut self` to change its receiver,
+  and `p.shift(1)` needs no mark at the call. `self` alone is a read-only
+  copy.
+- `*r` reads the whole value (a copy), and `*r = v` replaces it. Field
+  access and method calls go through a reference on their own.
+- A parameter that only reads a list or a record is written `List[T]` or
+  `Point`, or `&Point` to skip the copy; write `&mut` only for a callee
+  that changes the caller's value.
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn len2(&self) -> i32: self.x * self.x + self.y * self.y
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn bump(p: &mut Point) -> void:
+    p.x += 1
+
+fn norm(p: &Point) -> i32: p.len2()
+
+pub fn main() -> void $ Console:
+    let mut a = Point { x: 1, y: 2 }
+    b := a                                # a copy: nothing is shared
+    a.shift(10)                           # changes `a` only
+    bump(&mut a)                          # lends `a`; the callee's write shows here
+    shared := &mut Point { x: 0, y: 0 }   # a new object that references share
+    alias := shared
+    alias.x = 5
+    println("${a.x} ${b.x} ${shared.x} ${norm(&a)}")
+```
+
+`==` between two references is the `reference-equality` error: write
+`a is b` for the same place, or `*a == *b` for equal values.
 
 ## Functions And Control Flow
 
@@ -128,15 +183,15 @@ fn first_or[T](items: List[T], fallback: T) -> T:
         .Some(item) => item
         .None => fallback
 
-fn audited(log: mut List[string]) -> i32:
+fn audited(log: &mut List[string]) -> i32:
     defer:
         log.push("closed")
     log.push("opened")
     +42
 
 pub fn main() -> void $ Console:
-    let log: mut List[string] = []
-    value := audited(log)
+    let mut log: List[string] = []
+    value := audited(&mut log)
     scores := {"ada": +10, "grace": +12}
     let best = +0
     for (_, score) in scores:
@@ -159,12 +214,12 @@ It runs when the block exits, and it cannot print, make bang calls, or
 use `?`. `dbg(x)` prints `x` with its location to stderr and returns `void`,
 so it is a statement, not a wrapper.
 
-## Data, Enums, Match, Errors
+## Structs, Enums, Match, Errors
 
 ```hd
 use std.num.parse_i32
 
-data Item:
+struct Item:
     name: string
     cents: i32
     tags: List[string] = []
@@ -217,8 +272,9 @@ pub fn main() -> void $ Console:
 ```
 
 - Build a record with `Item { field: value }`, never `Item(field: v)`.
-  `...tea` copies the rest. Fields of a `pub data` that other modules read
-  are `pub` too.
+  `...tea` copies the rest. Fields of a `pub struct` that other modules
+  read are `pub` too. `data` is still accepted but is being removed; write
+  `struct`.
 - `.Variant` works where the type is known; otherwise `Status.Paid(1)`.
 - `match` must be exhaustive. An arm is `pattern => expr` or an indented
   body, never `{ ... }`.
@@ -229,33 +285,34 @@ pub fn main() -> void $ Console:
   `use std.serde.{Deserialize, Serialize}`; decode with
   `decode::[Config](text)` from `std.json`.
 
-## Traits, dyn, And Operators
+## Traits, Trait Values, And Operators
 
-A bound `[T < Shape]` dispatches statically. A trait used as a value type
-is `dyn Shape`; a bare `List[Shape]` is `trait-used-as-type`. Operator
-traits live in `std.ops` and must be imported; the result type is
-`type Out`.
+A bound `[T < Shape]` dispatches statically. A trait used as a value is a
+reference, `&dyn Shape` or `&mut dyn Shape`, and the `&` is always
+written: `[&Circle { radius: 1.0 }]` makes new objects, and `&mut c`
+shares `c`. A bare `List[Shape]` is `trait-used-as-type`. Operator traits
+live in `std.ops` and must be imported; the result type is `type Out`.
 
 ```hd
 use std.ops.Add
 
 trait Shape:
-    fn area(self) -> f64
-    fn name(self) -> string: "shape"
+    fn area(&self) -> f64
+    fn name(&self) -> string: "shape"
 
-data Circle:
+struct Circle:
     radius: f64
 
-data Rect:
+struct Rect:
     width: f64
     height: f64
 
 impl Shape for Circle:
-    fn area(self) -> f64: 3.14159 * self.radius * self.radius
-    fn name(self) -> string: "circle"
+    fn area(&self) -> f64: 3.14159 * self.radius * self.radius
+    fn name(&self) -> string: "circle"
 
 impl Shape for Rect:
-    fn area(self) -> f64: self.width * self.height
+    fn area(&self) -> f64: self.width * self.height
 
 fn largest[T < Shape](shapes: List[T]) -> f64:
     let best = 0.0
@@ -264,14 +321,14 @@ fn largest[T < Shape](shapes: List[T]) -> f64:
             best = shape.area()
     best
 
-fn total_area(shapes: List[dyn Shape]) -> f64:
+fn total_area(shapes: List[&dyn Shape]) -> f64:
     let sum = 0.0
     for shape in shapes:
         sum = sum + shape.area()
     sum
 
 @derive(Eq, Debug)
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:
@@ -280,57 +337,60 @@ impl Add for Money:
         Money { cents: self.cents + rhs.cents }
 
 pub fn main() -> void $ Console:
-    let shapes: List[dyn Shape] = [Circle { radius: 1.0 }, Rect { width: 2.0, height: 3.0 }]
+    let shapes: List[&dyn Shape] = [&Circle { radius: 1.0 }, &Rect { width: 2.0, height: 3.0 }]
     println("total: ${total_area(shapes)}")
     println("largest: ${largest([Rect { width: 1.0, height: 1.0 }])}")
     println(debug(Money { cents: 250 } + Money { cents: 100 }))
 ```
 
-A method that changes `self` takes `mut self`, and a caller needs a mutable
-value: `let mut parser = Parser { ... }`.
+A method that changes its receiver takes `&mut self`, and a caller needs a
+writable place: `let mut parser = Parser { ... }`. Operator traits keep
+`self` by value.
 
 ## Requirements, Providers, And Tests
 
 A row lists the traits a function needs. `$.use(T)` fetches the provider,
-and `$.with(T=value):` supplies one for a block, so a test swaps in a fake.
+and `$.with(T=&value):` supplies one for a block, so a test swaps in a fake.
+A provider is a trait value, so it is written `&mut fake` (or
+`&StdoutMailer {}` for a new object).
 A public function's row may name only public traits. Tests live in one
 `tests:` block at the end of the file; each `it("name"):` is a case, and
 assertions come from `std.testing` with a required `reason=`.
 
 ```hd
 pub trait Mailer:
-    fn send(mut self, to: string, body: string) -> void
+    fn send(&mut self, to: string, body: string) -> void
 
-data StdoutMailer: pass
+struct StdoutMailer: pass
 
 impl Mailer for StdoutMailer:
-    fn send(mut self, to: string, body: string) -> void:
+    fn send(&mut self, to: string, body: string) -> void:
         pass
 
 pub fn remind(users: List[string]) -> usize $ Mailer:
-    let mut mailer = $.use(Mailer)
+    mailer := $.use(Mailer)
     for user in users:
         mailer.send(user, "your invoice is due")
     users.len()
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=StdoutMailer {}):
+    $.with(Mailer=&mut StdoutMailer {}):
         count := remind(["ada@example.com"])
         println("sent $count")
 
 tests:
     use std.testing.{assert, assert_equal}
 
-    data FakeMailer:
-        sent: mut List[string]
+    struct FakeMailer:
+        sent: List[string]
 
     impl Mailer for FakeMailer:
-        fn send(mut self, to: string, body: string) -> void:
+        fn send(&mut self, to: string, body: string) -> void:
             self.sent.push(to)
 
     it("mails every user"):
         let mut fake = FakeMailer { sent: [] }
-        $.with(Mailer=fake):
+        $.with(Mailer=&mut fake):
             assert_equal(remind(["a", "b"]), 2, reason="two users")
         assert_equal(fake.sent, ["a", "b"], reason="in order")
         assert(fake.sent.len() == 2, reason="two mails")
@@ -411,16 +471,25 @@ the code `hd check` reports today.
 | `s.len()` used as a character count | (none: wrong result) | `len()` counts bytes; characters are `s.chars().count()` |
 | asserting a test got the error you expected | (none) | `assert_equal(r.is_err(), true, reason=...)`, or `match r:` with `.Err(.Low(balance=b)) => assert_equal(b, 5, ...)` and `.Ok(_) => panic("expected Low")` |
 | `n := +0` then `n = n + 1` | `non-reassignable-binding` | `let n = +0` |
-| `let mut n = +0` | `mut-on-primitive` | `let n = +0` |
+| `let mut n = +0` | `redundant-let-mut` warning | `let n = +0` |
 | `total: i64 = 0` | `missing-let` | `let total: i64 = 0` |
 | `pub let LIMIT = 3`, `pub LIMIT := 3` | `syntax-error` | private `LIMIT := +3`, plus `pub fn limit() -> i32: LIMIT` |
-| `let xs: List[string] = []` then `xs.push(x)` | `mutable-receiver-required` | `let xs: mut List[string] = []` |
-| `fn f(mut xs: List[i32])` | `syntax-error` | `fn f(xs: mut List[i32])` |
+| `let xs: List[string] = []` then `xs.push(x)` | `mutable-receiver-required` | `let mut xs: List[string] = []` |
+| `xs.push(x)` on a parameter `xs: List[i32]`, meant for the caller's list | `mutable-receiver-required` | `xs: &mut List[i32]`, and the call `f(&mut xs)` |
+| `p := P { x: 1 }` then `p.x = 2` | `non-reassignable-binding` | `let mut p = P { x: 1 }` |
+| `p.x = 2` on a `let p` | `readonly-root` | `let mut p = ...` |
+| `fn bump(self)` that writes `self.x` | `non-reassignable-parameter-binding` | `fn bump(&mut self)` |
+| `p.bump()` on a `:=` binding, `bump` takes `&mut self` | `mutable-receiver-required` | `let mut p = ...` |
+| `bump(p)` where `bump` takes `&mut P` | `type-mismatch` | `bump(&mut p)` |
+| a write through a `&P` parameter | `readonly-root` | take `&mut P` |
+| `a == b` on two references | `reference-equality` | `a is b`, or `*a == *b` |
+| `$.with(Mailer=fake)` | `type-mismatch` | `$.with(Mailer=&mut fake)` |
+| `data Item:` | (none: still accepted) | `struct Item:` |
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |
 | `println` inside `defer:` | `suspension-forbidden-context` | record into a list; print after |
-| `List[Shape]` for a trait | `trait-used-as-type` | `List[dyn Shape]` (`hd fix` inserts it) |
+| `List[Shape]` for a trait | `trait-used-as-type` | `List[&dyn Shape]`, filled with `&Circle { ... }` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |
 | `assert_equal(a, b)` | `argument-count` | `assert_equal(a, b, reason="...")` |
@@ -429,7 +498,7 @@ the code `hd check` reports today.
 | `loop:` | `unknown-name` | `while true:` |
 | `"{x}"` | prints the braces | `"${x}"` or `"$x"` |
 | `"$opt"` with `opt: string?` | `unsatisfied-trait-bound` | `"${opt.unwrap_or("")}"` |
-| `{:}` for an empty map | `syntax-error` | `let m: mut Map[K, V] = {}` |
+| `{:}` for an empty map | `syntax-error` | `let mut m: Map[K, V] = {}` |
 | `use` inside a function | `syntax-error` | move it to the top of the file |
 | `Item(name: "a")` | `trailing-block-position` | `Item { name: "a" }` |
 | a second `tests:` block | `duplicate-tests-block` | one `tests:` block per file |

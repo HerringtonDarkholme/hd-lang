@@ -56,7 +56,7 @@ function heroSample(readme: string): string {
   if (!block) throw new Error("landing page: README.md has no ```hd block");
   const lines = block.replace(/\n$/, "").split("\n");
   const start = lines.findIndex((line) => line.startsWith("trait "));
-  const end = lines.findIndex((line, index) => index > start && line.startsWith("data "));
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("struct "));
   if (start < 0 || end < 0) return lines.join("\n");
   return lines.slice(start, end).join("\n").trimEnd();
 }

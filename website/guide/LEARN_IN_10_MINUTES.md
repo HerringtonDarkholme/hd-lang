@@ -82,8 +82,8 @@ pattern := r"\d+ costs $5"
 
 `List[T]` and `Map[K, V]` come from the prelude, and tuples are built in.
 Comprehensions put the clauses before `=>` and the produced value after it.
-A list you will change is `mut List[T]`
-([tour: collections](../tour/10-lists-and-maps.md)).
+A list you will change is a `let mut` variable, and a list is a value, so
+`b := a` copies it ([tour: collections](../tour/10-lists-and-maps.md)).
 
 ```hd
 names := ["Ada", "Grace", "Linus"]
@@ -91,7 +91,7 @@ scores := {"Ada": 10, "Grace": 12}
 let (x, y) = (10, 20)
 long_names := [for name in names if name.len() > 3 => name]
 total := scores.get("Ada").unwrap_or(0)
-let todos: mut List[string] = []
+let mut todos: List[string] = []
 todos.push("buy milk")
 ```
 
@@ -140,22 +140,32 @@ else:
 
 ## Data and Mutability
 
-`data` declares a record; a field may have a default, and `...` copies a
-value with changes. `T` is a readonly view and `mut T` a mutable one, and
-`let mut` asks for the mutable one ([tour: data](../tour/09-data.md)).
+`struct` declares a record, which is a value: `b := a` copies it, and
+changing one never changes the other. A field may have a default, and `...`
+copies a value with changes. `let mut` marks a variable whose fields change
+in place. Sharing is written: `&T` reads a value where it lives with no
+copy, `&mut T` also writes it, and `&mut draft` lends a `let mut` variable
+to a callee, whose writes the caller sees. `&mut User { ... }` makes a new
+object that every holder of the reference shares
+([tour: values and mut](../tour/02-values-and-mut.md),
+[data](../tour/09-data.md)).
 
 ```hd
-data User:
+struct User:
     id: string
     email: string
     nickname: string? = .None
 
-fn normalize(user: mut User) -> void:
+fn normalize(user: &mut User) -> void:
     user.email = user.email.trim().lower()
 
+fn label(user: &User) -> string:
+    "${user.id} <${user.email}>"
+
 let mut draft = User { id: "u2", email: " Grace@Example.com " }
-normalize(draft)
+normalize(&mut draft)
 renamed := User { ...draft, nickname: "grace" }
+println(label(&renamed))
 ```
 
 ## Enums, Optionals, and Errors
@@ -198,19 +208,20 @@ fn port(path: string) -> Result[string, ConfigError]:
 ## Traits
 
 A trait lists methods, and each implementation is explicit. A bound
-dispatches statically; `dyn Trait` dispatches dynamically. `@derive` writes
+dispatches statically; a trait value, `&dyn Trait` or `&mut dyn Trait`,
+dispatches dynamically and is always written with its `&`. `@derive` writes
 standard implementations ([tour: traits](../tour/11-traits.md),
 [derive](../tour/18-derive.md)).
 
 ```hd
 trait Describe:
-    fn describe(self) -> string
+    fn describe(&self) -> string
 
 impl Describe for User:
-    fn describe(self) -> string: self.email
+    fn describe(&self) -> string: self.email
 
 @derive(Eq, Hash)
-data Point:
+struct Point:
     x: i32
     y: i32
 ```
@@ -218,7 +229,8 @@ data Point:
 ## Requirements and Suspension
 
 A row after `$` lists the traits a function needs. `$.use` retrieves a
-provider and `$.with` supplies one for a block, so a test installs a fake
+provider and `$.with` supplies one for a block, as a reference to a new
+object (`&FixedClock { at: 42 }`), so a test installs a fake
 ([tour: requirements](../tour/12-requirements.md),
 [least authority](../tour/17-least-authority.md)). A name ending in `!`
 can suspend, and so does every call to it
@@ -226,12 +238,12 @@ can suspend, and so does every call to it
 
 ```hd
 trait Clock:
-    fn now(self) -> i64
+    fn now(&self) -> i64
 
 fn stamp(message: string) -> string $ Clock:
     "${$.use(Clock).now()}: $message"
 
-$.with(Clock=FixedClock { at: 42 }):
+$.with(Clock=&FixedClock { at: 42 }):
     println(stamp("ready"))
 ```
 
@@ -254,7 +266,7 @@ tests:
     use std.testing.assert_equal
 
     it("stamps with the fixed clock"):
-        $.with(Clock=FixedClock { at: 1 }):
+        $.with(Clock=&FixedClock { at: 1 }):
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
 ```
 

@@ -23,12 +23,12 @@ is needed. The exact rules are in
 use std.json.{decode, JsonError}
 use std.serde.{Deserialize, Serialize}
 @derive(Serialize, Deserialize)
-data Limits:
+struct Limits:
     retries: i32
     timeout_ms: i32
 
 @derive(Serialize, Deserialize)
-data Config:
+struct Config:
     name: string
     limits: Limits
 
@@ -66,12 +66,12 @@ use std.json.{decode, JsonError}
 use std.serde.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize)
-data Limits:
+struct Limits:
     retries: i32
     timeout_ms: i32
 
 @derive(Serialize, Deserialize)
-data Config:
+struct Config:
     name: string
     limits: Limits
 
@@ -129,7 +129,7 @@ are in [Tasks](../../spec/std/task.md). Two bounds of the pattern are worth
 knowing before you extend it. An implementation's method must repeat the
 trait's signature, row included, so a fake store that itself suspends —
 a slow one — needs the trait to declare the row, as in
-`fn lookup!(self, key: string) -> string $ Clock`. And a `ManualClock`'s
+`fn lookup!(&self, key: string) -> string $ Clock`. And a `ManualClock`'s
 `sleep!` never waits: it completes at once and advances the virtual
 time, so a test can check the fast path and the clock's reads, but not
 which of two sleeps finishes first.
@@ -139,7 +139,7 @@ use std.task.{all, race}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 trait Store:
-    fn lookup!(self, key: string) -> string
+    fn lookup!(&self, key: string) -> string
 
 fn fetch_user!() -> string $ Store:
     $.use(Store).lookup!("user")
@@ -160,22 +160,22 @@ fn slow!() -> string $ Clock:
 fn load_with_timeout!() -> string $ Store + Clock:
     race!(fetch_user(), slow())
 
-data FakeStore:
+struct FakeStore:
     tag: string
 
 impl Store for FakeStore:
-    fn lookup!(self, key: string) -> string:
+    fn lookup!(&self, key: string) -> string:
         "fake-$key"
 
 tests:
     use std.testing.{assert_equal, it}
 
     it("loads all three at once"):
-        $.with(Store=FakeStore { tag: "t" }):
+        $.with(Store=&FakeStore { tag: "t" }):
             assert_equal(load_page!(), ("fake-user", "fake-orders", "fake-profile"), reason="all three")
 
     it("a fast lookup beats the timeout"):
-        $.with(Store=FakeStore { tag: "t" }):
+        $.with(Store=&FakeStore { tag: "t" }):
             $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
                 assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
 ```
@@ -231,7 +231,7 @@ fn status_of(line: string) -> i32?:
         .Err(_) => .None
 
 fn errors_by_status(lines: List[string]) -> Map[i32, usize]:
-    let counts: mut Map[i32, usize] = {}
+    let mut counts: Map[i32, usize] = {}
     for line in lines:
         match status_of(line):
             .Some(code) => if code >= 500:
@@ -264,54 +264,57 @@ The rules are in
 
 ```hd
 trait Repo:
-    fn save(self, name: string) -> string
+    fn save(&self, name: string) -> string
 
 trait Mailer:
-    fn send(self, to: string) -> string
+    fn send(&self, to: string) -> string
 
 fn register(name: string, email: string) -> string $ Mailer + Repo:
     saved := $.use(Repo).save(name)
     sent := $.use(Mailer).send(email)
     "$saved; $sent"
 
-data FileRepo:
+struct FileRepo:
     root: string
 
 impl Repo for FileRepo:
-    fn save(self, name: string) -> string: "file:${self.root}/$name"
+    fn save(&self, name: string) -> string: "file:${self.root}/$name"
 
-data SmtpMailer:
+struct SmtpMailer:
     endpoint: string
 
 impl Mailer for SmtpMailer:
-    fn send(self, to: string) -> string: "smtp:${self.endpoint}:$to"
+    fn send(&self, to: string) -> string: "smtp:${self.endpoint}:$to"
 
-data MemoryRepo:
+struct MemoryRepo:
     namespace: string
 
 impl Repo for MemoryRepo:
-    fn save(self, name: string) -> string: "memory:${self.namespace}:$name"
+    fn save(&self, name: string) -> string: "memory:${self.namespace}:$name"
 
-data OutboxMailer:
+struct OutboxMailer:
     label: string
 
 impl Mailer for OutboxMailer:
-    fn send(self, to: string) -> string: "outbox:${self.label}:$to"
+    fn send(&self, to: string) -> string: "outbox:${self.label}:$to"
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=SmtpMailer { endpoint: "smtp.example.com" }, Repo=FileRepo { root: "data/users" }):
+    $.with(Mailer=&SmtpMailer { endpoint: "smtp.example.com" }, Repo=&FileRepo { root: "data/users" }):
         println(register("Ada", "ada@example.com"))
 
 tests:
     use std.testing.assert_equal
 
     it("registers with test adapters"):
-        $.with(Mailer=OutboxMailer { label: "test" }, Repo=MemoryRepo { namespace: "case" }):
+        $.with(Mailer=&OutboxMailer { label: "test" }, Repo=&MemoryRepo { namespace: "case" }):
             assert_equal(register("Ada", "ada@example.com"), "memory:case:Ada; outbox:test:ada@example.com", reason="the installed fakes")
 ```
 
 The production and the test adapters share no concrete type; each only
-implements the trait. In a package, the traits and `register` go in a
+implements the trait. A provider is a trait value, so `$.with` takes it
+behind a written `&`: `&FileRepo { ... }` makes one new object that the
+whole block shares, and a provider that changes as it runs, such as a fake
+that records its calls, takes `&mut` and a `&mut self` method. In a package, the traits and `register` go in a
 library module, and each way of wiring them is its own executable. Each
 `[[executable]]` table names an entry module, so `src/main.hd` wires
 production and `src/dev.hd` wires the in-memory adapters
@@ -335,7 +338,7 @@ module = "dev"
 use pkg.{Mailer, MemoryRepo, OutboxMailer, Repo, register}
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=OutboxMailer { label: "local" }, Repo=MemoryRepo { namespace: "dev" }):
+    $.with(Mailer=&OutboxMailer { label: "local" }, Repo=&MemoryRepo { namespace: "dev" }):
         println(register("Ada", "ada@example.com"))
 ```
 
@@ -423,7 +426,7 @@ The library's `pub` items in `money/src/lib.hd` are its interface:
 
 ```hd
 ## An amount of money in whole cents.
-pub data Money:
+pub struct Money:
     pub cents: i64
 
 ## The amount `cents`.
@@ -529,7 +532,7 @@ rules are in [Collections](../../spec/std/collections.md) and
 
 ```hd
 use std.collections.Set
-data Item:
+struct Item:
     name: string
     price: i32
     tags: List[string]
@@ -551,7 +554,7 @@ tests:
 
     it("collects each tag once"):
         let mut seen: Set[string] = Set::new()
-        let kept: mut List[string] = []
+        let mut kept: List[string] = []
         for item in sample():
             for tag in item.tags:
                 if seen.insert(tag):
