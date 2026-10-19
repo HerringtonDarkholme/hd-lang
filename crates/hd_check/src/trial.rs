@@ -377,14 +377,13 @@ impl Ck<'_, '_> {
             }
             several => {
                 let msg = format!(
-                    "{} fit this call: write `{}::[..]::{}(..)` to choose one",
+                    "{} fit this call: {}",
                     self.instantiations_text(trait_, self_ty, cands, several),
-                    self.cx.names.display_name(trait_),
-                    self.cx.names.text(
-                        self.cx
-                            .lookup
-                            .item(method)
-                            .map_or(hd_base::Symbol::from_raw(0), |i| i.name)
+                    self.candidate_advice(
+                        trait_,
+                        method,
+                        several.iter().map(|i| cands[*i].args),
+                        n
                     )
                 );
                 self.err(Code::AmbiguousMethod, n, &msg);

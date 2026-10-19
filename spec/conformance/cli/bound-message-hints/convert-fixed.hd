@@ -1,0 +1,14 @@
+trait Convert[T]:
+    fn convert(self) -> T
+
+data Packet: pass
+
+impl Convert[i32] for Packet:
+    fn convert(self) -> i32: +1
+
+impl Convert[string] for Packet:
+    fn convert(self) -> string: "one"
+
+fn run(packet: Packet) -> void:
+    _number := Convert::[i32]::convert(packet)
+    _text := Convert::[string]::convert(packet)

@@ -8,6 +8,7 @@ use hd_diag::Code;
 use hd_resolve::{FnSig, ImplKind, ItemData, Lookup, Names};
 use hd_syntax::NodeRef;
 use hd_types::{ParamRef, Ty, TyData, Types};
+use std::fmt::Write as _;
 
 use crate::body::Ck;
 
@@ -260,10 +261,25 @@ impl Ck<'_, '_> {
         if let Some(why) = Self::sig_differs(pool, (tsig, sig), (free_bounds, bridge), &inst)
             && !(omitted && why == "the result type")
         {
-            let msg = format!(
+            let mut msg = format!(
                 "`{}` differs from the trait's declaration: {why}",
                 self.cx.names.text(it.name)
             );
+            if trait_ == known.index_set && why == "a parameter type" {
+                let params = self.cx.lookup.item(trait_).map_or_else(Vec::new, |t| {
+                    t.generics
+                        .iter()
+                        .map(|g| self.cx.names.text(g.name))
+                        .collect()
+                });
+                let _ = write!(
+                    msg,
+                    "; the trait takes {} type arguments, `{}[{}]`, for the key and value types",
+                    params.len(),
+                    self.cx.names.display_name(trait_),
+                    params.join(", ")
+                );
+            }
             self.err(Code::TraitMethodSignature, node, &msg);
         }
     }

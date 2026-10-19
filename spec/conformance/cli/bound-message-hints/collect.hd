@@ -1,0 +1,2 @@
+fn run() -> void:
+    _items := [1, 2, 3].iter().enumerate().collect::[List[(usize, i32)]]()

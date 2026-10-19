@@ -3,6 +3,7 @@
 //! literals, `if`, loops, closures, `?`, ranges and providers.
 
 use hd_base::HashMap;
+use std::fmt::Write as _;
 
 use hd_base::DefId;
 use hd_base::StageResult;
@@ -1269,10 +1270,26 @@ impl Ck<'_, '_> {
                 self.err(Code::MissingDerivedBound, n, &msg);
                 return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
             }
-            let msg = format!(
+            let mut msg = format!(
                 "{} does not implement `{trait_name}` for this operand",
                 self.show(at)
             );
+            let pool = self.pool();
+            if tr == k.add
+                && matches!(pool.get(self.strip_mut(self.infer.resolve(pool, at))), TyData::Adt { def, .. } if def == k.list)
+                && matches!(pool.get(self.strip_mut(self.infer.resolve(pool, ct))), TyData::Adt { def, .. } if def == k.list)
+                && let Some(left) = n.children().next()
+            {
+                let left = self.cx.src.span(left);
+                let right = self.cx.src.span(rn);
+                let text = self.cx.src.text;
+                let _ = write!(
+                    msg,
+                    "; concatenate with `[{}..., {}...]`",
+                    &text[left.lo as usize..left.hi as usize],
+                    &text[right.lo as usize..right.hi as usize]
+                );
+            }
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }

@@ -1,0 +1,3 @@
+fn run() -> void $ Console:
+    pair := ([1, 2], +1)
+    println(pair)

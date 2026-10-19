@@ -1,0 +1,3 @@
+fn run() -> void $ Console:
+    xs := [1, 2]
+    println(xs)

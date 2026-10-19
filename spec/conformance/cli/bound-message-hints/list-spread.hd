@@ -1,0 +1,2 @@
+fn run(left: List[usize], right: List[usize]) -> void:
+    _merged := [left..., right...]

@@ -9,6 +9,7 @@
 //! and `match` in `pat`, annotations in `ty`.
 
 use hd_base::{HashMap, HashSet};
+use std::fmt::Write as _;
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -1930,7 +1931,21 @@ impl Ck<'_, '_> {
                 };
                 msg.push_str(&hint);
             }
-            self.err(code, n, &msg);
+            let hint = match pool.get(got) {
+                TyData::Assoc {
+                    trait_,
+                    self_ty,
+                    assoc,
+                    ..
+                } if trait_ == self.cx.names.known.add
+                    && self.infer.resolve(pool, self_ty) == want
+                    && self.cx.names.display_name(assoc) == "Out" =>
+                {
+                    format!("; constrain `{want_s} < Add[Out = {want_s}]`")
+                }
+                _ => String::new(),
+            };
+            self.err(code, n, &format!("{msg}{hint}"));
             // `types.num.no-implicit.fix`: write the conversion around the
             // value, as `i64(small)`.
             if code == Code::TypeMismatch && self.num_widens(got, want) {
@@ -2246,6 +2261,152 @@ impl Ck<'_, '_> {
         Ok(ev)
     }
 
+    /// Retype only the inference classes that actually took the unsigned
+    /// literal default. Explicit usize arguments remain untouched.
+    fn integer_variant(&self, t: Ty, replacement: Ty, changed: &std::cell::Cell<bool>) -> Ty {
+        let pool = self.pool();
+        if self
+            .infer
+            .class_of(pool, t)
+            .is_some_and(|c| self.fell_back.contains(&c))
+        {
+            changed.set(true);
+            return replacement;
+        }
+        let t = self.infer.shallow(pool, t);
+        if !pool.has_infer(t) {
+            return t;
+        }
+        let list = |args| {
+            pool.list(
+                &pool
+                    .list_items(args)
+                    .iter()
+                    .map(|t| self.integer_variant(*t, replacement, changed))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let data = match pool.get(t) {
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: list(args),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: list(elems),
+                rest: rest.map(|t| self.integer_variant(t, replacement, changed)),
+            },
+            TyData::Mut(t) => TyData::Mut(self.integer_variant(t, replacement, changed)),
+            TyData::Option(t) => TyData::Option(self.integer_variant(t, replacement, changed)),
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: self.integer_variant(inner, replacement, changed),
+                mutable,
+            },
+            _ => return self.infer.resolve(pool, t),
+        };
+        pool.intern_ty(&data)
+    }
+
+    fn integer_default_hint_helps(&mut self, origin: TraitRef) -> bool {
+        if self.fell_back.is_empty() {
+            return false;
+        }
+        let pool = self.pool();
+        for int in [
+            hd_types::Prim::I32,
+            hd_types::Prim::I64,
+            hd_types::Prim::I8,
+            hd_types::Prim::I16,
+            hd_types::Prim::U8,
+            hd_types::Prim::U16,
+            hd_types::Prim::U32,
+            hd_types::Prim::U64,
+        ] {
+            let changed = std::cell::Cell::new(false);
+            let replacement = Ty::prim(int);
+            let self_ty = self.integer_variant(origin.self_ty, replacement, &changed);
+            let args = pool.list(
+                &pool
+                    .list_items(origin.args)
+                    .iter()
+                    .map(|t| self.integer_variant(*t, replacement, &changed))
+                    .collect::<Vec<_>>(),
+            );
+            if !changed.get() {
+                return false;
+            }
+            if pool.has_poison(self_ty) || pool.list_items(args).iter().any(|t| pool.has_poison(*t))
+            {
+                return false;
+            }
+            // Advice must not learn types or consume the body's work budget.
+            // Each optional explanation has its own bounded solver query.
+            let mark = self.infer.trial_mark();
+            let memo = std::mem::take(&mut self.memo);
+            let fuel = std::mem::replace(&mut self.fuel, Fuel::new(4096));
+            let answer = self.solve(TraitRef {
+                trait_: origin.trait_,
+                self_ty,
+                args,
+            });
+            self.fuel = fuel;
+            self.memo = memo;
+            self.infer.rollback_trial(mark);
+            if matches!(answer, Ok(Answer::Holds { evidence, .. }) if !matches!(evidence, Evidence::Poison))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn bound_message(&mut self, tref: TraitRef, origin: TraitRef, at: NodeRef<'_>) -> String {
+        let pool = self.pool();
+        let trait_ty = pool.intern_ty(&TyData::TraitValue {
+            def: tref.trait_,
+            args: tref.args,
+            bindings: vec![],
+        });
+        let ty = self.strip_mut(self.infer.resolve(pool, tref.self_ty));
+        let mut msg = format!(
+            "{} does not implement {}",
+            self.show(ty),
+            self.show(trait_ty)
+        );
+        if self.integer_default_hint_helps(origin) {
+            msg.push_str("; integer literals defaulted to `usize`");
+        }
+        let optional = matches!(pool.get(ty), TyData::Option(_));
+        let collection = matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.list || def == self.cx.names.known.map)
+            || matches!(pool.get(ty), TyData::Tuple { .. });
+        if tref.trait_ == self.cx.names.known.display && (optional || collection) {
+            let value = if at.kind() == SyntaxKind::NameExpr {
+                Some(at)
+            } else if at.kind() == SyntaxKind::CallExpr
+                && at.children().next().is_some_and(|callee| {
+                    self.resolve_path(&self.segments_expr(callee))
+                        == Some(self.cx.names.known.println)
+                })
+            {
+                Src::child(at, SyntaxKind::ArgumentList)
+                    .and_then(|args| args.children().next())
+                    .and_then(|arg| arg.children().next())
+            } else {
+                None
+            };
+            if let Some(value) = value {
+                let span = self.cx.src.span(value);
+                let value = &self.cx.src.text[span.lo as usize..span.hi as usize];
+                let _ = write!(msg, "; use `debug({value})`");
+            } else {
+                msg.push_str("; use `debug(...)`");
+            }
+            if optional {
+                msg.push_str(" or `unwrap_or(...)`");
+            }
+        }
+        msg
+    }
+
     fn has_poisoned_impl(&mut self, target: Ty) -> bool {
         let pool = self.pool();
         let target = self.strip_mut(target);
@@ -2280,6 +2441,7 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
         code: Code,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        let origin = tref;
         let pool = self.pool();
         // Projections with a known base normalize before the goal is
         // solved (`crates/hd_check/DESIGN.md` (trait solver) §4.3, point 3).
@@ -2320,11 +2482,7 @@ impl Ck<'_, '_> {
                 if self.has_poisoned_impl(tref.self_ty) {
                     return Ok(Some(Evidence::Poison));
                 }
-                let msg = format!(
-                    "{} does not implement {}",
-                    self.show(tref.self_ty),
-                    self.cx.names.display_name(tref.trait_)
-                );
+                let msg = self.bound_message(tref, origin, at);
                 self.err(code, at, &msg);
                 Ok(None)
             }
@@ -2696,42 +2854,119 @@ impl Ck<'_, '_> {
         r
     }
 
+    /// Concrete trait-qualified calls for an ambiguous written member call.
+    pub(crate) fn candidate_advice(
+        &self,
+        trait_: DefId,
+        method: DefId,
+        candidates: impl IntoIterator<Item = TyList>,
+        node: NodeRef<'_>,
+    ) -> String {
+        let name = self
+            .cx
+            .lookup
+            .item(method)
+            .map_or("", |i| self.cx.names.text(i.name));
+        let written = (|| {
+            let callee = node.children().next()?;
+            let mut field = callee;
+            while matches!(
+                field.kind(),
+                SyntaxKind::SuspendExpr | SyntaxKind::TypeArgsExpr
+            ) {
+                field = field.children().next()?;
+            }
+            if field.kind() != SyntaxKind::FieldExpr {
+                return None;
+            }
+            let recv = self.cx.src.span(field.children().next()?);
+            let dot = self
+                .cx
+                .src
+                .token_span(field.direct_token(&self.cx.src.parse.tokens, TokenKind::Dot)?);
+            let callee = self.cx.src.span(callee);
+            let args = self
+                .cx
+                .src
+                .span(Src::child(node, SyntaxKind::ArgumentList)?);
+            let text = self.cx.src.text;
+            let args = text[args.lo as usize..args.hi as usize]
+                .strip_prefix('(')?
+                .strip_suffix(')')?;
+            let receiver = &text[recv.lo as usize..recv.hi as usize];
+            let args = if args.trim().is_empty() {
+                receiver.to_owned()
+            } else {
+                format!("{receiver}, {args}")
+            };
+            Some((&text[dot.hi as usize..callee.hi as usize], args))
+        })();
+        let mut choices = Vec::new();
+        if let Some((member, args)) = written {
+            for types in candidates {
+                let types = self
+                    .pool()
+                    .list_items(types)
+                    .iter()
+                    .map(|t| self.show(*t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let trait_ = self.cx.names.display_name(trait_);
+                let qualifier = if types.is_empty() {
+                    trait_.to_owned()
+                } else {
+                    format!("{trait_}::[{types}]")
+                };
+                choices.push(format!("`{qualifier}::{member}({args})`"));
+            }
+        }
+        choices.sort();
+        choices.dedup();
+        if choices.is_empty() {
+            format!(
+                "write `{}::[..]::{name}(..)` to choose one",
+                self.cx.names.display_name(trait_)
+            )
+        } else {
+            format!("choose {}", choices.join(" or "))
+        }
+    }
+
     /// A call whose receiver is known at the end of the body but whose
     /// impl still waits: several instantiations of its trait fit it
     /// (`trait.resolve.many-apply`).
     fn ambiguous_call(&mut self, g: PendingGoal, method: DefId) -> StageResult<()> {
         let pool = self.pool();
+        let node = self.cx.src.parse.tree.node(g.at);
         let self_ty = self.infer.resolve(pool, g.tref.self_ty);
         let goal = Goal::Instantiations {
             self_ty,
             trait_: g.tref.trait_,
             mut_: false,
         };
-        let shown = match self.solve_goal(&goal)? {
-            Answer::Candidates(c) => c
-                .iter()
-                .map(|c| {
-                    self.show(pool.intern_ty(&TyData::TraitValue {
-                        def: g.tref.trait_,
-                        args: c.args,
-                        bindings: vec![],
-                    }))
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-            _ => self.cx.names.display_name(g.tref.trait_).to_string(),
+        let (shown, advice) = match self.solve_goal(&goal)? {
+            Answer::Candidates(c) => {
+                let shown = c
+                    .iter()
+                    .map(|c| {
+                        self.show(pool.intern_ty(&TyData::TraitValue {
+                            def: g.tref.trait_,
+                            args: c.args,
+                            bindings: vec![],
+                        }))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let advice =
+                    self.candidate_advice(g.tref.trait_, method, c.iter().map(|c| c.args), node);
+                (shown, advice)
+            }
+            _ => (
+                self.cx.names.display_name(g.tref.trait_).to_owned(),
+                self.candidate_advice(g.tref.trait_, method, [], node),
+            ),
         };
-        let name = self
-            .cx
-            .lookup
-            .item(method)
-            .map_or("", |i| self.cx.names.text(i.name));
-        let msg = format!(
-            "{}: {shown} fit this call: write `{}::[..]::{name}(..)` to choose one",
-            self.show(self_ty),
-            self.cx.names.display_name(g.tref.trait_),
-        );
-        let node = self.cx.src.parse.tree.node(g.at);
+        let msg = format!("{}: {shown} fit this call: {advice}", self.show(self_ty));
         self.err(Code::AmbiguousMethod, node, &msg);
         Ok(())
     }
@@ -2913,11 +3148,7 @@ impl Ck<'_, '_> {
                     return Ok(true);
                 }
                 if report && !matches!(g.kind, Waiting::Project { .. }) {
-                    let msg = format!(
-                        "{} does not implement {}",
-                        self.show(tref.self_ty),
-                        self.cx.names.display_name(tref.trait_)
-                    );
+                    let msg = self.bound_message(tref, g.tref, node);
                     let code = match g.kind {
                         Waiting::Bound { code } => code,
                         _ => Code::UnsatisfiedTraitBound,

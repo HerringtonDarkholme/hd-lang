@@ -1,0 +1,7 @@
+@derive(Eq, Hash, Ord, Debug)
+data Record:
+    value: i32
+
+@derive(Hash)
+data Digest:
+    value: i32

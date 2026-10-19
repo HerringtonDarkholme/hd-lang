@@ -1,0 +1,4 @@
+use std.ops.Add
+
+fn sum[Element < Add](left: Element, right: Element) -> Element:
+    left + right

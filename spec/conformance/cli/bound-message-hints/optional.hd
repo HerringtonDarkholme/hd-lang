@@ -1,0 +1,2 @@
+fn run(value: string?) -> string:
+    "${value}"

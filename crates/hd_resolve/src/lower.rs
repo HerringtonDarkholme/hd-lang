@@ -4960,10 +4960,23 @@ fn related_derives(
                 .any(|&t| written.iter().any(|&w| related_traits(known, t, w)));
             if short || mixed {
                 if report {
+                    let mut missing: Vec<_> = traits
+                        .iter()
+                        .flat_map(|&t| needed_traits(known, t))
+                        .filter(|t| !traits.contains(t))
+                        .map(|t| names.display_name(t))
+                        .collect();
+                    missing.sort_unstable();
+                    missing.dedup();
+                    let detail = if missing.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; missing `{}`", missing.join("`, `"))
+                    };
                     diags.error(
                         Code::MixedDerivedLaw,
                         src.span(d),
-                        "`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits",
+                        &format!("`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits{detail}"),
                     );
                 }
                 broken.push((h.def, traits));

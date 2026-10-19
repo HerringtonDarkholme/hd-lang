@@ -1,0 +1,7 @@
+fn run() -> void $ Console:
+    xs := [1, 2]
+    values := { 1: 2 }
+    pair := ([1, 2], +1)
+    println(debug(xs))
+    println(debug(values))
+    println(debug(pair))

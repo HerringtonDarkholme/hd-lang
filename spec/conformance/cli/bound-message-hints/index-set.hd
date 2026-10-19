@@ -1,0 +1,6 @@
+use std.ops.IndexSet
+
+data Board: pass
+
+impl IndexSet[(usize, usize)] for Board:
+    fn index_set(mut self, key: usize, value: usize) -> void: pass

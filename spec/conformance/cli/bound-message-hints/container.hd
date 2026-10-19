@@ -1,0 +1,13 @@
+trait Container[T]:
+    pass
+
+data Wrapper[T]:
+    items: List[T]
+
+impl[T] Container[T] for Wrapper[T]:
+    pass
+
+fn describe[C < Container[i32]](value: C) -> void: pass
+
+fn run() -> void:
+    describe(Wrapper { items: [4, 5] })
