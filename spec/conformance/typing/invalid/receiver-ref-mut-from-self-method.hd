@@ -1,0 +1,11 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. In a `self` method, `self` is the method's own read-only copy.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+    fn reset(self) -> void:
+        self.shift(1)  # diagnostic: mutable-receiver-required

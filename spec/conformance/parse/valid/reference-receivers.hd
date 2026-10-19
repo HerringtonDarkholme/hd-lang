@@ -1,0 +1,14 @@
+# Spec 02 Functions: grammar.fn.receiver, grammar.fn.receiver-ref. Spec 02 Traits And Implementations: grammar.trait.method-receiver.
+trait Shape:
+    fn area(&self) -> f64
+    fn grow(&mut self, by: f64) -> void
+    fn name(self) -> string
+    fn renamed(mut self) -> Self
+
+struct Square:
+    side: f64
+
+impl Square:
+    fn side(&self) -> f64: self.side
+    fn double(&mut self) -> void:
+        self.side *= 2.0

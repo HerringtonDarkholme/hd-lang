@@ -1,0 +1,11 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.read-only, fn.method.auto-address.reference. A `&mut self` call through a `&T` reference.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn nudge(r: &Point) -> void:
+    r.shift(1)  # diagnostic: mutable-receiver-required

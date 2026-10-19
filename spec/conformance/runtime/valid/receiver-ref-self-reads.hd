@@ -1,0 +1,37 @@
+# test: a `&self` method reads the caller's value without copying it: the reference refers to the receiver's own place, and a `:=` binding, a value parameter or a call result may be the receiver
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.value, fn.method.auto-address.reference.
+# Spec 07 Methods And Receivers: fn.method.receiver.ref-self. Spec 13 Identity: ref.identity.same-place.
+# expect-stdout: 25
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: 2
+# expect-stdout: 25 25
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn norm2(&self) -> i32:
+        self.x * self.x + self.y * self.y
+
+    fn same_place(&self, other: &Point) -> bool:
+        self is other
+
+    fn twice_norm2(&self) -> i32:
+        self.norm2() + self.norm2()
+
+fn make() -> Point:
+    Point { x: 1, y: 0 }
+
+fn through(q: Point) -> i32:
+    q.norm2()
+
+pub fn main() -> void $ Console:
+    p := Point { x: 3, y: 4 }
+    println("${p.norm2()}")
+    println("${p.same_place(&p)}")
+    other := Point { x: 3, y: 4 }
+    println("${p.same_place(&other)}")
+    println("${make().twice_norm2()}")
+    r := &p
+    println("${r.norm2()} ${through(p)}")

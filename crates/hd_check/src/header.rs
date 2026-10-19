@@ -825,6 +825,7 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         let decls = LookupDecls {
             lookup: self.cx.lookup,
+            pool: self.cx.names.pool,
             sealed: self.cx.names.known.sealed(),
             paths: self.cx.names.paths,
             syms: self.cx.names.syms,

@@ -35,6 +35,7 @@ mod local;
 mod pat;
 mod privacy;
 mod promote;
+mod receiver;
 mod refs;
 mod render;
 pub mod results;

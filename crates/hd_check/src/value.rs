@@ -193,7 +193,13 @@ impl Ck<'_, '_> {
             .to_owned();
         let flags = self.b.body_mut().local_flags[l.idx()];
         let short = flags & local_flags::SHORT != 0 || self.using_locals.contains(&l);
-        self.not_writable(&name, short, flags & local_flags::PARAM != 0, at);
+        let param = flags & local_flags::PARAM != 0;
+        self.not_writable(&name, short, param, at);
+        // `fn.method.self-struct-write`: the fix takes `&mut self`.
+        if param && name == "self" {
+            let syn = self.b.body_mut().local_syn[l.idx()];
+            self.writable_binding_fix("self", false, true, syn);
+        }
         false
     }
 
@@ -203,7 +209,7 @@ impl Ck<'_, '_> {
     fn not_writable(&mut self, name: &str, short: bool, param: bool, at: NodeRef<'_>) {
         if param {
             let msg = if name == "self" {
-                "`self` is the method's own copy of the receiver, which never changes; write `mut self` to change the copy".to_owned()
+                "`self` is the method's own read-only copy of the receiver; take `&mut self` to change the caller's value".to_owned()
             } else {
                 format!(
                     "parameter `{name}` is the function's own copy, which never changes; write `mut {name}` to change the copy"
@@ -289,7 +295,11 @@ impl Ck<'_, '_> {
         let marked: Vec<_> = list
             .children()
             .filter(|p| p.kind() == SyntaxKind::Parameter)
-            .filter(|p| p.direct_token(toks, TokenKind::KwMut).is_some())
+            .filter(|p| {
+                // `&mut self` is a reference, not a changeable copy.
+                p.direct_token(toks, TokenKind::KwMut).is_some()
+                    && p.direct_token(toks, TokenKind::Amp).is_none()
+            })
             .map(|p| {
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     "self".to_owned()

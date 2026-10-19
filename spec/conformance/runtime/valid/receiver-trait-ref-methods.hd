@@ -1,0 +1,56 @@
+# test: a trait declares `&self` and `&mut self` methods; struct and data implementations write them, generic code calls them through a bound on a place or a `&mut` reference, and a default method calls them on `self`
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.ref-self.kinds, fn.method.auto-address, fn.method.auto-address.reference. Spec 09 Trait Members: trait.decl.method-receiver.
+# expect-stdout: 9.0
+# expect-stdout: 16.0 3.0
+# expect-stdout: 5.0
+# expect-stdout: 36.0 6.0
+# expect-stdout: 12.0
+# expect-stdout: 4.0
+trait Shape:
+    fn area(&self) -> f64
+    fn grow(&mut self, by: f64) -> void
+
+    fn grown(&mut self) -> f64:
+        self.grow(1.0)
+        self.area()
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+    fn grow(&mut self, by: f64) -> void:
+        self.side += by
+
+data Circle:
+    r: f64
+
+impl Shape for Circle:
+    fn area(&self) -> f64:
+        3.0 * self.r * self.r
+
+    fn grow(&mut self, by: f64) -> void:
+        self.r += by
+
+fn grown_copy[S < Shape](mut s: S) -> f64:
+    s.grow(1.0)
+    s.area()
+
+fn grow_in_place[S < Shape](s: &mut S) -> void:
+    s.grow(2.0)
+
+pub fn main() -> void $ Console:
+    let mut sq = Square { side: 2.0 }
+    sq.grow(1.0)
+    println("${sq.area()}")
+    println("${grown_copy(sq)} ${sq.side}")
+    grow_in_place(&mut sq)
+    println("${sq.side}")
+    println("${sq.grown()} ${sq.side}")
+    let mut c = Circle { r: 1.0 }
+    c.grow(1.0)
+    println("${c.area()}")
+    grow_in_place(&mut c)
+    println("${c.r}")

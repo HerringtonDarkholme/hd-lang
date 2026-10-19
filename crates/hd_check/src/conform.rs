@@ -254,7 +254,10 @@ impl Ck<'_, '_> {
                 && (mname == "member" || (mname == "rest" && trait_ == known.walker));
         // A result left out is `missing-result-type` already.
         let omitted = hd_resolve::Src::type_child(node).is_none();
-        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst)
+        // `trait.impl.receiver-bridge`: a struct's `&mut self` fills a
+        // trait method declared with `data`'s `mut self`.
+        let bridge = self.is_struct_ty(self_ty);
+        if let Some(why) = Self::sig_differs(pool, (tsig, sig), (free_bounds, bridge), &inst)
             && !(omitted && why == "the result type")
         {
             let msg = format!(
@@ -296,7 +299,7 @@ impl Ck<'_, '_> {
     fn sig_differs(
         pool: Types<'_>,
         (want, got): (&FnSig, &FnSig),
-        free_bounds: bool,
+        (free_bounds, bridge): (bool, bool),
         inst: &dyn Fn(Ty) -> Ty,
     ) -> Option<&'static str> {
         let same = |w: Ty, g: Ty| {
@@ -307,7 +310,13 @@ impl Ck<'_, '_> {
             return Some("the parameter count");
         }
         for (i, (w, g)) in want.params.iter().zip(&got.params).enumerate() {
-            if !same(w.1, g.1) {
+            let bridged = i == 0
+                && bridge
+                && matches!(
+                    (pool.get(inst(w.1)), pool.get(g.1)),
+                    (TyData::Mut(s), TyData::Ref { inner, mutable: true }) if s == inner
+                );
+            if !same(w.1, g.1) && !bridged {
                 return Some(if i == 0 {
                     "a parameter or the receiver"
                 } else {

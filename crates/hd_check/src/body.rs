@@ -101,6 +101,7 @@ impl BodyCx<'_> {
     pub(crate) fn decls(&self) -> LookupDecls<'_> {
         LookupDecls {
             lookup: self.lookup,
+            pool: self.names.pool,
             sealed: self.names.known.sealed(),
             paths: self.names.paths,
             syms: self.names.syms,
@@ -2154,6 +2155,9 @@ impl Ck<'_, '_> {
                 for (v, t) in learned {
                     let var = pool.intern_ty(&TyData::Infer(v));
                     let _ = self.infer.unify(pool, var, t);
+                }
+                if self.bridge_only_direct(tref, &evidence, at) {
+                    return Ok(None);
                 }
                 Ok(Some(evidence))
             }

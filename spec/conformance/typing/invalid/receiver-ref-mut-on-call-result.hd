@@ -1,0 +1,14 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.read-only, fn.method.auto-address.value. A call result is no place.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn make() -> Point:
+    Point { x: 0, y: 0 }
+
+fn demo() -> void:
+    make().shift(1)  # diagnostic: mutable-receiver-required

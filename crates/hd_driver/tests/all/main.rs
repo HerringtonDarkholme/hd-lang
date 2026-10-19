@@ -146,6 +146,7 @@ mod radix_literals_run;
 mod range_bound_numeric;
 mod range_patterns;
 mod raw_identifier_run;
+mod receiver_fix;
 mod recursive_closure_run;
 mod recursive_layouts;
 mod reference_equality_fix;

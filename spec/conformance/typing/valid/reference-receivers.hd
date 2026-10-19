@@ -1,0 +1,28 @@
+# Spec 07 Methods And Receivers: fn.method.receiver-forms, fn.method.receiver.self, fn.method.receiver.mut-self, fn.method.receiver.ref-self, fn.method.receiver.ref-mut-self.
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.writable. Spec 08 Struct Declarations: data.struct.receiver-forms.
+struct Vec2:
+    x: f64
+    y: f64
+
+impl Vec2:
+    fn len_squared(&self) -> f64:
+        self.x * self.x + self.y * self.y
+
+    fn shift(&mut self, d: Vec2) -> void:
+        self.x += d.x
+        self.y += d.y
+
+    fn scaled(self, k: f64) -> Vec2:
+        Vec2 { x: self.x * k, y: self.y * k }
+
+    fn flipped(mut self) -> Vec2:
+        self.x = -self.x
+        self
+
+fn demo(mut q: Vec2) -> f64:
+    let mut p = Vec2 { x: 1.0, y: 2.0 }
+    p.shift(Vec2 { x: 1.0, y: 1.0 })
+    q.shift(p)
+    r := &mut p
+    r.shift(q)
+    p.len_squared() + q.scaled(2.0).flipped().len_squared()

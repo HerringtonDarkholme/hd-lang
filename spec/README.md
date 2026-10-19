@@ -17,7 +17,7 @@ versioned subsets.
 | [Type System](lang/04-type-system.md) | types, coercions, `mut`, generics, variance |
 | [Expressions](lang/05-expressions.md) | evaluation, operators, calls, literals, comprehensions |
 | [Control Flow](lang/06-control-flow.md) | blocks, conditionals, loops, matching, return |
-| [Functions](lang/07-functions.md) | parameters, closures, captures, trailing blocks |
+| [Functions](lang/07-functions.md) | parameters, receivers, closures, captures, trailing blocks |
 | [Data Types and Enums](lang/08-data-and-enums.md) | aggregate declaration, construction, embedding |
 | [Traits](lang/09-traits.md) | conformance, methods, static and dynamic dispatch |
 | [Modules](lang/10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
@@ -275,6 +275,7 @@ The stdlib chapters' terms are in the
 | **readonly edge** | A field declared `field: U` with a composite `U`, which gives readonly access through any container. See [`types.path.field.readonly-edge`](lang/04-type-system.md#r-types.path.field.readonly-edge). |
 | **readonly view** | The `T` access to a composite value; it does not imply deep immutability. See [`types.view.term`](lang/04-type-system.md#r-types.view.term). |
 | **reference type** | A type written `&T` or `&mut T`, whose values refer to a `T` that lives elsewhere. See [Reference Types](lang/13-values-and-references.md#reference-types). |
+| **receiver** | A method's first parameter: `self`, `mut self`, `&self`, or `&mut self`. See [`fn.method.receiver-forms`](lang/07-functions.md#r-fn.method.receiver-forms). |
 | **refutable** | A pattern that may fail to match its initializer, such as `.Some(v)`; a `let` with one needs an `else` block. See [`flow.let.irrefutable`](lang/06-control-flow.md#r-flow.let.irrefutable). |
 | **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](lang/11-requirements-and-suspension.md#r-req.row.definition). |
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](lang/07-functions.md#r-fn.default.requirement-free). |

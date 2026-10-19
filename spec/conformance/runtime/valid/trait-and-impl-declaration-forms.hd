@@ -1,5 +1,5 @@
 # test: traits declare markers, bodyless and default methods, supertraits, and associated types, and impl blocks cover inherent, trait, bodyless, delegating, and generic forms
-# Spec 02 Traits And Implementations: grammar.impl.inherent, grammar.impl.trait, grammar.impl.bodyless, grammar.impl.delegation-field, grammar.impl.pub-method, grammar.impl.inline-bounds, grammar.trait.marker, grammar.trait.method-end, grammar.trait.method-kind, grammar.trait.supertrait, grammar.trait.associated-type, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples.
+# Spec 02 Traits And Implementations: grammar.impl.inherent, grammar.impl.trait, grammar.impl.bodyless, grammar.impl.delegation-field, grammar.impl.pub-method, grammar.impl.inline-bounds, grammar.trait.marker, grammar.trait.method-end, grammar.trait.method-receiver, grammar.trait.supertrait, grammar.trait.associated-type, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples.
 # expect-stdout: Rex!
 # expect-stdout: dog animal
 # expect-stdout: Rex eats bone

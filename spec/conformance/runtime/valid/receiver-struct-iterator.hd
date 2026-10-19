@@ -1,0 +1,38 @@
+# test: a struct with a `&mut self` `next` drives a loop: its `Iterable` implementation wraps the cursor in `Iterator::from_fn`, so `for` and the iterator adapters use it
+# Spec 07 Reference Receivers: fn.method.auto-address, fn.method.auto-address.writable. Spec 06 Iteration Protocols: flow.for.iterable, flow.for.iterator-from-fn.
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: 1
+# expect-stdout: 4 8 6 4 2
+# expect-stdout: 1
+# expect-stdout: next 1
+# expect-stdout: 2
+struct Countdown:
+    left: i32
+
+impl Countdown:
+    fn next(&mut self) -> i32?:
+        if self.left == 0:
+            return .None
+        self.left -= 1
+        .Some(self.left + 1)
+
+impl Iterable[i32] for Countdown:
+    fn iter(self) -> mut Iterator[i32]:
+        let mut cursor = self
+        Iterator::from_fn(fn() -> i32?: cursor.next())
+
+pub fn main() -> void $ Console:
+    for n in Countdown { left: 3 }:
+        println("${n}")
+    doubled := Countdown { left: 4 }.iter().map(fn(n: i32) -> i32: n * 2).collect::[List[i32]]()
+    println("${doubled.len()} ${doubled[0]} ${doubled[1]} ${doubled[2]} ${doubled[3]}")
+    let mut c = Countdown { left: 2 }
+    _ := c.next()
+    println("${c.left}")
+    while true:
+        match c.next():
+            .Some(v) => println("next ${v}")
+            .None => break
+    evens := Countdown { left: 5 }.iter().filter(fn(n: i32) -> bool: n % 2 == 0).collect::[List[i32]]()
+    println("${evens.len()}")

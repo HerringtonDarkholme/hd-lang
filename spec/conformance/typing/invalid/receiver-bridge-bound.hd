@@ -1,0 +1,23 @@
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.direct, trait.impl.receiver-bridge.uses. A bound on the trait reaches the method through the trait's `mut self`.
+trait Counter:
+    fn bump(mut self) -> void
+    fn total(self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(self) -> i32:
+        self.n
+
+fn twice[C < Counter](c: mut C) -> void:
+    c.bump()
+    c.bump()
+
+fn demo() -> i32:
+    let mut tally = Tally { n: 0 }
+    tally.bump()
+    twice(tally)  # diagnostic: unsatisfied-trait-bound
+    tally.total()

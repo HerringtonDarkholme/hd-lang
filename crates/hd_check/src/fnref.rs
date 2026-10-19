@@ -186,8 +186,15 @@ impl Ck<'_, '_> {
                 None => {}
             }
         }
-        // `fn.ref.bound`: the base names a value.
+        // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
+        // method takes the address of a place now (`fn.ref.bound.address`).
+        if let Some((recv, rt)) = self.auto_address(base, &name)? {
+            return self.bound_ref(recv, rt, &name, method_targs, want, n);
+        }
         let (recv, rt) = self.expr(base, None)?;
+        if let Some((recv, rt)) = self.pass_reference_receiver(recv, rt, &name, base)? {
+            return self.bound_ref(recv, rt, &name, method_targs, want, n);
+        }
         self.bound_ref(recv, rt, &name, method_targs, want, n)
     }
 
@@ -856,7 +863,19 @@ impl Ck<'_, '_> {
         self.note_call(m.def);
         // `fn.ref.bound.mut`.
         let self_param = inst(pool, &m, m.sig.params[0].1);
-        self.check_receiver(self_param, rt, n);
+        let addressed = self.addressed(recv, rt);
+        let by_ref = match &m.owner {
+            Owner::Trait { choice, .. } => self.ref_receiver_of(m.def, *choice)?,
+            _ => self.ref_receiver_of(m.def, None)?,
+        };
+        let recv = match by_ref {
+            Some(mutable) if !addressed => self.fit_receiver(recv, rt, mutable, name, n),
+            Some(_) => recv,
+            None => {
+                self.check_receiver(self_param, rt, n);
+                recv
+            }
+        };
         let ft = self.member_fn_ty(&m, 1)?;
         self.fit_expected(ft, want);
         self.member_bounds(&mut m, n)?;
@@ -902,6 +921,12 @@ impl Ck<'_, '_> {
         };
         let syn = n.index();
         let receiver = self.cx.names.syms.intern("$receiver");
+        // A reference receiver is captured as the reference.
+        let rt = if by_ref.is_some() && recv.0 != NONE {
+            self.b.ty_of(recv)
+        } else {
+            rt
+        };
         let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
         self.set_local(rl, recv, syn);
         let ptys = pool.list_items(params).to_vec();

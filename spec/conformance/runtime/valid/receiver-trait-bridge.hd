@@ -1,0 +1,41 @@
+# test: a struct fills a trait method declared with data's `mut self` by writing `&mut self`, and a call on the struct changes it in place; a data implementation keeps `mut self` and still works through a bound
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge, trait.impl.receiver-bridge.direct. Spec 07 Reference Receivers: fn.method.auto-address.
+# expect-stdout: 2 2
+# expect-stdout: 3
+struct Tally:
+    n: i32
+
+trait Counter:
+    fn bump(mut self) -> void
+    fn total(self) -> i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+    fn total(self) -> i32:
+        self.n
+
+data Box:
+    n: i32
+
+impl Counter for Box:
+    fn bump(mut self) -> void:
+        self.n += 1
+
+    fn total(self) -> i32:
+        self.n
+
+fn twice[C < Counter](c: mut C) -> void:
+    c.bump()
+    c.bump()
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { n: 0 }
+    tally.bump()
+    tally.bump()
+    println("${tally.total()} ${tally.n}")
+    let b: mut Box = Box { n: 0 }
+    b.bump()
+    twice(b)
+    println("${b.total()}")

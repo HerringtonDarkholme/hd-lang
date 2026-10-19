@@ -202,6 +202,31 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   lowered head with the lowered self type for the impl's arguments. So
   the `&T` impl serves `&mut T` too once lowered, and the two heads never
   meet as one.
+- **Reference receivers.** A `&self` or `&mut self` method takes `Ref[Self]`
+  as its first parameter
+  ([Reference Receivers](../../spec/lang/07-functions.md#reference-receivers)).
+  A call on a place takes its address in the checker
+  (`crates/hd_check/src/receiver.rs`): the receiver is read as `&` reads its
+  operand (`refs.rs` `operand`, no code for the place itself) and the call
+  passes the `Ref` that `make_ref` builds for it, so the backend sees an
+  ordinary call. A receiver that already is a reference is passed as is; a
+  `&self` call on a value that is no place builds a `Ref` to a new object.
+  A bound method reference (`p::shift`) captures that `Ref` instead of the
+  value. The cost is a reference's per call: one `Ref` object and two
+  closures, and the receiver local lives in a heap cell for the whole
+  function. Only a local whose name some `&` in the file names draws an
+  identity serial, so a receiver otherwise gets a fresh serial per call.
+- **The receiver bridge.** A struct's `&mut self` method may fill a trait
+  method declared `mut self`
+  ([`trait.impl.receiver-bridge`](../../spec/lang/09-traits.md#r-trait.impl.receiver-bridge)).
+  Its instance takes `Ref[S]` while the trait's declaration passes `S`, so
+  only a call the checker resolves to the struct's impl (choice `Impl`,
+  receiver addressed) may reach it. The checker rejects every other use, and
+  `hd_mono`'s `method_target` stops a call through a bound that selects
+  such a method (`bridged`) with an unsupported-stage error rather than
+  emit a mismatched call. Trait values have no slot for a `&self` or
+  `&mut self` method (the driver's `trait_methods`), until trait values
+  become references.
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are

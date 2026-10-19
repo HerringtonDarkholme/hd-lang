@@ -1934,7 +1934,21 @@ impl Cx<'_> {
         {
             return self.method_target(trait_, method, base, targs, None, parent);
         }
-        match self.env.impl_method(impl_, method) {
+        let found = self.env.impl_method(impl_, method);
+        // `trait.impl.receiver-bridge.direct`: a struct's `&mut self`
+        // method that fills a trait method declared `mut self` takes a
+        // reference, which only a direct call on the struct passes; the
+        // checker rejects the other uses, and this keeps a missed one from
+        // reaching the emitter.
+        if choice.is_none()
+            && let Some(m) = found
+            && self.bridged(impl_, m, method)
+        {
+            return err(
+                "a struct's `&mut self` method reached through a trait method declared `mut self`",
+            );
+        }
+        match found {
             Some(m) if self.env.body(m).is_some() => {
                 let mut all = impl_args;
                 all.extend_from_slice(method_args);
@@ -1950,6 +1964,20 @@ impl Cx<'_> {
                 self.target(method, self.pool.list(&all), parent)
             }
         }
+    }
+
+    /// Whether the method `m` of `impl_` fills the trait method `method`
+    /// through the receiver bridge: `m` takes a reference to the impl's
+    /// self type (`&mut self`, lowered to `std.core.Ref[T]`) where the
+    /// trait method takes no reference.
+    fn bridged(&self, impl_: DefId, m: DefId, method: DefId) -> bool {
+        let cell = self.env.ref_cell();
+        let first = |d: DefId| self.env.params(d).and_then(|ps| ps.first().copied());
+        let is_ref = |t: Ty| matches!(self.pool.get(t), TyData::Adt { def, .. } if def == cell);
+        let Some(head) = self.env.impl_head(impl_).map(|h| h.0) else {
+            return false;
+        };
+        first(m).is_some_and(|p| is_ref(p) && p != head) && !first(method).is_some_and(is_ref)
     }
 
     /// The vtable of `trait_[trait_args]` at the concrete type `from`

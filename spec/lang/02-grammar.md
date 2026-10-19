@@ -479,15 +479,16 @@ value_parameter = [ "mut" ], identifier, ":", type, [ "=", expression ]
                 | [ "mut" ], identifier, "...", ":", type
                 ;
 
-receiver_parameter = "self" | "mut", "self" ;
+receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
-2. r[grammar.fn.param-mut] `mut` before a parameter name marks a parameter whose value changes. [Parameters](07-functions.md#parameters) states its meaning.
-3. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
-4. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
-5. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
-6. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+2. r[grammar.fn.receiver-ref] `&self` and `&mut self` are receivers that take a reference; [Reference Receivers](07-functions.md#reference-receivers) states their meaning.
+3. r[grammar.fn.param-mut] `mut` before a parameter name marks a parameter whose value changes. [Parameters](07-functions.md#parameters) states its meaning.
+4. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
+5. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
+6. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
+7. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -621,7 +622,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 7. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
 8. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
 9. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
-10. r[grammar.trait.method-kind] A function member whose first parameter is `self` or `mut self` is a method; a receiverless member is an associated function.
+10. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
 11. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
 14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.

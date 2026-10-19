@@ -1,4 +1,4 @@
-# Spec 08 Struct Declarations: data.struct.decl, data.struct.receivers, data.struct.contains.ends.
+# Spec 08 Struct Declarations: data.struct.decl, data.struct.receiver-forms, data.struct.contains.ends.
 # Spec 02 Data Types: grammar.data.struct. Spec 04 Value Types: types.value.no-view, types.value.let-mut, types.value.field-type.
 @derive(Eq, Debug)
 pub struct Pair[T]:

@@ -2725,7 +2725,12 @@ impl Lower<'_, '_, '_> {
                     // changeable copy, of the struct type itself.
                     let own_copy =
                         matches!(pool.get(st), TyData::Adt { def, .. } if self.r.is_struct(def));
-                    let st = if p.direct_token(toks, TokenKind::KwMut).is_some() && !own_copy {
+                    let mutable = p.direct_token(toks, TokenKind::KwMut).is_some();
+                    // `fn.method.ref-self`: `&self` is `&Self` and
+                    // `&mut self` is `&mut Self`, for every kind of type.
+                    let st = if p.direct_token(toks, TokenKind::Amp).is_some() {
+                        pool.intern_ty(&TyData::Ref { inner: st, mutable })
+                    } else if mutable && !own_copy {
                         pool.intern_ty(&TyData::Mut(st))
                     } else {
                         st

@@ -32,7 +32,7 @@ use crate::body::{Ck, ExpectPosition, LetMutKind, OpenSub, unsupported};
 
 /// Where a referenced place starts.
 #[derive(Clone, Copy)]
-enum Root {
+pub(crate) enum Root {
     /// A local, with its scope depth.
     Local(LocalId, usize),
     /// A top-level binding: its name, id and type.
@@ -49,15 +49,15 @@ enum Root {
 /// A place a reference refers to (`ref.place.forms`): its root, the
 /// struct fields read from it in order (each with the type it reads), and
 /// the place's type.
-struct Place {
-    root: Root,
-    path: Vec<(u32, Ty)>,
-    ty: Ty,
+pub(crate) struct Place {
+    pub(crate) root: Root,
+    pub(crate) path: Vec<(u32, Ty)>,
+    pub(crate) ty: Ty,
 }
 
 /// The operand of `&` or `&mut`: a place, or another value, already
 /// evaluated.
-enum Operand {
+pub(crate) enum Operand {
     Place(Place),
     Value(Ref, Ty),
 }
@@ -285,7 +285,7 @@ impl Ck<'_, '_> {
 
     /// `v` with the type `to`, which differs from `v`'s at most in views
     /// and reference permissions, so the change is a static one.
-    fn retype(&mut self, v: Ref, to: Ty, at: NodeIdx) -> Ref {
+    pub(crate) fn retype(&mut self, v: Ref, to: Ty, at: NodeIdx) -> Ref {
         let from = self.b.ty_of(v);
         if v.0 == NONE || from == to || matches!(from, Ty::NEVER | Ty::POISON) {
             return v;
@@ -357,7 +357,7 @@ impl Ck<'_, '_> {
 
     /// Binds `v` of type `t` to a new local the body cannot name; returns
     /// it with its scope depth.
-    fn hold(&mut self, v: Ref, t: Ty, n: NodeRef<'_>) -> (LocalId, usize) {
+    pub(crate) fn hold(&mut self, v: Ref, t: Ty, n: NodeRef<'_>) -> (LocalId, usize) {
         let sym = self.cx.names.syms.intern("$ref");
         let l = self.b.local(t, sym, local_flags::ASSIGNED, n.index());
         self.b.set(l, v, n.index());
@@ -366,7 +366,11 @@ impl Ck<'_, '_> {
 
     /// The operand of `&` or `&mut`: a place (`ref.place.forms`), or any
     /// other expression, evaluated. `None` after an error.
-    fn operand(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<Option<Operand>> {
+    pub(crate) fn operand(
+        &mut self,
+        e: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<Option<Operand>> {
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         match e.kind() {
             SyntaxKind::ParenExpr => match kids.as_slice() {
@@ -556,7 +560,7 @@ impl Ck<'_, '_> {
 
     /// A top-level binding named `s`: its own module's, else an earlier
     /// REPL input's.
-    fn global_binding(&self, s: Symbol) -> Option<crate::init::InputBinding> {
+    pub(crate) fn global_binding(&self, s: Symbol) -> Option<crate::init::InputBinding> {
         let init = self.cx.init.borrow();
         init.globals
             .get(&s)
@@ -713,7 +717,7 @@ impl Ck<'_, '_> {
 
     /// Reads the place `p`: its root, then each struct field on its path.
     /// Inside a closure the reads capture what they name.
-    fn read_place(&mut self, p: &Place, n: NodeRef<'_>) -> (Ref, Ty) {
+    pub(crate) fn read_place(&mut self, p: &Place, n: NodeRef<'_>) -> (Ref, Ty) {
         let (mut v, mut t) = self.read_root(p.root, n);
         for &(idx, ft) in &p.path {
             v = self.b.emit(Tag::Field, v.0, idx, ft, n.index());
@@ -798,7 +802,14 @@ impl Ck<'_, '_> {
     /// The reference to the place `p`: a `Ref[T]` object whose `get`
     /// closure reads the place and whose `set` closure replaces it. A
     /// read-only reference's `set` is never called.
-    fn make_ref(&mut self, p: &Place, inner: Ty, mutable: bool, rt: Ty, n: NodeRef<'_>) -> Ref {
+    pub(crate) fn make_ref(
+        &mut self,
+        p: &Place,
+        inner: Ty,
+        mutable: bool,
+        rt: Ty,
+        n: NodeRef<'_>,
+    ) -> Ref {
         let pool = self.pool();
         let syn = n.index();
         let get_ty = pool.intern_ty(&fn_ty(pool, &[], inner));

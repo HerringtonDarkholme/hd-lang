@@ -1,0 +1,12 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. A value parameter is the function's own copy, which never changes.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn moved(p: Point) -> i32:
+    p.shift(1)  # diagnostic: mutable-receiver-required
+    p.x

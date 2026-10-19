@@ -1,0 +1,13 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. A plain `let` is no writable place.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn demo() -> i32:
+    let fixed = Point { x: 1, y: 1 }
+    fixed.shift(1)  # diagnostic: mutable-receiver-required
+    fixed.x

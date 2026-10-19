@@ -46,7 +46,7 @@ trait Named:
 2. r[trait.decl.default] A method with a body is a default implementation.
 3. r[trait.decl.unique] Member names must be unique within a trait. A repeated associated type, method, or associated function name is an error, in a trait or in an implementation of one. Error: `duplicate-trait-member`.
 4. r[trait.decl.typed] Every parameter and result type is explicit; omitting one is an error. Error: `syntax-error`.
-5. r[trait.decl.method] A function whose first parameter is `self` or `mut self` is a method.
+5. r[trait.decl.method-receiver] A function whose first parameter is a [receiver](07-functions.md#methods-and-receivers), `self`, `mut self`, `&self`, or `&mut self`, is a method.
 6. r[trait.decl.mut-receiver] A mutable receiver is a requirement callers must satisfy.
 7. r[trait.decl.associated-fn] A function without a receiver is an associated function. It is called with qualified `Trait::function(...)` or `Type::function(...)` syntax.
 
@@ -642,6 +642,51 @@ impl Named for Admin:
     fn name(self) -> string: "admin"
     fn shout(self) -> string: "ADMIN"  # error: extra-trait-member
 ```
+
+#### Receivers Of Struct Implementations
+
+Until the standard library's traits take `&mut self`, a struct implements a
+trait method declared with `data`'s `mut self` by writing `&mut self`:
+
+```text
+trait Counter:
+    fn bump(mut self) -> void
+    fn total(self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(self) -> i32:
+        self.n
+
+fn twice[C < Counter](c: mut C) -> void:
+    c.bump()
+    c.bump()
+
+fn demo() -> void:
+    let mut tally = Tally { n: 0 }
+    tally.bump()  # valid: a call on the struct takes its address
+    twice(tally)  # error: unsatisfied-trait-bound
+```
+
+1. r[trait.impl.receiver-bridge] A struct's `&mut self` method fills a trait method declared `mut self`. A data type's implementation keeps `mut self`, and any other mismatch is still an error. Error: `trait-method-signature`.
+2. r[trait.impl.receiver-bridge.direct] Such a method serves calls on the struct itself. Each use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
+3. r[trait.impl.receiver-bridge.uses] Those uses are listed in the table below.
+
+| Use of the struct `S` | Example |
+| --- | --- |
+| the type argument of a bound on the trait | `twice(tally)` for `fn twice[C < Counter](c: mut C)` |
+| a value of the trait | `let erased: mut dyn Counter = tally` |
+| a trait-qualified call | `Counter::bump(tally)` |
+| a method reference | `tally::bump`, `Tally::bump` |
+| a default method its implementation does not write | `tally.bump_twice()` |
+
+> **Why.** The trait's declaration passes `self` by value, and a struct value
+> passed that way is a copy, so the method would change a copy nobody sees.
+> The uses become valid when the trait itself takes `&mut self`.
 
 #### Method Generic Parameters
 
@@ -1678,6 +1723,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 | --- | --- | --- |
 | r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
+| r[trait.dyn.member.ref-receiver] Reference receivers | a method declared `&self` or `&mut self`, since a trait value is not a reference yet | unavailable |
 | r[trait.dyn.safe.assoc-type] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `dyn Supplier[Item = i32]` does |
 | r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | available |

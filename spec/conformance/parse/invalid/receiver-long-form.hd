@@ -1,0 +1,7 @@
+# Spec 07 Methods And Receivers: fn.method.no-long-form. Spec 02 Functions: grammar.fn.receiver-ref. A receiver has no long form.
+struct Point:
+    x: i32
+
+impl Point:
+    fn shift(self: &mut Self, dx: i32) -> void:  # diagnostic: syntax-error
+        pass

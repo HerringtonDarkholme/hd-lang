@@ -607,22 +607,24 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 1. r[fn.ref.unbound] `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter, is an **unbound method reference**.
 2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(mut Counter, i32) -> void`.
 3. r[fn.ref.unbound.mut-self] A `mut self` method gives a `mut` first parameter, and a `self` method a readonly one.
-4. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
-5. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does. That is inherent members of a type first, then its available traits, and a type parameter through its bounds.
-6. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
-7. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
-8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `cannot-infer-type`.
-9. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode::[User]`, and the owner's before the member's `::`, as in `Box::[i32]::get`.
-10. r[fn.ref.generic.instantiate] Every type parameter of the member is instantiated as for a [generic function value](#generic-function-values).
-11. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
-12. r[fn.ref.bound.capture] It evaluates `value` once, when the reference is created, and captures that receiver. Calling the reference later calls the method on the captured receiver, whatever `value` names by then.
-13. r[fn.ref.bound.type] Its parameters are the method's own, without the receiver: `counter::bump` has type `fn(i32) -> void`.
-14. r[fn.ref.bound.mut] A bound reference to a `mut self` method needs mutable access to the receiver when it is created. Error: `mutable-receiver-required`.
-15. r[fn.ref.call] A reference followed by an argument clause is an ordinary call, so `user::domain()` calls `domain` on `user`.
-16. r[fn.ref.suspending] A suspending method is referenced without `!`, as `Store::load`, and the reference has a suspending function type such as `fn!(Store, Key) -> Blob`.
-17. r[fn.ref.value] A reference is an ordinary function value: it has no parameter names or defaults, and it carries the member's row and suspension.
-18. r[fn.ref.no-fields] `::` names only methods and associated functions, never fields. `User::email` for a field `email` is an error. Error: `unknown-method`.
-19. r[fn.ref.bound.associated] A bound reference names a method, since an associated function has no receiver to bind. `counter::zero` for an associated function `zero` is an error. Error: `unknown-method`.
+4. r[fn.ref.unbound.ref-self] A `&self` method gives a `&Self` first parameter, and a `&mut self` method a `&mut Self` one.
+5. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
+6. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does. That is inherent members of a type first, then its available traits, and a type parameter through its bounds.
+7. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
+8. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
+9. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `cannot-infer-type`.
+10. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode::[User]`, and the owner's before the member's `::`, as in `Box::[i32]::get`.
+11. r[fn.ref.generic.instantiate] Every type parameter of the member is instantiated as for a [generic function value](#generic-function-values).
+12. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
+13. r[fn.ref.bound.capture] It evaluates `value` once, when the reference is created, and captures that receiver. Calling the reference later calls the method on the captured receiver, whatever `value` names by then.
+14. r[fn.ref.bound.type] Its parameters are the method's own, without the receiver: `counter::bump` has type `fn(i32) -> void`.
+15. r[fn.ref.bound.mut] A bound reference to a `mut self` method needs mutable access to the receiver when it is created. Error: `mutable-receiver-required`.
+16. r[fn.ref.bound.address] A bound reference to a `&self` or `&mut self` method takes the receiver's address when it is created, as a [call](#reference-receivers) does. Calling it later reads or changes that place.
+17. r[fn.ref.call] A reference followed by an argument clause is an ordinary call, so `user::domain()` calls `domain` on `user`.
+18. r[fn.ref.suspending] A suspending method is referenced without `!`, as `Store::load`, and the reference has a suspending function type such as `fn!(Store, Key) -> Blob`.
+19. r[fn.ref.value] A reference is an ordinary function value: it has no parameter names or defaults, and it carries the member's row and suspension.
+20. r[fn.ref.no-fields] `::` names only methods and associated functions, never fields. `User::email` for a field `email` is an error. Error: `unknown-method`.
+21. r[fn.ref.bound.associated] A bound reference names a method, since an associated function has no receiver to bind. `counter::zero` for an associated function `zero` is an error. Error: `unknown-method`.
 
 ```text
 data Counter:
@@ -996,7 +998,7 @@ parser.convert::[_, User](payload)
 ## Methods And Receivers
 
 Functions declared in `impl` blocks are methods when their first parameter
-is `self` or `mut self`:
+is a receiver: `self`, `mut self`, `&self`, or `&mut self`:
 
 ```text
 impl User:
@@ -1009,15 +1011,23 @@ impl User:
 label := user.tagged::[string]("admin")
 ```
 
-1. r[fn.method.form] Functions declared in `impl` blocks are methods when their first parameter is `self` or `mut self`.
-2. r[fn.method.self] `self` is readonly access to the receiver, so mutating the receiver through it is an error. Error: `readonly-root`.
-3. r[fn.method.mut-self-data] On a data type, `mut self` is shorthand for `self: mut Self`.
-4. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
-5. r[fn.method.no-sigil] There is no reference sigil or ownership-taking receiver form.
-6. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
-7. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
-8. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
-9. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
+1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the four forms of the table below.
+2. r[fn.method.no-long-form] A receiver has no long form, so `self: &mut Self` is an error. Error: `syntax-error`.
+3. r[fn.method.self-data] On a data type, `self` is readonly access to the receiver, so mutating the receiver through it is an error. Error: `readonly-root`.
+4. r[fn.method.mut-self-data] On a data type, `mut self` is shorthand for `self: mut Self`.
+5. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
+6. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
+7. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
+8. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
+9. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
+10. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
+
+| Receiver | Type of `self` | What the method gets |
+| --- | --- | --- |
+| r[fn.method.receiver.self] `self` | `Self` | the receiver, read-only: a struct's own copy, a data value's readonly view |
+| r[fn.method.receiver.mut-self] `mut self` | `Self` on a struct, `mut Self` on a data type | a struct's own changeable copy; a data value's mutable view |
+| r[fn.method.receiver.ref-self] `&self` | `&Self` | a read of the caller's value, with no copy |
+| r[fn.method.receiver.ref-mut-self] `&mut self` | `&mut Self` | the caller's value, changed in place |
 
 ```text
 data Counter:
@@ -1027,6 +1037,69 @@ impl Counter:
     fn reset(self) -> void:
         self.value = 0  # error: readonly-root
 ```
+
+### Reference Receivers
+
+A `&self` or `&mut self` method refers to the caller's value, and a call
+takes the receiver's address for it:
+
+```hd
+struct Vec2:
+    x: f64
+    y: f64
+
+impl Vec2:
+    fn len_squared(&self) -> f64:
+        self.x * self.x + self.y * self.y
+
+    fn shift(&mut self, d: Vec2) -> void:
+        self.x += d.x
+        self.y += d.y
+
+fn demo() -> f64:
+    let mut p = Vec2 { x: 1.0, y: 2.0 }
+    p.shift(Vec2 { x: 1.0, y: 1.0 })   # (&mut p).shift(..): p is now (2, 3)
+    p.len_squared()                      # 13.0
+```
+
+1. r[fn.method.ref-self] In a `&self` method `self` is a reference `&Self`, and in a `&mut self` method `&mut Self`. Reads and writes through it follow [Values And References](13-values-and-references.md).
+2. r[fn.method.ref-self.kinds] A method of any type may take `&self` or `&mut self`: a struct, a data type, an enum, or a primitive.
+3. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
+4. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, a field of a data value, or a value reached through a reference.
+5. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
+6. r[fn.method.auto-address.value] On a value that is no place, such as a call result, a `&self` method refers to a new object holding the value.
+7. r[fn.method.auto-address.writable] A `&mut self` call needs a [writable place](04-type-system.md#writable-places). Any other receiver is an error, with a fix-it that makes the binding writable. Error: `mutable-receiver-required`.
+8. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
+9. r[fn.method.auto-address.read-only] A `&mut self` call through a `&T` reference, or on a value that is no place, is an error. Error: `mutable-receiver-required`.
+10. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
+
+```text
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+    fn reset(self) -> void:
+        self.x = 0  # error: non-reassignable-parameter-binding
+
+fn make() -> Point:
+    Point { x: 0, y: 0 }
+
+fn demo() -> void:
+    origin := Point { x: 0, y: 0 }
+    origin.shift(1)  # error: mutable-receiver-required
+    let fixed = Point { x: 1, y: 1 }
+    fixed.shift(1)  # error: mutable-receiver-required
+    make().shift(1)  # error: mutable-receiver-required
+```
+
+> **Why.** A method says whether it changes its receiver, and the `let mut`
+> binding says that the value may change, so the call needs no mark, as in
+> Go. A `self` method that writes a field would change a copy nobody sees,
+> Go's lost write through a value receiver, so it does not compile.
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution), which
 defines member lookup, including promotion;

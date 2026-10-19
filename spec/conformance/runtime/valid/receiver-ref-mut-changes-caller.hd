@@ -1,0 +1,54 @@
+# test: a `&mut self` method changes the caller's struct in place: on a `let mut` binding, through a field path, through a `&mut` reference, from another `&mut self` method, and on a data value
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.place, fn.method.auto-address.reference, fn.method.ref-self.kinds.
+# Spec 07 Methods And Receivers: fn.method.receiver.ref-mut-self. Spec 13 Places And New Objects: ref.place.receiver.
+# expect-stdout: 2.0 3.0
+# expect-stdout: 5.0 5.0
+# expect-stdout: 6.0 5.0
+# expect-stdout: 16.0
+# expect-stdout: 3
+struct Vec2:
+    x: f64
+    y: f64
+
+impl Vec2:
+    fn shift(&mut self, d: f64) -> void:
+        self.x += d
+        self.y += d
+
+    fn shift_twice(&mut self, d: f64) -> void:
+        self.shift(d)
+        self.shift(d)
+
+    fn nudge_x(&mut self) -> void:
+        self.x += 1.0
+
+struct Body:
+    pos: Vec2
+    mass: f64
+
+fn push(r: &mut Vec2) -> void:
+    r.nudge_x()
+
+data Counter:
+    n: i32
+
+impl Counter:
+    fn add(&mut self, k: i32) -> void:
+        self.n += k
+
+pub fn main() -> void $ Console:
+    let mut p = Vec2 { x: 1.0, y: 2.0 }
+    p.shift(1.0)
+    println("${p.x} ${p.y}")
+    let mut b = Body { pos: Vec2 { x: 0.0, y: 0.0 }, mass: 1.0 }
+    b.pos.shift(3.0)
+    b.pos.shift_twice(1.0)
+    println("${b.pos.x} ${b.pos.y}")
+    push(&mut b.pos)
+    println("${b.pos.x} ${b.pos.y}")
+    r := &mut p
+    r.shift(14.0)
+    println("${p.x}")
+    let mut c = Counter { n: 1 }
+    c.add(2)
+    println("${c.n}")

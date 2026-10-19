@@ -1,5 +1,5 @@
 # test: method-call syntax evaluates the receiver before the ordinary arguments
-# Spec 07 Methods: fn.method.form, fn.method.self, fn.method.no-sigil,
+# Spec 07 Methods: fn.method.receiver-forms, fn.method.self-data, fn.method.no-ownership-receiver,
 # fn.method.eval-order, fn.method.equivalence.
 # Spec 07 Methods And Receivers: "Method-call syntax evaluates the receiver first and then ordinary
 # arguments. It is semantically equivalent to selecting the resolved method and supplying the receiver

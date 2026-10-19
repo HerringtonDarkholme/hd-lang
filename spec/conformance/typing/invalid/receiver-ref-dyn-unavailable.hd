@@ -1,0 +1,16 @@
+# Spec 09 Dynamic Safety: trait.dyn.member.ref-receiver, trait.dyn.member.unavailable.error. A trait value is not a reference yet, so a `&self` method is unavailable on it.
+trait Shape:
+    fn area(&self) -> f64
+    fn name(self) -> string
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+    fn name(self) -> string:
+        "square"
+
+fn demo(s: dyn Shape) -> f64:
+    s.area()  # diagnostic: dyn-member-unavailable

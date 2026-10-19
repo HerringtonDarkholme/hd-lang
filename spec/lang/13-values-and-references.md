@@ -146,6 +146,7 @@ fn demo() -> void:
 7. r[ref.expr.type] The type of `&e` is `&T`, and of `&mut e` is `&mut T`, where `T` is the type of `e` without an outer `mut` view.
 8. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
 9. r[ref.place.lifetime] A reference keeps the place it refers to alive. A reference to a local may outlive the block that declares the local, and may be returned.
+10. r[ref.place.receiver] A call of a `&self` or `&mut self` method takes a reference to its receiver as `&` and `&mut` would, with the place rules of this section. [Reference Receivers](07-functions.md#reference-receivers) states the call's rules.
 
 > **Why.** A reference to a value that is not a place still needs storage
 > to refer to, so it gets a new object, as Go's `&T{...}` does.

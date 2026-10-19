@@ -2601,10 +2601,20 @@ impl Ck<'_, '_> {
                 None => {}
             }
         }
+        // A `&self` or `&mut self` method on a place takes its address
+        // (`fn.method.auto-address`).
+        if let Some((recv, rt)) = self.auto_address(base, &name)? {
+            self.method_targs = method_targs;
+            return self.method_on(recv, rt, &name, args, (n, bang), want);
+        }
         let (recv, rt) = self.expr(base, None)?;
         // A method call through a reference calls it on the referenced
         // value (`ref.read.auto`), which a read-only one copies out
-        // (`ref.read.copy-out`).
+        // (`ref.read.copy-out`), unless the method takes a reference.
+        if let Some(passed) = self.pass_reference_receiver(recv, rt, &name, base)? {
+            self.method_targs = method_targs;
+            return self.method_on(passed.0, passed.1, &name, args, (n, bang), want);
+        }
         let (recv, rt) = match self.ref_of(rt) {
             Some((_, m)) => {
                 let (v, t) = self.emit_deref(recv, rt, base.index());
@@ -3377,6 +3387,8 @@ impl Ck<'_, '_> {
             }
             return Ok((Ref(NONE), Ty::NEVER));
         }
+        // A receiver whose address the call took (`fn.method.auto-address`).
+        let addressed = self.addressed(recv, rt);
         let hit = self.resolve_method(rt, name)?;
         if matches!(
             hit,
@@ -3424,9 +3436,28 @@ impl Ck<'_, '_> {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
+                    && !addressed
                 {
                     self.check_receiver(st, rt, n);
                 }
+                let impls: Vec<DefId> = cands
+                    .iter()
+                    .filter_map(|c| {
+                        self.cx
+                            .impl_table(c.row.module)
+                            .map(|t| t.def[c.row.row as usize])
+                    })
+                    .collect();
+                if self.bridge_default_call(method, &impls, name, n) {
+                    for e in &args.positional {
+                        self.expr(*e, None)?;
+                    }
+                    return Ok((Ref(NONE), Ty::POISON));
+                }
+                let recv = match self.ref_receiver_cands(method, &cands)? {
+                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    _ => recv,
+                };
                 self.choose_method(
                     (trait_, method, t),
                     &cands,
@@ -3440,9 +3471,14 @@ impl Ck<'_, '_> {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
+                    && !addressed
                 {
                     self.check_receiver(st, rt, n);
                 }
+                let recv = match self.ref_receiver_of(method, None)? {
+                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    _ => recv,
+                };
                 self.trait_method_call(
                     TraitTarget {
                         trait_,
@@ -3483,7 +3519,14 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                self.check_receiver(params[0].1, rt, n);
+                let recv = match self.ref_receiver_of(method, None)? {
+                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    Some(_) => recv,
+                    None => {
+                        self.check_receiver(params[0].1, rt, n);
+                        recv
+                    }
+                };
                 let mut refs = vec![recv];
                 let mut all = impl_args.clone();
                 all.extend(&vars);
@@ -3589,7 +3632,23 @@ impl Ck<'_, '_> {
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
-                    self.check_receiver(st, rt, n);
+                    if !addressed {
+                        self.check_receiver(st, rt, n);
+                    }
+                    if choice.0 == ChoiceKind::TraitValue
+                        && matches!(pool.get(st), TyData::Ref { .. })
+                    {
+                        // `trait.dyn.member.ref-receiver`: trait values
+                        // are not references yet.
+                        for e in &args.positional {
+                            self.expr(*e, Some(Ty::POISON))?;
+                        }
+                        let msg = format!(
+                            "`{name}` takes a reference receiver (`&self` or `&mut self`), which is unavailable on a trait value"
+                        );
+                        self.err(Code::DynMemberUnavailable, n, &msg);
+                        return Ok((Ref(NONE), Ty::NEVER));
+                    }
                     if choice.0 == ChoiceKind::TraitValue
                         && self.names_self_beyond_receiver(method, trait_)?
                     {
@@ -3616,6 +3675,10 @@ impl Ck<'_, '_> {
                     self.err(Code::DynMemberUnavailable, n, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
+                let recv = match self.ref_receiver_of(method, Some(choice))? {
+                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    _ => recv,
+                };
                 self.trait_method_call(
                     TraitTarget {
                         trait_,

@@ -177,7 +177,7 @@ fn demo() -> f64:
 1. r[data.struct.decl] `struct Name:` declares a struct. Its body has the grammar of a data body: named fields, defaults, visibility, decorators, and generic parameters.
 2. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
 3. r[data.struct.data-rules] The rules of [Data Declarations](#data-declarations) and [Construction And Access](#construction-and-access) apply to a struct, except as this section states.
-4. r[data.struct.receivers] A method of a struct takes `self`, its own read-only copy of the receiver, or `mut self`, its own changeable copy.
+4. r[data.struct.receiver-forms] A method of a struct takes `self` or `mut self`, its own read-only or changeable copy of the receiver, or `&self` or `&mut self`, a [reference](07-functions.md#reference-receivers) to the caller's value.
 5. r[data.struct.mut-self] A struct method's `mut self` changes its copy only. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 6. r[data.struct.no-embedding] A struct declares no embedded field, so a bare type-name member of a struct is an error. Error: `embedded-non-data`.
 7. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.

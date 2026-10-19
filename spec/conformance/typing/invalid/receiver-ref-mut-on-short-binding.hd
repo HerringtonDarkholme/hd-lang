@@ -1,0 +1,13 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. A `:=` binding never changes.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+fn demo() -> i32:
+    origin := Point { x: 0, y: 0 }
+    origin.shift(1)  # diagnostic: mutable-receiver-required
+    origin.x

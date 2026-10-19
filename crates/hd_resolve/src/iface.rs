@@ -602,6 +602,7 @@ impl<'a> Lookup<'a> {
 /// rows read (`crates/hd_check/DESIGN.md` (trait solver) §3.9, §9.3), over a context's lookup.
 pub struct LookupDecls<'a> {
     pub lookup: &'a Lookup<'a>,
+    pub pool: &'a InternPool,
     pub sealed: SealedTraits,
     pub paths: &'a PathTable,
     pub syms: &'a ShardedInterner,
@@ -628,6 +629,31 @@ pub fn declares_assoc_function<'i>(
     })
 }
 
+/// Whether the trait `trait_` declares a method with a `&self` or
+/// `&mut self` receiver, which a trait value does not provide until trait
+/// values are references (`trait.dyn.member.ref-receiver`). `item` reads a
+/// declaration.
+#[must_use]
+pub fn declares_ref_receiver<'i>(
+    syms: &ShardedInterner,
+    item: impl Fn(DefId) -> Option<&'i Item>,
+    pool: &InternPool,
+    trait_: DefId,
+) -> bool {
+    let Some(ItemData::Trait(t)) = item(trait_).map(|i| &i.data) else {
+        return false;
+    };
+    t.methods.iter().any(|(_, m)| {
+        matches!(
+            item(*m).map(|i| &i.data),
+            Some(ItemData::Method { sig, .. })
+                if sig.params.first().is_some_and(|p| {
+                    syms.resolve(p.0) == "self" && matches!(pool.get(p.1), TyData::Ref { .. })
+                })
+        )
+    })
+}
+
 impl Declarations for LookupDecls<'_> {
     fn sealed(&self) -> &SealedTraits {
         &self.sealed
@@ -642,6 +668,7 @@ impl Declarations for LookupDecls<'_> {
     }
     fn has_unavailable_member(&self, trait_: DefId) -> bool {
         declares_assoc_function(self.syms, |d| self.lookup.item(d), trait_)
+            || declares_ref_receiver(self.syms, |d| self.lookup.item(d), self.pool, trait_)
     }
     fn is_local(&self, def: DefId) -> bool {
         is_local_path(self.paths, def)
