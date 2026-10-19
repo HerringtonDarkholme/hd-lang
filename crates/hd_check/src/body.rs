@@ -3273,6 +3273,47 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Rename only a plain call whose replacement still resolves to prelude `dbg`.
+    fn discarded_debug_fix(&self, call: NodeRef<'_>) -> Option<Span> {
+        if call.kind() != SyntaxKind::CallExpr {
+            return None;
+        }
+        let callee = call.children().next()?;
+        let span = self.cx.src.span(callee);
+        if callee.kind() != SyntaxKind::NameExpr
+            || self.cx.src.text.get(span.lo as usize..span.hi as usize) != Some("debug")
+        {
+            return None;
+        }
+        let args = self.args_of(Src::child(call, SyntaxKind::ArgumentList));
+        if args.positional.len() != 1
+            || args.spread.is_some()
+            || !args.named.is_empty()
+            || !args.after_spread.is_empty()
+        {
+            return None;
+        }
+        let at = span.lo;
+        for name in ["debug", "dbg"] {
+            let sym = self.cx.names.syms.intern(name);
+            let init = self.cx.init.borrow();
+            if self.find_local(sym).is_some()
+                || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
+                || init.globals.contains_key(&sym)
+                || init.earlier.contains_key(&sym)
+            {
+                return None;
+            }
+            let binding = self.cx.scope_at(at).lookup(sym)?;
+            if binding.kind != hd_resolve::BindingKind::Item
+                || DefId::from_raw(binding.value) != self.cx.names.item("std.format", name)
+            {
+                return None;
+            }
+        }
+        Some(span)
+    }
+
     fn stmt_node(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
         self.charge()?;
         let kids: Vec<NodeRef<'_>> = s.children().collect();
@@ -3288,6 +3329,7 @@ impl Ck<'_, '_> {
                     self.shown = Some((s.index(), Some((r, t))));
                     return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
                 }
+                let before_expr = self.diags.mark();
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 // `fn.body.void-final`: a `void` function rejects a
@@ -3331,6 +3373,15 @@ impl Ck<'_, '_> {
                         "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
                         None,
                     );
+                    if self.diags.errors_since(before_expr) == 0
+                        && let Some(callee) = self.discarded_debug_fix(*e)
+                    {
+                        self.diags.add_fix(
+                            "replace discarded `debug` with `dbg`",
+                            hd_diag::FixSafety::Exact,
+                            &[(callee, "dbg")],
+                        );
+                    }
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }

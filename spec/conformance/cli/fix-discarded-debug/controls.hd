@@ -1,0 +1,31 @@
+use std.format
+
+fn shadow_parameter(dbg: fn(i32) -> void) -> void:
+    debug(+1)
+    dbg(+2)
+
+fn shadow_local() -> void:
+    dbg := fn(value: i32) -> i32: value
+    debug(+3)
+    _ := dbg(+4)
+
+fn explicit_type() -> void:
+    debug::[i32](+5)
+
+fn named_argument() -> void:
+    debug(value=+6)
+
+fn qualified() -> void:
+    format.debug(+7)
+
+fn bad_argument() -> void:
+    debug(+8, +9)
+
+fn spread_argument() -> void:
+    debug((+10,)...)
+
+fn quoted_name() -> void:
+    `debug`(+11)
+
+fn invalid_value() -> void:
+    debug(missing)

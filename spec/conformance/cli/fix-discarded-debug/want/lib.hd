@@ -1,0 +1,11 @@
+# café keeps the replacement offsets in UTF-8 bytes.
+pub fn inspect(value: i32) -> i32:
+    dbg(value)
+    value
+
+pub fn inspect_void() -> void:
+    dbg("café")
+
+pub fn inspect_nested(value: i32) -> void:
+    if value > +0:
+        dbg(value)

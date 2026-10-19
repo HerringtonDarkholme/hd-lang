@@ -1,0 +1,5 @@
+fn debug(value: i32) -> void:
+    _ := value
+
+fn inspect() -> void:
+    debug(+1)
