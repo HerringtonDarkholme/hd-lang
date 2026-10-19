@@ -1,0 +1,57 @@
+# test: enum payloads, struct and tuple fields, and data fields keep every value of every width and sign through calls, matches, field writes and copy-updates
+# Spec 08 Struct Declarations: data.struct.value; Spec 08 Enum Declarations.
+# expect-stdout: circle 25
+# expect-stdout: rect 3 -5000000000
+# expect-stdout: label tea 4
+# expect-stdout: none
+# expect-stdout: -1 -300 255 true 65535
+# expect-stdout: -2 -300 255 false 65535
+# expect-stdout: 7 8 3
+# expect-stdout: 9 8 3
+# expect-stdout: true false
+struct Small:
+    a: i8
+    b: i16
+    c: u8
+    d: bool
+    e: u16
+
+struct Point:
+    x: i32
+    y: i64
+
+enum Shape:
+    Circle(r: f64)
+    Rect(w: i32, h: i64)
+    Label(text: string, at: Point)
+    Nothing
+
+data Holder:
+    small: Small
+    pair: (i32, Point, f32)
+    count: i32
+
+fn describe(s: Shape) -> string:
+    match s:
+        .Circle(r) => "circle ${i32(r * 10.0)}"
+        .Rect(w, h) => "rect $w $h"
+        .Label(text, at) => "label $text ${at.x + i32(at.y)}"
+        .Nothing => "none"
+
+fn keep[T](value: T) -> T:
+    value
+
+pub fn main() -> void $ Console:
+    println(describe(Shape.Circle(2.5)))
+    println(describe(Shape.Rect(+3, -5000000000)))
+    println(describe(Shape.Label("tea", Point { x: +1, y: 3 })))
+    println(describe(Shape.Nothing))
+    let mut h = Holder { small: Small { a: -1, b: -300, c: 255, d: true, e: 65535 }, pair: (+7, Point { x: +8, y: 0 }, 1.5), count: +0 }
+    println("${h.small.a} ${h.small.b} ${h.small.c} ${h.small.d} ${h.small.e}")
+    h.small = Small { ...h.small, a: -2, d: false }
+    println("${h.small.a} ${h.small.b} ${h.small.c} ${h.small.d} ${h.small.e}")
+    copy := Holder { ...h, count: +1 }
+    h.pair = (+9, h.pair._1, h.pair._2)
+    println("${copy.pair._0} ${copy.pair._1.x} ${i32(copy.pair._2 * 2.0)}")
+    println("${h.pair._0} ${h.pair._1.x} ${i32(h.pair._2 * 2.0)}")
+    println("${keep(h) is h} ${copy is h}")

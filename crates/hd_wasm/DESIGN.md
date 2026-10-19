@@ -1692,7 +1692,7 @@ inline in memory where Wasm GC stored a reference.
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: 1 byte for `bool`, `i8`, `u8`; 2 for 16-bit integers; 4 or 8 otherwise, aligned to its size |
 | struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, each at its alignment; the struct aligned to its widest field |
-| enum | an `i32` tag, then the payload slots: variants' fields of one Wasm value type share a slot (§15.1's slot sharing, with no bound) | the tag (1, 2 or 4 bytes by variant count), then the largest variant's fields at their offsets; variants overlap |
+| enum | an `i32` tag, then the payload slots: variants' fields of one Wasm value type share a slot (§15.1's slot sharing, with no bound) | the tag (1, 2 or 4 bytes by variant count), then the slots in their order, each 4 or 8 bytes at its alignment: the same values as in locals, so a load or a store needs no branch on the tag |
 | self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
 | `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
 | `T?` of another `T` | as an enum with one payload | as an enum |
@@ -1991,3 +1991,47 @@ that run their hd tests.
   (REFCOUNT_RUNTIME.md §3.2), so hd's allocator is about 4 times slower
   for now. The table move past 16,352 pages, almost 1 GiB of heap, has no
   test: it needs a heap that large.
+
+### 23.14 What Job 6 Adds
+
+Job 6 lays out structs, tuples, enums and data values (§23.3), in
+`layout.rs`, and lowers their instructions in `emit/value.rs`.
+
+- **One walk, two forms.** `layout::mem` gives a type's values as leaves,
+  in the order its locals hold them, each with its offset and width in
+  memory, and its size and alignment. Locals and memory never disagree, so
+  moving a value between them is one load or store per leaf.
+- **Structs and tuples** are their fields' values: a literal pushes them,
+  a field read picks some, and a copy-update rebuilds the value from the
+  source's values and the replacements. The checker writes a struct's
+  field as a copy-update of the place (§15.2), so nothing stores into a
+  struct value.
+- **Enums.** The tag, then slots in the order `i32`, `f32`, `i64`, `f64`:
+  the `k`th value of one Wasm type in a variant's payload is that type's
+  `k`th slot, so a variant fills the slots it needs and leaves zeros in
+  the rest. In memory each slot is a whole Wasm value at its alignment, not
+  the variant's fields at their packed offsets as the table first said:
+  that way a load or a store of an enum needs no branch on its tag. A
+  narrow payload field costs its slot's 4 bytes.
+- **Data values** are the address of an object: an 8-byte header, which
+  counting fills (job 8), then the payload, the fields at their offsets.
+  A literal allocates it with `rt:alloc`, a field read loads, a field
+  write stores, a copy-update allocates a copy, and `is` compares
+  addresses. A data type without fields is one static object.
+- **Self-recursive enums** are the address of a cell holding the enum's
+  value; the checker refuses recursion by value today
+  (`recursive-value-type`), so only an enum with a projection in a value
+  position reaches it (`hd_mono::layout::recursive_enums`).
+- **Shared generic instances.** Collection gives one instance to every
+  unbounded argument whose Wasm GC layout is one reference, under the
+  class `REF` (A1, crates/hd_mono/DESIGN.md §13.2). Here that class is
+  one address, which is right for data values and boxed enums. But Wasm
+  GC also lays out a struct, and an enum or tuple over 4 values, as one
+  reference, and here they are inline, so a call that would pass one to
+  such an instance, or get one back, is refused
+  (`layout::shares_as_address`). Collection keyed by this backend's
+  layouts lifts that; it is a change to `hd_mono`, not made here.
+- **Not yet.** `T?` of a data value is still an enum, its tag and the
+  address, not the address with 0 as `.None`. Integer `**`, float `**`
+  and `%`, and float text are still refused.
+

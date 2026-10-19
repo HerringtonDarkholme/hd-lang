@@ -1,6 +1,10 @@
 path	note
 runtime/panic/assert-failure-in-main.hd	#540: a std panic report
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
+runtime/panic/duration-add-overflow.hd	#551: structs, tuples, enums and data values
+runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data values
+runtime/panic/duration-sub-underflow.hd	#551: structs, tuples, enums and data values
+runtime/panic/duration-suffix-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/explicit-panic.hd	#540: an explicit panic
 runtime/panic/i32-add-overflow-in-function.hd	#541: test programs, and roots that never suspend
 runtime/panic/i32-min-divided-by-minus-one.hd	#541: test programs, and roots that never suspend
@@ -24,6 +28,7 @@ runtime/panic/num-u64-from-overflow.hd	#541: test programs, and roots that never
 runtime/panic/num-u64-to-negative.hd	#541: test programs, and roots that never suspend
 runtime/panic/operator-generic-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/option-expect-none.hd	#541: test programs, and roots that never suspend
+runtime/panic/rng-int-empty-range.hd	#551: structs, tuples, enums and data values
 runtime/panic/shift-count-at-bit-width.hd	#541: test programs, and roots that never suspend
 runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
 runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic
@@ -39,36 +44,50 @@ runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so 
 runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
 runtime/valid/doc-test-console-row.hd	#541: test programs, and roots that never suspend
+runtime/valid/duration-order.hd	#551: structs, tuples, enums and data values
 runtime/valid/escape-sequences.hd	#540: integers, strings and enums in locals
 runtime/valid/f64-nan-ordering.hd	#541: test programs, and roots that never suspend
 runtime/valid/f64-ordering-operators.hd	#541: test programs, and roots that never suspend
+runtime/valid/fieldless-data-canonical.hd	#551: structs, tuples, enums and data values
+runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
 runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
+runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
+runtime/valid/identity-ignores-permissions.hd	#551: structs, tuples, enums and data values
 runtime/valid/index-then-call-element.hd	#539: main is private, so no entry point runs
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
+runtime/valid/let-after-same-line-if-keeps-else.hd	#551: structs, tuples, enums and data values
 runtime/valid/literal-suffix-calls.hd	#540: integers, strings and enums in locals
+runtime/valid/module-qualified-type.hd	#551: structs, tuples, enums and data values
+runtime/valid/module-qualified-variant.hd	#551: structs, tuples, enums and data values
 runtime/valid/multiline-string-literals.hd	#540: integers, strings and enums in locals
 runtime/valid/multiple-dedents-at-once.hd	#540: integers, strings and enums in locals
+runtime/valid/nested-control-flow-as-expressions.hd	#551: structs, tuples, enums and data values
 runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
 runtime/valid/no-final-line-ending.hd	#540: integers, strings and enums in locals
 runtime/valid/num-is-finite.hd	#541: test programs, and roots that never suspend
 runtime/valid/num-is-nan.hd	#541: test programs, and roots that never suspend
 runtime/valid/option-nest-none-is-outer.hd	#541: test programs, and roots that never suspend
 runtime/valid/ord-supertrait-dispatch.hd	#539: main is private, so no entry point runs
+runtime/valid/payloads-and-fields-keep-every-width.hd	#551: structs, tuples, enums and data values
 runtime/valid/primitive-bool-eq-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-char-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-integer-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/println-console-stdout.hd	#540: println through the host Console
 runtime/valid/println-under-main-driver.hd	#541: test programs, and roots that never suspend
+runtime/valid/raw-identifiers-as-names.hd	#551: structs, tuples, enums and data values
 runtime/valid/reference-enum-replace-build.hd	#545: main is private, so no entry point runs
 runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
+runtime/valid/same-line-suite-body-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/script-empty-run.hd	#539: an empty script runs
 runtime/valid/string-encodings-distinct.hd	#541: test programs, and roots that never suspend
 runtime/valid/string-host-bytes.hd	#540: string literals through the host Console
+runtime/valid/struct-copy-update.hd	#551: structs, tuples, enums and data values
 runtime/valid/tab-only-as-content.hd	#540: integers, strings and enums in locals
 runtime/valid/test-body-return.hd	#541: test programs, and roots that never suspend
+runtime/valid/trait-and-impl-declaration-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/trait-default-method-instantiates-params.hd	#539: main is private, so no entry point runs
 runtime/valid/u8-checked-add.hd	#539: main is private, so no entry point runs
 runtime/valid/unicode-function-names.hd	#540: integers, strings and enums in locals

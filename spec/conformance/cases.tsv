@@ -3446,6 +3446,7 @@ typing/invalid/struct-field-write-other-value.hd	type	reject:readonly-root	lang/
 typing/invalid/struct-field-write-readonly-data.hd	type	reject:readonly-root	lang/04-type-system.md#r-types.value.write.data
 runtime/valid/struct-copy-is-independent.hd	runtime	accept	lang/04-type-system.md#r-types.value.copy
 runtime/valid/struct-copy-update.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.data-rules
+runtime/valid/payloads-and-fields-keep-every-width.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.value
 runtime/valid/struct-in-containers.hd	runtime	accept	lang/04-type-system.md#r-types.value.stored
 runtime/valid/struct-derive-eq-debug.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.data-rules
 typing/invalid/struct-contains-itself-generic.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains

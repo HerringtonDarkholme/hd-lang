@@ -16,10 +16,12 @@ use hd_tir::ir::{Body, Callee, Coercion, NONE, PrimOp, Ref, Tag, local_flags};
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction, Instruction as I};
 
-use crate::layout::{num, payload_at, vals};
+use crate::layout::{num, vals};
 use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
+
+mod value;
 
 /// The function of instance `id`, at `slot` in content order.
 pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> StageResult<Func> {
@@ -158,8 +160,11 @@ impl Em<'_, '_, '_> {
         self.b.record(at).to_vec()
     }
 
-    /// The type of value `r`, substituted.
+    /// The type of value `r`, substituted; `NONE` is the unit value.
     fn ty_of(&self, r: u32) -> Ty {
+        if r == NONE {
+            return Ty::VOID;
+        }
         let t = match Ref(r).as_inst() {
             Some(i) => self.b.ty[i.0 as usize],
             None => self.b.consts[(r & !Ref::CONST_BIT) as usize].0,
@@ -449,9 +454,7 @@ impl Em<'_, '_, '_> {
                         self.store(i)?;
                     }
                     k if k == Coercion::WrapSome as u32 => {
-                        self.f.i32(1);
-                        self.push(a)?;
-                        self.store(i)?;
+                        self.new_variant(i, 1, &[value::Src::Ref(a)])?;
                     }
                     _ => return unsupported("trait-value and `Any` coercions (job 11)"),
                 }
@@ -558,7 +561,11 @@ impl Em<'_, '_, '_> {
                 {
                     return unsupported("a switch on a 64-bit integer");
                 }
-                self.comp(a, 0)?;
+                if self.b.tags[i as usize] == Tag::SwitchTag {
+                    self.tag(a)?;
+                } else {
+                    self.comp(a, 0)?;
+                }
                 self.f.u32(case);
                 self.f.op(Instruction::I32Eq);
                 self.f.op(Instruction::If(BlockType::Empty));
@@ -574,38 +581,13 @@ impl Em<'_, '_, '_> {
             }
             Tag::Payload => {
                 let r = self.rec(bw);
-                let (at, n) = payload_at(self.pool(), self.env(), self.ty_of(a), r[0], r[1])?;
-                for k in at..at + n {
-                    self.comp(a, k)?;
-                }
-                self.store(i)?;
+                self.payload(i, a, r[0], r[1])?;
             }
-            Tag::Unwrap => {
-                let n = self.vals(self.ty_of(a))?.len();
-                for k in 1..n {
-                    self.comp(a, k)?;
-                }
-                self.store(i)?;
-            }
+            Tag::Unwrap => self.payload(i, a, 1, 0)?,
             Tag::NewVariant => {
-                let payload = self.rec(bw);
-                let t = self.ty(i);
-                self.f.u32(a);
-                let variants = self.variants(t)?;
-                for (k, fields) in variants.iter().enumerate() {
-                    if k == a as usize {
-                        for r in &payload {
-                            self.push(*r)?;
-                        }
-                    } else {
-                        for ft in fields {
-                            for v in self.vals(*ft)? {
-                                self.zero(v);
-                            }
-                        }
-                    }
-                }
-                self.store(i)?;
+                let payload: Vec<value::Src> =
+                    self.rec(bw).into_iter().map(value::Src::Ref).collect();
+                self.new_variant(i, a, &payload)?;
             }
             Tag::Intrinsic => {
                 let op = hd_tir::ir::IntrinsicOp::from_u32(a);
@@ -631,10 +613,24 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::Hook => {}
-            Tag::NewData | Tag::CopyData | Tag::Field | Tag::FieldSet => {
-                return unsupported("data values (job 6)");
+            Tag::NewData => self.new_data(i, bw)?,
+            Tag::CopyData => self.copy_data(i, a, bw)?,
+            Tag::Field => self.field(i, a, bw)?,
+            Tag::FieldSet => {
+                let r = self.rec(bw);
+                self.field_set(a, r[0], r[1])?;
             }
-            Tag::NewTuple | Tag::TupleGet => return unsupported("tuples (job 6)"),
+            Tag::NewTuple => {
+                if a != NONE {
+                    return unsupported("a tuple with a rest list (job 9)");
+                }
+                for r in self.rec(bw) {
+                    self.push(r)?;
+                }
+                self.store(i)?;
+            }
+            Tag::TupleGet => self.tuple_get(i, a, bw)?,
+            Tag::Is => self.is(i, a, bw)?,
             Tag::NewList | Tag::ForList => return unsupported("lists (job 9)"),
             Tag::NewMap | Tag::ForMap => return unsupported("maps (job 10)"),
             Tag::Closure | Tag::ItemRef | Tag::CallValue | Tag::CallDyn => {
@@ -694,6 +690,7 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
+                    self.shared(&args, &ct, i)?;
                     for r in &args {
                         self.push(*r)?;
                     }
@@ -710,6 +707,26 @@ impl Em<'_, '_, '_> {
             },
             Some(Target::Dyn) => self.call_dyn(i, a, &args),
             _ => unsupported("a call without a direct target (job 11)"),
+        }
+    }
+
+    /// Refuses a call of an instance that collection shares among
+    /// reference arguments (A1) when an argument or the result is not one
+    /// address here ([`crate::layout::shares_as_address`]).
+    fn shared(&self, args: &[u32], ct: &hd_mono::CallTarget, i: u32) -> StageResult<()> {
+        let (pool, env) = (self.pool(), self.env());
+        let params = env.params(ct.item).unwrap_or_default();
+        let formal = |t: Ty| subst(pool, env, ct.item, ct.args, t);
+        let ok =
+            args.iter().zip(&params).all(|(r, p)| {
+                crate::layout::shares_as_address(pool, env, self.ty_of(*r), formal(*p))
+            }) && crate::layout::shares_as_address(pool, env, self.ty(i), ct.ret);
+        if ok {
+            Ok(())
+        } else {
+            unsupported(
+                "a generic instance shared among reference arguments, at a struct (collection shares it by Wasm GC layouts)",
+            )
         }
     }
 
@@ -780,6 +797,7 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             Some(Target::Default { call, bracket }) => {
+                self.shared(&self.rec(bw), &call, i)?;
                 for r in self.rec(bw) {
                     self.push(r)?;
                 }
@@ -933,17 +951,8 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);
-        // `.Completed(value)`: tag 0, its payload, then the other
-        // variants' (none).
-        let (at, n) = payload_at(self.pool(), self.env(), self.ty(i), 0, 0)?;
-        if at != 1 || n != tmp.len() {
-            return unsupported("a `BlockOn` of this layout");
-        }
-        self.f.i32(0);
-        for l in &tmp {
-            self.f.get(*l);
-        }
-        self.store(i)
+        // `.Completed(value)`.
+        self.new_variant(i, 0, &[value::Src::Locals(tmp)])
     }
 
     /// A body-less method of a primitive's std impl at `self_ty`
@@ -1011,7 +1020,16 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::StrEq);
                 self.store(i)
             }
-            _ => unsupported(format!("the built-in method `{name}` (job 6)")),
+            "sqrt" if prim && float => {
+                self.comp(args[0], 0)?;
+                self.f.op(if self.vals(t)? == [Val::F32] {
+                    I::F32Sqrt
+                } else {
+                    I::F64Sqrt
+                });
+                self.store(i)
+            }
+            _ => unsupported(format!("the built-in method `{name}`")),
         }
     }
 
@@ -1051,29 +1069,6 @@ impl Em<'_, '_, '_> {
             self.f.get(tag);
         }
         self.store(i)
-    }
-
-    /// The variants' payload types of an enum or optional type.
-    fn variants(&self, t: Ty) -> StageResult<Vec<Vec<Ty>>> {
-        let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.strip_mut(t));
-        match self.pool().get(t) {
-            TyData::Option(inner) => Ok(vec![vec![], vec![inner]]),
-            TyData::Adt { def, args } => match self.env().enum_variants(def, args) {
-                Some(v) => Ok(v),
-                None => unsupported("a variant of a type that is not an enum"),
-            },
-            _ => unsupported("a variant of a type that is not an enum"),
-        }
-    }
-
-    /// Pushes a zero of `v`.
-    fn zero(&mut self, v: Val) {
-        self.f.op(match v {
-            Val::I32 => I::I32Const(0),
-            Val::I64 => I::I64Const(0),
-            Val::F32 => I::F32Const(wasm_encoder::Ieee32::new(0)),
-            Val::F64 => I::F64Const(wasm_encoder::Ieee64::new(0)),
-        });
     }
 
     fn strip_mut(&self, t: Ty) -> Ty {
