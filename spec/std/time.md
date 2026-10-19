@@ -230,16 +230,16 @@ See also: [Literal Suffixes](../lang/05-expressions.md#literal-suffixes),
 pub trait Clock:
     fn now(self) -> Timestamp
     fn monotonic(self) -> Instant
-    fn sleep!(mut self, duration: Duration) -> void
+    fn sleep!(&mut self, duration: Duration) -> void
 ```
 
-1. r[std-time.clock.decl] `std.time` declares the host capability trait `Clock` with the methods above. Code imports it, as in `use std.time.Clock`.
+1. r[std-time.clock.decl-ref] `std.time` declares the host capability trait `Clock` with the methods above. Code imports it, as in `use std.time.Clock`.
 2. r[std-time.clock.now] `now` returns the current wall-clock time as a `Timestamp`.
 3. r[std-time.clock.monotonic] `monotonic` returns the current reading of a clock that never goes backwards, as an `Instant`.
 4. r[std-time.clock.sleep] `sleep!(duration)` completes once `duration` has passed on the clock.
 5. r[std-time.clock.sleep.zero] `sleep!` with a zero `duration` completes without waiting.
 6. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
-7. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
+7. r[std-time.clock.mut-ref] `sleep!` takes `&mut self`, so `Clock` is a mutable requirement trait, `$.use(Clock)` is a `&mut dyn Clock` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may advance its own time.
 
 > **Why.** A clock read is a value from the host, as an environment read
 > is, so it needs no driver. Replay records it at the boundary either
@@ -327,7 +327,7 @@ tests:
             assert(wait_twice!() == Timestamp::from_unix_milliseconds(5000), reason="five virtual seconds")
 ```
 
-1. r[std-time.manual.decl-struct] `std.time` declares the struct `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`. Its `sleep!` takes `&mut self`, which fills the trait's `mut self` by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge), so a `ManualClock` serves as a provider through a reference to it.
+1. r[std-time.manual.decl-ref] `std.time` declares the struct `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`. Its `sleep!` takes `&mut self`, as the trait's does, so a `ManualClock` serves as a provider through a reference to it.
 2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
 3. r[std-time.manual.new-ref] `ManualClock::new(start: Timestamp) -> &mut ManualClock` returns a clock whose current time is `start`, a new object. A provider installed from that reference, and every copy of it, share the one clock, so a sleep through the provider moves the clock the caller holds.
 4. r[std-time.manual.now] `now` returns the current time.

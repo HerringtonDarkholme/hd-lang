@@ -1,0 +1,22 @@
+# test: Random's methods take `&mut self`, so `$.use(Random)` is a `&mut dyn Random`, and the host's source and a SeededRandom both serve through it
+# Spec std/random Random Source: std-random.mut-ref, std-random.decl-ref, std-random.seeded.decl-ref.
+# expect-stdout: 4 6
+# expect-stdout: true
+use std.random.{Random, SeededRandom, fill}
+
+fn draw(source: &mut dyn Random) -> u64:
+    source.next_u64()
+
+fn two() -> List[u64] $ Random:
+    [draw($.use(Random)), $.use(Random).next_u64()]
+
+pub fn main() -> void $ Console + Random:
+    host := $.use(Random)
+    _ := draw(host)
+    println("${host.fill(4).len()} ${fill(6).len()}")
+    seeded := SeededRandom::new(11)
+    again := SeededRandom::new(11)
+    let drawn: List[u64] = []
+    $.with(Random=seeded):
+        drawn = two()
+    println(drawn == [again.next_u64(), again.next_u64()])

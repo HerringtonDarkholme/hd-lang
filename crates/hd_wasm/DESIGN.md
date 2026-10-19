@@ -416,6 +416,17 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   struct. So two `$.use(K)` of one provider are one reference, and `is`
   compares its identity fields with any other's (`req.ref.same-place`).
   The cost is one `get` call per installation.
+- **Host providers of reference traits.** The entry's host provider of
+  such a key (`req.ref.host`) is laid out the same way. `hd.poll` builds
+  the host trait value, a null payload beside the vtable of host stubs,
+  and calls the `std.rt.host_provider` instance at `dyn K`, whose
+  `&mut held` makes the `Ref[dyn K]` of a new object; the slot stores
+  that reference as the payload, next to the host vtable again. A host
+  stub ignores its receiver, so a call through the reference reaches the
+  host whatever the method's receiver form. The driver roots one
+  instance per such key of an entry row (`hd_mono::provider_by_ref`), as
+  it roots the `std.rt` report functions, so the binding needs no change
+  per trait.
 
 **Element references: a reference into the header, a pin count.**
 `&xs[i]` and `&mut xs[i]`

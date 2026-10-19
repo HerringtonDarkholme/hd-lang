@@ -181,7 +181,7 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
     let tries: usize = 1
     let delay = backoff.initial
     while tries < backoff.attempts && should_retry(result, when):
-        let mut clock = $.use(Clock)
+        clock := $.use(Clock)
         clock.sleep!(delay)
         result = attempt!()
         tries = tries + 1
@@ -264,7 +264,7 @@ fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ 
 data CleanupBound[T]:
     job: mut Suspend[T]
     cleanup: Duration
-    clock: mut dyn Clock
+    clock: &mut dyn Clock
 
 # Runs when the work is first cancelled, so the deadline is `cleanup`
 # from now. It waits for the work's cleanup, and abandons the work once
@@ -280,7 +280,7 @@ impl[T] Disposable for CleanupBound[T]:
 # Abandons `job` once `cleanup` has passed since `started`: at once when
 # it already has, so a bound of 0 abandons whatever still waits
 # (r-std-task.timeout.cleanup-zero).
-fn cleanup_deadline![T](job: mut Suspend[T], clock: mut dyn Clock, cleanup: Duration, started: Instant) -> CleanupEnd:
+fn cleanup_deadline![T](job: mut Suspend[T], clock: &mut dyn Clock, cleanup: Duration, started: Instant) -> CleanupEnd:
     spent := clock.monotonic().as_milliseconds() - started.as_milliseconds()
     if spent < cleanup.as_milliseconds():
         clock.sleep!(Duration::milliseconds(cleanup.as_milliseconds() - spent))

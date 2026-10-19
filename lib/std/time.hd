@@ -174,14 +174,14 @@ pub fn h(count: i64) -> Duration:
     Duration::seconds(count * 3600)
 
 # The host capability that reads time and waits (spec/std/time.md#clock).
-# `sleep!` takes `mut self`, so a provider may advance its own time
-# (r-std-time.clock.mut).
+# `sleep!` takes `&mut self`, so a provider may advance its own time and
+# `$.use(Clock)` is a `&mut dyn Clock` (r-std-time.clock.mut-ref).
 ## The host capability to read the clock and to wait: `now`, `monotonic`, and `sleep!`.
-## See [std-time.clock.decl](../../spec/std/time.md#r-std-time.clock.decl).
+## See [std-time.clock.decl-ref](../../spec/std/time.md#r-std-time.clock.decl-ref).
 pub trait Clock:
     fn now(self) -> Timestamp
     fn monotonic(self) -> Instant
-    fn sleep!(mut self, duration: Duration) -> void
+    fn sleep!(&mut self, duration: Duration) -> void
 
 # The current time of the covering `Clock` provider
 # (spec/std/time.md#r-std-time.helper.now).
@@ -209,7 +209,7 @@ pub fn elapsed(since: Instant) -> Duration $ Clock:
 ## Completes once `duration` has passed on the clock.
 ## See [std-time.helper.sleep](../../spec/std/time.md#r-std-time.helper.sleep).
 pub fn sleep!(duration: Duration) -> void $ Clock:
-    let mut clock = $.use(Clock)
+    clock := $.use(Clock)
     clock.sleep!(duration)
 
 # Whole milliseconds since the Unix epoch, in UTC (r-std-time.timestamp.decl).
@@ -650,13 +650,13 @@ impl Ord for Instant:
 # time is its whole state. Virtual time advances only by `sleep!`, which
 # returns at once (r-std-time.manual.sleep).
 ## The deterministic `Clock` provider: virtual time that a test advances.
-## See [std-time.manual.decl-struct](../../spec/std/time.md#r-std-time.manual.decl-struct).
+## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
 pub struct ManualClock:
     current: Timestamp
 
 impl ManualClock:
     ## Returns a `ManualClock` whose current time starts at `start`.
-    ## See [std-time.manual.decl-struct](../../spec/std/time.md#r-std-time.manual.decl-struct).
+    ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
     pub fn new(start: Timestamp) -> &mut ManualClock:
         &mut ManualClock { current: start }
 

@@ -666,7 +666,11 @@ pub enum Helper {
     /// answers only its owner.
     EntryPoll {
         main: Hash128,
-        providers: Vec<(WTy, Vec<Helper>)>,
+        /// Per row key: its vtable type, the host slots, and for a key
+        /// whose provider is a trait value reference (`req.ref.host`) the
+        /// `std.rt.host_provider` instance that puts the host's trait
+        /// value behind a new object.
+        providers: Vec<(WTy, Vec<Helper>, Option<Hash128>)>,
         results: u32,
         bang: Option<(WTy, WTy)>,
         /// The `std.rt` result function's instance, which turns the
@@ -1064,11 +1068,18 @@ impl Helper {
                 w.u8(10);
                 w.hash(*main);
                 w.len_of(providers);
-                for (vt, slots) in providers {
+                for (vt, slots, by_ref) in providers {
                     enc_wty(vt, w);
                     w.len_of(slots);
                     for s in slots {
                         s.encode(w);
+                    }
+                    match by_ref {
+                        Some(k) => {
+                            w.u8(1);
+                            w.hash(*k);
+                        }
+                        None => w.u8(0),
                     }
                 }
                 w.u32(*results);
@@ -1290,7 +1301,8 @@ impl Helper {
                     let slots = (0..m)
                         .map(|_| Helper::decode(r))
                         .collect::<Option<Vec<_>>>()?;
-                    providers.push((vt, slots));
+                    let by_ref = if r.u8() == 1 { Some(r.hash()) } else { None };
+                    providers.push((vt, slots, by_ref));
                 }
                 let results = r.u32();
                 let bang = if r.u8() == 1 {
@@ -2193,13 +2205,25 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             // ignores it; a suspending root answers only its owner.
             let mut a = Asm::new(vec![VT::I32]);
             let ctx = 0;
+            // A host provider is a trait value with no payload. One whose
+            // key takes a trait value reference (`req.ref.host`) is that
+            // trait value behind a new object, the `Ref[dyn K]` that
+            // `host_provider` returns, stored as the payload with the
+            // vtable again beside it, as `RefAsProvider` stores one.
             let build = |a: &mut Asm| {
-                for (vt, slots) in providers {
+                for (vt, slots, by_ref) in providers {
+                    let table = |a: &mut Asm| {
+                        for s in slots {
+                            a.ref_func(Sym::Helper(s.clone()));
+                        }
+                        a.struct_new(vt);
+                    };
                     a.ref_null_eq();
-                    for s in slots {
-                        a.ref_func(Sym::Helper(s.clone()));
+                    table(a);
+                    if let Some(k) = by_ref {
+                        a.call(Sym::Inst(*k));
+                        table(a);
                     }
-                    a.struct_new(vt);
                 }
             };
             // A release of the root also releases its driver.

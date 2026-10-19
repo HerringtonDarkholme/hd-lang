@@ -11,7 +11,7 @@ use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
 # for an acknowledgement.
 data Flush:
     log: mut List[string]
-    clock: mut dyn Clock
+    clock: &mut dyn Clock
     ack: mut Suspend[void]
 
 impl Disposable for Flush:

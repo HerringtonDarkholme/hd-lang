@@ -13,7 +13,7 @@ impl Clock for RecordingClock:
     fn monotonic(self) -> Instant:
         Instant::from_milliseconds(0)
 
-    fn sleep!(mut self, duration: Duration) -> void:
+    fn sleep!(&mut self, duration: Duration) -> void:
         self.slept.push(duration.as_milliseconds())
 
 data Server:
@@ -38,13 +38,13 @@ tests:
     it("sleeps between calls and returns the first .Ok"):
         let mut clock = RecordingClock { slept: [] }
         let mut server = Server { busy_for: 2, calls: 0 }
-        $.with(Clock=clock):
+        $.with(Clock=&mut clock):
             assert_equal(connect!(server), .Ok("ready"), reason="the third call succeeds")
         assert_equal(clock.slept, [100, 200], reason="two delays, the second doubled")
 
     it("caps each delay at max and does not sleep after the last call"):
         let mut clock = RecordingClock { slept: [] }
         let mut server = Server { busy_for: 9, calls: 0 }
-        $.with(Clock=clock):
+        $.with(Clock=&mut clock):
             assert_equal(connect!(server), .Err("busy 5"), reason="the fifth error is returned")
         assert_equal(clock.slept, [100, 200, 300, 300], reason="four delays, capped at max")

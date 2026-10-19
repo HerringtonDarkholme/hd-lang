@@ -18,15 +18,15 @@ Which provider a command binds is CLI tier
 
 ```text
 pub trait Random:
-    fn next_u64(mut self) -> u64
-    fn fill(mut self, count: usize) -> List[u8]
+    fn next_u64(&mut self) -> u64
+    fn fill(&mut self, count: usize) -> List[u8]
 ```
 
-1. r[std-random.decl] `std.random` declares the host capability trait `Random` with the methods above. Code imports it, as in `use std.random.Random`.
+1. r[std-random.decl-ref] `std.random` declares the host capability trait `Random` with the methods above. Code imports it, as in `use std.random.Random`.
 2. r[std-random.next] `next_u64` returns the next value of the provider's source.
 3. r[std-random.fill] `fill(count)` returns `count` values of that source, as bytes.
 4. r[std-random.plain] Both methods are plain calls, not bang calls.
-5. r[std-random.mut] Both take `mut self`, so `Random` is a mutable requirement trait and a seeded provider may advance its own state.
+5. r[std-random.mut-ref] Both take `&mut self`, so `Random` is a mutable requirement trait, `$.use(Random)` is a `&mut dyn Random` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a seeded provider may advance its own state.
 6. r[std-random.fill-free] `std.random` declares `pub fn fill(count: usize) -> List[u8] $ Random`. It returns `fill(count)` of the `Random` provider that covers the call.
 
 ```text
@@ -72,7 +72,7 @@ tests:
             assert_equal(roll(), rolled, reason="the same seed rolls the same")
 ```
 
-1. r[std-random.seeded.decl-struct] `std.random` declares the struct `SeededRandom`, which implements `Random`, with private fields. Code imports it, as in `use std.random.SeededRandom`. Its methods take `&mut self`, which fill the trait's `mut self` methods by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge), so a `SeededRandom` serves as a provider through a reference to it.
+1. r[std-random.seeded.decl-ref] `std.random` declares the struct `SeededRandom`, which implements `Random`, with private fields. Code imports it, as in `use std.random.SeededRandom`. Its methods take `&mut self`, as the trait's do, so a `SeededRandom` serves as a provider through a reference to it.
 2. r[std-random.seeded.new-ref] `SeededRandom::new(seed: u64) -> &mut SeededRandom` returns a provider that `seed` starts, a new object. A provider installed from that reference, and every copy of it, draw from the one state, so a draw through the provider advances the generator the caller holds.
 3. r[std-random.seeded.same-seed] Two providers that one seed starts return the same values for the same sequence of `next_u64` and `fill` calls.
 4. r[std-random.seeded.no-host] A `SeededRandom` draws from its own state only. It reads nothing from the host.

@@ -6,14 +6,14 @@ use std.format.DebugWriter
 use std.num.Integer
 use std.ops.Range
 
-# Draws values from a source of randomness (r-std-random.decl). Both
-# methods take `mut self`, so a seeded provider advances its own state
-# (r-std-random.mut).
+# Draws values from a source of randomness (r-std-random.decl-ref). Both
+# methods take `&mut self`, so a seeded provider advances its own state
+# and `$.use(Random)` is a `&mut dyn Random` (r-std-random.mut-ref).
 ## The host capability to fill bytes from the system random source.
-## See [std-random.decl](../../spec/std/random.md#r-std-random.decl).
+## See [std-random.decl-ref](../../spec/std/random.md#r-std-random.decl-ref).
 pub trait Random:
-    fn next_u64(mut self) -> u64
-    fn fill(mut self, count: usize) -> List[u8]
+    fn next_u64(&mut self) -> u64
+    fn fill(&mut self, count: usize) -> List[u8]
 
 # The free helper of `Random.fill` (r-std-random.fill-free).
 ## `count` random bytes of the covering `Random` provider.
@@ -27,7 +27,7 @@ pub fn fill(count: usize) -> List[u8] $ Random:
 # in `u64` values masked to 32 bits, so no operation overflows. `new` fills
 # the state with SplitMix32 from the seed.
 ## The deterministic `Random` provider: a seeded generator for tests, with no host access.
-## See [std-random.seeded.decl-struct](../../spec/std/random.md#r-std-random.seeded.decl-struct).
+## See [std-random.seeded.decl-ref](../../spec/std/random.md#r-std-random.seeded.decl-ref).
 pub struct SeededRandom:
     s0: u64
     s1: u64

@@ -2120,7 +2120,7 @@ values that cross a boundary, and the official host boundary.
 ### Runtime Profiles
 
 1. r[module.profile.definition] A **runtime profile** is a named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses.
-2. r[module.profile.trait-access] The profile binds each host provider with the access its trait gives: mutable when the trait has a `mut self` method, readonly otherwise.
+2. r[module.profile.trait-access-ref] The profile binds each host provider with the access its trait gives, by [`req.mut.entry.trait-access`](11-requirements-and-suspension.md#r-req.mut.entry.trait-access). For a trait with a `&self` or `&mut self` method, the provider is a trait value reference, by [`req.ref.host`](11-requirements-and-suspension.md#r-req.ref.host).
 3. r[module.profile.build] The compiler receives the selected profile as build configuration.
 4. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
 5. r[module.profile.other] Another profile may add or omit host traits explicitly.

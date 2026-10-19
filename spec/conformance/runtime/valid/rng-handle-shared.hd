@@ -1,5 +1,5 @@
 # test: Rng::new and SeededRandom::new return new objects, so every copy of the reference, a callee, and a provider installed from it advance one generator
-# Spec std/random Rng: std-random.rng.new-ref, std-random.rng.ref-receivers, std-random.seeded.new-ref, std-random.seeded.decl-struct.
+# Spec std/random Rng: std-random.rng.new-ref, std-random.rng.ref-receivers, std-random.seeded.new-ref, std-random.seeded.decl-ref.
 # expect-stdout: true true
 # expect-stdout: true true
 # expect-stdout: true true

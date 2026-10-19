@@ -1,0 +1,31 @@
+# test: the entry installs the host's Clock and Random, traits with `&mut self` methods, as trait value references to one new object each, so every `$.use` below the entry refers to one place and calls through it reach the host
+# Spec 11 Providers Behind References: req.ref.host, req.ref.use, req.ref.same-place.
+# expect-stdout: true true
+# expect-stdout: true true
+# expect-stdout: 16 true
+# expect-stdout: 1000
+use std.random.{Random, fill}
+use std.time.{Clock, ManualClock, Timestamp, ms, now, s, sleep}
+
+fn same_clock() -> bool $ Clock:
+    $.use(Clock) is $.use(Clock)
+
+fn nap!(clock: &mut dyn Clock) -> void:
+    clock.sleep!(ms(1))
+
+fn stamp!() -> i64 $ Clock:
+    sleep!(1s)
+    now().unix_milliseconds()
+
+pub fn main!() -> void $ Console + Clock + Random:
+    let clock: &mut dyn Clock = $.use(Clock)
+    let random: &mut dyn Random = $.use(Random)
+    println("${same_clock()} ${clock is $.use(Clock)}")
+    start := clock.monotonic()
+    nap!(clock)
+    println("${clock.monotonic() >= start} ${now().unix_milliseconds() > 0}")
+    _ := random.next_u64()
+    println("${random.fill(8).len() + fill(8).len()} ${random is $.use(Random)}")
+    manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=manual):
+        println(stamp!())

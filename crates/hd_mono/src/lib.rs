@@ -322,6 +322,38 @@ pub enum SlotRecv {
     Unavailable,
 }
 
+/// Whether the provider of a key whose trait is `trait_` is a trait value
+/// reference (`req.ref.key`): the trait, or one of its supertraits,
+/// declares a `&self` or `&mut self` method, whose receiver lowers to
+/// `std.core.Ref`. The entry installs a host provider of such a key behind
+/// a reference (`req.ref.host`, `crates/hd_wasm/DESIGN.md` §15.2).
+#[must_use]
+pub fn provider_by_ref(pool: &InternPool, env: &dyn ProgramEnv, trait_: DefId) -> bool {
+    let cell = env.ref_cell();
+    let mut todo = vec![trait_];
+    let mut seen = Vec::new();
+    while let Some(t) = todo.pop() {
+        if seen.contains(&t) {
+            continue;
+        }
+        seen.push(t);
+        let by_ref = env.trait_methods(t).into_iter().any(|m| {
+            env.params(m)
+                .and_then(|ps| ps.first().copied())
+                .is_some_and(|p| matches!(pool.get(p), TyData::Adt { def, .. } if def == cell))
+        });
+        if by_ref {
+            return true;
+        }
+        for s in env.decls().supertraits(t) {
+            if let TyData::TraitValue { def, .. } = pool.get(*s) {
+                todo.push(def);
+            }
+        }
+    }
+    false
+}
+
 /// The `std.json` and `std.serde` items a host boundary codec calls: JSON
 /// `encode` and `decode` at a private-field type, the two traits the
 /// boundary direction needs, and `Result`'s checked unwrap after a

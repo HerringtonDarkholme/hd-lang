@@ -1,0 +1,23 @@
+# test: Clock's sleep! takes `&mut self`, so `$.use(Clock)` is a `&mut dyn Clock`, and the host's clock and a ManualClock both serve through it
+# Spec std/time Clock: std-time.clock.mut-ref, std-time.clock.decl-ref, std-time.helper.sleep, std-time.manual.decl-ref.
+# expect-stdout: true
+# expect-stdout: 250 250
+use std.time.{Clock, Instant, ManualClock, Timestamp, ms, sleep}
+
+fn pause!(clock: &mut dyn Clock, millis: i64) -> Instant:
+    clock.sleep!(ms(millis))
+    clock.monotonic()
+
+fn twice!() -> i64 $ Clock:
+    _ := pause!($.use(Clock), 100)
+    sleep!(ms(150))
+    $.use(Clock).now().unix_milliseconds()
+
+pub fn main!() -> void $ Console + Clock:
+    start := $.use(Clock).monotonic()
+    println(pause!($.use(Clock), 2) >= start)
+    manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    let read: i64 = 0
+    $.with(Clock=manual):
+        read = twice!()
+    println("${read} ${manual.now().unix_milliseconds()}")

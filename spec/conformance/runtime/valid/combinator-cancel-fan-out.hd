@@ -12,7 +12,7 @@ data Server:
 
 data Connections:
     server: mut Server
-    clock: mut dyn Clock
+    clock: &mut dyn Clock
 
 impl Disposable for Connections:
     fn dispose!(mut self) -> void:

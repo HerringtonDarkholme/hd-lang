@@ -7665,7 +7665,9 @@ fn abandon_by(a: &mut Asm, by: i32) {
 /// The entry exports (`crates/hd_mono/DESIGN.md` §13.1, `crates/hd_wasm/DESIGN.md` §14.4): `hd.init`
 /// runs every reachable group's init in order; `hd.poll` provides one
 /// default-profile provider per row key, each a vtable of host stubs
-/// generated from `hd_host_abi::TABLE` (`crates/hd_run_wasmtime/DESIGN.md` §17.1), and
+/// generated from `hd_host_abi::TABLE` (`crates/hd_run_wasmtime/DESIGN.md` §17.1), behind
+/// the reference its `host_refs` instance makes for a key whose trait has
+/// a `&self` or `&mut self` method (`req.ref.host`), and
 /// runs `main` or polls `main!`, then turns its result into the exit
 /// status with `report` (a `std.rt` instance; `None` for `void`);
 /// `hd.wake(n)` records completed handles.
@@ -7680,6 +7682,7 @@ pub fn entry(
     entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
     boundary: &hd_mono::BoundaryMap,
+    host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     // Only the entry module's own init bodies may use `block_on`
     // (`req.drive.block-on.forbidden-contexts`).
@@ -7701,6 +7704,7 @@ pub fn entry(
                 report,
                 Vec::new(),
                 boundary,
+                host_refs,
             )?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
@@ -7724,6 +7728,7 @@ pub fn script_entry(
     own: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
     boundary: &hd_mono::BoundaryMap,
+    host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let (before, after): (Vec<_>, Vec<_>) = match inits.iter().position(|k| *k == key) {
         Some(at) => (inits[..at].to_vec(), inits[at + 1..].to_vec()),
@@ -7745,7 +7750,7 @@ pub fn script_entry(
         (
             "hd.poll".into(),
             root_poll(
-                pool, env, path, lowering, init, key, report, after, boundary,
+                pool, env, path, lowering, init, key, report, after, boundary, host_refs,
             )?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
@@ -7763,6 +7768,7 @@ pub fn test_entry(
     cases: &[(DefId, hd_base::Hash128, Option<hd_base::Hash128>)],
     inits: &[Vec<hd_base::Hash128>],
     boundary: &hd_mono::BoundaryMap,
+    host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = Vec::new();
     for (j, ks) in inits.iter().enumerate() {
@@ -7788,6 +7794,7 @@ pub fn test_entry(
                 *report,
                 Vec::new(),
                 boundary,
+                host_refs,
             )?,
         ));
     }
@@ -7812,6 +7819,7 @@ pub fn scenario_entry(
     report: Option<hd_base::Hash128>,
     cleanup: Option<hd_base::Hash128>,
     boundary: &hd_mono::BoundaryMap,
+    host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = entry(
         pool,
@@ -7824,6 +7832,7 @@ pub fn scenario_entry(
         entry_inits,
         report,
         boundary,
+        host_refs,
     )?;
     if let Some(func) = cleanup {
         out.push(("hd.scenario.cleanup".into(), Helper::EntryCall { func }));
@@ -7845,6 +7854,7 @@ fn root_poll(
     report: Option<hd_base::Hash128>,
     then: Vec<(hd_base::Hash128, bool)>,
     boundary: &hd_mono::BoundaryMap,
+    host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Helper> {
     let shared = Layouts::new(lowering);
     let lay = Lay::new(pool, env, path, &shared);
@@ -7908,7 +7918,19 @@ fn root_poll(
                 None,
             )?);
         }
-        providers.push((vt, slots));
+        // A key whose trait has a `&self` or `&mut self` method takes its
+        // provider behind a reference (`req.ref.host`).
+        let by_ref = if hd_mono::provider_by_ref(pool, env, k) {
+            let Some(&(_, inst)) = host_refs.iter().find(|(t, _)| *t == key) else {
+                return unsupported(format!(
+                    "a default provider for `{p}` without its reference"
+                ));
+            };
+            Some(inst)
+        } else {
+            None
+        };
+        providers.push((vt, slots, by_ref));
     }
     let ret = env.ret(main).unwrap_or(Ty::VOID);
     let results = lay.vts(ret)?;

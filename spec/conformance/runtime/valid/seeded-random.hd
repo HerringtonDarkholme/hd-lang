@@ -1,5 +1,5 @@
 # test: SeededRandom gives the same draws for the same seed, directly and through $.with
-# Spec std/random Seeded Random: std-random.seeded.decl-struct, std-random.seeded.new-ref, and std-random.seeded.same-seed (STDLIB decision 4, PROVIDER-SHAPES; task #220).
+# Spec std/random Seeded Random: std-random.seeded.decl-ref, std-random.seeded.new-ref, and std-random.seeded.same-seed (STDLIB decision 4, PROVIDER-SHAPES; task #220).
 use std.random.{Random, SeededRandom}
 fn roll() -> u64 $ Random:
     $.use(Random).next_u64() % 6 + 1

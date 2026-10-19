@@ -1,5 +1,5 @@
 # test: prelude / Console / the host Console provider is mutable because write_line! takes mut self
-# Spec 10 Console and Runtime Profiles: module.console.host-trait, module.profile.trait-access.
+# Spec 10 Console and Runtime Profiles: module.console.host-trait, module.profile.trait-access-ref.
 
 pub fn main!() -> void $ Console:
     let mut console = $.use(Console)

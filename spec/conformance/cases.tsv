@@ -2114,6 +2114,7 @@ runtime/valid/hash-bytes-derived.hd	runtime	accept	std/hash.md#r-std-hash.bytes.
 runtime/valid/hash-of-reference-values.hd	runtime	accept	std/hash.md#r-std-hash.bytes.sequence
 runtime/valid/retry-with-backoff.hd	runtime	accept	std/task.md#retry-with-backoff
 runtime/valid/clock-helpers.hd	runtime	accept	std/time.md#clock-helpers
+runtime/valid/clock-host-mut-ref.hd	runtime	accept	std/time.md#r-std-time.clock.mut-ref
 runtime/valid/duration-order.hd	runtime	accept	std/time.md#r-std-time.duration.eq-ord
 runtime/valid/eprintln-error-line.hd	runtime	accept	std/console.md#standard-error
 typing/invalid/eprintln-without-console.hd	type	reject:missing-requirement	std/console.md#r-std-console.eprintln.row
@@ -2363,6 +2364,7 @@ runtime/panic/rng-sample-too-many.hd	runtime	panic:explicit-panic	std/random.md#
 runtime/valid/rng-from-random.hd	runtime	accept	std/random.md#rng
 runtime/valid/rng-handle-shared.hd	runtime	accept	std/random.md#r-std-random.rng.new-ref
 runtime/valid/random-fill.hd	runtime	accept	std/random.md#random-source
+runtime/valid/random-host-mut-ref.hd	runtime	accept	std/random.md#r-std-random.mut-ref
 runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text
@@ -3674,6 +3676,7 @@ runtime/valid/provider-ref-mut-changes-caller.hd	runtime	accept	lang/11-requirem
 runtime/valid/provider-ref-new-object.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-ref
 runtime/valid/provider-ref-same-place.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.same-place
 runtime/valid/provider-ref-context.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-ref
+runtime/valid/provider-ref-host.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.host
 runtime/valid/provider-share-bridge.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.share.bridge
 typing/invalid/provider-ref-shared-for-mutable.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.install-writable-ref
 typing/invalid/provider-share-shared-for-mutable.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.install-writable-ref

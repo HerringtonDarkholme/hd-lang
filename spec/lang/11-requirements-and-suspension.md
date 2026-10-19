@@ -1097,6 +1097,7 @@ fn demo() -> i32:
 2. r[req.ref.use] `$.use(K)` of such a key yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` for any other trait.
 3. r[req.ref.install-ref] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is an error whose fix-it writes `&` or `&mut`. Error: `type-mismatch`.
 4. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
+5. r[req.ref.host] A runtime profile or a registration contract installs its host provider for such a key as a trait value reference too, of the type `$.use(K)` yields, to a new object that holds the host's implementation. So every `$.use(K)` below one entry refers to one place.
 
 ```text
 trait Counter:
@@ -1761,7 +1762,7 @@ data Server:
 
 data Connections:
     server: mut Server
-    clock: mut dyn Clock
+    clock: &mut dyn Clock
 
 impl Disposable for Connections:
     fn dispose!(mut self) -> void:

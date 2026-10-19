@@ -20,7 +20,7 @@ impl Clock for RecordingClock:
     fn monotonic(self) -> Instant:
         Instant::from_milliseconds(0)
 
-    fn sleep!(mut self, duration: Duration) -> void:
+    fn sleep!(&mut self, duration: Duration) -> void:
         self.slept.push(duration.as_milliseconds())
 
 data Server:
@@ -66,10 +66,10 @@ tests:
         assert_equal(server.calls, 3, reason="every error was retried")
 
     it("retry_with! does not sleep before a call that when rejects"):
-        let clock: mut RecordingClock = RecordingClock { slept: [] }
+        let mut clock = RecordingClock { slept: [] }
         let server: mut Server = Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
         policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 1000ms }
-        $.with(Clock=clock):
+        $.with(Clock=&mut clock):
             result := retry_with!(policy, when=is_busy):
                 ask!(server)
             assert_equal(result, .Err("refused"), reason="the second error is rejected")

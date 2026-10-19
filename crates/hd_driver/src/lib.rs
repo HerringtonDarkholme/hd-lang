@@ -116,7 +116,10 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// A test case's `Result` goes through `test_status_error` and
 /// `test_status_dyn` instead: the same report always on standard error,
 /// and status 1 for an `.Err` whose `exit_code` is 0
-/// (module.testing.fails). It is compiler-supplied, like
+/// (module.testing.fails). `host_provider` puts a host provider behind a
+/// new object, the reference an entry installs for a key whose trait has a
+/// `&self` or `&mut self` method (req.ref.host); the driver roots one
+/// instance per such key of an entry row. It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
 pub const RT_SOURCE: &str = "\
 # std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
@@ -164,6 +167,10 @@ fn entry_report(text: string, code: i32) -> void:
         entry_write_out(text)
     else:
         entry_write(text)
+
+fn host_provider[T](provider: T) -> &mut T:
+    let mut held = provider
+    &mut held
 
 @intrinsic(\"entry_write_out\")
 fn entry_write_out(text: string) -> void:
@@ -767,6 +774,9 @@ struct CollectOut {
     written: Mutex<Vec<(String, Hash128)>>,
     prog_key: Hash128,
     roots: Roots,
+    /// The `std.rt.host_provider` instance per entry row key whose host
+    /// provider is installed behind a reference (req.ref.host).
+    host_refs: Vec<(Ty, Hash128)>,
     /// Nominal types' layouts, shared by the program's emissions so each
     /// recursion group is laid out once.
     layouts: hd_wasm::layout::Layouts,
@@ -1072,7 +1082,8 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
 
 /// The module texts of a REPL input's build: the modules the input
 /// reaches from its own module, through its uses and its session's
-/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and each module of
+/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and from `std.rt`,
+/// which the compiler roots after an entry, and each module of
 /// another package's folder it reaches. Every other text is empty and
 /// never read, so a root-package folder the input reaches holds only its
 /// reached modules for the run ([`Run::builds_module`]): an implementation
@@ -1091,6 +1102,9 @@ fn repl_texts(
     let mut texts: Vec<Arc<str>> = vec![Arc::from(""); n];
     let mut skims: Vec<Option<SkimOut>> = (0..n).map(|_| None).collect();
     let mut stack = vec![start];
+    // The compiler roots `std.rt` after an entry, a REPL input's too
+    // (`RT_SOURCE`).
+    stack.extend(table.module("std.rt").map(ModuleId::idx));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -2669,11 +2683,15 @@ impl Run<'_> {
         // `hd check FILE` checks only what FILE reaches (`Run::check_scope`).
         let _ = self.check_scope.set(self.check_scope(&graph));
         let checked = self.check_scope.get().and_then(Option::as_ref);
-        // A REPL input's build builds only its closure (`Run::builds`).
-        let scope = self
-            .repl_inputs
-            .input
-            .map(|m| graph.closure[self.table.modules[m].folder.idx()].clone());
+        // A REPL input's build builds only its closure and `std.rt`'s
+        // (`Run::builds`).
+        let scope = self.repl_inputs.input.map(|m| {
+            let mut s = graph.closure[self.table.modules[m].folder.idx()].clone();
+            if let Some(rt) = self.rt_folder() {
+                s.union(&graph.closure[rt.idx()]);
+            }
+            s
+        });
         let builds = |f: FolderId| {
             scope.as_ref().is_none_or(|s| s.contains(f))
                 && checked.is_none_or(|(_, folders)| folders.contains(f))
@@ -3581,8 +3599,9 @@ impl Run<'_> {
 
     /// Whether this run builds folder `f`: a REPL input's build builds the
     /// folders the input's closure holds (`cli.repl.uses.other`), so a
-    /// broken module it never reaches does not stop it; every other run
-    /// builds them all.
+    /// broken module it never reaches does not stop it, and those of
+    /// `std.rt`'s, which the compiler roots after an entry
+    /// (`RT_SOURCE`); every other run builds them all.
     fn builds(&self, f: FolderId) -> bool {
         let scoped = self
             .check_scope
@@ -3592,10 +3611,22 @@ impl Run<'_> {
         scoped
             && match (self.repl_inputs.input, self.graph.get()) {
                 (Some(m), Some(g)) => {
-                    g.graph.closure[self.table.modules[m].folder.idx()].contains(f)
+                    let closure = &g.graph.closure;
+                    closure[self.table.modules[m].folder.idx()].contains(f)
+                        || self
+                            .rt_folder()
+                            .is_some_and(|rt| closure[rt.idx()].contains(f))
                 }
                 _ => true,
             }
+    }
+
+    /// The folder of `std.rt`, the hd the compiler roots after an entry
+    /// (`RT_SOURCE`), when the run's std has it.
+    fn rt_folder(&self) -> Option<FolderId> {
+        self.table
+            .module("std.rt")
+            .map(|m| self.table.modules[m.idx()].folder)
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
@@ -7536,6 +7567,32 @@ impl Run<'_> {
                 extra.push(*r);
             }
         }
+        // A host provider of a key whose trait has a `&self` or `&mut self`
+        // method is installed behind a new object (req.ref.host): one
+        // `std.rt.host_provider` instance per such key of a root's row. A
+        // script's or a REPL input's root is one of its init bodies.
+        let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
+        let host_provider = names.item("std.rt", "host_provider");
+        for d in std::iter::once(root)
+            .chain(roots.iter().map(|(d, _)| *d))
+            .chain(all_inits.iter().copied())
+        {
+            for key in env.row_keys(d, TyList::EMPTY) {
+                let TyData::TraitValue { def, .. } = self.pool.get(key) else {
+                    continue;
+                };
+                if host_refs.iter().any(|(k, _)| *k == key)
+                    || !hd_mono::provider_by_ref(&self.pool, &env, def)
+                {
+                    continue;
+                }
+                let r = (host_provider, self.pool.list(&[key]));
+                host_refs.push((key, r));
+                if !extra.contains(&r) {
+                    extra.push(r);
+                }
+            }
+        }
         let prelude = if self.prelude() {
             self.prelude_roots()
         } else {
@@ -7598,6 +7655,10 @@ impl Run<'_> {
                 .filter(|k| collected.inits.contains(k))
         };
         let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
+        let host_refs: Vec<(Ty, Hash128)> = host_refs
+            .iter()
+            .filter_map(|(k, r)| key_of_extra(r).map(|h| (*k, h)))
+            .collect();
         let plan = match &self.goal {
             Goal::ReplInput { .. } if JOINED_INPUTS && self.repl_inputs.joined => {
                 match self.joined_inputs(&order, &key_of_init) {
@@ -7745,6 +7806,7 @@ impl Run<'_> {
             written: Mutex::new(written),
             prog_key: pkey,
             roots: plan,
+            host_refs,
             layouts: hd_wasm::layout::Layouts::new(self.lowering),
         });
         let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
@@ -8006,6 +8068,7 @@ impl Run<'_> {
                 &i.own,
                 None,
                 &c.collected.boundary,
+                &c.host_refs,
             )?;
             for (name, helper) in entry {
                 if name == "hd.wake" {
@@ -8453,6 +8516,7 @@ impl Run<'_> {
                 entry_inits,
                 *report,
                 &c.collected.boundary,
+                &c.host_refs,
             ),
             Roots::Script {
                 def,
@@ -8470,6 +8534,7 @@ impl Run<'_> {
                 own,
                 *report,
                 &c.collected.boundary,
+                &c.host_refs,
             ),
             Roots::Inputs(inputs) => self.joined_exports(inputs, &env, &path, c),
             Roots::Tests { cases, inits } => hd_wasm::test_entry(
@@ -8480,6 +8545,7 @@ impl Run<'_> {
                 cases,
                 inits,
                 &c.collected.boundary,
+                &c.host_refs,
             ),
             Roots::Scenario {
                 def,
@@ -8499,6 +8565,7 @@ impl Run<'_> {
                 *report,
                 *cleanup,
                 &c.collected.boundary,
+                &c.host_refs,
             ),
         };
         let Some(entry) = self.stage(Stage::Link, exports) else {

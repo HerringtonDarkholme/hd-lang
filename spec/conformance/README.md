@@ -324,7 +324,10 @@ appear in entry-point rows. A fixture declares every trait a profile
 implements, with the exact method signatures below, and the profile supplies
 one provider value per trait. Each provider has the access its trait gives
 ([Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers)):
-mutable when the trait has a `mut self` method, readonly otherwise.
+mutable when the trait has a `mut self` or `&mut self` method, readonly
+otherwise. A trait with a `&self` or `&mut self` method gets its provider
+behind a trait value reference
+([`req.ref.host`](../lang/11-requirements-and-suspension.md#r-req.ref.host)).
 
 - `console` is the profile a fixture gets when it names no profile. The
   runner selects no runtime profile for it. It implements the prelude

@@ -7,9 +7,9 @@ data FixedBytes:
     bytes: List[u8]
 
 impl Random for FixedBytes:
-    fn next_u64(mut self) -> u64:
+    fn next_u64(&mut self) -> u64:
         0
-    fn fill(mut self, count: usize) -> List[u8]:
+    fn fill(&mut self, count: usize) -> List[u8]:
         let out: mut List[u8] = []
         for index in 0..count:
             out.push(self.bytes[index])
@@ -24,7 +24,7 @@ tests:
     it("fill is the covering provider's bytes"):
         let mut source = FixedBytes { bytes: [0, 15, 171, 255] }
         let made = ""
-        $.with(Random=source):
+        $.with(Random=&mut source):
             made = session()
         assert_equal(made, "000fabff", reason="two lowercase digits per byte")
 
