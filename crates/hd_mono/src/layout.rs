@@ -818,6 +818,8 @@ pub struct InstanceTable {
     pub args: Vec<TyList>,
     /// The known closures of a specialized instance; empty for a plain one.
     pub known: Vec<Known>,
+    /// Pure omitted defaults used by each instance.
+    pub defaults: Vec<Box<[(u32, crate::defaults::Value)]>>,
     /// The nesting depth of the instance's deepest type argument (§13.4).
     pub depth: Vec<u8>,
     /// The instance that first requested it, `NONE` for a root. Collection
@@ -849,8 +851,21 @@ impl InstanceTable {
         args: TyList,
         known: &[(u32, Hash128)],
     ) -> Option<InstId> {
+        self.get_with_defaults(item, sub, args, known, &[])
+    }
+
+    /// The instance at a complete specialization, including omitted defaults.
+    #[must_use]
+    pub fn get_with_defaults(
+        &self,
+        item: DefId,
+        sub: Sub,
+        args: TyList,
+        known: &[(u32, Hash128)],
+        defaults: &[(u32, crate::defaults::Value)],
+    ) -> Option<InstId> {
         self.index
-            .get(&(item, sub, args, known_digest(known)))
+            .get(&(item, sub, args, crate::defaults::digest(known, defaults)))
             .copied()
     }
 
@@ -866,7 +881,22 @@ impl InstanceTable {
         parent: InstId,
         key: Hash128,
     ) -> (InstId, bool) {
-        if let Some(id) = self.get_known(item, sub, args, known) {
+        self.push_with_defaults(item, sub, args, known, &[], depth, parent, key)
+    }
+
+    /// Pushes a value-specialized instance without changing plain instance keys.
+    pub fn push_with_defaults(
+        &mut self,
+        item: DefId,
+        sub: Sub,
+        args: TyList,
+        known: &[(u32, Hash128)],
+        defaults: &[(u32, crate::defaults::Value)],
+        depth: u8,
+        parent: InstId,
+        key: Hash128,
+    ) -> (InstId, bool) {
+        if let Some(id) = self.get_with_defaults(item, sub, args, known, defaults) {
             return (id, false);
         }
         let id = InstId::from_raw(u32::try_from(self.item.len()).expect("instances"));
@@ -874,11 +904,14 @@ impl InstanceTable {
         self.sub.push(sub);
         self.args.push(args);
         self.known.push(known.into());
+        self.defaults.push(defaults.into());
         self.depth.push(depth);
         self.parent.push(parent);
         self.key.push(key);
-        self.index
-            .insert((item, sub, args, known_digest(known)), id);
+        self.index.insert(
+            (item, sub, args, crate::defaults::digest(known, defaults)),
+            id,
+        );
         (id, true)
     }
 

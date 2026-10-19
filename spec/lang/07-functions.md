@@ -218,6 +218,7 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
 5. r[fn.default.scope] A default may refer to earlier parameters but not later parameters.
 6. r[fn.default.later-parameter] A default that names a later parameter is an error. Error: `binding-not-yet-visible`.
 7. r[fn.default.final-function] A call may supply such a final function-typed parameter by a [trailing block](#trailing-callback-blocks) or a named argument, and omit the defaulted parameters before it.
+8. r[fn.default.observable-effects] The observable effects of a default must occur on every call that omits its argument, even when its result is constant.
 
 ```text
 fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:

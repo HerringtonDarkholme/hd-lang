@@ -7,6 +7,7 @@
 //! emission never selects again. Reads TIR and interfaces only, never
 //! syntax. Bodies of every package (std included) are collected alike.
 
+pub mod defaults;
 pub mod erased;
 pub mod layout;
 pub mod plan;
@@ -339,6 +340,8 @@ pub struct Collected {
     /// The compiler-supplied methods' bodies (`ProgramEnv::supplied_body`)
     /// the program reaches, by `(trait method, self type)`.
     pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
+    /// Bodies whose constant defaults were folded before collection.
+    pub instance_bodies: HashMap<InstId, Arc<Body>>,
     /// The witnesses of generic methods called through trait values
     /// (`crates/hd_mono/DESIGN.md` §13.5.1), which link writes.
     pub witnesses: Witnesses,
@@ -1077,8 +1080,21 @@ impl Cx<'_> {
         known: &[(u32, Hash128)],
         parent: InstId,
     ) -> StageResult<Hash128> {
+        self.push_specialized(item, sub, args, raw, known, &[], parent)
+    }
+
+    fn push_specialized(
+        &mut self,
+        item: DefId,
+        sub: Sub,
+        args: TyList,
+        raw: TyList,
+        known: &[(u32, Hash128)],
+        defaults: &[(u32, defaults::Value)],
+        parent: InstId,
+    ) -> StageResult<Hash128> {
         let table = &self.out.table;
-        if let Some(id) = table.get_known(item, sub, args, known) {
+        if let Some(id) = table.get_with_defaults(item, sub, args, known, defaults) {
             let key = table.key[id.idx()];
             // Re-entering an ancestor instance with a differently shaped
             // request passes ever larger concrete types through
@@ -1102,12 +1118,12 @@ impl Cx<'_> {
         // An instance an earlier session module holds is that module's,
         // callees included: it is an extern, never pushed or scanned.
         let mut computed = None;
-        let digest = layout::known_digest(known);
+        let digest = defaults::digest(known, defaults);
         if let Some(session) = self.session {
             if let Some(&key) = self.externs.get(&(item, sub, args, digest)) {
                 return Ok(key);
             }
-            let key = layout::known_key(self.key(item, sub, args), known);
+            let key = defaults::key(self.key(item, sub, args), known, defaults);
             if (session.known)(key) {
                 self.externs.insert((item, sub, args, digest), key);
                 self.out.externs.insert(key);
@@ -1133,15 +1149,76 @@ impl Cx<'_> {
         }
         let key = match computed {
             Some(key) => key,
-            None => layout::known_key(self.key(item, sub, args), known),
+            None => defaults::key(self.key(item, sub, args), known, defaults),
         };
         let depth = u8::try_from(depth).expect("within MAX_DEPTH");
         let (id, _) = self
             .out
             .table
-            .push(item, sub, args, known, depth, parent, key);
+            .push_with_defaults(item, sub, args, known, defaults, depth, parent, key);
         self.work.push(id);
         Ok(key)
+    }
+
+    /// A direct call that omits a pure constant default can use a body whose
+    /// constant decisions were folded before either collection or emission.
+    fn default_target(
+        &mut self,
+        body: &Body,
+        at: usize,
+        def: DefId,
+        targs: TyList,
+        parent: InstId,
+    ) -> StageResult<Option<CallTarget>> {
+        if self.env.intrinsic(def).is_some() {
+            return Ok(None);
+        }
+        let Some(callee) = self.env.body(def) else {
+            return Ok(None);
+        };
+        let operands = body.record(body.data[at][1]);
+        let values: Vec<_> = operands[..operands.len().saturating_sub(3)]
+            .iter()
+            .enumerate()
+            .filter_map(|(p, &word)| {
+                let i = hd_tir::ir::Ref(word).as_inst()?.0 as usize;
+                if body.tags.get(i) != Some(&Tag::DefaultCall) {
+                    return None;
+                }
+                let default = *body.record(body.data[i][0]).first()?;
+                let value = defaults::constant(self.env.body(DefId::from_raw(default))?)?;
+                Some((u32::try_from(p).expect("params"), value))
+            })
+            .collect();
+        if values.is_empty() {
+            return Ok(None);
+        }
+        let Some(transformed) = defaults::specialize(callee, &values) else {
+            return Ok(None);
+        };
+        let own_from = self.env.parent(def).map_or(0, |p| p.1);
+        let args = self.classify(def, self.pool.list_items(targs), own_from)?;
+        let inst = rowless(self.pool, self.env, def, args);
+        let raw = rowless(self.pool, self.env, def, targs);
+        let key = self.push_specialized(def, Sub::Body(0), inst, raw, &[], &values, parent)?;
+        if let Some(id) = self
+            .out
+            .table
+            .get_with_defaults(def, Sub::Body(0), inst, &[], &values)
+        {
+            self.out
+                .instance_bodies
+                .entry(id)
+                .or_insert_with(|| Arc::new(transformed));
+        }
+        let ret = self.env.ret(def).unwrap_or(Ty::VOID);
+        Ok(Some(CallTarget {
+            key,
+            item: def,
+            args,
+            ret: subst(self.pool, self.env, def, args, ret),
+            kind: TargetKind::Instance,
+        }))
     }
 
     /// The nesting depth of `t`: 1 for a type with no type parts, else one
@@ -2181,7 +2258,12 @@ impl Cx<'_> {
             .list_items(args)
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
-        let Some(body) = supplied.as_ref().map(|s| &*s.1).or(env.body(item)) else {
+        let instance_body = self.out.instance_bodies.get(&id).cloned();
+        let Some(body) = instance_body
+            .as_deref()
+            .or_else(|| supplied.as_ref().map(|s| &*s.1))
+            .or(env.body(item))
+        else {
             return err("an instance whose item has no TIR");
         };
         let mut calls = HashMap::default();
@@ -2231,7 +2313,9 @@ impl Cx<'_> {
         }
         let hidden = hidden_insts(body, sub);
         // A thunk emits one instruction and takes no plan.
-        let plan = if only.is_none() {
+        let plan = if instance_body.is_some() {
+            self.planner.plan(item, body, env)
+        } else if only.is_none() {
             self.plan(item, supplied.as_ref().map(|s| s.0), body)
         } else {
             None
@@ -2281,6 +2365,11 @@ impl Cx<'_> {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             let targs = pool.list(&targs);
+                            if let Some(target) = self.default_target(body, i, def, targs, id)? {
+                                self.hash_target(&target, &mut reps);
+                                calls.insert(ix, Target::Call(target));
+                                continue;
+                            }
                             let sources = plan.as_ref().and_then(|p| p.spec_args_at(ix));
                             let copy = match (sources, &subs) {
                                 (Some(sources), Some(subs)) => {
@@ -2448,8 +2537,30 @@ impl Cx<'_> {
                         }
                         _ => Vec::new(),
                     };
-                    let key =
-                        self.push_known(item, Sub::Body(sub_k), targs, targs, &carried, id)?;
+                    let defaults = self.out.table.defaults[id.idx()].clone();
+                    let key = self.push_specialized(
+                        item,
+                        Sub::Body(sub_k),
+                        targs,
+                        targs,
+                        &carried,
+                        &defaults,
+                        id,
+                    )?;
+                    if let Some(body) = &instance_body
+                        && let Some(child) = self.out.table.get_with_defaults(
+                            item,
+                            Sub::Body(sub_k),
+                            targs,
+                            &carried,
+                            &defaults,
+                        )
+                    {
+                        self.out
+                            .instance_bodies
+                            .entry(child)
+                            .or_insert_with(|| body.clone());
+                    }
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the

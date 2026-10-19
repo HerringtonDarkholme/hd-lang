@@ -7521,7 +7521,13 @@ impl Run<'_> {
         let held = self.scenario_hold(p);
         for id in &order {
             let item = collected.table.item[id.idx()];
-            let tir = self.body_of(p, item).map_or(Hash128(0), |b| b.1);
+            let tir = self
+                .body_of(p, item)
+                .map_or(Hash128(0), |(original, hash)| {
+                    collected.instance_bodies.get(id).map_or(*hash, |body| {
+                        hd_mono::defaults::body_key(original, body, *hash)
+                    })
+                });
             // Emitted code embeds the layouts of the types it touches, and
             // instance keys name types by path only. Collection hashes the
             // `layout_hash` of every type an instance lays out into its
@@ -8175,7 +8181,14 @@ impl Run<'_> {
         let r = match sub {
             hd_mono::Sub::Body(k) => {
                 let body = self.body_of(p, item).map(|b| &b.0);
-                match c.collected.supplied_body(&self.pool, item, args).or(body) {
+                match c
+                    .collected
+                    .instance_bodies
+                    .get(&id)
+                    .map(AsRef::as_ref)
+                    .or_else(|| c.collected.supplied_body(&self.pool, item, args))
+                    .or(body)
+                {
                     Some(body) => hd_wasm::emit(
                         &self.pool,
                         env,
