@@ -654,7 +654,7 @@ fn foreign_postfix_bang_names_hd_spelling() {
     foreign_syntax(
         "fn g():\n    f()!\n",
         "syntax-error",
-        "a bang call puts '!' before the arguments: write 'f!()'",
+        "a bang call puts '!' before the arguments: write 'f!(...)'",
         "!",
     );
 }
@@ -664,7 +664,7 @@ fn foreign_cast_names_conversion_call() {
     foreign_syntax(
         "(1: i64)\n",
         "trailing-block-position",
-        "casts are calls: write 'i64(1)' to convert 1 to i64",
+        "casts are calls: write 'i64(1)'",
         ":",
     );
 }
@@ -677,4 +677,40 @@ fn foreign_context_operation_points_to_its_name() {
         "unknown provider-context operation '$.nosuch'; expected 'use', 'context', 'with', or 'Context'",
         "nosuch",
     );
+}
+
+#[test]
+fn foreign_cast_uses_written_operand_and_type() {
+    foreign_syntax(
+        "(x: f64)\n",
+        "trailing-block-position",
+        "casts are calls: write 'f64(x)'",
+        ":",
+    );
+    foreign_syntax(
+        "(x + 1: f64)\n",
+        "trailing-block-position",
+        "casts are calls: write 'Type(value)'",
+        ":",
+    );
+}
+
+#[test]
+fn foreign_postfix_bang_uses_written_callee() {
+    for (source, message) in [
+        (
+            "load(key)!\n",
+            "a bang call puts '!' before the arguments: write 'load!(...)'",
+        ),
+        (
+            "files.load(key)!\n",
+            "a bang call puts '!' before the arguments: write 'files.load!(...)'",
+        ),
+        (
+            "load::[i32](key)!\n",
+            "a bang call puts '!' before the arguments: write 'load!::[i32](...)'",
+        ),
+    ] {
+        foreign_syntax(source, "syntax-error", message, "!");
+    }
 }

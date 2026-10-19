@@ -736,6 +736,11 @@ impl Parser<'_> {
     }
 
     fn postfix(&mut self) -> Done {
+        let first = self.pos();
+        let start = self.toks.start.get(first).copied().unwrap_or(0) as usize;
+        let mut callee_end = start;
+        let mut callee_bang = start;
+        let mut type_arguments_start = start;
         let mut lhs = self.primary();
         while let Some(kind) = self.current() {
             let same_line = !self.nth_line_first(0);
@@ -774,6 +779,12 @@ impl Parser<'_> {
                     }
                 }
                 TokenKind::LParen if same_line => {
+                    callee_end = self.toks.start[self.pos()] as usize;
+                    callee_bang = if lhs.kind() == SyntaxKind::TypeArgsExpr {
+                        type_arguments_start
+                    } else {
+                        callee_end
+                    };
                     let marker = self.precede(lhs);
                     self.arguments();
                     lhs = self.complete(marker, SyntaxKind::CallExpr);
@@ -809,10 +820,12 @@ impl Parser<'_> {
                 TokenKind::Bang
                     if same_line && self.nth_glued(0) && lhs.kind() == SyntaxKind::CallExpr =>
                 {
-                    self.error(
-                        Code::SyntaxError,
-                        "a bang call puts '!' before the arguments: write 'f!()'",
+                    let prefix = self.src[start..callee_bang].trim_end();
+                    let suffix = self.src[callee_bang..callee_end].trim_end();
+                    let message = format!(
+                        "a bang call puts '!' before the arguments: write '{prefix}!{suffix}(...)'"
                     );
+                    self.error(Code::SyntaxError, &message);
                     break;
                 }
                 TokenKind::ColonColon if same_line => {
@@ -832,8 +845,10 @@ impl Parser<'_> {
                         );
                     }
                     let marker = self.precede(lhs);
+                    let qualifier_start = self.toks.start[self.pos()] as usize;
                     self.bump();
                     if self.at(TokenKind::LBracket) {
+                        type_arguments_start = qualifier_start;
                         self.function_type_arguments();
                         lhs = self.complete(marker, SyntaxKind::TypeArgsExpr);
                     } else {
@@ -1128,10 +1143,8 @@ impl Parser<'_> {
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
                     if self.at(TokenKind::Colon) && count == 1 && !comma {
-                        self.error(
-                            Code::TrailingBlockPosition,
-                            "casts are calls: write 'i64(1)' to convert 1 to i64",
-                        );
+                        let message = self.cast_message(before);
+                        self.error(Code::TrailingBlockPosition, &message);
                     }
                     self.list_error(')');
                     self.skip_to_list_end(TokenKind::RParen);
@@ -1160,6 +1173,44 @@ impl Parser<'_> {
             SyntaxKind::TupleExpr
         };
         self.complete(marker, kind)
+    }
+
+    /// Suggest the written conversion for one short operand token. A
+    /// larger expression uses a schematic spelling to keep the hint short.
+    fn cast_message(&mut self, operand: usize) -> String {
+        let fallback = "casts are calls: write 'Type(value)'";
+        let colon = self.pos();
+        if colon != operand + 1 {
+            return fallback.into();
+        }
+        let value = &self.src[self.toks.start[operand] as usize..self.toks.end[operand] as usize];
+        if value.len() > 32 || value.contains(['\n', '\r']) {
+            return fallback.into();
+        }
+        let mut depth = 0_usize;
+        for end in colon + 1..self.toks.len() {
+            let kind = self.toks.kind[end];
+            if depth == 0 && kind == TokenKind::RParen {
+                let ty =
+                    self.src[self.toks.end[colon] as usize..self.toks.start[end] as usize].trim();
+                return if ty.is_empty() || ty.contains(['\n', '\r']) {
+                    fallback.into()
+                } else {
+                    format!("casts are calls: write '{ty}({value})'")
+                };
+            }
+            if kind.opens() {
+                depth += 1;
+            } else if kind.closes() {
+                let Some(outer) = depth.checked_sub(1) else {
+                    break;
+                };
+                depth = outer;
+            } else if depth == 0 && kind == TokenKind::Comma {
+                break;
+            }
+        }
+        fallback.into()
     }
 
     fn list(&mut self) -> Done {
