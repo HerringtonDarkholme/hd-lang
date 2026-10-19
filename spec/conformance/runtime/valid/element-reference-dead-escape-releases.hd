@@ -1,0 +1,32 @@
+# test: a list can grow after the last use of every escaped copy of an element reference
+# Spec 13 Element References: ref.elem.release.copies.
+data Holder:
+    slot: &mut i32
+
+fn first(xs: mut List[i32]) -> &mut i32: &mut xs[0]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a dead field copy no longer pins the list"):
+        let mut xs = [+1, 2]
+        r := &mut xs[0]
+        saved := Holder { slot: r }
+        *saved.slot = 10
+        xs.push(3)
+        assert_equal(xs, [+10, 2, 3], reason="the field copy's last use is before the push")
+
+    it("a dead returned reference no longer pins the list"):
+        let mut xs = [+1, 2]
+        saved := first(xs)
+        *saved = 10
+        xs.push(3)
+        assert_equal(xs, [+10, 2, 3], reason="the returned reference's last use is before the push")
+
+    it("a dead closure copy no longer pins the list"):
+        let mut xs = [+1, 2]
+        r := &mut xs[0]
+        later := fn() -> void: *r = 10
+        later()
+        xs.push(3)
+        assert_equal(xs, [+10, 2, 3], reason="the closure's last call is before the push")

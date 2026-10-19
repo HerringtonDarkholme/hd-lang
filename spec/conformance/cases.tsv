@@ -3641,3 +3641,7 @@ runtime/valid/value-argument-closure-change.hd	runtime	accept	lang/04-type-syste
 runtime/valid/value-argument-reference-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/value-argument-legacy-alias.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/capture-loop-binding-element.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/panic/element-reference-field-escape-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.release.copies
+runtime/panic/element-reference-return-escape-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.release.copies
+runtime/panic/element-reference-capture-escape-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.release.copies
+runtime/valid/element-reference-dead-escape-releases.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.release.copies

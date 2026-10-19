@@ -12,3 +12,6 @@ cli/repl-quit	#518	node	the REPL runs on wasmtime only; the Node engine has no s
 cli/repl-value	#518	node	the REPL runs on wasmtime only; the Node engine has no session
 cli/repl-value-stream	#518	node	the REPL runs on wasmtime only; the Node engine has no session
 cli/repl-workspace	#518	node	the REPL runs on wasmtime only; the Node engine has no session
+runtime/panic/element-reference-capture-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend; awaits RC job 12
+runtime/panic/element-reference-field-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend; awaits RC job 12
+runtime/panic/element-reference-return-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend; awaits RC job 12
