@@ -32,7 +32,7 @@ fn with_session_input(
     body: impl FnOnce(&mut WasmtimeSession, &Streams) + Send,
 ) {
     let config = EngineConfig::default();
-    std::thread::scope(|scope| {
+    let result = std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(thread_stack(&config))
             .spawn_scoped(scope, move || {
@@ -54,12 +54,20 @@ fn with_session_input(
                     program: String::new(),
                 };
                 let mut session = engine.session(&setup, io).expect("session");
-                body(&mut session, &streams);
+                // Tear down the session normally before resuming a failed
+                // assertion on the test thread, rather than unwinding through
+                // the engine and its host runtime.
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    body(&mut session, &streams);
+                }))
             })
             .expect("spawn")
             .join()
-            .expect("the session thread");
+            .expect("the session thread")
     });
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
+    }
 }
 
 /// The inputs that ran without a panic, as the driver's session and as
@@ -901,8 +909,8 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
 
 /// A clock reading costs one `Call` row: kind, index, length, method,
 /// request length, reply tag, the value, and the checksum. `now` is
-/// milliseconds since 1970, six bytes of LEB128; `monotonic` milliseconds
-/// since the host started, one to three.
+/// milliseconds since 1970; `monotonic` is milliseconds since the host
+/// started. Either reading fits in one to ten bytes of unsigned LEB128.
 #[test]
 fn a_clock_reading_costs_one_small_row() {
     with_session(|session, io| {
@@ -930,11 +938,10 @@ fn a_clock_reading_costs_one_small_row() {
         println!("clock rows, the first naming its method: {calls:?}");
         // The second of each pair names no method.
         assert_eq!(calls.len(), 4, "{calls:?}");
-        assert_eq!(calls[1], 1 + 1 + 1 + (1 + 1 + 1 + 6) + 4);
-        assert!(
-            (1 + 1 + 1 + (1 + 1 + 1 + 1) + 4..=12).contains(&calls[3]),
-            "{calls:?}"
-        );
+        let overhead = 1 + 1 + 1 + (1 + 1 + 1) + 4;
+        for call in [calls[1], calls[3]] {
+            assert!((overhead + 1..=overhead + 10).contains(&call), "{calls:?}");
+        }
     });
 }
 
