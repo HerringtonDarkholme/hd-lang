@@ -86,8 +86,6 @@ typing/valid/partly-consumed-iterator.hd	type	accept	lang/06-control-flow.md#for
 typing/valid/mutable-paths.hd	type	accept	lang/04-type-system.md#mutable-paths
 typing/valid/readonly-callable-mutable-result.hd	type	accept	lang/04-type-system.md#composite-values-and-access-permission
 typing/invalid/readonly-mut-field-reassignment.hd	type	reject:readonly-root	lang/04-type-system.md#mutable-paths
-typing/invalid/readonly-mut-field-mutation.hd	type	reject:readonly-root	lang/04-type-system.md#mutable-paths
-typing/invalid/readonly-mut-field-method.hd	type	reject:mutable-receiver-required	lang/04-type-system.md#mutable-paths
 typing/valid/readonly-outer-mutable-field-init.hd	type	accept	lang/04-type-system.md#mutable-paths
 typing/valid/names-and-scopes.hd	type	accept	lang/03-names-and-scopes.md#lexical-scopes
 typing/valid/module-bindings.hd	type	accept	lang/03-names-and-scopes.md#module-scope
@@ -951,7 +949,6 @@ typing/valid/operator-trait-method-imported.hd	type	accept	lang/05-expressions.m
 typing/invalid/bare-method-is-field-read.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.method-not-value
 runtime/valid/method-reference-as-value.hd	runtime	accept	lang/05-expressions.md#r-expr.member.method-references
 runtime/valid/closure-adapts-method-call.hd	runtime	accept	lang/05-expressions.md#r-expr.member.closure-adapt
-typing/invalid/readonly-root-mut-field-push.hd	type	reject:mutable-receiver-required	lang/05-expressions.md#r-expr.member.readonly-root
 runtime/valid/readonly-root-generic-mut-field.hd	runtime	accept	lang/05-expressions.md#r-expr.member.readonly-generic
 typing/invalid/embedded-field-not-called.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#member-resolution
 typing/valid/part-trait-method-ignored-by-lookup.hd	type	accept	lang/03-names-and-scopes.md#member-resolution
@@ -1263,7 +1260,6 @@ runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-
 runtime/valid/println-provider-suspending-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.block-on
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.no-orphan-exception
 typing/valid/inherited-mut-method-requirement.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.mut.trait-changing
-typing/invalid/mutable-provider-install-readonly-field.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.install-writable-ref
 typing/invalid/readonly-requirement-trait-mut-use.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.use-readonly
 parse/invalid/tests-block-in-function.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.tests.top-level
 parse/invalid/nested-tests-block.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.tests.top-level

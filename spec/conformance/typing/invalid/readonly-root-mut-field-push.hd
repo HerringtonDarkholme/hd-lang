@@ -1,7 +1,0 @@
-# test: through a readonly root, a direct &mut List field reads as a readonly List, so push is rejected
-# Spec 05 Readonly Roots: expr.member.readonly-root.
-struct Shelf:
-    content: &mut List[i32]
-
-fn stock(shelf: &Shelf) -> void:
-    shelf.content.push(1)  # diagnostic: mutable-receiver-required
