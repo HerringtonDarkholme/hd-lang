@@ -40,12 +40,17 @@ impl Em<'_, '_, '_> {
         };
         let vs = self.vals(from)?;
         let direct = vs == [Val::I32] && walk(self.pool(), self.env(), from) == Some(Walk::Ref(0));
-        let src = self.slot_src(a, from, false)?;
         if direct || vs.is_empty() {
             // A value of no Wasm values needs no box: its slots load
-            // nothing.
+            // nothing. A value that is one counted address is the data
+            // itself, never a copy, as the Wasm GC backend erases it, so
+            // an element reference's identity base is its list's header.
             let leaves: Option<&[Leaf]> = if direct {
-                self.src(&src, 0)?;
+                if self.is_pin(a) {
+                    self.list_addr(a)?;
+                } else {
+                    self.comp(a, 0)?;
+                }
                 None
             } else {
                 self.f.i32(0);
@@ -55,6 +60,7 @@ impl Em<'_, '_, '_> {
             self.f.body.push(Ins::VTable(vt));
             return self.store(i);
         }
+        let src = self.slot_src(a, from, false)?;
         let m = mem_of(self.pool(), self.env(), from)?;
         let w = self.counted(from);
         let at = self.object(&m, w.as_ref());

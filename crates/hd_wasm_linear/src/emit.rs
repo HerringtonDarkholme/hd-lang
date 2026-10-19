@@ -26,7 +26,9 @@ mod count;
 mod dyn_value;
 mod iter;
 mod list;
+mod live;
 mod map;
+mod scope;
 mod text;
 mod value;
 
@@ -66,6 +68,12 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         loops: 0,
         counting: false,
         ret: Vec::new(),
+        results: Vec::new(),
+        scopes: HashMap::default(),
+        defer_flags: HashMap::default(),
+        drops: live::Drops::default(),
+        pin_locals: live::pin_locals(b),
+        blocks: Vec::new(),
         temps: Vec::new(),
         cells: closure::cell_locals(b),
     };
@@ -99,6 +107,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             Some(ci),
         )
     };
+    let mut entry = plocals.clone();
+    if let Some(ci) = closure {
+        entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
+    }
+    em.drops = live::plan(b, u32::from(sub), &entry);
     for &l in &plocals {
         let vs = em.vals(em.sub(b.local_ty[l]))?;
         let at = u32::try_from(params.len()).expect("params");
@@ -114,6 +127,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         params.extend([Val::I32, Val::I32]);
     }
     let results = em.vals(ret)?;
+    em.results.clone_from(&results);
     em.f = Func::new(
         format!("{}#{}", (input.path)(item), t.sub[id.idx()]),
         params,
@@ -245,6 +259,9 @@ enum Ctl {
     Arm(u32, u32),
     /// The body of a function that counts: its end is the one exit.
     Exit,
+    /// The body of cleanup `Scope` `i`: its end runs the scope's suites
+    /// (`scope.rs`).
+    Scope(u32),
 }
 
 struct Em<'i, 'a, 'm> {
@@ -271,6 +288,19 @@ struct Em<'i, 'a, 'm> {
     counting: bool,
     /// The locals of the function's results, at its exit.
     ret: Vec<u32>,
+    /// The function's results.
+    results: Vec<Val>,
+    /// Each open cleanup scope's exit ladder (`scope.rs`).
+    scopes: HashMap<u32, scope::ScopeInfo>,
+    /// Each `defer` suite's "registered" flag local.
+    defer_flags: HashMap<u32, u32>,
+    /// The values and locals to release after each statement (`live.rs`).
+    drops: live::Drops,
+    /// The blocks being emitted, outermost first, each with the length of
+    /// `ctl` when it was entered (`live.rs`, [`Em::drop_exited`]).
+    blocks: Vec<(u32, usize)>,
+    /// The locals that hold an element reference's pin (`list.rs`).
+    pin_locals: hd_base::HashSet<usize>,
     /// The locals of the collection copies that operands were stored as
     /// (`list.rs`, `copy_src`), each owning one count until the exit.
     temps: Vec<u32>,
@@ -475,11 +505,14 @@ impl Em<'_, '_, '_> {
         if labelled {
             self.open(Ctl::Brk(blk));
         }
-        for i in self.rec(list) {
+        self.blocks.push((blk, self.ctl.len()));
+        for (p, i) in self.rec(list).into_iter().enumerate() {
             if self.b.tags[i as usize] != Tag::Block {
                 self.inst(i)?;
+                self.drop_dead(blk, p)?;
             }
         }
+        self.blocks.pop();
         if tail != NONE
             && let Some(d) = dest
         {
@@ -696,11 +729,9 @@ impl Em<'_, '_, '_> {
                     if bw != NONE {
                         self.tail_into(bw, target)?;
                     }
-                    let d = self.depth(Ctl::Brk(target))?;
-                    self.f.op(Instruction::Br(d));
+                    self.exit(scope::Exit::Brk(target))?;
                 } else {
-                    let d = self.depth(Ctl::Cont(target))?;
-                    self.f.op(Instruction::Br(d));
+                    self.exit(scope::Exit::Cont(target))?;
                 }
             }
             Tag::Return => {
@@ -708,29 +739,12 @@ impl Em<'_, '_, '_> {
                     self.f.op(Instruction::Unreachable);
                     return Ok(());
                 }
-                if self.counting {
-                    // The caller's count of the result, then the exit.
-                    if a != NONE {
-                        self.retain_ref(a)?;
-                        self.push(a)?;
-                        for l in self.ret.clone().iter().rev() {
-                            self.f.set(*l);
-                        }
-                    }
-                    let d = self.depth(Ctl::Exit)?;
-                    self.f.op(Instruction::Br(d));
-                } else {
-                    if a != NONE {
-                        self.push(a)?;
-                    }
-                    self.f.op(Instruction::Return);
-                }
+                self.ret_value(a)?;
             }
             Tag::Unreachable => self.f.op(Instruction::Unreachable),
+            Tag::Scope if !self.rec(bw).is_empty() => self.scope(i, a, bw)?,
+            Tag::Defer => self.defer(a)?,
             Tag::Scope => {
-                if !self.rec(bw).is_empty() {
-                    return unsupported("`defer` suites (job 13)");
-                }
                 self.slot(i)?;
                 self.open(Ctl::Plain);
                 self.block_into(a, Some(i))?;
@@ -819,7 +833,10 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
                     Some(IntrinsicOp::ListPin) => self.list_pin(i, &args)?,
-                    Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
+                    // Nothing: the checker ends a binding's pin after its
+                    // last statement, but here the pin is the reference's
+                    // own and ends with its last copy (`list.rs`, §23.20).
+                    Some(IntrinsicOp::ListUnpin) => {}
                     Some(IntrinsicOp::ListIter) => self.list_iter(i, args[0])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
@@ -893,7 +910,7 @@ impl Em<'_, '_, '_> {
                 self.call_value(i, a, &args)?;
             }
             Tag::CallDyn => return unsupported("a `CallDyn` instruction"),
-            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Defer => {
+            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
                 return unsupported("suspension and `defer` (job 13)");
             }
             Tag::With => self.with(i, a, bw)?,

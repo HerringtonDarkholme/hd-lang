@@ -1,0 +1,61 @@
+# The hd tests of references on the linear backend (crates/hd_wasm/DESIGN.md
+# §23.20): a reference to a local shares the local's cell, an element
+# reference owns its list's pin until its last copy dies, and each is
+# released after its last use, so taking references in a loop runs in
+# bounded memory. Only std may read the heap's size, so the conformance
+# runner adds this file to std as `std.rt.ref_tests`.
+use std.rt.memory.pages
+
+struct Holder:
+    slot: &mut i32
+
+fn label(n: i32) -> string:
+    "r$n"
+
+fn bump(x: &mut i32) -> void:
+    *x = *x + 1
+
+fn grow(xs: &mut List[string], n: i32) -> void:
+    xs.push(label(n))
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a reference to a local writes the local"):
+        let mut n = +1
+        bump(&mut n)
+        r := &mut n
+        *r = *r + 10
+        assert(n == 12, "the writes reached the local")
+
+    it("an element reference pins its list until its last use"):
+        let mut xs = [+1, 2, 3]
+        r := &mut xs[1]
+        *r = 20
+        xs.push(4)
+        assert(xs.len() == 4 && xs[1] == 20, "the push ran after the reference's last use")
+        saved := Holder { slot: &mut xs[0] }
+        *saved.slot = 10
+        xs.push(5)
+        assert(xs[0] == 10 && xs.len() == 5, "the field copy died before the push")
+
+    it("references taken in a loop run in bounded memory"):
+        let round = +0
+        let start: usize = 0
+        let right = +0
+        while round < 2030:
+            if round == 30:
+                start = pages()
+            let mut n = round
+            bump(&mut n)
+            let mut xs = [label(round), label(n)]
+            for s in &mut xs:
+                *s = *s + "!"
+            r := &mut xs[0]
+            if *r == label(round) + "!" && xs[1] == label(round + 1) + "!":
+                right = right + 1
+            grow(&mut xs, round)
+            xs.push(label(round))
+            round = round + 1
+        assert(right == 2030, "every round wrote through its references")
+        assert(pages() == start, "each cell, pin and list is freed")

@@ -97,6 +97,13 @@ pub enum Helper {
     /// `(payload)`: one more count on each counted reference in a new
     /// object's payload, which its construction copied in.
     RetainFields { leaves: Vec<Leaf>, walk: Walk },
+    /// `(list) -> pin`: an element reference's pin (§23.20): a counted
+    /// object holding the list's header, whose count it takes, and one
+    /// more pin on the header, which its release takes off.
+    Pin,
+    /// `(payload)`: a pin's release glue: one pin less on its header, and
+    /// one count less.
+    DropPin,
     /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
     /// count it takes over, with no pins.
     ListHeader,
@@ -697,6 +704,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
         Helper::ListHeader => list_header(),
+        Helper::Pin => pin(),
+        Helper::DropPin => drop_pin(),
         Helper::ListBuf { elem } => list_buf(elem),
         Helper::DropElems { elem } => drop_elems(elem),
         Helper::ListCopy => {
@@ -1364,6 +1373,47 @@ const LIST_BUF_LEAF: Leaf = Leaf {
 };
 
 /// [`Helper::ListHeader`].
+/// [`Helper::Pin`].
+fn pin() -> Func {
+    let mut f = Func::new("rt:pin", vec![Val::I32], vec![Val::I32]);
+    let p = f.local(Val::I32);
+    f.i32(4);
+    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropPin)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::New);
+    f.set(p);
+    f.get(p);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    pins_by(&mut f, 0, Instruction::I32Add);
+    f.get(p);
+    f
+}
+
+/// [`Helper::DropPin`].
+fn drop_pin() -> Func {
+    let mut f = Func::new("rt:drop_pin", vec![Val::I32], vec![]);
+    let h = f.local(Val::I32);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(h);
+    pins_by(&mut f, h, Instruction::I32Sub);
+    f.get(h);
+    f.helper(Helper::ReleaseRef);
+    f
+}
+
+/// One pin more or less on the list header in local `h`.
+fn pins_by(f: &mut Func, h: u32, op: Instruction<'static>) {
+    f.get(h);
+    f.get(h);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_PINS, 2)));
+    f.i32(1);
+    f.op(op);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_PINS, 2)));
+}
+
 fn list_header() -> Func {
     let mut f = Func::new("rt:list_header", vec![Val::I32], vec![Val::I32]);
     let h = f.local(Val::I32);

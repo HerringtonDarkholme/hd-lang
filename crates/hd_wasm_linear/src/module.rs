@@ -158,6 +158,22 @@ impl Func {
         }
     }
 
+    /// Sets local `l`, a parameter or a local, to its type's zero.
+    pub fn zero(&mut self, l: u32) {
+        let at = l as usize;
+        let v = match self.params.get(at) {
+            Some(v) => *v,
+            None => self.locals[at - self.params.len()],
+        };
+        self.op(match v {
+            Val::I32 => Instruction::I32Const(0),
+            Val::I64 => Instruction::I64Const(0),
+            Val::F32 => Instruction::F32Const(0.0.into()),
+            Val::F64 => Instruction::F64Const(0.0.into()),
+        });
+        self.set(l);
+    }
+
     /// A fresh local of type `v`: its index.
     pub fn local(&mut self, v: Val) -> u32 {
         self.locals.push(v);

@@ -127,6 +127,90 @@ impl Em<'_, '_, '_> {
         self.store_as(i, true)
     }
 
+    /// Releases what dies after statement `p` of block `blk`
+    /// ([`super::live::plan`]), and zeroes its places, which the exit
+    /// then releases as nothing.
+    pub(super) fn drop_dead(&mut self, blk: u32, p: usize) -> StageResult<()> {
+        if !self.counting {
+            return Ok(());
+        }
+        let Some(ds) = self.drops.get(&(blk, p)).cloned() else {
+            return Ok(());
+        };
+        self.release_drops(&ds)
+    }
+
+    /// Releases and zeroes each of `ds`' places that holds a counted value.
+    fn release_drops(&mut self, ds: &[super::live::Drop]) -> StageResult<()> {
+        for &d in ds {
+            let ls = match d {
+                super::live::Drop::Val(x) => {
+                    let Some(ls) = self.vals.get(&x).cloned() else {
+                        continue;
+                    };
+                    let t = self.ty(x);
+                    if self.counted(t).is_none() {
+                        continue;
+                    }
+                    self.release_locals(&ls, t)?;
+                    ls
+                }
+                super::live::Drop::Local(l) => {
+                    let Some(ls) = self.locals.get(&l).cloned() else {
+                        continue;
+                    };
+                    if !self.is_cell(l) && self.counted(self.sub(self.b.local_ty[l])).is_none() {
+                        continue;
+                    }
+                    self.count_local(l, &ls, false)?;
+                    ls
+                }
+            };
+            for l in ls {
+                self.f.zero(l);
+            }
+        }
+        Ok(())
+    }
+
+    /// Releases, and zeroes, what the blocks entered after `ctl` reached
+    /// length `floor` hold: a jump to `floor`'s block leaves them, so their
+    /// values and the locals that live in them are dead. A place already
+    /// released holds zeros, which release as nothing.
+    pub(super) fn drop_exited(&mut self, floor: usize) -> StageResult<()> {
+        if !self.counting {
+            return Ok(());
+        }
+        let exited: Vec<u32> = self
+            .blocks
+            .iter()
+            .filter(|(_, at)| *at > floor)
+            .map(|(blk, _)| *blk)
+            .collect();
+        for blk in exited {
+            let mut ds: Vec<super::live::Drop> = self
+                .rec(self.b.data[blk as usize][0])
+                .into_iter()
+                .filter(|&x| self.b.tags[x as usize] != hd_tir::ir::Tag::Block)
+                .map(super::live::Drop::Val)
+                .collect();
+            let mut ls: Vec<usize> = self
+                .drops
+                .iter()
+                .filter(|(k, _)| k.0 == blk)
+                .flat_map(|(_, v)| v.iter())
+                .filter_map(|d| match d {
+                    super::live::Drop::Local(l) => Some(*l),
+                    super::live::Drop::Val(_) => None,
+                })
+                .collect();
+            ls.sort_unstable();
+            ds.extend(ls.into_iter().map(super::live::Drop::Local));
+            self.release_drops(&ds)?;
+        }
+        Ok(())
+    }
+
     /// Whether the function holds a counted reference anywhere: a
     /// parameter, a local or an instruction's value. Only then does it
     /// count, and its returns go through its exit.

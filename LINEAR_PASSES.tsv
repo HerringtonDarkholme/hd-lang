@@ -25,10 +25,21 @@ runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data v
 runtime/panic/duration-sub-underflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-suffix-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/element-receiver-pinned-during-call-panics.hd	#573: closures and trait values
+runtime/panic/element-reference-capture-escape-panics.hd	#574: an escaping element reference owns its pin (#556; a known failure on Wasm GC)
+runtime/panic/element-reference-clear-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-extend-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-field-escape-panics.hd	#574: an escaping element reference owns its pin (#556; a known failure on Wasm GC)
+runtime/panic/element-reference-insert-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-pop-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-push-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-remove-at-panics.hd	#574: references, cleanup scopes and releases at last use
+runtime/panic/element-reference-return-escape-panics.hd	#574: an escaping element reference owns its pin (#556; a known failure on Wasm GC)
 runtime/panic/exhausted-iterator-invalidated-by-growth.hd	#573: closures and trait values
 runtime/panic/exhausted-iterator-invalidated.hd	#573: closures and trait values
 runtime/panic/exhausted-map-iterator-invalidated-by-rebuild.hd	#573: closures and trait values
+runtime/panic/explicit-panic-skips-defer.hd	#574: references, cleanup scopes and releases at last use
 runtime/panic/explicit-panic.hd	#540: an explicit panic
+runtime/panic/for-element-references-push-panics.hd	#574: references, cleanup scopes and releases at last use
 runtime/panic/generic-i32-overflow.hd	#554: lists
 runtime/panic/i32-add-overflow-in-function.hd	#541: test programs, and roots that never suspend
 runtime/panic/i32-min-divided-by-minus-one.hd	#541: test programs, and roots that never suspend
@@ -174,6 +185,7 @@ runtime/valid/capture-closure-copies-share-cells.hd	#573: closures and trait val
 runtime/valid/capture-immutable-copied.hd	#573: closures and trait values
 runtime/valid/capture-loop-binding-element.hd	#573: closures and trait values
 runtime/valid/capture-loop-fresh-binding.hd	#573: closures and trait values
+runtime/valid/capture-reference-write-through.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/capture-value-parameter-collection.hd	#573: closures and trait values
 runtime/valid/capture-variable-cell.hd	#573: closures and trait values
 runtime/valid/char-ascii-classes.hd	#552: strings
@@ -271,6 +283,11 @@ runtime/valid/default-standard-types.hd	#573: closures and trait values
 runtime/valid/default-tuple-rest.hd	#573: closures and trait values
 runtime/valid/default-tuple-thirteen-elements.hd	#573: closures and trait values
 runtime/valid/defaults-reference-earlier-parameters.hd	#573: closures and trait values
+runtime/valid/defer-after-return-value.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/defer-and-discard-statements.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/defer-closure-propagation.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/defer-lifo-and-loop-exits.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/defer-order.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/definite-init-diverging-branch.hd	#573: closures and trait values
 runtime/valid/delegation-associated-function-written.hd	#573: closures and trait values
 runtime/valid/dependency-key-names-one-package.hd	#573: closures and trait values
@@ -329,6 +346,15 @@ runtime/valid/dyn-ref-receiver-forms.hd	#573: closures and trait values
 runtime/valid/dyn-ref-widen.hd	#573: closures and trait values
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	#573: closures and trait values
 runtime/valid/element-receiver-auto-address.hd	#573: closures and trait values
+runtime/valid/element-reference-copy-independent.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-dead-escape-releases.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-element-store-allowed.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-identity.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-release-after-last-use.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-replace-whole-list.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-sort-sees-new-occupant.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-swap-allowed.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/element-reference-write.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/else-if-chain.hd	#573: closures and trait values
 runtime/valid/embedded-construction-copies.hd	#573: closures and trait values
 runtime/valid/embedded-copy-at-field-position.hd	#573: closures and trait values
@@ -393,6 +419,10 @@ runtime/valid/float-eq-bound.hd	#573: closures and trait values
 runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/folder-graph-test-edges.hd	#573: closures and trait values
 runtime/valid/folder-graph-tests-block-edges.hd	#573: closures and trait values
+runtime/valid/for-element-references-exit-releases.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/for-element-references-mut.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/for-element-references-read.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/for-element-references-through-reference.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/for-loop-snapshot-push.hd	#554: lists
 runtime/valid/for-map-snapshot-grow.hd	#573: closures and trait values
 runtime/valid/for-map-snapshot-insert.hd	#573: closures and trait values
@@ -819,6 +849,7 @@ runtime/valid/process-error-display.hd	#573: closures and trait values
 runtime/valid/process-exit-data-eq.hd	#573: closures and trait values
 runtime/valid/process-exited-data.hd	#573: closures and trait values
 runtime/valid/promoted-method-no-override.hd	#573: closures and trait values
+runtime/valid/propagation-before-cleanup.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/propagation-from-two-domains.hd	#573: closures and trait values
 runtime/valid/propagation-in-closure-targets-closure.hd	#573: closures and trait values
 runtime/valid/propagation-into-erased-error.hd	#573: closures and trait values
@@ -879,6 +910,8 @@ runtime/valid/reference-mut-through-callee.hd	#573: closures and trait values
 runtime/valid/reference-optional.hd	#573: closures and trait values
 runtime/valid/reference-permission-list-join.hd	#573: closures and trait values
 runtime/valid/reference-read-through.hd	#573: closures and trait values
+runtime/valid/reference-readonly-container-conversion.hd	#574: references, cleanup scopes and releases at last use
+runtime/valid/reference-to-list-index.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/regex-anchors-groups.hd	#573: closures and trait values
 runtime/valid/regex-captures-linear-time.hd	#573: closures and trait values
 runtime/valid/regex-captures.hd	#573: closures and trait values
@@ -1155,4 +1188,5 @@ runtime/valid/vararg-function-values.hd	#573: closures and trait values
 runtime/valid/variant-constructor-as-function-value.hd	#573: closures and trait values
 runtime/valid/variant-constructor-passed-as-function.hd	#573: closures and trait values
 runtime/valid/while-break-and-continue.hd	#573: closures and trait values
+runtime/valid/while-else-break-value.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/while-else-exhaustion-value.hd	#573: closures and trait values

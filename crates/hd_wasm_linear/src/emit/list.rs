@@ -46,9 +46,35 @@ impl Em<'_, '_, '_> {
     /// A local holding list value `r`'s header.
     pub(super) fn header(&mut self, r: u32) -> StageResult<u32> {
         let h = self.f.local(Val::I32);
-        self.comp(r, 0)?;
+        self.list_addr(r)?;
         self.f.set(h);
         Ok(h)
+    }
+
+    /// Pushes the header address of list value `r`, read from its pin
+    /// when `r` is one (§23.20).
+    pub(super) fn list_addr(&mut self, r: u32) -> StageResult<()> {
+        self.comp(r, 0)?;
+        if self.is_pin(r) {
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        }
+        Ok(())
+    }
+
+    /// Whether list value `r` is an element reference's pin: a `ListPin`,
+    /// or a read of a local that holds one.
+    pub(super) fn is_pin(&self, r: u32) -> bool {
+        let Some(i) = Ref(r).as_inst() else {
+            return false;
+        };
+        let i = i.0 as usize;
+        match self.b.tags.get(i) {
+            Some(Tag::LocalGet) => self.pin_locals.contains(&(self.b.data[i][0] as usize)),
+            Some(Tag::Intrinsic) => {
+                IntrinsicOp::from_u32(self.b.data[i][0]) == Some(IntrinsicOp::ListPin)
+            }
+            _ => false,
+        }
     }
 
     /// A local holding the buffer of the list header in local `h`.
@@ -302,7 +328,7 @@ impl Em<'_, '_, '_> {
     /// `ListLen`.
     pub(super) fn list_len(&mut self, i: u32, list: u32) -> StageResult<()> {
         self.elem(self.ty_of(list))?;
-        self.comp(list, 0)?;
+        self.list_addr(list)?;
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
         self.store(i)
@@ -445,9 +471,14 @@ impl Em<'_, '_, '_> {
     }
 
     /// `ListPin`: the list an element reference points into, its index
-    /// (when given) checked, its buffer made its own, and one more pin
-    /// counted (`ref.elem.pin`).
+    /// (when given) checked and its buffer made its own, and a new pin
+    /// over its header (`ref.elem.pin`, §23.20). The pin is a counted
+    /// object that the reference's closures hold, so the list stays pinned
+    /// until the last copy of the reference dies (`ref.elem.release.copies`).
     pub(super) fn list_pin(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        if self.input.runtime.is_none() {
+            return unsupported("element references without std's allocator");
+        }
         let (_, e) = self.elem(self.ty_of(args[0]))?;
         let h = self.header(args[0])?;
         if let Some(&ix) = args.get(1) {
@@ -455,25 +486,13 @@ impl Em<'_, '_, '_> {
             self.index(b, ix)?;
         }
         self.unique(h, &e, false);
-        self.pins(h, I::I32Add);
+        // The pin's count of the header.
         self.f.get(h);
-        self.store(i)
-    }
-
-    /// `ListUnpin`: one pin released (`ref.elem.release`).
-    pub(super) fn list_unpin(&mut self, list: u32) -> StageResult<()> {
-        let h = self.header(list)?;
-        self.pins(h, I::I32Sub);
-        Ok(())
-    }
-
-    /// Adds or takes 1 off the pins of the list header in local `h`.
-    fn pins(&mut self, h: u32, op: I<'static>) {
+        self.f.call(crate::module::Sym::Inst(
+            self.input.runtime.expect("checked above").retain,
+        ));
         self.f.get(h);
-        self.f.get(h);
-        self.f.op(I::I32Load(mem(HEAP, LIST_PINS, 2)));
-        self.f.i32(1);
-        self.f.op(op);
-        self.f.op(I::I32Store(mem(HEAP, LIST_PINS, 2)));
+        self.f.helper(Helper::Pin);
+        self.store_owned(i)
     }
 }

@@ -1683,6 +1683,7 @@ what the spec names as intrinsic or what only it can build.
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
+| references, cleanup scopes, releases at last use | `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -2386,3 +2387,73 @@ environments in `emit/closure.rs`, trait values and their vtables in
   whose row changes, which needs an adapter that passes the providers
   its code takes. Suspending function values and closures wait for job
   13.
+
+### 23.20 What Job 12 Adds
+
+Job 12 lowers references in today's language, cleanup scopes, and
+element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
+§6.3; issue #556).
+
+- **References as today's TIR gives them.** The checker lowers `&place`
+  and `&mut place` to a `std.core.Ref[T]` data value: a `get` and a `set`
+  closure over the place, then its identity fields (§15.2,
+  "References"). On this backend that is a counted object holding two
+  closures, so a reference to a local is a reference to the local's cell
+  (§23.19), counted by the closures' environments; a reference stored, returned
+  or captured keeps the cell alive, and `is` compares the identity fields.
+  The thin form of §23.5, an address into the object with the page table
+  finding its header, needs the TIR to hand the backend a place's
+  address instead of closures over it; that is a checker change
+  (`hd_check`'s `refs.rs`), not made here. The page-table lookup serves
+  the counts of string views, which are interior addresses already.
+- **Cleanup scopes.** A `Scope` with `defer` suites is the Wasm GC
+  backend's exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
+  §12.2): each suite has a flag that its `Defer` sets; a `break`,
+  `continue` or `return` that leaves the body stores its exit's code and
+  branches to the scope's end, which runs the registered suites last in,
+  first out, as a forbidden context, then takes the exit again through
+  the next scope out. A suite that suspends (`using`'s `dispose!`) waits
+  for job 13.
+- **Releases at last use.** A reference is released after its last use,
+  not at the end of its block (§6.3 rule 5), so a counted value can no
+  longer wait for the function's exit (§23.16). `emit/live.rs` finds,
+  within one body and at statement granularity, the statement of a
+  value's own block that holds its last use, and for a TIR local the
+  innermost block holding all its uses and its last statement there; a
+  parameter and a closure's capture live in the root block. After that
+  statement the place is released and zeroed, so the exit, which still
+  releases every place, releases it as nothing. A `break` or `continue`
+  releases what the blocks it leaves hold, up to the innermost cleanup
+  scope it crosses, whose suites may still read the scope's locals. A
+  value used where no statement of its block holds the use (a block's
+  result, a match decision's value read in an arm) keeps its count to the
+  exit. Uses are TIR's `value_operands`, with a call's provider pairs;
+  any other instruction's value words are over-approximated, which only
+  delays a release.
+- **Element references own their pin.** `ListPin` makes the buffer the
+  list's own as before, and returns a pin: a counted object holding the
+  list's header, with one pin on it that the pin's release glue
+  (`rt:drop_pin`) takes off. The checker keeps the pin in a local that the
+  reference's `get` and `set` closures capture, so the pin lives exactly
+  as long as some copy of the reference: a reference stored in a field,
+  returned, or captured by a closure called later keeps the list pinned
+  until that copy's last use, and a `push` meanwhile panics
+  `collection-pinned` (`ref.elem.release.copies`). The checker's
+  `ListUnpin`, which ends a binding's pin after its last statement on the
+  Wasm GC backend, does nothing here, and a read that only it takes keeps
+  nothing alive. List kernels reached through a pin's local read the
+  header from it; an element reference's identity base is the header
+  itself, so two references to one slot are the same place
+  (`ref.elem.identity`). A trait value of a value that is one counted
+  address is now that address, never a copy, as the Wasm GC backend
+  erases it.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
+  through references to locals and elements, checks that a pin ends with
+  its reference's last use, and takes references to locals and elements
+  in a loop, checking that the heap does not grow after a warm-up.
+- **Size.** hello: 10,719 bytes in the dev profile (10,635 after job 11)
+  and 7,529 in release, the releases at last use in the code it links.
+- **Not yet.** Issue #556's three escape cases pass here and stay known
+  failures on the Wasm GC backend, whose references hold no count. The
+  release points are statement-granular and per body: a reference passed
+  to a call is held by the caller's place until the statement ends.
