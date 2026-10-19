@@ -107,7 +107,12 @@ impl Em<'_, '_, '_> {
             for _ in env.row_keys(t.item, t.args) {
                 params.extend([Val::I32, Val::I32]);
             }
-            let results = self.vals(t.ret)?;
+            // A suspending method's slot builds its cold frame.
+            let results = if env.suspends(t.item) {
+                vec![Val::I32]
+            } else {
+                self.vals(t.ret)?
+            };
             // A `&self` method on a payload that is no reference, which
             // the checker never lets a call reach, a generic method (its
             // erased body) and a compiler-supplied method trap; the

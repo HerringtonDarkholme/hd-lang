@@ -27,6 +27,7 @@ fn an_empty_entry_links_two_memories_and_the_entry_exports() {
             results: 0,
             report: None,
             then: vec![],
+            bang: None,
         }),
     );
     let wasm = m.finish().expect("link");
@@ -62,6 +63,8 @@ fn static_bytes_and_vtables_are_shared_by_content() {
         Sym::Helper(Helper::HostCold {
             module: "hd:Console".into(),
             method: "write_line".into(),
+            args: vec![crate::task::HostArg::Str],
+            res: crate::task::HostRes::Tags,
         })
     };
     let v = m.vtable(vec![host(), host()]);
@@ -113,6 +116,8 @@ fn every_runtime_helper_validates() {
     let console = m.vtable(vec![Sym::Helper(Helper::HostCold {
         module: "hd:Console".into(),
         method: "write_line".into(),
+        args: vec![crate::task::HostArg::Str],
+        res: crate::task::HostRes::Tags,
     })]);
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: vec![] }));
     m.export(
@@ -123,6 +128,7 @@ fn every_runtime_helper_validates() {
             results: 0,
             report: None,
             then: vec![],
+            bang: None,
         }),
     );
     validate(&m.finish().expect("link"));

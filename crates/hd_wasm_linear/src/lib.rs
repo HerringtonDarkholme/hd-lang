@@ -15,6 +15,7 @@ mod layout;
 mod map;
 mod module;
 mod rt;
+mod task;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
 use hd_mono::{Collected, ProgramEnv};
@@ -65,18 +66,44 @@ pub enum Entry {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
         inits: Vec<Vec<Hash128>>,
     },
-    /// An entry this backend does not build yet: scenarios and REPL
-    /// inputs.
+    /// A runtime scenario's program (`spec/conformance/README.md`,
+    /// Runtime Scenarios): `main`'s entry as [`Entry::Main`] has it, with
+    /// `hd.scenario.cleanup` calling `cleanup` when the module declares
+    /// it, and every poll of `hold`'s suspension answering Pending
+    /// without running its body (flagging the frame active when the
+    /// flag is set).
+    Scenario {
+        main: DefId,
+        key: Hash128,
+        inits: Vec<(Hash128, bool)>,
+        report: Option<Hash128>,
+        cleanup: Option<Hash128>,
+        hold: Option<(DefId, bool)>,
+    },
+    /// An entry this backend does not build yet: REPL inputs.
     Unsupported(&'static str),
 }
 
 impl Entry {
+    /// Whether the polls of `item`'s suspensions are held, and whether
+    /// a held poll flags the frame active.
+    #[must_use]
+    pub fn held(&self, item: DefId) -> Option<bool> {
+        match self {
+            Entry::Scenario {
+                hold: Some((def, active)),
+                ..
+            } if *def == item => Some(*active),
+            _ => None,
+        }
+    }
+
     /// Whether `item` is a root of the entry that only the entry calls:
     /// `main`, or a test case.
     #[must_use]
     pub fn root(&self, item: DefId) -> bool {
         match self {
-            Entry::Main { main, .. } => *main == item,
+            Entry::Main { main, .. } | Entry::Scenario { main, .. } => *main == item,
             Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
             Entry::Script { .. } | Entry::Unsupported(_) => false,
         }

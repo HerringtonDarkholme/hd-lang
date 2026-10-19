@@ -1,0 +1,68 @@
+# The hd tests of suspensions on the linear backend (crates/hd_wasm/DESIGN.md
+# §23.21): a suspension's frame is a counted object, so the cold frames of
+# plain calls, the frames of `all!`, `race!` and `cancel!`, and the frames
+# a `block_on` drives are freed once their last holder lets go, and making
+# them in a loop runs in bounded memory. Only std may read the heap's size,
+# so the conformance runner adds this file to std as `std.rt.task_tests`.
+use std.rt.memory.pages
+use std.task.{BlockOn, all, block_on, race}
+
+fn label(n: i32) -> string:
+    "s$n"
+
+fn step!(n: i32) -> string:
+    label(n)
+
+fn twice!(n: i32) -> string:
+    a := step!(n)
+    b := step!(n + 1)
+    a + b
+
+fn guarded!(log: &mut List[string], n: i32) -> string:
+    defer:
+        log.push(label(n))
+    step!(n)
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a cold suspension runs when it is awaited"):
+        let job: mut Suspend[string] = twice(+1)
+        assert(job!() == "s1s2", "the body ran once, on the await")
+        let (a, b) = all!(twice(+3), step(+5))
+        assert(a == "s3s4" && b == "s5", "all! keeps each child's result")
+        assert(race!(step(+7), twice(+8)) == "s7", "the first child wins")
+
+    it("a cancelled cold suspension never runs its body"):
+        let mut log: List[string] = []
+        let job: mut Suspend[string] = guarded(&mut log, +1)
+        finished := match job.cancel!():
+            .Finished => true
+            .Abandoned => false
+        assert(finished && log.len() == 0, "only marked cancelled")
+
+    it("suspensions made in a loop run in bounded memory"):
+        let round = +0
+        let start: usize = 0
+        let right = +0
+        let mut log: List[string] = []
+        while round < 2030:
+            if round == 30:
+                start = pages()
+            let job: mut Suspend[string] = twice(round)
+            let (a, b) = all!(step(round), guarded(&mut log, round))
+            won := race!(twice(round), step(round))
+            let cold: mut Suspend[string] = guarded(&mut log, round)
+            _ := cold.cancel!()
+            driven := match block_on(twice(round)):
+                .Completed(text) => text
+                _ => ""
+            done := job!()
+            if done == label(round) + label(round + 1) && a == b && won == done:
+                right = right + 1
+            if driven == label(round) + label(round + 1):
+                right = right + 1
+            log.clear()
+            round = round + 1
+        assert(right == 4060, "every round's suspensions completed")
+        assert(pages() == start, "each frame is freed")

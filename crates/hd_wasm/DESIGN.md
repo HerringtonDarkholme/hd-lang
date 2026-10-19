@@ -2467,3 +2467,95 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   failures on the Wasm GC backend, whose references hold no count. The
   release points are statement-granular and per body: a reference passed
   to a call is held by the caller's place until the statement ends.
+
+### 23.21 What Job 13 Adds
+
+Job 13 lowers suspending code: §14's state machine, waker, entry driver
+and cancellation (docs/future-work/CANCELLATION_AND_CLEANUP.md) over
+counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
+
+- **The frame.** A frame is a counted object. Its payload starts with
+  the task prefix: the poll slot (`F_POLL`, a table slot), the cancel
+  slot (`F_CANCEL`), the state (`F_STATE`), the flags (`F_FLAGS`:
+  `ACTIVE`, `DONE`, `CANCELLED`, `UNWINDING`, `ABANDONED`, and `EXITED`
+  once the body has left) and the child (`F_CHILD`). The save area
+  follows at `F_SAVED`: one slot for every Wasm local of the body but
+  the frame and `pc`. A point's suspend stores them all and a resume
+  loads them all (`Ins::SaveAll` and `Ins::LoadAll`, expanded once the
+  body's locals are known). That is simpler than §14.3's live set, and
+  costs frame bytes, not code.
+- **The parts.** As on the Wasm GC backend, the instance's own function
+  is the cold constructor and the body, poll and cancel are its parts
+  (`Part`). The frame's release glue is a fourth part. Until the body has
+  left, the glue releases each place the body owns that the save area
+  holds, the results an `all!` kept, the providers and the child. The
+  body is `(frame, args..., providers...) -> (results..., frame)`. A frame
+  of 0 starts fresh, and the frame is made at the first Pending (§14.3).
+  The cold constructor stores the arguments and providers in a fresh
+  frame at state 0, with a count of each. A reloaded local holds the
+  count its frame saved, so only a fresh start takes counts of its
+  parameters. A frame retains its providers, since the scope that
+  installed them may end before the frame does.
+- **The state machine.** States are numbered in structural order, so a
+  subtree's states are contiguous (`susp::plan`). A block whose
+  statements hold states is entered by one `br_table` on `pc`. An `if`,
+  `match`, `switch`, `guard` or `&&`/`||` that holds the resumed state
+  takes the branch that holds it, whatever its condition was. A direct
+  `g!()` steps `g`'s body with the saved child. A stored suspension, a
+  trait-value bang call or a suspending function value is polled through
+  its poll slot.
+- **Suspending function values.** A suspending closure's code and a
+  function reference's adapter are cold constructors. They return the
+  frame that the call's `mut Suspend[T]` holds. The constructor copies
+  the captures from the environment into the frame, with a count of
+  each. The body runs only over that frame. A call whose callee's row
+  parameter carries a key is still refused (the context value of
+  crates/hd_mono/DESIGN.md §12.4). The old check let one through when its
+  keys were also declared, and then lost the closure's providers.
+- **Cancellation.** Each point's cancellation branch cancels the child,
+  waits while the child unwinds, then leaves through the cleanup scopes'
+  exit ladders by `Exit::Cancel` (§23.20). A counting body takes its one
+  exit with a `cancelled` flag. The frame's cancel marks a cold frame,
+  or steps a started one with `UNWINDING` set. `CancelEnter` and
+  `CancelLeave` bracket a cancel for `req.abandon.carry`.
+  `task_cleanup_frame`, `task_pending_frame` and `task_abandon` are
+  runtime helpers, as in §14.6.
+- **Waiting suites.** A `using` binding's `dispose!` that suspends is a
+  rung a resume can enter. Its points are shielded: they have no
+  cancellation branch. Under `abandon()`, or when the awaited child was
+  cancelled elsewhere, they kill the child instead of waiting. A frame
+  cancelled while such a suite waited leaves by `Cancel` once the ladder
+  has run.
+- **`all!` and `race!`.** `all!` keeps a done mask and each child's
+  result in the save area. Each poll polls every unfinished child.
+  There is no waker node: a host leaf answers from the wake table, so
+  skipping a child whose wake bit is clear would save only a poll.
+  `race!` is §14.5's frame over the list (`task::race_*`). The results of
+  done children are released by the cancellation branch and by the
+  release glue.
+- **The waker and the entry driver.** `hd.wake(n)` marks completed host
+  handles in a growable wake table (`WakeTab`). A host leaf frame (the
+  handle at `F_SAVED`, then its arguments) takes its handle's mark. The
+  root driver (`task::root_poll`) keeps the root frame and its owner in
+  globals. It panics for a competing driver, a reentrant poll and a poll
+  after completion. It continues a cancelled root's cleanup and answers
+  -1 while Pending. A cancelled root answers -2, or -3 when its cleanup
+  was cut short. The module exports `hd.cancel` and `hd.abandon` for a
+  `main!` that suspends. `block_on` drives with the same checks, and
+  hands an abandon's rewake to the outer driver.
+- **Scenarios.** `Entry::Scenario` is `main`'s entry with
+  `hd.scenario.cleanup`. Its held call answers every poll Pending, and
+  flags the frame active for `reentrant-poll`. A direct step of the held
+  call builds the frame through the cold constructor. A runtime profile's
+  own host trait gets a vtable of imports from `hd:<Trait>`. Only methods
+  with no arguments and a `void` result are built (`Gate.wait!`).
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/task_tests.hd` makes
+  cold frames, `all!`, `race!`, `cancel!` and `block_on` frames in a
+  loop, and checks that the heap does not grow after a warm-up.
+- **Size.** hello: 11,463 bytes in the dev profile and 8,273 in release.
+  A `main` that never suspends links no task runtime.
+- **Not yet.** Host methods whose arguments or results cross in the
+  exchange buffer as structured values (`PropertyRunner.start`,
+  `TestRunner.snapshot_check`, `Random.fill`, `ConsoleInput.read_line`),
+  and a profile trait's methods with arguments. Calls whose row
+  parameters carry keys. Erased generic methods (job 11).

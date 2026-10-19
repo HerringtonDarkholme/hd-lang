@@ -57,6 +57,9 @@ pub enum Helper {
         results: u32,
         report: Option<Hash128>,
         then: Vec<(Hash128, bool)>,
+        /// A suspending root's result values: `hd.poll` builds its frame
+        /// once and polls it (§23.21), answering -1 while it is Pending.
+        bang: Option<Vec<Val>>,
     },
     /// `()`: the panic report `MESSAGE` (`CATEGORY: TEXT`), then a trap.
     Panic(String),
@@ -216,16 +219,83 @@ pub enum Helper {
     /// The forbidden-context check of `block_on`
     /// (`req.drive.block-on.forbidden-contexts`).
     ForbidCheck,
-    /// A host provider's vtable slot for a waiting method that takes one
-    /// string and answers an enum of tags (`crates/hd_run_wasmtime/DESIGN.md`
-    /// §17.4): `(data, text) -> frame`, a cold suspension whose poll is
+    /// A host provider's vtable slot for a method that may wait
+    /// (`crates/hd_run_wasmtime/DESIGN.md` §17.2): `(data, arguments) ->
+    /// frame`, a cold leaf frame (`task.rs`) whose poll is
     /// [`Helper::HostPoll`].
-    HostCold { module: String, method: String },
-    /// `(frame) -> (ready, tag, payload tag)`: starts the host call on its
-    /// first poll and finishes it on the poll after the host reported it
-    /// done. While a program runs one host call at a time, the completion
-    /// `hd:rt.block` reports is this call's.
-    HostPoll { module: String, method: String },
+    HostCold {
+        module: String,
+        method: String,
+        args: Vec<crate::task::HostArg>,
+        res: crate::task::HostRes,
+    },
+    /// `(frame) -> (ready, results)`: the leaf's `.start`, then its
+    /// `.finish` once the wake table holds its handle.
+    HostPoll {
+        module: String,
+        method: String,
+        args: Vec<crate::task::HostArg>,
+        res: crate::task::HostRes,
+    },
+    /// `(frame)`: a leaf's cancel, which aborts a waiting call.
+    HostCancel,
+    /// A host provider's vtable slot for a method of scalars that never
+    /// waits: `(data, arguments) -> results`, one import call.
+    HostCall {
+        module: String,
+        method: String,
+        params: Vec<Val>,
+        results: Vec<Val>,
+    },
+    /// `() -> frame`: a new frame of the suspending instance (§23.21).
+    Frame(Hash128),
+    /// `(frame) -> i32`: a poll's runtime checks; 1 answers Pending.
+    PollCheck,
+    /// `(frame) -> i32`: a cancel's runtime checks; 0 leaves the frame.
+    CancelCheck,
+    /// `() -> i32`: starts a cancel's `ABANDONED` carry.
+    CancelEnter,
+    /// `(frame, seen)`: ends it.
+    CancelLeave,
+    /// `(n)`: `hd.wake(n)`, the completed handles into the wake table.
+    WakeMark,
+    /// `(h) -> i32`: whether handle `h` completed, which it takes.
+    WakeTake,
+    /// `hd.cancel` and `hd.abandon`: cancels the pending root, under
+    /// `abandon()` for the second.
+    EntryCancel { abandon: bool },
+    /// `hd.scenario.cleanup`: `() -> i32`, a call of the scenario's
+    /// top-level `cleanup_ran`.
+    EntryCall { func: Hash128 },
+    /// `(address)`: one more count on what the address is in, when the
+    /// program counts.
+    RetainAny,
+    /// `(payload)`: one count less on a frame's child.
+    ChildDrop,
+    /// `(task) -> frame`: `cancel!`'s cleanup frame (`task.rs`).
+    CleanupCold,
+    /// `(frame) -> (ready, abandoned)`.
+    CleanupPoll,
+    /// `(frame)`.
+    CleanupCancel,
+    /// `() -> frame`: a frame that never completes, of results `results`.
+    PendingCold { results: Vec<Val> },
+    /// `(frame) -> (ready, results)`: always Pending.
+    PendingPoll { results: Vec<Val> },
+    /// `(frame)`.
+    PendingCancel,
+    /// `race!`'s frame over a list of tasks of results `results`: part 0
+    /// `(list) -> frame`, 1 its poll, 2 its cancel.
+    Race {
+        part: u8,
+        results: Vec<Val>,
+        walk: Option<Walk>,
+    },
+    /// `(payload)`: a race frame's glue.
+    RaceDrop {
+        results: Vec<Val>,
+        walk: Option<Walk>,
+    },
 }
 
 /// A list's element as the list glue sees it: its stride, its values in
@@ -275,10 +345,6 @@ pub enum PrimArg {
     Scalar(Val),
 }
 
-/// The frame of a host call: its poll slot, its state (0 not started, 1
-/// waiting, 2 done), the host handle and the text argument.
-const HOST_FRAME: i32 = 20;
-
 /// Defines the entry exports of `input.entry` in `m`.
 pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     let (main, key, before, after, report) = match &input.entry {
@@ -288,6 +354,22 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             inits,
             report,
         } => (*main, *key, inits.clone(), Vec::new(), *report),
+        Entry::Scenario {
+            main,
+            key,
+            inits,
+            report,
+            cleanup,
+            ..
+        } => {
+            if let Some(func) = cleanup {
+                m.export(
+                    "hd.scenario.cleanup",
+                    Sym::Helper(Helper::EntryCall { func: *func }),
+                );
+            }
+            (*main, *key, inits.clone(), Vec::new(), *report)
+        }
         Entry::Script {
             init,
             key,
@@ -305,9 +387,14 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
                     Sym::Helper(Helper::EntryInit { inits }),
                 );
             }
+            let mut bang = false;
             for (i, (def, key, report)) in cases.iter().enumerate() {
                 let poll = poll(input, m, *def, *key, *report, Vec::new())?;
+                bang |= m.frames.contains_key(key);
                 m.export(format!("hd.test.{i}"), poll);
+            }
+            if bang {
+                m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
             return Ok(());
         }
@@ -316,6 +403,17 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: before }));
     let poll = poll(input, m, main, key, report, after)?;
     m.export("hd.poll", poll);
+    if m.frames.contains_key(&key) {
+        m.export("hd.wake", Sym::Helper(Helper::WakeMark));
+        m.export(
+            "hd.cancel",
+            Sym::Helper(Helper::EntryCancel { abandon: false }),
+        );
+        m.export(
+            "hd.abandon",
+            Sym::Helper(Helper::EntryCancel { abandon: true }),
+        );
+    }
     Ok(())
 }
 
@@ -335,14 +433,31 @@ fn poll(
         providers.push((host_vtable(input, m, k)?, by_ref));
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
-    let results = crate::layout::vals(input.pool, input.env, ret)?.len();
+    let rvals = crate::layout::vals(input.pool, input.env, ret)?;
+    let bang = m.frames.contains_key(&key).then(|| rvals.clone());
     Ok(Sym::Helper(Helper::EntryPoll {
         main: key,
         providers,
-        results: u32::try_from(results).expect("results"),
+        results: u32::try_from(rvals.len()).expect("results"),
         report,
         then,
+        bang,
     }))
+}
+
+/// Pushes each host provider: no data beside its vtable of host stubs; for
+/// a key whose trait has a `&self` or `&mut self` method, that trait value
+/// behind a new object (`req.ref.host`), the reference that
+/// `std.rt.host_provider` returns, beside the vtable again.
+pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
+    for (v, by_ref) in providers {
+        f.i32(0);
+        f.body.push(Ins::VTable(*v));
+        if let Some(k) = by_ref {
+            f.call(Sym::Inst(*k));
+            f.body.push(Ins::VTable(*v));
+        }
+    }
 }
 
 /// The vtable of the host's provider of capability `key`, in the trait's
@@ -354,8 +469,11 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         return unsupported("a provider key that is not a trait");
     };
     let p = (input.path)(def).replace('/', ".");
-    let Some(host) = hd_host_abi::host_trait(&p).filter(|_| args == TyList::EMPTY) else {
+    if args != TyList::EMPTY {
         return unsupported(format!("the default provider of `{p}`"));
+    }
+    let Some(host) = hd_host_abi::host_trait(&p) else {
+        return profile_vtable(input, m, def, &p);
     };
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
@@ -369,13 +487,104 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         else {
             return unsupported(format!("the host method `{name}`"));
         };
-        let one_string = matches!(hm.params, [hd_host_abi::Codec::Buffer("string")]);
-        if hm.wait != hd_host_abi::Wait::May || !one_string || !tags_result(input, method) {
-            return unsupported(format!("the host method `{}.{}`", host.key, hm.name));
+        let refused = || unsupported(format!("the host method `{}.{}`", host.key, hm.name));
+        let scalar = |s: &hd_host_abi::Scalar| match s {
+            hd_host_abi::Scalar::I32 => Val::I32,
+            hd_host_abi::Scalar::I64 => Val::I64,
+            hd_host_abi::Scalar::F64 => Val::F64,
+        };
+        let mut args = Vec::new();
+        for p in hm.params {
+            args.push(match p {
+                hd_host_abi::Codec::Buffer("string") if hm.params.len() == 1 => {
+                    crate::task::HostArg::Str
+                }
+                hd_host_abi::Codec::Scalar(s) => crate::task::HostArg::Scalar(scalar(s)),
+                _ => return refused(),
+            });
         }
-        slots.push(Sym::Helper(Helper::HostCold {
-            module: format!("hd:{}", host.key),
-            method: hm.name.to_owned(),
+        let ret = input.env.ret(method).unwrap_or(Ty::VOID);
+        slots.push(Sym::Helper(match hm.wait {
+            hd_host_abi::Wait::May => {
+                let res = if ret == Ty::VOID {
+                    crate::task::HostRes::Void
+                } else if tags_result(input, method) {
+                    crate::task::HostRes::Tags
+                } else {
+                    return refused();
+                };
+                Helper::HostCold {
+                    module: format!("hd:{}", host.key),
+                    method: hm.name.to_owned(),
+                    args,
+                    res,
+                }
+            }
+            hd_host_abi::Wait::Never => {
+                let results = crate::layout::vals(input.pool, input.env, ret)?;
+                let want = match hm.result {
+                    hd_host_abi::Codec::Scalar(r) => vec![scalar(&r)],
+                    hd_host_abi::Codec::Void => vec![],
+                    hd_host_abi::Codec::Buffer(_) => return refused(),
+                };
+                if results != want {
+                    return refused();
+                }
+                let mut params = Vec::new();
+                for a in &args {
+                    match a {
+                        crate::task::HostArg::Scalar(v) => params.push(*v),
+                        crate::task::HostArg::Str => return refused(),
+                    }
+                }
+                Helper::HostCall {
+                    module: format!("hd:{}", host.key),
+                    method: hm.name.to_owned(),
+                    params,
+                    results,
+                }
+            }
+        }));
+    }
+    Ok(m.vtable(slots))
+}
+
+/// The vtable of a host trait that a runtime profile declares itself
+/// (`spec/conformance/README.md`, Runtime Profiles), which the ABI table
+/// does not list: each method is imported from `hd:<Trait>` by its name,
+/// and waits when it suspends. Only methods with no arguments past the
+/// receiver and a `void` result are built.
+fn profile_vtable(
+    input: &Input<'_>,
+    m: &mut Module,
+    def: hd_base::DefId,
+    p: &str,
+) -> StageResult<usize> {
+    let key = p.rsplit('.').next().unwrap_or("");
+    let mut slots = Vec::new();
+    for method in input.env.trait_methods(def) {
+        let mp = (input.path)(method);
+        let name = mp.rsplit(['.', '/']).next().unwrap_or("").to_owned();
+        let params = input.env.params(method).unwrap_or_default();
+        let ret = input.env.ret(method).unwrap_or(Ty::VOID);
+        if params.len() > 1 || !crate::layout::vals(input.pool, input.env, ret)?.is_empty() {
+            return unsupported(format!("the default provider of `{p}`"));
+        }
+        let module = format!("hd:{key}");
+        slots.push(Sym::Helper(if input.env.suspends(method) {
+            Helper::HostCold {
+                module,
+                method: name,
+                args: vec![],
+                res: crate::task::HostRes::Void,
+            }
+        } else {
+            Helper::HostCall {
+                module,
+                method: name,
+                params: vec![],
+                results: vec![],
+            }
         }));
     }
     Ok(m.vtable(slots))
@@ -566,6 +775,32 @@ fn write_str(f: &mut Func, s: u32) {
 /// Builds helper `h`; it may ask `m` for more helpers and static data.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     match h {
+        Helper::Frame(_)
+        | Helper::PollCheck
+        | Helper::CancelCheck
+        | Helper::CancelEnter
+        | Helper::CancelLeave
+        | Helper::WakeMark
+        | Helper::WakeTake
+        | Helper::HostCold { .. }
+        | Helper::HostPoll { .. }
+        | Helper::HostCancel
+        | Helper::HostCall { .. }
+        | Helper::EntryCancel { .. }
+        | Helper::ChildDrop
+        | Helper::CleanupCold
+        | Helper::CleanupPoll
+        | Helper::CleanupCancel
+        | Helper::PendingCold { .. }
+        | Helper::PendingPoll { .. }
+        | Helper::PendingCancel
+        | Helper::Race { .. }
+        | Helper::RaceDrop { .. } => crate::task::helper(h, m),
+        Helper::EntryCall { func } => {
+            let mut f = Func::new("rt:entry_call", vec![], vec![Val::I32]);
+            f.call(Sym::Inst(*func));
+            f
+        }
         Helper::EntryInit { inits } => {
             let mut f = Func::new("rt:entry_init", vec![], vec![]);
             for (k, forbid) in inits {
@@ -576,25 +811,23 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::EntryPoll {
             main,
             providers,
+            results: _,
+            report,
+            then: _,
+            bang: Some(rvals),
+        } => crate::task::root_poll(*main, providers, rvals, *report),
+        Helper::EntryPoll {
+            main,
+            providers,
             results,
             report,
             then,
+            bang: None,
         } => {
             // Parameter 0 is the driver's `PollContext`; a plain entry
             // ignores it.
             let mut f = Func::new("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
-            // A host provider is no data beside its vtable of host stubs; a
-            // key whose trait has a `&self` or `&mut self` method takes it
-            // behind a new object (`req.ref.host`), the reference that
-            // `std.rt.host_provider` returns, beside the vtable again.
-            for (v, by_ref) in providers {
-                f.i32(0);
-                f.body.push(Ins::VTable(*v));
-                if let Some(k) = by_ref {
-                    f.call(Sym::Inst(*k));
-                    f.body.push(Ins::VTable(*v));
-                }
-            }
+            host_providers(&mut f, providers);
             f.call(Sym::Inst(*main));
             if let Some(k) = report {
                 f.call(Sym::Inst(*k));
@@ -798,34 +1031,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.op(Instruction::End);
             f
         }
-        Helper::HostCold { module, method } => {
-            let mut f = Func::new(
-                format!("rt:{module}/{method}"),
-                vec![Val::I32; 3],
-                vec![Val::I32],
-            );
-            let fr = f.local(Val::I32);
-            f.i32(HOST_FRAME);
-            f.helper(Helper::Alloc);
-            f.set(fr);
-            let store = |f: &mut Func, offset: u64, value: &dyn Fn(&mut Func)| {
-                f.get(fr);
-                value(f);
-                f.op(Instruction::I32Store(mem(HEAP, offset, 2)));
-            };
-            let poll = Sym::Helper(Helper::HostPoll {
-                module: module.clone(),
-                method: method.clone(),
-            });
-            store(&mut f, 0, &|f| f.body.push(Ins::TableSlot(poll.clone())));
-            store(&mut f, 4, &|f| f.i32(0));
-            store(&mut f, 8, &|f| f.i32(-1));
-            store(&mut f, 12, &|f| f.get(1));
-            store(&mut f, 16, &|f| f.get(2));
-            f.get(fr);
+        Helper::RetainAny => {
+            let mut f = Func::new("rt:retain_any", vec![Val::I32], vec![]);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
             f
         }
-        Helper::HostPoll { module, method } => host_poll(module, method),
     }
 }
 
@@ -979,94 +1192,6 @@ fn fmt_int(signed: bool) -> Func {
     f.op(Instruction::I32Add);
     f.get(at);
     f.op(Instruction::I32Sub);
-    f
-}
-
-/// [`Helper::HostPoll`]: the host contract of a waiting method
-/// (`crates/hd_run_wasmtime/DESIGN.md` §17.2). `M.start(len)` answers
-/// `(status, value)`: a non-zero status means the call waits, under the
-/// handle `value`; zero means the result is in the exchange buffer, `value`
-/// bytes long. `M.finish(handle)` answers the result's length once the
-/// host reported the call done.
-fn host_poll(module: &str, method: &str) -> Func {
-    let mut f = Func::new(
-        format!("rt:{module}/{method}.poll"),
-        vec![Val::I32],
-        vec![Val::I32; 3],
-    );
-    let (st, n) = (f.local(Val::I32), f.local(Val::I32));
-    let state = |f: &mut Func| {
-        f.get(0);
-        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    };
-    let set_state = |f: &mut Func, v: i32| {
-        f.get(0);
-        f.i32(v);
-        f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    };
-    state(&mut f);
-    f.i32(2);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "suspension-invalid-state: a completed host call was polled".into(),
-    ));
-    f.op(Instruction::End);
-    state(&mut f);
-    f.op(Instruction::If(BlockType::Empty));
-    // Waiting: the host reported the call done.
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
-    f.call(Sym::Import(Import::new(
-        module,
-        &format!("{method}.finish"),
-        &[Val::I32],
-        &[Val::I32],
-    )));
-    f.set(n);
-    f.op(Instruction::Else);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 16, 2)));
-    f.helper(Helper::ToBuf);
-    f.call(Sym::Import(Import::new(
-        module,
-        &format!("{method}.start"),
-        &[Val::I32],
-        &[Val::I32, Val::I32],
-    )));
-    f.set(n);
-    f.set(st);
-    f.get(st);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
-    set_state(&mut f, 1);
-    f.i32(0);
-    f.i32(0);
-    f.i32(0);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    set_state(&mut f, 2);
-    // The tags codec: the variant index, then the payload's variant index
-    // when the result has one.
-    f.i32(1);
-    f.i32(0);
-    f.op(Instruction::I32Load8U(mem(BUF, 0, 0)));
-    f.get(n);
-    f.i32(1);
-    f.op(Instruction::I32GtS);
-    f.op(Instruction::If(BlockType::Result(
-        wasm_encoder::ValType::I32,
-    )));
-    f.i32(0);
-    f.op(Instruction::I32Load8U(mem(BUF, 1, 0)));
-    f.op(Instruction::Else);
-    f.i32(0);
-    f.op(Instruction::End);
     f
 }
 

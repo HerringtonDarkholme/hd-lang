@@ -70,6 +70,22 @@ pub(super) fn closure_of(b: &Body, sub: u16) -> StageResult<usize> {
     }
 }
 
+/// Whether closure body `sub` of an instance with type arguments `args`
+/// suspends: its closure's function type says so.
+pub(super) fn closure_suspends(
+    input: &crate::Input<'_>,
+    b: &Body,
+    args: hd_types::TyList,
+    sub: u16,
+) -> StageResult<bool> {
+    let (pool, env) = (input.pool, input.env);
+    let t = hd_mono::subst(pool, env, b.item, args, b.ty[closure_of(b, sub)?]);
+    Ok(matches!(
+        pool.get(strip(pool, env, t)),
+        TyData::Fn { suspends: true, .. }
+    ))
+}
+
 /// The captures of closure instruction `ci`: each local, and whether it
 /// is shared through a cell.
 pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
@@ -100,7 +116,10 @@ impl Em<'_, '_, '_> {
 
     /// The layout of closure `ci`'s environment: a cell's address for a
     /// shared capture, the value for any other.
-    fn env_layout(&self, caps: &[(usize, bool)]) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
+    pub(super) fn env_layout(
+        &self,
+        caps: &[(usize, bool)],
+    ) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
         let fields: Vec<(Ty, bool)> = caps
             .iter()
             .map(|(l, shared)| (self.sub(self.b.local_ty[*l]), *shared))
@@ -270,9 +289,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// The prologue of closure `ci`'s code instance: each capture loaded
-    /// from the environment, parameter 0, into its local, as a value or a
-    /// cell's address.
-    pub(super) fn load_captures(&mut self, ci: usize) -> StageResult<()> {
+    /// from the environment, parameter `env`, into its local, as a value or
+    /// a cell's address.
+    pub(super) fn load_captures(&mut self, ci: usize, env: u32) -> StageResult<()> {
         let caps = captures(self.b, ci);
         if caps.is_empty() {
             return Ok(());
@@ -281,7 +300,7 @@ impl Em<'_, '_, '_> {
         for ((l, _), p) in caps.iter().zip(&parts) {
             let ls = self.local(u32::try_from(*l).expect("locals"))?;
             for (leaf, x) in m.leaves[p.first..p.first + p.count].iter().zip(&ls) {
-                self.f.get(0);
+                self.f.get(env);
                 self.f.op(leaf.load(0));
                 self.f.set(*x);
             }
@@ -323,15 +342,11 @@ impl Em<'_, '_, '_> {
     /// direct one of a closure collection resolved.
     pub(super) fn call_value(&mut self, i: u32, callee: u32, args: &[u32]) -> StageResult<()> {
         let ft = self.ty_of(callee);
-        let TyData::Fn {
-            params, suspends, ..
-        } = self.pool().get(strip(self.pool(), self.env(), ft))
-        else {
+        // A suspending value's code is its cold constructor, which
+        // returns the frame that the call's `mut Suspend[T]` holds.
+        let TyData::Fn { params, .. } = self.pool().get(strip(self.pool(), self.env(), ft)) else {
             return unsupported("a call of a value that is not a function");
         };
-        if suspends {
-            return unsupported("suspending function values (job 13)");
-        }
         let mut ps = vec![Val::I32];
         for p in self.pool().list_items(params).to_vec() {
             ps.extend(self.vals(self.sub(p))?);

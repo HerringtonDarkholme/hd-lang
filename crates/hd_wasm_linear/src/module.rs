@@ -39,8 +39,26 @@ pub const HEADER: u32 = 8;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {
     Inst(Hash128),
+    /// A part of a suspending instance, beside its cold constructor.
+    Part(Hash128, Part),
     Helper(Helper),
     Import(Import),
+}
+
+/// A suspending instance's part (`crates/hd_wasm/DESIGN.md` §23.21),
+/// defined beside its cold constructor, the instance's own function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Part {
+    /// `(frame, arguments, providers) -> (results, frame)`: the body. A
+    /// frame of 0 starts it fresh; any other resumes it. A result frame of
+    /// 0 is Ready, any other Pending.
+    Body,
+    /// `(frame) -> (ready, results)`: the poll.
+    Poll,
+    /// `(frame)`: the cancel.
+    Cancel,
+    /// `(payload)`: the frame's release glue.
+    Drop,
 }
 
 /// A host import (`crates/hd_run_wasmtime/DESIGN.md` §17.2): its module,
@@ -105,6 +123,20 @@ pub enum Global {
     /// The last serial number that reference identity drew
     /// (`ref_serial`): 0 until the first.
     RefSerial,
+    /// The `abandon()` depth: cancels under it abandon (§23.21).
+    Aband,
+    /// The `ABANDONED` bits that a frame's cancels saw.
+    AbSeen,
+    /// Set when an abandon or an aborted host call leaves a party that no
+    /// wake will reach: the driver polls its root again.
+    Rewake,
+    /// The entry's pending root frame, 0 for none.
+    Root,
+    /// The `hd.poll` context that owns the root, plus one.
+    Owner,
+    /// The wake table: its address and its capacity in handles.
+    WakeTab,
+    WakeCap,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -113,7 +145,16 @@ pub enum Global {
 impl Global {
     const fn val(&self) -> Val {
         match self {
-            Global::Forbid | Global::HeapTop | Global::HeapEnd => Val::I32,
+            Global::Forbid
+            | Global::HeapTop
+            | Global::HeapEnd
+            | Global::Aband
+            | Global::AbSeen
+            | Global::Rewake
+            | Global::Root
+            | Global::Owner
+            | Global::WakeTab
+            | Global::WakeCap => Val::I32,
             Global::HashSeed | Global::RefSerial => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
@@ -134,6 +175,11 @@ pub enum Ins {
     CallIndirect(Vec<Val>, Vec<Val>),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
     VTable(usize),
+    /// A suspending body's store of every local into its frame, which
+    /// the body's emission expands once its locals are known.
+    SaveAll,
+    /// The loads of every local from the frame.
+    LoadAll,
 }
 
 /// One function body before numbering.
@@ -246,12 +292,14 @@ pub struct Module {
     exports: Vec<(String, Sym)>,
     /// The std runtime that helpers call, when the program links it.
     pub runtime: Option<crate::Runtime>,
+    /// Each suspending instance's frame payload size.
+    pub frames: BTreeMap<Hash128, u32>,
 }
 
 impl Module {
     /// Defines `s` as `f`.
     pub fn define(&mut self, s: Sym, f: Func) {
-        if matches!(s, Sym::Inst(_)) {
+        if matches!(s, Sym::Inst(_) | Sym::Part(..)) {
             self.inst_order.push(s.clone());
         }
         self.funcs.insert(s, f);
@@ -461,6 +509,12 @@ impl Module {
                     }),
                     Ins::VTable(k) => {
                         body.instruction(&Instruction::I32Const(vtable_at[*k].cast_signed()))
+                    }
+                    Ins::SaveAll | Ins::LoadAll => {
+                        return Err(NotImplemented::bug(
+                            Stage::Link,
+                            "a frame save or load that its body did not expand",
+                        ));
                     }
                 };
             }

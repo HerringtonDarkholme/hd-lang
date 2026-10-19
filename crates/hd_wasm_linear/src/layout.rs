@@ -302,9 +302,8 @@ impl Walk {
 }
 
 /// The counted references of a concrete type's values, or `None` when it
-/// has none: scalars, suspensions and trait values (whose data is a
-/// provider's until job 11). A type this backend does not lay out has
-/// none here; its layout refuses it.
+/// has none: scalars, and what holds no counted address. A type this
+/// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     let t = strip(pool, env, t);
     match pool.get(t) {
@@ -312,7 +311,12 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
         TyData::Fn { .. } => Some(Walk::Ref(1)),
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
-        TyData::Adt { def, .. } if matches!(env.std_kind(def), StdKind::List | StdKind::Map) => {
+        TyData::Adt { def, .. }
+            if matches!(
+                env.std_kind(def),
+                StdKind::List | StdKind::Map | StdKind::Suspend
+            ) =>
+        {
             Some(Walk::Ref(0))
         }
         TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),

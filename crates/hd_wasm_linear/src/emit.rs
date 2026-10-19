@@ -29,6 +29,7 @@ mod list;
 mod live;
 mod map;
 mod scope;
+mod susp;
 mod text;
 mod value;
 
@@ -46,12 +47,15 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         return unsupported("an instance without TIR");
     };
 
-    // A suspending root that no code but the entry calls runs as a plain
-    // function: until job 13 any suspension point in it is refused, and a
-    // body that never suspends ends on its first poll.
-    if sub == 0 && input.env.suspends(item) && !input.entry.root(item) {
-        return unsupported("suspending functions (job 13)");
-    }
+    // A suspending body is a state machine over a frame (`susp.rs`), but
+    // a root that only the entry calls and that never suspends runs as a
+    // plain function: it ends on its first poll.
+    let plan = susp::plan(b, b.sub_root[sub as usize]);
+    let suspending = if sub == 0 {
+        input.env.suspends(item) && !(input.entry.root(item) && plan.0.is_empty())
+    } else {
+        closure::closure_suspends(input, b, args, sub)?
+    };
     let mut em = Em {
         input,
         m,
@@ -74,10 +78,16 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         drops: live::Drops::default(),
         pin_locals: live::pin_locals(b),
         blocks: Vec::new(),
+        susp: None,
+        shield: 0,
         temps: Vec::new(),
         cells: closure::cell_locals(b),
     };
     let mut params = Vec::new();
+    // A suspending body takes its frame first (`susp::FRAME`).
+    if suspending {
+        params.push(Val::I32);
+    }
     // A closure's code takes its environment first, then its own
     // parameters and its type's row (`closure.rs`).
     let (plocals, ret, keys, closure) = if sub == 0 {
@@ -90,15 +100,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     } else {
         let ci = closure::closure_of(b, sub)?;
         let ft = em.sub(b.ty[ci]);
-        let TyData::Fn {
-            result, suspends, ..
-        } = em.pool().get(crate::layout::strip(em.pool(), em.env(), ft))
+        let TyData::Fn { result, .. } =
+            em.pool().get(crate::layout::strip(em.pool(), em.env(), ft))
         else {
             return unsupported("a closure without a function type");
         };
-        if suspends {
-            return unsupported("suspending closures (job 13)");
-        }
         params.push(Val::I32);
         (
             sub_param_locals(b, sub),
@@ -128,22 +134,65 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     }
     let results = em.vals(ret)?;
     em.results.clone_from(&results);
+    let mut fres = results.clone();
+    if suspending {
+        fres.push(Val::I32);
+    }
     em.f = Func::new(
         format!("{}#{}", (input.path)(item), t.sub[id.idx()]),
-        params,
-        results.clone(),
+        params.clone(),
+        fres,
     );
+    let key = t.key[id.idx()];
+    if suspending {
+        let pc = em.f.local(Val::I32);
+        let cancelled = em.f.local(Val::I32);
+        let provs = em.providers.iter().map(|p| p.1[0]).collect();
+        em.susp = Some(susp::Susp {
+            key,
+            pc,
+            states: plan.0,
+            ranges: plan.1,
+            cancel_to: None,
+            cancelled,
+            provs,
+            alls: HashMap::default(),
+        });
+    }
     // A function that holds a counted reference ends at one exit, which
     // releases what it owns (`count.rs`): a return stores its value in
     // `ret` and branches there.
+    // A suspending closure's body runs only over the frame its code
+    // built, which holds the captures (`susp::finish`).
     if let Some(ci) = closure {
-        em.load_captures(ci)?;
+        if suspending {
+            em.f.get(susp::FRAME);
+            em.f.op(Instruction::I32Eqz);
+            em.f.op(Instruction::If(BlockType::Empty));
+        }
+        em.load_captures(ci, u32::from(suspending))?;
+        if suspending {
+            em.f.op(Instruction::End);
+        }
     }
     em.counting = em.counts_anything();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_unstable();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();
+    }
+    // A resumed body reloads its locals, which hold their counts, from the
+    // frame; only a fresh start takes its parameters' counts.
+    if suspending {
+        em.f.get(susp::FRAME);
+        em.f.op(Instruction::If(BlockType::Empty));
+        em.f.body.push(crate::module::Ins::LoadAll);
+        em.f.get(susp::FRAME);
+        em.f.op(Instruction::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
+        em.f.set(em.susp.as_ref().map_or(0, |s| s.pc));
+        em.f.op(Instruction::Else);
+    }
+    if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
             // cell below.
@@ -160,6 +209,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         if plocals.contains(l) && em.is_cell(*l) {
             em.param_cell(*l, ls)?;
         }
+    }
+    if suspending {
+        em.f.op(Instruction::End);
     }
     if em.counting {
         em.open(Ctl::Exit);
@@ -187,7 +239,16 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             em.f.get(l);
         }
     }
-    Ok(em.f)
+    if !suspending {
+        return Ok(em.f);
+    }
+    em.exit_frame();
+    let held = if sub == 0 {
+        input.entry.held(item)
+    } else {
+        None
+    };
+    susp::finish(em, key, &plocals, &params, ret, closure, held)
 }
 
 /// The parameter locals of closure body `sub`, in order.
@@ -217,7 +278,13 @@ fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
     for _ in env.row_keys(ct.item, ct.args) {
         params.extend([Val::I32, Val::I32]);
     }
-    let results = vals(pool, env, ct.ret)?;
+    // A suspending target's plain call is its cold constructor, which
+    // returns the frame.
+    let results = if env.suspends(ct.item) {
+        vec![Val::I32]
+    } else {
+        vals(pool, env, ct.ret)?
+    };
     let item = input.collected.table.item[id.idx()];
     let mut f = Func::new(
         format!("{}#adapter", (input.path)(item)),
@@ -301,6 +368,11 @@ struct Em<'i, 'a, 'm> {
     blocks: Vec<(u32, usize)>,
     /// The locals that hold an element reference's pin (`list.rs`).
     pin_locals: hd_base::HashSet<usize>,
+    /// The state machine of a suspending body (`susp.rs`).
+    susp: Option<susp::Susp>,
+    /// How many `using` dispose suites that wait the instruction being
+    /// emitted is inside: their points are shielded (`susp.rs`).
+    shield: u32,
     /// The locals of the collection copies that operands were stored as
     /// (`list.rs`, `copy_src`), each owning one count until the exit.
     temps: Vec<u32>,
@@ -506,8 +578,16 @@ impl Em<'_, '_, '_> {
             self.open(Ctl::Brk(blk));
         }
         self.blocks.push((blk, self.ctl.len()));
-        for (p, i) in self.rec(list).into_iter().enumerate() {
-            if self.b.tags[i as usize] != Tag::Block {
+        let items: Vec<(usize, u32)> = self
+            .rec(list)
+            .into_iter()
+            .enumerate()
+            .filter(|(_, i)| self.b.tags[*i as usize] != Tag::Block)
+            .collect();
+        if self.range(blk).is_some() {
+            self.resume_list(blk, &items)?;
+        } else {
+            for (p, i) in items {
                 self.inst(i)?;
                 self.drop_dead(blk, p)?;
             }
@@ -623,6 +703,7 @@ impl Em<'_, '_, '_> {
                 if self.b.tags[i as usize] == Tag::Or {
                     self.f.op(Instruction::I32Eqz);
                 }
+                self.resume_branch(i, bw);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);
                 self.block_into(bw, Some(i))?;
@@ -700,6 +781,7 @@ impl Em<'_, '_, '_> {
                 let r = self.rec(bw);
                 self.slot(i)?;
                 self.push(a)?;
+                self.resume_branch(i, r[0]);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);
                 self.block_into(r[0], Some(i))?;
@@ -758,6 +840,7 @@ impl Em<'_, '_, '_> {
                 for k in (0..n).rev() {
                     self.open(Ctl::Arm(i, k));
                 }
+                self.resume_arms(i, &blocks[1..])?;
                 self.deciding.push(i);
                 self.block_into(blocks[0], None)?;
                 self.deciding.pop();
@@ -794,6 +877,7 @@ impl Em<'_, '_, '_> {
                 }
                 self.f.u32(case);
                 self.f.op(Instruction::I32Eq);
+                self.resume_branch(i, then);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);
                 self.block_into(then, Some(i))?;
@@ -911,19 +995,26 @@ impl Em<'_, '_, '_> {
             }
             Tag::CallDyn => return unsupported("a `CallDyn` instruction"),
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
-                return unsupported("suspension and `defer` (job 13)");
+                self.point(i, a, bw)?;
             }
             Tag::With => self.with(i, a, bw)?,
             // The condition block's instructions, then its `bool` tail.
             Tag::Guard => {
                 let r = self.rec(bw);
                 let [list, tail] = self.b.data[a as usize];
-                for x in self.rec(list) {
-                    if self.b.tags[x as usize] != Tag::Block {
-                        self.inst(x)?;
+                let c = self.f.local(Val::I32);
+                self.entered(a, |em| {
+                    for x in em.rec(list) {
+                        if em.b.tags[x as usize] != Tag::Block {
+                            em.inst(x)?;
+                        }
                     }
-                }
-                self.push(tail)?;
+                    em.push(tail)?;
+                    em.f.set(c);
+                    Ok(())
+                })?;
+                self.f.get(c);
+                self.resume_branch(i, r[0]);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);
                 self.block_into(r[0], None)?;
@@ -987,7 +1078,7 @@ impl Em<'_, '_, '_> {
     /// not build yet: a call whose row arguments hold a key is refused.
     fn push_providers(&mut self, item: DefId, args: TyList) -> StageResult<()> {
         let keys = self.env().row_keys(item, args);
-        if keys != hd_mono::declared_row_keys(self.pool(), self.env(), item, args) {
+        if !hd_mono::row_param_keys(self.pool(), self.env(), item, args).is_empty() {
             return unsupported("functions with row parameters and context values");
         }
         for key in keys {
@@ -1023,7 +1114,13 @@ impl Em<'_, '_, '_> {
                     }
                     self.push_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
-                    self.call_results(i, ct.ret)
+                    // A suspending callee called cold returns its frame.
+                    let ret = if self.env().suspends(ct.item) {
+                        self.ty(i)
+                    } else {
+                        ct.ret
+                    };
+                    self.call_results(i, ret)
                 }
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
@@ -1047,6 +1144,15 @@ impl Em<'_, '_, '_> {
     /// indirect call through the slot of the receiver's vtable that the
     /// method's position in the trait names.
     fn call_dyn(&mut self, i: u32, a: u32, args: &[u32]) -> StageResult<()> {
+        let results = self.vals(self.ty(i))?;
+        self.push_dyn(a, args, results)?;
+        let ty = self.ty(i);
+        self.call_results(i, ty)
+    }
+
+    /// Pushes a dynamic call's results: callee record `a` dispatched
+    /// through its receiver's vtable with `args`, the receiver first.
+    fn push_dyn(&mut self, a: u32, args: &[u32], results: Vec<Val>) -> StageResult<()> {
         let Some(Callee::TraitMethod {
             trait_,
             method,
@@ -1089,10 +1195,8 @@ impl Em<'_, '_, '_> {
             4 * u64::try_from(slot).expect("slot"),
             2,
         )));
-        let results = self.vals(self.ty(i))?;
         self.f.body.push(Ins::CallIndirect(params, results));
-        let ty = self.ty(i);
-        self.call_results(i, ty)
+        Ok(())
     }
 
     /// An omitted argument: its default body's instance, called with the
@@ -1177,7 +1281,90 @@ impl Em<'_, '_, '_> {
                 self.store_owned(i)
             }
             "block_on" => self.block_on(i, args[0]),
+            // `cancel!`'s cleanup frame over the task, a `Suspend[bool]`
+            // that starts or continues the task's one cleanup and waits it
+            // out (`crates/hd_wasm/DESIGN.md` §14.6).
+            "task_cleanup_frame" => {
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::CleanupCold);
+                self.store_owned(i)
+            }
+            // A suspension that never completes, for std's `timeout!`.
+            "task_pending_frame" => {
+                let results = self.vals(self.susp_inner(self.ty_of(i))?)?;
+                self.f.helper(Helper::PendingCold { results });
+                self.store_owned(i)
+            }
+            // `race!`'s frame over its list of tasks (§14.5).
+            "task_race_frame" => {
+                let inner = self.susp_inner(self.ty_of(i))?;
+                let results = self.vals(inner)?;
+                let walk = self.counted(inner);
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::Race {
+                    part: 0,
+                    results,
+                    walk,
+                });
+                self.store_owned(i)
+            }
+            // `Suspend[T].abandon`: the task's own cancel with the
+            // `abandon()` depth raised (§14.6, "Abandoning"). An abandon
+            // that did something may have ended a cleanup that parties
+            // wait on with no wake: the driver polls again.
+            "task_abandon" => {
+                let (s, before) = (self.f.local(Val::I32), self.f.local(Val::I32));
+                self.comp(args[0], 0)?;
+                self.f.set(s);
+                self.f.get(s);
+                self.f
+                    .op(Instruction::I32Load(mem(HEAP, crate::task::F_FLAGS, 2)));
+                self.f.set(before);
+                crate::task::abandon_by(&mut self.f, 1);
+                self.f.get(s);
+                self.f.get(s);
+                self.f
+                    .op(Instruction::I32Load(mem(HEAP, crate::task::F_CANCEL, 2)));
+                self.f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+                crate::task::abandon_by(&mut self.f, -1);
+                self.f.get(s);
+                self.f
+                    .op(Instruction::I32Load(mem(HEAP, crate::task::F_FLAGS, 2)));
+                self.f.get(before);
+                self.f.op(Instruction::I32Ne);
+                self.f.op(Instruction::If(BlockType::Empty));
+                self.f.i32(1);
+                self.f.global_set(Global::Rewake);
+                self.f.op(Instruction::End);
+                Ok(())
+            }
             "map_hash_seed" => self.hash_seed(i),
+            // A line to the host's standard error (an entry's error
+            // report, `dbg`) or standard output (an entry's report whose
+            // exit code is 0), through the runtime, which needs no
+            // `Console`.
+            "entry_write" | "dbg_write" | "entry_write_out" | "repl_write" => {
+                let stream = if matches!(key, "entry_write" | "dbg_write") {
+                    "stderr"
+                } else {
+                    "stdout"
+                };
+                let out = Sym::Import(crate::module::Import::new(
+                    "hd:rt",
+                    stream,
+                    &[Val::I32],
+                    &[],
+                ));
+                self.push(args[0])?;
+                self.f.helper(Helper::ToBuf);
+                self.f.call(out.clone());
+                let nl = self.m.static_bytes(b"\n", 1);
+                self.f.u32(nl);
+                self.f.i32(1);
+                self.f.helper(Helper::ToBuf);
+                self.f.call(out);
+                Ok(())
+            }
             // std's `list_truncate(list: &mut List[T], n)`: the list read
             // through its reference, then truncated in place.
             "list_truncate" => {
@@ -1291,30 +1478,46 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// The result type `T` of a `Suspend[T]`.
+    fn susp_inner(&self, t: Ty) -> StageResult<Ty> {
+        let TyData::Adt { args, .. } = self.pool().get(self.strip_mut(t)) else {
+            return unsupported("a suspension of a type that is not `Suspend`");
+        };
+        match self.pool().list_items(args).first() {
+            Some(&inner) => Ok(inner),
+            None => unsupported("a suspension without its result type"),
+        }
+    }
+
     /// `block_on(s)` (`req.drive.block-on.*`): polls the suspension's frame
     /// through its poll slot, and while it is pending waits in the host
-    /// (`hd:rt.block`), then gives `.Completed(value)`. No suspension of
-    /// this backend is cancelled yet, so `.Cancelled` and `.Abandoned` are
-    /// never made.
+    /// (`hd:rt.block`), then gives `.Completed(value)`, or `.Cancelled` or
+    /// `.Abandoned` once a cancelled suspension's cleanup has ended.
     fn block_on(&mut self, i: u32, s: u32) -> StageResult<()> {
-        let TyData::Adt { args, .. } = self.pool().get(self.strip_mut(self.ty_of(s))) else {
-            return unsupported("`block_on` of a value that is not a suspension");
-        };
-        let Some(&inner) = self.pool().list_items(args).first() else {
-            return unsupported("`block_on` of a suspension without its result type");
-        };
+        let inner = self.susp_inner(self.ty_of(s))?;
         let result = self.vals(inner)?;
         self.f.helper(Helper::ForbidCheck);
-        let frame = self.f.local(Val::I32);
-        let ready = self.f.local(Val::I32);
+        let (frame, ready, flags, seen) = (
+            self.f.local(Val::I32),
+            self.f.local(Val::I32),
+            self.f.local(Val::I32),
+            self.f.local(Val::I32),
+        );
         let tmp: Vec<u32> = result.iter().map(|v| self.f.local(*v)).collect();
         self.comp(s, 0)?;
         self.f.set(frame);
+        // Poll; when Pending, wait in the host and take its wakes. A
+        // cancelled suspension never completes: each poll continues its
+        // cleanup, and the drive ends once that has ended
+        // (`req.drive.block-on.cancelled`). An abandon in the drive may
+        // have ended a cleanup that a party waits on with no wake: poll
+        // again, and hand the request on to the outer driver.
         self.f.op(Instruction::Block(BlockType::Empty));
         self.f.op(Instruction::Loop(BlockType::Empty));
         self.f.get(frame);
         self.f.get(frame);
-        self.f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        self.f
+            .op(Instruction::I32Load(mem(HEAP, crate::task::F_POLL, 2)));
         self.f.body.push(Ins::CallIndirect(
             vec![Val::I32],
             [vec![Val::I32], result.clone()].concat(),
@@ -1325,20 +1528,59 @@ impl Em<'_, '_, '_> {
         self.f.set(ready);
         self.f.get(ready);
         self.f.op(Instruction::BrIf(1));
+        self.f.get(frame);
+        self.f
+            .op(Instruction::I32Load(mem(HEAP, crate::task::F_FLAGS, 2)));
+        self.f.set(flags);
+        self.f.get(flags);
+        self.f.i32(crate::task::CANCELLED | crate::task::UNWINDING);
+        self.f.op(Instruction::I32And);
+        self.f.i32(crate::task::CANCELLED);
+        self.f.op(Instruction::I32Eq);
+        self.f.op(Instruction::BrIf(1));
+        self.f.global_get(Global::Rewake);
+        self.f.op(Instruction::If(BlockType::Empty));
+        self.f.i32(0);
+        self.f.global_set(Global::Rewake);
+        self.f.i32(1);
+        self.f.set(seen);
+        self.f.op(Instruction::Br(1));
+        self.f.op(Instruction::End);
         self.f.call(Sym::Import(crate::module::Import::new(
             "hd:rt",
             "block",
             &[],
             &[Val::I32],
         )));
-        self.f.op(Instruction::Drop);
+        self.f.helper(Helper::WakeMark);
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);
+        self.f.get(seen);
+        self.f.global_get(Global::Rewake);
+        self.f.op(Instruction::I32Or);
+        self.f.global_set(Global::Rewake);
         // `.Completed(value)`, which counts its own copy of the poll's
-        // result.
+        // result; or how the cleanup ended: `.Abandoned` when the frame
+        // carries `ABANDONED`, else `.Cancelled`.
+        self.slot(i)?;
+        self.f.get(ready);
+        self.f.op(Instruction::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
         self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
-        self.release_locals(&tmp, inner)
+        self.release_locals(&tmp, inner)?;
+        self.f.op(Instruction::Else);
+        self.f.get(flags);
+        self.f.i32(crate::task::ABANDONED);
+        self.f.op(Instruction::I32And);
+        self.f.op(Instruction::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        self.new_variant(i, 2, &[])?;
+        self.f.op(Instruction::Else);
+        self.new_variant(i, 1, &[])?;
+        self.close();
+        self.close();
+        Ok(())
     }
 
     /// A body-less method of a primitive's std impl at `self_ty`

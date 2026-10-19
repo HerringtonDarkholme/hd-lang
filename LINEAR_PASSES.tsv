@@ -1,4 +1,5 @@
 path	note
+runtime/panic/abandon-active-ancestor.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/assert-equal-bool-unequal.hd	#573: closures and trait values
 runtime/panic/assert-equal-char-unequal.hd	#573: closures and trait values
 runtime/panic/assert-equal-f64-unequal.hd	#573: closures and trait values
@@ -14,11 +15,16 @@ runtime/panic/assert-equal-result-unequal.hd	#573: closures and trait values
 runtime/panic/assert-equal-string-unequal.hd	#573: closures and trait values
 runtime/panic/assert-equal-tuple-unequal.hd	#573: closures and trait values
 runtime/panic/assert-failure-in-main.hd	#540: a std panic report
+runtime/panic/block-on-completed-suspension.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/char-to-digit-radix-high.hd	#552: strings
 runtime/panic/char-to-digit-radix-low.hd	#552: strings
 runtime/panic/cli-duplicate-option.hd	#554: lists
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
+runtime/panic/competing-suspension-drivers.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/compound-assign-map-missing-key.hd	#572: maps
+runtime/panic/default-block-on-indirect.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/defer-block-on-indirect.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/dispose-cancels-active-ancestor.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/doc-test-failing-assert.hd	#573: closures and trait values
 runtime/panic/duration-add-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data values
@@ -91,13 +97,20 @@ runtime/panic/num-u64-from-overflow.hd	#541: test programs, and roots that never
 runtime/panic/num-u64-to-negative.hd	#541: test programs, and roots that never suspend
 runtime/panic/operator-generic-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/option-expect-none.hd	#541: test programs, and roots that never suspend
+runtime/panic/println-console-closed.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/println-in-default-indirect.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/race-empty-at-run-time.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/range-from-overflow.hd	#573: closures and trait values
+runtime/panic/reentrant-cancel.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/reentrant-suspension-poll.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/reference-derived-debug-cycle.hd	#573: closures and trait values
 runtime/panic/reference-derived-eq-cycle.hd	#573: closures and trait values
 runtime/panic/removed-map-iterator-invalidated.hd	#573: closures and trait values
 runtime/panic/result-expect-err.hd	#552: strings
 runtime/panic/rng-int-empty-range.hd	#573: closures and trait values
 runtime/panic/rng-sample-too-many.hd	#573: closures and trait values
+runtime/panic/second-drive-of-completed-suspension.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/second-suspension-drive.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/shift-count-at-bit-width.hd	#541: test programs, and roots that never suspend
 runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
 runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic
@@ -117,6 +130,14 @@ runtime/panic/unbounded-recursion.hd	#540: direct calls; the host reports the st
 runtime/panic/usize-len-underflow.hd	#554: lists
 runtime/panic/usize-max-overflow-wasm32.hd	#540: checked integer arithmetic
 runtime/panic/usize-width-u32.hd	#541: test programs, and roots that never suspend
+runtime/valid/abandon-carries-to-parent.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-dispose-dependency-host.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-dispose-dependency.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-ended-is-noop.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-folded-cleanups.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-keeps-handle-open.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-kills-waiting-dispose.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/abandon-unwind-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/abrupt-assignment-stores-nothing.hd	#573: closures and trait values
 runtime/valid/abrupt-index-stores-nothing.hd	#573: closures and trait values
 runtime/valid/any-accepts-non-optional-values.hd	#573: closures and trait values
@@ -148,6 +169,13 @@ runtime/valid/associated-function-qualified-call.hd	#573: closures and trait val
 runtime/valid/associated-type-bindings.hd	#573: closures and trait values
 runtime/valid/associated-type-projections.hd	#573: closures and trait values
 runtime/valid/available-trait-method-across-packages.hd	#573: closures and trait values
+runtime/valid/await-abandoned-job-carries.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/await-cancelled-host-call.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/await-cancelled-job-cancels-all.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/await-cancelled-std-task-frame.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/bang-call-and-prefix-not.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/bang-call-arguments-before-body.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/bang-call-explicit-type-arguments.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/bare-marker-decorator.hd	#573: closures and trait values
 runtime/valid/binding-chain-with-suite.hd	#540: integers, strings and enums in locals
 runtime/valid/binding-expression-tuple-value.hd	#573: closures and trait values
@@ -155,6 +183,13 @@ runtime/valid/binding-expressions.hd	#573: closures and trait values
 runtime/valid/binding-initializer-reads-outer-name.hd	#573: closures and trait values
 runtime/valid/blanket-impl-dynamic-and-bound.hd	#573: closures and trait values
 runtime/valid/blanket-impl-for-list.hd	#573: closures and trait values
+runtime/valid/block-on-abandon-wakes-waiter.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-abandoned.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-cancelled.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-completed.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-inside-driver.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-pending-write.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/block-on-stored-suspension.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/bom-inside-comment.hd	#540: integers, strings and enums in locals
 runtime/valid/bool-match.hd	#573: closures and trait values
 runtime/valid/boolean-literals-and-absence.hd	#540: integers, strings and enums in locals
@@ -166,6 +201,9 @@ runtime/valid/bound-inference-user-trait.hd	#573: closures and trait values
 runtime/valid/bounded-blanket-impl.hd	#573: closures and trait values
 runtime/valid/bounded-blanket-supertraits.hd	#573: closures and trait values
 runtime/valid/branch-scopes-shadow.hd	#573: closures and trait values
+runtime/valid/buffer-console-error-lines.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/buffer-console.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/buffered-println-program-console.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/built-strings-slice-and-compare-by-bytes.hd	#552: strings
 runtime/valid/call-and-closure-forms.hd	#573: closures and trait values
 runtime/valid/call-keeps-argument-usable.hd	#573: closures and trait values
@@ -176,6 +214,21 @@ runtime/valid/callable-value-update-choice.hd	#573: closures and trait values
 runtime/valid/callable-value-without-trait-use.hd	#573: closures and trait values
 runtime/valid/callable-values-run.hd	#573: closures and trait values
 runtime/valid/callee-and-operand-evaluation-order.hd	#573: closures and trait values
+runtime/valid/cancel-cancelled-waiter.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancel-cold-and-completed-suspension.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancel-cold-is-lazy.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancel-shared-cleanup.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancel-takes-over-exit-dispose.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancel-waits-for-dispose.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-cleanup-order.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-lifo-across-three-frames.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-loop-and-branch-scopes.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-provider-scope-cleanup.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-runs-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-runs-dynamic-method-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-skips-unreached-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-unwinds-nested-frames.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/cancellation-unwinds-suspending-closure.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/candidate-closure-selection-reversed.hd	#573: closures and trait values
 runtime/valid/candidate-closure-selection.hd	#573: closures and trait values
 runtime/valid/candidate-scope-isolation-reversed.hd	#573: closures and trait values
@@ -200,6 +253,9 @@ runtime/valid/cli-parse-args.hd	#573: closures and trait values
 runtime/valid/cli-parsed-value-copy.hd	#573: closures and trait values
 runtime/valid/cli-usage.hd	#573: closures and trait values
 runtime/valid/cli-value-as.hd	#573: closures and trait values
+runtime/valid/clock-elapsed.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/clock-helpers.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/clock-host-mut-ref.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/closure-adapts-method-call.hd	#573: closures and trait values
 runtime/valid/closure-argument-before-solving-argument.hd	#573: closures and trait values
 runtime/valid/closure-as-function-argument.hd	#573: closures and trait values
@@ -219,11 +275,13 @@ runtime/valid/cmp-min-max-distinguishable-tie.hd	#573: closures and trait values
 runtime/valid/cmp-min-max.hd	#573: closures and trait values
 runtime/valid/cmp-ordering-eq.hd	#573: closures and trait values
 runtime/valid/cmp-reverse.hd	#573: closures and trait values
+runtime/valid/cold-suspension-cancel-idempotent.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/collect-target-from-try-hint.hd	#573: closures and trait values
 runtime/valid/collect-targets-run.hd	#573: closures and trait values
 runtime/valid/collection-structs-copy-and-share.hd	#573: closures and trait values
 runtime/valid/collection-structs-snapshot-iteration.hd	#573: closures and trait values
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd	#573: closures and trait values
+runtime/valid/combinator-cancel-fan-out.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/comments-hide-code-from-the-parser.hd	#554: lists
 runtime/valid/comparisons-beside-brackets.hd	#554: lists
 runtime/valid/compound-assign-index-once.hd	#573: closures and trait values
@@ -232,13 +290,20 @@ runtime/valid/compound-assign-map-run.hd	#573: closures and trait values
 runtime/valid/compound-assignment-alias.hd	#573: closures and trait values
 runtime/valid/compound-assignment-run.hd	#573: closures and trait values
 runtime/valid/compound-assignment-value-kind.hd	#573: closures and trait values
+runtime/valid/comprehension-bang-calls.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/comprehension-binding-visible-after.hd	#573: closures and trait values
 runtime/valid/comprehension-clauses-left-to-right.hd	#573: closures and trait values
 runtime/valid/comprehension-forms.hd	#572: maps
 runtime/valid/comprehension-propagation.hd	#573: closures and trait values
 runtime/valid/comprehensions.hd	#573: closures and trait values
 runtime/valid/conditional-call-program.hd	#573: closures and trait values
+runtime/valid/console-error-line-default.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/console-error-line-override.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/console-error-traits.hd	#573: closures and trait values
+runtime/valid/console-input-helper.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/console-read-all.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/console-struct-fake-ref.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/construction-provider-capture.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/context-error-debug.hd	#573: closures and trait values
 runtime/valid/contextual-variant-after-same-line-if.hd	#573: closures and trait values
 runtime/valid/contextual-variant-expected-type.hd	#573: closures and trait values
@@ -247,6 +312,7 @@ runtime/valid/contextual-variant-patterns.hd	#573: closures and trait values
 runtime/valid/contextual-words-as-names.hd	#573: closures and trait values
 runtime/valid/continuation-line-opens-with-a-bracket.hd	#572: maps
 runtime/valid/copy-update-copies-embedded-part.hd	#573: closures and trait values
+runtime/valid/copy-update-evaluation-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/copy-update-reads-source-at-spread.hd	#573: closures and trait values
 runtime/valid/copy-update-shallow.hd	#573: closures and trait values
 runtime/valid/copy-update-skips-defaults.hd	#573: closures and trait values
@@ -255,6 +321,7 @@ runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/data-and-enum-declaration-forms.hd	#554: lists
 runtime/valid/data-expression-forms.hd	#572: maps
 runtime/valid/data-field-defaults.hd	#573: closures and trait values
+runtime/valid/data-field-evaluation-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/data-field-shorthand.hd	#573: closures and trait values
 runtime/valid/data-fields-named-in-any-order.hd	#573: closures and trait values
 runtime/valid/data-literal-evaluation-order.hd	#573: closures and trait values
@@ -262,6 +329,8 @@ runtime/valid/data-literal-name-is-a-type.hd	#573: closures and trait values
 runtime/valid/data-patterns.hd	#573: closures and trait values
 runtime/valid/data-variant-facts-empty.hd	#573: closures and trait values
 runtime/valid/data-visibility-across-packages.hd	#573: closures and trait values
+runtime/valid/dbg-prints-void.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/dbg-without-requirement.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/debug-builders-behind-ref.hd	#573: closures and trait values
 runtime/valid/debug-derive-data.hd	#573: closures and trait values
 runtime/valid/debug-derive-variants.hd	#573: closures and trait values
@@ -341,6 +410,7 @@ runtime/valid/dyn-ref-list-written.hd	#573: closures and trait values
 runtime/valid/dyn-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/dyn-ref-receiver-forms.hd	#573: closures and trait values
 runtime/valid/dyn-ref-widen.hd	#573: closures and trait values
+runtime/valid/dynamic-suspending-method.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	#573: closures and trait values
 runtime/valid/element-receiver-auto-address.hd	#573: closures and trait values
 runtime/valid/element-reference-copy-independent.hd	#574: references, cleanup scopes and releases at last use
@@ -360,11 +430,13 @@ runtime/valid/empty-string-operations.hd	#573: closures and trait values
 runtime/valid/encoding-base64-vectors.hd	#573: closures and trait values
 runtime/valid/encoding-decode-errors.hd	#573: closures and trait values
 runtime/valid/encoding-hex-vectors.hd	#573: closures and trait values
+runtime/valid/entry-suspending-main.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/enum-payload-match.hd	#573: closures and trait values
 runtime/valid/enum-payload-mut-shallow.hd	#573: closures and trait values
 runtime/valid/enum-shared-data-per-variant.hd	#573: closures and trait values
 runtime/valid/enum-value-fixed-at-construction.hd	#573: closures and trait values
 runtime/valid/enum-variant-by-type-name.hd	#573: closures and trait values
+runtime/valid/eprintln-error-line.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/erased-error-result.hd	#573: closures and trait values
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values
 runtime/valid/error-chain-method.hd	#573: closures and trait values
@@ -414,6 +486,7 @@ runtime/valid/for-element-references-mut.hd	#574: references, cleanup scopes and
 runtime/valid/for-element-references-read.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/for-element-references-through-reference.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/for-loop-snapshot-push.hd	#554: lists
+runtime/valid/for-loops-lists-and-maps.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/for-map-snapshot-grow.hd	#573: closures and trait values
 runtime/valid/for-map-snapshot-insert.hd	#573: closures and trait values
 runtime/valid/for-map-snapshot-rebuild.hd	#573: closures and trait values
@@ -425,6 +498,11 @@ runtime/valid/for-snapshot-helper-growth.hd	#573: closures and trait values
 runtime/valid/for-string-explicit-views.hd	#573: closures and trait values
 runtime/valid/from-direct-call.hd	#573: closures and trait values
 runtime/valid/from-propagation-and-panic.hd	#573: closures and trait values
+runtime/valid/fs-glob-errors.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/fs-glob.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/fs-helpers-all.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/fs-helpers.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/fs-walk.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/function-field-returns-mutable-data.hd	#573: closures and trait values
 runtime/valid/function-type-impl-method.hd	#573: closures and trait values
 runtime/valid/function-type-sugar-without-import.hd	#573: closures and trait values
@@ -457,11 +535,15 @@ runtime/valid/generic-methods.hd	#573: closures and trait values
 runtime/valid/generic-optional-and-result.hd	#573: closures and trait values
 runtime/valid/generic-parameter-forms.hd	#573: closures and trait values
 runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
+runtime/valid/generic-requirement-key-substitution.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/generic-sharing-distinct-value-layouts.hd	#568: generic keys follow the backend layout
 runtime/valid/generic-sharing-inline-values.hd	#568: generic keys follow the backend layout
 runtime/valid/generic-storage-callable-list-identity.hd	#573: closures and trait values
 runtime/valid/generic-storage-invokes-callables.hd	#573: closures and trait values
 runtime/valid/generic-supertraits.hd	#573: closures and trait values
+runtime/valid/generic-suspending-associated-function-qualified-call.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/generic-suspending-function-bound.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/generic-suspending-function.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/generic-trait-instantiation-by-argument.hd	#573: closures and trait values
 runtime/valid/generic-trait-literal-default-instantiation.hd	#573: closures and trait values
 runtime/valid/generic-trait-method-instantiation.hd	#573: closures and trait values
@@ -481,9 +563,17 @@ runtime/valid/hasher-write-methods.hd	#573: closures and trait values
 runtime/valid/header-and-bracket-expression-positions.hd	#573: closures and trait values
 runtime/valid/heap-order.hd	#573: closures and trait values
 runtime/valid/heap-reverse.hd	#573: closures and trait values
+runtime/valid/heterogeneous-tuples.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/homogeneous-varargs.hd	#573: closures and trait values
 runtime/valid/host-args-env.hd	#573: closures and trait values
+runtime/valid/host-cancel-abandons-past-bound.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/host-cancel-waits-for-dispose.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/host-env-as.hd	#573: closures and trait values
+runtime/valid/http-handles-and-values.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/http-json.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/http-scripted-provider.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/http-scripted-unknown-url.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/http-status-as-error.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/i32-extremes-through-generics.hd	#573: closures and trait values
 runtime/valid/i32-minimum-literal.hd	#573: closures and trait values
 runtime/valid/i32-minimum-through-generic-optional.hd	#573: closures and trait values
@@ -492,6 +582,7 @@ runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point r
 runtime/valid/id-keys-by-identity.hd	#573: closures and trait values
 runtime/valid/identifier-selects-lexical-binding.hd	#573: closures and trait values
 runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
+runtime/valid/identity-ignores-permissions.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/if-statement-without-else.hd	#573: closures and trait values
 runtime/valid/impl-distinct-target-arguments.hd	#573: closures and trait values
 runtime/valid/impl-method-generics-renamed.hd	#573: closures and trait values
@@ -513,6 +604,7 @@ runtime/valid/infinite-loop-nested-break.hd	#573: closures and trait values
 runtime/valid/infinite-loop-return.hd	#573: closures and trait values
 runtime/valid/inherent-members-disjoint-targets.hd	#573: closures and trait values
 runtime/valid/inherent-method-beats-trait-method.hd	#573: closures and trait values
+runtime/valid/inherent-methods.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/init-group-order.hd	#573: closures and trait values
 runtime/valid/init-group-statements-by-identity.hd	#573: closures and trait values
 runtime/valid/init-read-through-trait-dispatch.hd	#573: closures and trait values
@@ -533,6 +625,7 @@ runtime/valid/interpolation-display-order.hd	#573: closures and trait values
 runtime/valid/interpolation-expression-spacing.hd	#572: maps
 runtime/valid/interpolation-forms.hd	#573: closures and trait values
 runtime/valid/intrinsic-method-calls.hd	#573: closures and trait values
+runtime/valid/it-body-by-name.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
 runtime/valid/iterator-adapters-run.hd	#573: closures and trait values
 runtime/valid/iterator-chain-iterable.hd	#573: closures and trait values
@@ -610,6 +703,7 @@ runtime/valid/literal-fallback-hint-fix.hd	#573: closures and trait values
 runtime/valid/literal-interpolation-width.hd	#573: closures and trait values
 runtime/valid/literal-is-call-each-time.hd	#573: closures and trait values
 runtime/valid/literal-patterns.hd	#573: closures and trait values
+runtime/valid/literal-payload-patterns.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/literal-receiver-params-differ-annotated.hd	#573: closures and trait values
 runtime/valid/literal-suffix-call.hd	#573: closures and trait values
 runtime/valid/literal-suffix-calls.hd	#540: integers, strings and enums in locals
@@ -627,8 +721,12 @@ runtime/valid/local-impl-known-after-declaration.hd	#573: closures and trait val
 runtime/valid/local-impl-visible-after-declaration.hd	#573: closures and trait values
 runtime/valid/local-inherent-and-trait-impls.hd	#573: closures and trait values
 runtime/valid/local-shadows-module-namespace.hd	#573: closures and trait values
+runtime/valid/logical-operators.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/long-else-if-chain.hd	#573: closures and trait values
 runtime/valid/loop-iteration-binding-capture.hd	#573: closures and trait values
+runtime/valid/loop-iteration-cells.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/manual-clock-handle-shared.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/manual-clock.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/map-args-env.hd	#573: closures and trait values
 runtime/valid/map-entries-most-common.hd	#573: closures and trait values
 runtime/valid/map-get-or.hd	#573: closures and trait values
@@ -654,6 +752,7 @@ runtime/valid/match-guards.hd	#573: closures and trait values
 runtime/valid/match-keeps-subject.hd	#573: closures and trait values
 runtime/valid/match-literal-pattern.hd	#573: closures and trait values
 runtime/valid/match-payload-positional-then-named.hd	#573: closures and trait values
+runtime/valid/match-reference-declared-payload.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/match-reference-payload-copy.hd	#573: closures and trait values
 runtime/valid/match-unit-pattern-ok.hd	#573: closures and trait values
 runtime/valid/match-variant-shorthand.hd	#573: closures and trait values
@@ -666,6 +765,9 @@ runtime/valid/member-line-unchanged.hd	#573: closures and trait values
 runtime/valid/member-lookup-promoted.hd	#573: closures and trait values
 runtime/valid/member-name-beside-module-name.hd	#573: closures and trait values
 runtime/valid/member-select-field-and-tuple-element.hd	#573: closures and trait values
+runtime/valid/memory-fs-directories.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/memory-fs-handle-shared.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/memory-fs.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/method-call-never-selects-field.hd	#573: closures and trait values
 runtime/valid/method-call-receiver.hd	#573: closures and trait values
 runtime/valid/method-call-skips-same-name-field.hd	#573: closures and trait values
@@ -702,17 +804,32 @@ runtime/valid/mutable-provider-state.hd	#573: closures and trait values
 runtime/valid/mutable-receivers.hd	#573: closures and trait values
 runtime/valid/named-arguments-evaluate-in-source-order.hd	#573: closures and trait values
 runtime/valid/named-arguments-reordered.hd	#573: closures and trait values
+runtime/valid/named-arguments-source-evaluation-order.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/named-arguments-trait-dispatch.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/named-enum-payload-evaluation-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/named-enum-payload-patterns.hd	#573: closures and trait values
 runtime/valid/named-local-functions.hd	#573: closures and trait values
+runtime/valid/named-local-suspending-function.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nan-compares-unordered.hd	#573: closures and trait values
 runtime/valid/nan-equality-through-generics.hd	#573: closures and trait values
 runtime/valid/nan-ordering-composites.hd	#573: closures and trait values
 runtime/valid/narrowing-cast-wraps.hd	#573: closures and trait values
+runtime/valid/nested-block-on.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nested-closure-captures.hd	#573: closures and trait values
 runtime/valid/nested-control-flow-as-expressions.hd	#551: structs, tuples, enums and data values
+runtime/valid/nested-mutable-captures.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nested-optional-layers.hd	#573: closures and trait values
 runtime/valid/nested-provider-scope.hd	#573: closures and trait values
+runtime/valid/nested-suspending-call.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nested-variant-positional-bindings.hd	#573: closures and trait values
+runtime/valid/net-handle-ref-shared.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-local-address.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-own-provider.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-scripted-servers.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-scripted-stream.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-socket-options.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-timeouts.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/net-using-dispose.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/never-break-continue.hd	#573: closures and trait values
 runtime/valid/newtype-derives-through-base.hd	#573: closures and trait values
 runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
@@ -754,6 +871,7 @@ runtime/valid/numeric-display-special-values.hd	#552: strings
 runtime/valid/omitted-member-default.hd	#573: closures and trait values
 runtime/valid/omitted-member-exempt-from-bound.hd	#573: closures and trait values
 runtime/valid/omitted-member-not-described.hd	#573: closures and trait values
+runtime/valid/operands-across-suspension-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/operator-generic-primitive-run.hd	#573: closures and trait values
 runtime/valid/operator-string-add.hd	#573: closures and trait values
 runtime/valid/operator-syntax-without-import.hd	#573: closures and trait values
@@ -781,6 +899,7 @@ runtime/valid/outer-field-beside-embedded-method.hd	#573: closures and trait val
 runtime/valid/own-module-private-members.hd	#573: closures and trait values
 runtime/valid/package-names-apart-from-dependency.hd	#573: closures and trait values
 runtime/valid/parameter-default-earlier-parameter.hd	#573: closures and trait values
+runtime/valid/parameter-defaults-after-explicit-arguments.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/parenthesized-nested-same-line-if.hd	#573: closures and trait values
 runtime/valid/part-copy-is-copy-update.hd	#573: closures and trait values
 runtime/valid/partial-equality-dispatch.hd	#573: closures and trait values
@@ -790,11 +909,24 @@ runtime/valid/path-parse.hd	#573: closures and trait values
 runtime/valid/path-stem-with-extension.hd	#573: closures and trait values
 runtime/valid/pattern-forms.hd	#554: lists
 runtime/valid/payloads-and-fields-keep-every-width.hd	#551: structs, tuples, enums and data values
+runtime/valid/pending-first-poll-argument-order.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-branches.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-comprehension-propagation.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-generic-callable-list.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-loops.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-match-guards.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-nested-return-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-result-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-result-propagation.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-return-wide-result.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-void-return-operand.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-void-return.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/pipe-bare-method-step.hd	#573: closures and trait values
 runtime/valid/pipe-evaluation-order.hd	#573: closures and trait values
 runtime/valid/pipe-method-reference-step.hd	#573: closures and trait values
 runtime/valid/pipe-nested-placeholder.hd	#573: closures and trait values
 runtime/valid/pipe-placeholder-steps.hd	#552: strings
+runtime/valid/pipe-suspending-substitution-step.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/plain-dollar-text.hd	#573: closures and trait values
 runtime/valid/postfix-binds-tighter-than-infix.hd	#573: closures and trait values
 runtime/valid/prefix-import-without-marker.hd	#573: closures and trait values
@@ -809,24 +941,37 @@ runtime/valid/primitive-char-cmp-method-direct.hd	#540: the primitives' built-in
 runtime/valid/primitive-display-bound-and-trait-values.hd	#573: closures and trait values
 runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-integer-cmp-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/primitive-numeric-suffixes.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/primitive-operator-calls-method.hd	#573: closures and trait values
 runtime/valid/primitive-string-cmp-method-direct.hd	#552: strings
 runtime/valid/println-console-stdout.hd	#540: println through the host Console
+runtime/valid/println-in-test-body.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/println-pending-write.hd	#573: closures and trait values
+runtime/valid/println-provider-cancels-write.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/println-provider-suspending-body.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/println-recording-provider.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/println-under-main-driver.hd	#541: test programs, and roots that never suspend
 runtime/valid/private-function-inferred-result.hd	#573: closures and trait values
 runtime/valid/private-function-inferred-row.hd	#573: closures and trait values
 runtime/valid/private-main-is-ordinary-function.hd	#573: closures and trait values
 runtime/valid/process-command-defaults.hd	#573: closures and trait values
+runtime/valid/process-command-handle-shared.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/process-command-run.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/process-error-display.hd	#573: closures and trait values
+runtime/valid/process-error-results.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/process-exit-data-eq.hd	#573: closures and trait values
 runtime/valid/process-exited-data.hd	#573: closures and trait values
+runtime/valid/process-not-granted.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/process-scripted-provider.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/process-scripted-received.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/promoted-method-no-override.hd	#573: closures and trait values
 runtime/valid/propagation-before-cleanup.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/propagation-from-two-domains.hd	#573: closures and trait values
 runtime/valid/propagation-in-closure-targets-closure.hd	#573: closures and trait values
 runtime/valid/propagation-into-erased-error.hd	#573: closures and trait values
 runtime/valid/propagation-prefers-assignability.hd	#573: closures and trait values
+runtime/valid/provider-capture-timing.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/provider-from-suspending-call.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/provider-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/provider-ref-new-object.hd	#573: closures and trait values
 runtime/valid/provider-ref-same-place.hd	#573: closures and trait values
@@ -836,6 +981,8 @@ runtime/valid/pub-own-member-hides-promoted.hd	#573: closures and trait values
 runtime/valid/pub-use-same-declaration.hd	#573: closures and trait values
 runtime/valid/qualified-calls-beside-promoted-method.hd	#573: closures and trait values
 runtime/valid/question-mark-finds-std-from.hd	#573: closures and trait values
+runtime/valid/race-cancelled-child.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/race-loser-cleanup-outer-cancel.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/random-fill.hd	#573: closures and trait values
 runtime/valid/range-eq.hd	#573: closures and trait values
 runtime/valid/range-float-bounds.hd	#573: closures and trait values
@@ -859,6 +1006,7 @@ runtime/valid/recursive-optional-reference-list.hd	#573: closures and trait valu
 runtime/valid/recursive-private-functions-least-row.hd	#573: closures and trait values
 runtime/valid/reference-aliases-see-writes.hd	#573: closures and trait values
 runtime/valid/reference-allocates.hd	#573: closures and trait values
+runtime/valid/reference-copy-out.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/reference-cycles-are-ordinary-data.hd	#573: closures and trait values
 runtime/valid/reference-deref-replace.hd	#573: closures and trait values
 runtime/valid/reference-derived-debug.hd	#573: closures and trait values
@@ -872,6 +1020,7 @@ runtime/valid/reference-field-places.hd	#573: closures and trait values
 runtime/valid/reference-generic.hd	#573: closures and trait values
 runtime/valid/reference-identity-fields.hd	#573: closures and trait values
 runtime/valid/reference-identity-same-place.hd	#573: closures and trait values
+runtime/valid/reference-identity.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/reference-local-cells.hd	#573: closures and trait values
 runtime/valid/reference-map-key-mutated.hd	#573: closures and trait values
 runtime/valid/reference-map-key.hd	#573: closures and trait values
@@ -907,7 +1056,10 @@ runtime/valid/requirement-key-supertrait-binding-run.hd	#573: closures and trait
 runtime/valid/requirement-row-duplicate-after-substitution.hd	#573: closures and trait values
 runtime/valid/requirement-row-forwarded-through-calls.hd	#573: closures and trait values
 runtime/valid/requirement-row-order-data-field.hd	#573: closures and trait values
+runtime/valid/requirement-row-order-stored-suspension.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/requirement-row-order-trait-value.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/result-and-then.hd	#573: closures and trait values
+runtime/valid/result-entry-point-ok.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/result-enum-spellings.hd	#573: closures and trait values
 runtime/valid/result-map.hd	#573: closures and trait values
 runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
@@ -916,6 +1068,7 @@ runtime/valid/result-propagation-evaluates-once.hd	#573: closures and trait valu
 runtime/valid/result-propagation.hd	#573: closures and trait values
 runtime/valid/result-tests-conversions.hd	#573: closures and trait values
 runtime/valid/result-type-candidate.hd	#573: closures and trait values
+runtime/valid/retry-with-backoff.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/return-in-closure-targets-closure.hd	#573: closures and trait values
 runtime/valid/reverse-value-copy.hd	#554: lists
 runtime/valid/rng-from-random.hd	#573: closures and trait values
@@ -943,11 +1096,14 @@ runtime/valid/same-line-suite-body-forms.hd	#551: structs, tuples, enums and dat
 runtime/valid/same-line-suite-boundaries.hd	#573: closures and trait values
 runtime/valid/script-empty-run.hd	#539: an empty script runs
 runtime/valid/script-top-level-runs.hd	#554: lists
+runtime/valid/scripted-input.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/scripted-process.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/sealed-member-name-inherent-method.hd	#573: closures and trait values
 runtime/valid/sealed-supertrait-extension.hd	#573: closures and trait values
 runtime/valid/seeded-random.hd	#573: closures and trait values
 runtime/valid/self-in-trait-is-implementing-type.hd	#573: closures and trait values
 runtime/valid/self-interpolation.hd	#573: closures and trait values
+runtime/valid/sequential-suspending-calls.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/serde-derive-call-order.hd	#573: closures and trait values
 runtime/valid/serde-derive-read-default.hd	#573: closures and trait values
 runtime/valid/serde-derive-read-order.hd	#573: closures and trait values
@@ -991,6 +1147,8 @@ runtime/valid/std-errors-erased.hd	#573: closures and trait values
 runtime/valid/std-iter-traits-struct-impls.hd	#573: closures and trait values
 runtime/valid/std-list-extend-own-copy.hd	#573: closures and trait values
 runtime/valid/stored-function-field-call.hd	#573: closures and trait values
+runtime/valid/stored-suspension-parameter.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/stored-suspension-single-drive.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/string-and-char-literal-contents.hd	#554: lists
 runtime/valid/string-builder-handle-shared.hd	#573: closures and trait values
 runtime/valid/string-byte-methods.hd	#573: closures and trait values
@@ -1030,6 +1188,7 @@ runtime/valid/strings-and-comments-hide-keywords-and-operators.hd	#554: lists
 runtime/valid/struct-copy-is-independent.hd	#573: closures and trait values
 runtime/valid/struct-copy-update.hd	#551: structs, tuples, enums and data values
 runtime/valid/struct-derive-eq-debug.hd	#573: closures and trait values
+runtime/valid/struct-embedding-value.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/struct-in-containers.hd	#572: maps
 runtime/valid/struct-mut-self-copy.hd	#573: closures and trait values
 runtime/valid/structural-equality.hd	#572: maps
@@ -1046,11 +1205,44 @@ runtime/valid/structure-self-ref.hd	#573: closures and trait values
 runtime/valid/suite-abrupt-no-final-value.hd	#573: closures and trait values
 runtime/valid/suite-statement-right-sides.hd	#573: closures and trait values
 runtime/valid/supertrait-methods.hd	#573: closures and trait values
+runtime/valid/suspending-argument-candidate.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-blanket-impls.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-call-in-scoped-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-call-preserves-locals.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-call-with-defer.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-call-with-requirement.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-calls-as-arguments.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-calls-in-binary-expression.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-calls-in-branches.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-calls-in-loops.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-closure-captures.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-closure-requirement-row.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-function-values.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-generic-method.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-match-guards.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-result-propagation.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-test-body.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-trailing-block.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-trait-default-method.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspending-trait-dispatch.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/suspension-call-callee-and-arguments-first.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/tab-only-as-content.hd	#540: integers, strings and enums in locals
+runtime/valid/task-all-list-empty.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-all-list-order.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-block-on.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-cleanup-end.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-records-value-copy.hd	#572: maps
+runtime/valid/task-retry-at-least-once.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-retry-when.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-retry.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-timeout-cleanup.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/template-beside-hand-written-impl.hd	#573: closures and trait values
 runtime/valid/template-derived-trait-self.hd	#573: closures and trait values
+runtime/valid/termination-report.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/termination-void-reports-zero.hd	#573: closures and trait values
+runtime/valid/test-block-on.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/test-block-propagation.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/test-body-explicit-closure.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/test-body-return.hd	#541: test programs, and roots that never suspend
 runtime/valid/test-case-fresh-instance.hd	#573: closures and trait values
 runtime/valid/test-case-options.hd	#573: closures and trait values
@@ -1073,6 +1265,9 @@ runtime/valid/time-rfc3339-text.hd	#573: closures and trait values
 runtime/valid/time-serde-forms.hd	#573: closures and trait values
 runtime/valid/time-unix-milliseconds.hd	#573: closures and trait values
 runtime/valid/time-values-copy.hd	#568: concrete keys preserve inline generic arguments
+runtime/valid/timeout-cleanup-unbounded.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/timeout-cleanup-zero.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/timeout-work-cancelled-elsewhere.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/top-level-pattern-binding.hd	#554: lists
 runtime/valid/trailing-block-return-targets-callback.hd	#573: closures and trait values
 runtime/valid/trailing-block-right-hand-sides.hd	#573: closures and trait values
@@ -1114,6 +1309,7 @@ runtime/valid/tuple-rest-map-key.hd	#573: closures and trait values
 runtime/valid/tuple-rest-only-empty.hd	#573: closures and trait values
 runtime/valid/tuple-rest-spread-list.hd	#554: lists
 runtime/valid/tuple-spread-candidate.hd	#573: closures and trait values
+runtime/valid/tuple-spread-fixed.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/tuple-spread-rest.hd	#573: closures and trait values
 runtime/valid/tuple-template-instances.hd	#573: closures and trait values
 runtime/valid/tuple-thirteen-elements.hd	#573: closures and trait values
@@ -1137,11 +1333,16 @@ runtime/valid/unavailable-trait-method-invisible.hd	#573: closures and trait val
 runtime/valid/underscore-tuple-members.hd	#573: closures and trait values
 runtime/valid/unicode-function-names.hd	#540: integers, strings and enums in locals
 runtime/valid/unit-pattern-void-success.hd	#573: closures and trait values
+runtime/valid/unit-test-manual-clock.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/unit-value.hd	#573: closures and trait values
 runtime/valid/unsafe-trait-static-bound.hd	#573: closures and trait values
 runtime/valid/use-declaration-position-independent.hd	#573: closures and trait values
 runtime/valid/use-module-member-beside-root-declaration.hd	#573: closures and trait values
 runtime/valid/user-iterable-for-loop.hd	#573: closures and trait values
+runtime/valid/using-dispose-order.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/using-dispose-suspends.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/using-race-loser-disposes.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/using-reference-disposes.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/usize-width-wasm32.hd	#573: closures and trait values
 runtime/valid/utf8-error-traits.hd	#573: closures and trait values
 runtime/valid/utf8-invalid-bytes.hd	#573: closures and trait values
@@ -1153,8 +1354,11 @@ runtime/valid/value-argument-legacy-alias.hd	#573: closures and trait values
 runtime/valid/value-argument-reference-change.hd	#573: closures and trait values
 runtime/valid/value-argument-sibling-change.hd	#573: closures and trait values
 runtime/valid/vararg-function-values.hd	#573: closures and trait values
+runtime/valid/varargs-in-trait-and-suspending-methods.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/variant-constructor-as-function-value.hd	#573: closures and trait values
 runtime/valid/variant-constructor-passed-as-function.hd	#573: closures and trait values
 runtime/valid/while-break-and-continue.hd	#573: closures and trait values
 runtime/valid/while-else-break-value.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/while-else-exhaustion-value.hd	#573: closures and trait values
+runtime/valid/write-line-around-suspending-provider-scope.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/write-line-suspending-call-argument.hd	#575: suspension frames, the waker and the entry driver

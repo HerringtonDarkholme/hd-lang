@@ -8781,7 +8781,23 @@ impl Run<'_> {
                 cases: cases.clone(),
                 inits: inits.clone(),
             },
-            Roots::Scenario { .. } => hd_wasm_linear::Entry::Unsupported("runtime scenarios"),
+            Roots::Scenario {
+                def,
+                key,
+                entry_inits,
+                report,
+                cleanup,
+            } => hd_wasm_linear::Entry::Scenario {
+                main: *def,
+                key: *key,
+                inits: inits
+                    .iter()
+                    .map(|k| (*k, !entry_inits.contains(k)))
+                    .collect(),
+                report: *report,
+                cleanup: *cleanup,
+                hold: self.scenario_hold(p),
+            },
         };
         let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::RUNTIME_FNS
             .iter()

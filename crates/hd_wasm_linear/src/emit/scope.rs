@@ -4,8 +4,9 @@
 //! that its `Defer` sets; every way out of the body stores its exit's
 //! code and branches to the scope's end, which runs the registered
 //! suites, last in, first out, then takes the exit again, through the
-//! next scope out. A suite that suspends (a `using` binding's `dispose!`)
-//! waits for job 13.
+//! next scope out. A suite that suspends (a `using` binding's
+//! `dispose!`) is a rung a resume can enter, and its points are shielded
+//! from cancellation (`susp.rs`).
 
 use hd_base::StageResult;
 use hd_tir::ir::NONE;
@@ -24,6 +25,8 @@ pub(super) enum Exit {
     Cont(u32),
     /// Out of the function, its result in `Em::ret`.
     Ret,
+    /// Out of a suspending body by its cancellation (`susp.rs`).
+    Cancel,
 }
 
 /// A cleanup scope's exit code local and the exits its body takes; exit
@@ -38,15 +41,26 @@ impl Em<'_, '_, '_> {
     /// registered suite, then the exits the body took.
     pub(super) fn scope(&mut self, i: u32, body: u32, rec: u32) -> StageResult<()> {
         let suites = self.rec(rec);
+        // A suite that holds a suspension point: a `using` binding's
+        // `dispose!` (flow.using.suite-suspends).
+        let waits: Vec<Option<(u32, u32)>> = suites.iter().map(|&s| self.range(s)).collect();
+        let waiting = waits.iter().any(Option::is_some);
         let code = self.f.local(Val::I32);
         let mut flags = Vec::new();
         for &s in &suites {
             let f = self.f.local(Val::I32);
-            self.f.i32(0);
-            self.f.set(f);
             self.defer_flags.insert(s, f);
             flags.push(f);
         }
+        // A resume keeps the flags its frame saved.
+        let fl = flags.clone();
+        self.fresh_only(|em| {
+            for f in fl {
+                em.f.i32(0);
+                em.f.set(f);
+            }
+            Ok(())
+        })?;
         self.scopes.insert(
             i,
             ScopeInfo {
@@ -56,20 +70,82 @@ impl Em<'_, '_, '_> {
         );
         self.slot(i)?;
         self.open(Ctl::Scope(i));
-        self.block_into(body, Some(i))?;
-        self.f.i32(0);
-        self.f.set(code);
+        // A resume into a suite skips the body; `code` holds the saved
+        // exit.
+        if waiting {
+            self.entered(body, |em| {
+                em.block_into(body, Some(i))?;
+                em.f.i32(0);
+                em.f.set(code);
+                Ok(())
+            })?;
+        } else {
+            self.block_into(body, Some(i))?;
+            self.f.i32(0);
+            self.f.set(code);
+        }
         self.close();
-        for (&s, &f) in suites.iter().zip(&flags).rev() {
+        for ((&s, &f), w) in suites.iter().zip(&flags).zip(&waits).rev() {
+            // Registered, or resumed into. A suite that ran clears its
+            // flag, so a resume into a later rung skips it.
             self.f.get(f);
+            if let Some((lo, hi)) = *w {
+                self.in_range(lo, hi);
+                self.f.op(I::I32Or);
+            }
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            // A suite is a forbidden context (`req.drive.block-on.indirect`);
-            // it cannot leave early, so the count balances.
-            self.forbid_by(1);
-            self.block_into(s, None)?;
-            self.forbid_by(-1);
+            if waiting {
+                self.f.i32(0);
+                self.f.set(f);
+            }
+            if w.is_some() {
+                // A `dispose!` that waits runs under the driver
+                // (flow.using.not-forbidden), and its points are shielded
+                // from cancellation (flow.using.cancel).
+                self.shield += 1;
+                let r = self.block_into(s, None);
+                self.shield -= 1;
+                r?;
+            } else {
+                // A suite is a forbidden context
+                // (`req.drive.block-on.indirect`); it cannot leave early,
+                // so the count balances.
+                self.forbid_by(1);
+                self.block_into(s, None)?;
+                self.forbid_by(-1);
+            }
             self.close();
+        }
+        // Cancelled while a shielded `dispose!` waited: once the ladder
+        // ran, the scope leaves by `Cancel`, whatever exit it was taking.
+        if waiting {
+            let cancel = {
+                let Some(info) = self.scopes.get_mut(&i) else {
+                    return unsupported("a cleanup scope without its ladder");
+                };
+                if let Some(k) = info.exits.iter().position(|x| *x == Exit::Cancel) {
+                    k + 1
+                } else {
+                    info.exits.push(Exit::Cancel);
+                    info.exits.len()
+                }
+            };
+            self.f.get(super::susp::FRAME);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(super::susp::FRAME);
+            self.f.op(I::I32Load(crate::module::mem(
+                crate::module::HEAP,
+                crate::task::F_FLAGS,
+                2,
+            )));
+            self.f.i32(crate::task::CANCELLED);
+            self.f.op(I::I32And);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.i32(i32::try_from(cancel).expect("exits"));
+            self.f.set(code);
+            self.f.op(I::End);
+            self.f.op(I::End);
         }
         let exits = self.scopes.remove(&i).map(|s| s.exits).unwrap_or_default();
         for (k, e) in exits.into_iter().enumerate() {
@@ -100,7 +176,7 @@ impl Em<'_, '_, '_> {
         let floor = match e {
             Exit::Brk(t) => self.ctl.iter().rposition(|c| *c == Ctl::Brk(t)),
             Exit::Cont(t) => self.ctl.iter().rposition(|c| *c == Ctl::Cont(t)),
-            Exit::Ret => None,
+            Exit::Ret | Exit::Cancel => None,
         };
         let scope = self
             .ctl
@@ -109,7 +185,7 @@ impl Em<'_, '_, '_> {
             .filter(|p| floor.is_none_or(|f| *p > f));
         // The blocks this jump leaves before it reaches the target or a
         // scope's suites, which may still read what holds the scope.
-        if e != Exit::Ret
+        if !matches!(e, Exit::Ret | Exit::Cancel)
             && let Some(f) = scope.or(floor)
         {
             self.drop_exited(f)?;
@@ -151,8 +227,10 @@ impl Em<'_, '_, '_> {
                 for l in self.ret.clone() {
                     self.f.get(l);
                 }
+                self.ready_frame();
                 self.f.op(I::Return);
             }
+            Exit::Cancel => self.leave_cancelled()?,
         }
         Ok(())
     }
@@ -166,6 +244,7 @@ impl Em<'_, '_, '_> {
             if a != NONE {
                 self.push(a)?;
             }
+            self.ready_frame();
             self.f.op(I::Return);
             return Ok(());
         }
@@ -182,5 +261,33 @@ impl Em<'_, '_, '_> {
             }
         }
         self.exit(Exit::Ret)
+    }
+}
+
+impl Em<'_, '_, '_> {
+    /// In a suspending body, pushes the frame result of a direct return:
+    /// 0, Ready, once a frame it has is marked `EXITED`.
+    fn ready_frame(&mut self) {
+        if self.susp.is_none() {
+            return;
+        }
+        self.f.get(super::susp::FRAME);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.get(super::susp::FRAME);
+        self.f.get(super::susp::FRAME);
+        self.f.op(I::I32Load(crate::module::mem(
+            crate::module::HEAP,
+            crate::task::F_FLAGS,
+            2,
+        )));
+        self.f.i32(crate::task::EXITED);
+        self.f.op(I::I32Or);
+        self.f.op(I::I32Store(crate::module::mem(
+            crate::module::HEAP,
+            crate::task::F_FLAGS,
+            2,
+        )));
+        self.f.op(I::End);
+        self.f.i32(0);
     }
 }
