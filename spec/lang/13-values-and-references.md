@@ -193,7 +193,11 @@ A `&mut T` converts to `&T` where a `&T` is expected.
 
 1. r[ref.convert.weaken] A `&mut T` converts implicitly to `&T`, and to `&T?` where an optional is expected. The conversion makes no new reference: both refer to the same place.
 2. r[ref.convert.no-upgrade] A `&T` never converts to `&mut T`. Using one where a `&mut T` is expected is an error. Error: `mutable-upgrade`.
-3. r[ref.convert.no-other-but-dyn] A reference converts to no other type, and no other type converts to a reference, except by the conversions to a trait value reference of [Trait Value References](09-traits.md#trait-value-references).
+3. r[ref.convert.listed-only] Reference conversions are limited to this section and [Trait Value References](09-traits.md#trait-value-references).
+4. r[ref.convert.readonly-covariant] A readonly container reference permits `&mut U` to `&U` weakening through covariant container arguments and tuple elements.
+5. r[ref.convert.readonly-option] The same weakening enters an optional payload beneath a readonly reference.
+6. r[ref.convert.readonly-invariant] The conversion preserves invariant arguments and the operands of mutable references retained in the target.
+7. r[ref.convert.readonly-representation] The conversion preserves representation and reference identity, without copying elements or inserting wrappers.
 
 ```text
 fn edit(r: &mut i32) -> void:

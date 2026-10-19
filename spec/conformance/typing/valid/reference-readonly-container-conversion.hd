@@ -1,0 +1,21 @@
+# Spec 13: ref.convert.readonly-covariant, ref.convert.readonly-option
+struct User:
+    name: string
+
+fn list(view: &List[&mut User]) -> &List[&User]:
+    view
+
+fn optional(view: &Option[&mut User]) -> &Option[&User]:
+    view
+
+fn nested(view: &List[Option[&mut User]]) -> &List[Option[&User]]:
+    view
+
+fn tuple(view: &(List[&mut User], Option[&mut User])) -> &(List[&User], Option[&User]):
+    view
+
+fn map_values(view: &Map[string, &mut User]) -> &Map[string, &User]:
+    view
+
+fn writable_to_readonly(view: &mut List[&mut User]) -> &List[&User]:
+    view

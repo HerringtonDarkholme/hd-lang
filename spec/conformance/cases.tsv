@@ -3503,6 +3503,14 @@ runtime/valid/reference-enum-replace-build.hd	runtime	accept	lang/13-values-and-
 runtime/valid/reference-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
 runtime/valid/reference-read-through.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto
 typing/valid/reference-forms.hd	type	accept	lang/13-values-and-references.md#r-ref.place.shared-any
+typing/valid/reference-readonly-container-conversion.hd	type	accept	lang/13-values-and-references.md#r-ref.convert.readonly-covariant
+typing/invalid/reference-container-writable-conversion.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-invariant
+typing/invalid/reference-container-upgrade.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-covariant
+typing/invalid/reference-container-invariant.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-invariant
+typing/invalid/reference-container-nested-writable.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-invariant
+typing/invalid/reference-container-writable-option.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-invariant
+typing/invalid/reference-container-writable-store.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-invariant
+runtime/valid/reference-readonly-container-conversion.hd	runtime	accept	lang/13-values-and-references.md#r-ref.convert.readonly-representation
 typing/invalid/reference-mut-from-plain-let.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.place.not-writable.let
 typing/invalid/reference-mut-from-short-binding.hd	type	reject:non-reassignable-binding	lang/13-values-and-references.md#r-ref.place.not-writable.short
 typing/invalid/reference-mut-from-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/13-values-and-references.md#r-ref.place.not-writable.param

@@ -1,0 +1,7 @@
+# Spec 13: ref.convert.readonly-covariant
+struct User:
+    name: string
+fn store(view: &mut List[&User], replacement: &User) -> void:
+    view[0] = replacement
+fn invalid(view: &mut List[&mut User], replacement: &User) -> void:
+    store(view, replacement)  # diagnostic: type-mismatch

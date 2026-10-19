@@ -1629,6 +1629,18 @@ impl Ck<'_, '_> {
         if self.joins.is_site(target) {
             return self.join_value(r, got, target, n, what);
         }
+        // Readonly reference views may weaken reference permissions in
+        // covariant container positions without changing their layout.
+        // Keep unification itself invariant, especially for writable views.
+        if matches!(pool.get(g), TyData::Ref { .. })
+            && matches!(pool.get(w), TyData::Ref { mutable: false, .. })
+        {
+            let snapshot = self.infer.snapshot();
+            if self.readonly_view_fits(g, w, 0) {
+                return self.b.coerce(Coercion::Weaken, NONE, r, want, n.index());
+            }
+            self.infer.rollback(snapshot);
+        }
         // `&mut T` converts to `&T` (`ref.convert.weaken`), also into an
         // optional; `&T` never converts to `&mut T` (`ref.convert.no-upgrade`).
         let shared_target = |t: Ty| match pool.get(t) {

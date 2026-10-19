@@ -1,0 +1,42 @@
+# test: readonly container reference conversions preserve layout and identity
+# expect-stdout: before
+# expect-stdout: before
+# expect-stdout: true
+# expect-stdout: after
+# expect-stdout: after
+# expect-stdout: missing
+# expect-stdout: after
+# Spec 13: ref.convert.readonly-covariant, ref.convert.readonly-option
+struct User:
+    name: string
+
+fn first(view: &List[&User]) -> string:
+    view[0].name
+
+fn optional(view: &Option[&User]) -> string:
+    match view:
+        .Some(user) => user.name
+        .None => "missing"
+
+fn nested(view: &List[Option[&User]]) -> string:
+    match view[0]:
+        .Some(user) => user.name
+        .None => "missing"
+
+fn identity(view: &List[&User], expected: &User) -> bool:
+    view[0] is expected
+
+pub fn main() -> void $ Console:
+    let mut user = User { name: "before" }
+    let mut users = [&mut user]
+    println(first(&users))
+    println(first(&mut users))
+    println(identity(&users, &user))
+    user.name = "after"
+    println(first(&users))
+    let present: Option[&mut User] = .Some(&mut user)
+    println(optional(&present))
+    let absent: Option[&mut User] = .None
+    println(optional(&absent))
+    let nested_users: List[Option[&mut User]] = [.Some(&mut user)]
+    println(nested(&nested_users))

@@ -142,6 +142,64 @@ impl Ck<'_, '_> {
         pool.intern_ty(&d)
     }
 
+    /// `ref.convert.readonly-covariant`, `ref.convert.readonly-option`:
+    /// representation-preserving permission weakening through a readonly
+    /// container view. A mutable reference and an invariant argument keep
+    /// their exact operands. The caller rolls back a failed inference trial.
+    pub(crate) fn readonly_view_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
+        if depth > 32 {
+            return false;
+        }
+        let pool = self.pool();
+        let from = self.infer.resolve(pool, from);
+        let to = self.infer.resolve(pool, to);
+        if from == to {
+            return true;
+        }
+        let d = depth + 1;
+        match (pool.get(from), pool.get(to)) {
+            (
+                TyData::Ref { inner: a, .. },
+                TyData::Ref {
+                    inner: b,
+                    mutable: false,
+                },
+            ) => self.readonly_view_fits(a, b, d),
+            (TyData::Option(a), TyData::Option(b)) => self.readonly_view_fits(a, b, d),
+            (
+                TyData::Adt { def, args: a },
+                TyData::Adt {
+                    def: other,
+                    args: b,
+                },
+            ) if def == other => {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                let variance = self.declared_variances(def);
+                a.len() == b.len()
+                    && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
+                        if variance.get(i) == Some(&1) {
+                            self.readonly_view_fits(a, b, d)
+                        } else {
+                            self.infer.unify(pool, a, b).is_ok() && self.perm_fits(a, b, false, d)
+                        }
+                    })
+            }
+            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                a.len() == b.len()
+                    && a.iter()
+                        .zip(b)
+                        .all(|(&a, &b)| self.readonly_view_fits(a, b, d))
+                    && match (ar, br) {
+                        (Some(a), Some(b)) => self.readonly_view_fits(a, b, d),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            _ => self.infer.unify(pool, from, to).is_ok() && self.perm_fits(from, to, false, d),
+        }
+    }
+
     /// Whether a value of type `t` holds a `&mut` at any depth: through
     /// the fields of structs, data types and enums, tuple elements,
     /// optionals, newtypes and type arguments (`ref.read.copy-out`).
