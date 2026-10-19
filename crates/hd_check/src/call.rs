@@ -631,7 +631,11 @@ impl Ck<'_, '_> {
                 if self.is_poison_name(&text) {
                     return Ok(self.poison_value(n));
                 }
-                let msg = format!("`{text}` is not defined");
+                let msg = if text == "loop" && n.kind() == SyntaxKind::TrailingCallExpr {
+                    "`loop` is not defined; write 'while true:' for an endless loop".to_owned()
+                } else {
+                    format!("`{text}` is not defined")
+                };
                 self.err(Code::UnknownName, callee, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }

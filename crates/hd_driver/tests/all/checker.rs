@@ -85,6 +85,46 @@ fn build_program(main: &str, store: &dyn CacheStore) -> Output {
     )
 }
 
+#[test]
+fn foreign_bare_loop_names_the_endless_loop_spelling() {
+    let source = "pub fn main() -> void:\n    loop:\n        pass\n";
+    let out = program(source);
+    assert_eq!(out.diags.code, [Code::UnknownName], "{}", out.render());
+    assert_eq!(
+        out.diags.get_text(out.diags.message[0]),
+        "`loop` is not defined; write 'while true:' for an endless loop"
+    );
+    let start = u32::try_from(source.find("loop:").unwrap()).unwrap();
+    assert_eq!(out.diags.primary[0].lo, start);
+    assert_eq!(out.diags.primary[0].hi, start + 4);
+}
+
+#[test]
+fn foreign_loop_hint_does_not_change_other_unresolved_calls() {
+    for call in ["loop()", "loop(1):\n        pass", "missing:\n        pass"] {
+        let source = format!("pub fn main() -> void:\n    {call}\n");
+        let out = program(&source);
+        assert_eq!(out.diags.code, [Code::UnknownName], "{}", out.render());
+        let name = if call.starts_with("loop") {
+            "loop"
+        } else {
+            "missing"
+        };
+        assert_eq!(
+            out.diags.get_text(out.diags.message[0]),
+            format!("`{name}` is not defined")
+        );
+    }
+}
+
+#[test]
+fn foreign_loop_hint_does_not_reject_a_defined_loop() {
+    let out = program(
+        "fn loop(body: fn() -> void) -> void:\n    body()\n\npub fn main() -> void:\n    loop:\n        pass\n",
+    );
+    assert!(out.diags.is_empty(), "{}", out.render());
+}
+
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
 /// trait default bodies among the bodies: 39 modules.
 #[test]

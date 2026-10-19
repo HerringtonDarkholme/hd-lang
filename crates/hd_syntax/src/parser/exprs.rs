@@ -1175,15 +1175,18 @@ impl Parser<'_> {
         self.complete(marker, kind)
     }
 
-    /// Suggest the written conversion for one short operand token. A
-    /// larger expression uses a schematic spelling to keep the hint short.
+    /// Suggest the written conversion for one short operand token or a
+    /// signed numeric literal. Larger expressions use a schematic hint.
     fn cast_message(&mut self, operand: usize) -> String {
         let fallback = "casts are calls: write 'Type(value)'";
         let colon = self.pos();
-        if colon != operand + 1 {
+        let signed_number = colon == operand + 2
+            && matches!(self.toks.kind[operand], TokenKind::Plus | TokenKind::Minus)
+            && self.toks.kind[operand + 1] == TokenKind::Number;
+        if colon != operand + 1 && !signed_number {
             return fallback.into();
         }
-        let value = &self.src[self.toks.start[operand] as usize..self.toks.end[operand] as usize];
+        let value = &self.src[self.toks.start[operand] as usize..self.toks.end[colon - 1] as usize];
         if value.len() > 32 || value.contains(['\n', '\r']) {
             return fallback.into();
         }

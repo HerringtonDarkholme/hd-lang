@@ -696,6 +696,17 @@ fn foreign_cast_uses_written_operand_and_type() {
 }
 
 #[test]
+fn foreign_cast_keeps_a_signed_numeric_operand() {
+    for (source, message) in [
+        ("(+1: i64)\n", "casts are calls: write 'i64(+1)'"),
+        ("(-2.5: f32)\n", "casts are calls: write 'f32(-2.5)'"),
+        ("(+x: i64)\n", "casts are calls: write 'Type(value)'"),
+    ] {
+        foreign_syntax(source, "trailing-block-position", message, ":");
+    }
+}
+
+#[test]
 fn foreign_postfix_bang_uses_written_callee() {
     for (source, message) in [
         (
