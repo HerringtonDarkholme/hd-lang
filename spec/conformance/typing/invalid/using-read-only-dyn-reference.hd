@@ -1,0 +1,10 @@
+# test: a using binding of a read-only trait value reference cannot dispose what it refers to
+# Spec lang/06 Using Bindings: flow.using.reference.read-only.
+use std.ops.Disposable
+
+trait Session < Disposable:
+    fn name(&self) -> string
+
+fn peek_session!(session: &dyn Session) -> void:
+    using held = session  # diagnostic: mutable-receiver-required
+    pass

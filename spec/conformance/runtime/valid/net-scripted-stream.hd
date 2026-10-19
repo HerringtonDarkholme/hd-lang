@@ -1,5 +1,5 @@
 # test: ScriptedNet hands a scripted stream to connect!, which returns its chunks, records its writes, and fails at once past its script
-# Spec std/net Scripted Net: std-net.scripted.new, std-net.scripted.setup, std-net.scripted.read, std-net.scripted.read-max, std-net.scripted.eof, std-net.scripted.exhausted, std-net.scripted.write, std-net.scripted.failing.
+# Spec std/net Scripted Net: std-net.scripted.new-ref, std-net.scripted.setup-ref, std-net.scripted.read, std-net.scripted.read-max, std-net.scripted.eof, std-net.scripted.exhausted, std-net.scripted.write, std-net.scripted.failing.
 # Also covers std-net.scripted.decl, std-net.scripted.queue,
 # std-net.scripted.lookup-unknown, std-net.scripted.refused,
 # std-net.scripted.requested, std-net.scripted.closed-error,
@@ -14,8 +14,8 @@ fn text_of(bytes: List[u8]) -> string:
         .Err(_) => ""
 
 fn lookup_value!(key: string) -> Result[string, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut stream = net.connect!("cache.local", 6379)?
+    net := $.use(Net)
+    stream := net.connect!("cache.local", 6379)?
     match stream.write!("GET ${key}\n".to_utf8()):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("write failed"))
@@ -37,8 +37,8 @@ fn outcome[T](result: Result[T, NetError]) -> string:
         .Err(.Other(message)) => "other: ${message}"
         .Err(error) => "error: ${error}"
 
-fn open_stream!(address: string, port: u16) -> mut dyn TcpStream $ Net:
-    let mut net = $.use(Net)
+fn open_stream!(address: string, port: u16) -> &mut dyn TcpStream $ Net:
+    net := $.use(Net)
     match net.connect!(address, port):
         .Ok(stream) => stream
         .Err(_) => panic("a scripted connection")
@@ -47,8 +47,8 @@ tests:
     use std.testing.assert_equal
 
     it("sends the command and returns the reply"):
-        let mut stream = ScriptedStream::new(["VALUE 42\n".to_utf8()])
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::new(["VALUE 42\n".to_utf8()])
+        net := ScriptedNet::new()
         net.add_connection("cache.local:6379", stream)
         $.with(Net=net):
             assert_equal(lookup_value!("answer"), .Ok("VALUE 42"), reason="reply")
@@ -57,14 +57,14 @@ tests:
         assert_equal(net.requested(), ["cache.local:6379"], reason="one connect")
 
     it("reports a failed read"):
-        let mut stream = ScriptedStream::failing([], NetError.Other("connection reset"))
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::failing([], NetError.Other("connection reset"))
+        net := ScriptedNet::new()
         net.add_connection("cache.local:6379", stream)
         $.with(Net=net):
             assert_equal(lookup_value!("answer"), .Err(.Other("read failed")), reason="reset")
 
     it("splits a chunk at max, ends at an empty chunk, and stays ended"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.add_connection("feed.local:9000", ScriptedStream::new(["hello".to_utf8(), "!".to_utf8(), [], "late".to_utf8()]))
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
@@ -75,7 +75,7 @@ tests:
             assert_equal(bytes_of(stream.read!(10)), [], reason="and stays closed")
 
     it("fails at once past the last chunk"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.add_connection("feed.local:9000", ScriptedStream::new(["x".to_utf8()]))
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
@@ -83,8 +83,8 @@ tests:
             assert_equal(outcome(stream.read!(10)), "other: ScriptedStream has no more reads", reason="nothing more scripted")
 
     it("a failing stream fails reads and writes after its chunks"):
-        let mut peer = ScriptedStream::failing(["ok".to_utf8()], NetError.Other("reset"))
-        let mut net = ScriptedNet::new()
+        peer := ScriptedStream::failing(["ok".to_utf8()], NetError.Other("reset"))
+        net := ScriptedNet::new()
         net.add_connection("feed.local:9000", peer)
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
@@ -96,8 +96,8 @@ tests:
         assert_equal(peer.written(), [1], reason="only the first write")
 
     it("every operation after close is Closed"):
-        let mut peer = ScriptedStream::new(["x".to_utf8()])
-        let mut net = ScriptedNet::new()
+        peer := ScriptedStream::new(["x".to_utf8()])
+        net := ScriptedNet::new()
         net.add_connection("feed.local:9000", peer)
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
@@ -108,11 +108,11 @@ tests:
         assert_equal(peer.is_closed(), true, reason="the test sees it")
 
     it("serves one address's queue in order, then refuses"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.fail_connection("db.local:5432", NetError.Refused("db.local:5432"))
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
-            let mut client = $.use(Net)
+            client := $.use(Net)
             assert_equal(client.connect!("db.local", 5432).is_err(), true, reason="the scripted failure first")
             assert_equal(client.connect!("db.local", 5432).is_ok(), true, reason="then the stream")
             match client.connect!("db.local", 5432):
@@ -124,10 +124,10 @@ tests:
         assert_equal(net.requested().len(), 4, reason="the failed calls are recorded too")
 
     it("answers a scripted lookup and fails an unknown host with Dns"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.add_host("cache.local", ["10.0.0.5", "10.0.0.6"])
         $.with(Net=net):
-            let mut client = $.use(Net)
+            client := $.use(Net)
             assert_equal(client.lookup!("cache.local"), .Ok(["10.0.0.5", "10.0.0.6"]), reason="the scripted addresses")
             assert_equal(client.lookup!("nowhere.local"), .Err(NetError.Dns("nowhere.local")), reason="an unknown host")
             assert_equal(client.connect!("cache.local", 80).is_err(), true, reason="a socket call")

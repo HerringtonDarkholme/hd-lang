@@ -10032,6 +10032,7 @@ impl ProgramEnv for Env<'_> {
             deserialize: k.deserialize,
             result_is_ok,
             result_expect,
+            host_provider: self.run.names().item("std.rt", "host_provider"),
         })
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {

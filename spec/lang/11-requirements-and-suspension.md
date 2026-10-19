@@ -1323,7 +1323,7 @@ data Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         let mut wait = self.closing
         wait!()   # the host waits here, up to its cleanup bound
 
@@ -1579,7 +1579,7 @@ data Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
         wait!()
@@ -1666,7 +1666,7 @@ data Release:
     closing: mut Suspend[void]
 
 impl Disposable for Release:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("dispose defer")
         self.log.push("dispose start")
         let mut wait = self.closing
@@ -1765,7 +1765,7 @@ data Connections:
     clock: &mut dyn Clock
 
 impl Disposable for Connections:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.server.log.push("connections draining")
         while self.server.accepting:
             let mut tick = self.clock.sleep(ms(1))

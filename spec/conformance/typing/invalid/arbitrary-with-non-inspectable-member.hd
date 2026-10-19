@@ -4,7 +4,7 @@
 use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary
 
-fn digit_task(c: mut Choices) -> fn() -> i32:
+fn digit_task(c: &mut Choices) -> fn() -> i32:
     n := c.int(+0..=9)
     fn() -> i32: n
 

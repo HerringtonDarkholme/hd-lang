@@ -13,7 +13,7 @@ data Channel:
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("channel defer")
         self.log.push("send close")
         let mut wait = self.ack

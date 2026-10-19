@@ -10,7 +10,7 @@ data Suit:
     name: string
 
 impl Arbitrary for Suit:
-    fn arbitrary(c: mut Choices) -> Suit:
+    fn arbitrary(c: &mut Choices) -> Suit:
         Suit { name: c.choose(["hearts", "spades"]) }
 
 @derive(Debug)
@@ -18,7 +18,7 @@ data Nothing:
     name: string
 
 impl Arbitrary for Nothing:
-    fn arbitrary(c: mut Choices) -> Nothing:
+    fn arbitrary(c: &mut Choices) -> Nothing:
         let empty: List[string] = []
         Nothing { name: c.choose(empty) }
 

@@ -159,17 +159,17 @@ PIECES := [
     " ", "\u{7f}", "a", "Z", "key", "é", "\u{2028}", "\u{20ac}", "\u{1f600}", "\u{10ffff}", "",
 ]
 
-fn text_gen(c: mut Choices) -> string:
-    parts := c.list(8, fn(inner: mut Choices) -> string: inner.choose(PIECES))
+fn text_gen(c: &mut Choices) -> string:
+    parts := c.list(8, fn(inner: &mut Choices) -> string: inner.choose(PIECES))
     parts.join("")
 
-fn float_gen(c: mut Choices) -> f64:
+fn float_gen(c: &mut Choices) -> f64:
     if c.int(0..=2) == 0:
         return c.float(-1000000.0..=1000000.0)
     zero := 0.0
     c.choose([0.0, -0.0, 0.5, -2.25, 1.0 / 3.0, 1e21, 1e-7, 123456789.125, 1.7976931348623157e308, 5e-324, zero / zero, 1.0 / zero, -1.0 / zero])
 
-fn numbers_gen(c: mut Choices) -> Numbers:
+fn numbers_gen(c: &mut Choices) -> Numbers:
     Numbers {
         small: c.int(i8(-128)..=i8(127)),
         short: c.int(i16(-32768)..=i16(32767)),
@@ -184,7 +184,7 @@ fn numbers_gen(c: mut Choices) -> Numbers:
         double: float_gen(c),
     }
 
-fn shape_gen(c: mut Choices, depth: i32) -> Shape:
+fn shape_gen(c: &mut Choices, depth: i32) -> Shape:
     pick := c.int(0..=(if depth < 2: 4 else: 3))
     match pick:
         0 => Shape.Circle(c.int(u32(0)..=u32(4294967295)))
@@ -195,7 +195,7 @@ fn shape_gen(c: mut Choices, depth: i32) -> Shape:
             let inner: &Shape? = if c.bool(): .Some(&shape_gen(c, depth + 1)) else: .None
             Shape.Labeled(text_gen(c), inner)
 
-fn json_gen(c: mut Choices, depth: i32) -> Json:
+fn json_gen(c: &mut Choices, depth: i32) -> Json:
     pick := c.int(0..=(if depth < 2: 7 else: 5))
     match pick:
         0 => Json.Null
@@ -218,7 +218,7 @@ fn json_gen(c: mut Choices, depth: i32) -> Json:
                 fields.set(key, json_gen(c, depth + 1))
             Json.Object(fields)
 
-fn item_gen(c: mut Choices, depth: i32) -> Item:
+fn item_gen(c: &mut Choices, depth: i32) -> Item:
     let nested: i64?? = match c.int(0..=2):
         0 => .None
         1 => .Some(.None)
@@ -235,7 +235,7 @@ fn item_gen(c: mut Choices, depth: i32) -> Item:
         note: if c.bool(): .Some(text_gen(c)) else: .None,
         nested: nested,
         tags: c.list(4, text_gen),
-        attrs: c.map(20, text_gen, fn(inner: mut Choices) -> i32: inner.int(-100..=100)),
+        attrs: c.map(20, text_gen, fn(inner: &mut Choices) -> i32: inner.int(-100..=100)),
         shape: shape_gen(c, 0),
         raw: json_gen(c, 0),
         children: children,
@@ -290,7 +290,7 @@ KEYS := ["a", "b", "ab", "ba", "a\"", "é"]
 
 # Random steps that never end more frames than they open, since the tree
 # writer panics on an end with no open frame.
-fn script_gen(c: mut Choices) -> Script:
+fn script_gen(c: &mut Choices) -> Script:
     let steps: mut List[Step] = []
     let depth = 0
     count := c.int(0..=24)
@@ -383,7 +383,7 @@ tests:
         assert_equal(encode(steps([Step.BeginVariant("V", false), Step.Field("a"), Step.Int(1), Step.Field("a"), Step.Int(2), Step.EndVariant])), "{\"V\":{\"a\":2}}", reason="a repeated member")
         assert_equal(encode(steps([Step.BeginVariant("V", false), Step.EndVariant])), "\"V\"", reason="a unit variant")
 
-    it_prop_with("random items encode as before", gen=fn(c: mut Choices) -> Item: item_gen(c, 0), cases=200, prop=fn!(item: Item):
+    it_prop_with("random items encode as before", gen=fn(c: &mut Choices) -> Item: item_gen(c, 0), cases=200, prop=fn!(item: Item):
         assert_equal(disagreement(item), "", reason="item")
     )
 

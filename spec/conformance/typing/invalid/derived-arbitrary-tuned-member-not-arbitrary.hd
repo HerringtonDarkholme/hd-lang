@@ -8,7 +8,7 @@ use std.testing.arbitrary
 data Port:
     number: i32
 
-fn port(c: mut Choices) -> Port:
+fn port(c: &mut Choices) -> Port:
     Port { number: c.int(1024..=65535) }
 
 @derive(Arbitrary)  # diagnostic: member-not-derivable

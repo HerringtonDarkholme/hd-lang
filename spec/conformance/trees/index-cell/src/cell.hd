@@ -10,5 +10,5 @@ impl Index[usize] for Cell:
         self.value[0]
 
 impl IndexSet[usize, i32] for Cell:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.value[0] = value

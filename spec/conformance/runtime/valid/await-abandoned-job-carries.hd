@@ -13,7 +13,7 @@ data Conn:
     ack: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         let mut wait = self.closing
         wait!()
         let mut ack = self.ack

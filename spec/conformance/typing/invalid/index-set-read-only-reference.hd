@@ -1,0 +1,13 @@
+# test: index_set takes &mut self, so a store through a read-only reference is an error
+# Spec 05 Index Traits: expr.index.trait.mut-ref.
+use std.ops.IndexSet
+
+struct Grid:
+    cells: List[i32]
+
+impl IndexSet[usize, i32] for Grid:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
+        self.cells[key] = value
+
+fn store(grid: &Grid) -> void:
+    grid[0] = +4  # diagnostic: mutable-receiver-required

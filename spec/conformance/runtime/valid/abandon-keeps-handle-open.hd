@@ -12,12 +12,12 @@ use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
 data Channel:
-    socket: mut ScriptedStream
+    socket: &mut ScriptedStream
     acked: mut Suspend[void]
     log: mut List[string]
 
 impl Disposable for Channel:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("channel defer")
         _ := self.socket.write!([1])
         self.log.push("close sent")
@@ -25,7 +25,7 @@ impl Disposable for Channel:
         wait!()
         self.log.push("ack received")
 
-fn serve!(socket: mut ScriptedStream, log: mut List[string]) -> string $ Clock:
+fn serve!(socket: &mut ScriptedStream, log: mut List[string]) -> string $ Clock:
     using channel = Channel { socket: socket, acked: sleep(s(60)), log: log }
     sleep!(s(60))
     "late"
@@ -39,7 +39,7 @@ fn stop!(job: mut Suspend[string]) -> string:
 
 pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
-    let mut socket = ScriptedStream::new([[7]])
+    socket := ScriptedStream::new([[7]])
     let job: mut Suspend[string] = serve(socket, log)
     let (winner, stopped) = all!(race(job, ready()), stop(job))
     println("${winner} ${stopped}")

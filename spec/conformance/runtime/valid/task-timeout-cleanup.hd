@@ -16,7 +16,7 @@ data Upload:
     ack: mut Suspend[void]
 
 impl Disposable for Upload:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("upload closed")
         let mut ack = self.ack
         ack!()                          # waits for the peer

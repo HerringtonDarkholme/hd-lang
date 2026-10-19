@@ -7857,7 +7857,7 @@ fn root_poll(
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Helper> {
     let shared = Layouts::new(lowering);
-    let lay = Lay::new(pool, env, path, &shared);
+    let lay = Lay::new(pool, env, path, &shared).with_boundary(boundary);
     let mut providers = Vec::new();
     for key in env.row_keys(main, TyList::EMPTY) {
         // A host capability is never generic (`req.use.entry-row`), so the
@@ -7965,7 +7965,7 @@ fn root_poll(
 /// imported from `hd:<Trait>` by each method's name (`profile_slot`).
 /// Then the vtables of its direct supertraits, which have none of their
 /// own, as `std.ops.Disposable`: each method a host method of the handle
-/// trait, as `TcpStream.dispose` (flow.using.disposable).
+/// trait, as `TcpStream.dispose` (flow.using.disposable-ref).
 pub(crate) fn handle_slots(
     lay: &Lay<'_>,
     trait_: DefId,

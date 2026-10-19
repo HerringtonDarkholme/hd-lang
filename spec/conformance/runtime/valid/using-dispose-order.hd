@@ -12,7 +12,7 @@ data Res:
     log: mut List[string]
 
 impl Disposable for Res:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("dispose ${self.name}")
 
 fn open(name: string, log: mut List[string]) -> mut Res:

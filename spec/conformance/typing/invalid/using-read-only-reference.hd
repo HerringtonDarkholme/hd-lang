@@ -1,0 +1,14 @@
+# test: a using binding of a read-only reference cannot dispose what it refers to
+# Spec lang/06 Using Bindings: flow.using.reference.read-only.
+use std.ops.Disposable
+
+struct Lock:
+    held: bool
+
+impl Disposable for Lock:
+    fn dispose!(&mut self) -> void:
+        self.held = false
+
+fn peek!(lock: &Lock) -> void:
+    using held = lock  # diagnostic: mutable-receiver-required
+    pass

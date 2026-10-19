@@ -16,11 +16,11 @@ impl Index[string] for Table:
         "by name"
 
 impl IndexSet[usize, i32] for Table:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.log.push("number")
 
 impl IndexSet[usize, string] for Table:
-    fn index_set(mut self, key: usize, value: string) -> void:
+    fn index_set(&mut self, key: usize, value: string) -> void:
         self.log.push("text")
 
 tests:
@@ -32,7 +32,7 @@ tests:
         assert_equal(table["a"], "by name", reason="the string key")
 
     it("the value chooses the store"):
-        let table: mut Table = Table { log: [] }
+        let mut table = Table { log: [] }
         table[usize(0)] = +5
         table[usize(0)] = "five"
         assert_equal(table.log, ["number", "text"], reason="one impl per value type")

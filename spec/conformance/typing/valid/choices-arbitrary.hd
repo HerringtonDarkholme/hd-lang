@@ -1,5 +1,5 @@
 # test: generators draw from Choices, and Arbitrary gives a type its default generator
-# std Testing, Property Tests: std-testing.choices.declare and the Choices members (Testing T53).
+# std Testing, Property Tests: std-testing.choices.declare-ref and the Choices members (Testing T53).
 use std.testing.{Arbitrary, Choices}
 
 data Point:
@@ -7,12 +7,12 @@ data Point:
     y: i64
 
 impl Arbitrary for Point:
-    fn arbitrary(c: mut Choices) -> Point:
+    fn arbitrary(c: &mut Choices) -> Point:
         Point { x: c.int(0..=9), y: c.int(-5..=5) }
 
-fn small_counts(c: mut Choices) -> List[i64]:
-    c.list(3, fn(inner: mut Choices) -> i64: inner.int(0..=10))
+fn small_counts(c: &mut Choices) -> List[i64]:
+    c.list(3, fn(inner: &mut Choices) -> i64: inner.int(0..=10))
 
-fn anything(c: mut Choices) -> (Point, bool, string, f64, string):
+fn anything(c: &mut Choices) -> (Point, bool, string, f64, string):
     c.assume(true)
     (c.draw::[Point](), c.bool(), c.string(8), c.float(0.0..=1.0), c.choose(["a", "b"]))

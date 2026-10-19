@@ -1,16 +1,16 @@
 # test: ScriptedNet answers listen! and bind_udp! with scripted handles that accept, receive, and record in order
 # Spec std/net Scripted Net: std-net.scripted.accept, std-net.scripted.udp, std-net.scripted.queue, std-net.scripted.refused, std-net.scripted.closed-error.
-# Also covers std-net.scripted.decl, std-net.scripted.new,
-# std-net.scripted.setup, std-net.scripted.requested,
+# Also covers std-net.scripted.decl, std-net.scripted.new-ref,
+# std-net.scripted.setup-ref, std-net.scripted.requested,
 # std-net.scripted.read, std-net.scripted.eof, std-net.scripted.write,
 # std-net.datagram.traits, and std-net.handles.closed.
 # expect: test
 use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp}
 
 fn serve_one!() -> Result[usize, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut listener = net.listen!("0.0.0.0", 7)?
-    let mut stream = match listener.accept!():
+    net := $.use(Net)
+    listener := net.listen!("0.0.0.0", 7)?
+    stream := match listener.accept!():
         .Ok(connection) => connection
         .Err(_) => return .Err(.Other("accept failed"))
     let total: usize = 0
@@ -29,7 +29,7 @@ fn serve_one!() -> Result[usize, NetError] $ Net:
     .Ok(total)
 
 fn connect_with_retry!(host: string, port: u16, attempts: usize) -> Result[void, NetError] $ Net:
-    let mut net = $.use(Net)
+    net := $.use(Net)
     let last = NetError.Refused("${host}:${port}")
     let tried: usize = 0
     while tried < attempts:
@@ -40,8 +40,8 @@ fn connect_with_retry!(host: string, port: u16, attempts: usize) -> Result[void,
     .Err(last)
 
 fn ping!(host: string, port: u16) -> Result[bool, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut socket = net.bind_udp!("0.0.0.0", 0)?
+    net := $.use(Net)
+    socket := net.bind_udp!("0.0.0.0", 0)?
     match socket.send_to!(host, port, "ping".to_utf8()):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("send failed"))
@@ -65,9 +65,9 @@ tests:
     use std.testing.assert_equal
 
     it("echoes every chunk until the peer closes"):
-        let mut peer = ScriptedStream::new(["he".to_utf8(), "llo".to_utf8(), []])
-        let mut listener = ScriptedListener::new([peer])
-        let mut net = ScriptedNet::new()
+        peer := ScriptedStream::new(["he".to_utf8(), "llo".to_utf8(), []])
+        listener := ScriptedListener::new([peer])
+        net := ScriptedNet::new()
         net.add_listener("0.0.0.0:7", listener)
         $.with(Net=net):
             assert_equal(serve_one!(), .Ok(5), reason="five bytes")
@@ -76,19 +76,19 @@ tests:
         assert_equal(listener.is_closed(), true, reason="listener closed")
 
     it("fails when nobody connects"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.add_listener("0.0.0.0:7", ScriptedListener::new([]))
         $.with(Net=net):
             assert_equal(serve_one!(), .Err(.Other("accept failed")), reason="no connection scripted")
 
     it("accepts in order, then fails at once"):
-        let mut first = ScriptedStream::new([])
-        let mut second = ScriptedStream::new([])
-        let mut net = ScriptedNet::new()
+        first := ScriptedStream::new([])
+        second := ScriptedStream::new([])
+        net := ScriptedNet::new()
         net.add_listener("0.0.0.0:7", ScriptedListener::new([first, second]))
         $.with(Net=net):
-            let mut client = $.use(Net)
-            let mut listener = match client.listen!("0.0.0.0", 7):
+            client := $.use(Net)
+            listener := match client.listen!("0.0.0.0", 7):
                 .Ok(found) => found
                 .Err(_) => panic("a scripted listener")
             match listener.accept!():
@@ -108,7 +108,7 @@ tests:
         assert_equal(second.written(), [2], reason="the second accept")
 
     it("retries after a refused connection"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.fail_connection("db.local:5432", NetError.Refused("db.local:5432"))
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
@@ -116,25 +116,25 @@ tests:
         assert_equal(net.requested().len(), 2, reason="two connects")
 
     it("runs out of scripted connections with Refused"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         $.with(Net=net):
             assert_equal(connect_with_retry!("db.local", 5432, 2), .Err(.Refused("db.local:5432")), reason="nothing scripted")
 
     it("answers a ping with a scripted datagram"):
-        let mut socket = ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
-        let mut net = ScriptedNet::new()
+        socket := ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        net := ScriptedNet::new()
         net.add_udp("0.0.0.0:0", socket)
         $.with(Net=net):
             assert_equal(ping!("10.0.0.7", 9000), .Ok(true), reason="pong")
         assert_equal(socket.sent(), [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="the ping")
 
     it("cuts a datagram to max, fails past the last, and is Closed after close"):
-        let mut socket = ScriptedUdp::new([Datagram { bytes: "hello".to_utf8(), host: "10.0.0.7", port: 9000 }])
-        let mut net = ScriptedNet::new()
+        socket := ScriptedUdp::new([Datagram { bytes: "hello".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        net := ScriptedNet::new()
         net.add_udp("0.0.0.0:5000", socket)
         $.with(Net=net):
-            let mut client = $.use(Net)
-            let mut udp = match client.bind_udp!("0.0.0.0", 5000):
+            client := $.use(Net)
+            udp := match client.bind_udp!("0.0.0.0", 5000):
                 .Ok(found) => found
                 .Err(_) => panic("a scripted socket")
             match udp.receive!(3):

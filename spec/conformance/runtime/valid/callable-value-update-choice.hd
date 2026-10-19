@@ -7,11 +7,11 @@ data Slot:
     text: string
 
 impl Update[i32] for Slot:
-    fn update(mut self, value: i32) -> void:
+    fn update(&mut self, value: i32) -> void:
         self.number = value
 
 impl Update[string] for Slot:
-    fn update(mut self, value: string) -> void:
+    fn update(&mut self, value: string) -> void:
         self.text = value
 
 tests:

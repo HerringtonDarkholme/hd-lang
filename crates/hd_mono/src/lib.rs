@@ -367,6 +367,10 @@ pub struct JsonItems {
     pub deserialize: DefId,
     pub result_is_ok: DefId,
     pub result_expect: DefId,
+    /// `std.rt.host_provider`, which puts a host handle that enters hd as
+    /// a trait value reference behind a new object
+    /// (`BoundaryCodecs::handle_ref`).
+    pub host_provider: DefId,
 }
 
 /// A boundary `decode` followed by its checked unwrap: the `decode`
@@ -389,6 +393,11 @@ pub struct BoundaryCodecs {
     /// The `decode` result type, whose Wasm values the boundary decoder
     /// checks and unwraps.
     pub decoded: Option<Ty>,
+    /// For a trait value reference `&mut dyn H` to a host handle entering
+    /// hd, as `Net.connect!` returns (`std-net.handles.ref`): the
+    /// `std.rt.host_provider` instance at `dyn H`, which puts the handle's
+    /// trait value behind a new object (`crates/hd_wasm/DESIGN.md` §15.2).
+    pub handle_ref: Option<Hash128>,
 }
 
 /// The JSON codecs of the private-field types in the entry rows'
@@ -1820,6 +1829,20 @@ impl Cx<'_> {
                 continue;
             }
             match self.pool.get(ty) {
+                // A trait value reference to a host handle crosses as the
+                // handle, which `host_provider` puts behind a new object.
+                TyData::Adt { def, args } if def == self.env.ref_cell() => {
+                    if let [inner] = self.pool.list_items(args)[..]
+                        && !out
+                        && is_trait_value(self.pool, inner)
+                        && let Some(json) = self.env.json_items()
+                    {
+                        let at = self.pool.list(&[inner]);
+                        let wrap = self.target(json.host_provider, at, InstId::NONE)?;
+                        self.out.boundary.entry(ty).or_default().handle_ref = Some(wrap.key);
+                    }
+                    todo.extend(self.pool.list_items(args).iter().copied());
+                }
                 TyData::Adt { def, args } => {
                     if self.env.has_private_field(def) {
                         self.note_private_boundary(ty, out)?;

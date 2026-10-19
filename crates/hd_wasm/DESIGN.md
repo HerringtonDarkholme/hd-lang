@@ -427,6 +427,23 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   instance per such key of an entry row (`hd_mono::provider_by_ref`), as
   it roots the `std.rt` report functions, so the binding needs no change
   per trait.
+- **Host handles behind references.** A host method that returns a
+  handle as a trait value reference, as `Net.connect!` returns
+  `&mut dyn TcpStream` (`std-net.handles.ref`), crosses as a
+  `boundary::BTy::Handle` whose `HandleB::wrap` names the
+  `std.rt.host_provider` instance at `dyn H`: the decoder builds the
+  handle's trait value from its number, the payload beside its vtable of
+  handle slots, and calls that instance, whose `&mut held` puts it behind
+  a new object. A call through the reference reads the trait value back
+  with `get` and passes its payload, so each slot still finds the handle
+  number in its receiver, whatever the method's receiver form, and every
+  copy of the reference reaches the one socket. Collection selects the
+  instance while it walks the entry rows' provider signatures for their
+  boundary codecs (`hd_mono::BoundaryCodecs::handle_ref`, nested handles
+  included, as `TcpListener.accept!` returns a stream), and the entry's
+  layout reads it from that map (`Lay::boundary`). The host's imports and
+  the handle numbers are unchanged, so host/ and hd_run_wasmtime need
+  nothing new.
 
 **Element references: a reference into the header, a pin count.**
 `&xs[i]` and `&mut xs[i]`

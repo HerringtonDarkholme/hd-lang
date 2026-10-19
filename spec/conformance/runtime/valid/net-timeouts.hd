@@ -8,8 +8,8 @@ use std.net.{Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, Scrip
 use std.time.s
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut stream = net.connect_timeout!(host, port, 3s)?
+    net := $.use(Net)
+    stream := net.connect_timeout!(host, port, 3s)?
     match stream.set_timeout(.Some(5s)):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("set timeout failed"))
@@ -24,8 +24,8 @@ tests:
     use std.testing.assert_equal
 
     it("sets both timeouts and reads the banner"):
-        let mut stream = ScriptedStream::new(["220 ready\n".to_utf8()])
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::new(["220 ready\n".to_utf8()])
+        net := ScriptedNet::new()
         net.add_connection("mail.local:25", stream)
         $.with(Net=net):
             assert_equal(banner!("mail.local", 25), .Ok("220 ready\n"), reason="banner")
@@ -34,21 +34,21 @@ tests:
         assert_equal(stream.timeout(), .Some(5s), reason="read timeout")
 
     it("reports a read that times out"):
-        let mut stream = ScriptedStream::failing([], NetError.Timeout)
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::failing([], NetError.Timeout)
+        net := ScriptedNet::new()
         net.add_connection("mail.local:25", stream)
         $.with(Net=net):
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="timeout")
 
     it("reports a connect that times out"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.fail_connection("mail.local:25", NetError.Timeout)
         $.with(Net=net):
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="connect timeout")
 
     it("a scripted handle starts with no timeout and records the last one set"):
-        let mut listener = ScriptedListener::new([])
-        let mut socket = ScriptedUdp::new([])
+        listener := ScriptedListener::new([])
+        socket := ScriptedUdp::new([])
         assert_equal(listener.timeout(), .None, reason="no bound at first")
         _ := listener.set_timeout(.Some(2s))
         _ := socket.set_timeout(.Some(1s))

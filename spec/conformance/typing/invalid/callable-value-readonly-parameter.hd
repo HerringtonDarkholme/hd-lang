@@ -1,5 +1,5 @@
-# test: a parameter typed Cell[i32] is a readonly view, so the child reads but cannot store
-# Spec 05 Callable Values: expr.call.apply.readonly (Call Indexing D4).
+# test: a value parameter is the function's own copy, so the child reads but cannot store
+# Spec 05 Callable Values: expr.call.apply.readonly-ref (Call Indexing D4).
 use std.ops.{Apply, Update}
 
 data Cell[T]:
@@ -10,12 +10,12 @@ impl[T] Apply for Cell[T]:
     fn apply(self) -> T: self.value
 
 impl[T] Update[T] for Cell[T]:
-    fn update(mut self, value: T) -> void:
+    fn update(&mut self, value: T) -> void:
         self.value = value
 
 fn live[T](value: T) -> mut Cell[T]:
     Cell { value: value }
 
 fn badge(count: Cell[i32]) -> i32:
-    count() = 2  # diagnostic: readonly-root
+    count() = 2  # diagnostic: mutable-receiver-required
     count()

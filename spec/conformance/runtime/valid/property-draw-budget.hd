@@ -12,7 +12,7 @@ enum Tree:
     Leaf
     Node(left: &Tree, right: &Tree)
 
-fn tree(c: mut Choices) -> Tree:
+fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
         0 => .Leaf
         _ => .Node(&tree(c), &tree(c))

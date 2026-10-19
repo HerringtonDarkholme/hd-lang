@@ -587,8 +587,8 @@ pub fn main() -> void $ Console:
 
 /// Templates that keep the information of every handle a traversal passes
 /// (`annot.handle.escape`): `Seen` through `walk`, `Listed` through
-/// `describe`. A handle's `info` is a field of the handle, so the same
-/// handle gives the same `info` value under `is`.
+/// `describe`. A handle's `info` is a struct value (`annot.structure.decl`),
+/// so the test compares what it holds.
 const KEEPERS: &str = "\
 use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
@@ -640,7 +640,8 @@ impl[T] Listed for T by Structure:
 /// `annot.handle.constants`, `annot.handle.escape`: each member and
 /// variant has one handle. Two walks of different values, a `describe` by
 /// a second derivation and a JSON encode in between all see the same
-/// instances, and another variant's handle is another instance.
+/// member and variant information, and another variant's handle holds
+/// another.
 #[test]
 fn every_traversal_passes_the_same_handle_instances() {
     let main = format!(
@@ -663,12 +664,12 @@ pub fn main() -> void $ Console:
     println(encode(Order {{ id: 2, customer: \"Bo\" }}))
     second := Order {{ id: 3, customer: \"Cy\" }}.seen()
     listed := Order::listed()
-    println(\"${{first.variants[0] is second.variants[0]}} ${{first.members[0] is second.members[0]}} ${{first.members[1] is second.members[1]}}\")
-    println(\"${{first.variants[0] is listed.variants[0]}} ${{first.members[1] is listed.members[1]}} ${{first.members[0] is first.members[1]}}\")
+    println(\"${{first.variants[0].name == second.variants[0].name}} ${{first.members[0].name == second.members[0].name}} ${{first.members[1].position == second.members[1].position}}\")
+    println(\"${{first.variants[0].name == listed.variants[0].name}} ${{first.members[1].name == listed.members[1].name}} ${{first.members[0].name == first.members[1].name}}\")
     go := Step.Go(1).seen()
     again := Step.Go(2).seen()
     halt := Step.Halt(3).seen()
-    println(\"${{go.variants[0] is again.variants[0]}} ${{go.members[0] is again.members[0]}} ${{go.variants[0] is halt.variants[0]}}\")
+    println(\"${{go.variants[0].index == again.variants[0].index}} ${{go.members[0].name == again.members[0].name}} ${{go.variants[0].index == halt.variants[0].index}}\")
 "
     );
     assert_eq!(
@@ -725,8 +726,9 @@ pub fn main() -> void $ Console:
 }
 
 /// `annot.handle.constants` for a generic owner: one handle per
-/// instantiation, so `Box[i32]` and `Box[string]` have two, and each is
-/// shared by every value of its instantiation.
+/// instantiation, shared by every value of it. The handles' information
+/// is a struct value, so `Box[i32]`'s and `Box[string]`'s compare equal
+/// field by field, as two instantiations' information is alike.
 #[test]
 fn a_generic_owner_has_one_handle_per_instantiation() {
     let main = format!(
@@ -741,11 +743,8 @@ pub fn main() -> void $ Console:
     more := Box {{ value: +2 }}.seen()
     strs := Box {{ value: \"a\" }}.seen()
     other := Box {{ value: \"b\" }}.seen()
-    println(\"${{ints.members[0] is more.members[0]}} ${{strs.members[0] is other.members[0]}} ${{ints.members[0] is strs.members[0]}} ${{ints.variants[0] is strs.variants[0]}}\")
+    println(\"${{ints.members[0].name == more.members[0].name}} ${{strs.members[0].position == other.members[0].position}} ${{ints.members[0].name == strs.members[0].name}} ${{ints.variants[0].index == strs.variants[0].index}}\")
 "
     );
-    assert_eq!(
-        output_of("handle-generic", &main),
-        "true true false false\n"
-    );
+    assert_eq!(output_of("handle-generic", &main), "true true true true\n");
 }

@@ -56,7 +56,7 @@ impl Apply for Cell:
     fn apply(self) -> i32: self.value
 
 impl Update[i32] for Cell:
-    fn update(mut self, value: i32) -> void:
+    fn update(&mut self, value: i32) -> void:
         self.value = value
 
 fn live(value: i32) -> mut Cell:
@@ -92,9 +92,9 @@ fn run(panel: mut Panel) -> i32:
 fn a_callee_that_is_a_call_is_a_place() {
     let ok = with_cell(
         "\
-fn pick(panel: mut Panel) -> mut Cell: panel.count
+fn pick(panel: &mut Panel) -> &mut Cell: &mut panel.count
 
-fn run(panel: mut Panel) -> void:
+fn run(panel: &mut Panel) -> void:
     pick(panel)() = 3
     pick(panel)() += 1
 ",
@@ -107,9 +107,9 @@ fn a_generic_callee_stores_through_its_bound() {
     let ok = "\
 use std.ops.{Apply, Update}
 
-fn bump[C < Apply[Out = i32] & Update[i32]](cell: mut C) -> i32:
+fn bump[C < Apply[Out = i32] & Update[i32]](cell: &mut C) -> i32:
     cell() += 1
-    cell()
+    (*cell)()
 ";
     assert_eq!(codes_of(ok), vec![]);
 }
@@ -161,15 +161,23 @@ fn run(cell: mut Cell) -> void:
 #[test]
 fn a_store_needs_a_mut_cell() {
     let param = with_cell("fn run(cell: Cell) -> void:\n    cell() = 2\n");
-    assert_eq!(codes_of(&param), vec![Code::ReadonlyRoot]);
+    assert_eq!(codes_of(&param), vec![Code::MutableReceiverRequired]);
     let param_compound = with_cell("fn run(cell: Cell) -> void:\n    cell() += 2\n");
-    assert_eq!(codes_of(&param_compound), vec![Code::ReadonlyRoot]);
+    assert_eq!(
+        codes_of(&param_compound),
+        vec![Code::MutableReceiverRequired]
+    );
     let view = with_cell("fn run() -> void:\n    view := live(1)\n    view() = 2\n");
-    assert_eq!(codes_of(&view), vec![Code::ReadonlyRoot]);
+    assert_eq!(codes_of(&view), vec![Code::MutableReceiverRequired]);
+    let read_only = with_cell("fn run(cell: &Cell) -> void:\n    cell() = 2\n");
+    assert_eq!(codes_of(&read_only), vec![Code::MutableReceiverRequired]);
     let edge = with_cell("fn run(panel: mut Panel) -> void:\n    (panel.frozen)() = 2\n");
-    assert_eq!(codes_of(&edge), vec![Code::ReadonlyEdge]);
+    assert_eq!(codes_of(&edge), vec![Code::MutableReceiverRequired]);
     let readonly_holder = with_cell("fn run(panel: Panel) -> void:\n    (panel.count)() = 2\n");
-    assert_eq!(codes_of(&readonly_holder), vec![Code::ReadonlyRoot]);
+    assert_eq!(
+        codes_of(&readonly_holder),
+        vec![Code::MutableReceiverRequired]
+    );
 }
 
 #[test]
@@ -198,10 +206,10 @@ data Sink:
     last: i32
 
 impl Update[i32] for Sink:
-    fn update(mut self, value: i32) -> void:
+    fn update(&mut self, value: i32) -> void:
         self.last = value
 
-fn run(sink: mut Sink) -> void:
+fn run(sink: &mut Sink) -> void:
     sink() = 1
 ";
     assert_eq!(codes_of(update_only), vec![]);
@@ -281,9 +289,9 @@ data Pair:
     left: mut Cell
     right: mut Cell
 
-fn pick(pair: mut Pair, name: string) -> mut Cell $ Console:
+fn pick(pair: &mut Pair, name: string) -> &mut Cell $ Console:
     println(\"pick ${name}\")
-    pair.left
+    &mut pair.left
 
 fn val(n: i32) -> i32 $ Console:
     println(\"rhs ${n}\")
@@ -292,9 +300,9 @@ fn val(n: i32) -> i32 $ Console:
     );
     let body = "\
 let mut pair = Pair { left: live(+1), right: live(+2) }
-pick(pair, \"a\")() = val(7)
+pick(&mut pair, \"a\")() = val(7)
 println((pair.left)())
-pick(pair, \"b\")() += val(5)
+pick(&mut pair, \"b\")() += val(5)
 println((pair.left)())
 println((pair.right)())
 ";
@@ -318,7 +326,7 @@ impl Apply for Meter:
     fn apply(self) -> i32: self.reading
 
 impl Update[i32] for Meter:
-    fn update(mut self, value: i32) -> void:
+    fn update(&mut self, value: i32) -> void:
         self.writes = self.writes + 1
         self.reading = value * 2
 

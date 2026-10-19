@@ -1,5 +1,5 @@
 # test: std.ops declares Index[K] with an associated Out, and IndexSet[K, V]
-# Spec 05 Index Traits: expr.index.trait.std.
+# Spec 05 Index Traits: expr.index.trait.std-ref.
 use std.ops.{Index, IndexSet}
 
 data Names:
@@ -11,15 +11,15 @@ impl Index[usize] for Names:
         self.items[key]
 
 impl IndexSet[usize, string] for Names:
-    fn index_set(mut self, key: usize, value: string) -> void:
+    fn index_set(&mut self, key: usize, value: string) -> void:
         self.items[key] = value
 
 fn first[C < Index[usize]](items: C) -> C::Out:
     items.index(0)
 
-fn reset[C < mut IndexSet[usize, string]](items: C) -> void:
+fn reset[C < IndexSet[usize, string]](items: &mut C) -> void:
     items.index_set(0, "")
 
-fn demo(names: mut Names) -> string:
+fn demo(names: &mut Names) -> string:
     reset(names)
-    first(names)
+    first(*names)

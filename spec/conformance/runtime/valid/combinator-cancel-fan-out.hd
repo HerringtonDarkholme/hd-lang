@@ -15,7 +15,7 @@ data Connections:
     clock: &mut dyn Clock
 
 impl Disposable for Connections:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.server.log.push("connections draining")
         while self.server.accepting:
             let mut tick = self.clock.sleep(ms(1))

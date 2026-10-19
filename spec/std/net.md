@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability trait `Net`: DNS lookup, TCP, and UDP;
 - the handle traits `TcpStream`, `TcpListener`, and `UdpSocket`, and the
-  data type `Datagram`;
+  struct value `Datagram`;
 - the error enum `NetError`;
 - the deterministic providers `ScriptedNet`, `ScriptedStream`,
   `ScriptedListener`, and `ScriptedUdp`.
@@ -52,27 +52,27 @@ pub enum NetError:
 ## Net Trait
 
 `Net` resolves names and opens sockets. Each socket is a handle, which the
-call returns:
+call returns behind a trait value reference:
 
 ```text
 use std.time.Duration
 
 pub trait Net:
-    fn lookup!(mut self, host: string) -> Result[List[string], NetError]
-    fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]
-    fn connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]
-    fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]
-    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]
+    fn lookup!(&mut self, host: string) -> Result[List[string], NetError]
+    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]
+    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]
+    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
 ```
 
-1. r[std-net.trait.decl] `std.net` declares the host capability trait `Net` with the methods above. Code imports it, as in `use std.net.Net`.
+1. r[std-net.trait.decl-ref] `std.net` declares the host capability trait `Net` with the methods above. Code imports it, as in `use std.net.Net`.
 2. r[std-net.lookup] `lookup!(host)` returns the IP addresses of `host`, as text, in the resolver's order.
 3. r[std-net.connect] `connect!(host, port)` opens a TCP connection to `host` and `port`, and returns its stream.
 4. r[std-net.connect-timeout] `connect_timeout!(host, port, timeout)` is `connect!` bounded by `timeout`, over every address it tries. When the bound ends first, it returns `.Err(NetError.Timeout)` and leaves no socket open.
 5. r[std-net.listen] `listen!(host, port)` listens for TCP connections on the local address `host` and `port`, and returns its listener.
 6. r[std-net.listen.reuse] On Unix, `listen!` may bind an address whose old connections are in `TIME_WAIT`. Two live listeners never share an address: the second `listen!` returns `.Err(NetError.Refused(address))`.
 7. r[std-net.bind-udp] `bind_udp!(host, port)` binds a UDP socket to the local address `host` and `port`, and returns it.
-8. r[std-net.mut] Each method takes `mut self`, so `Net` is a mutable requirement trait, and a provider may record what it opens.
+8. r[std-net.mut-ref] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it opens.
 
 > **Why.** A connect has no handle yet, so its bound cannot be a handle
 > setting, and a second method leaves every `connect!` caller unchanged.
@@ -89,45 +89,46 @@ use std.ops.Disposable
 use std.time.Duration
 
 pub trait TcpStream < Disposable:
-    fn read!(mut self, max: usize) -> Result[List[u8], NetError]
-    fn write!(mut self, bytes: List[u8]) -> Result[void, NetError]
-    fn set_timeout(mut self, timeout: Duration?) -> Result[void, NetError]
-    fn set_nodelay(mut self, enabled: bool) -> Result[void, NetError]
-    fn set_keepalive(mut self, idle: Duration?) -> Result[void, NetError]
-    fn close(mut self) -> Result[void, NetError]
+    fn read!(&mut self, max: usize) -> Result[List[u8], NetError]
+    fn write!(&mut self, bytes: List[u8]) -> Result[void, NetError]
+    fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
+    fn set_nodelay(&mut self, enabled: bool) -> Result[void, NetError]
+    fn set_keepalive(&mut self, idle: Duration?) -> Result[void, NetError]
+    fn close(&mut self) -> Result[void, NetError]
 
 pub trait TcpListener < Disposable:
-    fn accept!(mut self) -> Result[mut dyn TcpStream, NetError]
-    fn set_timeout(mut self, timeout: Duration?) -> Result[void, NetError]
+    fn accept!(&mut self) -> Result[&mut dyn TcpStream, NetError]
+    fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
-    fn close(mut self) -> Result[void, NetError]
+    fn close(&mut self) -> Result[void, NetError]
 
-pub data Datagram:
+pub struct Datagram:
     pub bytes: List[u8]
     pub host: string
     pub port: u16
 
 pub trait UdpSocket < Disposable:
-    fn send_to!(mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, NetError]
-    fn receive!(mut self, max: usize) -> Result[Datagram, NetError]
-    fn set_timeout(mut self, timeout: Duration?) -> Result[void, NetError]
+    fn send_to!(&mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, NetError]
+    fn receive!(&mut self, max: usize) -> Result[Datagram, NetError]
+    fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
-    fn close(mut self) -> Result[void, NetError]
+    fn close(&mut self) -> Result[void, NetError]
 ```
 
-1. r[std-net.handles.decl] `std.net` declares `TcpStream`, `TcpListener`, `Datagram`, and `UdpSocket` as above. Code imports them, as in `use std.net.TcpStream`.
-2. r[std-net.handles.closed] Each handle is a closable handle by [Closable Handles](../lang/10-modules.md#closable-handles), so every operation after `close` or a dispose returns `.Err(NetError.Closed)`.
-3. r[std-net.close.release] `close` on a `TcpStream` releases its socket at once, as a full close of both directions.
-4. r[std-net.close.pending-closed] An operation that is pending on a `TcpStream` when it closes completes with `.Err(NetError.Closed)`.
-5. r[std-net.dispose] A handle's `dispose!` closes it as `close` does, and reports nothing. Disposing a closed handle does nothing.
-6. r[std-net.read] `read!(max)` waits for at least one byte, and returns at most `max` bytes. At the end of the stream, it returns an empty list.
-7. r[std-net.write] `write!(bytes)` completes once every byte is written.
-8. r[std-net.accept] `accept!()` waits for the next connection, and returns its stream.
-9. r[std-net.send-to] `send_to!(host, port, bytes)` sends `bytes` as one datagram to `host` and `port`.
-10. r[std-net.send-to.grant] The grant covers each `send_to!` by its own address, as it covers `connect!`.
-11. r[std-net.receive] `receive!(max)` waits for one datagram, and returns at most `max` of its bytes, with the sender's host and port.
-12. r[std-net.cancel.read] Cancelling the suspension of `read!` or `receive!` keeps the bytes it has not returned for the next `read!` or `receive!` on that handle.
-13. r[std-net.datagram.traits] `Datagram` implements `Eq` and `Debug`.
+1. r[std-net.handles.decl-ref] `std.net` declares `TcpStream`, `TcpListener`, `Datagram`, and `UdpSocket` as above. `Datagram` is a struct value: a copy is independent of the value it was copied from. Code imports them, as in `use std.net.TcpStream`.
+2. r[std-net.handles.ref] A method that opens a handle returns it as a trait value reference: `&mut dyn TcpStream`, `&mut dyn TcpListener`, or `&mut dyn UdpSocket`. Every copy of the reference reaches the one socket, so a helper that takes it changes the caller's socket, and `is` tells whether two refer to the same one.
+3. r[std-net.handles.closed] Each handle is a closable handle by [Closable Handles](../lang/10-modules.md#closable-handles), so every operation after `close` or a dispose returns `.Err(NetError.Closed)`.
+4. r[std-net.close.release] `close` on a `TcpStream` releases its socket at once, as a full close of both directions.
+5. r[std-net.close.pending-closed] An operation that is pending on a `TcpStream` when it closes completes with `.Err(NetError.Closed)`.
+6. r[std-net.dispose] A handle's `dispose!` closes it as `close` does, and reports nothing. Disposing a closed handle does nothing.
+7. r[std-net.read] `read!(max)` waits for at least one byte, and returns at most `max` bytes. At the end of the stream, it returns an empty list.
+8. r[std-net.write] `write!(bytes)` completes once every byte is written.
+9. r[std-net.accept] `accept!()` waits for the next connection, and returns its stream.
+10. r[std-net.send-to] `send_to!(host, port, bytes)` sends `bytes` as one datagram to `host` and `port`.
+11. r[std-net.send-to.grant] The grant covers each `send_to!` by its own address, as it covers `connect!`.
+12. r[std-net.receive] `receive!(max)` waits for one datagram, and returns at most `max` of its bytes, with the sender's host and port.
+13. r[std-net.cancel.read] Cancelling the suspension of `read!` or `receive!` keeps the bytes it has not returned for the next `read!` or `receive!` on that handle.
+14. r[std-net.datagram.traits] `Datagram` implements `Eq` and `Debug`.
 
 > **Why.** A socket stays open across calls, so it is a handle, as a file
 > handle is. Closing it follows the existing closable handle rules, with
@@ -146,8 +147,8 @@ use std.net.{Net, NetError}
 use std.time.s
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut stream = net.connect_timeout!(host, port, 3s)?
+    net := $.use(Net)
+    stream := net.connect_timeout!(host, port, 3s)?
     match stream.set_timeout(.Some(5s)):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("set timeout failed"))
@@ -180,8 +181,8 @@ use std.net.{Net, NetError}
 use std.time.s
 
 fn open_chat!(host: string, port: u16) -> Result[void, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut stream = net.connect!(host, port)?
+    net := $.use(Net)
+    stream := net.connect!(host, port)?
     match stream.set_nodelay(true):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("nodelay failed"))
@@ -214,8 +215,8 @@ the port the system picked for port 0:
 use std.net.{Net, NetError}
 
 fn start_server!() -> Result[u16, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut listener = net.listen!("127.0.0.1", 0)?
+    net := $.use(Net)
+    listener := net.listen!("127.0.0.1", 0)?
     match listener.local_address():
         .Ok((_, port)) => .Ok(port)
         .Err(_) => .Err(.Other("no local address"))
@@ -238,18 +239,18 @@ as `NoNetwork` does:
 ```text
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
 use std.time.Duration
-data NoNetwork: pass
+struct NoNetwork: pass
 
 impl Net for NoNetwork:
-    fn lookup!(mut self, host: string) -> Result[List[string], NetError]:
+    fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
         .Err(.Dns(host))
-    fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]:
+    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]:
+    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]:
+    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]:
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]:
         .Err(.Refused("${host}:${port}"))
 
 fn addresses!(host: string) -> List[string] $ Net:
@@ -262,7 +263,7 @@ tests:
 
     it("finds no address without a network"):
         let mut net = NoNetwork {}
-        $.with(Net=net):
+        $.with(Net=&mut net):
             assert_equal(addresses!("example.com").len(), 0, reason="no lookup answers")
 ```
 
@@ -283,8 +284,8 @@ fn text_of(bytes: List[u8]) -> string:
         .Err(_) => ""
 
 fn lookup_value!(key: string) -> Result[string, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut stream = net.connect!("cache.local", 6379)?
+    net := $.use(Net)
+    stream := net.connect!("cache.local", 6379)?
     match stream.write!("GET ${key}\n".to_utf8()):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("write failed"))
@@ -298,8 +299,8 @@ tests:
     use std.testing.assert_equal
 
     it("sends the command and returns the reply"):
-        let mut stream = ScriptedStream::new(["VALUE 42\n".to_utf8()])
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::new(["VALUE 42\n".to_utf8()])
+        net := ScriptedNet::new()
         net.add_connection("cache.local:6379", stream)
         $.with(Net=net):
             assert_equal(lookup_value!("answer"), .Ok("VALUE 42"), reason="reply")
@@ -308,52 +309,52 @@ tests:
         assert_equal(net.requested(), ["cache.local:6379"], reason="one connect")
 
     it("reports a failed read"):
-        let mut stream = ScriptedStream::failing([], NetError.Other("connection reset"))
-        let mut net = ScriptedNet::new()
+        stream := ScriptedStream::failing([], NetError.Other("connection reset"))
+        net := ScriptedNet::new()
         net.add_connection("cache.local:6379", stream)
         $.with(Net=net):
             assert_equal(lookup_value!("answer"), .Err(.Other("read failed")), reason="reset")
 ```
 
 1. r[std-net.scripted.decl] `std.net` declares `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, and `ScriptedUdp`, with private fields. Each implements `Debug` and its trait: `Net`, `TcpStream`, `TcpListener`, or `UdpSocket`. Code imports them, as in `use std.net.ScriptedNet`.
-2. r[std-net.scripted.new] The constructors below each return a `mut` value, so the handle that the provider returns is the value the test holds.
+2. r[std-net.scripted.new-ref] The constructors below each return a new object behind `&mut`. Adding it to the provider shares the object, so the handle that the provider returns is the one the test holds and checks.
 
 | Constructor | Returns |
 | --- | --- |
-| `ScriptedNet::new() -> mut ScriptedNet` | a provider with nothing scripted |
-| `ScriptedStream::new(reads: List[List[u8]]) -> mut ScriptedStream` | a stream that returns the chunks of `reads` |
-| `ScriptedStream::failing(reads: List[List[u8]], error: NetError) -> mut ScriptedStream` | a stream that returns the chunks of `reads`, then fails with `error` |
-| `ScriptedListener::new(connections: List[mut ScriptedStream]) -> mut ScriptedListener` | a listener that accepts the streams of `connections` |
-| `ScriptedUdp::new(incoming: List[Datagram]) -> mut ScriptedUdp` | a UDP socket that receives the datagrams of `incoming` |
+| `ScriptedNet::new() -> &mut ScriptedNet` | a provider with nothing scripted |
+| `ScriptedStream::new(reads: List[List[u8]]) -> &mut ScriptedStream` | a stream that returns the chunks of `reads` |
+| `ScriptedStream::failing(reads: List[List[u8]], error: NetError) -> &mut ScriptedStream` | a stream that returns the chunks of `reads`, then fails with `error` |
+| `ScriptedListener::new(connections: List[&mut ScriptedStream]) -> &mut ScriptedListener` | a listener that accepts the streams of `connections` |
+| `ScriptedUdp::new(incoming: List[Datagram]) -> &mut ScriptedUdp` | a UDP socket that receives the datagrams of `incoming` |
 
-3. r[std-net.scripted.setup] `ScriptedNet` has the setup methods below, and each `address` is `host:port` by [`std-net.error.address`](#r-std-net.error.address).
+3. r[std-net.scripted.setup-ref] `ScriptedNet` has the setup methods below, and each `address` is `host:port` by [`std-net.error.address`](#r-std-net.error.address).
 
 | Method | Answers |
 | --- | --- |
-| `add_host(mut self, host: string, addresses: List[string]) -> void` | each `lookup!(host)`, with `.Ok(addresses)` |
-| `add_connection(mut self, address: string, stream: mut ScriptedStream) -> void` | one `connect!` of `address`, with `.Ok(stream)` |
-| `fail_connection(mut self, address: string, error: NetError) -> void` | one `connect!` of `address`, with `.Err(error)` |
-| `add_listener(mut self, address: string, listener: mut ScriptedListener) -> void` | one `listen!` of `address`, with `.Ok(listener)` |
-| `add_udp(mut self, address: string, socket: mut ScriptedUdp) -> void` | one `bind_udp!` of `address`, with `.Ok(socket)` |
+| `add_host(&mut self, host: string, addresses: List[string]) -> void` | each `lookup!(host)`, with `.Ok(addresses)` |
+| `add_connection(&mut self, address: string, stream: &mut ScriptedStream) -> void` | one `connect!` of `address`, with `.Ok(stream)` |
+| `fail_connection(&mut self, address: string, error: NetError) -> void` | one `connect!` of `address`, with `.Err(error)` |
+| `add_listener(&mut self, address: string, listener: &mut ScriptedListener) -> void` | one `listen!` of `address`, with `.Ok(listener)` |
+| `add_udp(&mut self, address: string, socket: &mut ScriptedUdp) -> void` | one `bind_udp!` of `address`, with `.Ok(socket)` |
 
 4. r[std-net.scripted.queue] The connections and failures added for one address are one queue, and each `connect!` of the address takes the next entry. Each `listen!` or `bind_udp!` likewise takes the next handle added for its address.
 5. r[std-net.scripted.lookup-unknown] `lookup!` of a host that no `add_host` names returns `.Err(NetError.Dns(host))`.
 6. r[std-net.scripted.refused] `connect!`, `listen!`, or `bind_udp!` of an address with no entry, or with an emptied queue, returns `.Err(NetError.Refused(address))`.
-7. r[std-net.scripted.requested] `requested(self) -> List[string]` returns the address of every `lookup!`, `connect!`, `connect_timeout!`, `listen!`, and `bind_udp!` call, in order, the failed ones included. A lookup records the host alone.
+7. r[std-net.scripted.requested] `requested(&self) -> List[string]` returns the address of every `lookup!`, `connect!`, `connect_timeout!`, `listen!`, and `bind_udp!` call, in order, the failed ones included. A lookup records the host alone.
 8. r[std-net.scripted.read] A `ScriptedStream` returns the chunks of `reads` in order, one per `read!`.
 9. r[std-net.scripted.read-max] A `read!(max)` returns at most `max` bytes of the front chunk, and keeps the rest at the front for the next `read!`.
 10. r[std-net.scripted.eof] An empty chunk is the peer's close: that `read!` and every later one return an empty list.
 11. r[std-net.scripted.exhausted] A `read!` past the last chunk of a `new` stream returns `.Err(NetError.Other(message))` at once, and `message` is `ScriptedStream has no more reads`.
-12. r[std-net.scripted.write] `write!(bytes)` records `bytes` and returns `.Ok(())`. `written(self) -> List[u8]` returns every recorded byte, in order.
+12. r[std-net.scripted.write] `write!(bytes)` records `bytes` and returns `.Ok(())`. `written(&self) -> List[u8]` returns every recorded byte, in order.
 13. r[std-net.scripted.failing] A `failing` stream returns `.Err(error)` from the `read!` past its last chunk, and from every later `read!` and `write!`.
 14. r[std-net.scripted.accept] `accept!` returns the streams of `connections` in order. Past the last, it returns `.Err(NetError.Other(message))` at once, and `message` is `ScriptedListener has no more connections`.
-15. r[std-net.scripted.udp] `receive!(max)` returns the datagrams of `incoming` in order, each cut to its first `max` bytes. Past the last, it returns `.Err(NetError.Other(message))` at once, and `message` is `ScriptedUdp has no more datagrams`. `send_to!` records its datagram and returns `.Ok(())`, and `sent(self) -> List[Datagram]` returns each one, with the destination's host and port, in order.
-16. r[std-net.scripted.closed-error] After `close` or a dispose, every operation of a scripted handle returns `.Err(NetError.Closed)`, so `close` returns `.Ok(())` only once. `is_closed(self) -> bool` on each scripted handle tells whether it is closed.
+15. r[std-net.scripted.udp] `receive!(max)` returns the datagrams of `incoming` in order, each cut to its first `max` bytes. Past the last, it returns `.Err(NetError.Other(message))` at once, and `message` is `ScriptedUdp has no more datagrams`. `send_to!` records its datagram and returns `.Ok(())`, and `sent(&self) -> List[Datagram]` returns each one, with the destination's host and port, in order.
+16. r[std-net.scripted.closed-error] After `close` or a dispose, every operation of a scripted handle returns `.Err(NetError.Closed)`, so `close` returns `.Ok(())` only once. `is_closed(&self) -> bool` on each scripted handle tells whether it is closed.
 17. r[std-net.scripted.dispose] A scripted handle's `dispose!` marks it closed, as `close` does, and returns nothing.
-18. r[std-net.scripted.timeout] `set_timeout` on a scripted handle stores its argument and returns `.Ok(())`. `timeout(self) -> Duration?` returns the stored value, and `.None` before any call.
-19. r[std-net.scripted.connect-timeout] `connect_timeout!` on a `ScriptedNet` takes the next entry of the queue that `connect!` serves. `connect_timeouts(self) -> List[Duration]` returns the timeout of each call, in order.
-20. r[std-net.scripted.options] `set_nodelay` and `set_keepalive` on a `ScriptedStream` store their argument and return `.Ok(())`. `nodelay(self) -> bool` and `keepalive(self) -> Duration?` return them, and `false` and `.None` before any call.
-21. r[std-net.scripted.local-address] `set_local_address(mut self, host: string, port: u16) -> void` on a `ScriptedListener` or `ScriptedUdp` makes `local_address()` return `.Ok((host, port))`.
+18. r[std-net.scripted.timeout] `set_timeout` on a scripted handle stores its argument and returns `.Ok(())`. `timeout(&self) -> Duration?` returns the stored value, and `.None` before any call.
+19. r[std-net.scripted.connect-timeout] `connect_timeout!` on a `ScriptedNet` takes the next entry of the queue that `connect!` serves. `connect_timeouts(&self) -> List[Duration]` returns the timeout of each call, in order.
+20. r[std-net.scripted.options] `set_nodelay` and `set_keepalive` on a `ScriptedStream` store their argument and return `.Ok(())`. `nodelay(&self) -> bool` and `keepalive(&self) -> Duration?` return them, and `false` and `.None` before any call.
+21. r[std-net.scripted.local-address] `set_local_address(&mut self, host: string, port: u16) -> void` on a `ScriptedListener` or `ScriptedUdp` makes `local_address()` return `.Ok((host, port))`.
 22. r[std-net.scripted.local-address.unset] Without it, `local_address()` returns `.Err(NetError.Other(message))`. The `message` is `ScriptedListener has no local address` or `ScriptedUdp has no local address`.
 23. r[std-net.scripted.no-host] A scripted provider opens no socket and consults no grant, so `NotGranted` appears only where a test scripts it.
 
@@ -364,9 +365,9 @@ connection and pings over UDP:
 use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp}
 
 fn serve_one!() -> Result[usize, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut listener = net.listen!("0.0.0.0", 7)?
-    let mut stream = match listener.accept!():
+    net := $.use(Net)
+    listener := net.listen!("0.0.0.0", 7)?
+    stream := match listener.accept!():
         .Ok(connection) => connection
         .Err(_) => return .Err(.Other("accept failed"))
     let total: usize = 0
@@ -385,7 +386,7 @@ fn serve_one!() -> Result[usize, NetError] $ Net:
     .Ok(total)
 
 fn connect_with_retry!(host: string, port: u16, attempts: usize) -> Result[void, NetError] $ Net:
-    let mut net = $.use(Net)
+    net := $.use(Net)
     let last = NetError.Refused("${host}:${port}")
     let tried: usize = 0
     while tried < attempts:
@@ -396,8 +397,8 @@ fn connect_with_retry!(host: string, port: u16, attempts: usize) -> Result[void,
     .Err(last)
 
 fn ping!(host: string, port: u16) -> Result[bool, NetError] $ Net:
-    let mut net = $.use(Net)
-    let mut socket = net.bind_udp!("0.0.0.0", 0)?
+    net := $.use(Net)
+    socket := net.bind_udp!("0.0.0.0", 0)?
     match socket.send_to!(host, port, "ping".to_utf8()):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("send failed"))
@@ -409,15 +410,15 @@ tests:
     use std.testing.assert_equal
 
     it("echoes every chunk until the peer closes"):
-        let mut peer = ScriptedStream::new(["he".to_utf8(), "llo".to_utf8(), []])
-        let mut net = ScriptedNet::new()
+        peer := ScriptedStream::new(["he".to_utf8(), "llo".to_utf8(), []])
+        net := ScriptedNet::new()
         net.add_listener("0.0.0.0:7", ScriptedListener::new([peer]))
         $.with(Net=net):
             assert_equal(serve_one!(), .Ok(5), reason="five bytes")
         assert_equal(peer.written(), "hello".to_utf8(), reason="echoed")
 
     it("retries after a refused connection"):
-        let mut net = ScriptedNet::new()
+        net := ScriptedNet::new()
         net.fail_connection("db.local:5432", NetError.Refused("db.local:5432"))
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
@@ -425,8 +426,8 @@ tests:
         assert_equal(net.requested().len(), 2, reason="two connects")
 
     it("answers a ping with a scripted datagram"):
-        let mut socket = ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
-        let mut net = ScriptedNet::new()
+        socket := ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        net := ScriptedNet::new()
         net.add_udp("0.0.0.0:0", socket)
         $.with(Net=net):
             assert_equal(ping!("10.0.0.7", 9000), .Ok(true), reason="pong")

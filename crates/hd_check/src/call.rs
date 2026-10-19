@@ -3639,7 +3639,7 @@ impl Ck<'_, '_> {
     }
 
     /// `recv.name(args)`.
-    fn method_on(
+    pub(crate) fn method_on(
         &mut self,
         recv: Ref,
         rt: Ty,

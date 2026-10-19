@@ -8,12 +8,12 @@ use std.time.{Clock, s, sleep}
 ## Closes its listener only after a long wait, unless `fallback` closes it
 ## from a `defer`, which abandon() still runs.
 data Conn:
-    listener: mut dyn TcpListener
+    listener: &mut dyn TcpListener
     closing: mut Suspend[void]
     fallback: bool
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer:
             if self.fallback:
                 self.listener.close().expect("closed")
@@ -21,7 +21,7 @@ impl Disposable for Conn:
         wait!()
         self.listener.close().expect("closed")
 
-fn session!(listener: mut dyn TcpListener, fallback: bool) -> string $ Clock:
+fn session!(listener: &mut dyn TcpListener, fallback: bool) -> string $ Clock:
     using conn = Conn { listener: listener, closing: sleep(s(60)), fallback: fallback }
     sleep!(s(60))
     "late"

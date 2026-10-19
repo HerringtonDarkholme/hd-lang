@@ -1,0 +1,45 @@
+# expect-stdout: shared open false
+# expect-stdout: dyn open false
+# expect-stdout: open true, closed value, using shared, closed shared, closed dyn
+# test: a using binding of a value disposes its own place, and one of a reference or a trait value reference disposes what it refers to, which every other reference sees
+# Spec lang/06 Using Bindings: flow.using.place, flow.using.reference, flow.using.disposable-required-ref.
+use std.ops.Disposable
+
+struct Conn:
+    name: string
+    log: &mut List[string]
+    open: bool
+
+impl Disposable for Conn:
+    fn dispose!(&mut self) -> void:
+        self.open = false
+        self.log.push("closed ${self.name}")
+
+trait Session < Disposable:
+    fn name(&self) -> string
+
+impl Session for Conn:
+    fn name(&self) -> string: self.name
+
+fn by_value!(log: &mut List[string]) -> void:
+    using conn = Conn { name: "value", log: log, open: true }
+    log.push("open ${conn.open}")
+
+fn by_reference!(conn: &mut Conn) -> void:
+    using held = conn
+    held.log.push("using ${held.name}")
+
+fn by_trait!(session: &mut dyn Session) -> void:
+    using held = session
+    _ := held.name()
+
+pub fn main!() -> void $ Console:
+    let mut log: List[string] = []
+    by_value!(&mut log)
+    shared := &mut Conn { name: "shared", log: &mut log, open: true }
+    by_reference!(shared)
+    println("shared open ${shared.open}")
+    other := &mut Conn { name: "dyn", log: &mut log, open: true }
+    by_trait!(other)
+    println("dyn open ${other.open}")
+    println(log.join(", "))

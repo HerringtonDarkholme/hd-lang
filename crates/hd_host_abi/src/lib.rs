@@ -334,7 +334,7 @@ pub static TABLE: &[HostTrait] = &[
 ];
 
 /// The test runner's host traits (§16.4, `docs/compiler/engines-and-test-runner.md` §19;
-/// `std-testing.runner.declares`): imported from `hd:<Key>` like a
+/// `std-testing.runner.declares-ref`): imported from `hd:<Key>` like a
 /// capability, but no grant names them.
 pub static RUNNERS: &[HostTrait] = &[
     HostTrait {

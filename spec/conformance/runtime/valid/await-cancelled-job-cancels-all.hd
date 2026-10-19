@@ -10,14 +10,14 @@ data Conn:
     log: mut List[string]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("conn closed")
 
 data Report:
     log: mut List[string]
 
 impl Disposable for Report:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("supervise cleanup")
 
 data Runner:
@@ -25,7 +25,7 @@ data Runner:
     job: mut Suspend[string]
 
 impl Disposable for Runner:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("runner defer")
         let mut job = self.job
         value := job!()

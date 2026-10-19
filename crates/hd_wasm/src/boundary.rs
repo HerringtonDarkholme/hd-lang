@@ -100,6 +100,11 @@ pub struct HandleB {
     pub slots: Vec<Helper>,
     /// The vtables of its direct supertraits, as `std.ops.Disposable`.
     pub supers: Vec<HandleSuper>,
+    /// For a handle behind a trait value reference, `&mut dyn TcpStream`
+    /// (`std-net.handles.ref`): the `std.rt.host_provider` instance at its
+    /// trait value, which puts it behind a new object, and the values of
+    /// that reference.
+    pub wrap: Option<(hd_base::Hash128, Vec<VT>)>,
 }
 
 /// A host handle's supertrait vtable: its type and its slots, host calls
@@ -110,6 +115,77 @@ pub type HandleSuper = (WTy, Vec<Helper>);
 #[must_use]
 pub fn handle_payload() -> WTy {
     crate::layout::box_of(&[VT::I32])
+}
+
+impl HandleB {
+    fn encode(&self, w: &mut Writer) {
+        match &self.wrap {
+            Some((wrap, vts)) => {
+                w.u8(1);
+                w.hash(*wrap);
+                encode_vts(vts, w);
+            }
+            None => w.u8(0),
+        }
+        enc_wty(&self.payload, w);
+        enc_wty(&self.vt, w);
+        w.len_of(&self.slots);
+        for s in &self.slots {
+            s.encode(w);
+        }
+        w.len_of(&self.supers);
+        for (vt, slots) in &self.supers {
+            enc_wty(vt, w);
+            w.len_of(slots);
+            for s in slots {
+                s.encode(w);
+            }
+        }
+    }
+
+    fn decode(r: &mut Reader<'_>) -> Option<HandleB> {
+        let wrap = if r.u8() == 1 {
+            Some((r.hash(), decode_vts(r)?))
+        } else {
+            None
+        };
+        Some(HandleB {
+            wrap,
+            payload: dec_wty(r)?,
+            vt: dec_wty(r)?,
+            slots: (0..r.count())
+                .map(|_| Helper::decode(r))
+                .collect::<Option<Vec<_>>>()?,
+            supers: (0..r.count())
+                .map(|_| {
+                    let vt = dec_wty(r)?;
+                    let slots = (0..r.count())
+                        .map(|_| Helper::decode(r))
+                        .collect::<Option<Vec<_>>>()?;
+                    Some((vt, slots))
+                })
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+
+    /// Builds the handle's trait value from its number, on the stack, and
+    /// puts it behind its reference when it has `wrap`.
+    fn build(&self, a: &mut Asm) {
+        a.struct_new(&self.payload);
+        for s in &self.slots {
+            a.ref_func(Sym::Helper(s.clone()));
+        }
+        for (vt, slots) in &self.supers {
+            for s in slots {
+                a.ref_func(Sym::Helper(s.clone()));
+            }
+            a.struct_new(vt);
+        }
+        a.struct_new(&self.vt);
+        if let Some((wrap, _)) = &self.wrap {
+            a.call(Sym::Inst(*wrap));
+        }
+    }
 }
 
 /// A runtime profile's boundary (`BTy::of_json`): the JSON codecs its
@@ -156,6 +232,22 @@ impl BTy {
             return unsupported(what());
         }
         let int = |bits, signed| BTy::Int { bits, signed };
+        // A trait value reference to a host handle: the handle, behind
+        // the new object the entry's `host_provider` instance makes.
+        if let TyData::Adt { def, args } = pool.get(t)
+            && def == lay.env.ref_cell()
+            && let [inner] = pool.list_items(args)[..]
+            && matches!(pool.get(inner), TyData::TraitValue { .. })
+        {
+            let (BTy::Handle(mut handle), Some(wrap)) = (
+                Self::of_at(lay, inner, depth + 1, json)?,
+                lay.boundary.and_then(|b| b.get(&t)?.handle_ref),
+            ) else {
+                return unsupported(what());
+            };
+            handle.wrap = Some((wrap, lay.vts(t)?));
+            return Ok(BTy::Handle(handle));
+        }
         Ok(match lay.shape(t)? {
             Shape::Void => BTy::Void,
             Shape::Scalar(_) => match pool.get(t) {
@@ -323,6 +415,7 @@ impl BTy {
                     slots,
                     vt,
                     supers,
+                    wrap: None,
                 }))
             }
             Shape::Tuple { boxed, .. } => {
@@ -378,7 +471,10 @@ impl BTy {
                 Some(b) => vec![VT::r(b.clone())],
                 None => elems.iter().flat_map(BTy::vts).collect(),
             },
-            BTy::Handle(h) => vec![VT::Eq, VT::r(h.vt.clone())],
+            BTy::Handle(h) => match &h.wrap {
+                Some((_, vts)) => vts.clone(),
+                None => vec![VT::Eq, VT::r(h.vt.clone())],
+            },
             BTy::Json(j) => j.vts.clone(),
         }
     }
@@ -485,20 +581,7 @@ impl BTy {
             }
             BTy::Handle(h) => {
                 w.u8(11);
-                enc_wty(&h.payload, w);
-                enc_wty(&h.vt, w);
-                w.len_of(&h.slots);
-                for s in &h.slots {
-                    s.encode(w);
-                }
-                w.len_of(&h.supers);
-                for (vt, slots) in &h.supers {
-                    enc_wty(vt, w);
-                    w.len_of(slots);
-                    for s in slots {
-                        s.encode(w);
-                    }
-                }
+                h.encode(w);
             }
             BTy::Json(j) => {
                 w.u8(12);
@@ -588,22 +671,7 @@ impl BTy {
                         .collect::<Option<Vec<_>>>()?,
                 }
             }
-            11 => BTy::Handle(Box::new(HandleB {
-                payload: dec_wty(r)?,
-                vt: dec_wty(r)?,
-                slots: (0..r.count())
-                    .map(|_| Helper::decode(r))
-                    .collect::<Option<Vec<_>>>()?,
-                supers: (0..r.count())
-                    .map(|_| {
-                        let vt = dec_wty(r)?;
-                        let slots = (0..r.count())
-                            .map(|_| Helper::decode(r))
-                            .collect::<Option<Vec<_>>>()?;
-                        Some((vt, slots))
-                    })
-                    .collect::<Option<Vec<_>>>()?,
-            })),
+            11 => BTy::Handle(Box::new(HandleB::decode(r)?)),
             12 => BTy::Json(Box::new(JsonB {
                 vts: decode_vts(r)?,
                 encode: if r.u8() == 1 { Some(r.hash()) } else { None },
@@ -1532,17 +1600,7 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
         }
         BTy::Handle(h) => {
             get_len(&mut a, 0);
-            a.struct_new(&h.payload);
-            for s in &h.slots {
-                a.ref_func(Sym::Helper(s.clone()));
-            }
-            for (vt, slots) in &h.supers {
-                for s in slots {
-                    a.ref_func(Sym::Helper(s.clone()));
-                }
-                a.struct_new(vt);
-            }
-            a.struct_new(&h.vt);
+            h.build(&mut a);
         }
         BTy::Tuple { boxed, elems } => {
             let mut vals = Vec::new();

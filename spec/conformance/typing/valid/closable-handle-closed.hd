@@ -7,16 +7,16 @@ pub enum StoreError:
     Closed
 
 pub trait Session < Disposable:
-    fn get!(mut self, key: string) -> Result[string, StoreError]
-    fn close(mut self) -> Result[void, StoreError]
+    fn get!(&mut self, key: string) -> Result[string, StoreError]
+    fn close(&mut self) -> Result[void, StoreError]
 
-fn read_twice!(session: mut dyn Session) -> Result[string, StoreError]:
+fn read_twice!(session: &mut dyn Session) -> Result[string, StoreError]:
     first := session.get!("a")?
     session.close()?
     match session.get!("b"):
         .Err(.Closed) => .Ok(first)
         other => other
 
-fn scoped!(open: fn!() -> mut dyn Session) -> Result[string, StoreError]:
+fn scoped!(open: fn!() -> &mut dyn Session) -> Result[string, StoreError]:
     using session = open!()
     session.get!("a")

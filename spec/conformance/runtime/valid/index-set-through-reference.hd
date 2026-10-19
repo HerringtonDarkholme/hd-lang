@@ -1,0 +1,48 @@
+# expect-stdout: painted [0, 10, 0]
+# expect-stdout: copy [0, 10, 0], changed [5, 10, 0]
+# expect-stdout: counter 3
+# test: r[k] = v and v() = x take the address of a writable place or pass a &mut reference, so a helper's store reaches the caller's struct
+# Spec 05 Index Traits: expr.index.trait.write-ref, expr.index.trait.mut-ref, expr.call.apply.write-ref, expr.call.apply.mut-ref.
+use std.ops.{Apply, Index, IndexSet, Update}
+
+struct Grid:
+    cells: List[i32]
+
+impl Index[usize] for Grid:
+    type Out = i32
+    fn index(self, key: usize) -> i32:
+        self.cells[key]
+
+impl IndexSet[usize, i32] for Grid:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
+        self.cells[key] = value
+
+struct Counter:
+    hits: i32
+
+impl Apply for Counter:
+    type Out = i32
+    fn apply(self) -> i32: self.hits
+
+impl Update[i32] for Counter:
+    fn update(&mut self, value: i32) -> void:
+        self.hits = value
+
+fn paint(grid: &mut Grid) -> void:
+    grid[1] = 9
+    grid[1] += 1
+
+fn bump(counter: &mut Counter) -> i32:
+    counter() += 1
+    (*counter)()
+
+pub fn main() -> void $ Console:
+    let mut grid = Grid { cells: [0, 0, 0] }
+    paint(&mut grid)
+    println("painted ${debug(grid.cells)}")
+    copy := grid
+    grid[0] = 5
+    println("copy ${debug(copy.cells)}, changed ${debug(grid.cells)}")
+    let mut counter = Counter { hits: 1 }
+    _ := bump(&mut counter)
+    println("counter ${bump(&mut counter)}")

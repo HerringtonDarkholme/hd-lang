@@ -1,5 +1,5 @@
 # test: TestRunner is a host capability trait whose methods are plain calls
-# Spec std Testing, Runner Capabilities: std-testing.runner.declares, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
+# Spec std Testing, Runner Capabilities: std-testing.runner.declares-ref, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
 # Also covers std-testing.runner.binding, std-testing.runner.row,
 # std-testing.runner.timeout, std-testing.runner.start-case,
 # std-testing.runner.show, std-testing.runner.case.example,
@@ -11,23 +11,23 @@
 # and std-testing.runner.case.seed-step.
 use std.testing.TestRunner
 
-data FirstRow:
+struct FirstRow:
     rows: usize
     snapshots: i32
 
 impl TestRunner for FirstRow:
-    fn row(mut self, count: usize) -> usize:
+    fn row(&mut self, count: usize) -> usize:
         self.rows = count
         0
 
-    fn report_timeout(mut self, millis: i64) -> void:
+    fn report_timeout(&mut self, millis: i64) -> void:
         pass
 
-    fn snapshot_check(mut self, text: string) -> string:
+    fn snapshot_check(&mut self, text: string) -> string:
         self.snapshots = self.snapshots + 1
         ""
 
-    fn temp_dir(mut self) -> string:
+    fn temp_dir(&mut self) -> string:
         "/tmp/first-row"
 
 fn pick(rows: List[string]) -> string $ TestRunner:
@@ -37,6 +37,6 @@ fn matches(text: string) -> bool $ TestRunner:
     $.use(TestRunner).snapshot_check(text) == ""
 
 fn both() -> void:
-    $.with(TestRunner=FirstRow { rows: 0, snapshots: 0 }):
+    $.with(TestRunner=&mut FirstRow { rows: 0, snapshots: 0 }):
         _ := pick(["a", "b"])
         _ := matches("a")

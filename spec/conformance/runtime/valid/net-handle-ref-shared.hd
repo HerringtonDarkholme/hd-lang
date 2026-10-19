@@ -1,0 +1,43 @@
+# expect-stdout: same true
+# expect-stdout: written [104, 105, 33]
+# expect-stdout: closed true
+# expect-stdout: accepted [1]
+# expect-stdout: copy 9000, changed 9001
+# test: a net handle is a trait value reference, so a helper and a second binding reach the one socket, and the scripted handle the test holds is the object the code changes; a Datagram copy is independent
+# Spec std/net Socket Handles: std-net.handles.ref, std-net.handles.decl-ref, std-net.scripted.new-ref, std-net.scripted.setup-ref.
+use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, TcpStream}
+
+fn send!(stream: &mut dyn TcpStream, bytes: List[u8]) -> void:
+    _ := stream.write!(bytes)
+
+fn chat!() -> Result[void, NetError] $ Console + Net:
+    net := $.use(Net)
+    stream := net.connect!("chat.local", 7)?
+    same := stream
+    println("same ${same is stream}")
+    send!(stream, [104, 105])
+    send!(same, [33])
+    same.close()
+
+fn serve!() -> Result[void, NetError] $ Net:
+    listener := $.use(Net).listen!("0.0.0.0", 7)?
+    peer := listener.accept!()?
+    send!(peer, [1])
+    .Ok(())
+
+pub fn main!() -> void $ Console:
+    peer := ScriptedStream::new([])
+    net := ScriptedNet::new()
+    net.add_connection("chat.local:7", peer)
+    accepted := ScriptedStream::new([])
+    net.add_listener("0.0.0.0:7", ScriptedListener::new([accepted]))
+    $.with(Net=net):
+        _ := chat!()
+        _ := serve!()
+    println("written ${debug(peer.written())}")
+    println("closed ${peer.is_closed()}")
+    println("accepted ${debug(accepted.written())}")
+    let mut datagram = Datagram { bytes: [], host: "10.0.0.7", port: 9000 }
+    copy := datagram
+    datagram.port = 9001
+    println("copy ${copy.port}, changed ${datagram.port}")

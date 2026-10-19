@@ -86,11 +86,11 @@ impl Index[string] for Table:
         key
 
 impl IndexSet[usize, i32] for Table:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.size = value
 
 impl IndexSet[string, i32] for Table:
-    fn index_set(mut self, key: string, value: i32) -> void:
+    fn index_set(&mut self, key: string, value: i32) -> void:
         self.size = value + 1000
 ";
 
@@ -120,7 +120,7 @@ fn literal_key_stores_by_its_default_type() {
     let main = format!(
         "{TABLE}
 pub fn main() -> void $ Console:
-    let table: mut Table = Table {{ size: 1 }}
+    let mut table = Table {{ size: 1 }}
     table[0] = 5
     println(table[0])
     table[0] += 3

@@ -28,25 +28,25 @@ use std.path.Path
 # or `it_prop_with` test case or a `timeout` option, never for the test
 # body itself (src/test-runner.ts).
 ## The host capability of the test runner: it reports the run and answers the checks of a test case.
-## See [std-testing.runner.declares](../../spec/std/testing.md#r-std-testing.runner.declares).
+## See [std-testing.runner.declares-ref](../../spec/std/testing.md#r-std-testing.runner.declares-ref).
 pub trait TestRunner:
     # The table has `count` rows; the index of the row this case runs.
-    fn row(mut self, count: usize) -> usize
+    fn row(&mut self, count: usize) -> usize
     # The case's `timeout`, which the runner checks against the body's run.
-    fn report_timeout(mut self, millis: i64) -> void
+    fn report_timeout(&mut self, millis: i64) -> void
     # Compares `text` with the case's next snapshot file, and records the
     # file in an update run; "" when it matches or was recorded, else why
     # not (r-std-testing.runner.snapshot-check).
-    fn snapshot_check(mut self, text: string) -> string
+    fn snapshot_check(&mut self, text: string) -> string
     # The absolute path of the run's temporary directory, made on the run's
     # first call (r-std-testing.runner.temp-dir).
-    fn temp_dir(mut self) -> string
+    fn temp_dir(&mut self) -> string
 
 # What a property runner's `start` returns for one case
-# (r-std-testing.runner.case-type).
+# (r-std-testing.runner.case-type-struct).
 ## What a property runner's `start` returns for one case.
-## See [std-testing.runner.case-type](../../spec/std/testing.md#r-std-testing.runner.case-type).
-pub data PropertyCase:
+## See [std-testing.runner.case-type-struct](../../spec/std/testing.md#r-std-testing.runner.case-type-struct).
+pub struct PropertyCase:
     ## The index of the example that the case runs, or `.None` for a generated case.
     ## See [std-testing.runner.case.example](../../spec/std/testing.md#r-std-testing.runner.case.example).
     pub example: usize?
@@ -63,18 +63,18 @@ pub data PropertyCase:
 # The property runner records and shrinks each case's draws
 # (src/property-tests.ts); `Choices` replays them.
 ## The host capability of a property runner: it records and shrinks each case's draws.
-## See [std-testing.runner.declares](../../spec/std/testing.md#r-std-testing.runner.declares).
+## See [std-testing.runner.declares-ref](../../spec/std/testing.md#r-std-testing.runner.declares-ref).
 pub trait PropertyRunner:
     # Reports the caps and the example count, and returns the case to run
     # (r-std-testing.runner.start-case). Once every example has run, the
     # runner ends the case as discarded instead
     # (r-std-testing.runner.examples-done).
-    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
+    fn start(&mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
     # Records the case's next draw, a value from 0 to that draw's bound
     # (r-std-testing.runner.record).
-    fn record(mut self, value: i64) -> void
+    fn record(&mut self, value: i64) -> void
     # The `Debug` text of the case's input, for the failure report.
-    fn show(mut self, text: string) -> void
+    fn show(&mut self, text: string) -> void
 
 # The only source of randomness a generator sees
 # (spec/std/testing.md#property-tests). `std.testing` creates each one from
@@ -89,9 +89,9 @@ pub trait PropertyRunner:
 # (spec/std/testing.md#draw-limit). The fresh draws of the first generated
 # cases take edge values (spec/std/testing.md#edge-values).
 ## The source of one case's drawn values, which the runner records so it can replay and shrink the case.
-## See [std-testing.choices.declare](../../spec/std/testing.md#r-std-testing.choices.declare).
-pub data Choices:
-    runner: mut dyn PropertyRunner
+## See [std-testing.choices.declare-ref](../../spec/std/testing.md#r-std-testing.choices.declare-ref).
+pub struct Choices:
+    runner: &mut dyn PropertyRunner
     random: &mut dyn Random
     size: i32
     replay: List[i64]
@@ -103,19 +103,19 @@ pub data Choices:
 impl Choices:
     # Whether the draw limit of 256 draws is spent. No public member reads
     # it (r-std-testing.limit.no-api).
-    fn spent(self) -> bool:
+    fn spent(&self) -> bool:
         self.draws >= 256
 
     # One recorded draw from 0 to `bound`: the replayed draw at this
     # position, limited to `bound`, else a fresh one. A shrunk draw moves
     # toward 0.
-    fn next(mut self, bound: i64) -> i64:
+    fn next(&mut self, bound: i64) -> i64:
         self.next_edge(bound, 0, self.reach_cap(bound), -1)
 
     # `next` with the draws that an edge case takes: `low`, `high`, and
     # `zero` are the values of a low, a high, and a zero edge, or -1 for a
     # draw that has none (r-std-testing.edge.plan).
-    fn next_edge(mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
+    fn next_edge(&mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
         index := self.draws
         self.draws = self.draws + 1
         let value: i64 = 0
@@ -133,7 +133,7 @@ impl Choices:
     # A random draw from 0 to `bound`, at most 2^(3 + size), so draws grow
     # from case to case: 0 one time in ten, the top one time in twenty, and
     # else uniform.
-    fn fresh(mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
+    fn fresh(&mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
         if self.edge == 0 && low >= 0:
             return low
         if self.edge == 1 && high >= 0:
@@ -151,7 +151,7 @@ impl Choices:
         i64((self.random.next_u64() >> 1) % u64(cap + 1))
 
     # `bound`, limited to the reach that `size` allows.
-    fn reach_cap(self, bound: i64) -> i64:
+    fn reach_cap(&self, bound: i64) -> i64:
         let reach: i64 = 4611686018427387904
         if self.size < 59:
             reach = i64(1) << u32(3 + self.size)
@@ -160,7 +160,7 @@ impl Choices:
     # A recorded offset from 0 to `last`; the shrunk offset moves toward 0.
     # An offset past the largest `i64` picks a half first. `zero` is the
     # offset of the zero edge, or -1 for none (r-std-testing.edge.plan).
-    fn offset(mut self, last: u64, zero: u64?) -> u64:
+    fn offset(&mut self, last: u64, zero: u64?) -> u64:
         let half: u64 = 0x7FFFFFFFFFFFFFFF
         let edge: i64 = -1
         match zero:
@@ -176,7 +176,7 @@ impl Choices:
     # range of at most one value returns its start without a draw.
     ## Draws an integer of `range`.
     ## See [std-testing.choices.int-range](../../spec/std/testing.md#r-std-testing.choices.int-range).
-    pub fn int[N < Integer](mut self, range: Range[N]) -> N:
+    pub fn int[N < Integer](&mut self, range: Range[N]) -> N:
         zero := N::zero()
         one := N::one()
         let last: N = range.end
@@ -209,7 +209,7 @@ impl Choices:
     # 0.0. The `..` form never returns its end.
     ## Draws a finite float of `range`.
     ## See [std-testing.choices.float-range](../../spec/std/testing.md#r-std-testing.choices.float-range).
-    pub fn float[F < Float](mut self, range: Range[F]) -> F:
+    pub fn float[F < Float](&mut self, range: Range[F]) -> F:
         lo := range.start
         hi := range.end
         if !(lo < hi):
@@ -224,7 +224,7 @@ impl Choices:
 
     ## Draws a `bool`.
     ## See [std-testing.choices.bool](../../spec/std/testing.md#r-std-testing.choices.bool).
-    pub fn bool(mut self) -> bool:
+    pub fn bool(&mut self) -> bool:
         if self.spent():
             return false
         self.next(1) == 1
@@ -233,7 +233,7 @@ impl Choices:
     # An empty list panics (r-std-testing.choices.choose.empty).
     ## Draws one of `items`; earlier items shrink first.
     ## See [std-testing.choices.choose](../../spec/std/testing.md#r-std-testing.choices.choose).
-    pub fn choose[T](mut self, items: List[T]) -> T:
+    pub fn choose[T](&mut self, items: List[T]) -> T:
         if items.len() == 0:
             panic("Choices.choose: no items to choose from")
         if self.spent():
@@ -241,9 +241,9 @@ impl Choices:
         items[usize(self.next(i64(items.len() - 1)))]
 
     ## Draws at most `max` items, each drawn by `item`.
-    ## See [std-testing.choices.list-max](../../spec/std/testing.md#r-std-testing.choices.list-max).
-    pub fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]:
-        let items: mut List[T] = []
+    ## See [std-testing.choices.list-max-ref](../../spec/std/testing.md#r-std-testing.choices.list-max-ref).
+    pub fn list[T](&mut self, max: usize, item: fn(&mut Choices) -> T) -> List[T]:
+        let mut items: List[T] = []
         if self.spent():
             return items
         let count: usize = usize(self.next(i64(max)))
@@ -254,9 +254,9 @@ impl Choices:
     # At most `max` entries, each key drawn before its value. A key drawn
     # again keeps the later value (r-std-testing.choices.map.duplicate).
     ## Draws at most `max` entries, each key drawn by `key` and its value by `value`.
-    ## See [std-testing.choices.map-max](../../spec/std/testing.md#r-std-testing.choices.map-max).
-    pub fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
-        let entries: mut Map[K, V] = {}
+    ## See [std-testing.choices.map-max-ref](../../spec/std/testing.md#r-std-testing.choices.map-max-ref).
+    pub fn map[K < Eq & Hash, V](&mut self, max: usize, key: fn(&mut Choices) -> K, value: fn(&mut Choices) -> V) -> Map[K, V]:
+        let mut entries: Map[K, V] = {}
         if self.spent():
             return entries
         let count: usize = usize(self.next(i64(max)))
@@ -270,11 +270,11 @@ impl Choices:
     # At most `max_chars` chars (r-std-testing.choices.string-limit).
     ## Draws a string of at most `max_chars` chars.
     ## See [std-testing.choices.string-max-chars](../../spec/std/testing.md#r-std-testing.choices.string-max-chars).
-    pub fn string(mut self, max_chars: usize) -> string:
+    pub fn string(&mut self, max_chars: usize) -> string:
         if self.spent():
             return ""
         letters := ["a", "b", "z", " ", "0", "\u{E9}", "\u{3C0}", "\u{1F600}"]
-        let chosen: mut List[string] = []
+        let mut chosen: List[string] = []
         let count: usize = usize(self.next(i64(max_chars)))
         let index: usize = 0
         while index < count:
@@ -285,7 +285,7 @@ impl Choices:
     # Picks the value a default 32- or 64-bit integer takes: 8 is the type's
     # smallest, 9 its largest, and anything else a small one. A spent budget
     # picks a small one, the simplest (r-std-testing.edge.int-type).
-    fn extreme(mut self) -> i64:
+    fn extreme(&mut self) -> i64:
         if self.spent():
             return 0
         self.next_edge(9, 8, 9, 0)
@@ -295,19 +295,19 @@ impl Choices:
     # (r-std-testing.runner.discard-panic).
     ## Discards the case when `ok` is false.
     ## See [std-testing.choices.assume](../../spec/std/testing.md#r-std-testing.choices.assume).
-    pub fn assume(mut self, ok: bool) -> void:
+    pub fn assume(&mut self, ok: bool) -> void:
         if !ok:
             panic("std.testing: case discarded")
 
     ## Draws `T::arbitrary(self)`, the type's default generator.
     ## See [std-testing.choices.draw](../../spec/std/testing.md#r-std-testing.choices.draw).
-    pub fn draw[T < Arbitrary](mut self) -> T:
+    pub fn draw[T < Arbitrary](&mut self) -> T:
         T::arbitrary(self)
 
     # `list` and `map` with each item drawn by its type's `Arbitrary`. The
     # prototype cannot pass a bound through a function value.
-    fn list_of[T < Arbitrary](mut self, max: usize) -> List[T]:
-        let items: mut List[T] = []
+    fn list_of[T < Arbitrary](&mut self, max: usize) -> List[T]:
+        let mut items: List[T] = []
         if self.spent():
             return items
         let count: usize = usize(self.next(i64(max)))
@@ -315,8 +315,8 @@ impl Choices:
             items.push(T::arbitrary(self))
         items
 
-    fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](mut self, max: usize) -> Map[K, V]:
-        let entries: mut Map[K, V] = {}
+    fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](&mut self, max: usize) -> Map[K, V]:
+        let mut entries: Map[K, V] = {}
         if self.spent():
             return entries
         let count: usize = usize(self.next(i64(max)))
@@ -331,7 +331,7 @@ impl Choices:
 ## A type's default generator, which `it_prop` and `Choices.draw` use.
 ## See [std-testing.arbitrary](../../spec/std/testing.md#r-std-testing.arbitrary).
 pub trait Arbitrary:
-    fn arbitrary(c: mut Choices) -> Self
+    fn arbitrary(c: &mut Choices) -> Self
 
 # Derived `Arbitrary` (spec/std/testing.md#derived-arbitrary). The template
 # builds the value through an `ArbitrarySource`, which draws each member
@@ -340,7 +340,7 @@ pub trait Arbitrary:
 # implementation below; the prototype joins neither into a program by
 # itself, because they name `std.structure` (checker/typed-derivation.ts).
 impl[T] Arbitrary for T by Structure:
-    fn arbitrary(c: mut Choices) -> T:
+    fn arbitrary(c: &mut Choices) -> T:
         let mut s = ArbitrarySource::[T] { c: c, at: 0 }
         match T::build(&mut s):
             .Ok(value) => value
@@ -350,11 +350,11 @@ impl[T] Arbitrary for T by Structure:
 # The fields are public because the prototype checks the instantiated
 # `Source` implementation in the target's module.
 struct ArbitrarySource[S]:
-    pub c: mut Choices
+    pub c: &mut Choices
     pub at: usize
 
 # The one way an `ArbitrarySource` fails: every variant is recursive.
-data NoFiniteValue: pass
+struct NoFiniteValue: pass
 
 impl[S] Source[S] for ArbitrarySource[S]:
     type Error = NoFiniteValue
@@ -374,7 +374,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
                     _ => simplest = v.info.index
         if simplest < 0:
             return .Err(NoFiniteValue {})
-        let ordered: mut List[Variant[S]] = [choices[usize(simplest)]]
+        let mut ordered: List[Variant[S]] = [choices[usize(simplest)]]
         for v in choices:
             if v.info.index != simplest:
                 ordered.push(v)
@@ -408,47 +408,47 @@ impl[S] Source[S] for ArbitrarySource[S]:
 # now and then the smallest or the largest value of the type
 # (r-std-testing.edge.int-type).
 impl Arbitrary for i8:
-    fn arbitrary(c: mut Choices) -> i8: c.int(-128..=127)
+    fn arbitrary(c: &mut Choices) -> i8: c.int(-128..=127)
 
 impl Arbitrary for i16:
-    fn arbitrary(c: mut Choices) -> i16: c.int(-32768..=32767)
+    fn arbitrary(c: &mut Choices) -> i16: c.int(-32768..=32767)
 
 impl Arbitrary for i32:
-    fn arbitrary(c: mut Choices) -> i32:
+    fn arbitrary(c: &mut Choices) -> i32:
         match c.extreme():
             8 => -2147483648
             9 => 2147483647
             _ => c.int(-1000..=1000)
 
 impl Arbitrary for i64:
-    fn arbitrary(c: mut Choices) -> i64:
+    fn arbitrary(c: &mut Choices) -> i64:
         match c.extreme():
             8 => -9223372036854775807 - 1
             9 => 9223372036854775807
             _ => c.int(-1000..=1000)
 
 impl Arbitrary for u8:
-    fn arbitrary(c: mut Choices) -> u8: c.int(0..=255)
+    fn arbitrary(c: &mut Choices) -> u8: c.int(0..=255)
 
 impl Arbitrary for u16:
-    fn arbitrary(c: mut Choices) -> u16: c.int(0..=65535)
+    fn arbitrary(c: &mut Choices) -> u16: c.int(0..=65535)
 
 impl Arbitrary for u32:
-    fn arbitrary(c: mut Choices) -> u32:
+    fn arbitrary(c: &mut Choices) -> u32:
         match c.extreme():
             8 => 0
             9 => 4294967295
             _ => c.int(0..=1000)
 
 impl Arbitrary for usize:
-    fn arbitrary(c: mut Choices) -> usize:
+    fn arbitrary(c: &mut Choices) -> usize:
         match c.extreme():
             8 => 0
             9 => 4294967295
             _ => c.int(0..=1000)
 
 impl Arbitrary for u64:
-    fn arbitrary(c: mut Choices) -> u64:
+    fn arbitrary(c: &mut Choices) -> u64:
         match c.extreme():
             8 => 0
             9 => 18446744073709551615
@@ -457,7 +457,7 @@ impl Arbitrary for u64:
 # Any `f64`, NaN, both infinities, -0.0, and subnormals included
 # (r-std-testing.arbitrary.float). The simplest is 0.0.
 impl Arbitrary for f64:
-    fn arbitrary(c: mut Choices) -> f64:
+    fn arbitrary(c: &mut Choices) -> f64:
         let zero: f64 = 0.0
         match c.int(0..=9):
             5 => zero / zero
@@ -468,7 +468,7 @@ impl Arbitrary for f64:
             _ => c.float(-1000.0..=1000.0)
 
 impl Arbitrary for f32:
-    fn arbitrary(c: mut Choices) -> f32:
+    fn arbitrary(c: &mut Choices) -> f32:
         let zero: f32 = 0.0
         let tiny: f32 = 1.4e-45
         let huge: f32 = 3.4028235e38
@@ -484,48 +484,48 @@ impl Arbitrary for f32:
             _ => c.float(low..=high)
 
 impl Arbitrary for bool:
-    fn arbitrary(c: mut Choices) -> bool: c.bool()
+    fn arbitrary(c: &mut Choices) -> bool: c.bool()
 
 impl Arbitrary for char:
-    fn arbitrary(c: mut Choices) -> char: c.choose(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
+    fn arbitrary(c: &mut Choices) -> char: c.choose(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
 
 impl Arbitrary for string:
-    fn arbitrary(c: mut Choices) -> string: c.string(16)
+    fn arbitrary(c: &mut Choices) -> string: c.string(16)
 
 impl[T < Arbitrary] Arbitrary for List[T]:
-    fn arbitrary(c: mut Choices) -> List[T]:
+    fn arbitrary(c: &mut Choices) -> List[T]:
         c.list_of::[T](8)
 
 impl[K < Arbitrary & Eq & Hash, V < Arbitrary] Arbitrary for Map[K, V]:
-    fn arbitrary(c: mut Choices) -> Map[K, V]:
+    fn arbitrary(c: &mut Choices) -> Map[K, V]:
         c.map_of::[K, V](8)
 
 # The simplest is `.None` (r-std-testing.limit.simplest.optional).
 impl[T < Arbitrary] Arbitrary for T?:
-    fn arbitrary(c: mut Choices) -> T?:
+    fn arbitrary(c: &mut Choices) -> T?:
         if c.bool(): .Some(T::arbitrary(c)) else: .None
 
 # The simplest is `.Ok` of `T`'s simplest (r-std-testing.limit.simplest.result).
 impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
-    fn arbitrary(c: mut Choices) -> Result[T, E]:
+    fn arbitrary(c: &mut Choices) -> Result[T, E]:
         if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))
 
 # A reference refers to a new object holding a drawn value
 # (r-std-testing.arbitrary.reference).
 impl[T < Arbitrary] Arbitrary for &T:
-    fn arbitrary(c: mut Choices) -> &T:
+    fn arbitrary(c: &mut Choices) -> &T:
         &T::arbitrary(c)
 
 impl[T < Arbitrary] Arbitrary for &mut T:
-    fn arbitrary(c: mut Choices) -> &mut T:
+    fn arbitrary(c: &mut Choices) -> &mut T:
         &mut T::arbitrary(c)
 
 impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
-    fn arbitrary(c: mut Choices) -> (A, B):
+    fn arbitrary(c: &mut Choices) -> (A, B):
         (A::arbitrary(c), B::arbitrary(c))
 
 impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
-    fn arbitrary(c: mut Choices) -> (A, B, C):
+    fn arbitrary(c: &mut Choices) -> (A, B, C):
         (A::arbitrary(c), B::arbitrary(c), C::arbitrary(c))
 
 # The test registration functions besides `it`
@@ -536,18 +536,18 @@ impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
 # the call's arguments that body takes. Any other call is an error
 # (module.testing.direct-call), so these bodies never run.
 ## Registers one test case for each element of `rows`, named `name[i]`, which runs `body` with that element.
-## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
+## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
 pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, body: fn!(A) -> T $ R) -> void $ R:
     panic("std.testing: it_each registers test cases only in test position")
 
 ## Registers one property test case, whose inputs `T`'s `Arbitrary` draws.
-## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
+## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
 pub fn it_prop[T < Arbitrary & Debug, R < Termination, $Q](name: string, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
     panic("std.testing: it_prop registers a test case only in test position")
 
 ## Registers one property test case, whose inputs `gen` draws.
-## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
-pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
+## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
+pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(&mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
     panic("std.testing: it_prop_with registers a test case only in test position")
 
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
@@ -569,7 +569,7 @@ fn each_case![A, T, $R](_name: string, rows: List[A], _ignore: string?, _expect_
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
 fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
-    let mut runner = $.use(PropertyRunner)
+    runner := $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
@@ -578,8 +578,8 @@ fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _ex
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(mut Choices) -> T, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
-    let mut runner = $.use(PropertyRunner)
+fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(&mut Choices) -> T, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
+    runner := $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
@@ -591,8 +591,8 @@ fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(mut Choices) -> T, _
 # `start` returned. It holds the runner's provider value, so a generator
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
-fn choices(runner: mut dyn PropertyRunner, current: PropertyCase) -> mut Choices:
-    Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
+fn choices(runner: &mut dyn PropertyRunner, current: PropertyCase) -> &mut Choices:
+    &mut Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four
 # cases, those of `size` 0 to 3, take the edge that their seed picks, so
@@ -677,7 +677,7 @@ pub fn snapshot_file(text: string) -> void $ TestRunner:
 # What `hd_run!` returns (spec/std/testing.md#running-executables).
 ## What `hd_run!` returns: the program's output and exit status.
 ## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
-pub data RunOutput:
+pub struct RunOutput:
     ## The text the program wrote to standard output.
     ## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
     pub stdout: string

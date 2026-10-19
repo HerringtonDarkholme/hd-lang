@@ -1,6 +1,6 @@
 # test: a using binding's type must implement Disposable
-# Spec lang/06 Using Bindings: flow.using.disposable-required.
-data Note:
+# Spec lang/06 Using Bindings: flow.using.disposable-required-ref.
+struct Note:
     text: string
 
 fn read!(note: Note) -> string:

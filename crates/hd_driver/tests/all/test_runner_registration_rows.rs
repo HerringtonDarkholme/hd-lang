@@ -40,7 +40,7 @@ use std.time.s
 fn pick(regions: List[string]) -> string $ TestRunner:
     regions[$.use(TestRunner).row(regions.len())]
 
-fn small(choices: mut Choices) -> i32:
+fn small(choices: &mut Choices) -> i32:
     choices.int(1..=10)
 
 tests:
@@ -75,7 +75,7 @@ tests:
         _ := $.use(TestRunner).row(1)
     )
 
-    generated(\"renamed generated\", gen=fn(c: mut Choices) -> i32: 1, prop=fn!(quantity: i32):
+    generated(\"renamed generated\", gen=fn(c: &mut Choices) -> i32: 1, prop=fn!(quantity: i32):
         _ := $.use(TestRunner).row(1)
     )
 ";
@@ -99,7 +99,7 @@ tests:
         _ := $.use(PropertyRunner)
     )
 
-    it_prop_with(\"generated\", gen=fn(c: mut Choices) -> i32: 1, prop=fn!(value: i32):
+    it_prop_with(\"generated\", gen=fn(c: &mut Choices) -> i32: 1, prop=fn!(value: i32):
         println(value)
     )
 ";

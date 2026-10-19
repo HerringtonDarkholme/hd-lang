@@ -24,7 +24,7 @@ data Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         let mut closing = self.closing
         closing!()
 

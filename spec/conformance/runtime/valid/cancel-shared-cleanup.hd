@@ -12,7 +12,7 @@ data Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
         wait!()

@@ -10,5 +10,5 @@ impl Index[usize] for Row:
     fn index(self, key: usize) -> i32:
         self.cells[key]
 
-fn invalid(row: mut Row) -> void:
+fn invalid(row: &mut Row) -> void:
     row[0] = 1  # diagnostic: invalid-assignment-target

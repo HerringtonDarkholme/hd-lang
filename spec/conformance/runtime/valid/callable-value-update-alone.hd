@@ -6,7 +6,7 @@ data Sink:
     last: string
 
 impl Update[string] for Sink:
-    fn update(mut self, value: string) -> void:
+    fn update(&mut self, value: string) -> void:
         self.last = value
 
 tests:

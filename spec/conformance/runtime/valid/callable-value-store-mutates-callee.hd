@@ -1,5 +1,5 @@
-# test: a store through v() mutates v, so a mut parameter's caller sees the stored value
-# Spec 05 Callable Values: expr.call.apply.mut.
+# test: a store through v() changes v in place, so a store through a &mut parameter reaches the caller's value
+# Spec 05 Callable Values: expr.call.apply.mut-ref, expr.call.apply.write-ref.
 use std.ops.{Apply, Update}
 
 data Cell:
@@ -10,10 +10,10 @@ impl Apply for Cell:
     fn apply(self) -> i32: self.value
 
 impl Update[i32] for Cell:
-    fn update(mut self, value: i32) -> void:
+    fn update(&mut self, value: i32) -> void:
         self.value = value
 
-fn store(cell: mut Cell, value: i32) -> void:
+fn store(cell: &mut Cell, value: i32) -> void:
     cell() = value
 
 tests:
@@ -21,5 +21,5 @@ tests:
 
     it("the caller's cell holds the store"):
         let mut cell = Cell { value: +1 }
-        store(cell, +9)
-        assert_equal(cell(), +9, reason="the store went through the mut parameter")
+        store(&mut cell, +9)
+        assert_equal(cell(), +9, reason="the store went through the reference")

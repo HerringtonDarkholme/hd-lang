@@ -109,7 +109,7 @@ pub struct KnownItems {
     pub testing_module: PathId,
     pub check_equal: DefId,
     /// The test registration functions besides `it`
-    /// (`module.testing.reg.calls`), and the private std bodies that their
+    /// (`module.testing.reg.calls-ref`), and the private std bodies that their
     /// test cases run, which take the generics of the registration
     /// function in order.
     pub it_each: DefId,

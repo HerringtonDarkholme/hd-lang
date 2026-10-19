@@ -47,22 +47,22 @@ randomness a generator sees:
 
 ```text
 trait Arbitrary:
-    fn arbitrary(c: mut Choices) -> Self
+    fn arbitrary(c: &mut Choices) -> Self
 ```
 
 | Rule | Member of `Choices` | Draws |
 | --- | --- | --- |
-| r[std-testing.choices.int-range] Integer | `fn int[N < Integer](mut self, range: Range[N]) -> N` | an integer of `range` |
-| r[std-testing.choices.float-range] Float | `fn float[F < Float](mut self, range: Range[F]) -> F` | a finite float of `range` |
-| r[std-testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
-| r[std-testing.choices.choose] Choose | `fn choose[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
-| r[std-testing.choices.list-max] List | `fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
-| r[std-testing.choices.map-max] Map | `fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
-| r[std-testing.choices.string-max-chars] String | `fn string(mut self, max_chars: usize) -> string` | a string of at most `max_chars` chars |
-| r[std-testing.choices.assume] Assume | `fn assume(mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
-| r[std-testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
+| r[std-testing.choices.int-range] Integer | `fn int[N < Integer](&mut self, range: Range[N]) -> N` | an integer of `range` |
+| r[std-testing.choices.float-range] Float | `fn float[F < Float](&mut self, range: Range[F]) -> F` | a finite float of `range` |
+| r[std-testing.choices.bool] Boolean | `fn bool(&mut self) -> bool` | a `bool` |
+| r[std-testing.choices.choose] Choose | `fn choose[T](&mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
+| r[std-testing.choices.list-max-ref] List | `fn list[T](&mut self, max: usize, item: fn(&mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
+| r[std-testing.choices.map-max-ref] Map | `fn map[K < Eq & Hash, V](&mut self, max: usize, key: fn(&mut Choices) -> K, value: fn(&mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
+| r[std-testing.choices.string-max-chars] String | `fn string(&mut self, max_chars: usize) -> string` | a string of at most `max_chars` chars |
+| r[std-testing.choices.assume] Assume | `fn assume(&mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
+| r[std-testing.choices.draw] Draw | `fn draw[T < Arbitrary](&mut self) -> T` | `T::arbitrary(self)`, the type's default |
 
-1. r[std-testing.choices.declare] `std.testing` declares `Choices` and `Arbitrary`. Neither is a prelude name.
+1. r[std-testing.choices.declare-ref] `std.testing` declares `Choices` and `Arbitrary`. Neither is a prelude name. `Choices` is a struct that a generator takes behind `&mut`, as `&mut Choices`, and each member above takes `&mut self`, so every draw advances the one source.
 2. r[std-testing.choices.from-case] `std.testing` creates the `Choices` of each generated case from the [`PropertyCase`](#runner-capabilities) that the runner returns. It reports each draw to the runner, so the runner can replay and shrink a case.
 3. r[std-testing.choices.no-size] `Choices` has no size: no member reads or sets one, and no option of `it_prop` or `it_prop_with` sets one.
 4. r[std-testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
@@ -96,20 +96,20 @@ data Point:
     y: i64
 
 impl Arbitrary for Point:
-    fn arbitrary(c: mut Choices) -> Point:
+    fn arbitrary(c: &mut Choices) -> Point:
         Point { x: c.int(0..=9), y: c.int(-5..=5) }
 
-fn small_counts(c: mut Choices) -> List[i64]:
-    c.list(3, fn(inner: mut Choices) -> i64: inner.int(0..=10))
+fn small_counts(c: &mut Choices) -> List[i64]:
+    c.list(3, fn(inner: &mut Choices) -> i64: inner.int(0..=10))
 
-fn ratio(c: mut Choices) -> f64:
+fn ratio(c: &mut Choices) -> f64:
     c.float(0.0..=1.0)
 
-fn label(c: mut Choices) -> string:
+fn label(c: &mut Choices) -> string:
     c.string(max_chars=8)
 
-fn stock(c: mut Choices) -> Map[string, i32]:
-    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0..=99))
+fn stock(c: &mut Choices) -> Map[string, i32]:
+    c.map(5, key=label, value=fn(inner: &mut Choices) -> i32: inner.int(0..=99))
 ```
 
 ```text
@@ -119,7 +119,7 @@ data Reading:
     level: i64
 
 impl Arbitrary for Reading:
-    fn arbitrary(c: mut Choices) -> Reading:
+    fn arbitrary(c: &mut Choices) -> Reading:
         Reading { level: c.int(0..=9) }
 
 tests:
@@ -160,7 +160,7 @@ enum Tree:
     Leaf
     Node(left: &Tree, right: &Tree)
 
-fn tree(c: mut Choices) -> Tree:
+fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
         0 => .Leaf
         _ => .Node(&tree(c), &tree(c))
@@ -193,7 +193,7 @@ one edge, which its seed picks:
 ```text
 use std.testing.{assert, Choices, it_prop_with}
 
-fn span(c: mut Choices) -> i64:
+fn span(c: &mut Choices) -> i64:
     c.int(-10..=10)
 
 tests:
@@ -228,22 +228,22 @@ through the template of `Arbitrary`.
 11. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way. The compiler does not reject the type either. Panic: `explicit-panic`.
 12. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 13. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-14. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+14. r[std-testing.arbitrary.with.module-typed-struct] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a struct value and a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
 15. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
 16. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact.typed), and draws the member by its `gen`.
 17. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
 
 ```text
 @annotate::[F](.Field)
-pub data With[F]:
-    pub gen: fn(mut Choices) -> F
+pub struct With[F]:
+    pub gen: fn(&mut Choices) -> F
 
-pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
+pub fn with[F](gen: fn(&mut Choices) -> F) -> With[F]
 ```
 
 > **Note.** The member's declared type is the expected type of `F`, by
 > [`annot.typed-fact.check.inferred`](../lang/14-annotations.md#r-annot.typed-fact.check.inferred).
-> So a generic generator such as `fn any_text[T](c: mut Choices) -> T`
+> So a generic generator such as `fn any_text[T](c: &mut Choices) -> T`
 > needs no type argument: `@arbitrary.with(any_text)` on `name: string`
 > solves `T = string`.
 
@@ -251,7 +251,7 @@ pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
 use std.testing.{Arbitrary, Choices, assert, it_prop}
 use std.testing.arbitrary
 
-fn cents(c: mut Choices) -> i32:
+fn cents(c: &mut Choices) -> i32:
     c.int(0..=10_000)
 
 @derive(Arbitrary, Debug)
@@ -284,7 +284,7 @@ data Job:
     run: fn() -> i32
 
 impl Arbitrary for Job:
-    fn arbitrary(c: mut Choices) -> Job:
+    fn arbitrary(c: &mut Choices) -> Job:
         n := c.int(0..=9)
         Job { run: fn() -> i32: n }
 ```
@@ -443,14 +443,14 @@ See also: [Debug Trait](../lang/09-traits.md#debug-trait).
 ## Running Executables
 
 `std.testing` declares a function that runs one of the package's
-executables or tasks from an integration test, and the data type of its result.
+executables or tasks from an integration test, and the struct value of its result.
 It is plain hd over the host trait
 [`Process`](../lang/10-modules.md#processes):
 
 ```text
 use std.process.{Command, Process}
 
-pub data RunOutput:
+pub struct RunOutput:
     pub stdout: string
     pub stderr: string
     pub status: i32
@@ -589,29 +589,29 @@ tests:
 ## Runner Capabilities
 
 `std.testing` reaches the test runner through two host capability traits,
-and describes each property case with a data type:
+and describes each property case with a struct value:
 
 ```text
 pub trait TestRunner:
-    fn row(mut self, count: usize) -> usize
-    fn report_timeout(mut self, millis: i64) -> void
-    fn snapshot_check(mut self, text: string) -> string
-    fn temp_dir(mut self) -> string
+    fn row(&mut self, count: usize) -> usize
+    fn report_timeout(&mut self, millis: i64) -> void
+    fn snapshot_check(&mut self, text: string) -> string
+    fn temp_dir(&mut self) -> string
 
 pub trait PropertyRunner:
-    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
-    fn record(mut self, value: i64) -> void
-    fn show(mut self, text: string) -> void
+    fn start(&mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
+    fn record(&mut self, value: i64) -> void
+    fn show(&mut self, text: string) -> void
 
-pub data PropertyCase:
+pub struct PropertyCase:
     pub example: usize?
     pub seed: i64
     pub size: i32
     pub replay: List[i64]
 ```
 
-1. r[std-testing.runner.declares] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Code imports them, as in `use std.testing.TestRunner`.
-2. r[std-testing.runner.case-type] `std.testing` declares the public data type `PropertyCase` with the fields above. Code imports it, as in `use std.testing.PropertyCase`.
+1. r[std-testing.runner.declares-ref] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Each method takes `&mut self`, so `$.use(TestRunner)` is a `&mut dyn TestRunner` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use). Code imports them, as in `use std.testing.TestRunner`.
+2. r[std-testing.runner.case-type-struct] `std.testing` declares the public struct value `PropertyCase` with the fields above. Code imports it, as in `use std.testing.PropertyCase`.
 3. r[std-testing.runner.plain] Every method is a plain call, not a bang call.
 4. r[std-testing.runner.binding] When it runs a test case, the test runner binds `TestRunner` for the `std.testing` code that runs the case around its body. For a property test case, it also binds `PropertyRunner`.
 5. r[std-testing.runner.body-property] A test body's row may hold `TestRunner`, by [`module.testing.unit-row.test-runner`](../lang/10-modules.md#r-module.testing.unit-row.test-runner), but not `PropertyRunner`. So a body that uses `PropertyRunner` without a provider scope is an error. Error: `missing-requirement`.
@@ -635,7 +635,7 @@ pub data PropertyCase:
 
 6. r[std-testing.runner.examples-done] Once every example has run, `start` ends the case instead of returning, and the runner counts the case as discarded.
 7. r[std-testing.runner.show-before-body] `std.testing` calls `show` once for each case, after it has drawn or taken the input and before the property body runs.
-8. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider value, so it records its draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
+8. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider, a `&mut dyn PropertyRunner`, so it records its draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
 9. r[std-testing.runner.replay] The draw at position `i` of a case returns `replay[i]`, limited to the draw's bound, when `replay` holds a value at `i`. Every other draw is fresh.
 9. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
 10. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
@@ -645,21 +645,21 @@ pub data PropertyCase:
 ```text
 use std.testing.{PropertyRunner, TestRunner}
 
-data FirstRow:
+struct FirstRow:
     rows: usize
 
 impl TestRunner for FirstRow:
-    fn row(mut self, count: usize) -> usize:
+    fn row(&mut self, count: usize) -> usize:
         self.rows = count
         0
 
-    fn report_timeout(mut self, millis: i64) -> void:
+    fn report_timeout(&mut self, millis: i64) -> void:
         pass
 
-    fn snapshot_check(mut self, text: string) -> string:
+    fn snapshot_check(&mut self, text: string) -> string:
         ""
 
-    fn temp_dir(mut self) -> string:
+    fn temp_dir(&mut self) -> string:
         "/tmp/first-row"
 
 fn pick(rows: List[string]) -> string $ TestRunner:
@@ -697,7 +697,7 @@ See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 ```text
 use std.testing.{assert, Choices, it_prop_with}
 
-fn even(c: mut Choices) -> i64:
+fn even(c: &mut Choices) -> i64:
     let value: i64 = c.int(0..=100)
     c.assume(value % 2 == 0)   # a false assumption discards the case
     value

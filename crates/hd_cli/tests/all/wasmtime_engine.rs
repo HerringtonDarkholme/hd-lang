@@ -545,7 +545,7 @@ fn a_message_imitating_a_report_keeps_its_own_category() {
     let dir = program(
         "imitated-report",
         "use std.testing.Choices\n\n\
-         fn imitates(c: mut Choices) -> i64:\n    \
+         fn imitates(c: &mut Choices) -> i64:\n    \
          panic(\"x\\npanic: explicit-panic: std.testing: case discarded\")\n    0\n\n\
          tests:\n    use std.testing.it_prop_with\n\n    \
          it(\"is no overflow\", expect_panic=\"integer-overflow\"):\n        \
@@ -837,4 +837,69 @@ it(\"a missing directory is an error\"):
             "{stdout}"
         );
     }
+}
+
+/// Host sockets behind trait value references (`std-net.handles.decl-ref`,
+/// `crates/hd_wasm/DESIGN.md` §15.2): the handles `Net` returns are
+/// `&mut dyn` references on both engines, so a helper writes through one,
+/// a second binding of a handle reaches the same socket, and a `using`
+/// binding of a reference disposes the socket it refers to.
+#[test]
+fn net_handles_behind_references_agree() {
+    let dir = program(
+        "net-refs",
+        "use std.net.{Net, NetError, TcpStream}
+
+fn send!(stream: &mut dyn TcpStream, text: string) -> void:
+    _ := stream.write!(text.to_utf8())
+
+fn greet!(net: &mut dyn Net, port: u16) -> Result[List[u8], NetError]:
+    using stream = net.connect!(\"127.0.0.1\", port)?
+    send!(stream, \"hi\")
+    .Ok([])
+
+pub fn main!() -> void $ Console + Net:
+    net := $.use(Net)
+    server := match net.listen!(\"127.0.0.1\", 0):
+        .Ok(l) => l
+        .Err(e) => return println(\"${e}\")
+    port := match server.local_address():
+        .Ok((_, p)) => p
+        .Err(e) => return println(\"${e}\")
+    client := match net.connect!(\"127.0.0.1\", port):
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    peer := match server.accept!():
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    send!(client, \"ping\")
+    same := peer
+    println(\"same ${same is peer}\")
+    match same.read!(4):
+        .Ok(bytes) => println(\"read ${debug(bytes)}\")
+        .Err(e) => println(\"${e}\")
+    println(debug(peer.close()))
+    println(debug(same.read!(1)))
+    _ := greet!(net, port)
+    match server.accept!():
+        .Ok(other) =>
+            println(debug(other.read!(2)))
+            println(debug(other.read!(2)))
+        .Err(e) => println(\"${e}\")
+    _ := client.close()
+    _ := server.close()
+",
+    );
+    let out = both(&dir, &["--cap", "Net=127.0.0.1", "main.hd"]);
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        "same true\n\
+         read [112, 105, 110, 103]\n\
+         Result.Ok(())\n\
+         Result.Err(NetError.Closed)\n\
+         Result.Ok([104, 105])\n\
+         Result.Ok([])\n"
+    );
+    assert_eq!(out.status.code(), Some(0));
 }

@@ -3765,6 +3765,28 @@ impl Ck<'_, '_> {
                 let [base, key] = ik.as_slice() else {
                     return unsupported("an index target shape");
                 };
+                // A place without built-in indexing stores through
+                // `IndexSet`'s `&mut self` method, which takes the place's
+                // address (`expr.index.trait.mut-ref`).
+                if let Some(pt) = self.peek_place_ty(*base)
+                    && self.ref_of(pt).is_none()
+                    && !self.builtin_index_base(pt)
+                {
+                    // A type with no `IndexSet` at all is no place to store
+                    // into, whatever its binding (`expr.index.trait.write-ref`).
+                    let set = self.cx.names.known.index_set;
+                    if !self.op_fits(set, pt, None)? {
+                        self.expr(*base, None)?;
+                        self.no_index_set(pt, *lhs);
+                        return Ok(());
+                    }
+                    let pins = self.call_pins.len();
+                    if let Some(recv) = self.store_receiver(*base, "index_set")? {
+                        self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
+                    }
+                    self.release_call_pins(pins, s);
+                    return Ok(());
+                }
                 let (br, bt) = self.expr(*base, None)?;
                 let (br, bt) = self.deref_index_base(br, bt, base.index());
                 // `expr.index.trait.place`: a string is not a place.
@@ -3778,7 +3800,12 @@ impl Ck<'_, '_> {
                 }
                 let builtin = self.index_kind(bt);
                 let Some((op_get, op_set, kt, vt)) = builtin else {
-                    return self.index_set((br, bt), (*base, *key), *rhs, compound, (*lhs, s));
+                    // No place: a `&mut` reference stores through what it
+                    // refers to.
+                    if let Some(recv) = self.stored_through(br, bt, "index_set", *base) {
+                        self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
+                    }
+                    return Ok(());
                 };
                 let (kr, key_ty) = self.index_key_value(*key, builtin)?;
                 // `expr.index.slice.no-store`: no range type stores into a
@@ -3821,14 +3848,34 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
+    /// `expr.index.trait.place`: a store into a type without `IndexSet`.
+    fn no_index_set(&mut self, t: Ty, lhs: NodeRef<'_>) {
+        let msg = format!("{} does not implement `IndexSet`", self.show(t));
+        self.err(Code::InvalidAssignmentTarget, lhs, &msg);
+    }
+
+    /// Whether a value of type `t` indexes as a list, map or string, with
+    /// no `IndexSet` call (`expr.index.trait.builtin-direct`).
+    fn builtin_index_base(&mut self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        t == Ty::STRING
+            || matches!(
+                pool.get(t),
+                TyData::Poison | TyData::Never | TyData::Infer(_)
+            )
+            || self.index_kind(t).is_some()
+    }
+
     /// `r[k] = v` and `r[k] op= v` on a receiver without built-in
-    /// indexing: `IndexSet::[K, V]::index_set(r, k, v)`, after
+    /// indexing: `IndexSet::[K, V]::index_set(&mut r, k, v)`, after
     /// `Index::[K]::index(r, k)` for a compound one
-    /// (`expr.index.trait.write`).
+    /// (`expr.index.trait.write-ref`). `br` is the reference to the receiver
+    /// (`Ck::store_receiver`), and `bt` the type of the value it refers to.
     fn index_set(
         &mut self,
         (br, bt): (Ref, Ty),
-        (base, key): (NodeRef<'_>, NodeRef<'_>),
+        (_base, key): (NodeRef<'_>, NodeRef<'_>),
         rhs: NodeRef<'_>,
         compound: Option<TokenKind>,
         (lhs, s): (NodeRef<'_>, NodeRef<'_>),
@@ -3837,14 +3884,9 @@ impl Ck<'_, '_> {
         let set = self.cx.names.known.index_set;
         self.tuple_key_choice(set, bt, kt)?;
         if !self.op_fits(set, bt, Some(kt))? {
-            self.err(
-                Code::InvalidAssignmentTarget,
-                lhs,
-                &format!("{} does not implement `IndexSet`", self.show(bt)),
-            );
+            self.no_index_set(bt, lhs);
             return Ok(());
         }
-        self.check_store_target(base, (br, bt), lhs);
         // `expr.index.trait.choice`: an unsuffixed literal key joins the
         // choice of the implementation, with the value as its second
         // argument.
@@ -3867,11 +3909,13 @@ impl Ck<'_, '_> {
                     self.err(Code::TypeMismatch, lhs, &msg);
                     return Ok(());
                 }
+                // `index` reads the value the reference refers to.
+                let (bv, bvt) = self.emit_deref(br, self.b.ty_of(br), lhs.index());
                 let chosen =
-                    self.literal_arg_choice(index, "index", (br, bt), (&[key], kt), lhs)?;
+                    self.literal_arg_choice(index, "index", (bv, bvt), (&[key], kt), lhs)?;
                 let (cur, ct) = match chosen {
                     Some(c) => c,
-                    None => self.trait_call_args(index, "index", br, bt, &[(kr, kt, key)], lhs)?,
+                    None => self.trait_call_args(index, "index", bv, bvt, &[(kr, kt, key)], lhs)?,
                 };
                 let v = self.compound(k, cur, ct, rhs, s)?;
                 (v, self.b.ty_of(v))

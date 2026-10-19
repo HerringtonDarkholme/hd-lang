@@ -1,6 +1,6 @@
 //! Callable values (spec 05 "Callable Values"): `v()` on a value of a type
 //! that implements `Apply` is the call `Apply::apply(v)`, and `v() = x`,
-//! `v() op= x` store through `Update::[V]::update(v, x)`.
+//! `v() op= x` store through `Update::[V]::update(&mut v, x)`.
 
 use hd_base::StageResult;
 use hd_diag::Code;
@@ -75,14 +75,31 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         let args = self.args_of(Src::child(lhs, SyntaxKind::ArgumentList));
-        let (cr, ct) = self.expr(callee, None)?;
         let pool = self.pool();
-        let rt = self.strip_mut(self.infer.resolve(pool, ct));
+        let update = self.cx.names.known.update;
+        // A place stores through `Update`'s `&mut self` method, which takes
+        // the place's address; any other callee must be a `&mut` reference
+        // (`expr.call.apply.mut-ref`).
+        let peeked = self
+            .peek_place_ty(callee)
+            .filter(|t| self.ref_of(*t).is_none());
+        let evaluated = match peeked {
+            Some(_) => None,
+            None => Some(self.expr(callee, None)?),
+        };
+        let t = peeked.or(evaluated.map(|(_, t)| t)).unwrap_or(Ty::POISON);
+        let t = match self.ref_of(t) {
+            Some((inner, m)) => self.deref_ty(inner, m),
+            None => t,
+        };
+        let rt = self.strip_mut(self.infer.resolve(pool, t));
         if matches!(pool.get(rt), TyData::Poison | TyData::Never) {
             return Ok(());
         }
-        let update = self.cx.names.known.update;
         if matches!(pool.get(rt), TyData::Fn { .. }) || !self.op_fits(update, rt, None)? {
+            if peeked.is_some() {
+                self.expr(callee, None)?;
+            }
             self.not_a_place(lhs);
             return Ok(());
         }
@@ -94,13 +111,13 @@ impl Ck<'_, '_> {
             );
             return Ok(());
         }
-        let mut inner = callee;
-        while inner.kind() == SyntaxKind::ParenExpr
-            && let Some(e) = inner.children().next()
-        {
-            inner = e;
-        }
-        self.check_store_target(inner, (cr, ct), lhs);
+        let recv = match evaluated {
+            None => self.store_receiver(callee, "update")?,
+            Some((cr, ct)) => self.stored_through(cr, ct, "update", callee),
+        };
+        let Some((cr, ct)) = recv else {
+            return Ok(());
+        };
         let (vr, vt) = match compound {
             None => self.expr(rhs, None)?,
             Some(k) => {
@@ -110,7 +127,9 @@ impl Ck<'_, '_> {
                     return Ok(());
                 }
                 let apply = self.cx.names.known.apply;
-                let (cur, curt) = self.trait_call_args(apply, "apply", cr, ct, &[], lhs)?;
+                // `apply` reads the value the reference refers to.
+                let (cv, cvt) = self.emit_deref(cr, self.b.ty_of(cr), lhs.index());
+                let (cur, curt) = self.trait_call_args(apply, "apply", cv, cvt, &[], lhs)?;
                 let v = self.compound(k, cur, curt, rhs, s)?;
                 (v, self.b.ty_of(v))
             }

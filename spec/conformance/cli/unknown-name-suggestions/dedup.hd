@@ -1,4 +1,4 @@
 use std.testing.Choices
 
 fn run() -> void:
-    with(fn(c: mut Choices) -> i32: +1)
+    with(fn(c: &mut Choices) -> i32: +1)

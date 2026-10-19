@@ -8,15 +8,15 @@
 # std-testing.prop.body-no-discard, and std-testing.edge.int-type.
 use std.testing.{assert, Choices, it_prop, it_prop_with}
 
-fn small(c: mut Choices) -> i64:
+fn small(c: &mut Choices) -> i64:
     c.int(0..=9)
 
-fn even(c: mut Choices) -> i64:
+fn even(c: &mut Choices) -> i64:
     let value: i64 = c.int(0..=100)
     c.assume(value % 2 == 0)
     value
 
-fn byte(c: mut Choices) -> u8:
+fn byte(c: &mut Choices) -> u8:
     c.int(250..=255)
 
 tests:

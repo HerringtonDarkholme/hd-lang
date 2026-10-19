@@ -185,7 +185,7 @@ fn an_index_assignment_reaches_index_set() {
     check(&Case {
         name: "index-set",
         pre: "use std.ops.IndexSet\n\nfn fill() -> i32:\n    let mut t = Tag { n: 1 }\n    t[0] = 7\n    t.n\n",
-        post: "impl IndexSet[i32, i32] for Tag:\n    fn index_set(mut self, key: i32, value: i32) -> void:\n        self.n = key + value + later\n",
+        post: "impl IndexSet[i32, i32] for Tag:\n    fn index_set(&mut self, key: i32, value: i32) -> void:\n        self.n = key + value + later\n",
         value: "fill()",
         printed: "12",
     });

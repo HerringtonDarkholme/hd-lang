@@ -8,7 +8,7 @@ data Guard:
     slot: mut Slot
 
 impl Disposable for Guard:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         match self.slot.task:
             .Some(task) =>
                 _ := task.cancel!()

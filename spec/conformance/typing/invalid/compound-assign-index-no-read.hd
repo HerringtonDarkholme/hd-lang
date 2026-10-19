@@ -6,8 +6,8 @@ data Sink:
     items: mut List[i32]
 
 impl IndexSet[usize, i32] for Sink:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.items[key] = value
 
-fn invalid(sink: mut Sink) -> void:
+fn invalid(sink: &mut Sink) -> void:
     sink[0] += 1  # diagnostic: type-mismatch

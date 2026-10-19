@@ -13,7 +13,7 @@ data Runner:
     job: mut Suspend[string]
 
 impl Disposable for Runner:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("runner defer")
         let mut job = self.job
         value := job!()

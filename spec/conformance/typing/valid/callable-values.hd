@@ -1,5 +1,5 @@
 # test: a callable value reads with v() and stores with v() = x through Apply and Update
-# Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write, expr.call.apply.field, expr.assign.compound.call-read-write (Call Indexing D1, D2, D4).
+# Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write-ref, expr.call.apply.field, expr.assign.compound.call-read-write (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
 
 data Cell[T]:
@@ -10,7 +10,7 @@ impl[T] Apply for Cell[T]:
     fn apply(self) -> T: self.value
 
 impl[T] Update[T] for Cell[T]:
-    fn update(mut self, value: T) -> void:
+    fn update(&mut self, value: T) -> void:
         self.value = value
 
 fn live[T](value: T) -> mut Cell[T]:
@@ -22,7 +22,7 @@ data Panel:
 fn read[C < Apply](source: C) -> C::Out:
     source()
 
-fn parent(panel: mut Panel) -> string:
+fn parent(panel: &mut Panel) -> string:
     let mut count = live(+0)
     count() = 1
     count() += 1

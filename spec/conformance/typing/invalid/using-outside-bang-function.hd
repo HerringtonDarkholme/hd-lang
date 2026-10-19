@@ -6,7 +6,7 @@ data Session:
     id: i32
 
 impl Disposable for Session:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         pass
 
 fn plain(id: i32) -> i32:

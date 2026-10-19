@@ -15,7 +15,7 @@ data Channel:
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("channel defer")
         self.log.push("send close")
         let mut wait = self.ack
@@ -26,7 +26,7 @@ data Plain:
     log: mut List[string]
 
 impl Disposable for Plain:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("plain closed")
 
 fn talk!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:

@@ -2,7 +2,7 @@
 # expect-stdout: open a, open b, closing b, closed b, defer, closing a, closed a
 # expect-stdout: 2 1
 # test: a dispose! that suspends finishes before the scope exit goes on, in order with defer suites
-# Spec lang/06 Using Bindings: flow.using.disposable, flow.using.dispose, flow.using.order, flow.using.suspend.
+# Spec lang/06 Using Bindings: flow.using.disposable-ref, flow.using.dispose, flow.using.order, flow.using.suspend.
 use std.ops.Disposable
 use std.time.{Clock, ms, sleep}
 
@@ -12,7 +12,7 @@ data Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         self.log.push("closing ${self.name}")
         let mut wait = self.closing
         wait!()

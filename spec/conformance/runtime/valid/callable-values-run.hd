@@ -1,5 +1,5 @@
 # test: a live cell reads through apply and stores through update, and a child reads a readonly view
-# Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write, expr.assign.compound.call-once (Call Indexing D1, D2, D4).
+# Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write-ref, expr.assign.compound.call-once (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
 data Cell[T]:
     value: T
@@ -9,7 +9,7 @@ impl[T] Apply for Cell[T]:
     fn apply(self) -> T: self.value
 
 impl[T] Update[T] for Cell[T]:
-    fn update(mut self, value: T) -> void:
+    fn update(&mut self, value: T) -> void:
         self.value = value
 
 fn live[T](value: T) -> mut Cell[T]:

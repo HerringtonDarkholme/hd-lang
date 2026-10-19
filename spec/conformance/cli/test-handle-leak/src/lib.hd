@@ -1,5 +1,5 @@
 use std.net.{Net, NetError, TcpListener}
 
 ## Opens a listener on a free local port.
-pub fn open_listener!() -> Result[mut dyn TcpListener, NetError] $ Net:
+pub fn open_listener!() -> Result[&mut dyn TcpListener, NetError] $ Net:
     $.use(Net).listen!("127.0.0.1", 0)

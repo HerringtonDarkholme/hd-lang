@@ -12,20 +12,20 @@ fn greet!(host: string) -> Result[List[u8], NetError] $ Net:
     stream.write!([104, 105])?
     stream.read!(16)
 
-fn twice!(stream: mut dyn TcpStream) -> void:
+fn twice!(stream: &mut dyn TcpStream) -> void:
     using first = stream
     using second = stream
     pass
 
 pub fn main!() -> void $ Console:
-    let mut peer = ScriptedStream::new([[111, 107]])
-    let mut net = ScriptedNet::new()
+    peer := ScriptedStream::new([[111, 107]])
+    net := ScriptedNet::new()
     net.add_connection("echo:7", peer)
     $.with(Net=net):
         println(debug(greet!("echo")))
     println("closed ${peer.is_closed()}")
     println(debug(peer.read!(4)))
-    let mut other = ScriptedStream::new([])
+    other := ScriptedStream::new([])
     twice!(other)
     println(debug(other.close()))
     match other.write!([1]):

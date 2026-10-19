@@ -11,7 +11,7 @@ data Close:
     ack: mut Suspend[void]
 
 impl Disposable for Close:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("closed")
         self.log.push("closing")
         let mut ack = self.ack

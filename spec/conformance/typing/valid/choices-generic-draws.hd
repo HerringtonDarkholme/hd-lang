@@ -3,20 +3,20 @@
 # and .map (Testing PT3-PT5).
 use std.testing.Choices
 
-fn label(c: mut Choices) -> string:
+fn label(c: &mut Choices) -> string:
     c.string(max_chars=8)
 
-fn stock(c: mut Choices) -> Map[string, i32]:
-    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0..=99))
+fn stock(c: &mut Choices) -> Map[string, i32]:
+    c.map(5, key=label, value=fn(inner: &mut Choices) -> i32: inner.int(0..=99))
 
-fn byte(c: mut Choices) -> u8:
+fn byte(c: &mut Choices) -> u8:
     c.int(0..=255)
 
-fn ratio(c: mut Choices) -> f32:
+fn ratio(c: &mut Choices) -> f32:
     c.float(0.0..=1.0)
 
-fn any_float(c: mut Choices) -> f64:
+fn any_float(c: &mut Choices) -> f64:
     c.draw::[f64]()
 
-fn digits(c: mut Choices) -> List[u8]:
+fn digits(c: &mut Choices) -> List[u8]:
     c.list(50, byte)

@@ -4,10 +4,10 @@ use std.testing.{assert, Choices, it_prop_with}
 let count = 0
 let shrink_count = 0
 
-fn seven(choices: mut Choices) -> i32:
+fn seven(choices: &mut Choices) -> i32:
     choices.int(7..=7)
 
-fn small(choices: mut Choices) -> i32:
+fn small(choices: &mut Choices) -> i32:
     choices.int(0..=9)
 
 tests:

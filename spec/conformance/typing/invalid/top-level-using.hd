@@ -6,7 +6,7 @@ data Lock:
     name: string
 
 impl Disposable for Lock:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         pass
 
 using lock = Lock { name: "a" }  # diagnostic: defer-outside-cleanup-scope

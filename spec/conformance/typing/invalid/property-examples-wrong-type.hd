@@ -2,7 +2,7 @@
 # std Testing, Property Tests: it_prop_with takes examples: List[T] (Testing PT7).
 use std.testing.{Choices, it_prop_with}
 
-fn small(c: mut Choices) -> i32:
+fn small(c: &mut Choices) -> i32:
     c.int(0..=9)
 
 tests:

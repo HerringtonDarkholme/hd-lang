@@ -84,7 +84,7 @@ impl[T] Index[(usize, usize)] for Matrix[T]:
         self.cells[at._0 * 2 + at._1]
 
 impl[T] IndexSet[(usize, usize), T] for Matrix[T]:
-    fn index_set(mut self, at: (usize, usize), value: T) -> void:
+    fn index_set(&mut self, at: (usize, usize), value: T) -> void:
         self.cells[at._0 * 2 + at._1] = value
 ";
 
@@ -114,12 +114,12 @@ pub fn main() -> void $ Console:
 fn a_tuple_key_stores_through_index_set() {
     let main = format!(
         "{MATRIX}
-fn fill[T](m: mut Matrix[T], v: T) -> void:
+fn fill[T](m: &mut Matrix[T], v: T) -> void:
     m[(0, 1)] = v
 
 pub fn main() -> void $ Console:
-    let m: mut Matrix[i32] = Matrix {{ cells: [1, 2, 3, 4] }}
-    fill(m, 7)
+    let mut m = Matrix {{ cells: [1, 2, 3, 4] }}
+    fill(&mut m, 7)
     m[(1, 0)] = 8
     m[(1, 1)] += 10
     println(m[(0, 1)])

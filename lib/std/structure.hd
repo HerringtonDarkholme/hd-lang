@@ -20,7 +20,7 @@ use std.format.DebugWriter
 # rather than `Any`.
 ## The facts attached to one type, member, variant, or module-level function, in source order.
 ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
-pub data Facts:
+pub struct Facts:
     ## The fact values.
     ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
     pub items: List[dyn Inspectable]
@@ -36,25 +36,25 @@ impl Facts:
         .None
 
 ## What the compiler tells a template about one member: name, position, facts, doc comment, and shape.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
-pub data Member:
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct Member:
     ## The member's declared name.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub name: string
     ## The member's position in its type.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub position: i32
     ## The member's facts.
     ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
     pub facts: Facts
     ## The member's doc comment, in `.Some`, or `.None`.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub doc: string?
     ## Whether the member is embedded.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub embedded: bool
     ## Whether the member is positional.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub positional: bool
     ## How the member's type refers to the type being derived, which the compiler computes.
     ## See [annot.structure.self-ref-field](../../spec/lang/14-annotations.md#r-annot.structure.self-ref-field).
@@ -62,25 +62,25 @@ pub data Member:
 
 # The prototype leaves `shared` empty.
 ## What the compiler tells a template about one variant.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
-pub data VariantInfo:
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct VariantInfo:
     ## The variant's name.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub name: string
     ## The variant's index in its enum.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub index: i32
     ## The variant's facts.
     ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
     pub facts: Facts
     ## The variant's doc comment, in `.Some`, or `.None`.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub doc: string?
     ## Whether the variant belongs to a data type.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub of_data: bool
     ## The facts the variants share.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub shared: List[(string, dyn Inspectable)]
     ## How the variant's fields refer to the type being derived, which the compiler computes.
     ## See [annot.structure.self-ref-field](../../spec/lang/14-annotations.md#r-annot.structure.self-ref-field).
@@ -107,10 +107,10 @@ impl Debug for SelfRef:
 # A member's handle. `hd_witness` names the member's type, so that `fact`
 # needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).
 ## A member's handle: its `Member` information plus the calls a template needs.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
-pub data Field[HdS, HdF]:
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct Field[HdS, HdF]:
     ## The member's information.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: Member
     hd_get: fn(HdS) -> HdF
     hd_has_default: bool
@@ -119,17 +119,17 @@ pub data Field[HdS, HdF]:
 
 impl[HdS, HdF] Field[HdS, HdF]:
     ## Reads the member's value from `s`.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub fn get(self, s: HdS) -> HdF:
         (self.hd_get)(s)
 
     ## Whether the member has a default value.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub fn has_default(self) -> bool:
         self.hd_has_default
 
     ## The member's default value, in `.Some`, or `.None`.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub fn default(self) -> HdF?:
         (self.hd_default)()
 
@@ -146,22 +146,22 @@ fn hd__no_default[HdF]() -> HdF?:
     .None
 
 ## A variant's handle: its `VariantInfo` plus the check that a value holds it.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
-pub data Variant[HdS]:
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct Variant[HdS]:
     ## The variant's information.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: VariantInfo
     hd_holds: fn(HdS) -> bool
 
 impl[HdS] Variant[HdS]:
     ## Whether `s` holds this variant.
-    ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+    ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub fn holds(self, s: HdS) -> bool:
         (self.hd_holds)(s)
 
 ## The answer of a `Members` lookup: the found member's information, or the end key when nothing fits.
 ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-pub data Key[HdS]:
+pub struct Key[HdS]:
     pub info: Member
     ## True when the lookup matched no member.
     ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
@@ -170,7 +170,7 @@ pub data Key[HdS]:
 
 ## The members of the type being derived, which a template looks up by position or by a match.
 ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-pub data Members[HdS]:
+pub struct Members[HdS]:
     ## The members' information, in order.
     ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
     pub infos: List[Member]
@@ -210,7 +210,7 @@ impl[HdS] Members[HdS]:
 # `&mut`, and each protocol method takes `&mut self`
 # (annot.structure.protocol-ref), so a struct walker changes in place.
 ## The protocol that walks a value variant and member by member.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub trait Walker[S]:
     type Error
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
@@ -219,14 +219,14 @@ pub trait Walker[S]:
         self.member(h, items)
 
 ## The protocol that describes a type variant and member by member, without a value.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub trait Describer[S]:
     type Error
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
     fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 ## The protocol that builds a value: it chooses a variant and supplies each member.
-## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub trait Source[S]:
     type Error
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]

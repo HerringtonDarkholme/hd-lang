@@ -8,6 +8,6 @@ tests:
     use std.testing.assert_equal
 
     it("indexes with no use of Index or IndexSet"):
-        let cell: mut Cell = Cell { value: [+1] }
+        let mut cell = Cell { value: [+1] }
         cell[0] = +4
         assert_equal(cell[0], +4, reason="stored, then read")

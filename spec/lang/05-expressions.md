@@ -915,12 +915,12 @@ impl Index[usize] for Ring:
         self.items[key % self.items.len()]
 
 impl IndexSet[usize, i32] for Ring:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.items[key % self.items.len()] = value
 
-fn rotate(ring: mut Ring) -> i32:
-    ring[5] = ring[0]
-    ring[5]
+fn rotate(ring: &mut Ring) -> i32:
+    ring[5] = (*ring)[0]
+    (*ring)[5]
 ```
 
 `std.ops` declares them in this shape:
@@ -931,15 +931,15 @@ pub trait Index[K]:
     fn index(self, key: K) -> Self::Out
 
 pub trait IndexSet[K, V]:
-    fn index_set(mut self, key: K, value: V) -> void
+    fn index_set(&mut self, key: K, value: V) -> void
 ```
 
-1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
+1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above.
 2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(r, k)`. Its type is that implementation's `Out`.
-3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(r, k, v)`.
+3. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
-6. r[expr.index.trait.mut] `index_set` takes `mut self`, so a store needs mutable access to the receiver, as any `mut self` call does.
+6. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `mutable-receiver-required`.
 7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
 8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
 9. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
@@ -959,7 +959,7 @@ impl Index[usize] for Row:
 data Plain:
     value: i32
 
-fn invalid(row: mut Row, plain: Plain) -> i32:
+fn invalid(row: &mut Row, plain: Plain) -> i32:
     row[0] = 1  # error: invalid-assignment-target
     plain[0]    # error: type-mismatch
 ```
@@ -980,10 +980,10 @@ use std.ops.{Index, IndexSet}
 fn first[C < Index[usize]](items: C) -> C::Out:
     items[0]
 
-fn reset[C < mut IndexSet[usize, i32]](items: C) -> void:
+fn reset[C < IndexSet[usize, i32]](items: &mut C) -> void:
     items[0] = 0
 
-fn lead(counts: mut List[i32], text: string) -> u8:
+fn lead(counts: &mut List[i32], text: string) -> u8:
     reset(counts)
     first(text)
 ```
@@ -1005,11 +1005,12 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 ```text
 use std.ops.IndexSet
 
-fn store[C < mut IndexSet[usize, u8]](items: C, byte: u8) -> void:
+fn store[C < IndexSet[usize, u8]](items: &mut C, byte: u8) -> void:
     items[0] = byte
 
 fn invalid(text: string) -> void:
-    store(text, 65)  # error: unsatisfied-trait-bound
+    let mut copy = text
+    store(&mut copy, 65)  # error: unsatisfied-trait-bound
 ```
 
 > **Note.** Through a bound, `items[k]` has type `Out`, the declared
@@ -1150,7 +1151,7 @@ impl[T] Apply for Cell[T]:
     fn apply(self) -> T: self.value
 
 impl[T] Update[T] for Cell[T]:
-    fn update(mut self, value: T) -> void:
+    fn update(&mut self, value: T) -> void:
         self.value = value
 
 fn live[T](value: T) -> mut Cell[T]:
@@ -1159,7 +1160,7 @@ fn live[T](value: T) -> mut Cell[T]:
 data Panel:
     count: mut Cell[i32]
 
-fn parent(panel: mut Panel) -> string:
+fn parent(panel: &mut Panel) -> string:
     let mut count = live(0)
     count() = 1
     count() += 1
@@ -1178,20 +1179,20 @@ pub trait Apply:
     fn apply(self) -> Self::Out
 
 pub trait Update[V]:
-    fn update(mut self, value: V) -> void
+    fn update(&mut self, value: V) -> void
 ```
 
-1. r[expr.call.apply.std] `std.ops` declares `Apply`, with an associated type `Out`, and `Update[V]`, as shown above.
+1. r[expr.call.apply.std-ref] `std.ops` declares `Apply`, with an associated type `Out`, and `Update[V]`, whose `update` takes `&mut self`, as shown above.
 2. r[expr.call.apply.zero-keys] Neither trait takes a key: a callable value is called with no arguments.
 3. r[expr.call.apply.read] When the callee's type is not a function type and implements `Apply`, a type parameter included, the call `v()` is the call `Apply::apply(v)`.
 4. r[expr.call.apply.read-type] The type of `v()` is that implementation's `Out`.
 5. r[expr.call.apply.arguments] A call that passes a callable value any argument, positional or named, is an error. Error: `argument-count`.
-6. r[expr.call.apply.write] Assigning `v() = x` is the call `Update::[V]::update(v, x)`.
+6. r[expr.call.apply.write-ref] Assigning `v() = x` is the call `Update::[V]::update(&mut v, x)`, which takes the address of the place `v`, or passes `v` when it is a `&mut` reference, as an index store does by [`expr.index.trait.write-ref`](#r-expr.index.trait.write-ref).
 7. r[expr.call.apply.choice] The `Update` implementation is chosen by the callee's type, then by the type of `x`, as an index store's is.
 8. r[expr.call.apply.no-use] Neither call needs a `use` of the trait.
 9. r[expr.call.apply.place] `v()` is a place only when the callee's type implements `Update`. Assigning to any other call, including a function call, is an error. Error: `invalid-assignment-target`.
-10. r[expr.call.apply.mut] A store through `v()` mutates `v`, so `v` must have type `mut T`, as [Mutation Checks](04-type-system.md#mutation-checks) require of `e[i] = value`.
-11. r[expr.call.apply.readonly] A store through a readonly callee is an error. Error: `readonly-root`.
+10. r[expr.call.apply.mut-ref] A store through `v()` changes `v` in place, so `v` must be a writable place or a `&mut` reference.
+11. r[expr.call.apply.readonly-ref] A store through any other callee, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `mutable-receiver-required`.
 12. r[expr.call.apply.not-callable] Calling a value whose type is neither a function type nor implements `Apply` is an error. Error: `not-callable`.
 13. r[expr.call.apply.independent] The two traits are independent: a type may implement either one alone.
 14. r[expr.call.apply.field] A callable value in a field is called by parenthesizing the field read, as in `(panel.count)()`, as [`expr.member.stored-fn`](#r-expr.member.stored-fn) states for a stored function.
@@ -1218,28 +1219,25 @@ fn invalid(counter: mut Counter, tags: List[string]) -> void:
     tags(0)        # error: not-callable
 ```
 
-A store needs a `mut` cell. With `Cell` and `live` from the first example,
-a `:=` binding and a parameter typed `Cell[i32]` are readonly views:
+A store needs a cell it can change. With `Cell` and `live` from the first
+example, a `:=` binding never changes, and a parameter typed `Cell[i32]` is
+the function's own copy:
 
 ```text
 fn invalid(count: Cell[i32]) -> void:
     view := live(0)
-    view() = 1   # error: readonly-root
-    count() = 2  # error: readonly-root
+    view() = 1   # error: mutable-receiver-required
+    count() = 2  # error: mutable-receiver-required
 ```
 
-> **Note.** `let mut count = live(0)` keeps the `mut Cell[i32]` that
-> `live` returns, as [`types.bind.let-mut-infer`](04-type-system.md#r-types.bind.let-mut-infer)
-> states. `view := live(0)` is readonly by
-> [`types.bind.short`](04-type-system.md#r-types.bind.short): it reads
-> `view()` but does not store. A cell reached through a readonly edge,
-> `field: Cell[i32]`, gives `readonly-edge` instead, as
-> [`types.path.store.readonly-edge`](04-type-system.md#r-types.path.store.readonly-edge) states.
+> **Note.** `let mut count = live(0)` is a writable place, so its stores
+> change it. `view := live(0)` reads `view()` but does not store. A
+> function that stores into its caller's cell takes it as `&mut Cell[i32]`.
 
 > **Why.** Keyed reads have one syntax, `[]`, so `Apply` and `Update` take
-> no keys, and a grid keeps `g[(0, 1)]`. `update` takes `mut self`, so a
-> write through a cell shows in its holder's type, as every other
-> mutation does.
+> no keys, and a grid keeps `g[(0, 1)]`. `update` takes `&mut self`, so a
+> store through a cell changes a writable place or what a `&mut`
+> reference refers to, as every other `&mut self` call does.
 
 See also: [Index Traits](#index-traits),
 [Compound Assignment](#compound-assignment),

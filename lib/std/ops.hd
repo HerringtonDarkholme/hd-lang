@@ -146,37 +146,37 @@ pub trait Shr[Rhs = Self]:
 # `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
 # (spec/lang/05-expressions.md#index-traits).
 ## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(r, k)`.
-## See [expr.index.trait.std](../../spec/lang/05-expressions.md#r-expr.index.trait.std).
+## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
 pub trait Index[K]:
     type Out
     fn index(self, key: K) -> Self::Out
 
 ## The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
-## See [expr.index.trait.std](../../spec/lang/05-expressions.md#r-expr.index.trait.std).
+## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
 pub trait IndexSet[K, V]:
-    fn index_set(mut self, key: K, value: V) -> void
+    fn index_set(&mut self, key: K, value: V) -> void
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
 # reads through `Apply` and, when it also implements `Update`, stores
 # through it (spec/lang/05-expressions.md#callable-values). Neither takes a key.
 ## The trait of calling a value: `v()` is the call `Apply::apply(v)`.
-## See [expr.call.apply.std](../../spec/lang/05-expressions.md#r-expr.call.apply.std).
+## See [expr.call.apply.std-ref](../../spec/lang/05-expressions.md#r-expr.call.apply.std-ref).
 pub trait Apply:
     type Out
     fn apply(self) -> Self::Out
 
 ## The trait of assigning to a call: `v() = x` is the call `Update::[V]::update(v, x)`.
-## See [expr.call.apply.std](../../spec/lang/05-expressions.md#r-expr.call.apply.std).
+## See [expr.call.apply.std-ref](../../spec/lang/05-expressions.md#r-expr.call.apply.std-ref).
 pub trait Update[V]:
-    fn update(mut self, value: V) -> void
+    fn update(&mut self, value: V) -> void
 
 # A `using` binding disposes its value at scope exit through this trait
 # (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
 # `using` needs no import.
 ## A value that releases what it holds when a `using` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing.
-## See [flow.using.disposable](../../spec/lang/06-control-flow.md#r-flow.using.disposable).
+## See [flow.using.disposable-ref](../../spec/lang/06-control-flow.md#r-flow.using.disposable-ref).
 pub trait Disposable:
-    fn dispose!(mut self) -> void
+    fn dispose!(&mut self) -> void
 
 # The built-in implementations (spec/lang/05-expressions.md#built-in-implementations).
 # Each body is the built-in indexing of its type, with its checks and
@@ -187,7 +187,7 @@ impl[T] Index[usize] for List[T]:
     fn index(self, key: usize) -> T: self[key]
 
 impl[T] IndexSet[usize, T] for List[T]:
-    fn index_set(mut self, key: usize, value: T) -> void:
+    fn index_set(&mut self, key: usize, value: T) -> void:
         self[key] = value
 
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
@@ -195,7 +195,7 @@ impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
     fn index(self, key: K) -> V: self[key]
 
 impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
-    fn index_set(mut self, key: K, value: V) -> void:
+    fn index_set(&mut self, key: K, value: V) -> void:
         self[key] = value
 
 impl Index[usize] for string:

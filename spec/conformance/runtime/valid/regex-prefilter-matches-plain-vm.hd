@@ -311,7 +311,7 @@ fn literal_text(c: char) -> string:
         return "\\n"
     "$c"
 
-fn gen_alternation(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_alternation(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
     count := if depth >= 2: 1 else: c.int(1..=3)
     let branches: mut List[Node] = []
     let texts: mut List[string] = []
@@ -323,7 +323,7 @@ fn gen_alternation(c: mut Choices, depth: usize, names: mut List[string]) -> Bui
         return Built { node: branches[0], text: texts[0] }
     Built { node: Node.Alternate(branches), text: texts.join("|") }
 
-fn gen_concat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_concat(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
     count := c.int(0..=(if depth >= 2: 2 else: 4))
     let items: mut List[Node] = []
     let text = ""
@@ -337,7 +337,7 @@ fn gen_concat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
         return Built { node: items[0], text: text }
     Built { node: Node.Concat(items), text: text }
 
-fn gen_repeat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_repeat(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
     atom := gen_atom(c, depth, names)
     kind := c.int(0..=11)
     if kind < 6:
@@ -360,7 +360,7 @@ fn gen_repeat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     high := low + c.int(0..=2)
     Built { node: Node.Repeat(&atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
 
-fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_atom(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
     kind := c.int(0..=(if depth >= 2: 8 else: 11))
     if kind <= 4:
         count := c.int(1..=4)
@@ -398,14 +398,14 @@ fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     inner := gen_alternation(c, depth + 1, names)
     Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
 
-fn gen_perl(c: mut Choices) -> (ClassItem, string):
+fn gen_perl(c: &mut Choices) -> (ClassItem, string):
     match c.int(0..=3):
         0 => (ClassItem.Digit(false), "\\d")
         1 => (ClassItem.Word(false), "\\w")
         2 => (ClassItem.Word(true), "\\W")
         _ => (ClassItem.Space(false), "\\s")
 
-fn gen_class(c: mut Choices) -> Built:
+fn gen_class(c: &mut Choices) -> Built:
     negated := c.bool()
     count := c.int(1..=2)
     let items: mut List[ClassItem] = []
@@ -429,7 +429,7 @@ enum Piece:
     Index(value: usize)
     Name(value: string)
 
-fn gen_piece(c: mut Choices, groups: usize) -> Piece:
+fn gen_piece(c: &mut Choices, groups: usize) -> Piece:
     match c.int(0..=3):
         0 => Piece.Literal(c.choose(["<", ">", "é"]))
         1 => Piece.Name("g${c.int(0..=groups + 1)}")
@@ -455,11 +455,11 @@ data Case:
     template: string
     expected: string
 
-fn case_gen(c: mut Choices) -> Case:
+fn case_gen(c: &mut Choices) -> Case:
     let names: mut List[string] = [""]
     built := gen_alternation(c, 0, names)
-    text := c.list(16, fn(inner: mut Choices) -> string: inner.choose(text_pieces())).join("")
-    pieces := c.list(3, fn(inner: mut Choices) -> Piece: gen_piece(inner, names.len()))
+    text := c.list(16, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
+    pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
 
 # A long text of `count` pieces from a seeded generator, so its length does
@@ -473,11 +473,11 @@ fn long_text(seed: u64, count: usize) -> string:
         parts.push(pieces[usize((state >> 8) % u64(pieces.len()))])
     parts.join("")
 
-fn long_case_gen(c: mut Choices) -> Case:
+fn long_case_gen(c: &mut Choices) -> Case:
     let names: mut List[string] = [""]
     built := gen_alternation(c, 0, names)
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
-    pieces := c.list(2, fn(inner: mut Choices) -> Piece: gen_piece(inner, names.len()))
+    pieces := c.list(2, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
 
 # What the old engine reports for one pattern and text, one line for each

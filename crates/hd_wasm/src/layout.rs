@@ -111,6 +111,10 @@ pub struct Lay<'a> {
     pub path: &'a dyn Fn(DefId) -> String,
     /// The program's laid-out nominal types, shared by its instances.
     pub shared: &'a Layouts,
+    /// The entry's boundary codecs, which name the `std.rt.host_provider`
+    /// instance that puts a host handle behind a reference
+    /// (`hd_mono::BoundaryCodecs::handle_ref`). `None` outside an entry.
+    pub boundary: Option<&'a hd_mono::BoundaryMap>,
     rec: RefCell<Rec>,
 }
 
@@ -624,7 +628,17 @@ impl<'a> Lay<'a> {
             env,
             path,
             shared,
+            boundary: None,
             rec: RefCell::default(),
+        }
+    }
+
+    /// This layout with the entry's boundary codecs (`Lay::boundary`).
+    #[must_use]
+    pub fn with_boundary(self, boundary: &'a hd_mono::BoundaryMap) -> Lay<'a> {
+        Lay {
+            boundary: Some(boundary),
+            ..self
         }
     }
 

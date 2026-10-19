@@ -1407,13 +1407,13 @@ pub fn it_prop[T < Arbitrary & Debug, R < Termination, $Q](name: string, ignore:
                                                            expect_panic: string? = .None, timeout: Duration? = .None,
                                                            cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
                                                            prop: fn!(T) -> R $ Q) -> void $ Q
-pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(&mut Choices) -> T, ignore: string? = .None,
                                                     expect_panic: string? = .None, timeout: Duration? = .None,
                                                     cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
                                                     prop: fn!(T) -> R $ Q) -> void $ Q
 ```
 
-1. r[module.testing.reg.calls] `it_each`, `it_prop`, and `it_prop_with` take test registration calls with the signatures above; `std.testing` declares them. The test-position rules of `it` apply to them.
+1. r[module.testing.reg.calls-ref] `it_each`, `it_prop`, and `it_prop_with` take test registration calls with the signatures above; `std.testing` declares them. The test-position rules of `it` apply to them.
 2. r[module.testing.reg.import] None of the three is a prelude name. Code imports them from `std.testing`, as in `use std.testing.it_each`.
 3. r[module.testing.reg.identity] A call is a test registration call by declaration identity, not by spelling. The test-position rules and the rules of this section apply to it under any spelling.
 4. r[module.testing.reg.identity.spellings] So a bare `it_each(...)`, a call of a renamed import such as `use std.testing.{it_each as each}`, and `testing.it_each(...)` after `use std.testing` all call `it_each`.
@@ -2354,8 +2354,8 @@ pub enum StoreError:
     Closed
 
 pub trait Session < Disposable:
-    fn get!(mut self, key: string) -> Result[string, StoreError]
-    fn close(mut self) -> Result[void, StoreError]
+    fn get!(&mut self, key: string) -> Result[string, StoreError]
+    fn close(&mut self) -> Result[void, StoreError]
 ```
 
 1. r[module.resource.closed] A closable runtime handle's operations return its module's error type, which has the payload-free variant `Closed`.

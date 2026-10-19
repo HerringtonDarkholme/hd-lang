@@ -302,20 +302,33 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.poisoned(base)),
             ));
         }
+        Ok(Some(self.address_of_place(base, name, mutable)?))
+    }
+
+    /// The reference that a call of `name`, a method taking `&self` or
+    /// (`mutable`) `&mut self`, takes to the place-shaped receiver `base`
+    /// that holds its value (`fn.method.auto-address`), with the type of
+    /// that value. An error leaves a poisoned receiver.
+    fn address_of_place(
+        &mut self,
+        base: NodeRef<'_>,
+        name: &str,
+        mutable: bool,
+    ) -> StageResult<(Ref, Ty)> {
         // A list element pins its list for the call
         // (`fn.method.auto-address.element`).
         self.pin_for_call = true;
         let op = self.operand(base, None);
         self.pin_for_call = false;
         let Some(op) = op? else {
-            return Ok(Some(self.poisoned(base)));
+            return Ok(self.poisoned(base));
         };
         let place = match op {
             Operand::Place(p) => {
                 if mutable && !self.receiver_writable(&p, base, name) {
                     // The receiver is still read, so its binding is used.
                     self.read_place(&p, base);
-                    return Ok(Some(self.poisoned(base)));
+                    return Ok(self.poisoned(base));
                 }
                 // A legacy `mut List[T]` or `mut Map[K, V]` view shares its
                 // collection (`types.coll.legacy`): the call refers to that
@@ -327,7 +340,7 @@ impl Ck<'_, '_> {
                 {
                     let (v, t) = self.read_place(&p, base);
                     let (r, _) = self.new_object_ref(v, t, true, base);
-                    return Ok(Some((r, t)));
+                    return Ok((r, t));
                 }
                 if mutable && let Root::Local(l, _) = p.root {
                     self.ref_taken.push(l);
@@ -336,11 +349,11 @@ impl Ck<'_, '_> {
             }
             Operand::Value(v, t) => {
                 if matches!(self.strip_mut(t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
-                    return Ok(Some(self.poisoned(base)));
+                    return Ok(self.poisoned(base));
                 }
                 if mutable {
                     self.not_a_place_receiver(name, base);
-                    return Ok(Some(self.poisoned(base)));
+                    return Ok(self.poisoned(base));
                 }
                 self.new_object_place(v, t, base)
             }
@@ -349,7 +362,63 @@ impl Ck<'_, '_> {
         let inner = self.strip_mut(place.ty);
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, inner, mutable, rt, base);
-        Ok(Some((r, place.ty)))
+        Ok((r, place.ty))
+    }
+
+    /// The receiver of a store through an operator trait's `&mut self`
+    /// method `name` (`IndexSet::index_set` for `r[k] = v`, `Update::update`
+    /// for `v() = x`): a reference to the place `base` names, which must be
+    /// writable (`fn.method.auto-address.writable`), or the `&mut`
+    /// reference `base` evaluates to. Returns the reference and the type
+    /// of the value it refers to, or `None` once an error is reported.
+    pub(crate) fn store_receiver(
+        &mut self,
+        base: NodeRef<'_>,
+        name: &str,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        if self
+            .peek_place_ty(base)
+            .is_some_and(|t| self.ref_of(t).is_none())
+        {
+            let (r, t) = self.address_of_place(base, name, true)?;
+            return Ok((t != Ty::POISON).then_some((r, t)));
+        }
+        let (r, t) = self.expr(base, None)?;
+        Ok(self.stored_through(r, t, name, base))
+    }
+
+    /// [`Self::store_receiver`] for a receiver that is no place: a `&mut`
+    /// reference passes on; a read-only one, or a value, has nothing the
+    /// store could change.
+    pub(crate) fn stored_through(
+        &mut self,
+        r: Ref,
+        t: Ty,
+        name: &str,
+        base: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        if r.0 == NONE || matches!(self.strip_mut(t), Ty::POISON | Ty::NEVER) {
+            return None;
+        }
+        match self.ref_of(t) {
+            Some((inner, true)) => {
+                let pool = self.pool();
+                let vt = self.deref_ty(inner, true);
+                let rt = pool.intern_ty(&TyData::Ref {
+                    inner: self.strip_mut(inner),
+                    mutable: true,
+                });
+                Some((self.retype(r, rt, base.index()), vt))
+            }
+            Some((_, false)) => {
+                self.read_only_receiver(name, t, base);
+                None
+            }
+            None => {
+                self.not_a_place_receiver(name, base);
+                None
+            }
+        }
     }
 
     /// A receiver `r` of reference type `t` for a method `name` that takes
@@ -371,11 +440,7 @@ impl Ck<'_, '_> {
             return Ok(None);
         };
         if mutable && !rm {
-            let msg = format!(
-                "`{name}` takes `&mut self`, but the receiver is a read-only reference {}; take it with `&mut` to change what it refers to",
-                self.show(t)
-            );
-            self.err(Code::MutableReceiverRequired, base, &msg);
+            self.read_only_receiver(name, t, base);
             return Ok(Some(self.poisoned(base)));
         }
         let pool = self.pool();
@@ -450,6 +515,15 @@ impl Ck<'_, '_> {
             path: vec![],
             ty: t,
         }
+    }
+
+    /// `&mut self` on a read-only reference `t`.
+    fn read_only_receiver(&mut self, name: &str, t: Ty, base: NodeRef<'_>) {
+        let msg = format!(
+            "`{name}` takes `&mut self`, but the receiver is a read-only reference {}; take it with `&mut` to change what it refers to",
+            self.show(t)
+        );
+        self.err(Code::MutableReceiverRequired, base, &msg);
     }
 
     /// `fn.method.auto-address.place`: `&mut self` on a value that is no

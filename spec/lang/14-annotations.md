@@ -697,7 +697,7 @@ pub trait Structure:
     fn describe[D < Describer[Self]](d: &mut D) -> Result[void, D::Error]
     fn build[S < Source[Self]](s: &mut S) -> Result[mut Self, S::Error]
 
-pub data Member:
+pub struct Member:
     pub name: string
     pub position: i32
     pub facts: Facts
@@ -706,7 +706,7 @@ pub data Member:
     pub positional: bool
     pub self_ref: SelfRef
 
-pub data VariantInfo:
+pub struct VariantInfo:
     pub name: string
     pub index: i32
     pub facts: Facts
@@ -720,7 +720,7 @@ pub enum SelfRef:
     Optional
     Required
 
-pub data Field[-S, F]:
+pub struct Field[-S, F]:
     pub info: Member
 
 impl[S, F] Field[S, F]:
@@ -729,13 +729,13 @@ impl[S, F] Field[S, F]:
     pub fn default(self) -> F?: pass
     pub fn fact[M](self) -> M?: pass
 
-pub data Variant[S]:
+pub struct Variant[S]:
     pub info: VariantInfo
 
 impl[S] Variant[S]:
     pub fn holds(self, s: S) -> bool: pass
 
-pub data Members[S]:
+pub struct Members[S]:
     pub infos: List[Member]
 
 impl[S] Members[S]:
@@ -743,7 +743,7 @@ impl[S] Members[S]:
     pub fn at(self, position: i32) -> Key[S]: pass
     pub fn find(self, matches: fn(Member) -> bool) -> Key[S]: pass
 
-pub data Key[S]:
+pub struct Key[S]:
     pub info: Member
     pub is_end: bool
 
@@ -766,7 +766,7 @@ pub trait Source[S]:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
-1. r[annot.structure.module] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`.
+1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.facts-contents] `Facts` holds the facts attached to one type, member, variant, or module-level function, in source order. `facts.find::[F]()` returns the fact whose concrete type is `F`, or `.None`.
 4. r[annot.structure.find-lookup] `find` performs one narrow runtime type lookup and nothing more: it compares each fact's concrete type with `F`, and keeps the found fact's declared permission. It is not a general `Any` downcast.

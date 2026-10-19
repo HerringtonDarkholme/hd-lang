@@ -9,10 +9,10 @@ data Reading:
     level: i64
 
 impl Arbitrary for Reading:
-    fn arbitrary(c: mut Choices) -> Reading:
+    fn arbitrary(c: &mut Choices) -> Reading:
         Reading { level: c.int(0..=9) }
 
-fn even(c: mut Choices) -> i64:
+fn even(c: &mut Choices) -> i64:
     let value: i64 = c.int(0..=100)
     c.assume(value % 2 == 0)
     value

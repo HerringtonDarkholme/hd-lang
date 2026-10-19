@@ -1,13 +1,13 @@
-# test: index_set takes mut self, so r[k] = v needs mutable access to r
-# Spec 05 Index Traits: expr.index.trait.mut.
+# test: index_set takes &mut self, so r[k] = v needs a writable place or a &mut reference
+# Spec 05 Index Traits: expr.index.trait.mut-ref.
 use std.ops.IndexSet
 
 data Cell:
     value: mut List[i32]
 
 impl IndexSet[usize, i32] for Cell:
-    fn index_set(mut self, key: usize, value: i32) -> void:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
         self.value[0] = value
 
 fn store(cell: Cell) -> void:
-    cell[0] = +4  # diagnostic: readonly-root
+    cell[0] = +4  # diagnostic: mutable-receiver-required

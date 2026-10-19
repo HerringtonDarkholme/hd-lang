@@ -15,7 +15,7 @@ data Flush:
     ack: mut Suspend[void]
 
 impl Disposable for Flush:
-    fn dispose!(mut self) -> void:
+    fn dispose!(&mut self) -> void:
         defer: self.log.push("closed at ${self.clock.now().unix_milliseconds()}")
         self.clock.sleep!(ms(200))
         self.log.push("flushed at ${self.clock.now().unix_milliseconds()}")

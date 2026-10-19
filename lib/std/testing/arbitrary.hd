@@ -6,19 +6,19 @@
 use std.annotation.annotate
 use std.testing.Choices
 
-# A typed fact type (r-std-testing.arbitrary.with.module-typed): on a member
+# A typed fact type (r-std-testing.arbitrary.with.module-typed-struct): on a member
 # of type `X`, `arbitrary.with(gen)` checks like
 # `let f: With[X] = with(gen)`, so `gen` must draw `X`
 # (r-std-testing.arbitrary.with.checked).
 @annotate::[F](.Field)
 ## The typed fact type of `@arbitrary.with(gen)`: it holds the generator `gen`.
-## See [std-testing.arbitrary.with.module-typed](../../../spec/std/testing.md#r-std-testing.arbitrary.with.module-typed).
-pub data With[F]:
+## See [std-testing.arbitrary.with.module-typed-struct](../../../spec/std/testing.md#r-std-testing.arbitrary.with.module-typed-struct).
+pub struct With[F]:
     ## The generator that draws the member instead of its type's `Arbitrary`.
     ## See [std-testing.arbitrary.with](../../../spec/std/testing.md#r-std-testing.arbitrary.with).
-    pub gen: fn(mut Choices) -> F
+    pub gen: fn(&mut Choices) -> F
 
 ## Returns the `@arbitrary.with(gen)` fact: the member is drawn by `gen` instead of its type's `Arbitrary`.
 ## See [std-testing.arbitrary.with](../../../spec/std/testing.md#r-std-testing.arbitrary.with).
-pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]:
+pub fn with[F](gen: fn(&mut Choices) -> F) -> With[F]:
     With::[F] { gen: gen }

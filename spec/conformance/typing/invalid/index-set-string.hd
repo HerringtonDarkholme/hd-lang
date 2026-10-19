@@ -2,8 +2,9 @@
 # Spec 05 Built-In Implementations: expr.index.std.string-no-index-set (Strings STR8).
 use std.ops.IndexSet
 
-fn store[C < mut IndexSet[usize, u8]](items: C, byte: u8) -> void:
+fn store[C < IndexSet[usize, u8]](items: &mut C, byte: u8) -> void:
     items[0] = byte
 
 fn invalid(text: string) -> void:
-    store(text, 65)  # diagnostic: unsatisfied-trait-bound
+    let mut copy = text
+    store(&mut copy, 65)  # diagnostic: unsatisfied-trait-bound

@@ -587,17 +587,17 @@ KEYS := ["a", "b", "x", "y", "k0", "k1", "D", "name", "", "\u{e9}", "a\\\"b", "\
 # Single characters that break a text when inserted, replaced, or removed.
 INSERTS := ["\"", "\\", "{", "}", "[", "]", ",", ":", " ", "0", "-", "+", ".", "e", "u", "x", "\u{1}", "\u{1f}", "\u{7f}", "\n", "\u{e9}", "n", "t", "f"]
 
-fn space(c: mut Choices, parts: mut List[string]) -> void:
+fn space(c: &mut Choices, parts: mut List[string]) -> void:
     if c.int(0..=3) == 0:
         parts.push(c.choose([" ", "\n", "\t", "\r", "  \n "]))
 
-fn number_text(c: mut Choices) -> string:
+fn number_text(c: &mut Choices) -> string:
     match c.int(0..=3):
         0 => "${c.int(-1000000000..=1000000000)}"
         1 => "${c.int(-1000..=1000)}.${c.int(0..=99999)}e${c.int(-30..=30)}"
         _ => c.choose(NUMBERS)
 
-fn push_string(c: mut Choices, parts: mut List[string], bad: bool) -> void:
+fn push_string(c: &mut Choices, parts: mut List[string], bad: bool) -> void:
     parts.push("\"")
     for _ in 0..c.int(0..=6):
         if bad && c.int(0..=7) == 7:
@@ -606,7 +606,7 @@ fn push_string(c: mut Choices, parts: mut List[string], bad: bool) -> void:
             parts.push(c.choose(STRING_PIECES))
     parts.push("\"")
 
-fn push_value(c: mut Choices, parts: mut List[string], depth: i32, bad: bool) -> void:
+fn push_value(c: &mut Choices, parts: mut List[string], depth: i32, bad: bool) -> void:
     space(c, parts)
     pick := c.int(0..=(if depth < 4: 9 else: 5))
     if pick == 0:
@@ -642,14 +642,14 @@ fn push_value(c: mut Choices, parts: mut List[string], depth: i32, bad: bool) ->
         parts.push("}")
     space(c, parts)
 
-fn valid_text(c: mut Choices) -> string:
+fn valid_text(c: &mut Choices) -> string:
     let parts: mut List[string] = []
     push_value(c, parts, 0, false)
     parts.join("")
 
 # A text with bad pieces, then a character inserted, replaced, or removed,
 # or the text cut, at a random character.
-fn broken_text(c: mut Choices) -> string:
+fn broken_text(c: &mut Choices) -> string:
     let parts: mut List[string] = []
     push_value(c, parts, 0, true)
     let chars: mut List[string] = []
@@ -670,7 +670,7 @@ fn broken_text(c: mut Choices) -> string:
     chars.join("")
 
 # Arrays and objects nested about 128 deep, around the limit.
-fn nested_text(c: mut Choices) -> string:
+fn nested_text(c: &mut Choices) -> string:
     depth := c.int(usize(124)..=usize(131))
     let opens: mut List[string] = []
     let closes: mut List[string] = []
@@ -749,7 +749,7 @@ fn float_json(value: f64) -> Json:
         .Some(number) => Json.Number(number)
         .None => Json.Null
 
-fn any_json(c: mut Choices, depth: i32) -> Json:
+fn any_json(c: &mut Choices, depth: i32) -> Json:
     pick := c.int(0..=(if depth < 3: 8 else: 5))
     match pick:
         0 => Json.Null
@@ -770,23 +770,23 @@ fn any_json(c: mut Choices, depth: i32) -> Json:
             Json.Object(fields)
 
 # One of `good` most of the time, and sometimes one of `bad`.
-fn edge(c: mut Choices, good: List[Json], bad: List[Json]) -> Json:
+fn edge(c: &mut Choices, good: List[Json], bad: List[Json]) -> Json:
     if c.int(0..=11) == 11:
         return c.choose(bad)
     c.choose(good)
 
 # `good` most of the time, and sometimes another value.
-fn maybe(c: mut Choices, good: Json) -> Json:
+fn maybe(c: &mut Choices, good: Json) -> Json:
     if c.int(0..=24) == 24:
         return any_json(c, 2)
     good
 
-fn put(c: mut Choices, pairs: mut List[(string, Json)], key: string, good: Json) -> void:
+fn put(c: &mut Choices, pairs: mut List[(string, Json)], key: string, good: Json) -> void:
     if c.int(0..=39) == 39:
         return
     pairs.push((key, maybe(c, good)))
 
-fn object_of(c: mut Choices, pairs: List[(string, Json)]) -> Json:
+fn object_of(c: &mut Choices, pairs: List[(string, Json)]) -> Json:
     let ordered: mut List[(string, Json)] = []
     for pair in pairs:
         ordered.push(pair)
@@ -798,7 +798,7 @@ fn object_of(c: mut Choices, pairs: List[(string, Json)]) -> Json:
         fields.set(pair._0, pair._1)
     Json.Object(fields)
 
-fn role_json(c: mut Choices) -> Json:
+fn role_json(c: &mut Choices) -> Json:
     match c.choose([0, 2, 3, 4, 7, 0, 2, 3, 4, 7, 1, 5, 6, 8]):
         0 => Json.Text("Guest")
         1 => Json.Text(c.choose(["Member", "Nope", "Admin"]))
@@ -830,13 +830,13 @@ fn wrap(name: string, payload: Json) -> Json:
     fields.set(name, payload)
     Json.Object(fields)
 
-fn address_json(c: mut Choices) -> Json:
+fn address_json(c: &mut Choices) -> Json:
     let pairs: mut List[(string, Json)] = []
     put(c, pairs, "city", Json.Text(c.choose(TEXTS)))
     put(c, pairs, "zip", edge(c, [int_json(0), int_json(8000), int_json(65535)], [int_json(65536), int_json(-1)]))
     object_of(c, pairs)
 
-fn user_json(c: mut Choices, depth: i32) -> Json:
+fn user_json(c: &mut Choices, depth: i32) -> Json:
     let pairs: mut List[(string, Json)] = []
     put(c, pairs, "name", Json.Text(c.choose(TEXTS)))
     put(c, pairs, "age", edge(c, [int_json(0), int_json(30), int_json(255)], [int_json(256), int_json(-1), float_json(30.0)]))
@@ -862,7 +862,7 @@ fn user_json(c: mut Choices, depth: i32) -> Json:
     put(c, pairs, "raw", any_json(c, 1))
     object_of(c, pairs)
 
-fn wide_json(c: mut Choices) -> Json:
+fn wide_json(c: &mut Choices) -> Json:
     let pairs: mut List[(string, Json)] = []
     for at in 0..11:
         put(c, pairs, "f$at", int_json(i64(at)))
@@ -875,7 +875,7 @@ data Typed:
     target: i32
     value: Json
 
-fn typed_gen(c: mut Choices) -> Typed:
+fn typed_gen(c: &mut Choices) -> Typed:
     target := c.int(+0..=+5)
     value := match target:
         0 => user_json(c, 0)
@@ -1118,7 +1118,7 @@ fn probe_disagreement(value: Json) -> string:
         stop = stop + 1
     ""
 
-fn probe_gen(c: mut Choices) -> Json:
+fn probe_gen(c: &mut Choices) -> Json:
     if c.bool():
         return any_json(c, 0)
     typed_gen(c).value
@@ -1133,8 +1133,8 @@ OBJECT_KEYS := ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10
 data Sets:
     keys: List[string]
 
-fn sets_gen(c: mut Choices) -> Sets:
-    Sets { keys: c.list(40, fn(inner: mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
+fn sets_gen(c: &mut Choices) -> Sets:
+    Sets { keys: c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
 
 fn object_disagreement(sets: Sets) -> string:
     let mut object = JsonObject::new()

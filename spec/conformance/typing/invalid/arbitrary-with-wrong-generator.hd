@@ -4,7 +4,7 @@
 use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary
 
-fn label(c: mut Choices) -> string:
+fn label(c: &mut Choices) -> string:
     c.string(max_chars=4)
 
 @derive(Arbitrary, Debug)
