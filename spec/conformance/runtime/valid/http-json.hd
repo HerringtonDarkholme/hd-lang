@@ -1,6 +1,6 @@
 # test: Response.json decodes the body into a type, post_json! sends a JSON body with its header, and a bad body is a Json error
 # Spec std/http Status And JSON: std-http.response.json, std-http.helper.post-json, std-http.error.json, std-http.error.json.text.
-# Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.sent.
+# Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.sent-ref.
 # expect: test
 use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, post_json}
 use std.json.JsonError

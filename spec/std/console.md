@@ -77,13 +77,13 @@ fn main!() -> void $ Console + Clock:
 
 ```text
 pub trait ConsoleInput:
-    fn read_line!(mut self) -> Result[string?, ConsoleError]
+    fn read_line!(&mut self) -> Result[string?, ConsoleError]
 ```
 
 1. r[std-console.input.decl] `std.console` declares the host capability trait `ConsoleInput` with the method above. Code imports it, as in `use std.console.ConsoleInput`.
 2. r[std-console.input.read-line] `read_line!` returns the next line of input without its line ending, or `.None` at the end of input.
 3. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
-4. r[std-console.input.mut] `read_line!` takes `mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing) and a provider may advance through its input.
+4. r[std-console.input.mut-ref] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may advance through its input.
 5. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
 
 ```text
@@ -107,7 +107,7 @@ fn whole_input!() -> string $ ConsoleInput:
         .Err(_) => ""
 ```
 
-6. r[std-console.input.read-all] `ConsoleInput` also declares `fn read_all!(mut self) -> Result[string, ConsoleError]`, a bang call that takes `mut self` as `read_line!` does. It returns the rest of the input as one string with the line structure of the text, as Go's `io.ReadAll`, Rust's `read_to_string` and Python's `read()` do: `"a\nb\n"` gives `"a\nb\n"`, `"a\nb"` gives `"a\nb"`, and `"\n"` gives `"\n"`. A `\r\n` is read as `\n`, as `read_line!` reads it. The result is `""` when no input is left. After it, `read_line!` returns `.Ok(.None)`.
+6. r[std-console.input.read-all-ref] `ConsoleInput` also declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, a bang call that takes `&mut self` as `read_line!` does. It returns the rest of the input as one string with the line structure of the text, as Go's `io.ReadAll`, Rust's `read_to_string` and Python's `read()` do: `"a\nb\n"` gives `"a\nb\n"`, `"a\nb"` gives `"a\nb"`, and `"\n"` gives `"\n"`. A `\r\n` is read as `\n`, as `read_line!` reads it. The result is `""` when no input is left. After it, `read_line!` returns `.Ok(.None)`.
 7. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
 8. r[std-console.input.read-all-host] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the input as read, with each `\r\n` read as `\n` and nothing else changed; bytes that are not UTF-8 become U+FFFD. It returns `.Err(ConsoleError.Closed)` when standard input cannot be read.
 9. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
@@ -141,14 +141,14 @@ tests:
     use std.testing.assert_equal
 
     it("records the line"):
-        let mut console = MemoryConsole::new()
+        console := MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
         assert_equal(console.output(), ["hello, Ada"], reason="one line")
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
-2. r[std-console.buffer.new] `MemoryConsole::new() -> mut MemoryConsole` returns a console that has recorded nothing.
+2. r[std-console.buffer.new-ref] `MemoryConsole::new() -> &mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference. Its `&mut self` methods fill the `mut self` methods of `Console`, by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge). So installing it as `Console=console` shares the object, by [`req.ref.share.bridge`](../lang/11-requirements-and-suspension.md#r-req.ref.share.bridge), and the code that installed it reads what was written.
 3. r[std-console.buffer.output] `c.output() -> List[string]` returns the text of each `write_line!` call, in call order.
 4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `MemoryConsole` overrides `write_error_line!`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
@@ -171,13 +171,13 @@ tests:
     use std.testing.assert
 
     it("reads the scripted line"):
-        let mut input = ScriptedInput::new(["yes"])
+        input := ScriptedInput::new(["yes"])
         $.with(ConsoleInput=input):
             assert(first_line!() == "yes", reason="the first line")
 ```
 
 1. r[std-console.scripted.decl] `std.console` declares `ScriptedInput`, which implements `ConsoleInput` and `Debug`, with private fields. Code imports it, as in `use std.console.ScriptedInput`.
-2. r[std-console.scripted.new] `ScriptedInput::new(lines: List[string]) -> mut ScriptedInput` returns a provider that has read none of `lines`.
+2. r[std-console.scripted.new-ref] `ScriptedInput::new(lines: List[string]) -> &mut ScriptedInput` returns a new object holding a provider that has read none of `lines`. Installing it shares the object, so later reads continue where earlier ones stopped.
 3. r[std-console.scripted.read] Each `read_line!` returns `.Ok(.Some(line))` for the next unread line, in order.
 4. r[std-console.scripted.end] Once every line is read, `read_line!` returns `.Ok(.None)`, on every later call too.
 5. r[std-console.scripted.read-all] `ScriptedInput` overrides `read_all!`: it returns each unread line followed by `\n`, then has read every line. A scripted line has no ending of its own, so this is the text a host gives for input whose every line ends.

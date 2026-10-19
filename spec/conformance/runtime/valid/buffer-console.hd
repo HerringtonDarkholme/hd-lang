@@ -1,5 +1,5 @@
 # test: MemoryConsole records each write_line! text in call order
-# Spec std/console Buffer Console: std-console.buffer.new, std-console.buffer.output (spec pass 89, audit item 6).
+# Spec std/console Buffer Console: std-console.buffer.new-ref, std-console.buffer.output (spec pass 89, audit item 6).
 use std.console.MemoryConsole
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")

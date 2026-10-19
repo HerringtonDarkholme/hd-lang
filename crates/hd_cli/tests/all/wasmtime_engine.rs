@@ -746,7 +746,7 @@ fn a_child_sees_its_command_environment_and_directory() {
         "use std.process.{Command, Process}
 use std.path.Path
 
-fn show!(command: Command) -> void $ Console + Process:
+fn show!(command: &Command) -> void $ Console + Process:
     match command.run!():
         .Ok(out) => println(\"[${out.stdout}] ${out.status}\")
         .Err(error) => println(\"${error}\")

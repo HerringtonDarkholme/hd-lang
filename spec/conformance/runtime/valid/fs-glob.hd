@@ -34,7 +34,7 @@ impl FsRead for LinkFs:
             "top/link" => .Ok(.Some(Entry { path: path, kind: EntryKind.Symlink, size: 0 }))
             _ => .Ok(.None)
 
-fn tree!() -> mut MemoryFs:
+fn tree!() -> &mut MemoryFs:
     let mut files = MemoryFs::new()
     for name in ["tree/a.md", "tree/b.txt", "tree/ab.md", "tree/c1.md", "tree/c2.md", "tree/cx.md", "tree/.hidden.md", "tree/docs/guide.md", "tree/docs/deep/notes.md", "tree/docs/deep/data.json", "tree/src/main.hd"]:
         _ := files.write_text!(Path(name), "x")

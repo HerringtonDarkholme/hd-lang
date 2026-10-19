@@ -1,0 +1,45 @@
+# test: MemoryFs::new returns a new object behind &mut that a helper, both installed providers and the test share, `*files` copies it as a value, and an Entry is a value
+# Spec std/fs: std-fs.memory.new-ref, std-fs.write.mut-ref, std-fs.error.decl-struct, std-fs.memory.decl.
+# expect: test
+use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
+use std.path.Path
+
+fn seed!(files: &mut MemoryFs) -> void:
+    _ := files.write_text!(Path("notes.txt"), "tea")
+
+fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
+    text := read_text!(Path("notes.txt"))?
+    write_text!(Path("notes.bak"), "${text}!")
+
+fn size_of!(path: Path) -> u64 $ FsRead:
+    match stat!(path):
+        .Ok(.Some(entry)) => entry.size
+        _ => 0
+
+tests:
+    use std.testing.assert_equal
+
+    it("one object serves the helper, both providers and the test"):
+        files := MemoryFs::new()
+        seed!(files)
+        $.with(FsRead=files, FsWrite=files):
+            assert_equal(copy_notes!(), .Ok(()), reason="read and written through one object")
+            assert_equal(size_of!(Path("notes.bak")), 4, reason="the read provider sees the write")
+        assert_equal(files.read_text!(Path("notes.bak")), .Ok("tea!"), reason="the test reads what the code wrote")
+
+    it("a copy of the struct is its own file system"):
+        files := MemoryFs::new()
+        seed!(files)
+        snapshot := *files
+        _ := files.write_text!(Path("later.txt"), "x")
+        assert_equal(snapshot.read_text!(Path("later.txt")).is_err(), true, reason="the copy has no later file")
+        assert_equal(snapshot.read_text!(Path("notes.txt")), .Ok("tea"), reason="the copy keeps what was there")
+
+    it("an Entry is a value"):
+        files := MemoryFs::new()
+        seed!(files)
+        entry := files.stat!(Path("notes.txt")).unwrap_or(.None).unwrap_or(Entry { path: Path(""), kind: EntryKind.Directory, size: 0 })
+        let mut changed = entry
+        changed.size = 99
+        assert_equal(entry.size, 3, reason="the original keeps its size")
+        assert_equal(changed == entry, false, reason="the copy changed alone")

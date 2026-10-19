@@ -1,5 +1,5 @@
 # test: a Command literal names only the program, and a ProcessOutput literal names only the fields it sets
-# Spec 10 Processes: module.process.decl, module.process.output-defaults, module.process.args-no-shell,
+# Spec 10 Processes: module.process.decl-struct, module.process.output-defaults, module.process.args-no-shell,
 # module.process.env, module.process.current-dir, module.process.stdin, module.process.names.
 # expect: test
 use std.process.{Command, ProcessOutput}

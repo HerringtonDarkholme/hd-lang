@@ -1084,14 +1084,14 @@ See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#drivin
 `std.process` declares the host capability trait that starts a program, and the `Command` it takes:
 
 ```text
-pub data Command:
+pub struct Command:
     pub program: string
-    pub args: mut List[string] = []
-    pub env: mut List[(string, string)] = []
+    pub args: List[string] = []
+    pub env: List[(string, string)] = []
     pub current_dir: Path? = .None
     pub stdin: string = ""
 
-pub data ProcessOutput:
+pub struct ProcessOutput:
     pub stdout: string = ""
     pub stderr: string = ""
     pub status: i32 = 0
@@ -1104,10 +1104,10 @@ pub enum ProcessError:
     Exited(status: i32, stderr: string)
 
 pub trait Process:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
 ```
 
-1. r[module.process.decl] `Process` is a host capability trait that `std.process` declares, with the data types `Command` and `ProcessOutput` and the enum `ProcessError`.
+1. r[module.process.decl-struct] `Process` is a host capability trait that `std.process` declares, with the struct types `Command` and `ProcessOutput` and the enum `ProcessError`. `run!` takes its `Command` as a value and returns a `ProcessOutput` value.
 2. r[module.process.run-command] `run!(command)` starts the program named `command.program` as the rules below say, and completes when that program exits.
 3. r[module.process.args-no-shell] Each item of `command.args` is one argument of the program. No shell reads the arguments, so no item is split, expanded, or unquoted.
 4. r[module.process.env] The program starts with the environment of the program that calls `run!`, then each pair of `command.env`, in order: a later pair for a name replaces an earlier one.
@@ -1121,7 +1121,7 @@ pub trait Process:
 12. r[module.process.not-granted] It returns `.Err(ProcessError.NotGranted)` when its provider refuses `program` because the program's run-time grant does not cover it.
 13. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
 14. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
-15. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
+15. r[module.process.mut-ref] `run!` takes `&mut self`, so `Process` is a mutable requirement trait, as `Console` is, `$.use(Process)` is a `&mut dyn Process`, and a provider may record what it runs.
 16. r[module.process.names] `Process`, `Command`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
 
 A scripted provider answers each program from a table:
@@ -1129,11 +1129,11 @@ A scripted provider answers each program from a table:
 ```text
 use std.process.{Command, Process, ProcessError, ProcessOutput}
 
-data ScriptedProcess:
+struct ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(command.program):
             .Some(output) => .Ok(output)
             .None => .Err(.NotFound(command.program))

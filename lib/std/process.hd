@@ -35,7 +35,7 @@ impl[T < Termination, E < Error] Termination for Result[T, E]:
 # The host capability to start a program (spec/lang/10-modules.md#processes).
 ## What `run!` returns for a started program: its output and exit status; the fields default to `""`, `""`, and 0.
 ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
-pub data ProcessOutput:
+pub struct ProcessOutput:
     ## The text the program wrote to standard output.
     ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
     pub stdout: string = ""
@@ -46,10 +46,10 @@ pub data ProcessOutput:
     ## See [module.process.nonzero-ok](../../spec/lang/10-modules.md#r-module.process.nonzero-ok).
     pub status: i32 = 0
 
-# Why a program did not start (r-module.process.decl). A program that
+# Why a program did not start (r-module.process.decl-struct). A program that
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
 ## Why a program did not start: not found or denied (each naming the program), not granted, or another reason with a message.
-## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
+## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
 pub enum ProcessError:
     NotFound(program: string)
     PermissionDenied(program: string)
@@ -58,17 +58,17 @@ pub enum ProcessError:
     Exited(status: i32, stderr: string)
 
 ## A program to start with its arguments, environment, working directory, and standard input. `run!` starts it.
-## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
-pub data Command:
+## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
+pub struct Command:
     ## The program to start.
     ## See [module.process.run-command](../../spec/lang/10-modules.md#r-module.process.run-command).
     pub program: string
     ## The arguments, each one item with no shell.
     ## See [module.process.args-no-shell](../../spec/lang/10-modules.md#r-module.process.args-no-shell).
-    pub args: mut List[string] = []
+    pub args: List[string] = []
     ## Name and value pairs the child's environment gets beyond the program's own; a later pair for a name wins.
     ## See [module.process.env](../../spec/lang/10-modules.md#r-module.process.env).
-    pub env: mut List[(string, string)] = []
+    pub env: List[(string, string)] = []
     ## The directory the child starts in, or `.None` for the program's own.
     ## See [module.process.current-dir](../../spec/lang/10-modules.md#r-module.process.current-dir).
     pub current_dir: Path? = .None
@@ -77,89 +77,87 @@ pub data Command:
     pub stdin: string = ""
 
 ## The host capability to start a program, and wait for it to exit.
-## See [module.process.decl](../../spec/lang/10-modules.md#r-module.process.decl).
+## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
 pub trait Process:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
 
 impl Command:
     ## Returns a command for `program` with no arguments, no environment, the program's own directory, and no standard input.
-    ## See [std-process.command.new](../../spec/std/process.md#r-std-process.command.new).
-    pub fn new(program: string) -> mut Command:
-        Command { program: program }
+    ## See [std-process.command.new-ref](../../spec/std/process.md#r-std-process.command.new-ref).
+    pub fn new(program: string) -> &mut Command:
+        &mut Command { program: program }
 
     ## Appends one argument and returns the command, so calls chain.
-    ## See [std-process.command.arg](../../spec/std/process.md#r-std-process.command.arg).
-    pub fn arg(mut self, value: string) -> mut Command:
+    ## See [std-process.command.arg-ref](../../spec/std/process.md#r-std-process.command.arg-ref).
+    pub fn arg(&mut self, value: string) -> &mut Command:
         self.args.push(value)
         self
 
     ## Appends each of `values` as its own argument and returns the command.
-    ## See [std-process.command.args](../../spec/std/process.md#r-std-process.command.args).
-    pub fn args(mut self, values: List[string]) -> mut Command:
+    ## See [std-process.command.args-ref](../../spec/std/process.md#r-std-process.command.args-ref).
+    pub fn args(&mut self, values: List[string]) -> &mut Command:
         for value in values:
             self.args.push(value)
         self
 
     ## Appends one environment pair and returns the command.
-    ## See [std-process.command.env](../../spec/std/process.md#r-std-process.command.env).
-    pub fn env(mut self, name: string, value: string) -> mut Command:
+    ## See [std-process.command.env-ref](../../spec/std/process.md#r-std-process.command.env-ref).
+    pub fn env(&mut self, name: string, value: string) -> &mut Command:
         self.env.push((name, value))
         self
 
     ## Sets the directory the child starts in and returns the command.
-    ## See [std-process.command.current-dir](../../spec/std/process.md#r-std-process.command.current-dir).
-    pub fn current_dir(mut self, dir: Path) -> mut Command:
+    ## See [std-process.command.current-dir-ref](../../spec/std/process.md#r-std-process.command.current-dir-ref).
+    pub fn current_dir(&mut self, dir: Path) -> &mut Command:
         self.current_dir = .Some(dir)
         self
 
     ## Sets the text written to the child's standard input and returns the command.
-    ## See [std-process.command.stdin](../../spec/std/process.md#r-std-process.command.stdin).
-    pub fn stdin(mut self, text: string) -> mut Command:
+    ## See [std-process.command.stdin-ref](../../spec/std/process.md#r-std-process.command.stdin-ref).
+    pub fn stdin(&mut self, text: string) -> &mut Command:
         self.stdin = text
         self
 
     ## Starts the program through the covering `Process` provider, waits for it to exit, and returns its output.
     ## See [std-process.command.run](../../spec/std/process.md#r-std-process.command.run).
     pub fn run!(self) -> Result[ProcessOutput, ProcessError] $ Process:
-        let mut process = $.use(Process)
+        process := $.use(Process)
         process.run!(self)
 
 # Answers each program with the results scripted for it
 # (r-std-process.scripted.decl).
 ## The deterministic `Process` provider: it answers each program from queued results and records each command, with no host access.
 ## See [std-process.scripted.decl](../../spec/std/process.md#r-std-process.scripted.decl).
-pub data ScriptedProcess:
-    answers: mut Map[string, mut List[Result[ProcessOutput, ProcessError]]]
-    served: mut Map[string, usize]
-    seen: mut List[Command]
+pub struct ScriptedProcess:
+    answers: Map[string, List[Result[ProcessOutput, ProcessError]]]
+    served: Map[string, usize]
+    seen: List[Command]
 
 impl ScriptedProcess:
-    # A provider that has no answer yet (r-std-process.scripted.empty).
+    # A provider that has no answer yet (r-std-process.scripted.empty-ref).
     ## Returns a provider with no replies and no recorded commands.
-    ## See [std-process.scripted.empty](../../spec/std/process.md#r-std-process.scripted.empty).
-    pub fn new() -> mut ScriptedProcess:
-        ScriptedProcess { answers: {}, served: {}, seen: [] }
+    ## See [std-process.scripted.empty-ref](../../spec/std/process.md#r-std-process.scripted.empty-ref).
+    pub fn new() -> &mut ScriptedProcess:
+        &mut ScriptedProcess { answers: {}, served: {}, seen: [] }
 
-    # Queues one answer for `program` (r-std-process.scripted.reply).
+    # Queues one answer for `program` (r-std-process.scripted.reply-ref).
     ## Queues `result` as the next answer for `program`; once the queue runs out, its last answer repeats.
-    ## See [std-process.scripted.reply](../../spec/std/process.md#r-std-process.scripted.reply).
-    pub fn reply(mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void:
+    ## See [std-process.scripted.reply-ref](../../spec/std/process.md#r-std-process.scripted.reply-ref).
+    pub fn reply(&mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void:
         match self.answers.get(program):
-            .Some(queued) => queued.push(result)
-            .None =>
-                let queue: mut List[Result[ProcessOutput, ProcessError]] = [result]
-                self.answers[program] = queue
+            .Some(_) => self.answers[program].push(result)
+            .None => self.answers[program] = [result]
 
-    # Every command the provider ran, in order (r-std-process.scripted.received).
+    # Every command the provider ran, in order (r-std-process.scripted.received-ref).
     ## The commands the provider ran, in order, including those it answered with `NotFound`.
-    ## See [std-process.scripted.received](../../spec/std/process.md#r-std-process.scripted.received).
-    pub fn received(self) -> List[Command]:
+    ## See [std-process.scripted.received-ref](../../spec/std/process.md#r-std-process.scripted.received-ref).
+    pub fn received(&self) -> List[Command]:
         self.seen
 
 # Records the command and serves the queued answer
 # (r-std-process.scripted.answer, r-std-process.scripted.unqueued).
 impl Process for ScriptedProcess:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         self.seen.push(command)
         program := command.program
         match self.answers.get(program):

@@ -5,7 +5,7 @@
 # std-fs.memory.error.not-directory, and std-fs.memory.error.not-empty.
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs}
 use std.path.Path
-fn listed!(files: MemoryFs, path: string) -> List[Entry]:
+fn listed!(files: &MemoryFs, path: string) -> List[Entry]:
     match files.list_dir!(Path(path)):
         .Ok(entries) => entries
         .Err(_) => []
@@ -20,7 +20,7 @@ fn is_error(found: FsError?, expected: FsError) -> bool:
         .Some(error) => error == expected
         .None => false
 
-fn kind_is!(files: MemoryFs, path: string, kind: EntryKind) -> bool:
+fn kind_is!(files: &MemoryFs, path: string, kind: EntryKind) -> bool:
     match files.stat!(Path(path)):
         .Ok(found) =>
             match found:

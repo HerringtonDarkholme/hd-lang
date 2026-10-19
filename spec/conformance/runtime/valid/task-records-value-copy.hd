@@ -1,0 +1,16 @@
+# test: Backoff and TimedOut are struct values: a copy changes alone, and equal fields compare equal
+# Spec std/task: std-task.backoff.decl-value, std-task.timeout.fields-value.
+# expect-stdout: 3 5 true false
+# expect-stdout: timed out after 2s | timed out after 2s, cleanup abandoned
+use std.task.{Backoff, CleanupEnd, TimedOut}
+use std.time.{ms, s}
+
+pub fn main() -> void $ Console:
+    policy := Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }
+    let mut longer = policy
+    longer.attempts = 5
+    println("${policy.attempts} ${longer.attempts} ${policy == Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }} ${policy == longer}")
+    error := TimedOut { limit: s(2), cleanup: CleanupEnd.Finished }
+    let mut cut = error
+    cut.cleanup = CleanupEnd.Abandoned
+    println("${error} | ${cut}")

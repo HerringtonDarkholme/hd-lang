@@ -121,15 +121,15 @@ fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
 ## Drives the tasks together and returns their values in list order, as `all!` does for a fixed list.
 ## See [std-task.all-list](../../spec/std/task.md#r-std-task.all-list).
 pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
-    let results: mut List[T] = []
-    all_list_from!(tasks, 0, results)
+    let mut results: List[T] = []
+    all_list_from!(tasks, 0, &mut results)
     results.reversed()
 
 # The tasks from `start` on, as `all!` of the task at `start` and a cold
 # call for the rest, which pushes the results last task first. Nested this
 # way, the `all!` frames poll the unfinished tasks in input order and
 # cancel them together, as one `all!` of every task would.
-fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: mut List[T]) -> void $ R:
+fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: &mut List[T]) -> void $ R:
     if start >= tasks.len():
         return
     task := tasks[start]
@@ -160,8 +160,8 @@ fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:
 # The retry policy of `retry_with!` (spec/std/task.md#retry-with-backoff):
 # how many calls, the first delay, the multiplier, and the cap.
 ## How many times to try, how long to wait, and the wait's cap.
-## See [std-task.backoff.decl-usize](../../spec/std/task.md#r-std-task.backoff.decl-usize).
-pub data Backoff:
+## See [std-task.backoff.decl-value](../../spec/std/task.md#r-std-task.backoff.decl-value).
+pub struct Backoff:
     pub attempts: usize
     pub initial: Duration
     pub factor: i32
@@ -192,8 +192,8 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
 # The error of `timeout!` when the limit passes first, with how the work's
 # cleanup ended (spec/std/task.md#timeout).
 ## The error of `timeout!`: the work did not finish within `limit`, and `cleanup` says how its cleanup ended.
-## See [std-task.timeout.fields](../../spec/std/task.md#r-std-task.timeout.fields).
-pub data TimedOut:
+## See [std-task.timeout.fields-value](../../spec/std/task.md#r-std-task.timeout.fields-value).
+pub struct TimedOut:
     pub limit: Duration
     pub cleanup: CleanupEnd
 
@@ -304,29 +304,32 @@ fn pending_frame[T]() -> mut Suspend[T]:
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.decl](../../spec/std/task.md#r-std-task.map-all.decl).
 pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R:
-    let slots: mut List[U?] = []
+    # The workers share the slots and the cursor, so both are new objects
+    # behind `&mut`.
+    let mut empty: List[U?] = []
     for _ in items:
-        slots.push(.None)
-    let cursor: mut Cursor = Cursor { next: 0 }
-    let workers: mut List[fn!() -> void $ R] = []
+        empty.push(.None)
+    slots := &mut empty
+    cursor := &mut Cursor { next: 0 }
+    let mut workers: List[fn!() -> void $ R] = []
     width := if limit < 1: 1 else: limit
     let count: usize = 0
     while count < width && count < items.len():
         workers.push(fn!() -> void $ R: map_all_worker!(items, work, slots, cursor))
         count = count + 1
     all_list!(workers)
-    let values: mut List[U] = []
-    for slot in slots:
+    let mut values: List[U] = []
+    for slot in *slots:
         match slot:
             .Some(value) => values.push(value)
             .None => panic("map_all!: an item finished without a value")
     values
 
 # The next index no worker has taken.
-data Cursor:
+struct Cursor:
     next: usize
 
-fn map_all_worker![T, U, $R](items: List[T], work: fn!(T) -> U $ R, slots: mut List[U?], cursor: mut Cursor) -> void $ R:
+fn map_all_worker![T, U, $R](items: List[T], work: fn!(T) -> U $ R, slots: &mut List[U?], cursor: &mut Cursor) -> void $ R:
     while cursor.next < items.len():
         index := cursor.next
         cursor.next = index + 1

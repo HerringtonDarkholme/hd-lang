@@ -1,5 +1,5 @@
 # std.http: the host capability trait `Http`, its helpers `send!`, `get!`,
-# `get_text!` and `post_json!`, the data `Request` and `Response`, `Method`,
+# `get_text!` and `post_json!`, the struct values `Request` and `Response`, `Method`,
 # `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
@@ -10,7 +10,7 @@ use std.json.{JsonError, decode, encode}
 use std.serde.{Deserialize, Serialize}
 
 ## An HTTP method: a standard one, or `Other(name)`.
-## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
+## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
 pub enum Method:
     Get
     Head
@@ -21,11 +21,11 @@ pub enum Method:
     Options
     Other(name: string)
 
-# A request (r-std-http.types.decl). Only `url` has no default
+# A request (r-std-http.types.decl-struct). Only `url` has no default
 # (r-std-http.request.defaults).
 ## An HTTP request; only `url` has no default.
-## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
-pub data Request:
+## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+pub struct Request:
     ## The request's method; `Get` by default.
     ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
     pub method: Method = Method.Get
@@ -43,10 +43,10 @@ pub data Request:
     pub timeout: Duration? = .None
 
 ## A whole HTTP response.
-## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
-pub data Response:
+## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+pub struct Response:
     ## The response's status code.
-    ## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
+    ## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
     pub status: u16
     ## The response's headers as name and value pairs.
     ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
@@ -110,18 +110,18 @@ pub enum HttpError:
     Status(status: u16, url: string)
     Json(error: JsonError)
 
-# The host capability to send a request (r-std-http.trait.decl).
+# The host capability to send a request (r-std-http.trait.decl-ref).
 ## The host capability to send an HTTP request and complete with the whole response.
-## See [std-http.trait.decl](../../spec/std/http.md#r-std-http.trait.decl).
+## See [std-http.trait.decl-ref](../../spec/std/http.md#r-std-http.trait.decl-ref).
 pub trait Http:
-    fn send!(mut self, request: Request) -> Result[Response, HttpError]
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]
 
 # Sends `request` through the covering `Http` provider
 # (r-std-http.helper.send).
 ## Sends `request` on the `Http` provider that covers the call.
 ## See [std-http.helper.send](../../spec/std/http.md#r-std-http.helper.send).
 pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
-    let mut client = $.use(Http)
+    client := $.use(Http)
     client.send!(request)
 
 # Sends a `Get` of `url` (r-std-http.helper.get).
@@ -153,24 +153,24 @@ pub fn post_json![T < Serialize](url: string, value: T) -> Result[Response, Http
 # URL by its exact text, and records every request it receives.
 ## The deterministic `Http` provider: it answers each URL from a table and records what it sent, with no host access.
 ## See [std-http.scripted.decl](../../spec/std/http.md#r-std-http.scripted.decl).
-pub data ScriptedHttp:
+pub struct ScriptedHttp:
     responses: Map[string, Response]
-    requests: mut List[Request]
+    requests: List[Request]
 
 impl ScriptedHttp:
     ## Returns the provider that answers each URL with `responses`' entry for it.
-    ## See [std-http.scripted.new](../../spec/std/http.md#r-std-http.scripted.new).
-    pub fn new(responses: Map[string, Response]) -> mut ScriptedHttp:
-        ScriptedHttp { responses: responses, requests: [] }
+    ## See [std-http.scripted.new-ref](../../spec/std/http.md#r-std-http.scripted.new-ref).
+    pub fn new(responses: Map[string, Response]) -> &mut ScriptedHttp:
+        &mut ScriptedHttp { responses: responses, requests: [] }
 
-    # Every request received, in order (r-std-http.scripted.sent).
+    # Every request received, in order (r-std-http.scripted.sent-ref).
     ## The requests the provider sent, in order.
-    ## See [std-http.scripted.sent](../../spec/std/http.md#r-std-http.scripted.sent).
-    pub fn sent(self) -> List[Request]:
+    ## See [std-http.scripted.sent-ref](../../spec/std/http.md#r-std-http.scripted.sent-ref).
+    pub fn sent(&self) -> List[Request]:
         self.requests
 
 impl Http for ScriptedHttp:
-    fn send!(mut self, request: Request) -> Result[Response, HttpError]:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
         self.requests.push(request)
         match self.responses.get(request.url):
             .Some(response) => .Ok(Response { status: response.status, headers: response.headers, body: response.body, url: request.url })
@@ -197,7 +197,7 @@ fn ascii_lower(byte: u8) -> u8:
 # Decodes `bytes` as UTF-8, with one U+FFFD for each maximal invalid
 # subpart, as the WHATWG decoder does.
 fn lossy_text(bytes: List[u8]) -> string:
-    let out: mut List[u8] = []
+    let mut out: List[u8] = []
     size := bytes.len()
     let index: usize = 0
     while index < size:
@@ -222,7 +222,7 @@ fn lossy_text(bytes: List[u8]) -> string:
             if lead == 244:
                 high = 143
         if width == 0:
-            push_replacement(out)
+            push_replacement(&mut out)
             index = index + 1
         else:
             let at: usize = 1
@@ -245,13 +245,13 @@ fn lossy_text(bytes: List[u8]) -> string:
                     copied = copied + 1
                 index = index + width
             else:
-                push_replacement(out)
+                push_replacement(&mut out)
                 index = index + at
     match string::from_utf8(out):
         .Ok(text) => text
         .Err(_) => ""
 
-fn push_replacement(out: mut List[u8]) -> void:
+fn push_replacement(out: &mut List[u8]) -> void:
     out.push(239)
     out.push(191)
     out.push(189)

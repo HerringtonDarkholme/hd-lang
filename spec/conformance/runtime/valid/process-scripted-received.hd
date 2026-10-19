@@ -1,5 +1,5 @@
 # test: a scripted Process provider records each command it received, in order, including those it answered with NotFound
-# Spec std/process Scripted Process: std-process.scripted.received, std-process.scripted.answer,
+# Spec std/process Scripted Process: std-process.scripted.received-ref, std-process.scripted.answer,
 # and std-process.scripted.no-host.
 # expect: test
 use std.path.Path

@@ -3,7 +3,7 @@
 # expect-stdout: gave up
 # expect-stdout: done
 # test: timeout! returns .Ok when the work finishes first and .Err(TimedOut) when the limit passes first
-# Spec std/task Timeout: std-task.timeout.fields, .display, .decl-cleanup, .race, .ok, .err-cleanup, .tie, and .cancel-loser (issue #369).
+# Spec std/task Timeout: std-task.timeout.fields-value, .display, .decl-cleanup, .race, .ok, .err-cleanup, .tie, and .cancel-loser (issue #369).
 use std.task.{TimedOut, timeout}
 use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
 

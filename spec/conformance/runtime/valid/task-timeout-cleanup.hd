@@ -5,7 +5,7 @@
 # expect-stdout: upload acknowledged, upload closed
 # expect-stdout: finished at 5000
 # test: with cleanup=1s, timeout! abandons a cleanup still waiting 1s after the limit, and a cleanup that ends in time is .Finished
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-deadline, .cleanup-abandon, .cleanup-ended, .cleanup-end; Timeout: std-task.timeout.fields, .display, .decl-cleanup, .err-cleanup.
+# Spec std/task Cleanup Bound: std-task.timeout.cleanup-deadline, .cleanup-abandon, .cleanup-ended, .cleanup-end; Timeout: std-task.timeout.fields-value, .display, .decl-cleanup, .err-cleanup.
 use std.ops.Disposable
 use std.task.{TimedOut, timeout}
 use std.time.{Clock, s}

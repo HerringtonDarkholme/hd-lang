@@ -1,6 +1,6 @@
 # test: Command builds a program's arguments, environment, directory and stdin, and run! hands the command to the covering Process provider
-# Spec std/process Command: std-process.command.new, std-process.command.arg, std-process.command.args,
-# std-process.command.env, std-process.command.current-dir, std-process.command.stdin, std-process.command.run,
+# Spec std/process Command: std-process.command.new-ref, std-process.command.arg-ref, std-process.command.args-ref,
+# std-process.command.env-ref, std-process.command.current-dir-ref, std-process.command.stdin-ref, std-process.command.run,
 # std-process.command.eq, and std-process.command.debug.
 # expect: test
 use std.path.Path
@@ -39,8 +39,8 @@ tests:
     it("commands compare and print by their fields"):
         left := Command::new("git").arg("log").env("A", "1")
         right := Command::new("git").arg("log").env("A", "1")
-        assert_equal(left == right, true, reason="the same fields")
-        assert_equal(left == Command::new("git").arg("log"), false, reason="another environment")
+        assert_equal(*left == *right, true, reason="the same fields")
+        assert_equal(*left == *Command::new("git").arg("log"), false, reason="another environment")
         assert_equal(debug(Command::new("git").arg("log")), "Command { program: \"git\", args: [\"log\"], env: [], current_dir: Option.None, stdin: \"\" }", reason="Debug")
 
     it("run! answers from the provider"):

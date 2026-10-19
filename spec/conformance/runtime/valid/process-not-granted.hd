@@ -2,10 +2,10 @@
 # Spec Modules, Processes: module.process.not-granted, module.process.denied.
 # expect: test
 use std.process.{Command, Process, ProcessError, ProcessOutput}
-data GrantedProcess: pass
+struct GrantedProcess: pass
 
 impl Process for GrantedProcess:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         program := command.program
         match program:
             "git" => .Ok(ProcessOutput { stdout: "ran", stderr: "", status: 0 })
@@ -20,7 +20,7 @@ tests:
 
     it("a program outside the grant is NotGranted"):
         let mut process = GrantedProcess {}
-        $.with(Process=process):
+        $.with(Process=&mut process):
             match start!("curl"):
                 .Err(error) => assert_equal(error == ProcessError.NotGranted, true, reason="the grant refused it")
                 .Ok(_) => assert_equal(true, false, reason="curl is not granted")

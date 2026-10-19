@@ -63,7 +63,7 @@ impl Error for EnvError
 # it returns the program name and the arguments it was made with.
 ## The deterministic `Args` provider: a fixed list of arguments, with no host access.
 ## See [std-host.map-args.decl](../../spec/std/host.md#r-std-host.map-args.decl).
-pub data ScriptedArgs:
+pub struct ScriptedArgs:
     program: string
     values: List[string]
 
@@ -84,7 +84,7 @@ impl Args for ScriptedArgs:
 # lists the map's keys in its iteration order (r-std-host.map-env.names.order).
 ## The deterministic `Env` provider: a fixed map of variables, with no host access.
 ## See [std-host.map-env.decl](../../spec/std/host.md#r-std-host.map-env.decl).
-pub data ScriptedEnv:
+pub struct ScriptedEnv:
     values: Map[string, string]
 
 impl ScriptedEnv:
@@ -98,7 +98,7 @@ impl Env for ScriptedEnv:
         self.values.get(name)
 
     fn names(self) -> List[string]:
-        let found: mut List[string] = []
+        let mut found: List[string] = []
         for (key, _) in self.values:
             found.push(key)
         found

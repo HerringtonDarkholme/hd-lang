@@ -1254,6 +1254,7 @@ typing/valid/generic-missing-call.hd	type	accept	lang/14-annotations.md#r-annot.
 typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-module.console.write-line-mut
 typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-line-mut
 typing/invalid/console-readonly-binding-write-line.hd	type	reject:mutable-receiver-required	lang/10-modules.md#r-module.console.write-line-mut
+runtime/valid/console-struct-fake-ref.hd	runtime	accept	std/console.md#r-std-console.buffer.new-ref
 runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write
 runtime/valid/println-provider-suspending-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.block-on
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.no-orphan-exception
@@ -2113,6 +2114,7 @@ runtime/valid/hash-bytes-sequences.hd	runtime	accept	std/hash.md#r-std-hash.byte
 runtime/valid/hash-bytes-derived.hd	runtime	accept	std/hash.md#r-std-hash.bytes.derive-enum
 runtime/valid/hash-of-reference-values.hd	runtime	accept	std/hash.md#r-std-hash.bytes.sequence
 runtime/valid/retry-with-backoff.hd	runtime	accept	std/task.md#retry-with-backoff
+runtime/valid/task-records-value-copy.hd	runtime	accept	std/task.md#r-std-task.backoff.decl-value
 runtime/valid/clock-helpers.hd	runtime	accept	std/time.md#clock-helpers
 runtime/valid/clock-host-mut-ref.hd	runtime	accept	std/time.md#r-std-time.clock.mut-ref
 runtime/valid/duration-order.hd	runtime	accept	std/time.md#r-std-time.duration.eq-ord
@@ -2142,7 +2144,7 @@ runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scri
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq
 runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer
-runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received
+runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
 runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
@@ -2217,6 +2219,7 @@ runtime/valid/manual-clock-handle-shared.hd	runtime	accept	std/time.md#r-std-tim
 runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
+runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
 runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.order
 runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of
@@ -2974,6 +2977,7 @@ typing/invalid/trait-qualified-supertrait-reference.hd	type	reject:unknown-metho
 typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-trait.qualified.declaring
 typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
 runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
+runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.scripted.new-ref
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
 runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok
 runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
@@ -3338,6 +3342,8 @@ runtime/valid/top-level-pattern-binding.hd	runtime	accept	lang/02-grammar.md#r-g
 typing/invalid/top-level-refutable-let-without-else.hd	type	reject:refutable-let-pattern	lang/06-control-flow.md#r-flow.let.refutable.else
 runtime/valid/fs-helpers-all.hd	runtime	accept	std/fs.md#r-std-fs.helper.stat
 runtime/valid/process-command-run.hd	runtime	accept	std/process.md#r-std-process.command.run
+runtime/valid/process-command-handle-shared.hd	runtime	accept	std/process.md#r-std-process.command.new-ref
+typing/invalid/command-reference-equality.hd	type	reject:reference-equality	std/process.md#r-std-process.command.compare-ref
 runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.display
 runtime/valid/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
 runtime/valid/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep

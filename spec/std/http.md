@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability trait `Http`, and the helpers `send!`, `get!`,
   `get_text!`, and `post_json!`;
-- the data types `Request` and `Response`, and the enums `Method` and
+- the struct values `Request` and `Response`, and the enums `Method` and
   `HttpError`;
 - a status outside 200 to 299 as an error, and the JSON calls;
 - which request URLs are valid;
@@ -20,7 +20,7 @@ tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
 
 ## Requests And Responses
 
-A request and a response are plain data:
+A request and a response are plain struct values:
 
 ```text
 use std.time.Duration
@@ -35,21 +35,21 @@ pub enum Method:
     Options
     Other(name: string)
 
-pub data Request:
+pub struct Request:
     pub method: Method = Method.Get
     pub url: string
     pub headers: List[(string, string)] = []
     pub body: List[u8] = []
     pub timeout: Duration? = .None
 
-pub data Response:
+pub struct Response:
     pub status: u16
     pub headers: List[(string, string)]
     pub body: List[u8]
     pub url: string = ""
 ```
 
-1. r[std-http.types.decl] `std.http` declares `Method`, `Request`, and `Response` as above. Code imports them, as in `use std.http.{Request, Response}`.
+1. r[std-http.types.decl-struct] `std.http` declares `Method`, `Request`, and `Response` as above. `Request` and `Response` are struct values: a copy is independent of the value it was copied from. Code imports them, as in `use std.http.{Request, Response}`.
 2. r[std-http.types.traits] `Method`, `Request`, and `Response` implement `Eq` and `Debug`.
 3. r[std-http.request.defaults] A `Request` that gives only `url` is a `Get` with no headers, an empty body, and the provider's default timeout.
 4. r[std-http.request.default-timeout] A provider that sends requests to a host has a default timeout of 30 seconds.
@@ -133,7 +133,7 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
     .Ok(response.text())
 ```
 
-1. r[std-http.trait.decl] `std.http` declares the host capability trait `Http`, with the one method `fn send!(mut self, request: Request) -> Result[Response, HttpError]`. Code imports it, as in `use std.http.Http`.
+1. r[std-http.trait.decl-ref] `std.http` declares the host capability trait `Http`, with the one method `fn send!(&mut self, request: Request) -> Result[Response, HttpError]`. Code imports it, as in `use std.http.Http`.
 2. r[std-http.send] `send!(request)` sends `request`, and completes with the whole response.
 3. r[std-http.send.status] Every status, 404 and 500 included, is an `.Ok` response, and the caller reads it from `status`.
 4. r[std-http.send.redirect] `send!` follows up to 10 redirects.
@@ -141,7 +141,7 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 6. r[std-http.send.timeout.whole] A timeout covers the whole request, every redirect included.
 7. r[std-http.send.cancel] Cancelling the suspension of `send!` aborts the request, by [`req.cancel.external-abort`](../lang/11-requirements-and-suspension.md#r-req.cancel.external-abort).
 8. r[std-http.send.cancel.close] Aborting a request closes its connection.
-9. r[std-http.send.mut] `send!` takes `mut self`, so `Http` is a mutable requirement trait, and a provider may record what it sends.
+9. r[std-http.send.mut-ref] `send!` takes `&mut self`, so `Http` is a mutable requirement trait, `$.use(Http)` is a `&mut dyn Http` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it sends.
 10. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
 11. r[std-http.helper.send] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `send!(request)` on the `Http` provider that covers the call.
 12. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.
@@ -161,11 +161,11 @@ use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
 
 @derive(Serialize)
-data NewUser:
+struct NewUser:
     name: string
 
 @derive(Deserialize)
-data Created:
+struct Created:
     id: i64
 
 fn notes!() -> Result[string, HttpError] $ Http:
@@ -202,17 +202,17 @@ tests:
     use std.testing.assert_equal
 
     it("reads the scripted status"):
-        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
+        http := ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
         $.with(Http=http):
             assert_equal(status!("https://example.com/"), 204, reason="scripted")
         assert_equal(http.sent().len(), 1, reason="one request")
 ```
 
 1. r[std-http.scripted.decl] `std.http` declares `ScriptedHttp`, which implements `Http` and `Debug`, with private fields. Code imports it, as in `use std.http.ScriptedHttp`.
-2. r[std-http.scripted.new] `ScriptedHttp::new(responses: Map[string, Response]) -> mut ScriptedHttp` returns a provider that answers each URL in `responses`.
+2. r[std-http.scripted.new-ref] `ScriptedHttp::new(responses: Map[string, Response]) -> &mut ScriptedHttp` returns a new object holding a provider that answers each URL in `responses`. Installing it as `Http=http` shares the object, so the test reads back what was sent.
 3. r[std-http.scripted.send] `send!(request)` returns `.Ok` of the response that `responses` holds for `request.url`, matched by its exact text, whatever the method, with `url` set to `request.url`.
 4. r[std-http.scripted.unknown] For a URL that `responses` lacks, `send!` returns `.Err(HttpError.Connect(message))`, and `message` is `ScriptedHttp has no response for URL`, with the URL.
-5. r[std-http.scripted.sent] `sent(self) -> List[Request]` returns every request that the provider received, in order, the unanswered ones included.
+5. r[std-http.scripted.sent-ref] `sent(&self) -> List[Request]` returns every request that the provider received, in order, the unanswered ones included.
 6. r[std-http.scripted.no-host] A `ScriptedHttp` opens no connection.
 
 > **Why.** An unknown URL is an error that names it, not a 404. So a

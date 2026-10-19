@@ -44,7 +44,7 @@ pub trait Sys:
 
 ## The deterministic Sys provider: every read answers from a map.
 ## See [std-sys.map.decl](../../spec/std/sys.md#r-std-sys.map.decl).
-pub data ScriptedSys:
+pub struct ScriptedSys:
     values: Map[string, string]
 
 impl ScriptedSys:

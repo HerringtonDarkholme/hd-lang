@@ -1,0 +1,8 @@
+# test: Command::new returns a reference, so `==` between two built commands is an error; `*left == *right` compares their values
+# Spec std/process Command: std-process.command.compare-ref, std-process.command.new-ref.
+use std.process.Command
+
+fn same() -> bool:
+    left := Command::new("git").arg("log")
+    right := Command::new("git").arg("log")
+    left == right  # diagnostic: reference-equality

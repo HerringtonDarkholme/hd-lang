@@ -11,7 +11,9 @@ use std.format.DebugWriter
 use std.text.StringBuilder
 
 # The host console capability; `write_line!` takes `mut self`, so it is a
-# mutable requirement trait.
+# mutable requirement trait. It moves to `&mut self` once the linear
+# backend lowers references: `$.use(Console)` would then be a
+# `&mut dyn Console`, which every `println` reaches.
 ## The host capability to write a line of output, and a line of error output.
 ## See [module.console.host-trait](../../spec/lang/10-modules.md#r-module.console.host-trait).
 pub trait Console:
@@ -23,12 +25,12 @@ pub trait Console:
     fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.write_line!(text)
 
-# `read_line!` takes `mut self`, so a scripted provider can advance
-# through its lines (spec/std/console.md#r-std-console.input.mut).
+# `read_line!` takes `&mut self`, so a scripted provider can advance
+# through its lines (spec/std/console.md#r-std-console.input.mut-ref).
 ## The host capability to read a line of input.
 ## See [std-console.input.decl](../../spec/std/console.md#r-std-console.input.decl).
 pub trait ConsoleInput:
-    fn read_line!(mut self) -> Result[string?, ConsoleError]
+    fn read_line!(&mut self) -> Result[string?, ConsoleError]
 
     # The rest of the input. The default body cannot see whether the last
     # line had an ending, so it ends every line with `\n`
@@ -36,7 +38,7 @@ pub trait ConsoleInput:
     # The host's provider overrides it with one read of standard input,
     # which keeps the text as it was, with `\r\n` read as `\n`
     # (spec/std/console.md#r-std-console.input.read-all-host).
-    fn read_all!(mut self) -> Result[string, ConsoleError]:
+    fn read_all!(&mut self) -> Result[string, ConsoleError]:
         out := StringBuilder::new()
         while true:
             match self.read_line!()?:
@@ -51,7 +53,7 @@ pub trait ConsoleInput:
 ## Returns the next line of input without its line ending, or `.None` at the end of input.
 ## See [std-console.input.read-line](../../spec/std/console.md#r-std-console.input.read-line).
 pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
-    let mut input = $.use(ConsoleInput)
+    input := $.use(ConsoleInput)
     input.read_line!()
 
 # The rest of the covering provider's input, as one string
@@ -60,34 +62,36 @@ pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
 ## Returns all the input that is left, as text, with `\r\n` read as `\n`.
 ## See [std-console.input.read-all-helper](../../spec/std/console.md#r-std-console.input.read-all-helper).
 pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
-    let mut input = $.use(ConsoleInput)
+    input := $.use(ConsoleInput)
     input.read_all!()
 
 # The recording `Console` provider (spec/std/console.md#buffer-console).
-# It keeps error lines apart from output lines.
+# It keeps error lines apart from output lines. It is a struct used behind
+# `&mut`: `new` returns a new object, so the test that installs it reads
+# the lines it recorded (r-std-console.buffer.new-ref).
 ## The recording `Console` provider: it keeps the lines in memory for a test to read.
 ## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
-pub data MemoryConsole:
-    lines: mut List[string]
-    error_lines: mut List[string]
+pub struct MemoryConsole:
+    lines: List[string]
+    error_lines: List[string]
 
 impl MemoryConsole:
     ## Returns an empty recording provider.
-    ## See [std-console.buffer.new](../../spec/std/console.md#r-std-console.buffer.new).
-    pub fn new() -> mut MemoryConsole:
-        MemoryConsole { lines: [], error_lines: [] }
+    ## See [std-console.buffer.new-ref](../../spec/std/console.md#r-std-console.buffer.new-ref).
+    pub fn new() -> &mut MemoryConsole:
+        &mut MemoryConsole { lines: [], error_lines: [] }
 
     # The lines `write_line!` received, in order (r-std-console.buffer.output).
     ## The lines written through `write_line!`, in order.
     ## See [std-console.buffer.output](../../spec/std/console.md#r-std-console.buffer.output).
-    pub fn output(self) -> List[string]:
+    pub fn output(&self) -> List[string]:
         self.lines
 
     # The lines `write_error_line!` received, in order
     # (r-std-console.buffer.error-output).
     ## The lines written through `write_error_line!`, in order.
     ## See [std-console.buffer.error-output](../../spec/std/console.md#r-std-console.buffer.error-output).
-    pub fn error_output(self) -> List[string]:
+    pub fn error_output(&self) -> List[string]:
         self.error_lines
 
 # The derived builder calls, written by hand because `@derive` does not
@@ -96,12 +100,16 @@ impl Debug for MemoryConsole:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("MemoryConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
+# Each `&mut self` method fills a `mut self` method of `Console`
+# (spec/lang/09-traits.md#r-trait.impl.receiver-bridge), so the
+# `&mut MemoryConsole` that `new` returns, installed as the provider,
+# records into this object (r-req.ref.share.bridge).
 impl Console for MemoryConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.error_lines.push(text)
         .Ok(())
 
@@ -141,18 +149,18 @@ pub fn eprintln[T < Display](value: T) -> void $ Console:
 # it returns its lines in order, then `.None`.
 ## The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
 ## See [std-console.scripted.decl](../../spec/std/console.md#r-std-console.scripted.decl).
-pub data ScriptedInput:
+pub struct ScriptedInput:
     lines: List[string]
     next: usize
 
 impl ScriptedInput:
     ## Returns the provider that answers `lines` in order, then the end of input.
-    ## See [std-console.scripted.new](../../spec/std/console.md#r-std-console.scripted.new).
-    pub fn new(lines: List[string]) -> mut ScriptedInput:
-        ScriptedInput { lines: lines, next: 0 }
+    ## See [std-console.scripted.new-ref](../../spec/std/console.md#r-std-console.scripted.new-ref).
+    pub fn new(lines: List[string]) -> &mut ScriptedInput:
+        &mut ScriptedInput { lines: lines, next: 0 }
 
 impl ConsoleInput for ScriptedInput:
-    fn read_line!(mut self) -> Result[string?, ConsoleError]:
+    fn read_line!(&mut self) -> Result[string?, ConsoleError]:
         if self.next >= self.lines.len():
             return .Ok(.None)
         line := self.lines[self.next]
@@ -161,7 +169,7 @@ impl ConsoleInput for ScriptedInput:
 
     # The remaining lines, each ended by `\n`
     # (spec/std/console.md#r-std-console.scripted.read-all).
-    fn read_all!(mut self) -> Result[string, ConsoleError]:
+    fn read_all!(&mut self) -> Result[string, ConsoleError]:
         out := StringBuilder::new()
         while self.next < self.lines.len():
             out.push(self.lines[self.next])

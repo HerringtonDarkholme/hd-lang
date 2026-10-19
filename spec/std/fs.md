@@ -6,7 +6,7 @@ This chapter defines `std.fs`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the host capability traits `FsRead` and `FsWrite`;
-- the error enum `FsError`, and the `Entry` data that describes a file;
+- the error enum `FsError`, and the `Entry` value that describes a file;
 - a free helper for each method of `FsRead` and `FsWrite`;
 - `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
@@ -34,13 +34,13 @@ pub enum EntryKind:
     Directory
     Symlink
 
-pub data Entry:
+pub struct Entry:
     pub path: Path
     pub kind: EntryKind
     pub size: u64
 ```
 
-1. r[std-fs.error.decl] `std.fs` declares `FsError`, `EntryKind`, and `Entry` as above. Code imports them, as in `use std.fs.{Entry, FsError}`.
+1. r[std-fs.error.decl-struct] `std.fs` declares `FsError`, `EntryKind`, and `Entry` as above. `Entry` is a struct value: a copy is independent of the entry it was copied from. Code imports them, as in `use std.fs.{Entry, FsError}`.
 2. r[std-fs.error.one-enum] Every method of `FsRead` and `FsWrite` reports its failure as an `FsError`.
 3. r[std-fs.error.other] `Other` holds a failure that no other variant names, with the host's message, or the message of a std call such as an invalid [glob](#walking-and-globbing) pattern.
 4. r[std-fs.error.traits] `FsError`, `EntryKind`, and `Entry` implement `Eq`, and `FsError` implements `Display`.
@@ -72,12 +72,12 @@ pub trait FsRead:
 
 ```text
 pub trait FsWrite:
-    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
-    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]
-    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]
-    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]
-    fn remove!(mut self, path: Path) -> Result[void, FsError]
-    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
+    fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
+    fn append_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
+    fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]
+    fn remove!(&mut self, path: Path) -> Result[void, FsError]
+    fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
 ```
 
 1. r[std-fs.write.decl] `std.fs` declares the host capability trait `FsWrite` with the methods above. Code imports it, as in `use std.fs.FsWrite`.
@@ -86,7 +86,7 @@ pub trait FsWrite:
 4. r[std-fs.write.create-dir-all] `create_dir_all!` creates the directory at `path` and every missing directory above it.
 5. r[std-fs.write.remove] `remove!` removes the file or the empty directory at `path`.
 6. r[std-fs.write.rename] `rename!` moves the entry at `from` to `to`.
-7. r[std-fs.write.mut] Each `FsWrite` method takes `mut self`, so `FsWrite` is a mutable requirement trait, and `FsRead` is a readonly one.
+7. r[std-fs.write.mut-ref] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share`](../lang/11-requirements-and-suspension.md#r-req.ref.share).
 8. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
 
 ## Suspension
@@ -164,7 +164,7 @@ use std.fs.{EntryKind, FsError, FsRead, glob, walk}
 use std.path.Path
 
 fn markdown!(root: Path) -> Result[List[Path], FsError] $ FsRead:
-    let found: mut List[Path] = []
+    let mut found: List[Path] = []
     for entry in walk!(root)?:
         if entry.kind == EntryKind.File && entry.path.extension() == .Some("md"):
             found.push(entry.path)
@@ -234,7 +234,7 @@ tests:
     use std.testing.assert
 
     it("copies in memory"):
-        let mut files = MemoryFs::new()
+        files := MemoryFs::new()
         assert(files.write_text!(Path("notes.txt"), "tea").is_ok(), reason="seeded")
         $.with(FsRead=files, FsWrite=files):
             assert(copy_notes!().is_ok(), reason="copied")
@@ -242,7 +242,7 @@ tests:
 ```
 
 1. r[std-fs.memory.decl] `std.fs` declares `MemoryFs`, which implements `FsRead` and `FsWrite`, with private fields. Code imports it, as in `use std.fs.MemoryFs`.
-2. r[std-fs.memory.new] `MemoryFs::new() -> mut MemoryFs` returns a file system with no files and no directories.
+2. r[std-fs.memory.new-ref] `MemoryFs::new() -> &mut MemoryFs` returns a new object holding a file system with no files and no directories. `MemoryFs` is a struct used behind that reference: installing it as `FsRead=files, FsWrite=files` makes both providers refer to the one object, so a test reads back through `files` what the code under test wrote.
 3. r[std-fs.memory.keys] A `MemoryFs` names an entry by its path's text, as written, so `Path("a.txt")` and `Path("./a.txt")` are different files.
 4. r[std-fs.memory.dirs] A directory exists when `create_dir_all!` made it, or when its path is the text before a `/` in the path of a file. So writing a file makes the directories above it.
 5. r[std-fs.memory.create-dir-all] `create_dir_all!` records `path` and every directory above it, so each stays after the entries inside it are removed.

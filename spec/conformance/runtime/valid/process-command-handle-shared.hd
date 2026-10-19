@@ -1,0 +1,47 @@
+# test: Command::new returns a new object behind &mut, so a helper and a second binding add to the one command, `*command` is a value copy, and ScriptedProcess::new is a handle the test and the installed provider share
+# Spec std/process: std-process.command.new-ref, std-process.command.arg-ref, std-process.command.env-ref, std-process.command.compare-ref, std-process.scripted.empty-ref, std-process.scripted.reply-ref, std-process.scripted.received-ref; 10 Processes: module.process.decl-struct, module.process.mut-ref.
+# expect: test
+use std.process.{Command, Process, ProcessOutput, ScriptedProcess}
+
+fn verbose(command: &mut Command) -> void:
+    _ := command.arg("-v")
+
+fn status!(command: Command) -> i32 $ Process:
+    match command.run!():
+        .Ok(output) => output.status
+        .Err(_) => -1
+
+tests:
+    use std.testing.assert_equal
+
+    it("a helper and a second binding change the one command"):
+        command := Command::new("git").arg("log")
+        verbose(command)
+        same := command
+        _ := same.env("PAGER", "cat")
+        assert_equal(command.args, ["log", "-v"], reason="the helper appended through the reference")
+        assert_equal(command.env, [("PAGER", "cat")], reason="the second binding is the same object")
+        assert_equal(command is same, true, reason="one place")
+        let mut copy = *command
+        copy.args.push("--stat")
+        assert_equal(command.args.len(), 2, reason="a copy is its own value")
+        assert_equal(*command == *same, true, reason="values compare with *")
+
+    it("the scripted provider is shared with the test"):
+        process := ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { status: 3 }))
+        $.with(Process=process):
+            assert_equal(status!(*Command::new("git").arg("one")), 3, reason="the queued answer")
+            assert_equal(status!(Command { program: "make" }), -1, reason="no answer queued")
+        process.reply("git", .Ok(ProcessOutput { status: 4 }))
+        $.with(Process=process):
+            assert_equal(status!(Command { program: "git" }), 4, reason="the reply added after the first scope")
+        received := process.received()
+        assert_equal(received.len(), 3, reason="every run recorded on the one object")
+        assert_equal(received[0].args, ["one"], reason="the first command's arguments")
+
+    it("ProcessOutput is a value"):
+        output := ProcessOutput { stdout: "a" }
+        let mut changed = output
+        changed.stdout = "b"
+        assert_equal(output.stdout, "a", reason="the original keeps its text")

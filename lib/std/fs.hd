@@ -7,7 +7,7 @@ use std.format.DebugWriter
 use std.error.Error
 
 ## Every file system operation reports one of these errors: `NotFound`, `PermissionDenied`, `AlreadyExists`, `NotADirectory`, `IsADirectory`, `InvalidUtf8`, or `Other`.
-## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
+## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
 pub enum FsError:
     NotFound(path: Path)
     PermissionDenied(path: Path)
@@ -19,20 +19,20 @@ pub enum FsError:
     Other(message: string)
 
 ## Whether a file system entry is a file, a directory, or a symlink.
-## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
+## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
 pub enum EntryKind:
     File
     Directory
     Symlink
 
-## The data that describes one file system entry.
-## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
-pub data Entry:
+## The value that describes one file system entry.
+## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+pub struct Entry:
     ## The entry's path.
-    ## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
+    ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
     pub path: Path
     ## The entry's kind.
-    ## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
+    ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
     pub kind: EntryKind
     ## The file's length in bytes.
     ## See [std-fs.entry.size](../../spec/std/fs.md#r-std-fs.entry.size).
@@ -85,12 +85,12 @@ pub trait FsRead:
 ## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, and `rename!`.
 ## See [std-fs.write.decl](../../spec/std/fs.md#r-std-fs.write.decl).
 pub trait FsWrite:
-    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
-    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]
-    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]
-    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]
-    fn remove!(mut self, path: Path) -> Result[void, FsError]
-    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
+    fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
+    fn append_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
+    fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]
+    fn remove!(&mut self, path: Path) -> Result[void, FsError]
+    fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
 
 # Reads a file through the covering `FsRead` provider
 # (spec/std/fs.md#r-std-fs.helper.read-text).
@@ -104,7 +104,7 @@ pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead:
 ## Creates the file at `path`, or replaces its whole content.
 ## See [std-fs.helper.write-text](../../spec/std/fs.md#r-std-fs.helper.write-text).
 pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.write_text!(path, text)
 
 # The remaining helpers each call the covering provider's method of the
@@ -127,31 +127,31 @@ pub fn stat!(path: Path) -> Result[Entry?, FsError] $ FsRead:
 ## Creates the file at `path` from `bytes`, or replaces its whole content.
 ## See [std-fs.helper.write-bytes](../../spec/std/fs.md#r-std-fs.helper.write-bytes).
 pub fn write_bytes!(path: Path, bytes: List[u8]) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.write_bytes!(path, bytes)
 
 ## Adds `text` at the end of the file at `path`, creating the file when there is none.
 ## See [std-fs.helper.append-text](../../spec/std/fs.md#r-std-fs.helper.append-text).
 pub fn append_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.append_text!(path, text)
 
 ## Creates the directory at `path` and every missing directory above it.
 ## See [std-fs.helper.create-dir-all](../../spec/std/fs.md#r-std-fs.helper.create-dir-all).
 pub fn create_dir_all!(path: Path) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.create_dir_all!(path)
 
 ## Removes the file or the empty directory at `path`.
 ## See [std-fs.helper.remove](../../spec/std/fs.md#r-std-fs.helper.remove).
 pub fn remove!(path: Path) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.remove!(path)
 
 ## Moves the entry at `from` to `to`.
 ## See [std-fs.helper.rename](../../spec/std/fs.md#r-std-fs.helper.rename).
 pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite:
-    let mut files = $.use(FsWrite)
+    files := $.use(FsWrite)
     files.rename!(from, to)
 
 # Walking and globbing, plain hd over the covering `FsRead` provider
@@ -159,11 +159,11 @@ pub fn rename!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite:
 ## Returns every entry below `root`, depth first, each directory's entries ordered by path text and a directory before its contents.
 ## See [std-fs.walk.order](../../spec/std/fs.md#r-std-fs.walk.order).
 pub fn walk!(root: Path) -> Result[List[Entry], FsError] $ FsRead:
-    let found: mut List[Entry] = []
-    walk_into!(root, found)?
+    let mut found: List[Entry] = []
+    walk_into!(root, &mut found)?
     .Ok(found)
 
-fn walk_into!(dir: Path, found: mut List[Entry]) -> Result[void, FsError] $ FsRead:
+fn walk_into!(dir: Path, found: &mut List[Entry]) -> Result[void, FsError] $ FsRead:
     for entry in sorted_entries!(dir)?:
         found.push(entry)
         if entry.kind == EntryKind.Directory:
@@ -184,7 +184,7 @@ enum GlobPiece:
 ## Returns the paths that match `pattern`, ordered by path text, with `*`, `?`, `[...]` inside a component and `**` for any number of directories.
 ## See [std-fs.glob.decl](../../spec/std/fs.md#r-std-fs.glob.decl).
 pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
-    let components: mut List[string] = []
+    let mut components: List[string] = []
     for component in pattern.split("/"):
         if component != "":
             components.push(component)
@@ -194,14 +194,14 @@ pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
         match parse_glob_component(component):
             .Ok(_) => pass
             .Err(reason) => return .Err(FsError.Other(message="invalid glob pattern ${pattern}: ${reason}"))
-    let found: mut List[Path] = []
+    let mut found: List[Path] = []
     if components.len() > 0:
-        glob_from!(if pattern.starts_with("/"): "/" else: "", components, 0, found)?
-    let texts: mut List[string] = []
+        glob_from!(if pattern.starts_with("/"): "/" else: "", components, 0, &mut found)?
+    let mut texts: List[string] = []
     for path in found:
         texts.push("${path}")
     let sorted = texts.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b))
-    let result: mut List[Path] = []
+    let mut result: List[Path] = []
     let previous: string? = .None
     for text in sorted:
         if previous != .Some(text):
@@ -214,7 +214,7 @@ fn glob_has_meta(component: string) -> bool:
 
 # Matches `components[index..]` below the directory `base`, whose text is ""
 # for the current directory (r-std-fs.glob.relative).
-fn glob_from!(base: string, components: List[string], index: usize, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
+fn glob_from!(base: string, components: List[string], index: usize, found: &mut List[Path]) -> Result[void, FsError] $ FsRead:
     component := components[index]
     last := index + 1 == components.len()
     if component == "**":
@@ -243,7 +243,7 @@ fn glob_from!(base: string, components: List[string], index: usize, found: mut L
 
 # A matched entry ends the pattern, or is a directory the next component
 # looks into; a symlink is never looked into (r-std-fs.glob.symlinks).
-fn glob_step!(entry: Entry, text: string, components: List[string], index: usize, found: mut List[Path]) -> Result[void, FsError] $ FsRead:
+fn glob_step!(entry: Entry, text: string, components: List[string], index: usize, found: &mut List[Path]) -> Result[void, FsError] $ FsRead:
     if index + 1 == components.len():
         found.push(Path(text))
     else if entry.kind == EntryKind.Directory:
@@ -254,10 +254,10 @@ fn glob_dir(base: string) -> Path:
     if base == "": Path(".") else: Path(base)
 
 fn parse_glob_component(component: string) -> Result[List[GlobPiece], string]:
-    let chars: mut List[char] = []
+    let mut chars: List[char] = []
     for c in component.chars():
         chars.push(c)
-    let pieces: mut List[GlobPiece] = []
+    let mut pieces: List[GlobPiece] = []
     let at: usize = 0
     while at < chars.len():
         c := chars[at]
@@ -271,7 +271,7 @@ fn parse_glob_component(component: string) -> Result[List[GlobPiece], string]:
             if at < chars.len() && chars[at] == '!':
                 negated = true
                 at = at + 1
-            let ranges: mut List[(char, char)] = []
+            let mut ranges: List[(char, char)] = []
             let closed = false
             while at < chars.len() && !closed:
                 low := chars[at]
@@ -311,7 +311,7 @@ fn glob_piece_matches(piece: GlobPiece, c: char) -> bool:
 # Greedy matching with one backtrack point, the usual linear scheme for
 # patterns whose pieces but `*` take one character.
 fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
-    let chars: mut List[char] = []
+    let mut chars: List[char] = []
     for c in name.chars():
         chars.push(c)
     let at: usize = 0
@@ -350,21 +350,23 @@ fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
 # (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.current-dir).
 ## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
 ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
-pub data MemoryFs:
-    files: mut Map[string, List[u8]]
-    dirs: mut List[string]
+pub struct MemoryFs:
+    files: Map[string, List[u8]]
+    dirs: List[string]
 
 impl MemoryFs:
-    ## Returns an empty in-memory file system.
-    ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
-    pub fn new() -> mut MemoryFs:
-        MemoryFs { files: {}, dirs: [] }
+    # A new object, so the providers installed from it and the test share
+    # one file system (r-std-fs.memory.new-ref).
+    ## Returns an empty in-memory file system, as a new object behind `&mut`.
+    ## See [std-fs.memory.new-ref](../../spec/std/fs.md#r-std-fs.memory.new-ref).
+    pub fn new() -> &mut MemoryFs:
+        &mut MemoryFs { files: {}, dirs: [] }
 
-    fn file_at(self, key: string) -> List[u8]?:
+    fn file_at(&self, key: string) -> List[u8]?:
         self.files.get(key)
 
     # A made directory, or a prefix of a file or a made directory.
-    fn dir_at(self, key: string) -> bool:
+    fn dir_at(&self, key: string) -> bool:
         if key == ".":
             return true
         under := "${key}/"
@@ -377,7 +379,7 @@ impl MemoryFs:
         false
 
     # Whether a file's key is a directory above `key`.
-    fn file_above(self, key: string) -> bool:
+    fn file_above(&self, key: string) -> bool:
         parts := key.split("/")
         let above = ""
         let index: usize = 0
@@ -390,7 +392,7 @@ impl MemoryFs:
         false
 
     # The error, if any, of writing a file at `path`.
-    fn write_error(self, path: Path) -> FsError?:
+    fn write_error(&self, path: Path) -> FsError?:
         key := "${path}"
         if self.dir_at(key):
             return .Some(FsError.IsADirectory(path=path))
@@ -421,7 +423,7 @@ impl FsRead for MemoryFs:
         if !self.dir_at(key):
             return .Err(FsError.NotFound(path=path))
         under := if key == ".": "" else: "${key}/"
-        let names: mut List[string] = []
+        let mut names: List[string] = []
         for made in self.dirs:
             match made.strip_prefix(under):
                 .Some(rest) => names.push(rest.split("/")[0])
@@ -430,8 +432,8 @@ impl FsRead for MemoryFs:
             match stored.strip_prefix(under):
                 .Some(rest) => names.push(rest.split("/")[0])
                 .None => pass
-        let entries: mut List[Entry] = []
-        let seen: mut Map[string, bool] = {}
+        let mut entries: List[Entry] = []
+        let mut seen: Map[string, bool] = {}
         for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
             # A file written as "./x" has the name "." here, which is no entry.
             if name == ".":
@@ -452,22 +454,22 @@ impl FsRead for MemoryFs:
             .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0 })) else: .Ok(.None)
 
 impl FsWrite for MemoryFs:
-    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
+    fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
         match self.write_error(path):
             .Some(error) => return .Err(error)
             .None => pass
         self.files["${path}"] = bytes
         .Ok(())
 
-    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+    fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
         self.write_bytes!(path, text.to_utf8())
 
-    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+    fn append_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
         match self.write_error(path):
             .Some(error) => return .Err(error)
             .None => pass
         key := "${path}"
-        let joined: mut List[u8] = []
+        let mut joined: List[u8] = []
         match self.file_at(key):
             .Some(old) =>
                 for byte in old:
@@ -478,7 +480,7 @@ impl FsWrite for MemoryFs:
         self.files[key] = joined
         .Ok(())
 
-    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]:
+    fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
         key := "${path}"
         match self.file_at(key):
             .Some(_) => return .Err(FsError.NotADirectory(path=path))
@@ -501,7 +503,7 @@ impl FsWrite for MemoryFs:
             index = index + 1
         .Ok(())
 
-    fn remove!(mut self, path: Path) -> Result[void, FsError]:
+    fn remove!(&mut self, path: Path) -> Result[void, FsError]:
         key := "${path}"
         match self.file_at(key):
             .Some(_) =>
@@ -512,7 +514,7 @@ impl FsWrite for MemoryFs:
             return .Err(FsError.NotFound(path=path))
         if self.list_dir!(path)?.len() > 0:
             return .Err(FsError.Other(message="directory not empty: ${path}"))
-        let kept: mut List[string] = []
+        let mut kept: List[string] = []
         for made in self.dirs:
             if made != key:
                 kept.push(made)
@@ -521,7 +523,7 @@ impl FsWrite for MemoryFs:
 
     # Moves the file or directory at `from`, with every key under it
     # (r-std-fs.memory.rename).
-    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]:
+    fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
         source := "${from}"
         target := "${to}"
         if !self.dir_at(source):
@@ -540,14 +542,14 @@ impl FsWrite for MemoryFs:
         if self.file_above(target):
             return .Err(FsError.NotADirectory(path=to))
         under := "${source}/"
-        let moved: mut List[(string, List[u8])] = []
+        let mut moved: List[(string, List[u8])] = []
         for (stored, bytes) in self.files:
             if stored.starts_with(under):
                 moved.push((stored, bytes))
         for (stored, bytes) in moved:
             _ := self.files.remove(stored)
             self.files["${target}${stored.slice(source.len(), stored.len())}"] = bytes
-        let renamed: mut List[string] = []
+        let mut renamed: List[string] = []
         for made in self.dirs:
             if made == source || made.starts_with(under):
                 renamed.push("${target}${made.slice(source.len(), made.len())}")

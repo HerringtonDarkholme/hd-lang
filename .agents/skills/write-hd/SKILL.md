@@ -396,8 +396,12 @@ tests:
         assert(fake.sent.len() == 2, reason="two mails")
 ```
 
-To test printing, provide `MemoryConsole` from `std.console` and read
-`console.output()` ([tour: requirements](../../../website/tour/12-requirements.md)).
+To test printing, bind `console := MemoryConsole::new()` from
+`std.console` (a `&mut MemoryConsole`), run the code inside
+`$.with(Console=console):` and read `console.output()`
+([tour: requirements](../../../website/tour/12-requirements.md)).
+`MemoryFs`, `ScriptedProcess`, `ScriptedHttp` and `Command::new` return
+`&mut` handles the same way.
 `it_each` and `it_prop` are in [tour: tests](../../../website/tour/13-tests.md).
 A function that makes a bang call is itself `fn name!(...)`, and so is
 every call to it ([tour: suspension](../../../website/tour/16-suspension.md)).

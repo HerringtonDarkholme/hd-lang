@@ -1,5 +1,5 @@
 # test: ScriptedProcess::new has no replies, replies are served in order with the last repeating, and an unscripted program is NotFound
-# Spec std/process Scripted Process: std-process.scripted.empty, std-process.scripted.reply,
+# Spec std/process Scripted Process: std-process.scripted.empty-ref, std-process.scripted.reply-ref,
 # std-process.scripted.answer, and std-process.scripted.unqueued.
 # expect: test
 use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess}

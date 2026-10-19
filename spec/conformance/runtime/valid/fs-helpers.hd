@@ -1,16 +1,16 @@
 # test: read_text! and write_text! are bang helpers over the covering FsRead and FsWrite providers
 # Spec std/fs File Helpers: std-fs.helper.read-text and std-fs.helper.write-text (batch 64, STD-2 and STD-3).
-# Also covers std-fs.error.decl, std-fs.error.one-enum,
+# Also covers std-fs.error.decl-struct, std-fs.error.one-enum,
 # std-fs.error.other, std-fs.error.traits, std-fs.read.decl,
 # std-fs.read.bytes, std-fs.read.text, std-fs.read.list-dir,
 # std-fs.read.stat, std-fs.write.decl, std-fs.write.replace,
 # std-fs.write.append, std-fs.write.create-dir-all,
-# std-fs.write.remove, std-fs.write.rename, std-fs.write.mut,
+# std-fs.write.remove, std-fs.write.rename, std-fs.write.mut-ref,
 # std-fs.suspends, and std-fs.helper.suspends.
 use std.fs.{Entry, FsError, FsRead, FsWrite, read_text, write_text}
 use std.path.Path
-data MapFs:
-    files: mut Map[string, string]
+struct MapFs:
+    files: Map[string, string]
 
 impl FsRead for MapFs:
     fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
@@ -28,23 +28,23 @@ impl FsRead for MapFs:
         .Ok(.None)
 
 impl FsWrite for MapFs:
-    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
+    fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
         .Err(FsError.Other(message="bytes"))
 
-    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+    fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
         self.files["${path}"] = text
         .Ok(())
 
-    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+    fn append_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
         .Err(FsError.Other(message="append"))
 
-    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]:
+    fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
         .Ok(())
 
-    fn remove!(mut self, path: Path) -> Result[void, FsError]:
+    fn remove!(&mut self, path: Path) -> Result[void, FsError]:
         .Ok(())
 
-    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]:
+    fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
         .Ok(())
 
 fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
@@ -57,7 +57,7 @@ tests:
     it("copies through the helpers"):
         reader := MapFs { files: {"notes.txt": "tea"} }
         let mut writer = MapFs { files: {} }
-        $.with(FsRead=reader, FsWrite=writer):
+        $.with(FsRead=reader, FsWrite=&mut writer):
             assert_equal(copy_notes!(), .Ok(()), reason="both calls succeed")
         assert_equal(writer.files.get("notes.bak"), .Some("tea"), reason="the copy was written")
 

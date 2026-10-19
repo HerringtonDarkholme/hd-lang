@@ -2,10 +2,10 @@
 # Spec Modules, Processes: module.process.nonzero-ok, module.process.denied, module.process.other, module.process.error-traits.
 # expect: test
 use std.process.{Command, Process, ProcessError, ProcessOutput}
-data RefusingProcess: pass
+struct RefusingProcess: pass
 
 impl Process for RefusingProcess:
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         program := command.program
         match program:
             "locked" => .Err(.PermissionDenied(program))
@@ -20,14 +20,14 @@ tests:
 
     it("a non-zero exit status is .Ok"):
         let mut refusing = RefusingProcess {}
-        $.with(Process=refusing):
+        $.with(Process=&mut refusing):
             match start!("tool"):
                 .Ok(output) => assert_equal(output.status, 2, reason="the status is output")
                 .Err(_) => assert_equal(true, false, reason="a program that ran is .Ok")
 
     it("a refused start is .Err"):
         let mut refusing = RefusingProcess {}
-        $.with(Process=refusing):
+        $.with(Process=&mut refusing):
             match start!("locked"):
                 .Err(error) => assert_equal(error == ProcessError.PermissionDenied(program="locked"), true, reason="the variant is PermissionDenied")
                 .Ok(_) => assert_equal(true, false, reason="locked never starts")

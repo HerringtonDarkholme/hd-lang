@@ -89,7 +89,7 @@ See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#stand
 and waits on the `Clock` between attempts:
 
 ```text
-pub data Backoff:
+pub struct Backoff:
     pub attempts: usize
     pub initial: Duration
     pub factor: i32
@@ -98,7 +98,7 @@ pub data Backoff:
 pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
 ```
 
-1. r[std-task.backoff.decl-usize] `std.task` declares the data type `Backoff` with the four public fields above, where `attempts` is a `usize`. `Backoff` implements `Eq`.
+1. r[std-task.backoff.decl-value] `std.task` declares the struct `Backoff` with the four public fields above, where `attempts` is a `usize`. A `Backoff` is a value: a copy is independent of the policy it was copied from. `Backoff` implements `Eq`.
 2. r[std-task.retry-with.decl-when] `std.task` declares `retry_with!` with the signature above, as an ordinary `fn!` function. Code imports both, as in `use std.task.{Backoff, retry_with}`.
 3. r[std-task.retry-with.loop] `retry_with!` calls `attempt` at most `backoff.attempts` times, one call after another, and returns the first `.Ok` result without another call.
 4. r[std-task.retry-with.last-error] When every call returns `.Err`, `retry_with!` returns the last `.Err`.
@@ -178,14 +178,14 @@ See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#stand
 `timeout!` runs a suspending task and gives up when a limit passes first:
 
 ```text
-pub data TimedOut:
+pub struct TimedOut:
     pub limit: Duration
     pub cleanup: CleanupEnd
 
 pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock
 ```
 
-1. r[std-task.timeout.fields] `std.task` declares the data type `TimedOut` with the public fields `limit`, a `Duration`, and `cleanup`, a [`CleanupEnd`](#cleanup-end). `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`.
+1. r[std-task.timeout.fields-value] `std.task` declares the struct value `TimedOut` with the public fields `limit`, a `Duration`, and `cleanup`, a [`CleanupEnd`](#cleanup-end). `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`.
 2. r[std-task.timeout.display] The `Display` text of a `TimedOut` is `timed out after ` followed by the `Display` text of `limit`. When `cleanup` is `.Abandoned`, the text ends with `, cleanup abandoned`.
 3. r[std-task.timeout.decl-cleanup] `std.task` declares `timeout!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports both, as in `use std.task.{TimedOut, timeout}`.
 4. r[std-task.timeout.race] `timeout!` is a [`race!`](../lang/11-requirements-and-suspension.md#standard-combinators) of two children, in this order: `work`, called once without `!`, and a call of `sleep!(limit)` on the `Clock` provider that covers it.

@@ -200,7 +200,7 @@ tests:
     use std.testing.{assert_equal, it}
 
     it("writes and reads back a report"):
-        let mut fs = MemoryFs::new()
+        fs := MemoryFs::new()
         $.with(FsWrite=fs, FsRead=fs):
             save_report!("q4", 4500)
             assert_equal(read_report!("q4"), "total: 4500", reason="round trip")

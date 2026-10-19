@@ -69,9 +69,10 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 
 ## Command
 
-`Command` is the builder that `run!` starts a program from. Each setter
-takes `mut self` and returns the command, so calls chain, and the one
-terminal `run!` starts the program:
+`Command` is the builder that `run!` starts a program from. It is a
+struct that `Command::new` returns behind `&mut`. Each setter takes
+`&mut self` and returns the reference, so calls chain on the one object,
+and the one terminal `run!` starts the program:
 
 ```text
 use std.path.Path
@@ -82,18 +83,19 @@ fn commit!(repo: Path) -> Result[string, ProcessError] $ Process:
     .Ok(output.stdout.trim())
 ```
 
-1. r[std-process.command.decl] `Command` is the data type that [`module.process.decl`](../lang/10-modules.md#r-module.process.decl) declares, with public fields `program`, `args`, `env`, `current_dir`, and `stdin`. `std.process` gives it the methods below.
-2. r[std-process.command.new] `Command::new(program: string) -> mut Command` returns a command for `program` with no arguments, no environment pairs, no `current_dir`, and an empty `stdin`.
-3. r[std-process.command.arg] `arg(mut self, value: string) -> mut Command` appends `value` to `args` as one item and returns the command.
-4. r[std-process.command.args] `args(mut self, values: List[string]) -> mut Command` appends each item of `values` to `args`, in order, as its own item and returns the command.
-5. r[std-process.command.env] `env(mut self, name: string, value: string) -> mut Command` appends the pair `(name, value)` to `env` and returns the command. A later pair for a name replaces an earlier one, as [`module.process.env`](../lang/10-modules.md#r-module.process.env) says.
-6. r[std-process.command.current-dir] `current_dir(mut self, dir: Path) -> mut Command` sets `current_dir` to `.Some(dir)`, replacing an earlier directory, and returns the command.
-7. r[std-process.command.stdin] `stdin(mut self, text: string) -> mut Command` sets `stdin` to `text`, replacing an earlier text, and returns the command. A command that gets no `stdin` call passes the empty string.
+1. r[std-process.command.decl-struct] `Command` is the struct type that [`module.process.decl-struct`](../lang/10-modules.md#r-module.process.decl-struct) declares, with public fields `program`, `args`, `env`, `current_dir`, and `stdin`. `std.process` gives it the methods below.
+2. r[std-process.command.new-ref] `Command::new(program: string) -> &mut Command` returns a new object holding a command for `program` with no arguments, no environment pairs, no `current_dir`, and an empty `stdin`.
+3. r[std-process.command.arg-ref] `arg(&mut self, value: string) -> &mut Command` appends `value` to `args` as one item and returns the reference it was called through.
+4. r[std-process.command.args-ref] `args(&mut self, values: List[string]) -> &mut Command` appends each item of `values` to `args`, in order, as its own item and returns the reference.
+5. r[std-process.command.env-ref] `env(&mut self, name: string, value: string) -> &mut Command` appends the pair `(name, value)` to `env` and returns the reference. A later pair for a name replaces an earlier one, as [`module.process.env`](../lang/10-modules.md#r-module.process.env) says.
+6. r[std-process.command.current-dir-ref] `current_dir(&mut self, dir: Path) -> &mut Command` sets `current_dir` to `.Some(dir)`, replacing an earlier directory, and returns the reference.
+7. r[std-process.command.stdin-ref] `stdin(&mut self, text: string) -> &mut Command` sets `stdin` to `text`, replacing an earlier text, and returns the reference. A command that gets no `stdin` call passes the empty string.
 8. r[std-process.command.run] `run!(self) -> Result[ProcessOutput, ProcessError] $ Process` calls `run!(self)` on the covering `Process` provider, so a program need not write `$.use(Process)`. Its row is exactly `Process`, and it is a bang function, as the method it calls is.
 9. r[std-process.stdin.unread] When the child exits or closes its standard input before reading all of `stdin`, the rest is dropped. The call still returns `.Ok` with the child's output and status.
 10. r[std-process.stdin.start-failure] A failure to start the child returns `.Err`, even when `stdin` is nonempty.
 11. r[std-process.command.eq] `Command` implements `Eq`; two commands are equal when `program`, `args`, `env`, `current_dir`, and `stdin` are each equal.
 12. r[std-process.command.debug] `Command` implements `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types).
+13. r[std-process.command.compare-ref] Two commands that `Command::new` returned are two references, so `==` between them is an error by [`ref.identity.no-equality`](../lang/13-values-and-references.md#r-ref.identity.no-equality). A program compares their values with `*left == *right`.
 
 > **Why.** Rust's `Command` and Go's `exec.Cmd` carry the arguments, the
 > environment, and the directory beside the program, so no call fixes one
@@ -121,7 +123,7 @@ tests:
     use std.testing.assert_equal
 
     it("answers the scripted program and records its arguments"):
-        let mut process = ScriptedProcess::new()
+        process := ScriptedProcess::new()
         process.reply("git", .Ok(ProcessOutput { stdout: "git 2.0" }))
         $.with(Process=process):
             assert_equal(version!(), "git 2.0", reason="git is scripted")
@@ -129,11 +131,11 @@ tests:
 ```
 
 1. r[std-process.scripted.decl] `std.process` declares `ScriptedProcess`, which implements `Process` and `Debug`, with private fields. Code imports it, as in `use std.process.ScriptedProcess`.
-2. r[std-process.scripted.empty] `ScriptedProcess::new() -> mut ScriptedProcess` returns a provider with no replies and no recorded commands.
-3. r[std-process.scripted.reply] `reply(mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void` queues `result` as an answer for `program`, after the answers already queued for it.
+2. r[std-process.scripted.empty-ref] `ScriptedProcess::new() -> &mut ScriptedProcess` returns a new object holding a provider with no replies and no recorded commands. Installing it as `Process=process` shares the object, so the test reads back what the code under test ran.
+3. r[std-process.scripted.reply-ref] `reply(&mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void` queues `result` as an answer for `program`, after the answers already queued for it.
 4. r[std-process.scripted.answer] `run!(command)` records `command`, then returns the first answer queued for `command.program` that no earlier run of that program has taken. When every queued answer is taken, it returns the last one again. The arguments, environment, directory, and standard input of `command` do not change the answer.
 5. r[std-process.scripted.unqueued] For a program that has no queued answer, `run!` returns `.Err(ProcessError.NotFound(program))`.
-6. r[std-process.scripted.received] `received(self) -> List[Command]` returns every command that `run!` received, in order, including those answered with `NotFound`.
+6. r[std-process.scripted.received-ref] `received(&self) -> List[Command]` returns every command that `run!` received, in order, including those answered with `NotFound`.
 7. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
 
 > **Why.** Every host capability trait has a deterministic provider
