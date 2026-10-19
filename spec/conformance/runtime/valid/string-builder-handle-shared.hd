@@ -1,0 +1,21 @@
+# test: StringBuilder::new returns a new object, so pushes through any copy of the reference, or through a callee, reach the one builder
+# Spec std/text Joining And Building: std-text.builder.new-ref, std-text.builder.push-ref, std-text.builder.push-char-ref, std-text.builder.decl-struct.
+# expect-stdout: one
+# expect-stdout: two!
+# expect-stdout: true false
+# expect-stdout: ab
+use std.text.StringBuilder
+
+fn add_line(out: &mut StringBuilder, text: string) -> void:
+    _ := out.push(text).push_char('\n')
+
+pub fn main() -> void $ Console:
+    out := StringBuilder::new()
+    alias := out
+    add_line(alias, "one")
+    out.push("two")
+    alias.push_char('!')
+    println(out.build())
+    println("${alias is out} ${StringBuilder::new() is out}")
+    chained := StringBuilder::new().push("a").push_char('b')
+    println(chained.build())

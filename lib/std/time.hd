@@ -681,11 +681,11 @@ impl Clock for ManualClock:
 # RFC 3339 text (r-std-time.serde.impls, r-std-time.serde.int-form,
 # r-std-time.serde.text-form).
 impl Serialize for Duration:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 
 impl Deserialize for Duration:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Duration, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Duration, R::Error]:
         match input.peek()?:
             .Text =>
                 text := input.text("Duration")?
@@ -699,22 +699,22 @@ impl Deserialize for Duration:
                 .Ok(Duration { millis: millis })
 
 impl Serialize for Timestamp:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.text(self.to_rfc3339())
 
 impl Deserialize for Timestamp:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Timestamp, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Timestamp, R::Error]:
         text := input.text("Timestamp")?
         match Timestamp::parse(text):
             .Ok(stamp) => .Ok(stamp)
             .Err(_) => .Err(input.invalid("Timestamp"))
 
 impl Serialize for Instant:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 
 impl Deserialize for Instant:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Instant, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Instant, R::Error]:
         .Ok(Instant { millis: input.int("Instant")? })
 
 # A unit's scale: its milliseconds per unit, and how many units make one

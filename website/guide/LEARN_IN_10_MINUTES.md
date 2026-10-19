@@ -318,7 +318,7 @@ pass, as Go's `s += t` does.
 use std.text.StringBuilder
 
 fn csv(cells: List[string]) -> string:
-    let out: mut StringBuilder = StringBuilder::new()
+    out := StringBuilder::new()
     for cell in cells:
         out.push(cell)
         out.push(";")

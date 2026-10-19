@@ -37,7 +37,7 @@ pub trait ConsoleInput:
     # which keeps the text as it was, with `\r\n` read as `\n`
     # (spec/std/console.md#r-std-console.input.read-all-host).
     fn read_all!(mut self) -> Result[string, ConsoleError]:
-        let mut out = StringBuilder::new()
+        out := StringBuilder::new()
         while true:
             match self.read_line!()?:
                 .Some(line) =>
@@ -162,7 +162,7 @@ impl ConsoleInput for ScriptedInput:
     # The remaining lines, each ended by `\n`
     # (spec/std/console.md#r-std-console.scripted.read-all).
     fn read_all!(mut self) -> Result[string, ConsoleError]:
-        let mut out = StringBuilder::new()
+        out := StringBuilder::new()
         while self.next < self.lines.len():
             out.push(self.lines[self.next])
             out.push("\n")

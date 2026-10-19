@@ -1,0 +1,37 @@
+# test: a JsonObject is a value: a copy, and a Json that holds one, keep their members when the source changes, and a change through &mut reaches the place
+# Spec std/json Json Objects: std-json.object.value, std-json.object.new-value, std-json.object.set-ref, std-json.object.remove-ref, std-json.object.decl-struct.
+# expect-stdout: {"a":true} {"b":null}
+# expect-stdout: {"a":true}
+# expect-stdout: 10 "v3" 10 "again" k3
+# expect-stdout: null
+use std.json.{Json, JsonObject}
+
+fn shown(value: Json?) -> string:
+    match value:
+        .Some(found) => "$found"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    let mut first = JsonObject::new()
+    first.set("a", Json.Bool(true))
+    let mut second = first
+    second.set("b", Json.Null)
+    _ := second.remove("a")
+    println("${Json.Object(first)} ${Json.Object(second)}")
+    held := Json.Object(first)
+    first.set("c", Json.Null)
+    println("$held")
+    # An object past eight members keeps an index; a copy keeps its own.
+    let mut big = JsonObject::new()
+    let i = +0
+    while i < 10:
+        big.set("k$i", Json.Text("v$i"))
+        i = i + 1
+    let mut copy = big
+    _ := copy.remove("k3")
+    copy.set("k3", Json.Text("again"))
+    keys := copy.keys()
+    println("${big.len()} ${shown(big.get("k3"))} ${copy.len()} ${shown(copy.get("k3"))} ${keys[keys.len() - 1]}")
+    shared := &mut big
+    shared.set("k0", Json.Null)
+    println(shown(big.get("k0")))

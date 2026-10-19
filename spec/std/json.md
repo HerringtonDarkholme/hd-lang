@@ -124,22 +124,23 @@ where they were.
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.object.new] `new` | `pub fn new() -> mut JsonObject` | an object with no members |
+| r[std-json.object.new-value] `new` | `pub fn new() -> JsonObject` | an object with no members |
 | r[std-json.object.len] `len` | `pub fn len(self) -> usize` | the number of members; `is_empty` is `len() == 0` |
 | r[std-json.object.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
-| r[std-json.object.set] `set` | `pub fn set(mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
-| r[std-json.object.remove] `remove` | `pub fn remove(mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
+| r[std-json.object.set-ref] `set` | `pub fn set(&mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
+| r[std-json.object.remove-ref] `remove` | `pub fn remove(&mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
 | r[std-json.object.keys] `keys` | `pub fn keys(self) -> List[string]` | the keys, in insertion order |
 
-1. r[std-json.object.decl] `std.json` declares `JsonObject` with the methods above, and `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
+1. r[std-json.object.decl-struct] `std.json` declares the struct `JsonObject`, with private fields and the methods above. `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
 2. r[std-json.object.order] `keys`, iteration, and `Debug` give the members in insertion order.
 3. r[std-json.object.eq] Two `JsonObject`s are equal when they have the same keys with equal values, in any order.
+4. r[std-json.object.value] A `JsonObject` is a value. Copying it, or a `Json` that holds it, copies its members, so `set` and `remove` change only the place they are called on.
 
 ```text
 use std.json.{Json, JsonObject}
 
 fn build() -> Json:
-    let fields: mut JsonObject = JsonObject::new()
+    let mut fields = JsonObject::new()
     fields.set("name", Json.Text("hd"))
     fields.set("id", Json.Null)
     fields.set("name", Json.Bool(true))   # keeps its place: keys() is ["name", "id"]
@@ -162,7 +163,7 @@ fn half() -> Number?:
     Number::from_f64(0.5)
 ```
 
-1. r[std-json.number.decl] `std.json` declares the type `Number`, with no public member.
+1. r[std-json.number.decl-struct] `std.json` declares the struct `Number`, a value with no public member.
 2. r[std-json.number.repr] A `Number` holds an integer below zero, an integer from zero up, or a finite `f64`. One integer has one representation, whichever constructor made it.
 
 | Rule | Function | Result |

@@ -213,7 +213,7 @@ fn json_gen(c: mut Choices, depth: i32) -> Json:
                 items.push(json_gen(c, depth + 1))
             Json.Array(items)
         _ =>
-            let fields: mut JsonObject = JsonObject::new()
+            let mut fields = JsonObject::new()
             for key in c.list(4, text_gen):
                 fields.set(key, json_gen(c, depth + 1))
             Json.Object(fields)
@@ -270,7 +270,7 @@ fn variant_named(name: string, of_data: bool) -> VariantInfo:
     VariantInfo { name: name, index: +0, facts: Facts { items: [] }, doc: .None, of_data: of_data, shared: [], self_ref: SelfRef.Absent }
 
 impl Serialize for Script:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         for step in self.steps:
             _ := match step:
                 .Null => out.null()
@@ -330,7 +330,7 @@ data Wide:
     back: i32
 
 impl Serialize for Wide:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_map(0)?
         let index = +0
         while index < self.count:

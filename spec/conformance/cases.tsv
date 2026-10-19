@@ -2147,6 +2147,8 @@ runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choi
 runtime/valid/string-more-methods.hd	runtime	accept	std/text.md#more-string-methods
 runtime/valid/text-join-builder.hd	runtime	accept	std/text.md#joining-and-building
 runtime/valid/text-prefix-helpers.hd	runtime	accept	std/text.md#prefix-helpers
+runtime/valid/string-builder-handle-shared.hd	runtime	accept	std/text.md#r-std-text.builder.new-ref
+runtime/valid/escape-error-value-copy.hd	runtime	accept	std/text.md#r-std-text.prefix-helper.escape-error-value
 typing/invalid/no-widening-operator.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.binary.same-type
 typing/invalid/no-widening-assignment.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit.wider
 typing/invalid/no-widening-argument.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit.wider
@@ -2246,7 +2248,8 @@ runtime/valid/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string
 runtime/valid/json-errors.hd	runtime	accept	std/json.md#r-std-json.error.position-bytes
 runtime/valid/json-numbers.hd	runtime	accept	std/json.md#r-std-json.number.eq
 runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate-last
-runtime/valid/json-object-remove.hd	runtime	accept	std/json.md#r-std-json.object.remove
+runtime/valid/json-object-remove.hd	runtime	accept	std/json.md#r-std-json.object.remove-ref
+runtime/valid/json-object-value-copy.hd	runtime	accept	std/json.md#r-std-json.object.value
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float
@@ -2797,6 +2800,8 @@ runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tup
 runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.order
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
+runtime/valid/serde-struct-ref-receivers.hd	runtime	accept	std/serde.md#r-std-serde.model.ref-receivers
+typing/invalid/serializer-mut-self-receiver.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.model.ref-receivers
 runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded
 runtime/valid/json-typed-missing-key-uses-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.default
 runtime/valid/json-pointer.hd	runtime	accept	std/json.md#r-std-json.pointer

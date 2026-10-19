@@ -1,0 +1,160 @@
+# test: a struct Serializer and a struct Deserializer with &mut self methods serve derived Serialize and Deserialize through &mut, and their fields hold the calls afterwards
+# Spec std/serde Data Model, Derived Implementations: std-serde.model.ref-receivers, std-serde.derive.serialize.order, std-serde.derive.deserialize.order.
+# expect-stdout: 6 variant:Point member:x int:3 member:y int:-4 end-variant
+# expect-stdout: 10 list:2 int:1 text:a end-list
+# expect-stdout: 9 -9 x y 2
+# expect-stdout: 4 3
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
+use std.structure.{Facts, VariantInfo, Member}
+
+@derive(Serialize, Deserialize)
+struct Point:
+    x: i32
+    y: i32
+
+# A hand-written implementation passes the writer on to each part.
+struct Pair:
+    count: i64
+    label: string
+
+impl Serialize for Pair:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_list(2)?
+        self.count.serialize(out)?
+        self.label.serialize(out)?
+        out.end_list()
+
+# A writer that counts its calls and logs each one.
+struct Tally:
+    calls: i32
+    log: List[string]
+
+impl Tally:
+    fn add(&mut self, word: string) -> Result[void, never]:
+        self.calls = self.calls + 1
+        self.log.push(word)
+        .Ok(())
+
+impl Serializer for Tally:
+    type Error = never
+
+    fn null(&mut self) -> Result[void, never]:
+        self.add("null")
+
+    fn bool(&mut self, value: bool) -> Result[void, never]:
+        self.add("bool:$value")
+
+    fn int(&mut self, value: i64) -> Result[void, never]:
+        self.add("int:$value")
+
+    fn uint(&mut self, value: u64) -> Result[void, never]:
+        self.add("uint:$value")
+
+    fn float(&mut self, value: f64) -> Result[void, never]:
+        self.add("float:$value")
+
+    fn text(&mut self, value: string) -> Result[void, never]:
+        self.add("text:$value")
+
+    fn begin_list(&mut self, len: usize) -> Result[void, never]:
+        self.add("list:$len")
+
+    fn end_list(&mut self) -> Result[void, never]:
+        self.add("end-list")
+
+    fn begin_map(&mut self, len: usize) -> Result[void, never]:
+        self.add("map:$len")
+
+    fn key(&mut self, key: string) -> Result[void, never]:
+        self.add("key:$key")
+
+    fn end_map(&mut self) -> Result[void, never]:
+        self.add("end-map")
+
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        self.add("variant:${v.name}")
+
+    fn member(&mut self, m: Member) -> Result[void, never]:
+        self.add("member:${m.name}")
+
+    fn end_variant(&mut self) -> Result[void, never]:
+        self.add("end-variant")
+
+# A reader that answers every integer from `values` in turn and records the
+# member names it is asked for.
+struct Script:
+    values: List[i64]
+    at: usize
+    members: List[string]
+
+impl Deserializer for Script:
+    type Error = string
+
+    fn peek(&mut self) -> Result[ValueKind, string]:
+        .Ok(ValueKind.Int)
+
+    fn is_null(&mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
+        .Err(expected)
+
+    fn int(&mut self, expected: string) -> Result[i64, string]:
+        found := self.values[self.at]
+        self.at = self.at + 1
+        .Ok(found)
+
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
+        .Err(expected)
+
+    fn float(&mut self, expected: string) -> Result[f64, string]:
+        .Err(expected)
+
+    fn text(&mut self, expected: string) -> Result[string, string]:
+        .Err(expected)
+
+    fn begin_list(&mut self) -> Result[void, string]:
+        .Err("list")
+
+    fn next_item(&mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn begin_map(&mut self) -> Result[void, string]:
+        .Err("map")
+
+    fn next_key(&mut self) -> Result[string?, string]:
+        .Ok(.None)
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(0)
+
+    fn member(&mut self, m: Member) -> Result[void, string]:
+        self.members.push(m.name)
+        .Ok(())
+
+    fn end_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> string:
+        expected
+
+# A reader passed on through a bound reads into the caller's struct.
+fn read[T < Deserialize](input: &mut Script) -> Result[T, string]:
+    T::deserialize(input)
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { calls: 0, log: [] }
+    _ := Point { x: 3, y: -4 }.serialize(&mut tally)
+    println("${tally.calls} ${tally.log.join(" ")}")
+    # One new object behind `&mut` serves two writes.
+    shared := &mut Tally { calls: 0, log: [] }
+    _ := Point { x: 1, y: 2 }.serialize(shared)
+    _ := Pair { count: 1, label: "a" }.serialize(shared)
+    println("${shared.calls} ${shared.log[6]} ${shared.log[7]} ${shared.log[8]} ${shared.log[9]}")
+    let mut script = Script { values: [9, -9, 4], at: 0, members: [] }
+    match Point::deserialize(&mut script):
+        .Ok(point) => println("${point.x} ${point.y} ${script.members.join(" ")} ${script.at}")
+        .Err(error) => println("error $error")
+    match read::[i64](&mut script):
+        .Ok(last) => println("$last ${script.at}")
+        .Err(error) => println("error $error")

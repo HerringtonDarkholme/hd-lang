@@ -105,7 +105,7 @@ Strings interpolate `$name` and `${expr}`; write `"\$"` for a dollar sign.
 Only a `Display` type interpolates: unwrap an optional first
 (`.unwrap_or("")`), and print a list or a record with `debug(x)`.
 To build text in a loop, push to a `StringBuilder` (`use std.text.StringBuilder`;
-`let out: mut StringBuilder = StringBuilder::new()`, `out.push(s)`,
+`out := StringBuilder::new()`, `out.push(s)`,
 `out.build()`) or collect parts and `join` them. `out = out + s` in a loop
 copies the whole text every time, as Go's `s += t` does.
 

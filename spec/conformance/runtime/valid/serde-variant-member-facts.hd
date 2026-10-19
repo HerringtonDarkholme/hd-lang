@@ -16,11 +16,11 @@ fn rename(name: string) -> Rename:
     Rename { name: name }
 
 # Records the facts that an event format would use for its topic and keys.
-data Envelope:
+struct Envelope:
     pub log: string
 
 impl Envelope:
-    fn add(mut self, word: string) -> Result[void, never]:
+    fn add(&mut self, word: string) -> Result[void, never]:
         if self.log == "":
             self.log = word
         else:
@@ -30,57 +30,57 @@ impl Envelope:
 impl Serializer for Envelope:
     type Error = never
 
-    fn null(mut self) -> Result[void, never]:
+    fn null(&mut self) -> Result[void, never]:
         self.add("null")
 
-    fn bool(mut self, value: bool) -> Result[void, never]:
+    fn bool(&mut self, value: bool) -> Result[void, never]:
         self.add("$value")
 
-    fn int(mut self, value: i64) -> Result[void, never]:
+    fn int(&mut self, value: i64) -> Result[void, never]:
         self.add("$value")
 
-    fn uint(mut self, value: u64) -> Result[void, never]:
+    fn uint(&mut self, value: u64) -> Result[void, never]:
         self.add("$value")
 
-    fn float(mut self, value: f64) -> Result[void, never]:
+    fn float(&mut self, value: f64) -> Result[void, never]:
         self.add("$value")
 
-    fn text(mut self, value: string) -> Result[void, never]:
+    fn text(&mut self, value: string) -> Result[void, never]:
         self.add(value)
 
-    fn begin_list(mut self, len: usize) -> Result[void, never]:
+    fn begin_list(&mut self, len: usize) -> Result[void, never]:
         self.add("[")
 
-    fn end_list(mut self) -> Result[void, never]:
+    fn end_list(&mut self) -> Result[void, never]:
         self.add("]")
 
-    fn begin_map(mut self, len: usize) -> Result[void, never]:
+    fn begin_map(&mut self, len: usize) -> Result[void, never]:
         self.add("{")
 
-    fn key(mut self, key: string) -> Result[void, never]:
+    fn key(&mut self, key: string) -> Result[void, never]:
         self.add("$key=")
 
-    fn end_map(mut self) -> Result[void, never]:
+    fn end_map(&mut self) -> Result[void, never]:
         self.add("}")
 
-    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
         let on: string = match facts.find::[Topic]():
             .Some(found) => found.name
             .None => "-"
         self.add("<$on ${v.name}#${v.index} data=${v.of_data}>")
 
-    fn member(mut self, m: Member) -> Result[void, never]:
+    fn member(&mut self, m: Member) -> Result[void, never]:
         let key: string = match m.facts.find::[Rename]():
             .Some(found) => found.name
             .None => m.name
         self.add("$key@${m.position}:")
 
-    fn end_variant(mut self) -> Result[void, never]:
+    fn end_variant(&mut self) -> Result[void, never]:
         self.add("</>")
 
 fn send[T < Serialize](value: T) -> string:
-    let out: mut Envelope = Envelope { log: "" }
-    _ := value.serialize(out)
+    let mut out = Envelope { log: "" }
+    _ := value.serialize(&mut out)
     out.log
 
 @derive(Serialize)

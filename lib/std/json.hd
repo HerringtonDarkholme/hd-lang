@@ -19,22 +19,21 @@ pub enum Json:
     Array(items: List[Json])
     Object(fields: JsonObject)
 
-# The members of a JSON object (r-std-json.object.decl): `entries` holds them
+# The members of a JSON object (r-std-json.object.decl-struct): `entries` holds them
 # in insertion order. An object of up to 8 members finds a key by comparing
 # it with each; a larger one also keeps `index`, which maps each key to its
 # place in `entries`, so a lookup does not scan.
 ## The members of a JSON object, in insertion order.
-## See [std-json.object.decl](../../spec/std/json.md#r-std-json.object.decl).
-pub data JsonObject:
-    entries: mut List[(string, Json)]
-    index: mut Map[string, usize]?
+## See [std-json.object.decl-struct](../../spec/std/json.md#r-std-json.object.decl-struct).
+pub struct JsonObject:
+    entries: List[(string, Json)]
+    index: Map[string, usize]
 
 impl JsonObject:
     ## Returns an object with no members.
-    ## See [std-json.object.new](../../spec/std/json.md#r-std-json.object.new).
-    pub fn new() -> mut JsonObject:
-        let entries: mut List[(string, Json)] = []
-        JsonObject { entries: entries, index: .None }
+    ## See [std-json.object.new-value](../../spec/std/json.md#r-std-json.object.new-value).
+    pub fn new() -> JsonObject:
+        JsonObject { entries: [], index: {} }
 
     ## Returns the number of members.
     ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
@@ -59,47 +58,41 @@ impl JsonObject:
         self.position(key).is_some()
 
     ## Sets `key` to `value`. A new key goes last, and an existing key keeps its place.
-    ## See [std-json.object.set](../../spec/std/json.md#r-std-json.object.set).
-    pub fn set(mut self, key: string, value: Json) -> void:
+    ## See [std-json.object.set-ref](../../spec/std/json.md#r-std-json.object.set-ref).
+    pub fn set(&mut self, key: string, value: Json) -> void:
         match self.position(key):
             .Some(at) => self.entries[at] = (key, value)
             .None =>
                 count := self.entries.len()
                 self.entries.push((key, value))
-                match self.index:
-                    .Some(index) => index[key] = count
-                    .None =>
-                        if count >= 8:
-                            let index: mut Map[string, usize] = {}
-                            let at: usize = 0
-                            while at <= count:
-                                index[self.entries[at]._0] = at
-                                at = at + 1
-                            self.index = .Some(index)
+                if self.index.len() > 0:
+                    self.index[key] = count
+                else if count >= 8:
+                    let at: usize = 0
+                    while at <= count:
+                        self.index[self.entries[at]._0] = at
+                        at = at + 1
 
     ## Removes `key` and returns its value, or `.None` when the object has no such key. The other members keep their order.
-    ## See [std-json.object.remove](../../spec/std/json.md#r-std-json.object.remove).
-    pub fn remove(mut self, key: string) -> Json?:
+    ## See [std-json.object.remove-ref](../../spec/std/json.md#r-std-json.object.remove-ref).
+    pub fn remove(&mut self, key: string) -> Json?:
         match self.position(key):
             .None => .None
             .Some(at) =>
                 removed := self.entries.remove_at(at)
-                match self.index:
-                    .Some(index) =>
-                        _ := index.remove(key)
-                        size := self.entries.len()
-                        let later: usize = at
-                        while later < size:
-                            index[self.entries[later]._0] = later
-                            later = later + 1
-                    .None => pass
+                if self.index.len() > 0:
+                    _ := self.index.remove(key)
+                    size := self.entries.len()
+                    let later: usize = at
+                    while later < size:
+                        self.index[self.entries[later]._0] = later
+                        later = later + 1
                 .Some(removed._1)
 
-    # The place of `key` in `entries`.
-    fn position(self, key: string) -> usize?:
-        match self.index:
-            .Some(index) => return index.get(key)
-            .None => pass
+    # The place of `key` in `entries`. `index` is empty until it is kept.
+    fn position(&self, key: string) -> usize?:
+        if self.index.len() > 0:
+            return self.index.get(key)
         size := self.entries.len()
         let at: usize = 0
         while at < size:
@@ -139,10 +132,10 @@ enum NumberRepr:
     Float(value: f64)
 
 # A JSON number that keeps 64-bit integers exact, modeled on
-# `serde_json::Number` (r-std-json.number.decl).
+# `serde_json::Number` (r-std-json.number.decl-struct).
 ## A JSON number, exact for 64-bit integers: integers in the `i64` and `u64` ranges are exact, and every other number is an `f64`.
-## See [std-json.number.decl](../../spec/std/json.md#r-std-json.number.decl).
-pub data Number:
+## See [std-json.number.decl-struct](../../spec/std/json.md#r-std-json.number.decl-struct).
+pub struct Number:
     repr: NumberRepr
 
 impl Number:
@@ -212,8 +205,8 @@ impl Json:
     ## The pretty text of the value: each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
     ## See [std-json.value.pretty](../../spec/std/json.md#r-std-json.value.pretty).
     pub fn pretty(self) -> string:
-        let parts: mut List[string] = []
-        render(self, parts, true, 0)
+        let mut parts: List[string] = []
+        render(self, &mut parts, true, 0)
         concat_all(parts)
 
     ## The value of `key` when the value is an `Object` with that key.
@@ -343,7 +336,7 @@ fn pointer_index(token: string, len: usize) -> usize?:
 # The token from `start` up to `end` of `path`, with `~1` read as `/` and
 # `~0` as `~`; any other `~` stays as written (r-std-json.pointer.escapes).
 fn pointer_token(path: string, start: usize, end: usize) -> string:
-    let parts: mut List[string] = []
+    let mut parts: List[string] = []
     let plain = start
     let at = start
     while at + 1 < end:
@@ -366,14 +359,14 @@ fn pointer_token(path: string, start: usize, end: usize) -> string:
 # Compact JSON text (r-std-json.display.compact).
 impl Display for Json:
     fn to_string(self) -> string:
-        let parts: mut List[string] = []
-        render(self, parts, false, 0)
+        let mut parts: List[string] = []
+        render(self, &mut parts, false, 0)
         concat_all(parts)
 
 # The text is collected as pieces and joined once. Every piece is valid
 # UTF-8 (a literal, a number's text, or a run of a string cut next to an
 # ASCII byte), so the joined text needs no check.
-fn render(value: Json, parts: mut List[string], spaced: bool, depth: usize) -> void:
+fn render(value: Json, parts: &mut List[string], spaced: bool, depth: usize) -> void:
     match value:
         .Null => parts.push("null")
         .Bool(flag) => parts.push(if flag: "true" else: "false")
@@ -410,14 +403,14 @@ fn render(value: Json, parts: mut List[string], spaced: bool, depth: usize) -> v
             line_break(parts, spaced, depth)
             parts.push("}")
 
-fn line_break(parts: mut List[string], spaced: bool, depth: usize) -> void:
+fn line_break(parts: &mut List[string], spaced: bool, depth: usize) -> void:
     if !spaced:
         return
     parts.push("\n")
     if depth > 0:
         parts.push("  ".repeat(depth))
 
-fn push_quoted(parts: mut List[string], text: string) -> void:
+fn push_quoted(parts: &mut List[string], text: string) -> void:
     parts.push("\"")
     push_escaped(parts, text)
     parts.push("\"")
@@ -428,7 +421,7 @@ fn push_quoted(parts: mut List[string], text: string) -> void:
 # (r-std-json.display.text). Each run of bytes that needs no escape goes in
 # whole, as a slice that shares the string's bytes; an escaped byte is
 # ASCII, so every run starts and ends on a scalar boundary.
-fn push_escaped(parts: mut List[string], text: string) -> void:
+fn push_escaped(parts: &mut List[string], text: string) -> void:
     size := bytes_len(text)
     let plain: usize = 0
     let index: usize = 0
@@ -458,7 +451,7 @@ fn escape_text(byte: u8) -> string:
         13 => "\\r"
         9 => "\\t"
         _ =>
-            let bytes: mut List[u8] = [92, 117, 48, 48]
+            let mut bytes: List[u8] = [92, 117, 48, 48]
             bytes.push(hex_symbol(byte >> 4))
             bytes.push(hex_symbol(byte & 15))
             string_from_bytes(bytes)
@@ -531,7 +524,7 @@ impl Error for JsonError
 ## Reads one JSON text, strictly as RFC 8259 defines it, and returns `.Ok` of the value or `.Err` of the first error.
 ## See [std-json.parse](../../spec/std/json.md#r-std-json.parse).
 pub fn parse(text: string) -> Result[Json, JsonError]:
-    let parser: mut Parser = Parser { text: text, size: bytes_len(text), at: 0 }
+    parser := &mut Parser { text: text, size: bytes_len(text), at: 0 }
     value := parser.value(0)?
     parser.skip_space()
     if parser.at < parser.size:
@@ -542,19 +535,19 @@ pub fn parse(text: string) -> Result[Json, JsonError]:
 # `at` is the offset of the next byte to read. A string with no escape is
 # a slice of the input, which shares its bytes: the input is a valid string
 # and the slice starts and ends next to a quote, so it needs no check.
-data Parser:
+struct Parser:
     text: string
     size: usize
     at: usize
 
 impl Parser:
     # The error for a byte that cannot continue the text at `offset`.
-    fn unexpected(self, offset: usize) -> JsonError:
+    fn unexpected(&self, offset: usize) -> JsonError:
         if offset >= self.size:
             return JsonError.UnexpectedEnd(offset)
         JsonError.UnexpectedCharacter(offset)
 
-    fn skip_space(mut self) -> void:
+    fn skip_space(&mut self) -> void:
         text := self.text
         size := self.size
         let index = self.at
@@ -566,7 +559,7 @@ impl Parser:
         self.at = index
 
     # The value after any whitespace at `at`.
-    fn value(mut self, depth: usize) -> Result[Json, JsonError]:
+    fn value(&mut self, depth: usize) -> Result[Json, JsonError]:
         self.skip_space()
         index := self.at
         if index >= self.size:
@@ -588,7 +581,7 @@ impl Parser:
             return self.number()
         .Err(JsonError.UnexpectedCharacter(index))
 
-    fn word(mut self, word: string, value: Json) -> Result[Json, JsonError]:
+    fn word(&mut self, word: string, value: Json) -> Result[Json, JsonError]:
         text := self.text
         size := bytes_len(word)
         let index = self.at
@@ -602,11 +595,11 @@ impl Parser:
         .Ok(value)
 
     # The array whose `[` is at `at`.
-    fn array(mut self, depth: usize) -> Result[Json, JsonError]:
+    fn array(&mut self, depth: usize) -> Result[Json, JsonError]:
         open := self.at
         if depth >= 128:
             return .Err(JsonError.NestingTooDeep(open))
-        let items: mut List[Json] = []
+        let mut items: List[Json] = []
         self.at = open + 1
         self.skip_space()
         if self.at < self.size && bytes_at(self.text, self.at) == 93:
@@ -627,11 +620,11 @@ impl Parser:
             return .Err(self.unexpected(index))
 
     # The object whose `{` is at `at`.
-    fn object(mut self, depth: usize) -> Result[Json, JsonError]:
+    fn object(&mut self, depth: usize) -> Result[Json, JsonError]:
         open := self.at
         if depth >= 128:
             return .Err(JsonError.NestingTooDeep(open))
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         self.at = open + 1
         self.skip_space()
         if self.at < self.size && bytes_at(self.text, self.at) == 125:
@@ -664,7 +657,7 @@ impl Parser:
 
     # The string whose opening quote is at `at`: a slice of the input when
     # it has no escape.
-    fn string(mut self) -> Result[string, JsonError]:
+    fn string(&mut self) -> Result[string, JsonError]:
         text := self.text
         size := self.size
         start := self.at + 1
@@ -684,10 +677,10 @@ impl Parser:
     # The rest of a string that starts at `start` and has its first escape
     # at `index`. Each run between escapes is a slice of the input, each
     # escape the text it stands for, and the pieces are joined once.
-    fn escaped(mut self, start: usize, first: usize) -> Result[string, JsonError]:
+    fn escaped(&mut self, start: usize, first: usize) -> Result[string, JsonError]:
         text := self.text
         size := self.size
-        let parts: mut List[string] = []
+        let mut parts: List[string] = []
         let plain = start
         let index = first
         while true:
@@ -750,7 +743,7 @@ impl Parser:
 
     # The value of the four hex digits at `at`, -1 when one is not a hex
     # digit, or -2 when the text ends first.
-    fn hex4(self, at: usize) -> i32:
+    fn hex4(&self, at: usize) -> i32:
         let value: i32 = 0
         let offset: usize = 0
         while offset < 4:
@@ -768,7 +761,7 @@ impl Parser:
     # -0.0, as in serde_json. A fraction, an exponent, or an integer past
     # both ranges is the float that `parse_f64` gives
     # (r-std-json.parse.number.float).
-    fn number(mut self) -> Result[Json, JsonError]:
+    fn number(&mut self) -> Result[Json, JsonError]:
         text := self.text
         size := self.size
         start := self.at
@@ -837,7 +830,7 @@ fn hex_value(code: i32) -> i32:
 
 # The UTF-8 text of a scalar value, which is never a surrogate.
 fn scalar_text(point: i32) -> string:
-    let out: mut List[u8] = []
+    let mut out: List[u8] = []
     if point < 128:
         out.push(u8(point))
     else if point < 2048:
@@ -925,7 +918,7 @@ impl Debug for JsonError:
 ## The `Json` that `value`'s `serialize` writes.
 ## See [std-json.to-json](../../spec/std/json.md#r-std-json.to-json).
 pub fn to_json[T < Serialize](value: T) -> Json:
-    let writer: mut JsonWriter = JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [] }
+    writer := &mut JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [] }
     match value.serialize(writer):
         .Ok(_) => writer.result
         .Err(_) => panic("std.json: the JSON writer never fails")
@@ -935,7 +928,7 @@ pub fn to_json[T < Serialize](value: T) -> Json:
 ## The `T` that `T::deserialize` reads from `value`, or the first error it finds.
 ## See [std-json.from-json](../../spec/std/json.md#r-std-json.from-json).
 pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
-    let reader: mut JsonReader = JsonReader::new(value)
+    reader := JsonReader::new(value)
     T::deserialize(reader)
 
 # The compact text of a value's `Json` (r-std-json.encode). `TextWriter`
@@ -944,7 +937,7 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 ## The compact JSON text of `value`, with no whitespace outside strings.
 ## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
 pub fn encode[T < Serialize](value: T) -> string:
-    let writer: mut TextWriter = TextWriter::new(false)
+    writer := TextWriter::new(false)
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
@@ -956,7 +949,7 @@ pub fn encode[T < Serialize](value: T) -> string:
 ## The pretty JSON text of `value`: `to_json(value).pretty()`.
 ## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
 pub fn encode_pretty[T < Serialize](value: T) -> string:
-    let writer: mut TextWriter = TextWriter::new(true)
+    writer := TextWriter::new(true)
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
@@ -971,7 +964,7 @@ pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 
 # `Json` writes and reads itself (r-std-json.std.json).
 impl Serialize for Json:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         match self:
             .Null => out.null()
             .Bool(flag) => out.bool(flag)
@@ -994,7 +987,7 @@ impl Serialize for Json:
                 out.end_map()
 
 impl Deserialize for Json:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Json, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Json, R::Error]:
         match input.peek()?:
             .Null =>
                 _ := input.is_null()?
@@ -1010,13 +1003,13 @@ impl Deserialize for Json:
             .Text => .Ok(Json.Text(input.text("string")?))
             .List =>
                 input.begin_list()?
-                let items: mut List[Json] = []
+                let mut items: List[Json] = []
                 while input.next_item()?:
                     items.push(Json::deserialize(input)?)
                 .Ok(Json.Array(items))
             .Map =>
                 input.begin_map()?
-                let fields: mut JsonObject = JsonObject::new()
+                let mut fields = JsonObject::new()
                 while true:
                     match input.next_key()?:
                         .Some(key) => fields.set(key, Json::deserialize(input)?)
@@ -1026,7 +1019,7 @@ impl Deserialize for Json:
 # One open list, map, or variant of the writer: its kind, where its items
 # start in `values`, the key it goes under in its own container, and a
 # variant's name and form.
-data OpenFrame:
+struct OpenFrame:
     pub kind: i32
     pub start: usize
     pub key: string
@@ -1036,15 +1029,15 @@ data OpenFrame:
 # Builds the `Json` of one value. The items of every open container sit on
 # one stack, `values`, each beside its key in `keys`; closing a container
 # replaces its items with its value (r-std-json.derive.to-json.data).
-data JsonWriter:
+struct JsonWriter:
     pub result: Json
     pub pending: string
-    pub keys: mut List[string]
-    pub values: mut List[Json]
-    pub frames: mut List[OpenFrame]
+    pub keys: List[string]
+    pub values: List[Json]
+    pub frames: List[OpenFrame]
 
 impl JsonWriter:
-    fn put(mut self, value: Json) -> Result[void, never]:
+    fn put(&mut self, value: Json) -> Result[void, never]:
         if self.frames.len() == 0:
             self.result = value
         else:
@@ -1052,17 +1045,17 @@ impl JsonWriter:
             self.values.push(value)
         .Ok(())
 
-    fn open(mut self, kind: i32, name: string, of_data: bool) -> Result[void, never]:
+    fn open(&mut self, kind: i32, name: string, of_data: bool) -> Result[void, never]:
         self.frames.push(OpenFrame { kind: kind, start: self.values.len(), key: self.pending, name: name, of_data: of_data })
         .Ok(())
 
     # The innermost frame, its items, and its keys, popped.
-    fn close(mut self) -> (OpenFrame, List[string], List[Json]):
+    fn close(&mut self) -> (OpenFrame, List[string], List[Json]):
         frame := match self.frames.pop():
             .Some(found) => found
             .None => panic("std.json: a close without an open container")
-        let keys: mut List[string] = []
-        let values: mut List[Json] = []
+        let mut keys: List[string] = []
+        let mut values: List[Json] = []
         let index = frame.start
         while index < self.values.len():
             keys.push(self.keys[index])
@@ -1077,56 +1070,56 @@ impl JsonWriter:
 impl Serializer for JsonWriter:
     type Error = never
 
-    fn null(mut self) -> Result[void, never]:
+    fn null(&mut self) -> Result[void, never]:
         self.put(Json.Null)
 
-    fn bool(mut self, value: bool) -> Result[void, never]:
+    fn bool(&mut self, value: bool) -> Result[void, never]:
         self.put(Json.Bool(value))
 
-    fn int(mut self, value: i64) -> Result[void, never]:
+    fn int(&mut self, value: i64) -> Result[void, never]:
         self.put(Json.Number(Number::from_i64(value)))
 
-    fn uint(mut self, value: u64) -> Result[void, never]:
+    fn uint(&mut self, value: u64) -> Result[void, never]:
         self.put(Json.Number(Number::from_u64(value)))
 
     # A NaN or an infinity has no JSON number, so it writes `null`, as in
     # serde_json (r-std-json.std.float-special).
-    fn float(mut self, value: f64) -> Result[void, never]:
+    fn float(&mut self, value: f64) -> Result[void, never]:
         match Number::from_f64(value):
             .Some(number) => self.put(Json.Number(number))
             .None => self.put(Json.Null)
 
-    fn text(mut self, value: string) -> Result[void, never]:
+    fn text(&mut self, value: string) -> Result[void, never]:
         self.put(Json.Text(value))
 
-    fn begin_list(mut self, len: usize) -> Result[void, never]:
+    fn begin_list(&mut self, len: usize) -> Result[void, never]:
         self.open(0, "", false)
 
-    fn end_list(mut self) -> Result[void, never]:
+    fn end_list(&mut self) -> Result[void, never]:
         closed := self.close()
         self.put(Json.Array(closed._2))
 
-    fn begin_map(mut self, len: usize) -> Result[void, never]:
+    fn begin_map(&mut self, len: usize) -> Result[void, never]:
         self.open(1, "", false)
 
-    fn key(mut self, key: string) -> Result[void, never]:
+    fn key(&mut self, key: string) -> Result[void, never]:
         self.pending = key
         .Ok(())
 
-    fn end_map(mut self) -> Result[void, never]:
+    fn end_map(&mut self) -> Result[void, never]:
         closed := self.close()
         self.put(Json.Object(object_of(closed._1, closed._2)))
 
-    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
         self.open(2, v.name, v.of_data)
 
-    fn member(mut self, m: Member) -> Result[void, never]:
+    fn member(&mut self, m: Member) -> Result[void, never]:
         self.pending = m.name
         .Ok(())
 
     # A data type is an object; a variant with no member is its name, and
     # any other variant `{"Variant": {...}}` (r-std-json.derive.to-json.enum).
-    fn end_variant(mut self) -> Result[void, never]:
+    fn end_variant(&mut self) -> Result[void, never]:
         closed := self.close()
         frame := closed._0
         fields := object_of(closed._1, closed._2)
@@ -1134,12 +1127,12 @@ impl Serializer for JsonWriter:
             return self.put(Json.Object(fields))
         if fields.len() == 0:
             return self.put(Json.Text(frame.name))
-        let outer: mut JsonObject = JsonObject::new()
+        let mut outer = JsonObject::new()
         outer.set(frame.name, Json.Object(fields))
         self.put(Json.Object(outer))
 
 fn object_of(keys: List[string], values: List[Json]) -> JsonObject:
-    let fields: mut JsonObject = JsonObject::new()
+    let mut fields = JsonObject::new()
     let index: usize = 0
     while index < keys.len():
         fields.set(keys[index], values[index])
@@ -1178,17 +1171,17 @@ enum Irregular:
 # the next frame reuses them. `indent` is the nesting level of the pretty
 # text: a list, a map, or a record adds one, and a variant two, for its
 # `{"Variant": {` once a member opens it.
-data TextWriter:
-    pub parts: mut List[string]
+struct TextWriter:
+    pub parts: &mut List[string]
     pub depth: usize
-    pub kinds: mut List[FrameKind]
-    pub names: mut List[string]
-    pub counts: mut List[usize]
-    pub key_starts: mut List[usize]
+    pub kinds: List[FrameKind]
+    pub names: List[string]
+    pub counts: List[usize]
+    pub key_starts: List[usize]
     pub key_count: usize
-    pub keys: mut List[string]
-    pub prints: mut List[usize]
-    pub indexes: mut List[mut Map[string, bool]]
+    pub keys: List[string]
+    pub prints: List[usize]
+    pub indexes: List[Map[string, bool]]
     pub pending: string
     pub keyed: bool
     pub written: bool
@@ -1197,23 +1190,23 @@ data TextWriter:
     pub indent: usize
 
 impl TextWriter:
-    fn new(spaced: bool) -> mut TextWriter:
-        TextWriter { parts: [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], key_count: 0, keys: [], prints: [], indexes: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
+    fn new(spaced: bool) -> &mut TextWriter:
+        &mut TextWriter { parts: &mut [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], key_count: 0, keys: [], prints: [], indexes: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
 
     # The text, or `.None` when the walk was not regular or not complete.
-    fn finish(self) -> string?:
+    fn finish(&self) -> string?:
         if !self.regular || !self.written || self.depth > 0:
             return .None
-        .Some(concat_all(self.parts))
+        .Some(concat_all(*self.parts))
 
-    fn give_up(mut self) -> Result[void, Irregular]:
+    fn give_up(&mut self) -> Result[void, Irregular]:
         self.regular = false
         .Err(Irregular.Walk)
 
     # Starts one value: a comma after an earlier item, and in an object the
     # value's key, which must be new there. The first member of an enum
     # variant opens `{"Variant":{` first.
-    fn start(mut self) -> Result[void, Irregular]:
+    fn start(&mut self) -> Result[void, Irregular]:
         if !self.regular:
             return .Err(Irregular.Walk)
         if self.depth == 0:
@@ -1257,7 +1250,7 @@ impl TextWriter:
     # The pretty text before a value of an object: a comma after an earlier
     # entry, a line break, and `"key": `. The first member of a variant
     # opens `{`, its name, and `: {` first, each on its own line.
-    fn spaced_key(mut self, kind: FrameKind, count: usize, name: string, key: string) -> void:
+    fn spaced_key(&mut self, kind: FrameKind, count: usize, name: string, key: string) -> void:
         if count > 0:
             self.parts.push(",")
         else:
@@ -1276,7 +1269,7 @@ impl TextWriter:
     # a new key is recorded. A key is compared with the first 16 by its
     # print, and by its text only when the prints match; from the 17th key
     # on, the object's keys are in a map.
-    fn add_key(mut self, frame: usize, count: usize, key: string) -> bool:
+    fn add_key(&mut self, frame: usize, count: usize, key: string) -> bool:
         start := self.key_starts[frame]
         if count < 16:
             print := key_print(key)
@@ -1294,18 +1287,18 @@ impl TextWriter:
             self.key_count = at + 1
             return true
         if count == 16:
-            let index: mut Map[string, bool] = {}
+            let mut index: Map[string, bool] = {}
             let at: usize = start
             while at < self.key_count:
                 index[self.keys[at]] = true
                 at = at + 1
             self.indexes.push(index)
-        let index: mut Map[string, bool] = self.indexes[self.indexes.len() - 1]
-        before := index.len()
-        index[key] = true
-        index.len() > before
+        last := self.indexes.len() - 1
+        before := self.indexes[last].len()
+        self.indexes[last][key] = true
+        self.indexes[last].len() > before
 
-    fn open(mut self, kind: FrameKind, name: string) -> Result[void, Irregular]:
+    fn open(&mut self, kind: FrameKind, name: string) -> Result[void, Irregular]:
         self.start()?
         match kind:
             .Items => self.parts.push("[")
@@ -1329,7 +1322,7 @@ impl TextWriter:
     # Ends the innermost frame, which must be of `kind`; `Record` also ends
     # a `Tagged` frame. A variant with no member is its name
     # (r-std-json.derive.to-json.unit).
-    fn close(mut self, kind: FrameKind) -> Result[void, Irregular]:
+    fn close(&mut self, kind: FrameKind) -> Result[void, Irregular]:
         if !self.regular:
             return .Err(Irregular.Walk)
         if self.depth == 0 || self.keyed:
@@ -1369,7 +1362,7 @@ impl TextWriter:
         .Ok(())
 
     # A key or a member name names the next value of an object.
-    fn name_next(mut self, key: string) -> Result[void, Irregular]:
+    fn name_next(&mut self, key: string) -> Result[void, Irregular]:
         if !self.regular:
             return .Err(Irregular.Walk)
         if self.depth == 0 || self.keyed:
@@ -1381,7 +1374,7 @@ impl TextWriter:
         self.keyed = true
         .Ok(())
 
-    fn scalar(mut self, text: string) -> Result[void, Irregular]:
+    fn scalar(&mut self, text: string) -> Result[void, Irregular]:
         self.start()?
         self.parts.push(text)
         .Ok(())
@@ -1389,51 +1382,51 @@ impl TextWriter:
 impl Serializer for TextWriter:
     type Error = Irregular
 
-    fn null(mut self) -> Result[void, Irregular]:
+    fn null(&mut self) -> Result[void, Irregular]:
         self.scalar("null")
 
-    fn bool(mut self, value: bool) -> Result[void, Irregular]:
+    fn bool(&mut self, value: bool) -> Result[void, Irregular]:
         self.scalar(if value: "true" else: "false")
 
-    fn int(mut self, value: i64) -> Result[void, Irregular]:
+    fn int(&mut self, value: i64) -> Result[void, Irregular]:
         self.scalar("$value")
 
-    fn uint(mut self, value: u64) -> Result[void, Irregular]:
+    fn uint(&mut self, value: u64) -> Result[void, Irregular]:
         self.scalar("$value")
 
     # A NaN or an infinity writes `null` (r-std-json.std.float-special).
-    fn float(mut self, value: f64) -> Result[void, Irregular]:
+    fn float(&mut self, value: f64) -> Result[void, Irregular]:
         if value.is_finite():
             return self.scalar("$value")
         self.scalar("null")
 
-    fn text(mut self, value: string) -> Result[void, Irregular]:
+    fn text(&mut self, value: string) -> Result[void, Irregular]:
         self.start()?
         push_quoted(self.parts, value)
         .Ok(())
 
-    fn begin_list(mut self, len: usize) -> Result[void, Irregular]:
+    fn begin_list(&mut self, len: usize) -> Result[void, Irregular]:
         self.open(FrameKind.Items, "")
 
-    fn end_list(mut self) -> Result[void, Irregular]:
+    fn end_list(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Items)
 
-    fn begin_map(mut self, len: usize) -> Result[void, Irregular]:
+    fn begin_map(&mut self, len: usize) -> Result[void, Irregular]:
         self.open(FrameKind.Entries, "")
 
-    fn key(mut self, key: string) -> Result[void, Irregular]:
+    fn key(&mut self, key: string) -> Result[void, Irregular]:
         self.name_next(key)
 
-    fn end_map(mut self) -> Result[void, Irregular]:
+    fn end_map(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Entries)
 
-    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, Irregular]:
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Irregular]:
         self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name)
 
-    fn member(mut self, m: Member) -> Result[void, Irregular]:
+    fn member(&mut self, m: Member) -> Result[void, Irregular]:
         self.name_next(m.name)
 
-    fn end_variant(mut self) -> Result[void, Irregular]:
+    fn end_variant(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Record)
 
 # The nesting levels a frame adds to the pretty text: a variant's
@@ -1474,28 +1467,28 @@ enum ReadKind:
 # when it closes, and a variant's name. A variant frame's container is the
 # payload object, or `null` for a variant written as its name. The stacks
 # keep their slots when a frame closes, and the next frame reuses them.
-data JsonReader:
+struct JsonReader:
     pub value: Json
     pub present: bool
     pub depth: usize
-    pub steps: mut List[i64]
-    pub names: mut List[string]
+    pub steps: List[i64]
+    pub names: List[string]
     pub open: usize
-    pub containers: mut List[Json]
-    pub kinds: mut List[ReadKind]
-    pub next: mut List[usize]
-    pub bases: mut List[usize]
-    pub homes: mut List[usize]
-    pub variants: mut List[string]
+    pub containers: List[Json]
+    pub kinds: List[ReadKind]
+    pub next: List[usize]
+    pub bases: List[usize]
+    pub homes: List[usize]
+    pub variants: List[string]
 
 impl JsonReader:
-    fn new(value: Json) -> mut JsonReader:
-        JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [] }
+    fn new(value: Json) -> &mut JsonReader:
+        &mut JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [] }
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
-    fn path_to(self, depth: usize) -> string:
-        let parts: mut List[string] = ["\$"]
+    fn path_to(&self, depth: usize) -> string:
+        let mut parts: List[string] = ["\$"]
         let index: usize = 0
         while index < depth:
             step := self.steps[index]
@@ -1509,20 +1502,20 @@ impl JsonReader:
 
     # A missing key is a `MissingField`; any other value that does not fit
     # is a `WrongType` (r-std-json.derive.from-json.missing).
-    fn fail(self, expected: string) -> JsonError:
+    fn fail(&self, expected: string) -> JsonError:
         path := self.path_to(self.depth)
         if !self.present:
             return JsonError.MissingField(path)
         JsonError.WrongType(path, expected)
 
-    fn step_index(mut self, slot: usize, index: usize) -> void:
+    fn step_index(&mut self, slot: usize, index: usize) -> void:
         if slot < self.steps.len():
             self.steps[slot] = i64(index)
         else:
             self.steps.push(i64(index))
             self.names.push("")
 
-    fn step_key(mut self, slot: usize, key: string) -> void:
+    fn step_key(&mut self, slot: usize, key: string) -> void:
         if slot < self.steps.len():
             self.steps[slot] = -1
             self.names[slot] = key
@@ -1531,7 +1524,7 @@ impl JsonReader:
             self.names.push(key)
 
     # Opens a frame whose items' container is at path depth `base`.
-    fn enter(mut self, container: Json, kind: ReadKind, base: usize, name: string) -> void:
+    fn enter(&mut self, container: Json, kind: ReadKind, base: usize, name: string) -> void:
         at := self.open
         if at < self.containers.len():
             self.containers[at] = container
@@ -1550,21 +1543,21 @@ impl JsonReader:
         self.open = at + 1
 
     # The innermost frame.
-    fn top(self) -> usize:
+    fn top(&self) -> usize:
         if self.open == 0:
             panic("std.json: no open container")
         self.open - 1
 
     # Closes the innermost frame; the cursor's path is its container's
     # again.
-    fn leave(mut self) -> void:
+    fn leave(&mut self) -> void:
         last := self.top()
         self.depth = self.homes[last]
         self.open = last
 
     # The item, or the map value, at `index` of the frame `last`, with its
     # path step.
-    fn read_item(mut self, last: usize, value: Json, index: usize) -> void:
+    fn read_item(&mut self, last: usize, value: Json, index: usize) -> void:
         self.next[last] = index + 1
         self.value = value
         self.present = true
@@ -1576,7 +1569,7 @@ impl JsonReader:
     # `last`: its value, or absent. A decoder reads the members in
     # declaration order, which is most often the text's, so the entry after
     # the last one found is tried before a search.
-    fn find_member(mut self, last: usize, name: string) -> void:
+    fn find_member(&mut self, last: usize, name: string) -> void:
         match self.containers[last]:
             .Object(fields) =>
                 entries := fields.entries
@@ -1598,7 +1591,7 @@ impl JsonReader:
 impl Deserializer for JsonReader:
     type Error = JsonError
 
-    fn peek(mut self) -> Result[ValueKind, JsonError]:
+    fn peek(&mut self) -> Result[ValueKind, JsonError]:
         if !self.present:
             return .Ok(ValueKind.Null)
         match self.value:
@@ -1618,10 +1611,10 @@ impl Deserializer for JsonReader:
             .Object(_) => .Ok(ValueKind.Map)
 
     # A missing key reads as `null` (r-std-json.derive.from-json.missing).
-    fn is_null(mut self) -> Result[bool, JsonError]:
+    fn is_null(&mut self) -> Result[bool, JsonError]:
         .Ok(!self.present || self.value.is_null())
 
-    fn bool(mut self, expected: string) -> Result[bool, JsonError]:
+    fn bool(&mut self, expected: string) -> Result[bool, JsonError]:
         if self.present:
             match self.value:
                 .Bool(flag) => return .Ok(flag)
@@ -1629,7 +1622,7 @@ impl Deserializer for JsonReader:
         .Err(self.fail(expected))
 
     # A float is never an integer (r-std-json.std.integer.read).
-    fn int(mut self, expected: string) -> Result[i64, JsonError]:
+    fn int(&mut self, expected: string) -> Result[i64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -1639,7 +1632,7 @@ impl Deserializer for JsonReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn uint(mut self, expected: string) -> Result[u64, JsonError]:
+    fn uint(&mut self, expected: string) -> Result[u64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -1649,7 +1642,7 @@ impl Deserializer for JsonReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn float(mut self, expected: string) -> Result[f64, JsonError]:
+    fn float(&mut self, expected: string) -> Result[f64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -1659,14 +1652,14 @@ impl Deserializer for JsonReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn text(mut self, expected: string) -> Result[string, JsonError]:
+    fn text(&mut self, expected: string) -> Result[string, JsonError]:
         if self.present:
             match self.value:
                 .Text(found) => return .Ok(found)
                 _ => pass
         .Err(self.fail(expected))
 
-    fn begin_list(mut self) -> Result[void, JsonError]:
+    fn begin_list(&mut self) -> Result[void, JsonError]:
         if self.present:
             match self.value:
                 .Array(_) =>
@@ -1677,7 +1670,7 @@ impl Deserializer for JsonReader:
 
     # An item's path adds `[index]` (r-std-json.std.item-path). A map's
     # items are its values; a variant has none.
-    fn next_item(mut self) -> Result[bool, JsonError]:
+    fn next_item(&mut self) -> Result[bool, JsonError]:
         last := self.top()
         index := self.next[last]
         match self.kinds[last]:
@@ -1699,7 +1692,7 @@ impl Deserializer for JsonReader:
         self.leave()
         .Ok(false)
 
-    fn begin_map(mut self) -> Result[void, JsonError]:
+    fn begin_map(&mut self) -> Result[void, JsonError]:
         if self.present:
             match self.value:
                 .Object(_) =>
@@ -1710,7 +1703,7 @@ impl Deserializer for JsonReader:
 
     # A map value's path adds `.key` (r-std-json.std.item-path). A list
     # has no keys, and a variant has none to iterate.
-    fn next_key(mut self) -> Result[string?, JsonError]:
+    fn next_key(&mut self) -> Result[string?, JsonError]:
         last := self.top()
         index := self.next[last]
         match self.kinds[last]:
@@ -1740,7 +1733,7 @@ impl Deserializer for JsonReader:
     # A data type reads an object. An enum reads `"Variant"` as
     # `{"Variant": {}}`, or an object with exactly one key
     # (r-std-json.derive.from-json.enum).
-    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present:
                 match self.value:
@@ -1781,7 +1774,7 @@ impl Deserializer for JsonReader:
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member). A list or a map has no members.
-    fn member(mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: Member) -> Result[void, JsonError]:
         last := self.top()
         base := self.bases[last]
         match self.kinds[last]:
@@ -1796,16 +1789,16 @@ impl Deserializer for JsonReader:
         self.depth = base + 1
         .Ok(())
 
-    fn end_variant(mut self) -> Result[void, JsonError]:
+    fn end_variant(&mut self) -> Result[void, JsonError]:
         self.leave()
         .Ok(())
 
-    fn invalid(mut self, expected: string) -> JsonError:
+    fn invalid(&mut self, expected: string) -> JsonError:
         self.fail(expected)
 
     # A missing key is absent, so a member with a declared default takes
     # it (r-std-json.derive.from-json.default).
-    fn is_absent(mut self) -> bool:
+    fn is_absent(&mut self) -> bool:
         !self.present
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler

@@ -1,11 +1,11 @@
 # test: the List[string] join method puts the separator between parts, and StringBuilder joins pushed text in order
-# Spec std/text Joining And Building: std-text.join.list-result, std-text.join.list-method, std-text.builder.new, .push, .push-char, .build.
+# Spec std/text Joining And Building: std-text.join.list-result, std-text.join.list-method, std-text.builder.new-ref, .push-ref, .push-char-ref, .build.
 use std.text.StringBuilder
 fn csv(cells: List[string]) -> string:
     cells.join(",")
 
 fn report(names: List[string]) -> string:
-    let mut out = StringBuilder::new()
+    out := StringBuilder::new()
     for name in names:
         out.push("- ").push(name).push_char('\n')
     out.build()
@@ -24,7 +24,7 @@ tests:
 
     it("builds"):
         assert_equal(report(["Ada", "Bo"]), "- Ada\n- Bo\n", reason="in push order")
-        let mut empty = StringBuilder::new()
+        empty := StringBuilder::new()
         assert_equal(empty.build(), "", reason="an empty builder")
         empty.push("x")
         assert_equal(empty.build(), "x", reason="build leaves it unchanged")
@@ -32,7 +32,7 @@ tests:
 
     it("chains and pushes characters"):
         assert_equal(StringBuilder::new().push("a").push_char('b').build(), "ab", reason="push chains into push_char")
-        let mut out = StringBuilder::new()
+        out := StringBuilder::new()
         out.push_char('a').push_char('\u{e9}').push_char('\u{20ac}').push_char('\u{1f600}').push("!")
         assert_equal(out.build(), "a\u{e9}\u{20ac}\u{1f600}!", reason="1-, 2-, 3- and 4-byte scalars")
         assert_equal(out.build().len(), 11, reason="ten bytes of scalars and one of text")

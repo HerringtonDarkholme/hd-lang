@@ -1,0 +1,14 @@
+# test: EscapeError is a value: a copy keeps its position when the source changes, and process_escapes returns one at the backslash
+# Spec std/text Prefix Helpers: std-text.prefix-helper.escape-error-value, std-text.prefix-helper.escapes.
+# expect-stdout: 7 1 true
+# expect-stdout: 2
+use std.text.{EscapeError, process_escapes}
+
+pub fn main() -> void $ Console:
+    let mut first = EscapeError { position: 1 }
+    second := first
+    first.position = 7
+    println("${first.position} ${second.position} ${second == EscapeError { position: 1 }}")
+    match process_escapes("ab\\q"):
+        .Ok(_) => println("no error")
+        .Err(error) => println("${error.position}")

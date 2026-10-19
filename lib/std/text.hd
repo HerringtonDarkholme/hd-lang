@@ -24,7 +24,7 @@ pub fn r(t: Template[dyn Display]) -> string:
 ## Joins a template's pieces with the `Display` text of each value, which every literal function uses.
 ## See [std-text.prefix-helper.interpolate](../../spec/std/text.md#r-std-text.prefix-helper.interpolate).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
-    let pieces: mut List[string] = [t.raw_parts[0]]
+    let mut pieces: List[string] = [t.raw_parts[0]]
     let index: usize = 0
     while index < t.values.len():
         pieces.push(t.values[index].to_string())
@@ -35,10 +35,10 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
 ## A template expression that is not well formed, at a byte position.
-## See [std-text.prefix-helper.escape-error](../../spec/std/text.md#r-std-text.prefix-helper.escape-error).
-pub data EscapeError:
+## See [std-text.prefix-helper.escape-error-value](../../spec/std/text.md#r-std-text.prefix-helper.escape-error-value).
+pub struct EscapeError:
     ## The byte offset of the first character that makes the expression malformed.
-    ## See [std-text.prefix-helper.escape-error](../../spec/std/text.md#r-std-text.prefix-helper.escape-error).
+    ## See [std-text.prefix-helper.escape-error-value](../../spec/std/text.md#r-std-text.prefix-helper.escape-error-value).
     pub position: usize
 
 impl Eq for EscapeError:
@@ -53,7 +53,7 @@ impl Eq for EscapeError:
 ## See [std-text.prefix-helper.escapes](../../spec/std/text.md#r-std-text.prefix-helper.escapes).
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     size := bytes_len(text)
-    let pieces: mut List[string] = []
+    let mut pieces: List[string] = []
     let plain: usize = 0
     let index: usize = 0
     while index < size:
@@ -96,7 +96,7 @@ fn simple_escape(escaped: u8) -> string?:
         36 => .Some("\$")
         _ => .None
 
-data EscapedScalar:
+struct EscapedScalar:
     text: string
     end: usize
 
@@ -303,7 +303,7 @@ impl string:
     ## Returns the string's bytes as a new list.
     ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
     pub fn to_utf8(self) -> List[u8]:
-        let found: mut List[u8] = []
+        let mut found: List[u8] = []
         for byte in self.bytes():
             found.push(byte)
         found
@@ -386,7 +386,7 @@ impl string:
     ## Splits at the first `n - 1` occurrences of `separator`; the last piece holds the rest.
     ## See [std-text.splitn](../../spec/std/text.md#r-std-text.splitn).
     pub fn splitn(self, separator: string, n: usize) -> List[string]:
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         if n == 0:
             return pieces
         size := bytes_len(self)
@@ -416,7 +416,7 @@ impl string:
     ## Splits the string around each occurrence of `separator`, in order.
     ## See [std-text.string.split](../../spec/std/text.md#r-std-text.string.split).
     pub fn split(self, separator: string) -> List[string]:
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         size := bytes_len(self)
         if bytes_len(separator) == 0:
             let start: usize = 0
@@ -446,7 +446,7 @@ impl string:
         size := bytes_len(self)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again every time.
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         if bytes_len(old) == 0:
             pieces.push(replacement)
             let start: usize = 0
@@ -527,7 +527,7 @@ impl string:
     ## See [std-text.string.lines](../../spec/std/text.md#r-std-text.string.lines).
     pub fn lines(self) -> List[string]:
         pieces := self.split("\n")
-        let found: mut List[string] = []
+        let mut found: List[string] = []
         let index: usize = 0
         while index < pieces.len():
             piece := pieces[index]
@@ -572,7 +572,7 @@ impl string:
     ## Splits on runs of whitespace, with no empty pieces.
     ## See [std-text.split-whitespace](../../spec/std/text.md#r-std-text.split-whitespace).
     pub fn split_whitespace(self) -> List[string]:
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         size := bytes_len(self)
         let start: usize = 0
         while start < size:
@@ -676,7 +676,7 @@ impl List[string]:
         if bytes_len(separator) == 0:
             return concat_all(self)
         # The parts with a separator between each two, then one copy of all.
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         for part in self:
             if pieces.len() > 0:
                 pieces.push(separator)
@@ -684,27 +684,27 @@ impl List[string]:
         concat_all(pieces)
 
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
-## See [std-text.builder.decl](../../spec/std/text.md#r-std-text.builder.decl).
-pub data StringBuilder:
-    parts: mut List[string]
-    chars: mut List[u8]
+## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).
+pub struct StringBuilder:
+    parts: List[string]
+    chars: List[u8]
 
 impl StringBuilder:
-    ## Returns an empty builder.
-    ## See [std-text.builder.new](../../spec/std/text.md#r-std-text.builder.new).
-    pub fn new() -> mut StringBuilder:
-        StringBuilder { parts: [], chars: [] }
+    ## Returns an empty builder, a new object that `push` changes.
+    ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
+    pub fn new() -> &mut StringBuilder:
+        &mut StringBuilder { parts: [], chars: [] }
 
     ## Appends `text` and returns the builder, so calls chain.
-    ## See [std-text.builder.push](../../spec/std/text.md#r-std-text.builder.push).
-    pub fn push(mut self, text: string) -> mut StringBuilder:
+    ## See [std-text.builder.push-ref](../../spec/std/text.md#r-std-text.builder.push-ref).
+    pub fn push(&mut self, text: string) -> &mut StringBuilder:
         self.flush()
         self.parts.push(text)
         self
 
     ## Appends the character `c` and returns the builder, so calls chain.
-    ## See [std-text.builder.push-char](../../spec/std/text.md#r-std-text.builder.push-char).
-    pub fn push_char(mut self, c: char) -> mut StringBuilder:
+    ## See [std-text.builder.push-char-ref](../../spec/std/text.md#r-std-text.builder.push-char-ref).
+    pub fn push_char(&mut self, c: char) -> &mut StringBuilder:
         point := i32(char_scalar(c))
         if point < 128:
             self.chars.push(u8(point))
@@ -724,18 +724,18 @@ impl StringBuilder:
 
     ## Returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
     ## See [std-text.builder.build](../../spec/std/text.md#r-std-text.builder.build).
-    pub fn build(self) -> string:
+    pub fn build(&self) -> string:
         concat_all(self.pieces())
 
     # Moves the pushed characters' bytes into `parts` as one string.
-    fn flush(mut self) -> void:
+    fn flush(&mut self) -> void:
         if self.chars.len() > 0:
             self.parts.push(string_from_bytes(self.chars))
             self.chars = []
 
     # The parts, then the characters pushed since the last text.
-    fn pieces(self) -> List[string]:
-        let found: mut List[string] = []
+    fn pieces(&self) -> List[string]:
+        let mut found: List[string] = []
         for part in self.parts:
             found.push(part)
         if self.chars.len() > 0:
@@ -768,7 +768,7 @@ fn byte_rfind(text: string, needle: string) -> usize?:
         return .None
     if size == 0:
         return .Some(end)
-    let fail: mut List[usize] = [0]
+    let mut fail: List[usize] = [0]
     let matched: usize = 0
     let index: usize = 1
     while index < size:
@@ -798,7 +798,7 @@ fn byte_rfind(text: string, needle: string) -> usize?:
 # time, constant space. `periodic`: the needle has period `period`, so a
 # shift keeps `size - period` bytes matched. `byteset` has bit `b % 64`
 # for each needle byte, to skip windows whose last byte is not in it.
-data Searcher:
+struct Searcher:
     needle: string
     split: usize
     period: usize

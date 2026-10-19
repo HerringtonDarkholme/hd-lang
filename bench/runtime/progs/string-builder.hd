@@ -1,7 +1,7 @@
 use std.text.StringBuilder
 
 fn build(n: i32) -> string:
-    let out: mut StringBuilder = StringBuilder::new()
+    out := StringBuilder::new()
     let i = +0
     while i < n:
         out.push("abcdefgh")

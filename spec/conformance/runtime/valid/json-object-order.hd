@@ -1,5 +1,5 @@
 # test: an object keeps its members in insertion order, a duplicate key keeps its first place with the last value, and parse then print keeps the text's key order
-# Spec std/json Values, Json Objects, Parsing, Writing: std-json.value.object-type, std-json.object.order, std-json.object.set, std-json.parse.object.source-order, std-json.parse.object.duplicate-last, std-json.display.object-order (JSON-SURFACE; task #226).
+# Spec std/json Values, Json Objects, Parsing, Writing: std-json.value.object-type, std-json.object.order, std-json.object.set-ref, std-json.parse.object.source-order, std-json.parse.object.duplicate-last, std-json.display.object-order (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonObject}
 fn read(text: string) -> Json:
     match parse(text):
@@ -29,7 +29,7 @@ tests:
         assert_equal(value.get("b"), .Some(read("3")), reason="get")
 
     it("an object built with set prints in the order of its first sets"):
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         fields.set("z", Json.Bool(true))
         fields.set("a", Json.Null)
         fields.set("m", Json.Array([]))

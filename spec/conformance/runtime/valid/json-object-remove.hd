@@ -1,12 +1,12 @@
 # test: JsonObject.remove gives the removed value, keeps the order of the other members, gives none for a missing key, and keeps lookups right in an object with an index
-# Spec std/json Json Objects: std-json.object.remove, std-json.object.order.
+# Spec std/json Json Objects: std-json.object.remove-ref, std-json.object.order.
 use std.json.{Json, JsonObject}
 
 tests:
     use std.testing.{assert, assert_equal}
 
     it("remove returns the value and keeps the order of the rest"):
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         fields.set("a", Json.Bool(true))
         fields.set("b", Json.Null)
         fields.set("c", Json.Text("x"))
@@ -17,13 +17,13 @@ tests:
         assert_equal("${Json.Object(fields)}", "{\"a\":true,\"c\":\"x\"}", reason="printed")
 
     it("a missing key is none and changes nothing"):
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         fields.set("a", Json.Null)
         assert(fields.remove("z").is_none(), reason="missing")
         assert_equal(fields.keys(), ["a"], reason="unchanged")
 
     it("the first and last members can be removed, and a key can be set again"):
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         fields.set("a", Json.Null)
         fields.set("b", Json.Null)
         fields.set("c", Json.Null)
@@ -34,7 +34,7 @@ tests:
         assert_equal(fields.keys(), ["b", "a"], reason="set after remove goes last")
 
     it("an object past the index threshold keeps every lookup right after a remove"):
-        let fields: mut JsonObject = JsonObject::new()
+        let mut fields = JsonObject::new()
         let at: i64 = 0
         while at < 12:
             fields.set("k${at}", Json.Bool(at % 2 == 0))

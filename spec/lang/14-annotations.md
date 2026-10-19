@@ -1758,27 +1758,27 @@ protocol they drive:
 
 ```text
 pub trait Serialize:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]
 
 pub trait Deserialize:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Self, R::Error]
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
 
 pub trait Serializer:
     type Error
-    fn null(mut self) -> Result[void, Self::Error]
-    fn bool(mut self, value: bool) -> Result[void, Self::Error]
-    fn int(mut self, value: i64) -> Result[void, Self::Error]
-    fn uint(mut self, value: u64) -> Result[void, Self::Error]
-    fn float(mut self, value: f64) -> Result[void, Self::Error]
-    fn text(mut self, value: string) -> Result[void, Self::Error]
-    fn begin_list(mut self, len: usize) -> Result[void, Self::Error]
-    fn end_list(mut self) -> Result[void, Self::Error]
-    fn begin_map(mut self, len: usize) -> Result[void, Self::Error]
-    fn key(mut self, key: string) -> Result[void, Self::Error]
-    fn end_map(mut self) -> Result[void, Self::Error]
-    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
-    fn member(mut self, m: Member) -> Result[void, Self::Error]
-    fn end_variant(mut self) -> Result[void, Self::Error]
+    fn null(&mut self) -> Result[void, Self::Error]
+    fn bool(&mut self, value: bool) -> Result[void, Self::Error]
+    fn int(&mut self, value: i64) -> Result[void, Self::Error]
+    fn uint(&mut self, value: u64) -> Result[void, Self::Error]
+    fn float(&mut self, value: f64) -> Result[void, Self::Error]
+    fn text(&mut self, value: string) -> Result[void, Self::Error]
+    fn begin_list(&mut self, len: usize) -> Result[void, Self::Error]
+    fn end_list(&mut self) -> Result[void, Self::Error]
+    fn begin_map(&mut self, len: usize) -> Result[void, Self::Error]
+    fn key(&mut self, key: string) -> Result[void, Self::Error]
+    fn end_map(&mut self) -> Result[void, Self::Error]
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
+    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(&mut self) -> Result[void, Self::Error]
 
 pub enum ValueKind:
     Null
@@ -1792,22 +1792,22 @@ pub enum ValueKind:
 
 pub trait Deserializer:
     type Error
-    fn peek(mut self) -> Result[ValueKind, Self::Error]
-    fn is_null(mut self) -> Result[bool, Self::Error]
-    fn bool(mut self, expected: string) -> Result[bool, Self::Error]
-    fn int(mut self, expected: string) -> Result[i64, Self::Error]
-    fn uint(mut self, expected: string) -> Result[u64, Self::Error]
-    fn float(mut self, expected: string) -> Result[f64, Self::Error]
-    fn text(mut self, expected: string) -> Result[string, Self::Error]
-    fn begin_list(mut self) -> Result[void, Self::Error]
-    fn next_item(mut self) -> Result[bool, Self::Error]
-    fn begin_map(mut self) -> Result[void, Self::Error]
-    fn next_key(mut self) -> Result[string?, Self::Error]
-    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
-    fn member(mut self, m: Member) -> Result[void, Self::Error]
-    fn end_variant(mut self) -> Result[void, Self::Error]
-    fn invalid(mut self, expected: string) -> Self::Error
-    fn is_absent(mut self) -> bool:
+    fn peek(&mut self) -> Result[ValueKind, Self::Error]
+    fn is_null(&mut self) -> Result[bool, Self::Error]
+    fn bool(&mut self, expected: string) -> Result[bool, Self::Error]
+    fn int(&mut self, expected: string) -> Result[i64, Self::Error]
+    fn uint(&mut self, expected: string) -> Result[u64, Self::Error]
+    fn float(&mut self, expected: string) -> Result[f64, Self::Error]
+    fn text(&mut self, expected: string) -> Result[string, Self::Error]
+    fn begin_list(&mut self) -> Result[void, Self::Error]
+    fn next_item(&mut self) -> Result[bool, Self::Error]
+    fn begin_map(&mut self) -> Result[void, Self::Error]
+    fn next_key(&mut self) -> Result[string?, Self::Error]
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
+    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(&mut self) -> Result[void, Self::Error]
+    fn invalid(&mut self, expected: string) -> Self::Error
+    fn is_absent(&mut self) -> bool:
         false
 ```
 

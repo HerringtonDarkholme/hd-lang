@@ -6,35 +6,35 @@ use std.structure.{Facts, VariantInfo, Member}
 
 # A reader of `uint` values in order. A member named in `gaps` has no
 # value. It logs each call as a word.
-data Gappy:
+struct Gappy:
     pub values: List[u64]
     pub at: usize
     pub gaps: List[string]
     pub missing: bool
-    pub log: mut List[string]
+    pub log: List[string]
 
 # The same reader, without `is_absent`: the trait's default body answers.
-data Plain:
+struct Plain:
     pub values: List[u64]
     pub at: usize
-    pub log: mut List[string]
+    pub log: List[string]
 
 impl Deserializer for Gappy:
     type Error = string
 
-    fn peek(mut self) -> Result[ValueKind, string]:
+    fn peek(&mut self) -> Result[ValueKind, string]:
         .Ok(ValueKind.Uint)
 
-    fn is_null(mut self) -> Result[bool, string]:
+    fn is_null(&mut self) -> Result[bool, string]:
         .Ok(false)
 
-    fn bool(mut self, expected: string) -> Result[bool, string]:
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
         .Err(self.invalid(expected))
 
-    fn int(mut self, expected: string) -> Result[i64, string]:
+    fn int(&mut self, expected: string) -> Result[i64, string]:
         .Err(self.invalid(expected))
 
-    fn uint(mut self, expected: string) -> Result[u64, string]:
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
         self.log.push("uint")
         if self.missing || self.at >= self.values.len():
             return .Err("missing")
@@ -42,58 +42,58 @@ impl Deserializer for Gappy:
         self.at = self.at + 1
         .Ok(found)
 
-    fn float(mut self, expected: string) -> Result[f64, string]:
+    fn float(&mut self, expected: string) -> Result[f64, string]:
         .Err(self.invalid(expected))
 
-    fn text(mut self, expected: string) -> Result[string, string]:
+    fn text(&mut self, expected: string) -> Result[string, string]:
         .Err(self.invalid(expected))
 
-    fn begin_list(mut self) -> Result[void, string]:
+    fn begin_list(&mut self) -> Result[void, string]:
         .Err("no list")
 
-    fn next_item(mut self) -> Result[bool, string]:
+    fn next_item(&mut self) -> Result[bool, string]:
         .Ok(false)
 
-    fn begin_map(mut self) -> Result[void, string]:
+    fn begin_map(&mut self) -> Result[void, string]:
         .Err("no map")
 
-    fn next_key(mut self) -> Result[string?, string]:
+    fn next_key(&mut self) -> Result[string?, string]:
         .Ok(.None)
 
-    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
 
-    fn member(mut self, m: Member) -> Result[void, string]:
+    fn member(&mut self, m: Member) -> Result[void, string]:
         self.log.push("member:${m.name}")
         self.missing = self.gaps.contains(m.name)
         .Ok(())
 
-    fn end_variant(mut self) -> Result[void, string]:
+    fn end_variant(&mut self) -> Result[void, string]:
         .Ok(())
 
-    fn invalid(mut self, expected: string) -> string:
+    fn invalid(&mut self, expected: string) -> string:
         "invalid $expected"
 
-    fn is_absent(mut self) -> bool:
+    fn is_absent(&mut self) -> bool:
         self.log.push("absent?")
         self.missing
 
 impl Deserializer for Plain:
     type Error = string
 
-    fn peek(mut self) -> Result[ValueKind, string]:
+    fn peek(&mut self) -> Result[ValueKind, string]:
         .Ok(ValueKind.Uint)
 
-    fn is_null(mut self) -> Result[bool, string]:
+    fn is_null(&mut self) -> Result[bool, string]:
         .Ok(false)
 
-    fn bool(mut self, expected: string) -> Result[bool, string]:
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
         .Err(self.invalid(expected))
 
-    fn int(mut self, expected: string) -> Result[i64, string]:
+    fn int(&mut self, expected: string) -> Result[i64, string]:
         .Err(self.invalid(expected))
 
-    fn uint(mut self, expected: string) -> Result[u64, string]:
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
         self.log.push("uint")
         if self.at >= self.values.len():
             return .Err("missing")
@@ -101,35 +101,35 @@ impl Deserializer for Plain:
         self.at = self.at + 1
         .Ok(found)
 
-    fn float(mut self, expected: string) -> Result[f64, string]:
+    fn float(&mut self, expected: string) -> Result[f64, string]:
         .Err(self.invalid(expected))
 
-    fn text(mut self, expected: string) -> Result[string, string]:
+    fn text(&mut self, expected: string) -> Result[string, string]:
         .Err(self.invalid(expected))
 
-    fn begin_list(mut self) -> Result[void, string]:
+    fn begin_list(&mut self) -> Result[void, string]:
         .Err("no list")
 
-    fn next_item(mut self) -> Result[bool, string]:
+    fn next_item(&mut self) -> Result[bool, string]:
         .Ok(false)
 
-    fn begin_map(mut self) -> Result[void, string]:
+    fn begin_map(&mut self) -> Result[void, string]:
         .Err("no map")
 
-    fn next_key(mut self) -> Result[string?, string]:
+    fn next_key(&mut self) -> Result[string?, string]:
         .Ok(.None)
 
-    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
 
-    fn member(mut self, m: Member) -> Result[void, string]:
+    fn member(&mut self, m: Member) -> Result[void, string]:
         self.log.push("member:${m.name}")
         .Ok(())
 
-    fn end_variant(mut self) -> Result[void, string]:
+    fn end_variant(&mut self) -> Result[void, string]:
         .Ok(())
 
-    fn invalid(mut self, expected: string) -> string:
+    fn invalid(&mut self, expected: string) -> string:
         "invalid $expected"
 
 @derive(Deserialize)
@@ -138,13 +138,13 @@ data Limits:
     retries: u32 = 3
 
 fn gappy(values: List[u64], gaps: List[string]) -> (Result[Limits, string], string):
-    let input: mut Gappy = Gappy { values: values, at: 0, gaps: gaps, missing: false, log: [] }
-    result := Limits::deserialize(input)
+    let mut input = Gappy { values: values, at: 0, gaps: gaps, missing: false, log: [] }
+    result := Limits::deserialize(&mut input)
     (result, input.log.join(" "))
 
 fn plain(values: List[u64]) -> (Result[Limits, string], string):
-    let input: mut Plain = Plain { values: values, at: 0, log: [] }
-    result := Limits::deserialize(input)
+    let mut input = Plain { values: values, at: 0, log: [] }
+    result := Limits::deserialize(&mut input)
     (result, input.log.join(" "))
 
 tests:

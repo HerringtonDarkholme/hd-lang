@@ -331,7 +331,7 @@ fn csv(cells: List[string]) -> string:
     cells.join(",")
 
 fn report(names: List[string]) -> string:
-    let mut out = StringBuilder::new()
+    out := StringBuilder::new()
     for name in names:
         out.push("- ").push(name).push_char('\n')
     out.build()
@@ -339,10 +339,10 @@ fn report(names: List[string]) -> string:
 
 1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`. Calling it needs no import.
 2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
-3. r[std-text.builder.decl] `std.text` declares `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
-4. r[std-text.builder.new] `StringBuilder::new() -> mut StringBuilder` returns an empty builder.
-5. r[std-text.builder.push] `b.push(text: string) -> mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
-6. r[std-text.builder.push-char] `b.push_char(c: char) -> mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `mut self`.
+3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
+4. r[std-text.builder.new-ref] `StringBuilder::new() -> &mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
+5. r[std-text.builder.push-ref] `b.push(text: string) -> &mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `&mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
+6. r[std-text.builder.push-char-ref] `b.push_char(c: char) -> &mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `&mut self`.
 7. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
@@ -371,7 +371,7 @@ fn cooked(t: Template[i32]) -> string:
 
 1. r[std-text.prefix-helper.interpolate] `std.text` declares `pub fn interpolate[T < Display](t: Template[T]) -> string`, which joins the raw pieces and the values' `Display` text, alternating, starting with the first piece.
 2. r[std-text.prefix-helper.escapes] `std.text` declares `pub fn process_escapes(text: string) -> Result[string, EscapeError]`, which replaces each escape sequence of [Escape Sequences](../lang/01-lexical-structure.md#escape-sequences) with its meaning.
-3. r[std-text.prefix-helper.escape-error] `std.text` declares `pub data EscapeError` with one public field, `position: usize`, the byte offset of the first invalid escape's backslash. It implements `Eq` and `Debug`.
+3. r[std-text.prefix-helper.escape-error-value] `std.text` declares `pub struct EscapeError`, a value with one public field, `position: usize`, the byte offset of the first invalid escape's backslash. It implements `Eq` and `Debug`.
 4. r[std-text.prefix-helper.final-backslash] A lone final backslash is an invalid escape.
 
 | Call | Result |

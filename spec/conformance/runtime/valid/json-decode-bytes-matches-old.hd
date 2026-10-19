@@ -1,5 +1,5 @@
 # test: parse on the input's bytes and from_json with lazy paths give the same values and the same errors as the parser and reader they replaced
-# Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.out-of-range, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
+# Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.out-of-range, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set-ref, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
 use std.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
 use std.num.parse_f64
 use std.serde.{Deserialize, Deserializer, ValueKind}
@@ -92,7 +92,7 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, Jso
 fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
-    let fields: mut JsonObject = JsonObject::new()
+    let mut fields = JsonObject::new()
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 125:
         return .Ok(Parsed { value: Json.Object(fields), end: index + 1 })
@@ -304,12 +304,12 @@ data OldFrame:
 # `present` is false for a member whose key is missing, and `path` is the
 # cursor's path (r-std-json.error.path). `at` holds each open frame's next
 # index.
-data OldReader:
+struct OldReader:
     pub value: Json
     pub present: bool
     pub path: string
-    pub frames: mut List[OldFrame]
-    pub at: mut List[usize]
+    pub frames: List[OldFrame]
+    pub at: List[usize]
 
 impl OldReader:
     # A missing key is a `MissingField`; any other value that does not fit
@@ -319,7 +319,7 @@ impl OldReader:
             return JsonError.MissingField(self.path)
         JsonError.WrongType(self.path, expected)
 
-    fn push(mut self, frame: OldFrame) -> void:
+    fn push(&mut self, frame: OldFrame) -> void:
         self.frames.push(frame)
         self.at.push(0)
 
@@ -328,7 +328,7 @@ impl OldReader:
             .Some(frame) => frame
             .None => panic("std.json: no open container")
 
-    fn pop(mut self) -> void:
+    fn pop(&mut self) -> void:
         frame := self.top()
         _ := self.frames.pop()
         _ := self.at.pop()
@@ -337,7 +337,7 @@ impl OldReader:
 impl Deserializer for OldReader:
     type Error = JsonError
 
-    fn peek(mut self) -> Result[ValueKind, JsonError]:
+    fn peek(&mut self) -> Result[ValueKind, JsonError]:
         if !self.present:
             return .Ok(ValueKind.Null)
         match self.value:
@@ -355,10 +355,10 @@ impl Deserializer for OldReader:
             .Object(_) => .Ok(ValueKind.Map)
 
     # A missing key reads as `null` (r-std-json.derive.from-json.missing).
-    fn is_null(mut self) -> Result[bool, JsonError]:
+    fn is_null(&mut self) -> Result[bool, JsonError]:
         .Ok(!self.present || self.value.is_null())
 
-    fn bool(mut self, expected: string) -> Result[bool, JsonError]:
+    fn bool(&mut self, expected: string) -> Result[bool, JsonError]:
         if self.present:
             match self.value:
                 .Bool(flag) => return .Ok(flag)
@@ -366,7 +366,7 @@ impl Deserializer for OldReader:
         .Err(self.fail(expected))
 
     # A float is never an integer (r-std-json.std.integer.read).
-    fn int(mut self, expected: string) -> Result[i64, JsonError]:
+    fn int(&mut self, expected: string) -> Result[i64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -376,7 +376,7 @@ impl Deserializer for OldReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn uint(mut self, expected: string) -> Result[u64, JsonError]:
+    fn uint(&mut self, expected: string) -> Result[u64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -386,7 +386,7 @@ impl Deserializer for OldReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn float(mut self, expected: string) -> Result[f64, JsonError]:
+    fn float(&mut self, expected: string) -> Result[f64, JsonError]:
         if self.present:
             match self.value:
                 .Number(number) =>
@@ -396,14 +396,14 @@ impl Deserializer for OldReader:
                 _ => pass
         .Err(self.fail(expected))
 
-    fn text(mut self, expected: string) -> Result[string, JsonError]:
+    fn text(&mut self, expected: string) -> Result[string, JsonError]:
         if self.present:
             match self.value:
                 .Text(found) => return .Ok(found)
                 _ => pass
         .Err(self.fail(expected))
 
-    fn begin_list(mut self) -> Result[void, JsonError]:
+    fn begin_list(&mut self) -> Result[void, JsonError]:
         if self.present:
             match self.value:
                 .Array(items) =>
@@ -413,7 +413,7 @@ impl Deserializer for OldReader:
         .Err(self.fail("array"))
 
     # An item's path adds `[index]` (r-std-json.std.item-path).
-    fn next_item(mut self) -> Result[bool, JsonError]:
+    fn next_item(&mut self) -> Result[bool, JsonError]:
         frame := self.top()
         last := self.at.len() - 1
         index := self.at[last]
@@ -426,7 +426,7 @@ impl Deserializer for OldReader:
         self.path = "${frame.base}[$index]"
         .Ok(true)
 
-    fn begin_map(mut self) -> Result[void, JsonError]:
+    fn begin_map(&mut self) -> Result[void, JsonError]:
         if self.present:
             match self.value:
                 .Object(fields) =>
@@ -441,7 +441,7 @@ impl Deserializer for OldReader:
         .Err(self.fail("object"))
 
     # A map value's path adds `.key` (r-std-json.std.item-path).
-    fn next_key(mut self) -> Result[string?, JsonError]:
+    fn next_key(&mut self) -> Result[string?, JsonError]:
         frame := self.top()
         last := self.at.len() - 1
         index := self.at[last]
@@ -458,7 +458,7 @@ impl Deserializer for OldReader:
     # A data type reads an object. An enum reads `"Variant"` as
     # `{"Variant": {}}`, or an object with exactly one key
     # (r-std-json.derive.from-json.enum).
-    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present:
                 match self.value:
@@ -496,7 +496,7 @@ impl Deserializer for OldReader:
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member).
-    fn member(mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: Member) -> Result[void, JsonError]:
         frame := self.top()
         self.path = "${frame.base}.${m.name}"
         match frame.fields.get(m.name):
@@ -508,15 +508,15 @@ impl Deserializer for OldReader:
                 self.present = false
         .Ok(())
 
-    fn end_variant(mut self) -> Result[void, JsonError]:
+    fn end_variant(&mut self) -> Result[void, JsonError]:
         self.pop()
         .Ok(())
 
-    fn invalid(mut self, expected: string) -> JsonError:
+    fn invalid(&mut self, expected: string) -> JsonError:
         self.fail(expected)
 fn old_from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
-    let reader: mut OldReader = OldReader { value: value, present: true, path: "\$", frames: [], at: [] }
-    T::deserialize(reader)
+    let mut reader = OldReader { value: value, present: true, path: "\$", frames: [], at: [] }
+    T::deserialize(&mut reader)
 
 fn old_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
     value := old_parse(text)?
@@ -764,7 +764,7 @@ fn any_json(c: mut Choices, depth: i32) -> Json:
                 items.push(any_json(c, depth + 1))
             Json.Array(items)
         _ =>
-            let fields: mut JsonObject = JsonObject::new()
+            let mut fields = JsonObject::new()
             for _ in 0..c.int(0..=11):
                 fields.set(c.choose(["a", "b", "x", "y", "k0", "D", "name", "f3", "since", "0"]), any_json(c, depth + 1))
             Json.Object(fields)
@@ -792,7 +792,7 @@ fn object_of(c: mut Choices, pairs: List[(string, Json)]) -> Json:
         ordered.push(pair)
     if c.int(0..=4) == 4:
         ordered.insert(c.int(usize(0)..=ordered.len()), (c.choose(["extra", "x", "Name", "name "]), any_json(c, 2)))
-    let fields: mut JsonObject = JsonObject::new()
+    let mut fields = JsonObject::new()
     walk := if c.int(0..=3) == 3: ordered.reversed() else: ordered
     for pair in walk:
         fields.set(pair._0, pair._1)
@@ -818,7 +818,7 @@ fn role_json(c: mut Choices) -> Json:
             wrap("Pair", object_of(c, pairs))
         5 => wrap(c.choose(["Member", "Guest", "Owner"]), maybe(c, int_json(3)))
         6 =>
-            let fields: mut JsonObject = JsonObject::new()
+            let mut fields = JsonObject::new()
             fields.set("Guest", Json.Object(JsonObject::new()))
             fields.set("Member", Json.Object(JsonObject::new()))
             Json.Object(fields)
@@ -826,7 +826,7 @@ fn role_json(c: mut Choices) -> Json:
         _ => any_json(c, 2)
 
 fn wrap(name: string, payload: Json) -> Json:
-    let fields: mut JsonObject = JsonObject::new()
+    let mut fields = JsonObject::new()
     fields.set(name, payload)
     Json.Object(fields)
 
@@ -940,7 +940,7 @@ fn kind_name(kind: ValueKind) -> string:
         .List => "list"
         .Map => "map"
 
-fn scalars[R < Deserializer](input: mut R, state: mut ProbeState) -> Result[void, R::Error]:
+fn scalars[R < Deserializer](input: &mut R, state: mut ProbeState) -> Result[void, R::Error]:
     match input.bool("b"):
         .Ok(found) => state.log.push("bool $found")
         .Err(error) => state.failed("bool", error)?
@@ -959,7 +959,7 @@ fn scalars[R < Deserializer](input: mut R, state: mut ProbeState) -> Result[void
     error := input.invalid("x")
     state.failed("invalid", error)
 
-fn probe[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe[R < Deserializer](input: &mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
     let kind = ValueKind.Null
     match input.peek():
         .Ok(found) =>
@@ -984,7 +984,7 @@ fn probe[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> R
             probe_enum(input, state, depth)
         _ => scalars(input, state)
 
-fn probe_list[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe_list[R < Deserializer](input: &mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
     match input.begin_list():
         .Ok(_) => state.log.push("list")
         .Err(error) => return state.failed("list", error)
@@ -1008,7 +1008,7 @@ fn probe_list[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32)
     scalars(input, state)
 
 # With `items_first`, the first value is read with `next_item`.
-fn probe_map[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32, items_first: bool) -> Result[void, R::Error]:
+fn probe_map[R < Deserializer](input: &mut R, state: mut ProbeState, depth: i32, items_first: bool) -> Result[void, R::Error]:
     match input.begin_map():
         .Ok(_) => state.log.push("map")
         .Err(error) => return state.failed("map", error)
@@ -1039,7 +1039,7 @@ fn probe_map[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32, 
     state.log.push("map end")
     .Ok(())
 
-fn probe_record[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe_record[R < Deserializer](input: &mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
     match input.begin_variant(Facts { items: [] }, [variant_named("D", true)]):
         .Ok(index) => state.log.push("record $index")
         .Err(error) => return state.failed("record", error)
@@ -1058,7 +1058,7 @@ fn probe_record[R < Deserializer](input: mut R, state: mut ProbeState, depth: i3
             .Err(error) => return state.failed("record item", error)
     scalars(input, state)
 
-fn probe_enum[R < Deserializer](input: mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe_enum[R < Deserializer](input: &mut R, state: mut ProbeState, depth: i32) -> Result[void, R::Error]:
     choices := [variant_named("a", false), variant_named("b", false), variant_named("x", false), variant_named("k0", false), variant_named("Member", false), variant_named("Admin", false), variant_named("Guest", false)]
     match input.begin_variant(Facts { items: [] }, choices):
         .Ok(index) => state.log.push("variant $index")
@@ -1089,7 +1089,7 @@ data Probe:
     log: string
 
 impl Deserialize for Probe:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Probe, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Probe, R::Error]:
         input.begin_list()?
         _ := input.next_item()?
         stop := i32(input.int("stop")?)
@@ -1137,7 +1137,7 @@ fn sets_gen(c: mut Choices) -> Sets:
     Sets { keys: c.list(40, fn(inner: mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
 
 fn object_disagreement(sets: Sets) -> string:
-    let object: mut JsonObject = JsonObject::new()
+    let mut object = JsonObject::new()
     let model: mut List[(string, i64)] = []
     let step: i64 = 0
     for key in sets.keys:

@@ -611,7 +611,7 @@ fn csv_row(cells: List[string]) -> string:
     cells.join(",")
 
 fn banner(text: string) -> string:
-    let mut out = StringBuilder::new()
+    out := StringBuilder::new()
     out.push("=".repeat(4))
     out.push(" ")
     out.push(text)

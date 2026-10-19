@@ -10,11 +10,11 @@ pub data Token:
     secret: i64
 
 impl Serialize for Token:
-    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.text(self.owner)
 
 impl Deserialize for Token:
-    fn deserialize[R < Deserializer](input: mut R) -> Result[Token, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
         .Ok(Token { owner: input.text("Token")?, secret: 0 })
 
 pub trait Vault:

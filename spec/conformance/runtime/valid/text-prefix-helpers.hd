@@ -1,5 +1,5 @@
 # test: interpolate joins pieces and values, and process_escapes reports the byte position of a bad escape
-# Spec std/text Prefix Helpers: std-text.prefix-helper.interpolate, .escapes, .escape-error, .final-backslash (spec pass 89, audit item 6).
+# Spec std/text Prefix Helpers: std-text.prefix-helper.interpolate, .escapes, .escape-error-value, .final-backslash (spec pass 89, audit item 6).
 use std.ops.{Template, str_prefix}
 use std.text.{EscapeError, interpolate, process_escapes}
 @str_prefix
