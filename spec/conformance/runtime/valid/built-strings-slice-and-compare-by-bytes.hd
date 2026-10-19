@@ -1,0 +1,25 @@
+# test: strings built by interpolation and `+`, then sliced and compared, keep their bytes
+# Spec 04 Strings: types.string.concat-bytes, types.string.compare-bytes.
+# Spec 10 String Methods: module.string.slice, module.string.slice.shared.
+# expect-stdout: tea: 42 true 1.5 -0.25
+# expect-stdout: 3 195 120
+# expect-stdout: 42 true 1.5 -0.25||
+# expect-stdout: true true true true true
+# expect-stdout: true true false
+# expect-stdout: [0]
+fn label(name: string, count: i32, ok: bool) -> string:
+    "$name: ${count * 2} $ok ${1.5} ${-0.25}"
+
+fn tail(text: string, from: usize) -> string:
+    text.slice(from, text.len())
+
+pub fn main() -> void $ Console:
+    built := label("tea", +21, true)
+    println(built)
+    joined := "é" + "x" + ""
+    println("${joined.len()} ${joined[0]} ${joined[2]}")
+    println(tail(built, 5) + "|" + built.slice(0, 0) + "|")
+    println("${"abc" < "abd"} ${"abc" < "abcd"} ${"b" > "abc"} ${"" < "a"} ${"é" > "z"}")
+    println("${"abc".cmp("abd") == .Less} ${built.slice(0, 3) == "tea"} ${joined == "éx!"}")
+    empty := built.slice(2, 2)
+    println("[$empty${empty.len()}]")

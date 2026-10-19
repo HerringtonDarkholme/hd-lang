@@ -1,5 +1,7 @@
 path	note
 runtime/panic/assert-failure-in-main.hd	#540: a std panic report
+runtime/panic/char-to-digit-radix-high.hd	#552: strings
+runtime/panic/char-to-digit-radix-low.hd	#552: strings
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
 runtime/panic/duration-add-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data values
@@ -23,14 +25,27 @@ runtime/panic/num-pow-overflow-i8.hd	#541: test programs, and roots that never s
 runtime/panic/num-pow-overflow-u32.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-pow-overflow-u64.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-pow-overflow-u8.hd	#541: test programs, and roots that never suspend
+runtime/panic/num-radix-parse-radix-high.hd	#552: strings
+runtime/panic/num-radix-parse-radix-low.hd	#552: strings
+runtime/panic/num-to-fixed-digits-range.hd	#552: strings
 runtime/panic/num-u64-from-overflow-i64.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-u64-from-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-u64-to-negative.hd	#541: test programs, and roots that never suspend
 runtime/panic/operator-generic-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/option-expect-none.hd	#541: test programs, and roots that never suspend
+runtime/panic/result-expect-err.hd	#552: strings
 runtime/panic/shift-count-at-bit-width.hd	#541: test programs, and roots that never suspend
 runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
 runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic
+runtime/panic/string-index-at-length.hd	#552: strings
+runtime/panic/string-index-out-of-bounds.hd	#552: strings
+runtime/panic/string-offset-inside-scalar.hd	#552: strings
+runtime/panic/string-slice-inside-scalar.hd	#552: strings
+runtime/panic/string-slice-past-end.hd	#552: strings
+runtime/panic/string-slice-range-boundary.hd	#552: strings
+runtime/panic/string-slice-range-out-of-range.hd	#552: strings
+runtime/panic/string-slice-range-reversed.hd	#552: strings
+runtime/panic/string-slice-reversed.hd	#552: strings
 runtime/panic/u8-add-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/unbounded-recursion.hd	#540: direct calls; the host reports the stack overflow
 runtime/panic/usize-max-overflow-wasm32.hd	#540: checked integer arithmetic
@@ -39,6 +54,10 @@ runtime/valid/assert.hd	#541: test programs, and roots that never suspend
 runtime/valid/binding-chain-with-suite.hd	#540: integers, strings and enums in locals
 runtime/valid/bom-inside-comment.hd	#540: integers, strings and enums in locals
 runtime/valid/boolean-literals-and-absence.hd	#540: integers, strings and enums in locals
+runtime/valid/built-strings-slice-and-compare-by-bytes.hd	#552: strings
+runtime/valid/char-ascii-classes.hd	#552: strings
+runtime/valid/char-unicode-digits.hd	#552: strings
+runtime/valid/char-unicode-letters.hd	#552: strings
 runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so no entry point runs
 runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
@@ -49,7 +68,11 @@ runtime/valid/f64-nan-ordering.hd	#541: test programs, and roots that never susp
 runtime/valid/f64-ordering-operators.hd	#541: test programs, and roots that never suspend
 runtime/valid/fieldless-data-canonical.hd	#551: structs, tuples, enums and data values
 runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
+runtime/valid/generic-data-let-pattern.hd	#552: strings
+runtime/valid/generic-data-match-pattern.hd	#552: strings
+runtime/valid/generic-data-pattern-in-generic-function.hd	#552: strings
 runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
+runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
 runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
 runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
 runtime/valid/identity-ignores-permissions.hd	#551: structs, tuples, enums and data values
@@ -67,13 +90,17 @@ runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
 runtime/valid/no-final-line-ending.hd	#540: integers, strings and enums in locals
 runtime/valid/num-is-finite.hd	#541: test programs, and roots that never suspend
 runtime/valid/num-is-nan.hd	#541: test programs, and roots that never suspend
+runtime/valid/numeric-display-notation.hd	#552: strings
+runtime/valid/numeric-display-special-values.hd	#552: strings
 runtime/valid/option-nest-none-is-outer.hd	#541: test programs, and roots that never suspend
 runtime/valid/ord-supertrait-dispatch.hd	#539: main is private, so no entry point runs
 runtime/valid/payloads-and-fields-keep-every-width.hd	#551: structs, tuples, enums and data values
+runtime/valid/pipe-placeholder-steps.hd	#552: strings
 runtime/valid/primitive-bool-eq-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-char-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-integer-cmp-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/primitive-string-cmp-method-direct.hd	#552: strings
 runtime/valid/println-console-stdout.hd	#540: println through the host Console
 runtime/valid/println-under-main-driver.hd	#541: test programs, and roots that never suspend
 runtime/valid/raw-identifiers-as-names.hd	#551: structs, tuples, enums and data values

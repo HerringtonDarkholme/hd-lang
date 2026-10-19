@@ -21,6 +21,7 @@ use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
+mod text;
 mod value;
 
 /// The function of instance `id`, at `slot` in content order.
@@ -240,7 +241,12 @@ impl Em<'_, '_, '_> {
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
         if stripped == Ty::STRING {
             let text = self.b.strings[usize::try_from(bits).expect("string constant")].clone();
-            let at = self.m.static_bytes(text.as_bytes(), 1);
+            // Every empty string is the one static empty value (§23.7).
+            let at = if text.is_empty() {
+                crate::module::EMPTY
+            } else {
+                self.m.static_bytes(text.as_bytes(), 1)
+            };
             let len = u32::try_from(text.len()).expect("string constant");
             return Ok(vec![
                 vec![I::I32Const(at.cast_signed())],
@@ -594,6 +600,7 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 match op {
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
+                    Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
                         self.push(args[0])?;
                         self.push(args[1])?;
@@ -609,7 +616,7 @@ impl Em<'_, '_, '_> {
                         self.push(args[0])?;
                         self.store(i)?;
                     }
-                    _ => return unsupported("list, map and string kernels (jobs 7, 9 and 10)"),
+                    _ => return unsupported("list and map kernels (jobs 9 and 10)"),
                 }
             }
             Tag::Hook => {}
@@ -862,6 +869,28 @@ impl Em<'_, '_, '_> {
                 self.comp(args[0], 1)?;
                 self.store(i)
             }
+            "bytes_at" => self.str_at(i, args[0], args[1]),
+            "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
+            "bytes_concat" => self.concat(i, args),
+            // A `char` is its scalar value at run time.
+            "char_scalar" => {
+                self.comp(args[0], 0)?;
+                self.store(i)
+            }
+            "char_from_scalar" => self.char_from_scalar(i, args[0]),
+            // The bit casts keep every bit, a NaN's sign and payload too.
+            "f64_to_bits" | "f64_from_bits" | "f32_to_bits" | "f32_from_bits" => {
+                self.comp(args[0], 0)?;
+                self.f.op(match key {
+                    "f64_to_bits" => I::I64ReinterpretF64,
+                    "f64_from_bits" => I::F64ReinterpretI64,
+                    "f32_to_bits" => I::I32ReinterpretF32,
+                    _ => I::F32ReinterpretI32,
+                });
+                self.store(i)
+            }
+            "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper"
+            | "parse_f64" | "snapshot_update" => self.host_prim(i, key, args),
             key if key.starts_with("mem_") => self.memory(i, key, args),
             other => unsupported(format!("the intrinsic `{other}`")),
         }
@@ -1014,6 +1043,19 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::FmtInt { signed });
                 self.store(i)
             }
+            // A float's text is the host primitive its `Display`
+            // implementation calls.
+            "to_string" if prim && float => {
+                let key = if self.vals(t)? == [Val::F32] {
+                    "format_f32"
+                } else {
+                    "format_f64"
+                };
+                self.host_prim(i, key, args)
+            }
+            "cmp" | "partial_cmp" if t == Ty::STRING => {
+                self.str_ordering(i, args, name == "partial_cmp")
+            }
             "eq" if t == Ty::STRING => {
                 self.push(args[0])?;
                 self.push(args[1])?;
@@ -1076,61 +1118,6 @@ impl Em<'_, '_, '_> {
             TyData::Mut(inner) => inner,
             _ => t,
         }
-    }
-
-    /// An interpolation of string parts: one part is itself; more are
-    /// copied into one new string.
-    fn concat(&mut self, i: u32, parts: &[u32]) -> StageResult<()> {
-        for p in parts {
-            let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.ty_of(*p));
-            if self.strip_mut(t) != Ty::STRING {
-                return unsupported("an interpolation part that is not a string");
-            }
-        }
-        match parts {
-            [] => {
-                self.f.i32(0);
-                self.f.i32(0);
-                return self.store(i);
-            }
-            [one] => {
-                self.push(*one)?;
-                return self.store(i);
-            }
-            _ => {}
-        }
-        let (len, at, to) = (
-            self.f.local(Val::I32),
-            self.f.local(Val::I32),
-            self.f.local(Val::I32),
-        );
-        self.f.i32(0);
-        for p in parts {
-            self.comp(*p, 1)?;
-            self.f.op(Instruction::I32Add);
-        }
-        self.f.set(len);
-        self.f.get(len);
-        self.f.helper(Helper::Alloc);
-        self.f.set(at);
-        self.f.get(at);
-        self.f.set(to);
-        for p in parts {
-            self.f.get(to);
-            self.comp(*p, 0)?;
-            self.comp(*p, 1)?;
-            self.f.op(Instruction::MemoryCopy {
-                src_mem: HEAP,
-                dst_mem: HEAP,
-            });
-            self.f.get(to);
-            self.comp(*p, 1)?;
-            self.f.op(Instruction::I32Add);
-            self.f.set(to);
-        }
-        self.f.get(at);
-        self.f.get(len);
-        self.store(i)
     }
 
     fn panic(&mut self, msg: &str) {

@@ -13,12 +13,9 @@ use wasm_encoder::Instruction as I;
 
 use super::Em;
 use crate::layout::{Kind, Leaf, Mem, Part, enum_mem, kind, payload_mem, struct_mem, variants};
-use crate::module::{HEAP, Val, mem};
+use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::Helper;
 use crate::unsupported;
-
-/// The size of a counted object's header, before its payload (§23.4).
-pub const HEADER: u32 = 8;
 
 /// Where a payload field's values come from: a TIR value, or locals.
 pub enum Src {

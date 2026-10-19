@@ -8,7 +8,7 @@ use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction};
 
-use crate::module::{BUF, Func, Global, HEAP, Import, Ins, Module, Sym, Val, mem};
+use crate::module::{BUF, EMPTY, Func, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::{Entry, Input, unsupported};
 
 /// A generated function, by what it does.
@@ -44,11 +44,28 @@ pub enum Helper {
     /// bump pointer; the heap grows to fit, and a refused growth is
     /// `heap-exhausted`.
     Alloc,
+    /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, its
+    /// header reserved; the address is its payload's. Until blocks are
+    /// counted (job 8) no buffer is freed.
+    Str,
     /// `(value: i64) -> string`: an integer's decimal text, read as
     /// signed when `signed`.
     FmtInt { signed: bool },
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
+    /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
+    /// byte by byte and a prefix first (`expr.ord.string`).
+    StrCmp,
+    /// `(args) -> result`: the `hd:prim` import `name` (spec/std/README.md,
+    /// "Standard library primitives"). A string argument goes in the
+    /// exchange buffer, its length the import's parameter; a string result
+    /// comes back there, in the host codec, and is copied into a new
+    /// buffer.
+    HostPrim {
+        name: String,
+        args: Vec<PrimArg>,
+        result: Option<Val>,
+    },
     /// The forbidden-context check of `block_on`
     /// (`req.drive.block-on.forbidden-contexts`).
     ForbidCheck,
@@ -62,6 +79,14 @@ pub enum Helper {
     /// done. While a program runs one host call at a time, the completion
     /// `hd:rt.block` reports is this call's.
     HostPoll { module: String, method: String },
+}
+
+/// How a host primitive's argument crosses: a string, or a scalar as
+/// itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PrimArg {
+    Str,
+    Scalar(Val),
 }
 
 /// The frame of a host call: its poll slot, its state (0 not started, 1
@@ -344,6 +369,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Alloc => alloc(),
         Helper::StrEq => str_eq(),
+        Helper::Str => {
+            let mut f = Func::new("rt:str", vec![Val::I32], vec![Val::I32]);
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.helper(Helper::Alloc);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f
+        }
+        Helper::StrCmp => str_cmp(),
+        Helper::HostPrim { name, args, result } => host_prim(name, args, *result),
         Helper::FmtInt { signed } => fmt_int(*signed),
         Helper::ForbidCheck => {
             let mut f = Func::new("rt:forbid_check", vec![], vec![]);
@@ -458,7 +495,7 @@ fn alloc() -> Func {
     f
 }
 
-/// [`Helper::FmtInt`]: the digits go backward into a 20-byte allocation,
+/// [`Helper::FmtInt`]: the digits go backward into a 20-byte buffer,
 /// the most a `u64` or a signed `i64` needs; the string is its tail.
 fn fmt_int(signed: bool) -> Func {
     let mut f = Func::new(
@@ -473,7 +510,7 @@ fn fmt_int(signed: bool) -> Func {
         f.local(Val::I64),
     );
     f.i32(20);
-    f.helper(Helper::Alloc);
+    f.helper(Helper::Str);
     f.set(buf);
     f.get(buf);
     f.i32(20);
@@ -665,5 +702,150 @@ fn str_eq() -> Func {
     f.op(Instruction::End);
     f.op(Instruction::End);
     f.i32(1);
+    f
+}
+
+/// [`Helper::StrCmp`]: the first differing byte decides; when the shorter
+/// is a prefix of the longer, the lengths do.
+fn str_cmp() -> Func {
+    let mut f = Func::new("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
+    let (k, n, x, y) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    // The sign of `x - y` as -1, 0 or 1, for two values in locals.
+    let sign = |f: &mut Func, x: u32, y: u32| {
+        f.get(x);
+        f.get(y);
+        f.op(Instruction::I32GtU);
+        f.get(x);
+        f.get(y);
+        f.op(Instruction::I32LtU);
+        f.op(Instruction::I32Sub);
+    };
+    f.get(1);
+    f.get(3);
+    f.get(1);
+    f.get(3);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::Select);
+    f.set(n);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(k);
+    f.get(n);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    f.get(0);
+    f.get(k);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
+    f.set(x);
+    f.get(2);
+    f.get(k);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
+    f.set(y);
+    f.get(x);
+    f.get(y);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    sign(&mut f, x, y);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(k);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(k);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    sign(&mut f, 1, 3);
+    f
+}
+
+/// [`Helper::HostPrim`]. The host encodes a string result as its LEB128
+/// length and then its bytes, and answers the encoding's length, so the
+/// bytes are what follows the prefix: the bytes up to the first without
+/// its high bit.
+fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
+    let mut params = Vec::new();
+    let mut imports = Vec::new();
+    for a in args {
+        match a {
+            PrimArg::Str => {
+                params.extend([Val::I32, Val::I32]);
+                imports.push(Val::I32);
+            }
+            PrimArg::Scalar(v) => {
+                params.push(*v);
+                imports.push(*v);
+            }
+        }
+    }
+    let results = match result {
+        Some(v) => vec![v],
+        None => vec![Val::I32, Val::I32],
+    };
+    let mut f = Func::new(format!("rt:prim/{name}"), params, results);
+    let mut p = 0;
+    for a in args {
+        f.get(p);
+        p += 1;
+        if *a == PrimArg::Str {
+            f.get(p);
+            p += 1;
+            f.helper(Helper::ToBuf);
+        }
+    }
+    let import = Import::new("hd:prim", name, &imports, &[result.unwrap_or(Val::I32)]);
+    f.call(Sym::Import(import));
+    if result.is_some() {
+        return f;
+    }
+    let (n, at, len, out) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.set(n);
+    // `at`: one past the length prefix.
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Load8U(mem(BUF, 0, 0)));
+    f.get(at);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.i32(0x80);
+    f.op(Instruction::I32And);
+    f.op(Instruction::BrIf(0));
+    f.op(Instruction::End);
+    f.get(n);
+    f.get(at);
+    f.op(Instruction::I32Sub);
+    f.set(len);
+    f.get(len);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.u32(EMPTY);
+    f.i32(0);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(len);
+    f.helper(Helper::Str);
+    f.set(out);
+    f.get(out);
+    f.get(at);
+    f.get(len);
+    f.op(Instruction::MemoryCopy {
+        src_mem: BUF,
+        dst_mem: HEAP,
+    });
+    f.get(out);
+    f.get(len);
     f
 }

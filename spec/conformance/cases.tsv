@@ -148,6 +148,7 @@ typing/valid/unit-tuple-role.hd	type	accept	lang/04-type-system.md#r-types.unit.
 typing/valid/void-result-is-unit.hd	type	accept	lang/04-type-system.md#r-types.void.role
 runtime/valid/string-literal-utf8.hd	runtime	accept	lang/04-type-system.md#r-types.string.literal-utf8
 runtime/valid/string-concat-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.concat-bytes
+runtime/valid/built-strings-slice-and-compare-by-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.compare-bytes
 runtime/valid/string-scalar-boundaries.hd	runtime	accept	lang/04-type-system.md#r-types.string.boundary
 runtime/panic/string-offset-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/04-type-system.md#r-types.string.split-scalar
 runtime/valid/string-no-normalization.hd	runtime	accept	lang/04-type-system.md#r-types.string.no-normalization

@@ -28,6 +28,13 @@ pub const HEAP: u32 = 1;
 /// so 0 stays null.
 pub const STATIC_BASE: u32 = 16;
 
+/// The address of the one empty string (§23.7): every string of no bytes
+/// is this view, whose bytes are never read.
+pub const EMPTY: u32 = STATIC_BASE;
+
+/// The size of a counted object's header, before its payload (§23.4).
+pub const HEADER: u32 = 8;
+
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {

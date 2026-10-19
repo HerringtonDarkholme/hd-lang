@@ -2035,3 +2035,38 @@ Job 6 lays out structs, tuples, enums and data values (§23.3), in
   address, not the address with 0 as `.None`. Integer `**`, float `**`
   and `%`, and float text are still refused.
 
+### 23.15 What Job 7 Adds
+
+Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
+`rt.rs`.
+
+- **Three kinds of view.** A literal's bytes are static data. A built
+  string's bytes are a string buffer, `rt:str`: an 8-byte header, which
+  counting fills (job 8), then the bytes; the view's address is the
+  payload's. Every empty string is the one static empty value, address
+  `EMPTY` (the first static address) and length 0: an interpolation or a
+  concatenation with no bytes, an empty slice and an empty host result all
+  give it, so no empty buffer is ever allocated.
+- **Kernels.** An interpolation or a concatenation sums its parts'
+  lengths, allocates once and copies each part with `memory.copy`; one
+  part is itself. `s[i]` and `bytes_at` check the index and load a byte.
+  `bytes_slice` checks `start <= end <= len` and makes a view of the same
+  bytes, with no copy (`module.string.slice.shared`). `cmp`, `partial_cmp`
+  and `<` compare bytes in order, a prefix first (`rt:str_cmp`). Integer
+  text is written backward into a 20-byte string buffer and is its tail.
+  `char_scalar`, `char_from_scalar` and the float bit casts are inline.
+- **Host primitives.** Float text, `to_fixed`, `lower`, `upper`, float
+  parsing and the snapshot hook are `hd:prim` imports, as on the Wasm GC
+  backend. A string argument goes into the exchange buffer at 0, its
+  length the parameter; a string result comes back there in the host
+  codec, its LEB128 length then its bytes, and the import answers the
+  encoding's length, so the bytes are what follows the prefix. One
+  primitive takes at most one string, since the buffer holds one.
+- **Leaks.** Until counting (job 8) no buffer is freed: every built
+  string lives until the program exits, as every data object does.
+- **Not yet.** `char` text builds a `List[u8]` (std's `scalar_text`), and
+  `StringBuilder` is a reference to lists, so both wait for lists (job 9)
+  and references (job 12). So does every `assert_equal`, whose report is
+  `debug`'s, over a `&mut DebugWriter` of lists and `dyn Any`: most string
+  fixtures check with it, so the job's fixture prints instead.
+
