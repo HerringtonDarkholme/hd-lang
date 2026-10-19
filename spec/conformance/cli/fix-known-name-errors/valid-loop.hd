@@ -1,0 +1,6 @@
+fn loop(callback: fn() -> void) -> void:
+    callback()
+
+fn call() -> void:
+    loop:
+        pass

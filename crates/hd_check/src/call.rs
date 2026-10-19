@@ -674,6 +674,17 @@ impl Ck<'_, '_> {
                     format!("`{text}` is not defined{}", self.name_hint(&text))
                 };
                 self.err(Code::UnknownName, callee, &msg);
+                if text == "loop"
+                    && !bang
+                    && n.kind() == SyntaxKind::TrailingCallExpr
+                    && self.cx.src.tkind(self.cx.src.first(callee)) == Some(TokenKind::Ident)
+                {
+                    self.diags.add_fix(
+                        "replace `loop:` with `while true:`",
+                        hd_diag::FixSafety::Exact,
+                        &[(self.cx.src.span(callee), "while true")],
+                    );
+                }
                 Ok((Ref(NONE), Ty::NEVER))
             }
             SyntaxKind::TypeArgsExpr => {
@@ -3070,7 +3081,8 @@ impl Ck<'_, '_> {
     /// itself has an inherent method `name` that is not visible here
     /// (`names.method-lookup.private`), else `unknown-method` with `msg`
     /// (`names.method-lookup.unknown`).
-    pub(crate) fn no_method(&mut self, t: Ty, name: &str, n: NodeRef<'_>, msg: &str) {
+    /// Returns true only for an unknown method with no hidden candidate.
+    pub(crate) fn no_method(&mut self, t: Ty, name: &str, n: NodeRef<'_>, msg: &str) -> bool {
         // A parameter bound by a trait that does not exist has the methods
         // of that trait, whatever they are; the bound is the one error.
         let bare = self.strip_mut(t);
@@ -3081,7 +3093,7 @@ impl Ck<'_, '_> {
             .zip(&self.env.clause_trait)
             .any(|(s, tr)| *s == bare && *tr == DefId::NONE)
         {
-            return;
+            return false;
         }
         let snap = self.infer.snapshot();
         let private = self.find_inherent_any(t, name).is_some();
@@ -3092,6 +3104,7 @@ impl Ck<'_, '_> {
                 self.show(t)
             );
             self.err(Code::PrivateMember, n, &msg);
+            false
         } else {
             let hidden = self.unavailable_traits_of(t, name);
             let snap = self.infer.snapshot();
@@ -3099,16 +3112,51 @@ impl Ck<'_, '_> {
             self.infer.rollback(snap);
             if let Some(unmet) = unmet {
                 self.err(Code::UnsatisfiedTraitBound, n, &unmet);
+                false
             } else if hidden.is_empty() {
                 let hint = self.method_hint(t, name);
                 self.err(Code::UnknownMethod, n, &format!("{msg}{hint}"));
+                true
             } else {
                 let names = self.cx.names.display_names(&hidden).join("`, `");
                 let msg = format!(
                     "{msg}; `{names}` supplies it but is not available here, add a `use` for it"
                 );
                 self.err(Code::UnknownMethod, n, &msg);
+                false
             }
+        }
+    }
+
+    fn append_fix(&mut self, receiver: (Ref, Ty), args: &Args<'_>, n: NodeRef<'_>) {
+        let (value, ty) = receiver;
+        if n.kind() != SyntaxKind::CallExpr
+            || args.positional.len() != 1
+            || args.spread.is_some()
+            || !args.after_spread.is_empty()
+            || !args.named.is_empty()
+            || args.trailing.is_some()
+            || self.builtin_method(ty, "push").is_none()
+            || !self.place_writable_quiet(value)
+        {
+            return;
+        }
+        let Some(field) = n
+            .children()
+            .next()
+            .filter(|head| head.kind() == SyntaxKind::FieldExpr)
+        else {
+            return;
+        };
+        let member = self.cx.src.last(field);
+        if self.cx.src.tkind(member) == Some(TokenKind::Ident)
+            && self.cx.src.text(member) == "append"
+        {
+            self.diags.add_fix(
+                "rename `append` to `push`",
+                hd_diag::FixSafety::Exact,
+                &[(self.cx.src.token_span(member), "push")],
+            );
         }
     }
 
@@ -3947,7 +3995,9 @@ impl Ck<'_, '_> {
                     String::new()
                 };
                 let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
-                self.no_method(rt, name, n, &msg);
+                if self.no_method(rt, name, n, &msg) && name == "append" {
+                    self.append_fix((recv, rt), args, n);
+                }
                 Ok((Ref(NONE), Ty::POISON))
             }
         }

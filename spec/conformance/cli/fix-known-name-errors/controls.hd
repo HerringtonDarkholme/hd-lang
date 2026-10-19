@@ -1,0 +1,18 @@
+fn readonly(xs: List[string], word: string) -> void:
+    xs.append(word)
+
+fn arity(xs: mut List[string]) -> void:
+    xs.append("one", "two")
+
+fn named(xs: mut List[string]) -> void:
+    xs.append(value="one")
+
+fn generic(xs: mut List[string]) -> void:
+    xs.append::[string]("one")
+
+fn ordinary() -> void:
+    loop()
+
+fn quoted() -> void:
+    `loop`:
+        pass

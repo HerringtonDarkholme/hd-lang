@@ -1,0 +1,18 @@
+## café keeps fix ranges in UTF-8 byte coordinates.
+fn first_square(limit: i32) -> i32:
+    let n = +0
+    while true:
+        n = n + 1
+        if n * n > limit:
+            return n
+
+fn legacy(xs: mut List[string], word: string) -> void:
+    xs.push(word)
+
+fn through_reference(xs: &mut List[string], word: string) -> void:
+    xs.push(word)
+
+fn local() -> usize:
+    let mut xs: List[string] = []
+    xs.push("fresh")
+    xs.len()
