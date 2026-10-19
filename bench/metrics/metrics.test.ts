@@ -20,7 +20,7 @@ import { freedBytes, passedCount, perUnit, pickArtifact, printed } from "./lib/a
 import { formatTable, selectMetrics } from "./run.ts";
 import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
-import { applyEdits, fixOf } from "./lib/fixit.ts";
+import { applyEdits, fixOf, hasFixField } from "./lib/fixit.ts";
 import { dependentsOf, editBody, editSignature, generatePackage, makeRandom } from "./lib/gen.ts";
 import { parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
 import { formatValue, judge } from "./lib/metric.ts";
@@ -128,31 +128,62 @@ describe("hd command", () => {
 });
 
 describe("fix-its", () => {
-  it("applies edits by offset or by line and column", () => {
-    const text = "fn f() -> i32:\n    x: i32 = 5\n    x\n";
-    const byOffset = {
-      start: { line: 2, column: 5, offset: 19 },
-      end: { line: 2, column: 5, offset: 19 },
-    };
+  it("applies UTF-8 byte edits without shifting earlier offsets", () => {
+    const text = "αβ\nlet café = 1\n";
     assert.equal(
-      applyEdits(text, [{ ...byOffset, replacement: "let " }]),
-      text.replace("    x:", "    let x:"),
-    );
-    const byLine = { start: { line: 3, column: 5 }, end: { line: 3, column: 6 } };
-    assert.equal(
-      applyEdits(text, [{ ...byLine, replacement: "0" }]),
-      text.replace("    x\n", "    0\n"),
+      applyEdits(text, [
+        { file: "case.hd", start: 9, end: 14, text: "coffee" },
+        { file: "case.hd", start: 0, end: 0, text: "# note\n" },
+      ]),
+      "# note\nαβ\nlet coffee = 1\n",
     );
   });
 
-  it("reads one fix, never a choice of several", () => {
-    const edit = {
-      span: { start: { line: 1, column: 1 }, end: { line: 1, column: 2 } },
-      replacement: "",
-    };
-    assert.equal(fixOf({ fix: { message: "m", edits: [edit] } })!.length, 1);
-    assert.equal(fixOf({ fix: null, fixes: [{ edits: [edit] }, { edits: [edit] }] }), undefined);
+  it("reads the specified single-fix shape, never an alternative", () => {
+    const edit = { file: "case.hd", start: 0, end: 1, text: "" };
+    const fix = { message: "remove the prefix", edits: [edit] };
+    assert.deepEqual(fixOf({ file: "case.hd", fixes: [fix] }), [edit]);
+    assert.equal(fixOf({ fixes: [fix, fix] }), undefined);
+    assert.equal(fixOf({ fixes: [] }), undefined);
     assert.equal(fixOf({}), undefined);
+    assert.equal(fixOf({ fix }), undefined);
+    assert.equal(hasFixField({ fixes: [] }), true);
+    assert.equal(hasFixField({ fix: null }), false);
+  });
+
+  it("leaves edits for other files to a multi-file applicator", () => {
+    const edit = { file: "case.hd", start: 0, end: 1, text: "" };
+    assert.equal(
+      fixOf({ file: "other.hd", fixes: [{ message: "remove", edits: [edit] }] }),
+      undefined,
+    );
+    assert.equal(
+      fixOf({ fixes: [{ message: "remove", edits: [edit, { ...edit, file: "other.hd" }] }] }),
+      undefined,
+    );
+    assert.throws(() => applyEdits("x", [edit, { ...edit, file: "other.hd" }]), /multiple files/);
+  });
+
+  it("rejects malformed ranges and edits inside a UTF-8 character", () => {
+    const edit = { file: "case.hd", start: 0, end: 1, text: "" };
+    for (const invalid of [
+      { ...edit, start: -1 },
+      { ...edit, end: 0.5 },
+      { ...edit, start: 2 },
+      { ...edit, text: null },
+    ]) {
+      assert.equal(fixOf({ fixes: [{ message: "remove", edits: [invalid] }] }), undefined);
+    }
+    assert.throws(() => applyEdits("éx", [{ ...edit, start: 1, end: 2 }]), /UTF-8/);
+    assert.throws(() => applyEdits("x", [{ ...edit, end: 2 }]), /range/);
+    assert.throws(
+      () =>
+        applyEdits("abcd", [
+          { ...edit, end: 3 },
+          { ...edit, start: 2, end: 4 },
+        ]),
+      /overlapping/,
+    );
   });
 
   it("counts error codes added by a fix", () => {

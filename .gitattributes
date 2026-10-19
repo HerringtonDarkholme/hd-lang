@@ -6,3 +6,4 @@
 # bytes as the expectations.
 spec/conformance/cli/fix-derivation-fact/** text eol=lf
 spec/conformance/cli/mutable-and-signed-hints/** text eol=lf
+spec/conformance/cli/fix-existing-mut-receiver/** text eol=lf

@@ -581,12 +581,13 @@ impl Ck<'_, '_> {
                 let Some(tok) = node.direct_token(&src.parse.tokens, TokenKind::KwSelfValue) else {
                     return;
                 };
-                let lo = src.token_span(tok).lo;
-                self.diags.add_fix(
-                    "take `&mut self`",
-                    FixSafety::Suggestion,
-                    &[(at(lo, lo), "&mut ")],
-                );
+                let span = src.token_span(tok);
+                let edit = match node.direct_token(&src.parse.tokens, TokenKind::KwMut) {
+                    Some(m) => (at(src.token_span(m).lo, span.hi), "&mut self"),
+                    None => (at(span.lo, span.lo), "&mut "),
+                };
+                self.diags
+                    .add_fix("take `&mut self`", FixSafety::Suggestion, &[edit]);
             }
             SyntaxKind::Parameter if param => {
                 let Some(tok) = node.name(&src.parse.tokens) else {
