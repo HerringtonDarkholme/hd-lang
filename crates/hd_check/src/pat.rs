@@ -874,6 +874,7 @@ impl Ck<'_, '_> {
             })
             .flatten()
             .map(|nt| self.cx.names.syms.intern(self.cx.src.text(nt)));
+        let initializer_diags = self.diags.mark();
         // `names.scope.recursive-closure`: a closure initializer's body may
         // call the name being bound, which is a local before the body.
         let (r, t, own) = match name {
@@ -909,6 +910,7 @@ impl Ck<'_, '_> {
                 (r, t, None)
             }
         };
+        let initializer_failed = self.diags.errors_since(initializer_diags) != 0;
         let (r, t) = match annot {
             Some(a) => (
                 self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),
@@ -943,10 +945,12 @@ impl Ck<'_, '_> {
                 return unsupported("a binding pattern without a name");
             };
             // `types.bind.never`: a binding without an annotation whose
-            // initializer has type `never` could never be read. Error
-            // recovery yields `poison`, never `never`, so a reported
-            // initializer never trips this.
-            if annot.is_none() && self.infer.resolve(self.pool(), t) == Ty::NEVER {
+            // initializer has type `never` could never be read. A failed
+            // initializer may recover as `never`; it needs no follow-on.
+            if annot.is_none()
+                && !initializer_failed
+                && self.infer.resolve(self.pool(), t) == Ty::NEVER
+            {
                 let msg = format!(
                     "`{}` has no value to bind: the initializer has type `never`, which has no value",
                     self.cx.names.text(name)

@@ -3593,3 +3593,5 @@ runtime/valid/std-list-extend-own-copy.hd	runtime	accept	std/collections.md#r-st
 typing/valid/collection-value-tagged.hd	type	accept	lang/04-type-system.md#r-types.coll.let-mut
 runtime/valid/for-snapshot-doubled.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/valid/dyn-suspending-generic-method.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.suspending
+typing/invalid/binding-failed-propagation.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/invalid/binding-failed-call.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value

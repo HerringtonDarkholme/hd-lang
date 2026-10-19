@@ -1,0 +1,4 @@
+# test: an unknown callee in an initializer reports no uninhabited-binding follow-on
+# names.module.other-module.value, types.bind.never.
+pub fn main() -> void:
+    _value := mixed(+1)  # diagnostic: unknown-name
