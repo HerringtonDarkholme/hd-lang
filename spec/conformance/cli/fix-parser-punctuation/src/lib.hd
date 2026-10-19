@@ -1,0 +1,11 @@
+# café keeps the edit offsets in UTF-8 bytes.
+/// Returns a pair of numbers.
+fn pair() -> (i32, i32): (+1, +2)
+
+fn append(xs: List[string], name: string) -> List[string]:
+    [...xs, name]
+
+fn identity![T](value: T) -> T: value
+
+fn copied!() -> i32:
+    identity::[i32](+7)!

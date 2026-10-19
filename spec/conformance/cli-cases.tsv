@@ -222,3 +222,4 @@ fix-object-model-unchecked	cli.fix.object-model.check,cli.fix.object-model.statu
 fix-existing-mut-receiver	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint
 fix-parser-byte-edits	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-parser-migrations	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-parser-punctuation	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status

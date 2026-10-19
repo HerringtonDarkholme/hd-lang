@@ -4,7 +4,7 @@
 
 use hd_diag::Code;
 
-use super::{Ctx, Done, Parser};
+use super::{Ctx, Done, Parser, u32_of};
 use crate::layout::SuiteKind;
 use crate::{Layout, SyntaxKind, TokenKind};
 
@@ -856,7 +856,17 @@ impl Parser<'_> {
                     let message = format!(
                         "a bang call puts '!' before the arguments: write '{prefix}!{suffix}(...)'"
                     );
+                    let error = self.errors.len();
                     self.error(Code::SyntaxError, &message);
+                    if !prefix.ends_with('!') {
+                        let (lo, hi) = self.token_span(self.pos());
+                        let before = u32_of(callee_bang);
+                        self.fix_error(
+                            error,
+                            "move `!` before the call arguments",
+                            &[(before, before, "!"), (lo, hi, "")],
+                        );
+                    }
                     break;
                 }
                 TokenKind::ColonColon if same_line => {
@@ -1001,6 +1011,36 @@ impl Parser<'_> {
 
     /// An element that may end in a suffix spread `...`.
     fn element(&mut self, ctx: Ctx) -> Done {
+        if self.at(TokenKind::Ellipsis) {
+            let (lo, hi) = self.token_span(self.pos());
+            let error = self.errors.len();
+            self.error(
+                Code::SyntaxError,
+                "a spread is written after its value: write 'value...'",
+            );
+            let reported = self.errors.len() == error + 1;
+            self.bump();
+            let operand = self.pos();
+            let value = self.expr(ctx);
+            // A single name needs no guessed boundary across an incomplete expression.
+            if reported
+                && self.errors.len() == error + 1
+                && value.kind() == SyntaxKind::NameExpr
+                && self.pos() == operand + 1
+                && matches!(
+                    self.current(),
+                    Some(TokenKind::Comma | TokenKind::RParen | TokenKind::RBracket)
+                )
+            {
+                let (_, end) = self.token_span(self.pos() - 1);
+                self.fix_error(
+                    error,
+                    "move the spread after its value",
+                    &[(lo, hi, ""), (end, end, "...")],
+                );
+            }
+            return value;
+        }
         let value = self.expr(ctx);
         if self.at(TokenKind::Ellipsis) {
             let spread = self.precede(value);
@@ -1103,10 +1143,43 @@ impl Parser<'_> {
                     && self.nth_glued(1)
                     && self.nth_glued(2)
                 {
+                    let error = self.errors.len();
                     self.error(
                         Code::SyntaxError,
                         "documentation comments start with '##', not '///'",
                     );
+                    let at = self.pos();
+                    let (lo, _) = self.token_span(at);
+                    let line = self.toks.line_of(lo);
+                    let next = self
+                        .toks
+                        .line_tok
+                        .get(line + 1)
+                        .and_then(|token| token.get())
+                        .map(hd_base::TokenIdx::idx);
+                    if self.toks.line_indent[line] == 0
+                        && self.toks.line_indent.get(line + 1) == Some(&0)
+                        && next.is_some_and(|next| {
+                            let next = next + usize::from(self.toks.kind[next] == TokenKind::KwPub);
+                            matches!(
+                                self.toks.kind.get(next),
+                                Some(
+                                    TokenKind::KwFn
+                                        | TokenKind::KwData
+                                        | TokenKind::KwStruct
+                                        | TokenKind::KwEnum
+                                        | TokenKind::KwTrait
+                                )
+                            )
+                        })
+                    {
+                        let (_, end) = self.token_span(at + 2);
+                        self.fix_error(
+                            error,
+                            "start the documentation comment with `##`",
+                            &[(lo, end, "##")],
+                        );
+                    }
                 } else {
                     self.expected("an expression");
                 }

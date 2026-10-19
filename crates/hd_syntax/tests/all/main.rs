@@ -2,6 +2,7 @@
 
 mod corpus;
 mod crlf;
+mod fixits;
 mod fuzz;
 mod messages;
 mod snapshots;
