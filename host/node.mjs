@@ -388,6 +388,65 @@ function consoleInputProvider({ env, flush }) {
   };
 }
 
+// A missing/unreadable cgroup limit leaves the OS affinity count intact.
+const quotaText = (path) => {
+  try {
+    return readFileSync(path, "utf8").trim();
+  } catch {
+    return null;
+  }
+};
+
+// std-sys.cpu-count: every ancestor constrains the offered processors.
+// Keep the walk rooted at its mount, including when tested on macOS.
+// Like Rust's available_parallelism, round quotas down, with at least one.
+export function cgroupCpuCount(root, group, offered) {
+  root = resolve(root);
+  let count = offered;
+  let dir = resolve(root, group.replace(/^\/+/, ""));
+  const prefix = root.endsWith(sep) ? root : root + sep;
+  while (dir === root || dir.startsWith(prefix)) {
+    const maximum = quotaText(join(dir, "cpu.max"));
+    const [quota, period] =
+      maximum === null
+        ? [quotaText(join(dir, "cpu.cfs_quota_us")), quotaText(join(dir, "cpu.cfs_period_us"))]
+        : maximum.split(/\s+/);
+    if (/^\d+$/.test(quota ?? "") && /^\d+$/.test(period ?? "") && BigInt(period) > 0n) {
+      count = Math.min(count, Number(BigInt(quota) / BigInt(period)));
+    }
+    if (dir === root) break;
+    dir = dirname(dir);
+  }
+  return Math.max(1, count);
+}
+
+function cpuCount() {
+  const offered = availableParallelism();
+  if (platform() !== "linux") return offered;
+  const membership = quotaText("/proc/self/cgroup");
+  if (membership === null) return offered;
+  const groups = membership.split("\n").map((line) => /^(\d+):([^:]*):(\/.*)$/.exec(line));
+  const cpu = groups.find((group) => group?.[2].split(",").includes("cpu"));
+  const unified = groups.find((group) => group?.[1] === "0" && group[2] === "");
+  if (!cpu) return unified ? cgroupCpuCount("/sys/fs/cgroup", unified[3], offered) : offered;
+
+  // Rust checks these conventional v1 mounts before scanning mountinfo.
+  const group = cpu[3];
+  for (const root of ["/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpu,cpuacct"]) {
+    if (existsSync(join(root, group))) return cgroupCpuCount(root, group, offered);
+  }
+  for (const line of (quotaText("/proc/self/mountinfo") ?? "").split("\n")) {
+    const [mounted, filesystem] = line.split(" - ");
+    const [kind, , options] = filesystem?.split(" ") ?? [];
+    if (kind !== "cgroup" || !options?.split(",").includes("cpu")) continue;
+    const [, , , subtree, root] = mounted.split(" ");
+    if (group === subtree || group.startsWith(subtree === "/" ? "/" : subtree + "/")) {
+      return cgroupCpuCount(root, group.slice(subtree.length), offered);
+    }
+  }
+  return offered;
+}
+
 // The host system's four reads (std-sys.*). The grant covers each by
 // its method's name (cli.cap.scope.sys); a refused or unanswerable
 // read is `.Err` with that name (std-sys.not-granted, .unsupported).
@@ -407,7 +466,7 @@ function sysProvider({ grant }) {
     os: () => sysRead("os", () => OS_NAMES[platform()] ?? platform()),
     arch: () => sysRead("arch", () => ARCH_NAMES[osArch()] ?? osArch()),
     hostname: () => sysRead("hostname", () => hostname()),
-    cpu_count: () => sysRead("cpu_count", () => availableParallelism()),
+    cpu_count: () => sysRead("cpu_count", cpuCount),
   };
 }
 
