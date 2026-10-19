@@ -201,3 +201,4 @@ test-command-env-dir	cli.test.process.tasks
 process-unread-stdin	cli.test.program
 exit-entry-cancelled	cli.cancel.flag,cli.limit.forms,cli.cancel.end,cli.cancel.status,cli.exit.cancelled,cli.test.cancelled,cli.exit.test-failure
 test-leak-after-abandon	cli.test.leak.abandoned,cli.test.leak,cli.test.env.integration
+dbg-fetched-dependency	cli.dbg.dependency

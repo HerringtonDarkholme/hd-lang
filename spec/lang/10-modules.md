@@ -966,6 +966,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
 5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
 6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
+7. r[module.dbg.dependency.function-value] A function value referring to `dbg` in a fetched package follows the same suppression and warning rules as a direct call.
 
 > **Why.** A `dbg` call is never meant to ship, so a release build stops
 > it and its fix-it removes it. Removing a statement changes no types. A published package that forgot one must

@@ -48,6 +48,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
 
 pub mod bench;
+mod dbg;
 pub mod diagnostics;
 mod pipeline;
 mod positions;
@@ -2758,16 +2759,19 @@ impl Run<'_> {
         // A program's collection crosses packages (`crates/hd_mono/DESIGN.md` §13.2): the
         // std modules its folders reach are checked to TIR too.
         let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
-        if !self.analyze() {
-            for (m, module) in self.table.modules.iter().enumerate() {
-                if module.package == 0 && builds_module(m) {
-                    reached.union(&self.module_closure_in(g, m));
-                }
+        for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package == 0 && builds_module(m) {
+                reached.union(&self.module_closure_in(g, m));
             }
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
-            if (module.package != 0 && !reached.contains(module.folder))
+            // `hd check` needs fetched bodies too, to report their `dbg`
+            // references. Local and std dependency bodies remain deferred
+            // until a program needs them.
+            if (module.package != 0
+                && (!reached.contains(module.folder)
+                    || (self.analyze() && !self.fetched[usize::from(module.package)])))
                 || !builds_module(m)
                 || kept[module.folder.idx()]
             {
@@ -6800,6 +6804,33 @@ impl Run<'_> {
         }
     }
 
+    /// Report outside the cached check entry, once per fetched package,
+    /// including when every module or the whole program is cached.
+    fn dbg_in_dependencies(&self) {
+        let mut warned = BTreeSet::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let package = usize::from(module.package);
+            if !self.fetched.get(package).copied().unwrap_or(false) {
+                continue;
+            }
+            let Some(reference) = self.dbg_refs[m].get().and_then(|refs| refs.first()) else {
+                continue;
+            };
+            if warned.insert(package) {
+                lock(&self.diags).push(
+                    Code::DbgInDependency,
+                    Severity::Warning,
+                    reference.span,
+                    &format!(
+                        "fetched package `{}` contains `dbg`; its debug output is suppressed",
+                        self.table.packages[package]
+                    ),
+                    None,
+                );
+            }
+        }
+    }
+
     /// The span to delete to remove the statement that is the call at
     /// `call`: the whole line when the statement is alone on it. `None` when
     /// the call is no statement of its own, so deleting it would change types.
@@ -6944,6 +6975,7 @@ impl Run<'_> {
             t
         };
         self.dbg_in_release();
+        self.dbg_in_dependencies();
         match &self.goal {
             Goal::Program { .. }
             | Goal::ReplInput { .. }
@@ -7113,11 +7145,17 @@ impl Run<'_> {
             .get_or_init(|| {
                 let (m, entry, at) = b.wire.as_ref()?;
                 let bytes = entry.get(at.clone())?;
-                let body = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
+                let mut body = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
+                let mut hash = hd_tir::wire::tir_hash(bytes);
+                if self.fetched[usize::from(self.table.modules[*m].package)]
+                    && dbg::suppress(&mut body, &self.names())
+                {
+                    hash = dbg::key(hash);
+                }
                 let mut c = lock(&self.counters);
                 c.bodies_decoded += 1;
                 c.tir_decoded.push(self.table.modules[*m].path.clone());
-                Some((body, hd_tir::wire::tir_hash(bytes)))
+                Some((body, hash))
             })
             .as_ref()
     }
@@ -7221,7 +7259,16 @@ impl Run<'_> {
         for (m, module) in self.table.modules.iter().enumerate() {
             let counted = module.package == 0 || usize::from(module.package) != std;
             match self.check[m].get() {
-                Some(Some(c)) if counted => modules.push((module.path.as_str(), c.content)),
+                Some(Some(c)) if counted => {
+                    let hash = if self.fetched[usize::from(module.package)]
+                        && self.dbg_refs[m].get().is_some_and(|refs| !refs.is_empty())
+                    {
+                        dbg::key(c.content)
+                    } else {
+                        c.content
+                    };
+                    modules.push((module.path.as_str(), hash));
+                }
                 _ if module.package == 0 && self.builds_module(m) => {
                     self.blocked(Stage::Collect);
                     return;

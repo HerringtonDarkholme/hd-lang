@@ -28,7 +28,16 @@ fn sources(path: &str, text: &str) -> MemorySources {
 }
 
 fn build(store: &MemoryStore, fetched: bool, profile: BuildProfile) -> Output {
-    let (root, money) = (sources("src/main.hd", MAIN), sources("src/lib.hd", MONEY));
+    build_with_debug_code(store, fetched, profile, MONEY)
+}
+
+fn build_with_debug_code(
+    store: &MemoryStore,
+    fetched: bool,
+    profile: BuildProfile,
+    code: &str,
+) -> Output {
+    let (root, money) = (sources("src/main.hd", MAIN), sources("src/lib.hd", code));
     let host = Host {
         render_tir: &[],
         sources: &root,
@@ -79,4 +88,34 @@ fn a_fetched_dependency_is_not_the_users_own_code() {
     let release = build(&store, true, BuildProfile::Release);
     assert_eq!(rejections(&release), 0, "{}", release.render());
     assert!(release.wasm.is_some());
+}
+
+#[test]
+fn fetched_debug_warnings_and_suppression_survive_check_and_link_cache_hits() {
+    let store = MemoryStore::default();
+    let code = "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    let show: fn((i32,)) -> void = dbg\n    show((n,))\n    n * 100\n";
+    let local = build_with_debug_code(&store, false, BuildProfile::Checked, code);
+    assert!(local.diags.is_empty(), "{}", local.render());
+    assert!(local.wasm.is_some());
+    for _ in 0..2 {
+        let fetched = build_with_debug_code(&store, true, BuildProfile::Checked, code);
+        assert_eq!(
+            fetched
+                .diags
+                .code
+                .iter()
+                .filter(|c| **c == Code::DbgInDependency)
+                .count(),
+            1,
+            "{}",
+            fetched.render()
+        );
+        assert!(fetched.render().contains("fetched package `money`"));
+        assert!(fetched.counters.modules_checked.is_empty());
+        assert!(fetched.wasm.is_some());
+        assert_ne!(local.wasm, fetched.wasm, "suppression changes emitted code");
+    }
+    let local_again = build_with_debug_code(&store, false, BuildProfile::Checked, code);
+    assert!(local_again.diags.is_empty(), "{}", local_again.render());
+    assert_eq!(local.wasm, local_again.wasm);
 }

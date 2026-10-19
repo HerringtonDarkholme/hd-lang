@@ -1,0 +1,7 @@
+use dep.money.{noisy, printer}
+
+pub fn main() -> void $ Console:
+    noisy()
+    show := printer()
+    show((+99,))
+    println("done")

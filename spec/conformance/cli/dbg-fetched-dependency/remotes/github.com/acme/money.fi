@@ -1,0 +1,41 @@
+# Deterministic local git remote, rewritten to file:// by the runner.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+money with forgotten debug calls
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "money"
+END
+M 644 inline src/lib.hd
+data <<END
+use self.other.more
+
+fn effect(label: string) -> i32 $ Console:
+    println(label)
+    +7
+
+pub fn noisy() -> void $ Console:
+    dbg("x", effect("direct"))
+    dbg(values=(effect("named"),))
+    pair := (effect("spread"),)
+    dbg(pair...)
+    let show: fn((i32,)) -> void = dbg
+    show((effect("value"),))
+    more()
+
+pub fn printer() -> fn((i32,)) -> void:
+    dbg
+END
+M 644 inline src/other.hd
+data <<END
+pub fn more() -> void:
+    dbg("another module in the same package")
+END
+
+reset refs/tags/v1.0.0
+from :1

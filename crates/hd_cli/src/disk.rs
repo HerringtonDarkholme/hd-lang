@@ -260,6 +260,8 @@ pub struct DiskPackage {
     pub identity: String,
     pub sources: DiskSources,
     pub requires: Requires,
+    /// Selected for a version requirement, rather than a local path.
+    pub fetched: bool,
 }
 
 impl Program {
@@ -281,7 +283,7 @@ impl Program {
                     identity: d.identity.clone(),
                     sources: &d.sources,
                     requires: d.requires.clone(),
-                    fetched: false,
+                    fetched: d.fetched,
                 })
                 .collect(),
             entries: self.entries.clone(),
@@ -431,6 +433,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
             identity: p.identity.clone(),
             sources,
             requires: edges(&p.requires),
+            fetched: p.fetched.is_some(),
         });
     }
     Ok(Dependencies {

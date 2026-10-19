@@ -1,0 +1,34 @@
+# module.dbg.dependency.function-value also covers a printer returned to the root.
+# The remote is local file:// git, with no network. Two modules and
+# several call forms still produce one warning naming the fetched package.
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd build --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd build --release --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd run --format json
+stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout: direct
+stdout: named
+stdout: spread
+stdout: value
+stdout: done
+run: hd run --format json
+stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout: direct
+stdout: named
+stdout: spread
+stdout: value
+stdout: done
+run: hd run --release --format json
+stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout: direct
+stdout: named
+stdout: spread
+stdout: value
+stdout: done
