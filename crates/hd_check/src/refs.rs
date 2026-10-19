@@ -2,7 +2,7 @@
 //! `&mut T`, `&e` and `&mut e` on places and on other values, `*e` and
 //! writes through a reference, automatic dereference on field access and
 //! method calls, and the read-only rules (`&mut T` converts to `&T`;
-//! reading through `&T` weakens every `&mut` inside).
+//! reads keep declared field types, and `&T` protects its immediate referent).
 //!
 //! The Wasm GC emulation (`crates/hd_wasm/DESIGN.md` §15.2,
 //! "References"): a reference is a `std.core.Ref[T]` object holding two
@@ -28,7 +28,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, Coercion, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
 };
-use hd_types::{ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{Prim, RowId, Ty, TyData, TyList};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind, OpenSub, unsupported};
 
@@ -80,66 +80,15 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The type a read through `&T` or `&mut T` yields (`ref.read.type`,
-    /// `ref.read.weaken`): through `&mut T`, `T`, with mutable access when
-    /// `T` has views; through `&T`, `T` with every `&mut` and `mut` view
-    /// inside it weakened.
+    /// A read keeps its declared type; `&mut` also grants legacy view access.
     pub(crate) fn deref_ty(&self, inner: Ty, mutable: bool) -> Ty {
         let pool = self.pool();
-        if !mutable {
-            return self.weaken(inner);
-        }
         let inner = self.infer.resolve(pool, inner);
-        if self.is_composite(inner) && !matches!(pool.get(inner), TyData::Mut(_)) {
+        if mutable && self.is_composite(inner) && !matches!(pool.get(inner), TyData::Mut(_)) {
             pool.intern_ty(&TyData::Mut(inner))
         } else {
             inner
         }
-    }
-
-    /// `t` as a read through a read-only reference sees it
-    /// (`ref.read.weaken`): each `&mut U` inside becomes `&U` and each
-    /// `mut U` view becomes `U`, at any depth, except inside a function
-    /// type.
-    pub(crate) fn weaken(&self, t: Ty) -> Ty {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        let list = |l: TyList| {
-            pool.list(
-                &pool
-                    .list_items(l)
-                    .iter()
-                    .map(|e| self.weaken(*e))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        let d = match pool.get(t) {
-            TyData::Ref { inner, .. } => TyData::Ref {
-                inner: self.weaken(inner),
-                mutable: false,
-            },
-            TyData::Mut(i) => return self.weaken(i),
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(args),
-            },
-            TyData::Option(i) => TyData::Option(self.weaken(i)),
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest: rest.map(|r| self.weaken(r)),
-            },
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: list(args),
-                bindings,
-            },
-            _ => return t,
-        };
-        pool.intern_ty(&d)
     }
 
     /// `ref.convert.readonly-covariant`, `ref.convert.readonly-option`:
@@ -200,109 +149,6 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether a value of type `t` holds a `&mut` at any depth: through
-    /// the fields of structs, data types and enums, tuple elements,
-    /// optionals, newtypes and type arguments (`ref.read.copy-out`).
-    fn holds_mut_ref(&self, t: Ty, seen: &mut Vec<Ty>) -> bool {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        if seen.contains(&t) || seen.len() > 256 {
-            return false;
-        }
-        seen.push(t);
-        match pool.get(t) {
-            TyData::Ref { mutable, .. } => mutable,
-            TyData::Mut(i) | TyData::Option(i) => self.holds_mut_ref(i, seen),
-            TyData::Tuple { elems, rest } => pool
-                .list_items(elems)
-                .iter()
-                .copied()
-                .chain(rest)
-                .any(|e| self.holds_mut_ref(e, seen)),
-            TyData::Adt { def, args } => {
-                let argv = pool.list_items(args);
-                if argv.iter().any(|a| self.holds_mut_ref(*a, seen)) {
-                    return true;
-                }
-                let sub = |f: Ty| {
-                    pool.subst(f, &|p: ParamRef| {
-                        (p.owner == def)
-                            .then(|| argv.get(usize::from(p.index)).copied())
-                            .flatten()
-                    })
-                };
-                let Some(item) = self.cx.lookup.item(def) else {
-                    return false;
-                };
-                let fields: Vec<Ty> = match &item.data {
-                    hd_resolve::ItemData::Data(fs) => fs.iter().map(|f| sub(f.ty)).collect(),
-                    hd_resolve::ItemData::Enum { shared, variants } => shared
-                        .iter()
-                        .chain(variants.iter().flat_map(|v| &v.fields))
-                        .map(|f| sub(f.ty))
-                        .collect(),
-                    hd_resolve::ItemData::Newtype(base) => vec![sub(*base)],
-                    _ => vec![],
-                };
-                fields.into_iter().any(|f| self.holds_mut_ref(f, seen))
-            }
-            _ => false,
-        }
-    }
-
-    /// `ref.read.copy-out`: a whole value of type `t` read through a
-    /// read-only reference must not hold a `&mut`, which would be writable
-    /// again in the copy.
-    pub(crate) fn check_copy_out(&mut self, t: Ty, n: NodeRef<'_>) {
-        if self.holds_mut_ref(t, &mut Vec::new()) {
-            let msg = format!(
-                "this copies a value of type {} out of a read-only reference, and it holds a `&mut`, which the copy would make writable again; read the fields you need instead",
-                self.show(t)
-            );
-            self.err(Code::MutableUpgrade, n, &msg);
-        }
-    }
-
-    /// The type of a field or element of type `t` read from a value that
-    /// `shared` says was read through a read-only reference: weakened
-    /// (`ref.read.weaken`), and no copy of a `&mut` unless the read is
-    /// itself the base of another field read (`projected`).
-    pub(crate) fn shared_read(
-        &mut self,
-        t: Ty,
-        shared: bool,
-        projected: bool,
-        n: NodeRef<'_>,
-    ) -> Ty {
-        if !shared {
-            return t;
-        }
-        let w = self.weaken(t);
-        if !projected {
-            self.check_copy_out(w, n);
-        }
-        w
-    }
-
-    /// Whether the value `r` is read through a read-only reference: a
-    /// field, or a field of a field, of a value read through `&T`
-    /// (`ref.read.weaken`).
-    pub(crate) fn via_shared_ref(&mut self, r: Ref) -> bool {
-        let mut cur = r;
-        while let Some(i) = cur.as_inst() {
-            let (tag, data) = {
-                let body = self.b.body_mut();
-                (body.tags[i.0 as usize], body.data[i.0 as usize])
-            };
-            match tag {
-                Tag::Field | Tag::TupleGet => cur = Ref(data[0]),
-                Tag::CallValue => return self.deref_source(Ref(data[0])).is_some_and(|(_, m)| !m),
-                _ => return false,
-            }
-        }
-        false
-    }
-
     /// When `callee`, the function value of a `CallValue`, is the `get`
     /// closure of a reference (as [`Self::emit_deref`] reads it): the
     /// reference value and whether it is `&mut`.
@@ -334,7 +180,7 @@ impl Ck<'_, '_> {
         (self.b.emit(Tag::CallValue, f.0, rec, t, at), t)
     }
 
-    /// The value `r` of type `t` as an index base (`ref.read.auto.index`):
+    /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
     /// a reference to a list, map or string is read through, so the index
     /// names an element of the referenced value; any other value is
     /// returned unchanged.
@@ -1309,14 +1155,11 @@ impl Ck<'_, '_> {
             return unsupported("a dereference without an operand");
         };
         let (r, t) = self.expr(e, None)?;
-        let Some((_, mutable)) = self.ref_of(t) else {
+        let Some(_) = self.ref_of(t) else {
             self.not_a_reference(t, e);
             return Ok(self.ref_poison(n));
         };
         let (v, vt) = self.emit_deref(r, t, n.index());
-        if !mutable {
-            self.check_copy_out(vt, n);
-        }
         Ok((v, vt))
     }
 

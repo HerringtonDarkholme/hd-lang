@@ -501,6 +501,23 @@ describe("learn page", () => {
   });
 });
 
+describe("read-only data guide", () => {
+  test("the example checks and preserves contained mutable references", async () => {
+    const text = await readFile(join(REPO_DIR, "website/guide/WORKING_WITH_DATA.md"), "utf8");
+    const section = text.split("## Read-only data\n")[1]?.split("\n## ")[0];
+    const code = /```hd\n([^]*?)```/.exec(section ?? "")?.[1];
+    assert.ok(code, "the read-only data section has a runnable example");
+    const file = join(scratch, "read-only-data.hd");
+    await writeFile(file, code);
+    const [program, ...args] = compilerCommand();
+    const checked = spawnSync(program!, [...args, "check", file], { encoding: "utf8" });
+    assert.equal(checked.status, 0, checked.stderr);
+    const ran = spawnSync(program!, [...args, file], { encoding: "utf8" });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stdout.trim(), "Shipping: Ada, 3 jobs");
+  });
+});
+
 describe("link checker", () => {
   test("reports missing pages, missing anchors, and URLs outside the base", async () => {
     const outDir = join(scratch, "links");

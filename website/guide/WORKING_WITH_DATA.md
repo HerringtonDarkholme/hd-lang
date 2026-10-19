@@ -1,12 +1,69 @@
 # Working With Data
 
 This page covers everyday jobs that the [tour](../tour/01-hello.md) and
-[Learn hd in 10 Minutes](LEARN_IN_10_MINUTES.md) do not: reading JSON
-into typed config, tests that live in the documentation, concurrent work
+[Learn hd in 10 Minutes](LEARN_IN_10_MINUTES.md) do not: read-only access
+to data, reading JSON into typed config, tests that live in the documentation, concurrent work
 with a timeout, file reads and writes, pulling fields out of log lines,
 wiring a program's providers in `main`, and splitting a program into
 packages. Each `hd` program below runs as written; the tests pass with
 `hd test FILE` (or in package mode, `hd test`).
+
+## Read-only data
+
+A `&T` to plain values, including structs, lists and maps, is read-only all
+the way down while the path stays within those values. It prevents replacing
+a field or changing a nested collection through that reference.
+
+A contained `&mut` keeps its write access. In this team dashboard, `view`
+cannot rename the team, but its `owner` reference can update Ada's completed
+work. Copying that reference keeps the same access:
+
+```hd
+pub struct User:
+    pub name: string
+    pub completed: usize
+
+impl User:
+    pub fn complete_task(&mut self) -> void:
+        self.completed += 1
+
+pub struct Team:
+    name: string
+    owner: &mut User
+
+impl Team:
+    pub fn lead(&self) -> &User:
+        self.owner
+
+    pub fn lead_mut(&mut self) -> &mut User:
+        self.owner
+
+pub fn main() -> void $ Console:
+    let mut ada = User { name: "Ada", completed: 0 }
+    let mut team = Team { name: "Shipping", owner: &mut ada }
+    view := &team
+    view.owner.complete_task()
+    copied := view.owner
+    copied.complete_task()
+    editor := &mut team
+    editor.lead_mut().complete_task()
+    reader := view.lead()
+    println("${view.name}: ${reader.name}, ${reader.completed} jobs")
+```
+
+```output
+Shipping: Ada, 3 jobs
+```
+
+To hand out read-only access to a user, declare the field `&User`. Another
+option is a private `&mut User` field with the getter pair above:
+`lead(&self) -> &User` gives read access, and
+`lead_mut(&mut self) -> &mut User` gives write access. Outside this module,
+a `&Team` holder can only read the user; writing requires a `&mut Team`
+holder to call `lead_mut`. The direct field accesses in this example work
+because they are inside the module that declares the private field.
+A trait exposing `&self` getters can provide the same read-only interface.
+The rules are in [Reading Through A Reference](../../spec/lang/13-values-and-references.md#reading-through-a-reference).
 
 ## Reading Configuration As JSON
 

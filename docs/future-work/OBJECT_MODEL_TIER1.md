@@ -210,18 +210,14 @@ fn shift_in_place(v: &mut Vec2) -> void:
     v.x += 1.0              # fine: writes the caller's value
 ```
 
-**Read-only is transitive through references.** Reading through `&T`
-weakens every `&mut` in the value read to `&`. With
-`struct Team { lead: &mut User }` and `t: &Team`, `t.lead` is a `&User`,
-and copying it out cannot recover write access; a `List[&mut User]` read
-through `&` is a `List[&User]`, with the same layout. For the same
-reason, copying a whole value out of a `&T` is an error when `T` holds a
-`&mut` at any depth: `*t` would be an ordinary `Team` whose `lead` is
-writable again. A struct of plain values copies out freely, and a new
-value can still be built from the fields that read gives. Function values
-are the exception: a closure read through `&` can still be called and
-may change what it captured. Read-only is a permission on paths, not a
-freeze of the object graph.
+**Read-only references are shallow.** A `&T` makes only the value it
+refers to read-only; reads and copies retain their declared field types.
+With `Team { name: string, lead: &mut User }` and `t: &Team`, assigning
+`t.name` is an error, but `t.lead.age = 1` and a `&mut self` call through
+`t.lead` are valid. Copying `t.lead` yields a `&mut User`, and `*t` copies
+a `Team` with that same field type, including in an unbounded generic
+`fn dup[T](t: &T) -> T: *t`. A type that must not be copied would opt out
+with a later Swift-style `~Copyable`.
 
 **No exclusivity for global `&mut T`.** Rust needs exclusivity because a
 borrow holds no count, so a write through another path could free what

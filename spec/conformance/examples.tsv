@@ -661,8 +661,8 @@ lang/13-values-and-references.md	1	mixed	parse/invalid/reference-type-and-and.hd
 lang/13-values-and-references.md	2	mixed	parse/invalid/reference-expression-and-and.hd|parse/invalid/caret-prefix-expression.hd
 lang/13-values-and-references.md	3	mixed	typing/invalid/reference-mut-from-plain-let.hd|typing/invalid/reference-mut-from-short-binding.hd|typing/invalid/reference-mut-from-value-parameter.hd
 lang/13-values-and-references.md	4	mixed	typing/invalid/reference-shared-to-mut-argument.hd|typing/invalid/reference-shared-to-mut-result.hd
-lang/13-values-and-references.md	5	mixed	typing/invalid/reference-copy-out-mut.hd
-lang/13-values-and-references.md	6	mixed	typing/invalid/match-reference-weakened-payload.hd
+lang/13-values-and-references.md	5	accept	runtime/valid/reference-copy-out.hd
+lang/13-values-and-references.md	6	accept	runtime/valid/match-reference-declared-payload.hd
 lang/13-values-and-references.md	7	mixed	typing/invalid/reference-deref-write-shared.hd|typing/invalid/reference-write-through-shared-field.hd
 lang/13-values-and-references.md	8	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd|typing/invalid/reference-identity-data-operand.hd
 lang/13-values-and-references.md	9	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd

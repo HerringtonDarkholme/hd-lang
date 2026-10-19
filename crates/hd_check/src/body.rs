@@ -273,9 +273,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// its serial number (`crate::refs`), and whether its declaration
     /// has drawn it yet.
     pub ref_serials: HashMap<LocalId, (LocalId, bool)>,
-    /// The base of the field read being checked: a field read is no copy
-    /// of its base (`ref.read.copy-out`).
-    pub proj_base: Option<hd_base::NodeIdx>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -413,9 +410,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
-    /// Declaring a pattern's names below a test that read through a `&T`:
-    /// each name binds a weakened copy (`ref.match.weaken`).
-    pub pattern_shared: bool,
     /// The locals the source binds by name, for `unused-local-binding`.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
@@ -583,7 +577,6 @@ pub(crate) fn new_ck<'a, 'c>(
         ref_taken: Vec::new(),
         ref_serials: HashMap::default(),
         prim_let_mut: Vec::new(),
-        proj_base: None,
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -638,7 +631,6 @@ pub(crate) fn new_ck<'a, 'c>(
         written_row: None,
         let_view: None,
         pattern_rejected: false,
-        pattern_shared: false,
         user_locals: Vec::new(),
         norm_depth: 0,
         pre_args: Vec::new(),
@@ -3778,7 +3770,6 @@ impl Ck<'_, '_> {
                 let Some(base) = lhs.children().next() else {
                     return unsupported("a field without a base");
                 };
-                self.proj_base = Some(base.index());
                 let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 // A field of a referenced value: through `&mut` only

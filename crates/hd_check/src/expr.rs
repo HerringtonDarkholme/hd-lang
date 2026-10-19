@@ -1776,23 +1776,15 @@ impl Ck<'_, '_> {
         {
             return Ok(v);
         }
-        // A field read is no copy of its base (`ref.read.copy-out`).
-        let projected = self.proj_base == Some(n.index());
-        self.proj_base = Some(base.index());
         let (r, bt) = self.expr(*base, None)?;
         let mut bt = self.infer.resolve(pool, bt);
         if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
             bt = self.infer.resolve(pool, bt);
         }
-        // Field access through a reference reads the referenced value
-        // (`ref.read.auto`); through `&T` it sees every `&mut` inside as
-        // `&` (`ref.read.weaken`).
-        let (r, bt, shared) = match self.ref_of(bt) {
-            Some((_, m)) => {
-                let (r, t) = self.emit_deref(r, bt, base.index());
-                (r, t, !m)
-            }
-            None => (r, bt, self.via_shared_ref(r)),
+        // Shallow readonly references preserve the declared field types.
+        let (r, bt) = match self.ref_of(bt) {
+            Some(_) => self.emit_deref(r, bt, base.index()),
+            None => (r, bt),
         };
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
@@ -1820,14 +1812,12 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
-            let t = self.shared_read(t, shared, projected, n);
             return Ok((self.b.emit(Tag::TupleGet, r.0, idx, t, n.index()), t));
         }
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
             let ft = self.field_access(bt, &name, ft);
-            let ft = self.shared_read(ft, shared, projected, n);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n) {

@@ -1,5 +1,5 @@
 # test: field reads and method calls through a reference apply to the referenced value, through `&T` and `&mut T` alike
-# Spec 13 Reading Through A Reference: ref.read.auto, ref.read.type, ref.read.weaken. Conversions: ref.convert.weaken.
+# Spec 13 Reading Through A Reference: ref.read.auto, ref.read.type, ref.read.shallow. Conversions: ref.convert.weaken.
 # expect-stdout: 25.0
 # expect-stdout: ann 1
 # expect-stdout: bea

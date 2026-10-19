@@ -1,0 +1,10 @@
+# test: a shared reference does not permit replacing even a mutable-reference field
+struct User:
+    age: i32
+
+struct Team:
+    name: string
+    lead: &mut User
+
+fn replace(t: &Team, user: &mut User) -> void:
+    t.lead = user  # diagnostic: readonly-root

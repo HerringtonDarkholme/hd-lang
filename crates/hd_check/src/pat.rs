@@ -184,11 +184,7 @@ impl Ck<'_, '_> {
         if tests_value(p)
             && let Some((referent, mutable)) = self.ref_of(t)
         {
-            let outer = self.pattern_shared;
-            self.pattern_shared |= !mutable;
-            let r = self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
-            self.pattern_shared = outer;
-            return r;
+            return self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
         }
         let tr = self.infer.resolve(pool, t);
         let inner = match pool.get(tr) {
@@ -584,12 +580,6 @@ impl Ck<'_, '_> {
             // `name @ pattern`-like forms.
             return unsupported("a binding with a sub-pattern");
         }
-        // `ref.match.weaken`: a copy read through `&T` holds no `&mut`.
-        let t = if self.pattern_shared {
-            self.weaken(t)
-        } else {
-            t
-        };
         let t = match self.let_view {
             Some(annotated)
                 if p.direct_tokens()

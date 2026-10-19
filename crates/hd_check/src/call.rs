@@ -2748,21 +2748,14 @@ impl Ck<'_, '_> {
         }
         let (recv, rt) = self.expr(base, None)?;
         // A method call through a reference calls it on the referenced
-        // value (`ref.read.auto`), which a read-only one copies out
-        // (`ref.read.copy-out`), unless the method takes a reference.
+        // value (`ref.read.auto`), unless the method takes a reference.
         if let Some(passed) = self.pass_reference_receiver(recv, rt, &name, base)? {
             self.method_targs = method_targs;
             return self.method_on(passed.0, passed.1, &name, args, (n, bang), want);
         }
         let via_dyn = self.dyn_ref_of(rt).map(|(_, m)| (m, base.index()));
         let (recv, rt) = match self.ref_of(rt) {
-            Some((_, m)) => {
-                let (v, t) = self.emit_deref(recv, rt, base.index());
-                if !m {
-                    self.check_copy_out(t, base);
-                }
-                (v, t)
-            }
+            Some(_) => self.emit_deref(recv, rt, base.index()),
             None => (recv, rt),
         };
         self.method_targs = method_targs;

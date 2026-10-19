@@ -1,5 +1,5 @@
 # test: indexing through a reference to a list reads, stores and refers to the referenced list's elements
-# Spec 13 Reading Through A Reference: ref.read.auto.index; Writing Through A Reference: ref.write.index; Element References: ref.elem.through.
+# Spec 13 Reading Through A Reference: ref.read.index.declared; Writing Through A Reference: ref.write.index; Element References: ref.elem.through.
 fn fill(r: &mut List[i32]) -> void:
     r[0] = 7
     r[2] += 10

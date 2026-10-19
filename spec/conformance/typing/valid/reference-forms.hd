@@ -1,6 +1,6 @@
 # test: reference types in every position, `&` of any binding, `&mut` of writable places, conversions from `&mut T` to `&T`, and reads through a read-only reference
 # Spec 13 Reference Types: ref.type.position, ref.type.distinct. Places And New Objects: ref.place.forms, ref.expr.type. Writable Places Of References: ref.place.shared-any, ref.place.writable.
-# Spec 13 Conversions: ref.convert.weaken. Reading Through A Reference: ref.read.weaken, ref.read.function, ref.read.copy-out.projection.
+# Spec 13 Conversions: ref.convert.weaken. Reading Through A Reference: ref.read.shallow, ref.read.shallow, ref.read.shallow.
 struct User:
     name: string
 

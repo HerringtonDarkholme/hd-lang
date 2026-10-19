@@ -387,7 +387,12 @@ proposal matures.
   values that are copied, and Erlang's rule that every message is a copy.
 - **For sharing without copying (stage C):** a `Frozen[T]` value, built
   by `freeze(x)`, which deep-copies a boundary-safe `x` into objects that
-  no `mut` view can ever reach. The parked deep-immutability idea in
+  no `&mut` can reach. Since read-only `&` is shallow, this is hd's only
+  deep immutability. The structural “reaches no `&mut`” check will be
+  designed with stages B/C, not here. It walks every field and every type
+  argument at any depth, and never trusts a read-only view: in the old
+  `mut T` model, a read-only `Reader { hole: Box[mut Reader] }` still
+  reached a writable `Reader`. The parked deep-immutability idea in
   [Open Issues](OPEN_ISSUES.md) describes the property. It is scriptc's
   `publish`, checked statically, and freed by the collector instead of
   being immortal.

@@ -1,5 +1,5 @@
 # test: a closure reached through a & reference can be called and changes what it captured
-# Spec 13 Reading Through A Reference: ref.read.function. Spec 07: fn.capture.copies.
+# Spec 13 Reading Through A Reference: ref.read.shallow. Spec 07: fn.capture.copies.
 # expect: test
 struct Handler:
     step: fn() -> i32

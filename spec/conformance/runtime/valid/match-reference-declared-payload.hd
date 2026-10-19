@@ -1,0 +1,18 @@
+# test: a mutable reference copied by a pattern through a shared reference keeps its write access
+# Spec 13 Matching Through A Reference: ref.match.declared-type.
+# expect-stdout: 0
+enum Holder:
+    Empty
+    Cell(value: &mut i64)
+
+fn reset(h: &Holder) -> void:
+    match h:
+        .Cell(value) =>
+            *value = 0
+        .Empty => pass
+
+pub fn main() -> void $ Console:
+    let mut value: i64 = 7
+    holder := Holder.Cell(&mut value)
+    reset(&holder)
+    println("$value")

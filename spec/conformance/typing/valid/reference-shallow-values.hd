@@ -1,0 +1,27 @@
+# test: shared reads preserve declared reference types, including return values and aggregate arguments
+struct User:
+    age: i32
+
+struct Team:
+    lead: &mut User
+
+fn lead(source: &Team) -> &mut User:
+    source.lead
+
+fn copy(source: &Team) -> Team:
+    *source
+
+fn element(source: &List[&mut User]) -> &mut User:
+    source[0]
+
+fn generic[T](source: &T) -> T:
+    *source
+
+fn anyval[T < AnyVal](source: &T) -> T:
+    *source
+
+fn mutable_argument(source: &Team) -> void:
+    edit(source.lead)
+
+fn edit(user: &mut User) -> void:
+    user.age = +10

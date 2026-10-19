@@ -1,0 +1,10 @@
+# test: a shared reference protects the value it directly refers to
+struct User:
+    age: i32
+
+struct Team:
+    name: string
+    lead: &mut User
+
+fn name(t: &Team) -> void:
+    t.name = "changed"  # diagnostic: readonly-root

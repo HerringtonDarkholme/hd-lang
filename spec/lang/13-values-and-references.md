@@ -171,7 +171,7 @@ fn demo() -> void:
 | r[ref.place.not-writable.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
 | r[ref.place.not-writable.param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[ref.place.not-writable.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
-| r[ref.place.not-writable.shared] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
+| r[ref.place.not-writable.shared-referent] Read-only reference | the value directly referred to by a `&T` reference | `readonly-root` |
 | r[ref.place.not-writable.data] Data field | a field of a data value without mutable access | `readonly-root` |
 
 7. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
@@ -233,28 +233,37 @@ fn demo(r: &Vec2) -> f64:
 2. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
 3. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
 4. r[ref.read.type] A read through `&mut T` has type `T`, with mutable access when `T` has views, as a data type or a list has.
-5. r[ref.read.weaken] Read-only is transitive: a read through `&T` has type `T` with every `&mut U` inside it weakened to `&U`, and every `mut U` view to `U`, at any depth. A field of a value read through `&T` is weakened the same way.
-6. r[ref.read.function] The weakening does not enter a function type: a function value read through `&T` keeps its type, and a call of it may change what it captured.
-7. r[ref.read.copy-out] Copying a whole value out of a `&T` is an error when the value holds a `&mut` at any depth, inside struct, data, or enum fields included. Error: `mutable-upgrade`.
-8. r[ref.read.copy-out.projection] A field read that is itself the base of another field read copies nothing, so `t.inner.lead` reads through `t.inner` without copying it.
-9. r[ref.read.auto.index] An index on a reference to a list, a map, or a string applies to the value it refers to: `r[i]` reads the element `i` of that value. Through `&T`, the element's type is weakened as `ref.read.weaken` states.
+5. r[ref.read.shallow] A read through `&T` keeps its declared type; the reference makes only the value it refers to read-only.
+6. r[ref.read.index.declared] An index on a reference to a list, map, or string reads an element of the referenced value.
+
+With `Team { name: string, lead: &mut User }` and `t: &Team`:
+
+| Expression | Result |
+| --- | --- |
+| `t.name = "x"` | Error: `readonly-root`; the referenced value is read-only. |
+| `t.lead.age = +1` | Valid; `lead` retains `&mut User`. |
+| `t.lead.birthday()` | Valid for a `&mut self` method. |
+| `x := t.lead` | `x` has type `&mut User`. |
+| `*t` | A copy of type `Team`, with its declared field types. |
 
 ```text
 struct User:
-    name: string
+    age: i32
 
 struct Team:
+    name: string
     lead: &mut User
 
-fn lead_name(t: &Team) -> string:
-    t.lead.name  # valid: a field read, weakened to &User
+fn copy(t: &Team) -> Team:
+    *t
 
-fn invalid(t: &Team) -> Team:
-    *t  # error: mutable-upgrade
+fn dup[T](t: &T) -> T:
+    *t
+
+fn edit(t: &Team) -> void:
+    x := t.lead
+    x.age = +1
 ```
-
-> **Why.** Without the copy-out rule, `*t` would be an ordinary `Team`
-> whose `lead` is writable again, and read-only would not be transitive.
 
 ## Matching Through A Reference
 
@@ -276,7 +285,7 @@ fn eval(e: &Expr) -> i64:
 2. r[ref.match.nested] The rule applies at every depth: a nested pattern reads through a payload field, a tuple element, or a data field of reference type.
 3. r[ref.match.binding] A binding or `_` matched against a reference takes the reference itself, so `whole => whole is e` is `true`.
 4. r[ref.match.copy] A payload or field that a pattern binds below such a read is a copy of it, read at the time of the match. A payload is not a place.
-5. r[ref.match.weaken] Below a read through `&T`, each binding has its type weakened as [`ref.read.weaken`](#r-ref.read.weaken) states.
+5. r[ref.match.declared-type] A binding copied by a pattern through a reference keeps its declared type.
 
 ```text
 enum Holder:
@@ -286,7 +295,7 @@ enum Holder:
 fn reset(h: &Holder) -> void:
     match h:
         .Cell(value) =>
-            *value = 0  # error: readonly-root
+            *value = 0
         .Empty => pass
 ```
 
@@ -480,7 +489,7 @@ fn demo() -> i32:
 > place.
 
 See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-captures),
-[`ref.read.function`](#r-ref.read.function).
+[`ref.read.shallow`](#r-ref.read.shallow).
 
 ## Not Yet Checked
 

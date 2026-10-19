@@ -1,0 +1,70 @@
+# test: whole copied values retain declared mutable fields, including an unbounded generic copy
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 4
+# expect-stdout: 5
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 9
+# expect-stdout: 7
+struct User:
+    age: i32
+
+impl User:
+    fn birthday(&mut self) -> void:
+        self.age += +1
+
+struct Team:
+    lead: &mut User
+
+struct Outer:
+    team: Team
+
+fn dup[T](source: &T) -> T:
+    *source
+
+fn concrete(source: &Team) -> void:
+    copy := *source
+    copy.lead.age = +2
+
+fn generic(source: &Team) -> void:
+    copy := dup(source)
+    copy.lead.age = +3
+
+fn nested(source: &Outer) -> void:
+    copy := source.team
+    copy.lead.age = +4
+
+fn direct(source: &Team) -> void:
+    source.lead.age = +6
+    source.lead.birthday()
+
+fn field(source: &Team) -> void:
+    copy := source.lead
+    copy.age = +8
+
+fn indexed(source: &List[&mut User]) -> void:
+    source[0].age = +9
+
+pub fn main() -> void $ Console:
+    let mut user = User { age: +1 }
+    team := Team { lead: &mut user }
+    concrete(&team)
+    println(user.age)
+    generic(&team)
+    println(user.age)
+    outer := Outer { team: team }
+    nested(&outer)
+    println(user.age)
+    copy := dup(&outer)
+    copy.team.lead.age = +5
+    println(user.age)
+    direct(&team)
+    println(user.age)
+    field(&team)
+    println(user.age)
+    references := [&mut user]
+    indexed(&references)
+    println(user.age)
+    number := +7
+    println(dup(&number))
