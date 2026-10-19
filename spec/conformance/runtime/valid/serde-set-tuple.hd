@@ -10,7 +10,7 @@ data Order:
     line: (i32, string)
 
 fn order() -> Order:
-    let tags: mut Set[string] = Set::new()
+    let mut tags: Set[string] = Set::new()
     _ := tags.insert("rush")
     _ := tags.insert("gift")
     Order { tags: tags, line: (3, "pen") }

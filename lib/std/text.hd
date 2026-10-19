@@ -218,7 +218,7 @@ impl Parse for char:
     type Error = ParseCharError
 
     fn parse(text: string) -> Result[char, ParseCharError]:
-        let chars: mut Iterator[char] = text.chars()
+        chars := text.chars()
         first := match chars.next():
             .Some(found) => found
             .None => return .Err(ParseCharError.Empty)
@@ -248,7 +248,7 @@ impl string:
     # The scalar values in order (spec/lang/10-modules.md#r-module.string.chars).
     ## Iterates the string's characters, one Unicode scalar value at a time.
     ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).
-    pub fn chars(self) -> mut Iterator[char]:
+    pub fn chars(self) -> &mut Iterator[char]:
         let at: usize = 0
         Iterator::from_fn(fn() -> char?:
             if at >= bytes_len(self):
@@ -262,7 +262,7 @@ impl string:
     # (spec/lang/10-modules.md#r-module.string.char-indices).
     ## Iterates `(byte offset, character)` pairs, one per character.
     ## See [module.string.char-indices](../../spec/lang/10-modules.md#r-module.string.char-indices).
-    pub fn char_indices(self) -> mut Iterator[(usize, char)]:
+    pub fn char_indices(self) -> &mut Iterator[(usize, char)]:
         let at: usize = 0
         Iterator::from_fn(fn() -> (usize, char)?:
             if at >= bytes_len(self):
@@ -277,7 +277,7 @@ impl string:
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
     ## Iterates the string's bytes, one `u8` at a time.
     ## See [module.string.bytes](../../spec/lang/10-modules.md#r-module.string.bytes).
-    pub fn bytes(self) -> mut Iterator[u8]:
+    pub fn bytes(self) -> &mut Iterator[u8]:
         let at: usize = 0
         Iterator::from_fn(fn() -> u8?:
             if at >= bytes_len(self):

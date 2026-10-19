@@ -173,7 +173,7 @@ fn a_growth_that_doubles_during_iteration_invalidates_the_cursor() {
     let main = "\
 pub fn main() -> void $ Console:
     let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
-    let it: mut Iterator[(string, i32)] = m.iter()
+    let it: &mut Iterator[(string, i32)] = m.iter()
     match it.next():
         .Some((k, _)) => println(k)
         .None => println(\"none\")
@@ -198,7 +198,7 @@ pub fn main() -> void $ Console:
     let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5, \"f\": 6, \"g\": 7, \"h\": 8}
     for k in [\"a\", \"b\", \"c\", \"d\", \"e\"]:
         _ := m.remove(k)
-    let it: mut Iterator[(string, i32)] = m.iter()
+    let it: &mut Iterator[(string, i32)] = m.iter()
     match it.next():
         .Some((k, _)) => println(k)
         .None => println(\"none\")

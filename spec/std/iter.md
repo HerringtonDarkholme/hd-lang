@@ -18,7 +18,7 @@ The language tier keeps what the compiler knows by name
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `Iterator[T]` | a prelude type that `Iterable.iter` returns and `for` accepts directly, so `for` depends on it |
+| `Iterator[T]` | a prelude struct that `Iterable.iter` returns behind `&mut` and `for` accepts directly, so `for` depends on it |
 | `Iterator::from_fn`, `next` | the only way to build and advance an `Iterator[T]`, since `step` is private |
 | `Iterable[T]` and its impls | the lang item that drives `for` and comprehensions; `List`, `Map`, and the [iterable ranges](../lang/06-control-flow.md#range-iteration) implement it, not `Iterator` |
 
@@ -39,12 +39,12 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-iter.adapter.filter] `filter` | `fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` for which `keep` returns `true` |
-| r[std-iter.adapter.take-first] `take` | `fn take(mut self, count: usize) -> mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
-| r[std-iter.adapter.enumerate-usize] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(usize, T)]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
-| r[std-iter.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
-| r[std-iter.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
-| r[std-iter.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
+| r[std-iter.adapter.filter] `filter` | `fn filter(&mut self, keep: fn(T) -> bool) -> &mut Iterator[T]` | a new iterator over the items of `self` for which `keep` returns `true` |
+| r[std-iter.adapter.take-first] `take` | `fn take(&mut self, count: usize) -> &mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
+| r[std-iter.adapter.enumerate-usize] `enumerate` | `fn enumerate(&mut self) -> &mut Iterator[(usize, T)]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
+| r[std-iter.adapter.map] `map` | `fn map[U](&mut self, transform: fn(T) -> U) -> &mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
+| r[std-iter.adapter.fold] `fold` | `fn fold[A, R](&mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
+| r[std-iter.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](&mut self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.methods] The adapters are ordinary methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
 2. r[std-iter.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -52,7 +52,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 4. r[std-iter.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
 5. r[std-iter.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
 6. r[std-iter.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-7. r[std-iter.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
+7. r[std-iter.adapter.ref-receiver] Each adapter takes `&mut self`, so it applies to a `&mut Iterator[T]`, such as what `iter()` or another adapter returns, and its result chains. Calling one on an iterator value that is not in a writable place, or through a `&Iterator[T]`, is an error. Error: `mutable-receiver-required`.
 8. r[std-iter.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
 9. r[std-iter.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
 10. r[std-iter.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
@@ -110,16 +110,16 @@ fn has_blank(lines: List[string]) -> bool:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-iter.adapter.skip-first] `skip` | `fn skip(mut self, count: usize) -> mut Iterator[T]` | a new iterator over the items of `self` after the first `count` |
-| r[std-iter.adapter.take-while] `take_while` | `fn take_while(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
-| r[std-iter.adapter.zip-iterable] `zip` | `fn zip[U, I < Iterable[U]](mut self, other: I) -> mut Iterator[(T, U)]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
-| r[std-iter.adapter.chain-iterable] `chain` | `fn chain[I < Iterable[T]](mut self, other: I) -> mut Iterator[T]` | a new iterator over the items of `self`, then those of `other` |
-| r[std-iter.adapter.flat-map] `flat_map` | `fn flat_map[U](mut self, transform: fn(T) -> List[U]) -> mut Iterator[U]` | a new iterator over the elements of each list that `transform(item)` returns, in order |
-| r[std-iter.adapter.any] `any` | `fn any(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
-| r[std-iter.adapter.all] `all` | `fn all(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
-| r[std-iter.adapter.find] `find` | `fn find(mut self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
-| r[std-iter.adapter.count-remaining] `count` | `fn count(mut self) -> usize` | the number of remaining items of `self` |
-| r[std-iter.adapter.sum] `sum` | `fn sum(mut self) -> T`, declared when `T < Num` | the total of the remaining items of `self`, added in order from 0 |
+| r[std-iter.adapter.skip-first] `skip` | `fn skip(&mut self, count: usize) -> &mut Iterator[T]` | a new iterator over the items of `self` after the first `count` |
+| r[std-iter.adapter.take-while] `take_while` | `fn take_while(&mut self, keep: fn(T) -> bool) -> &mut Iterator[T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
+| r[std-iter.adapter.zip-iterable] `zip` | `fn zip[U, I < Iterable[U]](&mut self, other: I) -> &mut Iterator[(T, U)]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
+| r[std-iter.adapter.chain-iterable] `chain` | `fn chain[I < Iterable[T]](&mut self, other: I) -> &mut Iterator[T]` | a new iterator over the items of `self`, then those of `other` |
+| r[std-iter.adapter.flat-map] `flat_map` | `fn flat_map[U](&mut self, transform: fn(T) -> List[U]) -> &mut Iterator[U]` | a new iterator over the elements of each list that `transform(item)` returns, in order |
+| r[std-iter.adapter.any] `any` | `fn any(&mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
+| r[std-iter.adapter.all] `all` | `fn all(&mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
+| r[std-iter.adapter.find] `find` | `fn find(&mut self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
+| r[std-iter.adapter.count-remaining] `count` | `fn count(&mut self) -> usize` | the number of remaining items of `self` |
+| r[std-iter.adapter.sum] `sum` | `fn sum(&mut self) -> T`, declared when `T < Num` | the total of the remaining items of `self`, added in order from 0 |
 
 1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
 2. r[std-iter.adapter.skip.first-next] The first `next` call of `skip`'s iterator reads and drops up to `count` items of `self` before it reads the item it returns.
@@ -138,10 +138,10 @@ fn has_blank(lines: List[string]) -> bool:
 15. r[std-iter.adapter.sum.bound] `sum` is a method of `Iterator[T]` only when `T < Num`, so the sum of an iterator of `string` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
-fn joined(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
+fn joined(first: List[i32], rest: &mut Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound
 
-fn joined_eagerly(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
+fn joined_eagerly(first: List[i32], rest: &mut Iterator[i32]) -> List[i32]:
     let tail: List[i32] = rest.collect()
     first.iter().chain(tail).collect()
 ```
@@ -185,10 +185,10 @@ The collection being built implements the `std.iter` trait
 
 ```text
 trait FromIterator[T]:
-    fn from_iter(items: mut Iterator[T]) -> Self
+    fn from_iter(items: &mut Iterator[T]) -> Self
 ```
 
-1. r[std-iter.collect.trait] `std.iter` declares `FromIterator[T]`, whose `from_iter` builds a `Self` from the items of an iterator.
+1. r[std-iter.collect.trait-ref] `std.iter` declares `FromIterator[T]`, whose `from_iter` takes an iterator as `&mut Iterator[T]` and builds a `Self` from its items.
 2. r[std-iter.prelude.from-iterator] `std.iter` also declares `FromIterator`, which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 3. r[std-iter.collect.call] `collect` returns `C::from_iter(self)`.
 4. r[std-iter.collect.expected] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.

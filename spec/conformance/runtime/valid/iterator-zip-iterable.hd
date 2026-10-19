@@ -8,7 +8,7 @@ data Probe:
     pull: fn() -> i32?
 
 impl Iterable[i32] for Probe:
-    fn iter(self) -> mut Iterator[i32]:
+    fn iter(self) -> &mut Iterator[i32]:
         (self.start)()
         Iterator::from_fn(self.pull)
 
@@ -23,7 +23,7 @@ tests:
         assert_equal(labeled(["a", "b", "c", "d"]).len(), 3, reason="numbers end first")
     it("a range and a set"):
         assert_equal([1, 2].iter().zip(10..20).collect(), [(1, 10), (2, 11)], reason="a range")
-        let seen: mut Set[string] = Set::new()
+        let mut seen: Set[string] = Set::new()
         _ := seen.insert("x")
         assert_equal([1, 2].iter().zip(seen).collect(), [(1, "x")], reason="a set")
     it("zip takes iter once, when called, and does not read other past the end of self"):

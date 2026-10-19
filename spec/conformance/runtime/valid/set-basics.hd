@@ -2,7 +2,7 @@
 # Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
 use std.collections.Set
 fn unique(words: List[string]) -> List[string]:
-    let seen: mut Set[string] = Set::new()
+    let mut seen: Set[string] = Set::new()
     let kept: mut List[string] = []
     for word in words:
         if seen.insert(word):
@@ -21,14 +21,14 @@ tests:
     it("insert skips duplicates"):
         assert_equal(unique(["b", "a", "b"]), ["b", "a"], reason="first occurrences")
     it("len, contains, and remove"):
-        let set: mut Set[string] = Set::new()
+        let mut set: Set[string] = Set::new()
         assert(set.is_empty() && set.len() == 0, reason="new is empty")
         assert(set.insert("x") && !set.insert("x"), reason="insert reports a change")
         assert(set.contains("x") && !set.contains("y"), reason="contains")
         assert(set.remove("x") && !set.remove("x"), reason="remove reports a change")
         assert_equal(set.len(), 0, reason="empty again")
     it("iterates each element once, in the same order every time"):
-        let set: mut Set[string] = Set::new()
+        let mut set: Set[string] = Set::new()
         _ := set.insert("a")
         _ := set.insert("b")
         _ := set.remove("a")
@@ -36,8 +36,8 @@ tests:
         assert_equal(listed(set).sorted(), ["a", "b"], reason="each element once")
         assert_equal(listed(set), listed(set), reason="a deterministic order")
     it("equal sets have the same elements in any order"):
-        let left: mut Set[i32] = Set::new()
-        let right: mut Set[i32] = Set::new()
+        let mut left: Set[i32] = Set::new()
+        let mut right: Set[i32] = Set::new()
         _ := left.insert(1)
         _ := left.insert(2)
         _ := right.insert(2)

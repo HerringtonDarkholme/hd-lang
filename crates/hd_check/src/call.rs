@@ -3316,6 +3316,37 @@ impl Ck<'_, '_> {
         None
     }
 
+    /// Emits the built-in method `op` on `refs`, whose intrinsic gives
+    /// `ret`. `iter` on a list or a map wraps the `Iterator[T]` it gives in
+    /// a new object, since an iterator is a handle behind `&mut`
+    /// (`module.method.iter-ref`).
+    pub(crate) fn emit_builtin(
+        &mut self,
+        op: IntrinsicOp,
+        refs: &[Ref],
+        ret: Ty,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let rec = self.b.refs_record(refs);
+        let r = self.b.emit(Tag::Intrinsic, op as u32, rec, ret, n.index());
+        if matches!(op, IntrinsicOp::ListIter | IntrinsicOp::MapIter) {
+            return self.new_object_ref(r, ret, true, n);
+        }
+        (r, ret)
+    }
+
+    /// The type `emit_builtin` gives for the built-in method `op` whose
+    /// intrinsic gives `ret`.
+    pub(crate) fn builtin_result(&self, op: IntrinsicOp, ret: Ty) -> Ty {
+        if matches!(op, IntrinsicOp::ListIter | IntrinsicOp::MapIter) {
+            return self.pool().intern_ty(&TyData::Ref {
+                inner: ret,
+                mutable: true,
+            });
+        }
+        ret
+    }
+
     /// A built-in method of `List`, `Map` (spec/lang/10-modules.md#built-in-methods).
     fn builtin_method(&mut self, t: Ty, name: &str) -> Option<(IntrinsicOp, Vec<Ty>, Ty)> {
         let pool = self.pool();
@@ -3330,12 +3361,14 @@ impl Ck<'_, '_> {
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
         let iterator = self.cx.names.known.iterator;
+        // The intrinsic gives the `Iterator[T]` struct; the call wraps it in
+        // a new object, so `iter()` returns `&mut Iterator[T]`
+        // (`Self::emit_builtin`).
         let iter_of = |x: Ty| {
-            let it = pool.intern_ty(&TyData::Adt {
+            pool.intern_ty(&TyData::Adt {
                 def: iterator,
                 args: pool.list(&[x]),
-            });
-            pool.intern_ty(&TyData::Mut(it))
+            })
         };
         let known = self.cx.names.known;
         let which = if def == known.list {
@@ -3786,11 +3819,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
-                let rec = self.b.refs_record(&refs);
-                Ok((
-                    self.b.emit(Tag::Intrinsic, op as u32, rec, ret, n.index()),
-                    ret,
-                ))
+                Ok(self.emit_builtin(op, &refs, ret, n))
             }
             Some(Hit::Trait {
                 trait_,

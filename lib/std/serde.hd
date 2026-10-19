@@ -387,7 +387,7 @@ impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
 impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Set[T], R::Error]:
         input.begin_list()?
-        let found: mut Set[T] = Set::new()
+        let mut found: Set[T] = Set::new()
         while input.next_item()?:
             _ := found.insert(T::deserialize(input)?)
         .Ok(found)

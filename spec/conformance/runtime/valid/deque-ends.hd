@@ -11,7 +11,7 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("both ends"):
-        let queue: mut Deque[i32] = Deque::new()
+        let mut queue: Deque[i32] = Deque::new()
         assert(queue.is_empty(), reason="new is empty")
         queue.push_back(2)
         queue.push_back(3)
@@ -26,7 +26,7 @@ tests:
         assert_equal(contents(queue), [1, 2], reason="what is left")
 
     it("get counts from the front"):
-        let queue: mut Deque[string] = Deque::new()
+        let mut queue: Deque[string] = Deque::new()
         queue.push_back("b")
         queue.push_front("a")
         assert_equal(queue.get(0), .Some("a"), reason="the front")
@@ -34,7 +34,7 @@ tests:
         assert_equal(queue.get(2), .None, reason="past the back")
 
     it("an empty deque"):
-        let queue: mut Deque[i32] = Deque::new()
+        let mut queue: Deque[i32] = Deque::new()
         assert_equal(queue.pop_front(), .None, reason="pop_front")
         assert_equal(queue.pop_back(), .None, reason="pop_back")
         assert_equal(queue.front(), .None, reason="front")
@@ -42,7 +42,7 @@ tests:
         assert_equal(queue.len(), 0, reason="still empty")
 
     it("many pushes and pops at both ends"):
-        let queue: mut Deque[i32] = Deque::new()
+        let mut queue: Deque[i32] = Deque::new()
         let index = +1
         while index <= 20:
             queue.push_back(index)
@@ -58,8 +58,8 @@ tests:
         assert_equal(queue.get(14), .Some(1), reason="the first push_back, in the middle")
 
     it("equal deques hold equal elements in order"):
-        let left: mut Deque[i32] = Deque::new()
-        let right: mut Deque[i32] = Deque::new()
+        let mut left: Deque[i32] = Deque::new()
+        let mut right: Deque[i32] = Deque::new()
         left.push_back(1)
         left.push_back(2)
         right.push_front(2)

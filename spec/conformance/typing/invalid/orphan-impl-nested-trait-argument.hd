@@ -5,5 +5,5 @@ data Word:
     text: string
 
 impl Iterable[List[Word]] for string:  # diagnostic: orphan-impl
-    fn iter(self) -> mut Iterator[List[Word]]:
+    fn iter(self) -> &mut Iterator[List[Word]]:
         panic("unimplemented")

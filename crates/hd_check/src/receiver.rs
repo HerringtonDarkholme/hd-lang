@@ -206,7 +206,7 @@ impl Ck<'_, '_> {
     /// evaluating it: a local or top-level binding, a field of one, or a
     /// value read through a reference (`*r`). `None` for any other
     /// expression.
-    fn peek_place_ty(&self, e: NodeRef<'_>) -> Option<Ty> {
+    pub(crate) fn peek_place_ty(&self, e: NodeRef<'_>) -> Option<Ty> {
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         match e.kind() {
             SyntaxKind::ParenExpr => match kids.as_slice() {
@@ -317,6 +317,18 @@ impl Ck<'_, '_> {
                     self.read_place(&p, base);
                     return Ok(Some(self.poisoned(base)));
                 }
+                // A legacy `mut List[T]` or `mut Map[K, V]` view shares its
+                // collection (`types.coll.legacy`): the call refers to that
+                // collection, not to the binding that holds the view.
+                let pool = self.pool();
+                if mutable
+                    && self.is_coll_ty(p.ty)
+                    && matches!(pool.get(self.infer.resolve(pool, p.ty)), TyData::Mut(_))
+                {
+                    let (v, t) = self.read_place(&p, base);
+                    let (r, _) = self.new_object_ref(v, t, true, base);
+                    return Ok(Some((r, t)));
+                }
                 if mutable && let Root::Local(l, _) = p.root {
                     self.ref_taken.push(l);
                 }
@@ -392,6 +404,15 @@ impl Ck<'_, '_> {
         }
         if self.ref_of(self.b.ty_of(recv)).is_some() {
             return recv;
+        }
+        // A list or a map that is no place, such as a map value, changes
+        // in place as a nested write does (`types.coll.nested`): the call
+        // refers to the collection where it is stored, with no copy.
+        if mutable && self.is_coll_ty(rt) {
+            if !self.coll_change(recv, rt, "this call", n) {
+                return recv;
+            }
+            return self.new_object_ref(recv, rt, true, n).0;
         }
         if mutable {
             self.not_a_place_receiver(name, n);
@@ -488,7 +509,8 @@ impl Ck<'_, '_> {
         if !ok {
             return false;
         }
-        if self.is_composite(p.ty) && !self.has_mut_access(p.ty) {
+        // A list or a map value is no view (`ref.place.writable.collection`).
+        if self.is_composite(p.ty) && !self.is_coll_value(p.ty) && !self.has_mut_access(p.ty) {
             let msg = format!(
                 "`{name}` takes `&mut self`, but the receiver holds a readonly {}",
                 self.show(p.ty)
@@ -503,6 +525,13 @@ impl Ck<'_, '_> {
     /// `let mut` binding or a `mut` parameter. Reports why not otherwise.
     fn receiver_local_writable(&mut self, l: LocalId, at: NodeRef<'_>, name: &str) -> bool {
         if self.mut_locals.contains(&l) {
+            return true;
+        }
+        // A legacy `mut List[T]` or `mut Map[K, V]` view shares its
+        // collection (`types.coll.legacy`), so a change through it is
+        // allowed and reaches the shared collection.
+        let lt = self.b.local_ty(l);
+        if self.is_coll_ty(lt) && self.has_mut_access(lt) {
             return true;
         }
         let (sym, flags, syn) = {

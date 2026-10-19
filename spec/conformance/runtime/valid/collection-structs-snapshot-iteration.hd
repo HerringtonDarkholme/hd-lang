@@ -1,0 +1,44 @@
+# test: iterating a deque or a set walks it as it was when the loop began, so a push, a pop, an insert, or a remove in the body changes the collection but not the loop, and never panics
+# Spec std/collections Deque: std-collections.deque.snapshot. Set: std-collections.set.snapshot.
+use std.collections.{Deque, Set}
+
+fn grow(queue: &mut Deque[i32]) -> void:
+    for item in *queue:
+        queue.push_back(item * 10)
+
+fn shift(set: &mut Set[i32]) -> void:
+    for item in *set:
+        _ := set.insert(item + 10)
+        _ := set.remove(item)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push while iterating a deque"):
+        let mut queue: Deque[i32] = Deque::new()
+        queue.push_back(1)
+        queue.push_back(2)
+        grow(&mut queue)
+        assert_equal(queue.len(), 4, reason="each item pushed once")
+        assert_equal(queue.back(), .Some(20), reason="the last push")
+
+    it("a pop while iterating a deque"):
+        let mut queue: Deque[i32] = Deque::new()
+        queue.push_back(1)
+        queue.push_back(2)
+        let mut seen: List[i32] = []
+        for item in queue:
+            _ := queue.pop_front()
+            seen.push(item)
+        assert_equal(seen, [1, 2], reason="the loop saw both items")
+        assert_equal(queue.len(), 0, reason="both were popped")
+
+    it("an insert and a remove while iterating a set"):
+        let mut set: Set[i32] = Set::new()
+        _ := set.insert(1)
+        _ := set.insert(2)
+        shift(&mut set)
+        assert_equal(set.len(), 2, reason="two elements moved")
+        assert_equal(set.contains(11), true, reason="1 moved")
+        assert_equal(set.contains(12), true, reason="2 moved")
+        assert_equal(set.contains(1), false, reason="1 is gone")

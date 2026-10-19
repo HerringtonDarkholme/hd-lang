@@ -1,0 +1,67 @@
+# test: a struct with a `&mut self` `next` implements `Iterable`, and another implements `FromIterator` over `&mut Iterator`; each works through a bound, a trait value reference, and `collect`
+# Spec std/iter What Collect Builds: std-iter.collect.trait-ref, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-ref.
+use std.iter.FromIterator
+
+struct Countdown:
+    left: i32
+
+impl Countdown:
+    fn next(&mut self) -> i32?:
+        if self.left <= 0:
+            return .None
+        self.left -= 1
+        .Some(self.left + 1)
+
+impl Iterable[i32] for Countdown:
+    fn iter(self) -> &mut Iterator[i32]:
+        let mut state = self
+        Iterator::from_fn(fn() -> i32?: state.next())
+
+struct Bag:
+    items: List[i32]
+    pulls: usize
+
+impl FromIterator[i32] for Bag:
+    fn from_iter(items: &mut Iterator[i32]) -> Bag:
+        let mut bag = Bag { items: [], pulls: 0 }
+        for item in items:
+            bag.items.push(item)
+            bag.pulls += 1
+        bag
+
+fn total[I < Iterable[i32]](source: I) -> i32:
+    let sum = +0
+    for value in source:
+        sum = sum + value
+    sum
+
+fn total_dyn(source: &dyn Iterable[i32]) -> i32:
+    let sum = +0
+    for value in source.iter():
+        sum = sum + value
+    sum
+
+fn gather[C < FromIterator[i32]](source: &mut Iterator[i32]) -> C:
+    C::from_iter(source)
+
+tests:
+    use std.testing.assert_equal
+
+    it("an Iterable struct through a bound and a trait value reference"):
+        start := Countdown { left: 3 }
+        assert_equal(total(start), 6, reason="through the bound")
+        assert_equal(total_dyn(start), 6, reason="through &dyn")
+        assert_equal(start.left, 3, reason="each loop walked its own copy")
+
+    it("a FromIterator struct through collect and a bound"):
+        let bag: Bag = Countdown { left: 3 }.iter().collect()
+        assert_equal(bag.items, [3, 2, 1], reason="collected in order")
+        cursor := [+4, 5, 6].iter()
+        _ := cursor.next()
+        let rest: Bag = gather(cursor)
+        assert_equal(rest.pulls, 2, reason="the bound's from_iter drained the rest")
+
+    it("the &mut self method changes the caller's struct"):
+        let mut countdown = Countdown { left: 2 }
+        assert_equal(countdown.next(), .Some(2), reason="the first item")
+        assert_equal(countdown.left, 1, reason="the caller's struct changed")

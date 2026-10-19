@@ -398,12 +398,17 @@ impl WasmtimeSession {
     fn add(&mut self, instance: wasmtime::Instance) -> Result<(), String> {
         let store = &mut self.run.store;
         // The map hash key is never reset: a map an earlier input built
-        // must still be found after an input panics.
-        let seed = global_key(&hd_wasm::rt::hash_seed_global());
+        // must still be found after an input panics. Nor is the last
+        // reference serial: a reference an earlier input kept must never
+        // meet an equal serial in a later one.
+        let kept = [
+            global_key(&hd_wasm::rt::hash_seed_global()),
+            global_key(&hd_wasm::rt::ref_serial_global()),
+        ];
         let runtime: Vec<String> = hd_wasm::rt::runtime_globals()
             .iter()
             .map(global_key)
-            .filter(|k| *k != seed)
+            .filter(|k| !kept.contains(k))
             .collect();
         let exports: Vec<(String, Extern)> = instance
             .exports(&mut *store)

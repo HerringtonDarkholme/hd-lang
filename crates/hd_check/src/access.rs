@@ -391,6 +391,12 @@ impl Ck<'_, '_> {
                     })
             }
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
+            // `ref.type.distinct`: a reference type is invariant in its
+            // operand, whose own outer view is no part of it
+            // (`ref.type.view`).
+            (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
+                self.perm_fits(self.strip_mut(a), self.strip_mut(b), false, d)
+            }
             (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => pool
                 .list_items(a)
                 .iter()

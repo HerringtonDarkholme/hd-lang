@@ -1,7 +1,8 @@
-//! List, deque and list-view iterator invalidation (#192,
-//! `flow.for.length`, `flow.for.invalidate.panic`, `flow.for.replace`,
-//! `std-collections.deque.invalidate`, `std-collections.view.invalidate`),
-//! and the snapshot a `for` over a list iterates (`flow.for.snapshot`).
+//! List and list-view iterator invalidation (#192, `flow.for.length`,
+//! `flow.for.invalidate.panic`, `flow.for.replace`,
+//! `std-collections.view.invalidate`), and the snapshot a `for` over a
+//! list (`flow.for.snapshot`) or a deque
+//! (`std-collections.deque.snapshot`) iterates.
 //! Programs build through the driver and run on V8 (`host/run.mjs`).
 
 use std::path::Path;
@@ -143,7 +144,7 @@ fn a_list_iterator_panics_after_the_list_changes_length() {
     panics(
         "list-iter-push",
         "    let v: mut List[i32] = [1, 2]
-    let it: mut Iterator[i32] = v.iter()
+    let it: &mut Iterator[i32] = v.iter()
     println(it.next().unwrap_or(-1))
     v.push(3)
     _ := it.next()
@@ -157,7 +158,7 @@ fn an_exhausted_list_iterator_still_panics_after_a_pop() {
     panics(
         "list-iter-pop",
         "    let v: mut List[i32] = [1]
-    let it: mut Iterator[i32] = v.iter()
+    let it: &mut Iterator[i32] = v.iter()
     _ := it.next()
     _ := it.next()
     _ := v.pop()
@@ -172,7 +173,7 @@ fn a_list_iterator_survives_an_element_replacement() {
     prints(
         "list-iter-set",
         "    let v: mut List[i32] = [1, 2]
-    let it: mut Iterator[i32] = v.iter()
+    let it: &mut Iterator[i32] = v.iter()
     println(it.next().unwrap_or(-1))
     v[1] = 20
     println(it.next().unwrap_or(-1))
@@ -182,33 +183,37 @@ fn a_list_iterator_survives_an_element_replacement() {
     );
 }
 
+/// A deque is a value, so a loop over one walks it as it was when the
+/// loop began (`std-collections.deque.snapshot`).
 #[test]
-fn pushing_during_a_deque_loop_panics() {
-    panics(
+fn pushing_during_a_deque_loop_iterates_a_snapshot() {
+    prints(
         "deque-push",
-        "    let q: mut Deque[i32] = Deque::new()
+        "    let mut q: Deque[i32] = Deque::new()
     q.push_back(1)
     q.push_back(2)
     for x in q:
         println(x)
         q.push_back(x)
+    println(q.len())
 ",
-        "1\n",
+        "1\n2\n4\n",
     );
 }
 
 #[test]
-fn popping_during_a_deque_loop_panics() {
-    panics(
+fn popping_during_a_deque_loop_iterates_a_snapshot() {
+    prints(
         "deque-pop",
-        "    let q: mut Deque[i32] = Deque::new()
+        "    let mut q: Deque[i32] = Deque::new()
     q.push_back(1)
     q.push_back(2)
     for x in q:
         println(x)
         _ := q.pop_front()
+    println(q.len())
 ",
-        "1\n",
+        "1\n2\n0\n",
     );
 }
 
@@ -216,7 +221,7 @@ fn popping_during_a_deque_loop_panics() {
 fn a_deque_loop_that_changes_nothing_finishes() {
     prints(
         "deque-plain",
-        "    let q: mut Deque[i32] = Deque::new()
+        "    let mut q: Deque[i32] = Deque::new()
     q.push_back(1)
     q.push_front(0)
     for x in q:
@@ -256,7 +261,7 @@ fn a_view_iterator_panics_after_a_length_change() {
     panics(
         "view-iter",
         "    let v: mut List[i32] = [1, 2, 3]
-    let it: mut Iterator[i32] = v.view(0, 3).iter()
+    let it: &mut Iterator[i32] = v.view(0, 3).iter()
     println(it.next().unwrap_or(-1))
     v.push(4)
     _ := it.next()

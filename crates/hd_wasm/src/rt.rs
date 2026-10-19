@@ -302,7 +302,7 @@ pub fn hash_seed_import() -> Sym {
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 13] {
+pub fn runtime_globals() -> [GSym; 14] {
     [
         wake_table(),
         forbid_global(),
@@ -317,6 +317,7 @@ pub fn runtime_globals() -> [GSym; 13] {
         wake_regs(),
         all_polls(),
         hash_seed_global(),
+        ref_serial_global(),
     ]
 }
 

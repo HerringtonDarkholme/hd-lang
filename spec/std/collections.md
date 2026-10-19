@@ -12,7 +12,7 @@ in ordinary hd over the language tier:
   and the function `counts`;
 - the `Map` methods `contains_key`, `keys`, `values`, and `get_or`;
 - the set `Set[T]`, the double-ended queue `Deque[T]`, and the max-heap
-  `Heap[T]`.
+  `Heap[T]`, which are values as a list is.
 
 The language tier keeps what the compiler knows about a list
 ([List Indexing](../lang/05-expressions.md#list-indexing),
@@ -40,6 +40,7 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 2. r[std-collections.value.own-copy] Such a change reaches only the receiver's own value. Another copy of the list or the map is unchanged.
 3. r[std-collections.value.results] A method that returns a list or a map, as `keys`, `filter`, and `chunks` do, returns a new value, which the caller may bind with `let mut` and change.
 4. r[std-collections.value.pinned] A `std` method that changes the length of a pinned list, as `extend` with a non-empty list does, is a checked runtime panic, as a language-tier change is ([`ref.elem.pinned`](../lang/13-values-and-references.md#r-ref.elem.pinned)). Panic: `collection-pinned`.
+5. r[std-collections.value.ref-receiver] Each such method takes `&mut self`. On a map value or a list element, as in `groups[key].extend(more)`, it changes the collection where it is stored, as [`types.coll.nested`](../lang/04-type-system.md#r-types.coll.nested) states for every change through a path.
 
 ## List Methods
 
@@ -47,7 +48,7 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[List[T]]` |
+| `List[T]` | `view(&self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[List[T]]` |
 
 1. r[std-collections.list.chunks] `chunks(size)` returns the list's elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
 2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
@@ -58,12 +59,13 @@ fn pairs(items: List[i32]) -> List[List[i32]]:
 ```
 
 > **Note.** A copy of a run of elements is a slice,
-> `items[start..end]`, a new `mut List[T]`
+> `items[start..end]`, a new list
 > ([Slicing](../lang/05-expressions.md#slicing)).
 
 ### Views
 
-`view` gives a read-only window on a run of elements, with no copy:
+`view` gives a read-only window on a run of a list's elements, with no
+copy. It refers to the list's place, as a `&self` method does:
 
 ```text
 use std.collections.ListView
@@ -83,36 +85,38 @@ fn total(view: ListView[i32]) -> i32:
 | Item | Signature |
 | --- | --- |
 | `len` | `len(self) -> usize` |
-| `to_list` | `to_list(self) -> mut List[T]` |
+| `to_list` | `to_list(self) -> List[T]` |
 | index read | `Index[usize]` with `Out = T` |
 | iteration | `Iterable[T]` |
 
 1. r[std-collections.view] `view(start, end)` returns a `ListView[T]` of the list's elements at indices `start` up to, not including, `end`.
 2. r[std-collections.view.type] `std.collections` declares `ListView[T]` with private fields and the surface in the table above, and no other method or trait implementation.
-3. r[std-collections.view.import] `ListView` is not a prelude name, so code that names it imports it, as in `use std.collections.ListView`.
-4. r[std-collections.view.no-copy] Creating a view copies no element.
-5. r[std-collections.view.range] A `start` or `end` that is greater than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
-6. r[std-collections.view.reversed] A `start` greater than `end` is a checked runtime panic. Panic: `index-out-of-bounds`.
-7. r[std-collections.view.len] `len` returns the number of elements in the view, `end - start`.
-8. r[std-collections.view.index] `view[i]` reads the list's element at index `start + i`.
-9. r[std-collections.view.index.range] A view index that is not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
-10. r[std-collections.view.iter] Iterating a view yields its elements in order, each as `T`.
-11. r[std-collections.view.to-list.mut] `to_list` returns a new `mut List[T]` that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
-12. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
-13. r[std-collections.view.writes] An element write to the list, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
-14. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
-15. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
-16. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
+3. r[std-collections.view.place] `view` takes `&self`, so the view refers to the list's place: a binding, a field, or a value reached through a reference. Called on a list that is no place, such as a call result, it refers to a new object that holds the list.
+4. r[std-collections.view.value] A `ListView[T]` is a struct value. A copy of a view is another window on the same place.
+5. r[std-collections.view.import] `ListView` is not a prelude name, so code that names it imports it, as in `use std.collections.ListView`.
+6. r[std-collections.view.no-copy] Creating a view copies no element.
+7. r[std-collections.view.range] A `start` or `end` that is greater than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
+8. r[std-collections.view.reversed] A `start` greater than `end` is a checked runtime panic. Panic: `index-out-of-bounds`.
+9. r[std-collections.view.len] `len` returns the number of elements in the view, `end - start`.
+10. r[std-collections.view.index] `view[i]` reads the list's element at index `start + i`.
+11. r[std-collections.view.index.range] A view index that is not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
+12. r[std-collections.view.iter] Iterating a view yields its elements in order, each as `T`.
+13. r[std-collections.view.to-list-value] `to_list` returns a new list value that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
+14. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
+15. r[std-collections.view.writes] An element write to the list's place, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
+16. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
+17. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
+18. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
 
 ```text
 use std.collections.ListView
 
-fn invalid(view: mut ListView[i32]) -> void:
+fn invalid(mut view: ListView[i32]) -> void:
     view[0] = 7  # error: invalid-assignment-target
 ```
 
 ```text
-fn stale(items: mut List[i32]) -> usize:
+fn stale(items: &mut List[i32]) -> usize:
     window := items.view(0, 2)
     items.push(4)
     window.len()  # panics with iterator-invalidated
@@ -278,6 +282,32 @@ fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 
+## Set, Deque, And Heap Values
+
+`Set[T]`, `Deque[T]`, and `Heap[T]` are structs over a list or a map, so
+each one is a value, as a list is:
+
+```text
+use std.collections.Deque
+
+fn with_last(queue: Deque[string]) -> Deque[string]:
+    let mut own = queue
+    own.push_back("last")  # the caller's deque is unchanged
+    own
+
+fn enqueue(queue: &mut Deque[string], name: string) -> void:
+    queue.push_back(name)  # changes the caller's deque
+```
+
+1. r[std-collections.struct.value] `Set[T]`, `Deque[T]`, and `Heap[T]` are structs, so each is a value. Binding, assigning, passing, returning, and storing one copies it, and a change to one copy leaves every other copy unchanged.
+2. r[std-collections.struct.cost] A copy shares its source's elements until one of the two changes, as a list does ([`types.coll.copy-on-write`](../lang/04-type-system.md#r-types.coll.copy-on-write)).
+3. r[std-collections.struct.receiver] The methods that change one, such as `push_back`, `insert`, and `pop`, take `&mut self`. Calling one needs a writable place, as [`fn.method.auto-address.writable`](../lang/07-functions.md#r-fn.method.auto-address.writable) states. Error: `mutable-receiver-required`.
+4. r[std-collections.struct.shared] A set, deque, or heap that two holders share is written `&mut Set[T]`, `&mut Deque[T]`, or `&mut Heap[T]`. A change through the reference changes the place it refers to.
+
+> **Why.** These types were shared objects. As values they follow the
+> list they wrap: a copy is cheap until it changes, and sharing is
+> written where it happens.
+
 ## Set
 
 A `Set[T]` holds distinct elements, in a deterministic order:
@@ -286,8 +316,8 @@ A `Set[T]` holds distinct elements, in a deterministic order:
 use std.collections.Set
 
 fn unique(words: List[string]) -> List[string]:
-    let seen: mut Set[string] = Set::new()
-    let kept: mut List[string] = []
+    let mut seen: Set[string] = Set::new()
+    let mut kept: List[string] = []
     for word in words:
         if seen.insert(word):
             kept.push(word)
@@ -301,10 +331,10 @@ fn distinct(words: List[string]) -> Set[string]:
 
 | Item | Signature |
 | --- | --- |
-| `new` | `Set::new() -> mut Set[T]` |
+| `new` | `Set::new() -> Set[T]` |
 | `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `contains` | `contains(self, value: T) -> bool` |
-| `insert`, `remove` | `insert(mut self, value: T) -> bool`, and the same for `remove` |
+| `insert`, `remove` | `insert(&mut self, value: T) -> bool`, and the same for `remove` |
 | iteration | `Iterable[T]` |
 | `collect` | `FromIterator[T]` |
 | equality | `Eq` |
@@ -317,7 +347,7 @@ fn distinct(words: List[string]) -> Set[string]:
 5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
 6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
 7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).
-8. r[std-collections.set.invalidate] An `insert` or `remove` that changes the set invalidates its iterators, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for a map. Panic: `iterator-invalidated`.
+8. r[std-collections.set.snapshot] Iterating a set walks the set as it was when `iter` was called. An `insert` or a `remove` while the loop runs changes the set but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a map.
 9. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
 10. r[std-collections.set.collect] A set implements `FromIterator[T]`. Collecting inserts each item in order, so the set holds each distinct item once, in the order of its first occurrence, and an empty iterator gives an empty set.
 
@@ -328,7 +358,8 @@ fn distinct(words: List[string]) -> Set[string]:
 > **Why.** `insert` and `remove` report whether they changed the set, as
 > Rust's `HashSet` methods do, so a loop that skips duplicates needs no
 > second lookup. A set iterates in a map's deterministic order, so its
-> iteration and `Debug` text are the same in every run.
+> iteration and `Debug` text are the same in every run. A set is a value,
+> so a loop walks a snapshot of it, as a loop over a map does.
 
 ## Deque
 
@@ -339,13 +370,13 @@ at both ends.
 use std.collections.Deque
 
 fn rotate(items: List[i32]) -> List[i32]:
-    let queue: mut Deque[i32] = Deque::new()
+    let mut queue: Deque[i32] = Deque::new()
     for item in items:
         queue.push_back(item)
     match queue.pop_front():
         .Some(first) => queue.push_back(first)
         .None => pass
-    let rotated: mut List[i32] = []
+    let mut rotated: List[i32] = []
     for item in queue:
         rotated.push(item)
     rotated  # [2, 3, 1] for [1, 2, 3]
@@ -355,10 +386,10 @@ fn rotate(items: List[i32]) -> List[i32]:
 
 | Item | Signature |
 | --- | --- |
-| `new` | `Deque::new() -> mut Deque[T]` |
+| `new` | `Deque::new() -> Deque[T]` |
 | `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
-| `push_front`, `push_back` | `push_front(mut self, value: T) -> void`, and the same for `push_back` |
-| `pop_front`, `pop_back` | `pop_front(mut self) -> T?`, and the same for `pop_back` |
+| `push_front`, `push_back` | `push_front(&mut self, value: T) -> void`, and the same for `push_back` |
+| `pop_front`, `pop_back` | `pop_front(&mut self) -> T?`, and the same for `pop_back` |
 | `front`, `back` | `front(self) -> T?`, and the same for `back` |
 | `get` | `get(self, index: usize) -> T?` |
 | iteration | `Iterable[T]` |
@@ -373,15 +404,15 @@ fn rotate(items: List[i32]) -> List[i32]:
 6. r[std-collections.deque.ends] `front` and `back` return the front and the back element without removing it, or `.None` when the deque is empty.
 7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
-9. r[std-collections.deque.invalidate] A push, or a pop that removes an element, invalidates every iterator taken from the deque. The next `next` call of such an iterator is a checked runtime panic. Panic: `iterator-invalidated`.
+9. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
 10. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
 
 ```text
 use std.collections.Deque
 
-fn grow(queue: mut Deque[i32]) -> void:
-    for item in queue:  # panics with iterator-invalidated after the push
-        queue.push_back(item)
+fn grow(queue: &mut Deque[i32]) -> void:
+    for item in *queue:  # the deque as it was here
+        queue.push_back(item)  # doubles the deque; the loop never panics
 ```
 
 > **Note.** `lib/std` builds a deque as a ring buffer over a `List[T?]`.
@@ -391,8 +422,8 @@ fn grow(queue: mut Deque[i32]) -> void:
 
 > **Why.** `get` returns an optional, as Rust's `VecDeque::get` does: a
 > queue's length changes often, so a missing element is an expected
-> case. A deque fails fast during iteration, as a list does, since a push
-> can move every element.
+> case. A deque is a value, so a loop walks a snapshot of it, as a loop
+> over a list does.
 
 ## Heap
 
@@ -404,13 +435,13 @@ use std.cmp.Reverse
 use std.collections.Heap
 
 fn largest(items: List[i32]) -> i32?:
-    let heap: mut Heap[i32] = Heap::new()
+    let mut heap: Heap[i32] = Heap::new()
     for item in items:
         heap.push(item)
     heap.pop()  # .Some(9) for [5, 9, 2]
 
 fn smallest(items: List[i32]) -> i32?:
-    let heap: mut Heap[Reverse[i32]] = Heap::new()
+    let mut heap: Heap[Reverse[i32]] = Heap::new()
     for item in items:
         heap.push(Reverse { value: item })
     heap.pop().map(fn(top: Reverse[i32]) -> i32: top.value)  # .Some(2) for [5, 9, 2]
@@ -420,10 +451,10 @@ fn smallest(items: List[i32]) -> i32?:
 
 | Item | Signature |
 | --- | --- |
-| `new` | `Heap::new() -> mut Heap[T]` |
+| `new` | `Heap::new() -> Heap[T]` |
 | `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
-| `push` | `push(mut self, value: T) -> void` |
-| `pop` | `pop(mut self) -> T?` |
+| `push` | `push(&mut self, value: T) -> void` |
+| `pop` | `pop(&mut self) -> T?` |
 | `peek` | `peek(self) -> T?` |
 | `to_sorted_list` | `to_sorted_list(self) -> List[T]` |
 | `Debug` | when `T < Debug` |
@@ -462,7 +493,7 @@ fn preview(lines: List[string]) -> List[string]:
     lines.take(3)
 
 fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
-    let all: mut List[i32] = []
+    let mut all: List[i32] = []
     all.extend(head.filter(fn(n: i32) -> bool: n > 0))
     all.extend(tail)
     all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
@@ -471,7 +502,7 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 | Receiver | Methods |
 | --- | --- |
 | `List[T]` | `get(self, index: usize) -> T?`; `is_empty(self) -> bool`; `first(self) -> T?`; `last(self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(self, keep: fn(T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
-| `mut List[T]` | `extend(mut self, other: List[T]) -> void` |
+| `List[T]`, changing | `extend(&mut self, other: List[T]) -> void` |
 
 1. r[std-collections.access.get] `get(index)` returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
 2. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.

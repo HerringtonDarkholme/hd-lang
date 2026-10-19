@@ -571,7 +571,7 @@ JavaScript's `Map` (`layout::map_ty`):
 
 ### `Set[T]`, `Deque[T]` And `Heap[T]`
 
-Today these are std `data` types (`lib/std/collections.hd`): `Set[T]`
+Today these are std structs, values (`lib/std/collections.hd`): `Set[T]`
 over `Map[T, bool]`, `Deque[T]` over `List[T?]` with a head and a count,
 and `Heap[T]` over `List[T?]` with a count.
 
@@ -590,14 +590,17 @@ Planned, not built, as a std change:
 ### Iterators And Ranges
 
 ```wat
-;; Iterator[T] = data { step: fn() -> T? }   -> (ref $Iterator_T) holding (ref $Fn_unit_OptT)
+;; Iterator[T] = struct { step: fn() -> T? } -> (ref $Iterator_T) holding (ref $Fn_unit_OptT)
+;; &mut Iterator[T], what iter() and every adapter return -> a Ref object over a cell holding it
 ;; for i in a..b, a..=b over a numeric type -> a counted loop; no range value exists
 ;; Range[T] as a value -> data { start, end, inclusive }; one allocation in the baseline
 ```
 
 - **Speed:** in the baseline, `xs.iter().map(f).sum()` costs about 7
   allocations per chain (3 closures, 3 iterators, 1 cell) and 3
-  `call_ref`s, 3 casts and 2 option tests per element. `closure_spec`
+  `call_ref`s, 3 casts and 2 option tests per element. Since T12 each
+  iterator is a new object behind `&mut`, which adds a reference, its
+  cell and its two closures per iterator, and one `get` call per `next`. `closure_spec`
   makes the user closure's calls direct inside the adapters it fits.
 - **Size:** about 30 bytes per call into shared adapters.
 - **Ranges in slices:** `items[1..3]` builds a `Range` data value for the

@@ -1,14 +1,14 @@
 # test: Iterator::from_fn builds an iterator from a closure, and calls step again after .None
-# Spec 06 Iteration Protocols: flow.for.iterator-from-fn, flow.for.iterator-from-fn.no-fuse (Chaining Study CS9, CS11).
+# Spec 06 Iteration Protocols: flow.for.iterator-from-fn.ref, flow.for.iterator-from-fn.no-fuse (Chaining Study CS9, CS11).
 
-fn countdown(start: i32) -> mut Iterator[i32]:
+fn countdown(start: i32) -> &mut Iterator[i32]:
     let left: i32 = start
     Iterator::from_fn(fn() -> i32?:
         left = left - 1
         if left < 0: .None else: left + 1
     )
 
-fn gappy() -> mut Iterator[i32]:
+fn gappy() -> &mut Iterator[i32]:
     let calls = +0
     Iterator::from_fn(fn() -> i32?:
         calls = calls + 1
@@ -23,7 +23,7 @@ tests:
         assert_equal(items, [3, 2, 1], reason="the iterator yields until step returns .None")
 
     it("from_fn does not fuse"):
-        let source: mut Iterator[i32] = gappy()
+        let source: &mut Iterator[i32] = gappy()
         let first: i32? = 1
         let gap: i32? = .None
         let third: i32? = 3

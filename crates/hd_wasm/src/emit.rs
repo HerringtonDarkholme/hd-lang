@@ -2942,10 +2942,27 @@ impl Em<'_> {
             // `len` items. Its callers checked the bounds.
             // A pinned list panics when the length changes
             // (`ref.elem.pinned`).
+            // It takes `&mut List[T]`: the reference's `get` gives the
+            // place's list header, which the truncation changes in place.
             "list_truncate" => {
-                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let rt = self.ty_of(args[0]);
+                let pool = self.pool();
+                let TyData::Adt { args: ra, .. } = pool.get(rt) else {
+                    return unsupported("`list_truncate` of a value that is no reference");
+                };
+                let Some(&list_t) = pool.list_items(ra).first() else {
+                    return unsupported("`list_truncate` of a reference without its list");
+                };
+                let (elem, lt) = self.list_parts(list_t)?;
+                let read = self.ref_read(rt)?;
+                let [got] = read.results.as_slice() else {
+                    return unsupported("a list reference whose `get` returns several values");
+                };
+                let got = got.clone();
                 let (l, n) = (self.a.local(VT::r(lt.clone())), self.a.local(VT::I32));
-                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.comp(args[0], 0, &VT::r(read.data.clone()))?;
+                read.emit(&mut self.a);
+                self.a.conv(&got, &VT::r(lt.clone()));
                 self.a.set(l);
                 self.comp(args[1], 0, &VT::I32)?;
                 self.a.set(n);

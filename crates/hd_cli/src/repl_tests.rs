@@ -350,7 +350,7 @@ fn a_later_input_derives_for_an_earlier_type() {
         "a := Point { x: +1, y: +2 }",
         "a == Point { x: +1, y: +2 }",
         "a == Point { x: +1, y: +3 }",
-        "let seen: mut Set[Point] = Set::new()",
+        "let mut seen: Set[Point] = Set::new()",
         "_ := seen.insert(a)",
         "seen.insert(Point { x: +1, y: +2 })",
     ]);

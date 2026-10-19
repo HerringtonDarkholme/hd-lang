@@ -1111,7 +1111,7 @@ fn tagged(names: List[string]) -> List[string]:
 2. r[types.coll.copy-on-write] A copy shares its source's elements until one of the two changes. That change first copies the changed side's elements, once.
 3. r[types.coll.no-identity] A list or a map has no identity. `List` and `Map` implement `AnyVal`, so `is` with one is an error. Error: `identity-requires-references`.
 4. r[types.coll.let-mut] `let mut name = value` with a list or map value is valid, with no annotation or a `List[T]` or `Map[K, V]` one, and makes `name` writable.
-5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a `mut self` method such as `push`, an element store, or passing it to a legacy `mut` parameter.
+5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a changing method such as `push`, an element store, or passing it to a legacy `mut` parameter.
 6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `mutable-receiver-required`.
 7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `readonly-root`.
 8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
@@ -1268,7 +1268,7 @@ See also: [Mutable Paths](#mutable-paths).
 4. r[types.fresh.weaken.meet] It is also weakened where the fresh value meets a readonly value of its type. An `==` or `!=` operand pair compares at the readonly view, and a generic inference join solves at it.
 5. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
 6. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
-7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
+7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `&mut Iterator[mut Word]`, and returning it as `&mut Iterator[Word]` is an error. Error: `type-mismatch`.
 
 ```hd
 fn demo() -> List[i32]:

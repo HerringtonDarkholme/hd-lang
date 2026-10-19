@@ -3,5 +3,5 @@
 data Word:
     text: string
 
-fn words(parts: List[string]) -> mut Iterator[Word]:
+fn words(parts: List[string]) -> &mut Iterator[Word]:
     [for p in parts => Word { text: p }].iter()  # diagnostic: type-mismatch

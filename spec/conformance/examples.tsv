@@ -838,11 +838,12 @@ std/collections.md	6	accept	runtime/valid/list-sorted-by-key.hd|runtime/valid/li
 std/collections.md	7	mixed	runtime/panic/list-windows-size.hd
 std/collections.md	8	accept	runtime/valid/list-counts.hd
 std/collections.md	9	accept	runtime/valid/map-keys-values.hd|runtime/valid/map-entries-most-common.hd
-std/collections.md	10	accept	runtime/valid/set-basics.hd|runtime/valid/set-collect.hd
-std/collections.md	11	accept	runtime/valid/deque-ends.hd
-std/collections.md	12	mixed	runtime/panic/deque-invalidated.hd
-std/collections.md	13	accept	runtime/valid/heap-order.hd|runtime/valid/heap-reverse.hd
-std/collections.md	14	accept	runtime/valid/list-access-building.hd
+std/collections.md	10	accept	runtime/valid/collection-structs-copy-and-share.hd
+std/collections.md	11	accept	runtime/valid/set-basics.hd|runtime/valid/set-collect.hd
+std/collections.md	12	accept	runtime/valid/deque-ends.hd
+std/collections.md	13	accept	runtime/valid/collection-structs-snapshot-iteration.hd
+std/collections.md	14	accept	runtime/valid/heap-order.hd|runtime/valid/heap-reverse.hd
+std/collections.md	15	accept	runtime/valid/list-access-building.hd
 std/console.md	1	accept	runtime/valid/eprintln-error-line.hd
 std/console.md	2	mixed	typing/invalid/eprintln-without-console.hd
 std/console.md	3	type-fragment	-

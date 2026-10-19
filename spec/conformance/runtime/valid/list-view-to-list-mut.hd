@@ -1,4 +1,4 @@
-# test: ListView.to_list returns a mut List, so the copy may grow
+# test: ListView.to_list returns a new list value, so a `let mut` copy may grow
 # expect: test
 use std.collections.ListView
 tests:

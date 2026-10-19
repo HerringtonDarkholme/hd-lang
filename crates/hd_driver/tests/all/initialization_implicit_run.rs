@@ -119,7 +119,7 @@ fn a_for_loop_reaches_iter() {
     check(&Case {
         name: "iterable",
         pre: "data Src:\n    n: i32\n\nfn count() -> i32:\n    let t = +0\n    for x in Src { n: 1 }:\n        t = t + x\n        break\n    t\n",
-        post: "impl Iterable[i32] for Src:\n    fn iter(self) -> mut Iterator[i32]:\n        Iterator::from_fn(fn() -> i32?: .Some(later))\n",
+        post: "impl Iterable[i32] for Src:\n    fn iter(self) -> &mut Iterator[i32]:\n        Iterator::from_fn(fn() -> i32?: .Some(later))\n",
         value: "count()",
         printed: "5",
     });

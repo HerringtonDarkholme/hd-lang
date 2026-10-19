@@ -5,5 +5,5 @@ data Word:
     text: string
 
 impl Iterable[Word] for string:
-    fn iter(self) -> mut Iterator[Word]:
+    fn iter(self) -> &mut Iterator[Word]:
         Iterator::from_fn(fn() -> Word?: .None)

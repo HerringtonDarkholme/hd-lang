@@ -1568,7 +1568,7 @@ typing/invalid/num-sealed-user-number.hd	type	reject:sealed-trait-implementation
 typing/valid/iterator-adapters.hd	type	accept	std/iter.md#iterator-adapters
 runtime/valid/iterator-adapters-run.hd	runtime	accept	std/iter.md#r-std-iter.adapter.lazy
 typing/invalid/iterator-filter-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row
-typing/invalid/iterator-adapter-readonly.hd	type	reject:mutable-receiver-required	std/iter.md#r-std-iter.adapter.mut-receiver
+typing/invalid/iterator-adapter-readonly.hd	type	reject:mutable-receiver-required	std/iter.md#r-std-iter.adapter.ref-receiver
 runtime/valid/compound-assignment-value-kind.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.meaning
 typing/invalid/compound-assign-value-no-operator.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator
 typing/invalid/compound-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/05-expressions.md#r-expr.assign.compound.store-rules
@@ -1629,7 +1629,7 @@ typing/invalid/placeholder-outside-pipe.hd	type	reject:placeholder-outside-pipe	
 typing/invalid/iterator-map-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.map
 runtime/valid/iterator-drives-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator-direct
 typing/invalid/mut-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.iterator-no-bound
-typing/invalid/impl-iterator-trait.hd	type	reject:unknown-trait	lang/06-control-flow.md#r-flow.for.iterator-type
+typing/invalid/impl-iterator-trait.hd	type	reject:unknown-trait	lang/06-control-flow.md#r-flow.for.iterator-struct
 parse/valid/method-references.hd	parse	accept	lang/02-grammar.md#r-grammar.primary.method-reference
 typing/valid/method-references.hd	type	accept	lang/07-functions.md#method-references
 runtime/valid/method-references-run.hd	runtime	accept	lang/07-functions.md#r-fn.ref.bound.capture
@@ -1645,7 +1645,7 @@ typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-
 runtime/valid/comprehension-propagation.hd	runtime	accept	lang/05-expressions.md#comprehension-restrictions
 runtime/valid/pipe-nested-placeholder.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.slot.nested
 runtime/valid/pipe-bare-method-step.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.bare.method
-runtime/valid/iterator-from-fn.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator-from-fn
+runtime/valid/iterator-from-fn.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator-from-fn.ref
 typing/invalid/iterator-step-private.hd	type	reject:private-member	lang/06-control-flow.md#r-flow.for.iterator-private
 typing/invalid/bound-reference-associated-function.hd	type	reject:unknown-method	lang/07-functions.md#r-fn.ref.bound.associated
 typing/valid/from-iterator-imported.hd	type	accept	std/iter.md#r-std-iter.prelude.from-iterator
@@ -2078,7 +2078,7 @@ typing/invalid/hd-run-requires-process.hd	type	reject:missing-requirement	std/te
 runtime/valid/unit-pattern-void-success.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.unit.irrefutable
 typing/invalid/unit-pattern-non-void.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.unit.type
 runtime/valid/derived-default-declared-no-bound.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.member-bound.declared
-runtime/valid/list-view-to-list-mut.hd	runtime	accept	std/collections.md#r-std-collections.view.to-list.mut
+runtime/valid/list-view-to-list-mut.hd	runtime	accept	std/collections.md#r-std-collections.view.to-list-value
 typing/valid/handle-fact-pattern.hd	type	accept	lang/14-annotations.md#r-annot.handle.fact.pattern
 typing/invalid/handle-fact-pattern-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.handle.fact.pattern.mismatch
 typing/invalid/private-std-function.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
@@ -2267,7 +2267,6 @@ runtime/valid/time-rfc3339-text.hd	runtime	accept	std/time.md#r-std-time.rfc3339
 runtime/valid/time-rfc3339-parse.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/time-parse-errors.hd	runtime	accept	std/time.md#r-std-time.parse-error.order
 runtime/valid/deque-ends.hd	runtime	accept	std/collections.md#r-std-collections.deque.pop
-runtime/panic/deque-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.deque.invalidate
 runtime/valid/heap-order.hd	runtime	accept	std/collections.md#r-std-collections.heap.pop
 runtime/valid/heap-reverse.hd	runtime	accept	std/collections.md#r-std-collections.heap.min
 runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
@@ -2312,7 +2311,6 @@ typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collect
 runtime/valid/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
 runtime/valid/map-get-or.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or
 runtime/valid/set-basics.hd	runtime	accept	std/collections.md#set
-runtime/panic/set-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.set.invalidate
 runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.stop
 runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
 runtime/valid/iterator-chain-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.chain-iterable.order
@@ -3659,3 +3657,9 @@ typing/invalid/provider-share-trait-value-ref.hd	type	reject:type-mismatch	lang/
 typing/invalid/provider-ref-bare-dyn.hd	type	reject:dyn-member-unavailable	lang/11-requirements-and-suspension.md#r-req.ref.install
 runtime/valid/reference-permission-list-join.hd	runtime	accept	lang/04-type-system.md#r-types.lct.conversions
 runtime/valid/for-map-through-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.collection.reference
+runtime/valid/collection-structs-copy-and-share.hd	runtime	accept	std/collections.md#r-std-collections.struct.value
+runtime/valid/collection-structs-snapshot-iteration.hd	runtime	accept	std/collections.md#r-std-collections.deque.snapshot
+typing/invalid/deque-push-not-writable.hd	type	reject:mutable-receiver-required	std/collections.md#r-std-collections.struct.receiver
+runtime/valid/iterator-handle-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator-handle
+typing/invalid/for-over-read-only-iterator-reference.hd	type	reject:mutable-receiver-required	lang/06-control-flow.md#r-flow.for.iterator-ref
+runtime/valid/std-iter-traits-struct-impls.hd	runtime	accept	std/iter.md#r-std-iter.collect.trait-ref

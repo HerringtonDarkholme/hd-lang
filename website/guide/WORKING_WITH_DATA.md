@@ -550,7 +550,7 @@ tests:
         assert_equal(cheap[0].name, "apple", reason="cheapest first")
 
     it("collects each tag once"):
-        let seen: mut Set[string] = Set::new()
+        let mut seen: Set[string] = Set::new()
         let kept: mut List[string] = []
         for item in sample():
             for tag in item.tags:

@@ -1,0 +1,88 @@
+# test: a Deque, a Set, and a Heap are values: a copy changes on its own, a value parameter is the callee's own copy, and a `&mut` reference shares one
+# Spec std/collections Value Types: std-collections.struct.value, std-collections.struct.receiver, std-collections.struct.shared.
+use std.collections.{Deque, Heap, Set}
+
+fn with_last(queue: Deque[string]) -> Deque[string]:
+    let mut own = queue
+    own.push_back("last")
+    own
+
+fn enqueue(queue: &mut Deque[string], name: string) -> void:
+    queue.push_back(name)
+
+fn add(set: &mut Set[string], word: string) -> bool:
+    set.insert(word)
+
+fn add_all(heap: &mut Heap[i32], values: List[i32]) -> void:
+    for value in values:
+        heap.push(value)
+
+struct Board:
+    waiting: Deque[string]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a copied deque is independent"):
+        let mut first: Deque[i32] = Deque::new()
+        first.push_back(1)
+        let mut second = first
+        second.push_back(2)
+        _ := first.pop_front()
+        assert_equal(first.len(), 0, reason="the original lost its element")
+        assert_equal(second.len(), 2, reason="the copy kept both")
+        assert_equal(second.front(), .Some(1), reason="the copy's front")
+
+    it("a deque passed by value is the callee's copy"):
+        let mut queue: Deque[string] = Deque::new()
+        queue.push_back("ana")
+        assert_equal(with_last(queue).len(), 2, reason="the callee grew its copy")
+        assert_equal(queue.len(), 1, reason="the caller's deque is unchanged")
+
+    it("a &mut deque is shared"):
+        let mut queue: Deque[string] = Deque::new()
+        enqueue(&mut queue, "bo")
+        shared := &mut queue
+        shared.push_front("ana")
+        assert_equal(queue.len(), 2, reason="both changes reached the deque")
+        assert_equal(queue.front(), .Some("ana"), reason="the front pushed through the reference")
+
+    it("a deque in a struct field copies with the struct"):
+        let mut board = Board { waiting: Deque::new() }
+        board.waiting.push_back("ana")
+        let mut later = board
+        later.waiting.push_back("bo")
+        assert_equal(board.waiting.len(), 1, reason="the original board")
+        assert_equal(later.waiting.len(), 2, reason="the copied board")
+
+    it("a copied set is independent"):
+        let mut first: Set[string] = Set::new()
+        _ := first.insert("a")
+        let mut second = first
+        _ := second.insert("b")
+        _ := first.remove("a")
+        assert_equal(first.len(), 0, reason="the original lost its element")
+        assert_equal(second.contains("a"), true, reason="the copy kept it")
+        assert_equal(second.len(), 2, reason="the copy grew")
+
+    it("a &mut set is shared"):
+        let mut set: Set[string] = Set::new()
+        assert_equal(add(&mut set, "x"), true, reason="a new element")
+        assert_equal(add(&mut set, "x"), false, reason="already there")
+        assert_equal(set.len(), 1, reason="the insert reached the set")
+
+    it("a copied heap is independent"):
+        let mut first: Heap[i32] = Heap::new()
+        first.push(4)
+        first.push(9)
+        let mut second = first
+        assert_equal(second.pop(), .Some(9), reason="the copy pops its largest")
+        assert_equal(first.peek(), .Some(9), reason="the original keeps it")
+        assert_equal(first.len(), 2, reason="the original's size")
+        assert_equal(second.len(), 1, reason="the copy's size")
+
+    it("a &mut heap is shared"):
+        let mut heap: Heap[i32] = Heap::new()
+        add_all(&mut heap, [3, 8, 1])
+        assert_equal(heap.len(), 3, reason="the pushes reached the heap")
+        assert_equal(heap.pop(), .Some(8), reason="the largest")

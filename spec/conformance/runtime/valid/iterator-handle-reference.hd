@@ -1,0 +1,49 @@
+# test: an iterator is a handle behind `&mut`: each `iter()` call makes a new iterator object, a `:=` binding or a copy of the reference advances that one iterator, and a callee or a loop given the reference continues from where it stands
+# Spec 06 Iteration Protocols: flow.for.iterator-handle, flow.for.iterator-next.ref, flow.for.iterator-ref. Spec 10 Built-In Methods: module.method.iter-ref.
+fn take_two(source: &mut Iterator[i32]) -> List[i32]:
+    let mut taken: List[i32] = []
+    for _ in 0..2:
+        match source.next():
+            .Some(item) => taken.push(item)
+            .None => pass
+    taken
+
+tests:
+    use std.testing.assert_equal
+
+    it("a := iterator advances"):
+        cursor := [+1, 2, 3].iter()
+        assert_equal(cursor.next(), .Some(1), reason="the first item")
+        let mut rest: List[i32] = []
+        for item in cursor:
+            rest.push(item)
+        assert_equal(rest, [2, 3], reason="the loop continues after it")
+        assert_equal(cursor.next(), .None, reason="the loop left it exhausted")
+
+    it("a copy of the reference is the same iterator"):
+        first := [+1, 2, 3].iter()
+        second := first
+        _ := second.next()
+        assert_equal(first.next(), .Some(2), reason="the copy advanced it")
+        assert_equal(first is second, true, reason="one iterator")
+
+    it("a callee advances the caller's iterator"):
+        cursor := [+1, 2, 3].iter()
+        assert_equal(take_two(cursor), [1, 2], reason="the callee's items")
+        assert_equal(cursor.next(), .Some(3), reason="the caller goes on from there")
+
+    it("each iter call makes a new iterator"):
+        values := [+1, 2]
+        first := values.iter()
+        second := values.iter()
+        assert_equal(first is second, false, reason="two iterators")
+        _ := first.next()
+        assert_equal(second.next(), .Some(1), reason="the second starts at the front")
+
+    it("from_fn makes a new iterator"):
+        let left = +2
+        countdown := Iterator::from_fn(fn() -> i32?:
+            left = left - 1
+            if left < 0: .None else: .Some(left)
+        )
+        assert_equal(countdown.collect::[List[i32]](), [1, 0], reason="its items")

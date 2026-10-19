@@ -1187,25 +1187,26 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> usize`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(usize, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
-| `List[T]` | `len(self) -> usize`; `iter(self) -> mut Iterator[T]` |
-| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?`; `insert(mut self, index: usize, value: T) -> void`; `remove_at(mut self, index: usize) -> T`; `clear(mut self) -> void` plus the readonly methods |
-| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?` |
-| `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
+| `string` | `len(self) -> usize`; `chars(self) -> &mut Iterator[char]`; `char_indices(self) -> &mut Iterator[(usize, char)]`; `bytes(self) -> &mut Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
+| `List[T]` | `len(self) -> usize`; `iter(self) -> &mut Iterator[T]` |
+| `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
+| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> &mut Iterator[(K, V)]` |
+| `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.changing] The methods of the `mut List[T]` and `mut Map[K, V]` rows change the collection. Calling one needs the list or map in a writable place, as [Collection Values](04-type-system.md#collection-values) states.
-3. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
-4. r[module.method.no-set] No `set` type is part of the core prelude.
-5. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
-6. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
-7. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
-8. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
-9. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-10. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
-11. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-12. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
+2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `mutable-receiver-required`.
+3. r[module.method.iter-ref] Each `iter()` call on a list or a map returns a reference to a new iterator object, which [`flow.for.iterator-handle`](06-control-flow.md#r-flow.for.iterator-handle) describes.
+4. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
+5. r[module.method.no-set] No `set` type is part of the core prelude.
+6. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
+7. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
+8. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
+9. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
+10. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
+12. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+13. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
 | Call on `[1, 2, 3]` | List after |
 | --- | --- |

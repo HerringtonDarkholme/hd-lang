@@ -447,7 +447,7 @@ impl[T] Index[RangeTo[u64]] for List[T]:
 # is the checked `integer-overflow` panic (r-flow.for.range.from-overflow).
 
 impl Iterable[i8] for Range[i8]:
-    fn iter(self) -> mut Iterator[i8]:
+    fn iter(self) -> &mut Iterator[i8]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -466,7 +466,7 @@ impl Iterable[i8] for Range[i8]:
         )
 
 impl Iterable[i8] for RangeFrom[i8]:
-    fn iter(self) -> mut Iterator[i8]:
+    fn iter(self) -> &mut Iterator[i8]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> i8?:
@@ -477,7 +477,7 @@ impl Iterable[i8] for RangeFrom[i8]:
         )
 
 impl Iterable[i16] for Range[i16]:
-    fn iter(self) -> mut Iterator[i16]:
+    fn iter(self) -> &mut Iterator[i16]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -496,7 +496,7 @@ impl Iterable[i16] for Range[i16]:
         )
 
 impl Iterable[i16] for RangeFrom[i16]:
-    fn iter(self) -> mut Iterator[i16]:
+    fn iter(self) -> &mut Iterator[i16]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> i16?:
@@ -507,7 +507,7 @@ impl Iterable[i16] for RangeFrom[i16]:
         )
 
 impl Iterable[i32] for Range[i32]:
-    fn iter(self) -> mut Iterator[i32]:
+    fn iter(self) -> &mut Iterator[i32]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -526,7 +526,7 @@ impl Iterable[i32] for Range[i32]:
         )
 
 impl Iterable[i32] for RangeFrom[i32]:
-    fn iter(self) -> mut Iterator[i32]:
+    fn iter(self) -> &mut Iterator[i32]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> i32?:
@@ -537,7 +537,7 @@ impl Iterable[i32] for RangeFrom[i32]:
         )
 
 impl Iterable[i64] for Range[i64]:
-    fn iter(self) -> mut Iterator[i64]:
+    fn iter(self) -> &mut Iterator[i64]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -556,7 +556,7 @@ impl Iterable[i64] for Range[i64]:
         )
 
 impl Iterable[i64] for RangeFrom[i64]:
-    fn iter(self) -> mut Iterator[i64]:
+    fn iter(self) -> &mut Iterator[i64]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> i64?:
@@ -567,7 +567,7 @@ impl Iterable[i64] for RangeFrom[i64]:
         )
 
 impl Iterable[u8] for Range[u8]:
-    fn iter(self) -> mut Iterator[u8]:
+    fn iter(self) -> &mut Iterator[u8]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -586,7 +586,7 @@ impl Iterable[u8] for Range[u8]:
         )
 
 impl Iterable[u8] for RangeFrom[u8]:
-    fn iter(self) -> mut Iterator[u8]:
+    fn iter(self) -> &mut Iterator[u8]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> u8?:
@@ -597,7 +597,7 @@ impl Iterable[u8] for RangeFrom[u8]:
         )
 
 impl Iterable[u16] for Range[u16]:
-    fn iter(self) -> mut Iterator[u16]:
+    fn iter(self) -> &mut Iterator[u16]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -616,7 +616,7 @@ impl Iterable[u16] for Range[u16]:
         )
 
 impl Iterable[u16] for RangeFrom[u16]:
-    fn iter(self) -> mut Iterator[u16]:
+    fn iter(self) -> &mut Iterator[u16]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> u16?:
@@ -627,7 +627,7 @@ impl Iterable[u16] for RangeFrom[u16]:
         )
 
 impl Iterable[u32] for Range[u32]:
-    fn iter(self) -> mut Iterator[u32]:
+    fn iter(self) -> &mut Iterator[u32]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -646,7 +646,7 @@ impl Iterable[u32] for Range[u32]:
         )
 
 impl Iterable[usize] for Range[usize]:
-    fn iter(self) -> mut Iterator[usize]:
+    fn iter(self) -> &mut Iterator[usize]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -665,7 +665,7 @@ impl Iterable[usize] for Range[usize]:
         )
 
 impl Iterable[u32] for RangeFrom[u32]:
-    fn iter(self) -> mut Iterator[u32]:
+    fn iter(self) -> &mut Iterator[u32]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> u32?:
@@ -676,7 +676,7 @@ impl Iterable[u32] for RangeFrom[u32]:
         )
 
 impl Iterable[usize] for RangeFrom[usize]:
-    fn iter(self) -> mut Iterator[usize]:
+    fn iter(self) -> &mut Iterator[usize]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> usize?:
@@ -687,7 +687,7 @@ impl Iterable[usize] for RangeFrom[usize]:
         )
 
 impl Iterable[u64] for Range[u64]:
-    fn iter(self) -> mut Iterator[u64]:
+    fn iter(self) -> &mut Iterator[u64]:
         let next = self.start
         end := self.end
         inclusive := self.inclusive
@@ -706,7 +706,7 @@ impl Iterable[u64] for Range[u64]:
         )
 
 impl Iterable[u64] for RangeFrom[u64]:
-    fn iter(self) -> mut Iterator[u64]:
+    fn iter(self) -> &mut Iterator[u64]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> u64?:

@@ -1,5 +1,5 @@
 std/iter/impl [ T ] Iterator [ T ].take (Fn)
-  local $0 self: mut Iterator[T] flags=41
+  local $0 self: Ref[Iterator[T]] flags=41
   local $1 count: usize flags=33
   local $2 left: usize flags=27
   sub 1 root %13 captures [$2 Shared $0 Copy]
@@ -14,9 +14,9 @@ std/iter/impl [ T ] Iterator [ T ].take (Fn)
   %8 = LocalGet $2 : usize
   %9 = Prim #1 [%8 1:usize] : usize
   %10 = LocalSet $2 %9 : ()
-  %11 = LocalGet $0 : mut Iterator[T]
+  %11 = LocalGet $0 : Ref[Iterator[T]]
   %12 = Call std/iter/impl [ T ] Iterator [ T ].next[T] (%11) : T?
   %13 = Block [%2 %3 %6 %7 %8 %9 %10 %11 %12] %12 : T?
   %14 = Closure #1 [%0 %2] : fn() -> T?
-  %15 = Call std/iter/impl [ T ] Iterator [ T ].from_fn[T] (%14) : mut Iterator[T]
-  %16 = Block [%0 %1 %13 %14 %15] %15 : mut Iterator[T]
+  %15 = Call std/iter/impl [ T ] Iterator [ T ].from_fn[T] (%14) : Ref[Iterator[T]]
+  %16 = Block [%0 %1 %13 %14 %15] %15 : Ref[Iterator[T]]

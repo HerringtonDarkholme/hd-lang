@@ -191,15 +191,24 @@ Each copy marks the caller's collection, and the mark never clears, so
 its next change copies its arrays once. An unaliased local passed in a
 loop that also changes it copies nothing.
 
-Not closed: a list or map receiver is passed as is, since std's views
-and cursors (`xs.view(a, b)`, `xs.iter()`) keep the receiver they are
-given as a legacy view until std migrates; a struct receiver is copied
-as an argument is. So a cursor still panics on a length change
+Not closed: a list or map receiver of a `self` method is passed as is;
+a struct receiver is copied as an argument is. The cursor `xs.iter()`
+keeps the header it is given, so it still panics on a length change
 ([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterator-invalidation)).
+`xs.view(a, b)` takes `&self`, so a view refers to the list's place
+([`std-collections.view.place`](../../spec/std/collections.md#r-std-collections.view.place)).
 An argument whose later sibling changes the same list in place
 (`f(xs, xs.pop())`) is passed as the sibling left it. The reference-counting
 backend (OBJECT_MODEL_TIER1.md job 11, REFCOUNT_RUNTIME.md) replaces
 the mark with the count.
+
+**Iterators.** `Iterator[T]` is a struct holding its `step` closure, and
+every iterator is used behind `&mut`
+([`flow.for.iterator-handle`](../../spec/lang/06-control-flow.md#r-flow.for.iterator-handle)).
+`ListIter` and `MapIter` build the struct; the checker wraps it in a new
+object (`refs.rs` `new_object_ref`), so `iter()` returns a
+`Ref[Iterator[T]]` whose `next` reads the struct through `get`. A `for`
+over an iterator keeps that reference in its `$iter` local.
 
 **Closure captures: copies and cells.** A closure's environment is a
 struct subtype with one field per captured local
@@ -426,7 +435,9 @@ rebuilt as for any place. A list header gains a `pin` word after `cow`
 - **The panic.** `ListPush` and std's `list_truncate`, the two length
   primitives every list mutator in std is written over, test `pin` first
   and panic `collection-pinned` when it is not 0 (a truncation only when
-  it changes the length, so `clear` of an empty list passes). `insert`
+  it changes the length, so `clear` of an empty list passes).
+  `list_truncate` takes `&mut List[T]`: it calls the reference's `get`,
+  which returns the place's own header, and truncates that header. `insert`
   and `remove_at` move elements with element stores, which a pin allows,
   so `remove_at` panics in its final truncation after moving them; a
   panic ends the instance, so the moved elements are never seen.

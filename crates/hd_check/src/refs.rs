@@ -401,6 +401,28 @@ impl Ck<'_, '_> {
         Ok((r, rt))
     }
 
+    /// A new object holding `v` of type `t`, as `&e` or `&mut e` on a value
+    /// that is no place makes one (`ref.expr.allocate`).
+    pub(crate) fn new_object_ref(
+        &mut self,
+        v: Ref,
+        t: Ty,
+        mutable: bool,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let (l, d) = self.hold(v, t, n);
+        self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
+        let place = Place {
+            root: Root::Local(l, d),
+            path: vec![],
+            ty: t,
+        };
+        let pool = self.pool();
+        let inner = self.strip_mut(t);
+        let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
+        (self.make_ref(&place, inner, mutable, rt, n), rt)
+    }
+
     fn ref_poison(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
         (
             self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),

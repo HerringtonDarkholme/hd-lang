@@ -11,13 +11,13 @@ fn size(name: string) -> usize:
 fn wide_index(name: string, at: u64) -> u8:
     name[at]
 
-fn letters(text: string) -> mut Iterator[char]:
+fn letters(text: string) -> &mut Iterator[char]:
     text.chars()
 
-fn positions(text: string) -> mut Iterator[(usize, char)]:
+fn positions(text: string) -> &mut Iterator[(usize, char)]:
     text.char_indices()
 
-fn raw(text: string) -> mut Iterator[u8]:
+fn raw(text: string) -> &mut Iterator[u8]:
     text.bytes()
 
 fn head(text: string, end: usize) -> string:

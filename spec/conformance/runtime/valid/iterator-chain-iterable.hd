@@ -7,7 +7,7 @@ data Probe:
     pull: fn() -> i32?
 
 impl Iterable[i32] for Probe:
-    fn iter(self) -> mut Iterator[i32]:
+    fn iter(self) -> &mut Iterator[i32]:
         (self.start)()
         Iterator::from_fn(self.pull)
 
@@ -17,7 +17,7 @@ tests:
     it("chain"):
         assert_equal([1].iter().chain([2, 3]).collect(), [1, 2, 3], reason="a list")
         assert_equal([1].iter().chain(2..4).collect(), [1, 2, 3], reason="a range")
-        let seen: mut Set[i32] = Set::new()
+        let mut seen: Set[i32] = Set::new()
         _ := seen.insert(7)
         assert_equal([+1].iter().chain(seen).collect(), [1, 7], reason="a set")
         let empty: List[i32] = []

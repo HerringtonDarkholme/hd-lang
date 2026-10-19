@@ -798,9 +798,10 @@ impl Ck<'_, '_> {
             }
         }
         ptys.extend(params);
+        let result = self.builtin_result(op, ret);
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&ptys),
-            result: ret,
+            result,
             row: RowId::EMPTY,
             suspends: false,
             inputs: Inputs::Fixed,
@@ -827,9 +828,12 @@ impl Ck<'_, '_> {
         for (l, t) in locals.iter().zip(&ptys) {
             refs.push(self.b.get(*l, *t, syn));
         }
-        let rec = self.b.refs_record(&refs);
-        let r = self.b.emit(Tag::Intrinsic, op as u32, rec, ret, syn);
-        let root = self.b.close_block(blk, Some(r), ret, syn);
+        // The new object `emit_builtin` makes for `iter` belongs to this
+        // closure's body, not to an enclosing one.
+        self.scopes.push(hd_base::HashMap::default());
+        let (r, _) = self.emit_builtin(op, &refs, ret, n);
+        self.scopes.pop();
+        let root = self.b.close_block(blk, Some(r), result, syn);
         (self.b.close_sub(mark, root, ft, syn), ft)
     }
 

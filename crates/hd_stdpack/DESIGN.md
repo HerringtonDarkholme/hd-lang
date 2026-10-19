@@ -64,7 +64,7 @@ every key in `lib/std` has a row.
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
-| `list_truncate` | `[T](items: mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
