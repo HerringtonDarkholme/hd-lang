@@ -8,7 +8,7 @@
 use hd_base::HashMap;
 
 use hd_base::{DefId, Span};
-use hd_diag::{Code, DiagMark, Severity};
+use hd_diag::{Code, DiagMark, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
@@ -301,7 +301,7 @@ impl Lower<'_, '_, '_> {
             let span = self.src.span(d);
             let mark = self.diags.mark();
             let Some(deco) = self.deco(d) else {
-                self.unused_block_fact(place, None, span, mark);
+                self.unused_block_fact(place, None, n, d, mark);
                 continue;
             };
             let k = place.kind;
@@ -390,7 +390,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
             }
-            self.unused_block_fact(place, Some(deco.name.as_str()), span, mark);
+            self.unused_block_fact(place, Some(deco.name.as_str()), n, d, mark);
         }
         cause
     }
@@ -398,7 +398,14 @@ impl Lower<'_, '_, '_> {
     /// Warns on a decorator before a derivation block, since no derivation
     /// reads its value (`annot.fact.unused-block-decorator`). A decorator
     /// already reported as an error (since `mark`), or a marker, is skipped.
-    fn unused_block_fact(&mut self, place: Place, name: Option<&str>, span: Span, mark: DiagMark) {
+    fn unused_block_fact(
+        &mut self,
+        place: Place,
+        name: Option<&str>,
+        target: NodeRef<'_>,
+        decorator: NodeRef<'_>,
+        mark: DiagMark,
+    ) {
         let marker = matches!(name, Some("intrinsic" | "from" | "source"));
         if !place.block || marker || self.diags.errors_since(mark) > 0 {
             return;
@@ -407,9 +414,51 @@ impl Lower<'_, '_, '_> {
         self.diags.push(
             Code::UnusedDerivationFact,
             Severity::Warning,
-            span,
+            self.src.span(decorator),
             msg,
             None,
+        );
+        let Some(value) = decorator.children().next() else {
+            return;
+        };
+        let Some(first) = Src::child(target, SyntaxKind::Block).and_then(|b| b.children().next())
+        else {
+            return;
+        };
+        let text = self.src.text;
+        let value = self.src.span(value);
+        let start = self.src.span(decorator).lo as usize;
+        let start = text[..start].rfind('\n').map_or(0, |i| i + 1);
+        let end = value.hi as usize;
+        let line_end = text[end..].find('\n').map_or(text.len(), |i| end + i);
+        let newline = if text[..line_end].ends_with('\r') {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let suffix = text[end..line_end].trim_end_matches('\r');
+        let first = self.src.span(first).lo as usize;
+        let at = text[..first].rfind('\n').map_or(0, |i| i + 1);
+        let indent = &text[at..first];
+        if !indent.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+            return;
+        }
+        let value = &text[value.lo as usize..value.hi as usize];
+        let member = format!("{indent}Self += [{value}]{suffix}{newline}");
+        let delete = Span {
+            file: self.src.file,
+            lo: u32::try_from(start).expect("source offset"),
+            hi: u32::try_from((line_end + 1).min(text.len())).expect("source offset"),
+        };
+        let insert = Span {
+            file: self.src.file,
+            lo: u32::try_from(at).expect("source offset"),
+            hi: u32::try_from(at).expect("source offset"),
+        };
+        self.diags.add_fix(
+            "move the fact into the derivation block as `Self += [...]`",
+            FixSafety::Exact,
+            &[(delete, ""), (insert, &member)],
         );
     }
 
