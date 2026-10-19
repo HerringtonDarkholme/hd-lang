@@ -1310,7 +1310,10 @@ impl Ck<'_, '_> {
     /// is expected. A `mut` view expected is a legacy position that shares,
     /// so a copy read with `*` gets no edit. A value that is itself `*r` or
     /// `&e` loses that operator instead, and a shorthand field has no value
-    /// to mark.
+    /// to mark. Where a trait value reference is expected, a value whose
+    /// type implements its trait gains `&` or `&mut`, and `&e` on what
+    /// already is such a value's reference loses its `&`
+    /// (`trait.dyn.ref.written`).
     pub(crate) fn migration_ref_fix(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
         let pool = self.pool();
         let value = match n.kind() {
@@ -1330,12 +1333,32 @@ impl Ck<'_, '_> {
             self.migration_closure_fix(got, want, value);
             return;
         }
+        let to_dyn = self.dyn_ref_of(want).map(|(tv, _)| tv);
         let (mark, undo) = match (self.ref_of(got), self.ref_of(want)) {
             (None, Some((inner, mutable))) => {
-                if !self.can_unify(self.strip_mut(got), inner) {
+                let value_ty = self.strip_mut(got);
+                let fits = match to_dyn {
+                    Some(tv) => self.dyn_fits(value_ty, tv),
+                    None => self.can_unify(value_ty, inner),
+                };
+                if !fits {
                     return;
                 }
                 (if mutable { "&mut " } else { "&" }, SyntaxKind::DerefExpr)
+            }
+            // `&e` where `e` already is a reference that converts.
+            (Some((outer, _)), Some(_)) if value.kind() == SyntaxKind::RefExpr => {
+                let Some(tv) = to_dyn else {
+                    return;
+                };
+                let Some((inner, _)) = self.ref_of(self.infer.resolve(pool, outer)) else {
+                    return;
+                };
+                let inner = self.strip_mut(self.infer.resolve(pool, inner));
+                if !self.dyn_fits(inner, tv) {
+                    return;
+                }
+                ("", SyntaxKind::RefExpr)
             }
             (Some((inner, _)), None) => {
                 if matches!(pool.get(want), TyData::Mut(_)) || !self.can_unify(inner, want) {

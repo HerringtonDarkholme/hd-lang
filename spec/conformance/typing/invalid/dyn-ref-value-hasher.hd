@@ -1,0 +1,13 @@
+# Spec 09 Trait Value References: trait.dyn.ref.written. A recorder hasher passed to `Hash.hash` by value, where `&mut dyn Hasher` is expected; `&mut recorder` was meant.
+struct Recorder:
+    bytes: List[u8]
+
+impl Hasher for Recorder:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.push(byte)
+
+fn bytes_of(value: i32) -> List[u8]:
+    let mut recorder = Recorder { bytes: [] }
+    value.hash(recorder)  # diagnostic: type-mismatch
+    recorder.bytes

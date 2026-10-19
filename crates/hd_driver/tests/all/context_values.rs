@@ -168,7 +168,7 @@ pub fn main() -> void $ Console:
 
 /// A mutable provider installed through a context keeps one value for the
 /// whole block, so each call sees the last one's change
-/// (`req.mut.install-writable`, `req.mut.use-writable`).
+/// (`req.mut.install-writable-ref`, `req.mut.use-writable`).
 #[test]
 fn a_mutable_provider_through_a_context_keeps_its_state() {
     let main = "
@@ -373,7 +373,7 @@ pub fn run(ctx: $.Context[$ Tag]) -> string:
 }
 
 /// A mutable requirement trait needs a `mut` value in `$.context` too
-/// (`req.mut.install-writable`).
+/// (`req.mut.install-writable-ref`).
 #[test]
 fn a_readonly_value_for_a_mutable_key_is_an_upgrade() {
     let main = "

@@ -1,8 +1,8 @@
-# test: .hash calls the standard Hash implementations directly, with a user Hasher
+# test: .hash calls the standard Hash implementations directly, with a user Hasher passed as `&mut`
 # expect: test
 # Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.in-scope).
-data Bytes:
-    items: mut List[u8]
+struct Bytes:
+    items: List[u8]
 
 impl Hasher for Bytes:
     fn write(&mut self, bytes: List[u8]) -> void:
@@ -12,24 +12,26 @@ impl Hasher for Bytes:
 fn fed(first: Bytes, second: Bytes) -> void:
     if first.items != second.items:
         panic("equal values fed different bytes")
+    if first.items.len() == 0:
+        panic("the hasher saw no bytes")
 
 pub fn main() -> void:
-    let a: mut Bytes = Bytes { items: [] }
-    let b: mut Bytes = Bytes { items: [] }
-    (7).hash(a)
-    (7).hash(b)
-    "ab".hash(a)
-    "ab".hash(b)
-    u8(3).hash(a)
-    u8(3).hash(b)
-    i64(9).hash(a)
-    i64(9).hash(b)
-    'z'.hash(a)
-    'z'.hash(b)
-    true.hash(a)
-    true.hash(b)
-    [1, 2].hash(a)
-    [1, 2].hash(b)
-    (1, "a").hash(a)
-    (1, "a").hash(b)
+    let mut a = Bytes { items: [] }
+    let mut b = Bytes { items: [] }
+    (7).hash(&mut a)
+    (7).hash(&mut b)
+    "ab".hash(&mut a)
+    "ab".hash(&mut b)
+    u8(3).hash(&mut a)
+    u8(3).hash(&mut b)
+    i64(9).hash(&mut a)
+    i64(9).hash(&mut b)
+    'z'.hash(&mut a)
+    'z'.hash(&mut b)
+    true.hash(&mut a)
+    true.hash(&mut b)
+    [1, 2].hash(&mut a)
+    [1, 2].hash(&mut b)
+    (1, "a").hash(&mut a)
+    (1, "a").hash(&mut b)
     fed(a, b)

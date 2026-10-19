@@ -2190,7 +2190,7 @@ fn demo(user: User) -> dyn Any:
 6. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
 8. r[types.trait.value.mut] `mut dyn Trait` is the mutable view of a trait value, as `mut T` is of any type.
-9. r[types.trait.value.ref] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A struct value converted to one is copied into a new object, and a converted `&S` or `&mut S` is shared, as [Trait Value References](09-traits.md#trait-value-references) states.
+9. r[types.trait.value.ref-written] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A converted `&S` or `&mut S` is shared, and a value that is no reference does not convert, as [Trait Value References](09-traits.md#trait-value-references) states.
 
 ```hd
 trait Greet:

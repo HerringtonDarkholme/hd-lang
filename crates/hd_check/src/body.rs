@@ -1662,7 +1662,7 @@ impl Ck<'_, '_> {
         }
         // A conversion to a trait value reference (`trait.dyn.ref.convert`).
         if let Some(to) = self.dyn_ref_of(w)
-            && let Some(out) = self.convert_to_dyn_ref(r, g, to, n, what, position)
+            && let Some(out) = self.convert_to_dyn_ref(r, g, to, n, what)
         {
             return out;
         }

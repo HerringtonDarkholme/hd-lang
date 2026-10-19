@@ -988,7 +988,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 ### Installing
 
-1. r[req.mut.install-writable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must be writable. Its type must be `mut T` or `&mut T` for a type `T` implementing `K`, or be a value that [`req.ref.install`](#r-req.ref.install) copies into a new object. A readonly view or a `&T` reference is an error. Error: `mutable-upgrade`.
+1. r[req.mut.install-writable-ref] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must be writable. Its type must be `mut T` or `&mut T` for a type `T` implementing `K`. A readonly view or a `&T` reference is an error. Error: `mutable-upgrade`.
 2. r[req.mut.install-readonly-trait] For any other trait, the expression may have either access, and the provider is installed with readonly access.
 
 ```text
@@ -1095,7 +1095,7 @@ fn demo() -> i32:
 
 1. r[req.ref.key] When a key's trait, or one of its supertraits, declares a `&self` or `&mut self` method, its provider is a [trait value reference](09-traits.md#trait-value-references).
 2. r[req.ref.use] `$.use(K)` of such a key yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` for any other trait.
-3. r[req.ref.install] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is copied into a new object.
+3. r[req.ref.install-ref] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is an error whose fix-it writes `&` or `&mut`. Error: `type-mismatch`.
 4. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
 
 ```text

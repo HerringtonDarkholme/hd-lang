@@ -508,7 +508,7 @@ lang/09-traits.md	65	mixed	typing/invalid/dyn-self-parameter-unavailable.hd
 lang/09-traits.md	66	accept	typing/valid/trait-value-bound-associated-type.hd
 lang/09-traits.md	67	mixed	typing/invalid/trait-value-unbound-associated-type.hd|typing/invalid/dyn-associated-function-bound.hd
 lang/09-traits.md	68	accept	runtime/valid/dynamic-trait-value-satisfies-own-bound.hd
-lang/09-traits.md	69	mixed	typing/invalid/dyn-ref-mut-method-through-shared.hd|typing/invalid/dyn-ref-mutable-upgrade.hd
+lang/09-traits.md	69	mixed	typing/invalid/dyn-ref-mut-method-through-shared.hd|typing/invalid/dyn-ref-mutable-upgrade.hd|typing/invalid/dyn-ref-value-mutable.hd
 lang/09-traits.md	70	mixed	typing/invalid/none-to-any.hd
 lang/09-traits.md	71	mixed	typing/invalid/inspectable-user-implementation.hd|typing/invalid/user-anyref-implementation.hd
 lang/09-traits.md	72	accept	typing/valid/num-traits.hd|runtime/valid/num-traits-run.hd

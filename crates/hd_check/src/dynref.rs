@@ -1,9 +1,9 @@
 //! Trait value references (spec 09 "Trait Value References"): `&dyn Tr`
-//! and `&mut dyn Tr` are references whose target is a trait value. A
-//! struct or other value converts to one by being copied into a new object
-//! (Go copies a value stored in an interface); `&S` and `&mut S` convert by
+//! and `&mut dyn Tr` are references whose target is a trait value. Only a
+//! reference converts to one, as in Rust: `&S` and `&mut S` convert by
 //! sharing what they refer to, so a `&mut self` method called through the
-//! result changes the caller's place.
+//! result changes the caller's place. A value is no reference, and the
+//! program writes `&s`, `&mut s` or `&S { ... }` for it.
 //!
 //! On the Wasm GC emulation a trait value reference is an ordinary
 //! `std.core.Ref[dyn Tr]` (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
@@ -31,10 +31,12 @@ impl Ck<'_, '_> {
     }
 
     /// Converts `r` of type `got` to the trait value reference whose trait
-    /// value is `tv` (`trait.dyn.ref.convert`): a reference to a concrete
-    /// value shares it, another trait value reference widens to a
-    /// supertrait, and any other value is copied into a new object first.
-    /// `None` when no rule applies, so the caller reports the mismatch.
+    /// value is `tv`: a reference to a concrete value shares it
+    /// (`trait.dyn.ref.share`), and another trait value reference widens to
+    /// a supertrait (`trait.dyn.ref.widen`). Any other value is a
+    /// `type-mismatch` whose fix-it writes `&` or `&mut`
+    /// (`trait.dyn.ref.written`). `None` when no rule applies, so the
+    /// caller reports the mismatch.
     /// The mutability of a reference `got` already matches `mutable`.
     pub(crate) fn convert_to_dyn_ref(
         &mut self,
@@ -43,7 +45,6 @@ impl Ck<'_, '_> {
         (tv, mutable): (Ty, bool),
         n: NodeRef<'_>,
         what: &str,
-        position: ExpectPosition,
     ) -> Option<Ref> {
         let pool = self.pool();
         let target = pool.intern_ty(&TyData::Ref { inner: tv, mutable });
@@ -75,14 +76,21 @@ impl Ck<'_, '_> {
                     Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::Supertrait, n))
                 }
                 _ => {
+                    let before = self.diags.len();
                     self.require_dyn_impl(inner, tv, n);
+                    // `&e` on what already is a reference, as a former
+                    // data value is after `hd fix --object-model`.
+                    if self.diags.len() != before {
+                        self.migration_ref_fix(g, target, n);
+                    }
                     Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::RefToTraitValue, n))
                 }
             };
         }
-        // Any other value: a new object holds a copy (`trait.dyn.ref.copy`).
-        let mut gs = self.strip_mut(g);
-        match pool.get(gs) {
+        // Any other value is no reference, and none is made for it
+        // (`trait.dyn.ref.written`): the program writes `&` or `&mut`.
+        let gs = self.strip_mut(g);
+        let gs = match pool.get(gs) {
             TyData::Poison | TyData::Never => return None,
             TyData::Infer(_) => {
                 let d = self
@@ -90,35 +98,107 @@ impl Ck<'_, '_> {
                     .kind_of(pool, gs)
                     .and_then(VarKind::literal_default)?;
                 let _ = self.infer.unify(pool, gs, d);
-                gs = d;
+                d
             }
-            TyData::TraitValue { def, .. } if self.has_ref_receiver_member(def) => {
-                self.bare_dyn_ref_error(def, n);
-                return Some(r);
-            }
-            _ => {}
-        }
-        // `&mut` on a readonly view would grant writes through it
-        // (`ref.expr.allocate.view`).
-        if mutable && self.is_composite(g) && !self.has_mut_access(g) {
-            let msg = format!(
-                "in {what}: a readonly {} does not convert to {}, which could change it",
-                self.show(g),
-                self.show(target)
-            );
-            self.err(Code::MutableUpgrade, n, &msg);
-            return Some(r);
-        }
-        let (l, d) = self.hold(r, g, n);
-        self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
-        let place = crate::refs::Place {
-            root: crate::refs::Root::Local(l, d),
-            path: vec![],
-            ty: g,
+            _ => gs,
         };
-        let rt = pool.intern_ty(&TyData::Ref { inner: gs, mutable });
-        let made = self.make_ref(&place, gs, mutable, rt, n);
-        Some(self.coerce(made, rt, target, n, what, position))
+        // A written reference that would itself be an error gets no
+        // fix-it: `&e` on a bare trait value of a trait with a `&self` or
+        // `&mut self` method (`trait.dyn.ref.bare-operand`), or `&mut e` on
+        // a readonly view.
+        let mark = if mutable { "&mut" } else { "&" };
+        let hint = match pool.get(gs) {
+            TyData::TraitValue { def, .. } if self.has_ref_receiver_member(def) => Some(format!(
+                "a bare `dyn {}` holds no reference, so pass a reference to the concrete value",
+                self.cx.names.display_name(def)
+            )),
+            _ if mutable && self.is_composite(g) && !self.has_mut_access(g) => Some(format!(
+                "this readonly {} grants no writes, so pass `&mut` to a writable place",
+                self.show(g)
+            )),
+            _ => None,
+        };
+        let msg = format!(
+            "in {what}: expected {}, found {}; a value never becomes a trait value reference by itself, {}",
+            self.show(target),
+            self.show(g),
+            hint.as_deref().map_or_else(
+                || format!("so write `{mark}` before it"),
+                |h| format!("and {h}")
+            )
+        );
+        self.err(Code::TypeMismatch, n, &msg);
+        if hint.is_none() {
+            self.dyn_ref_value_fix(gs, tv, mutable, n);
+            self.migration_ref_fix(g, target, n);
+        }
+        Some(r)
+    }
+
+    /// The fix-it of `trait.dyn.ref.written.fix`: `&` or `&mut` before a
+    /// place or a struct literal whose type `s`, without a `mut` view,
+    /// implements the trait of `tv`.
+    fn dyn_ref_value_fix(&mut self, s: Ty, tv: Ty, mutable: bool, n: NodeRef<'_>) {
+        let value = match n.kind() {
+            SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument | SyntaxKind::Argument => {
+                n.children().last()
+            }
+            _ => Some(n),
+        };
+        let Some(value) = value else {
+            return;
+        };
+        if !matches!(
+            value.kind(),
+            SyntaxKind::NameExpr
+                | SyntaxKind::FieldExpr
+                | SyntaxKind::IndexExpr
+                | SyntaxKind::PathExpr
+                | SyntaxKind::DerefExpr
+                | SyntaxKind::DataExpr
+        ) {
+            return;
+        }
+        if !self.dyn_fits(s, tv) {
+            return;
+        }
+        let mark = if mutable { "&mut " } else { "&" };
+        let span = self.cx.src.span(value);
+        let at = hd_base::Span {
+            hi: span.lo,
+            ..span
+        };
+        self.diags.add_fix(
+            &format!("write `{}`", mark.trim_end()),
+            FixSafety::Exact,
+            &[(at, mark)],
+        );
+    }
+
+    /// Whether a reference to a value of type `s`, without a `mut` view,
+    /// converts to a reference to the trait value `tv`: `s` implements its
+    /// trait (`trait.dyn.ref.convert.impl`), or is a trait value of it or
+    /// of a subtrait (`trait.dyn.ref.widen`).
+    pub(crate) fn dyn_fits(&mut self, s: Ty, tv: Ty) -> bool {
+        let pool = self.pool();
+        let TyData::TraitValue { def, args, .. } = pool.get(tv) else {
+            return false;
+        };
+        if let TyData::TraitValue {
+            def: from,
+            args: from_args,
+            ..
+        } = pool.get(s)
+        {
+            return from == def
+                || supertrait_args(self.cx.lookup, pool, from, from_args, def, 0).is_some();
+        }
+        let tref = hd_types::solver::TraitRef {
+            trait_: def,
+            self_ty: s,
+            args,
+        };
+        matches!(self.solve(tref), Ok(hd_types::solver::Answer::Holds { .. }))
     }
 
     /// The provider of the key `key`, whose trait is `def`, from the value
@@ -350,12 +430,12 @@ impl Ck<'_, '_> {
         false
     }
 
-    /// `trait.dyn.ref.bare`: a reference to a bare trait value of a trait
-    /// with a `&self` or `&mut self` method.
+    /// `trait.dyn.ref.bare-operand`: a reference to a bare trait value of
+    /// a trait with a `&self` or `&mut self` method.
     pub(crate) fn bare_dyn_ref_error(&mut self, trait_: DefId, n: NodeRef<'_>) {
         let name = self.cx.names.display_name(trait_);
         let msg = format!(
-            "a bare `dyn {name}` holds no reference to pass to its `&self` and `&mut self` methods, so it does not become a `&dyn {name}`; convert the concrete value, or a reference to it, to `&dyn {name}` instead"
+            "a bare `dyn {name}` holds no reference to pass to its `&self` and `&mut self` methods, so it does not become a `&dyn {name}`; take a reference to the concrete value instead"
         );
         self.err(Code::DynMemberUnavailable, n, &msg);
     }

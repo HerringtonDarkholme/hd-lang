@@ -803,11 +803,14 @@ in a fixed order, and at most one applies:
 8. `S` to a trait value `Tr` when `S: Tr` holds: `ToTraitValue`, or
    `ToAny` for `Any`; `mut S` to `mut Tr` likewise
    ([`types.assign.trait-value.mut`](../../spec/lang/04-type-system.md#r-types.assign.trait-value.mut)).
-9. A child trait value to a supertrait value: `Supertrait`. `&S`, or a
-   value of `S`, to a trait value reference `&dyn Tr` when `S: Tr` holds:
-   a new `Ref[dyn Tr]` whose `get` applies `RefToTraitValue` to the
-   source reference (`dynref.rs`,
+9. A child trait value to a supertrait value: `Supertrait`. `&S` to a
+   trait value reference `&dyn Tr` when `S: Tr` holds: a new
+   `Ref[dyn Tr]` whose `get` applies `RefToTraitValue` to the source
+   reference (`dynref.rs`,
    [`types.assign.trait-value.ref`](../../spec/lang/04-type-system.md#r-types.assign.trait-value.ref)).
+   A value of `S` is no reference and does not convert: `type-mismatch`,
+   whose fix-it writes `&` or `&mut` before a place or a struct literal
+   ([`trait.dyn.ref.written`](../../spec/lang/09-traits.md#r-trait.dyn.ref.written)).
 10. A suspending function type to its constructor form: `SuspendFnToCtor`
     ([`req.suspend.type.conversion`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.type.conversion)).
 11. Otherwise an error: `mutable-upgrade` or

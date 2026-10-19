@@ -50,7 +50,7 @@ tests:
     it("an Iterable struct through a bound and a trait value reference"):
         start := Countdown { left: 3 }
         assert_equal(total(start), 6, reason="through the bound")
-        assert_equal(total_dyn(start), 6, reason="through &dyn")
+        assert_equal(total_dyn(&start), 6, reason="through &dyn")
         assert_equal(start.left, 3, reason="each loop walked its own copy")
 
     it("a FromIterator struct through collect and a bound"):

@@ -1927,8 +1927,9 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 
 A **trait value reference**, written `&dyn Tr` or `&mut dyn Tr`, is a trait
 value that is a reference: it refers to one object whose type implements
-`Tr`. A bare `dyn Tr` remains a trait value type, as the sections above
-define.
+`Tr`. It is made only from a reference the program writes or already
+holds, as in Rust: `&s`, `&mut s`, `&S { ... }`, or a `&S` value. A bare
+`dyn Tr` remains a trait value type, as the sections above define.
 
 ```hd
 trait Counter:
@@ -1947,19 +1948,19 @@ impl Counter for Tally:
 fn demo() -> i32:
     let mut tally = Tally { n: 0 }
     let shared: &mut dyn Counter = &mut tally
-    shared.bump()                    # changes `tally`
-    let copied: &dyn Counter = tally  # a new object that holds a copy
+    shared.bump()                              # changes `tally`
+    let fresh: &dyn Counter = &Tally { n: 5 }  # a new object
     tally.bump()
-    copied.total()                   # 1: the copy did not change
+    tally.n + fresh.total()                    # 2 + 5
 ```
 
 1. r[trait.dyn.ref.form] `&dyn Tr` and `&mut dyn Tr` are trait value references. They are reference types, as [Reference Types](13-values-and-references.md#reference-types) defines.
 2. r[trait.dyn.ref.share] `&S` converts implicitly to `&dyn Tr`, and `&mut S` to `&mut dyn Tr`, when `S` implements `Tr`. The result refers to the place the source refers to.
-3. r[trait.dyn.ref.copy] A value of a type `S` that is no reference converts implicitly to `&dyn Tr` or `&mut dyn Tr` when `S` implements `Tr`. The result refers to a new object that holds a copy of the value, as `&e` does on a value.
-4. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
-5. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
-6. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
-7. r[trait.dyn.ref.view] Converting a readonly view, such as a readonly data value, to `&mut dyn Tr` is an error. Error: `mutable-upgrade`.
+3. r[trait.dyn.ref.written] A value that is no reference never converts to `&dyn Tr` or `&mut dyn Tr`. Using one where a trait value reference is expected is an error, so a new object is written `&e` or `&mut e`, as in `&S { ... }`. Error: `type-mismatch`.
+4. r[trait.dyn.ref.written.fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-operand`](#r-trait.dyn.ref.bare-operand), or `&mut e` on a readonly view.
+5. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
+6. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
+7. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
 8. r[trait.dyn.ref.widen] A child trait value reference converts implicitly to a supertrait value reference of the same mutability, which refers to the same object.
 9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
 10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `mutable-receiver-required`.
@@ -1967,9 +1968,9 @@ fn demo() -> i32:
 12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
 13. r[trait.dyn.ref.bridge] A struct's `&mut self` method that fills a trait method declared `mut self`, by [`trait.impl.receiver-bridge`](#r-trait.impl.receiver-bridge), serves calls through a trait value reference made from the struct.
 14. r[trait.dyn.ref.bridge.default] Converting such a struct to a trait value reference is an error when its implementation does not write a default method of the trait. Error: `unsatisfied-trait-bound`.
-15. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of a value refer to two new objects.
+15. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
 16. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
-17. r[trait.dyn.ref.bare] `&e` with a bare `dyn Tr` operand, and converting a bare `dyn Tr` value to a trait value reference, are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
+17. r[trait.dyn.ref.bare-operand] `&e` and `&mut e` with a bare `dyn Tr` operand are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
 18. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
 
 ```text
@@ -1981,11 +1982,30 @@ fn poke(counter: &dyn Counter) -> void:
 
 fn upgrade(counter: &dyn Counter) -> &mut dyn Counter:
     counter  # error: mutable-upgrade
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn count(counter: &mut dyn Counter) -> void:
+    counter.bump()
+
+fn demo() -> i32:
+    let mut tally = Tally { n: 0 }
+    count(tally)  # error: type-mismatch; the fix-it writes `count(&mut tally)`
+    tally.n
 ```
 
-> **Why.** A trait value refers to its object as Go's interface value does:
-> a value stored in it is copied, and a pointer stored in it is shared.
-> Writing `&mut` says that methods called through it may change the object.
+> **Why.** A trait value reference is how a callee changes what the
+> caller holds. A conversion that made a new object for a value would
+> drop the callee's writes, so the program writes the `&` that says which
+> object it means, as Rust requires. Writing `&mut` says that methods
+> called through it may change the object. A method call's receiver
+> still takes its address, by
+> [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address).
 
 See also: [Values And References](13-values-and-references.md),
 [Reference Receivers](07-functions.md#reference-receivers).

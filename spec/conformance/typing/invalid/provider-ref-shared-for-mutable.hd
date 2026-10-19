@@ -1,4 +1,4 @@
-# Spec 11 Mutable Providers: req.mut.install-writable; Spec 11 Providers Behind References: req.ref.install. A `&Tally` does not install a provider for a trait with a `&mut self` method.
+# Spec 11 Mutable Providers: req.mut.install-writable-ref; Spec 11 Providers Behind References: req.ref.install-ref. A `&Tally` does not install a provider for a trait with a `&mut self` method.
 trait Counter:
     fn bump(&mut self) -> void
 

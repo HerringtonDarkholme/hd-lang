@@ -49,6 +49,7 @@ mod duplicate_facts;
 mod dyn_bindings_run;
 mod dyn_bound_run;
 mod dyn_generic_run;
+mod dyn_ref_value_fix;
 mod dyn_rows_run;
 mod dyn_self_member_run;
 mod enclosing_bounds;

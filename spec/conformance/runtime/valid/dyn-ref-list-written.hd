@@ -1,7 +1,7 @@
-# test: struct values converted to `&dyn Shape` in a list are copied into new objects, so later changes to the originals are not seen; a converted `&s` is shared
-# Spec 09 Trait Value References: trait.dyn.ref.copy, trait.dyn.ref.share, trait.dyn.ref.member.
-# expect-stdout: 1.0 4.0 9.0
-# expect-stdout: 14.0
+# test: a `List[&dyn Shape]` holds written references: `&s` shares a struct's place, so a later change to it is seen, and `&Square { ... }` is a new object
+# Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.share, trait.dyn.ref.member.
+# expect-stdout: 100.0 4.0 9.0
+# expect-stdout: 113.0
 trait Shape:
     fn area(&self) -> f64
 
@@ -20,11 +20,9 @@ fn total(shapes: List[&dyn Shape]) -> f64:
 
 pub fn main() -> void $ Console:
     let mut small = Square { side: 1.0 }
-    let mut big = Square { side: 2.0 }
     let mut shared = Square { side: 0.0 }
-    let shapes: List[&dyn Shape] = [small, big, &shared]
+    let shapes: List[&dyn Shape] = [&small, &Square { side: 2.0 }, &shared]
     small.side = 10.0
-    big.side = 20.0
     shared.side = 3.0
     println("${shapes[0].area()} ${shapes[1].area()} ${shapes[2].area()}")
     println("${total(shapes)}")

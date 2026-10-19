@@ -1,0 +1,22 @@
+trait Shape:
+    fn area(&self) -> f64
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+fn show(shape: &dyn Shape) -> f64:
+    shape.area()
+
+fn make(side: f64) -> &Square:
+    &mut Square { side: side }
+
+pub fn main() -> void $ Console:
+    sq := make(2.0)
+    println("${show(sq)}")
+    println("${show(&Square { side: 3.0 })}")
+    let shapes: List[&dyn Shape] = [sq, make(1.0)]
+    println("${shapes.len()}")

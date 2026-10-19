@@ -1,8 +1,7 @@
-# test: a struct value installed for a trait with `&self` or `&mut self` methods is copied into a new object that every `$.use` shares, and a `&S` serves a trait whose methods read only
-# Spec 11 Providers Behind References: req.ref.install, req.ref.use; Spec 11 Mutable Providers: req.mut.install-writable, req.mut.use-readonly.
+# test: a new object written `&mut Tally { ... }` installed for a trait with `&self` or `&mut self` methods is one object that every `$.use` shares, and `&Name { ... }` serves a trait whose methods read only
+# Spec 11 Providers Behind References: req.ref.install-ref, req.ref.use; Spec 11 Mutable Providers: req.mut.install-writable-ref, req.mut.use-readonly.
 # expect-stdout: 11 12
-# expect-stdout: 10
-# expect-stdout: <ada> <ada>
+# expect-stdout: <ada> <bo>
 trait Counter:
     fn bump(&mut self) -> void
     fn total(&self) -> i32
@@ -35,13 +34,11 @@ fn show() -> string $ Shown:
     s.shown()
 
 pub fn main() -> void $ Console:
-    tally := Tally { n: 10 }
-    $.with(Counter=tally):
+    $.with(Counter=&mut Tally { n: 10 }):
         first := tick()
         println("$first ${tick()}")
-    println("${tally.n}")
     name := Name { text: "ada" }
     $.with(Shown=&name):
         first := show()
-        $.with(Shown=name):
+        $.with(Shown=&Name { text: "bo" }):
             println("$first ${show()}")

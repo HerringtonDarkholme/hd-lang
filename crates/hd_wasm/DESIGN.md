@@ -365,8 +365,7 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   lower as every reference does, to `Ref[dyn Tr]`, so generic code over
   `&T` and std's `&T` impls (`Display`, `Eq`, ...) see an ordinary
   reference. What differs is how the checker builds one
-  (`crates/hd_check/src/dynref.rs`): converting `&S` (or a value of `S`,
-  first made a new object as `&e` makes one) builds a new `Ref[dyn Tr]`
+  (`crates/hd_check/src/dynref.rs`): converting `&S` builds a new `Ref[dyn Tr]`
   whose `get` closure converts the captured source reference to the trait
   value with `Coerce` of kind `RefToTraitValue`, whose `set` is
   `unreachable` (a whole value is never stored through one,
@@ -392,7 +391,7 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     built from a value the slot is `Unavailable`, a trap the checker never
     lets a call reach (`trait.dyn.member.ref-receiver-bare`); `&e` on a bare
     trait value of such a trait is an error for the same reason
-    (`trait.dyn.ref.bare`). Generic code can still form `&T` with `T` a
+    (`trait.dyn.ref.bare-operand`). Generic code can still form `&T` with `T` a
     bare trait value and return it as `&dyn Tr`; a `&self` call through
     that value reaches the trap. Likewise a generic `*r = v` through
     `&mut T`, given a converted trait value reference with `T` its bare

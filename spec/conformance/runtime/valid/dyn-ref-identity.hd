@@ -1,4 +1,4 @@
-# test: `is` on two trait value references converted from one `&c` is true, and on two conversions of struct values is false
+# test: `is` on two trait value references converted from one `&sq` is true, and on two conversions of `&e` on struct literals is false
 # Spec 09 Trait Value References: trait.dyn.ref.identity. Spec 13 Identity: ref.identity.same-place.
 # expect-stdout: true true
 # expect-stdout: false false
@@ -18,6 +18,6 @@ pub fn main() -> void $ Console:
     let b: &dyn Shape = &sq
     let m: &mut dyn Shape = &mut sq
     println("${a is b} ${a is m}")
-    let c: &dyn Shape = sq
-    let d: &dyn Shape = sq
+    let c: &dyn Shape = &Square { side: 2.0 }
+    let d: &dyn Shape = &Square { side: 2.0 }
     println("${c is d} ${c is a}")
