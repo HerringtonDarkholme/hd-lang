@@ -2422,6 +2422,90 @@ impl Ck<'_, '_> {
         msg
     }
 
+    /// Offer debug formatting only for a directly braced collection name.
+    fn collection_interpolation_fix(&mut self, ty: Ty, at: NodeRef<'_>) {
+        let syn = at.index();
+        if at.kind() != SyntaxKind::NameExpr || syn.raw() == 0 {
+            return;
+        }
+        // Preorder puts the interpolation wrapper immediately before its first child.
+        let parent = self
+            .cx
+            .src
+            .parse
+            .tree
+            .node(hd_base::NodeIdx::from_raw(syn.raw() - 1));
+        if parent.kind() != SyntaxKind::Interpolation
+            || parent.children().next().map(NodeRef::index) != Some(syn)
+        {
+            return;
+        }
+        let pool = self.pool();
+        let ty = self.strip_mut(self.infer.resolve(pool, ty));
+        if !matches!(pool.get(ty), TyData::Adt { def, .. }
+            if def == self.cx.names.known.list || def == self.cx.names.known.map)
+            || pool.has_infer(ty)
+            || pool.has_poison(ty)
+        {
+            return;
+        }
+        let span = self.cx.src.span(at);
+        let sym = self.cx.names.syms.intern("debug");
+        let init = self.cx.init.borrow();
+        if self.find_local(sym).is_some()
+            || hd_resolve::local_at(self.cx.locals, sym, span.lo).is_some()
+            || init.globals.contains_key(&sym)
+            || init.earlier.contains_key(&sym)
+        {
+            return;
+        }
+        drop(init);
+        let Some(binding) = self.cx.scope_at(span.lo).lookup(sym) else {
+            return;
+        };
+        if binding.kind != hd_resolve::BindingKind::Item
+            || DefId::from_raw(binding.value) != self.cx.names.item("std.format", "debug")
+        {
+            return;
+        }
+        // A proposed edit must neither learn types nor spend the body's fuel.
+        let mark = self.infer.trial_mark();
+        let memo = std::mem::take(&mut self.memo);
+        let fuel = std::mem::replace(&mut self.fuel, Fuel::new(4096));
+        let answer = self.solve(TraitRef {
+            trait_: self.cx.names.known.debug,
+            self_ty: ty,
+            args: pool.list(&[]),
+        });
+        self.fuel = fuel;
+        self.memo = memo;
+        self.infer.rollback_trial(mark);
+        if !matches!(answer, Ok(Answer::Holds { evidence, .. }) if !matches!(evidence, Evidence::Poison))
+        {
+            return;
+        }
+        self.diags.add_fix(
+            "format the collection with `debug`",
+            hd_diag::FixSafety::Exact,
+            &[
+                (
+                    Span {
+                        hi: span.lo,
+                        ..span
+                    },
+                    "debug(",
+                ),
+                (
+                    Span {
+                        lo: span.hi,
+                        ..span
+                    },
+                    ")",
+                ),
+            ],
+        );
+    }
+
     fn has_poisoned_impl(&mut self, target: Ty) -> bool {
         let pool = self.pool();
         let target = self.strip_mut(target);
@@ -2499,6 +2583,10 @@ impl Ck<'_, '_> {
                 }
                 let msg = self.bound_message(tref, origin, at);
                 self.err(code, at, &msg);
+                if code == Code::UnsatisfiedTraitBound && tref.trait_ == self.cx.names.known.display
+                {
+                    self.collection_interpolation_fix(tref.self_ty, at);
+                }
                 Ok(None)
             }
             Answer::Stalled { .. } => {

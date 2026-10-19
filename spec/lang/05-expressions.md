@@ -248,6 +248,9 @@ trait Display:
 14. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
 15. r[expr.interp.reference] A reference interpolates as the value it refers to, since `std` implements `Display` for `&T` when `T` has it ([References](../std/format.md#references)).
 
+16. r[expr.interp.collection-debug-fix] For a simple name in braced interpolation, a missing `Display` diagnostic may offer exact `debug(name)` wrapping for `List` and `Map`.
+17. r[expr.interp.collection-debug-fix.proof] This fix requires proven `Debug` support and an unshadowed prelude `debug`.
+
 > **Note.** The empty tuple writes `()`. A `void` value is that tuple, so
 > `"${log()}"` writes `()` too.
 

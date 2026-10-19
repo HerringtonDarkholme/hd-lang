@@ -22,3 +22,8 @@ spec/conformance/cli/fix-private-main-unsafe/src/*.hd text eol=lf
 spec/conformance/cli/fix-discarded-debug/** text eol=lf
 spec/conformance/cli/trait-reference-messages/** text eol=lf
 spec/conformance/cli/fix-empty-map-constructor/** text eol=lf
+
+# Collection interpolation fix-it offsets are UTF-8 byte positions.
+spec/conformance/cli/fix-collection-interpolation/*.hd text eol=lf
+spec/conformance/cli/fix-collection-interpolation/src/*.hd text eol=lf
+spec/conformance/cli/fix-collection-interpolation/want/*.hd text eol=lf

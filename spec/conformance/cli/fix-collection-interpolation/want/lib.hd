@@ -1,0 +1,16 @@
+# café: preserve UTF-8 and the actual expression names
+pub fn list(items: List[string]) -> string:
+    "items ${debug(items)}"
+
+pub fn map(entries: Map[string, i32]) -> string:
+    "entries ${debug(entries)}"
+
+pub fn unicode(τιμές: List[i32]) -> string:
+    "${debug(τιμές)} and ${debug(τιμές)}"
+
+pub fn bounded[T < Debug](items: List[T]) -> string:
+    "${debug(items)}"
+
+type Lookup = Map[string, i32]
+pub fn alias(values: Lookup) -> string:
+    "${debug(values)}"

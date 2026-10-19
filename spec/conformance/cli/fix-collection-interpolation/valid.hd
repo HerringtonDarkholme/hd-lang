@@ -1,0 +1,5 @@
+pub fn text(value: string) -> string:
+    "${value}"
+
+pub fn already_debugged(items: List[string]) -> string:
+    "${debug(items)}"
