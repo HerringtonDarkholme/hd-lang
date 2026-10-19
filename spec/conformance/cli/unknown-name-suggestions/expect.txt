@@ -1,0 +1,58 @@
+# Public export hints, unknown test callees and receiver-specific near names.
+run: hd check --format json ambiguous.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`min` is not defined; `min` has several public std homes: `std.cmp`, `std.time`; add a `use` from the intended module","line":2,"column":5,"fixes":[],"file":"ambiguous.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json arbitrary-fixed.hd
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json arbitrary.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`arbitrary` is not defined; add `use std.testing.arbitrary`","line":4,"column":6,"fixes":[],"file":"arbitrary.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json builder-call.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`StringBuilder` is not defined; add `use std.text.StringBuilder`","line":2,"column":17,"fixes":[],"file":"builder-call.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json builder-literal.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-type","message":"no type named `StringBuilder`; add `use std.text.StringBuilder`","line":2,"column":17,"fixes":[],"file":"builder-literal.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json builder.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-type","message":"no type named `StringBuilder`; add `use std.text.StringBuilder`","line":1,"column":23,"fixes":[],"file":"builder.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json dedup.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`with` is not defined; add `use std.testing.arbitrary.with`","line":4,"column":5,"fixes":[],"file":"dedup.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json derive-error.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-trait","message":"no trait named `Error`; add `use std.error.Error`","line":1,"column":1,"fixes":[],"file":"derive-error.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json eprintln.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`eprintln` is not defined; add `use std.console.eprintln`","line":2,"column":5,"fixes":[],"file":"eprintln.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json error-impl.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-trait","message":"no trait named `Error`; add `use std.error.Error`","line":3,"column":6,"fixes":[],"file":"error-impl.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json error-trait.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-trait","message":"no trait named `Error`; add `use std.error.Error`","line":1,"column":18,"fixes":[],"file":"error-trait.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json imports-fixed.hd
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json map.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `new` on Map[?, ?]; write `{}` for an empty map","line":2,"column":5,"fixes":[],"file":"map.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json methods.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `append` on mut List[i32]; did you mean `push`?","line":2,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `copy` on mut List[i32]; did you mean `cmp`?","line":3,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `into` on mut List[i32]; did you mean `any`?","line":4,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `is_ascii_alphabetic` on char; did you mean `is_alphabetic`?","line":5,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+run: hd check --format json nearest-receiver.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `roate` on Knob; did you mean `rotate`?","line":10,"column":5,"fixes":[],"file":"nearest-receiver.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json optional.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwrap` on string?; use `expect(message)` or `unwrap_or(fallback)`","line":2,"column":5,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json parse.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`parse_f64` is not defined; add `use std.num.parse_f64`","line":2,"column":5,"fixes":[],"file":"parse.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json print.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"fixes":[],"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json --tests tests-fixed.hd
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json --tests tests.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `it_prop` is unknown or not imported; add `use std.testing.it_prop`","line":2,"column":5,"fixes":[],"file":"tests.hd"},{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `itt` is unknown or not imported","line":4,"column":5,"fixes":[],"file":"tests.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

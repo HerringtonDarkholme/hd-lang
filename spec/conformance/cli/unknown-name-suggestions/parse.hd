@@ -1,0 +1,2 @@
+fn run() -> void:
+    parse_f64("1.5")

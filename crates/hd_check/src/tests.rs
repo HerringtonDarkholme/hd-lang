@@ -125,6 +125,39 @@ fn registration<'t>(
     Some((call, kind.to_owned(), block))
 }
 
+fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> String {
+    let Some(expr) = (s.kind() == SyntaxKind::ExprStmt)
+        .then(|| s.children().next())
+        .flatten()
+    else {
+        return String::new();
+    };
+    let call = match expr.kind() {
+        SyntaxKind::CallExpr => Some(expr),
+        SyntaxKind::TrailingCallExpr => expr.children().find(|c| c.kind() == SyntaxKind::CallExpr),
+        _ => None,
+    };
+    let Some(callee) = call.and_then(|c| c.children().next()) else {
+        return String::new();
+    };
+    let name = cx.src.text(cx.src.first(callee));
+    let sym = cx.names.syms.intern(name);
+    let at = cx.src.span(callee).lo;
+    if callee.kind() != SyntaxKind::NameExpr
+        || cx.scope_at(at).lookup(sym).is_some()
+        || hd_resolve::local_at(cx.locals, sym, at).is_some()
+        || hd_resolve::test_prelude_item(&cx.names, name).is_some()
+    {
+        return String::new();
+    }
+    let import = hd_resolve::iface::std_import_hint(
+        &cx.names,
+        cx.lookup.ifaces.iter().flat_map(|f| &f.exports),
+        name,
+    );
+    format!("; `{name}` is unknown or not imported{import}")
+}
+
 /// The registration function that a call's callee names, by declaration
 /// identity and not by spelling (`module.testing.reg.identity`): a bare or
 /// renamed name, or `module.name` through a module. `None` when the callee
@@ -224,7 +257,10 @@ pub fn check_tests(
             diags.error(
                 Code::InvalidTestStatement,
                 src.span(s),
-                "a `tests:` block holds only test registrations",
+                &format!(
+                    "a `tests:` block holds only test registrations{}",
+                    unknown_registration_hint(cx, s)
+                ),
             );
             continue;
         };

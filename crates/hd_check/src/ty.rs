@@ -262,7 +262,11 @@ impl Ck<'_, '_> {
                     NameRole::Type => (Code::UnknownType, "type"),
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
                 };
-                self.err(code, n, &format!("no {what} named `{name}`"));
+                self.err(
+                    code,
+                    n,
+                    &format!("no {what} named `{name}`{}", self.import_hint(name)),
+                );
                 return Ok(Ty::POISON);
             }
             return unsupported(format!("the type name `{}`", segs.join(".")));

@@ -210,3 +210,4 @@ fix-derivation-fact	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.e
 suspension-message-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
 mutable-and-signed-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
 bound-message-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
+unknown-name-suggestions	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success

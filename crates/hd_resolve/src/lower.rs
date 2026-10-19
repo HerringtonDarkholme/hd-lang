@@ -1564,6 +1564,22 @@ impl Lower<'_, '_, '_> {
         self.names.syms.intern(text)
     }
 
+    fn import_hint(&self, name: &str) -> String {
+        if self.in_std() {
+            return String::new();
+        }
+        let world = self.r.cx.world;
+        // Core shares std's root folder and its public export index.
+        // Prelude has child modules, so its own folder is only re-exports.
+        let core = self.names.module_of(self.names.known.list);
+        world
+            .module_folder(&core)
+            .and_then(|folder| world.iface(folder))
+            .map_or_else(String::new, |iface| {
+                crate::iface::std_import_hint(&self.names, &iface.exports, name)
+            })
+    }
+
     fn segments(&self, n: NodeRef<'_>) -> Vec<(String, hd_base::TokenIdx)> {
         n.direct_tokens()
             .filter(|t| {
@@ -1721,7 +1737,7 @@ impl Lower<'_, '_, '_> {
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
             if segs.len() == 1 {
-                let msg = format!("no trait named `{name}`");
+                let msg = format!("no trait named `{name}`{}", self.import_hint(&name));
                 self.diags.error(Code::UnknownTrait, span, &msg);
             }
             return None;
@@ -2134,7 +2150,7 @@ impl Lower<'_, '_, '_> {
                 return Ty::POISON;
             }
             if segs.len() == 1 {
-                let msg = format!("no type named `{first}`");
+                let msg = format!("no type named `{first}`{}", self.import_hint(&first));
                 self.diags.error(Code::UnknownType, span, &msg);
             }
             return Ty::POISON;
@@ -3712,7 +3728,12 @@ impl Lower<'_, '_, '_> {
                     value,
                 }) = self.scope.lookup(sym)
                 else {
-                    let msg = format!("no trait named `{a}`");
+                    let hint = if self.scope.lookup(sym).is_none() {
+                        self.import_hint(&a)
+                    } else {
+                        String::new()
+                    };
+                    let msg = format!("no trait named `{a}`{hint}");
                     self.diags
                         .error(Code::UnknownTrait, self.src.span(h.node), &msg);
                     continue;

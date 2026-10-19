@@ -1,0 +1,10 @@
+data Knob: pass
+impl Knob:
+    fn rotate(self) -> void: pass
+
+data Other: pass
+impl Other:
+    fn roatee(self) -> void: pass
+
+fn run(knob: Knob) -> void:
+    knob.roate()

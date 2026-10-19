@@ -28,6 +28,23 @@ pub struct MethodIndex {
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
 }
 
+fn name_distance(left: &str, right: &str) -> usize {
+    let right: Vec<_> = right.chars().collect();
+    let mut row: Vec<_> = (0..=right.len()).collect();
+    for (i, left) in left.chars().enumerate() {
+        let mut diagonal = row[0];
+        row[0] = i + 1;
+        for (j, right) in right.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = (row[j] + 1)
+                .min(above + 1)
+                .min(diagonal + usize::from(left != *right));
+            diagonal = above;
+        }
+    }
+    row[right.len()]
+}
+
 impl MethodIndex {
     #[must_use]
     pub fn build(lookup: &hd_resolve::Lookup<'_>) -> Self {
@@ -336,6 +353,22 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ names
 
+    pub(crate) fn import_hint(&self, name: &str) -> String {
+        hd_resolve::iface::std_import_hint(
+            &self.cx.names,
+            self.cx.lookup.ifaces.iter().flat_map(|f| &f.exports),
+            name,
+        )
+    }
+
+    fn name_hint(&self, name: &str) -> String {
+        if name == "print" {
+            "; did you mean `println`?".to_owned()
+        } else {
+            self.import_hint(name)
+        }
+    }
+
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let s = self.sym_of(n);
         if let Some((l, d)) = self.find_local(s) {
@@ -353,7 +386,7 @@ impl Ck<'_, '_> {
         {
             return Ok(v);
         }
-        let msg = format!("`{text}` is not defined");
+        let msg = format!("`{text}` is not defined{}", self.name_hint(&text));
         self.err(Code::UnknownName, n, &msg);
         Ok((Ref(NONE), Ty::POISON))
     }
@@ -426,7 +459,11 @@ impl Ck<'_, '_> {
             return Ok(self.poison_value(n));
         }
         let Some(def) = self.resolve_path(&segs) else {
-            let msg = format!("`{}` is not defined", segs.join("."));
+            let hint = match segs.as_slice() {
+                [name] => self.name_hint(name),
+                _ => String::new(),
+            };
+            let msg = format!("`{}` is not defined{hint}", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
         };
@@ -634,7 +671,7 @@ impl Ck<'_, '_> {
                 let msg = if text == "loop" && n.kind() == SyntaxKind::TrailingCallExpr {
                     "`loop` is not defined; write 'while true:' for an endless loop".to_owned()
                 } else {
-                    format!("`{text}` is not defined")
+                    format!("`{text}` is not defined{}", self.name_hint(&text))
                 };
                 self.err(Code::UnknownName, callee, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
@@ -3025,7 +3062,8 @@ impl Ck<'_, '_> {
             if let Some(unmet) = unmet {
                 self.err(Code::UnsatisfiedTraitBound, n, &unmet);
             } else if hidden.is_empty() {
-                self.err(Code::UnknownMethod, n, msg);
+                let hint = self.method_hint(t, name);
+                self.err(Code::UnknownMethod, n, &format!("{msg}{hint}"));
             } else {
                 let names = self.cx.names.display_names(&hidden).join("`, `");
                 let msg = format!(
@@ -3034,6 +3072,62 @@ impl Ck<'_, '_> {
                 self.err(Code::UnknownMethod, n, &msg);
             }
         }
+    }
+
+    fn method_hint(&mut self, t: Ty, name: &str) -> String {
+        let bare = self.strip_mut(self.infer.resolve(self.pool(), t));
+        let data = self.pool().get(bare);
+        if name == "new"
+            && matches!(data, TyData::Adt { def, .. } if def == self.cx.names.known.map)
+        {
+            return "; write `{}` for an empty map".to_owned();
+        }
+        if name == "unwrap" && matches!(data, TyData::Option(_)) {
+            return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
+        }
+        if name == "append" && self.builtin_method(t, "push").is_some() {
+            return "; did you mean `push`?".to_owned();
+        }
+        let index = self.method_index();
+        let mut names: Vec<String> = index
+            .inherent
+            .keys()
+            .chain(index.traits.keys())
+            .map(|s| self.cx.names.text(*s).to_owned())
+            .chain(["len", "push", "iter", "get", "remove"].map(str::to_owned))
+            .collect();
+        names.sort();
+        names.dedup();
+        let mut ranked: Vec<_> = names
+            .into_iter()
+            .map(|candidate| (name_distance(name, &candidate), candidate))
+            .filter(|(distance, candidate)| {
+                candidate != name && *distance <= name.chars().count().div_ceil(2).max(3)
+            })
+            .collect();
+        ranked.sort();
+        for (_, candidate) in ranked {
+            let checkpoint = self.checkpoint();
+            let memo = std::mem::take(&mut self.memo);
+            let fuel = std::mem::replace(&mut self.fuel, hd_base::Fuel::new(4096));
+            let inherent = self.find_inherent(bare, &candidate).is_some()
+                || self.builtin_method(bare, &candidate).is_some();
+            let sym = self.cx.names.syms.intern(&candidate);
+            let traits = self
+                .available_traits(sym)
+                .into_iter()
+                .map(|(tr, _)| tr)
+                .collect();
+            let applicable = inherent
+                || matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty());
+            self.rollback(checkpoint);
+            self.memo = memo;
+            self.fuel = fuel;
+            if applicable {
+                return format!("; did you mean `{candidate}`?");
+            }
+        }
+        String::new()
     }
 
     /// The traits with a method `name` that `t` implements and whose

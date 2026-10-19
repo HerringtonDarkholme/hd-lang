@@ -1,0 +1,4 @@
+data Problem: pass
+
+impl Error for Problem:
+    pass

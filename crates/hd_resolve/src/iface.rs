@@ -567,6 +567,61 @@ pub struct Export {
     pub kind: HeadKind,
 }
 
+/// An import hint from public std exports, including the modules that
+/// contain them. Re-exports of one declaration count as one item, with
+/// its declaring module preferred over a re-export's path.
+#[must_use]
+pub fn std_import_hint<'a>(
+    names: &Names<'_>,
+    exports: impl IntoIterator<Item = &'a Export>,
+    name: &str,
+) -> String {
+    let mut items = HashMap::<DefId, (bool, String)>::default();
+    let mut modules = std::collections::BTreeSet::new();
+    for e in exports {
+        let declared = names.module_of(e.def);
+        let runtime = |module: &str| module == "std.rt" || module.starts_with("std.rt.");
+        if !e.module.starts_with("std.") || runtime(&e.module) || runtime(&declared) {
+            continue;
+        }
+        if e.module.rsplit('.').next() == Some(name) {
+            modules.insert(e.module.clone());
+        }
+        if names.text(e.name) == name {
+            let reexport = declared != e.module;
+            let path = format!("{}.{name}", e.module);
+            let found = items.entry(e.def).or_insert((reexport, path.clone()));
+            if (reexport, &path) < (found.0, &found.1) {
+                *found = (reexport, path);
+            }
+        }
+    }
+    let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
+    paths.extend(modules);
+    paths.sort();
+    paths.dedup();
+    match paths.as_slice() {
+        [] => String::new(),
+        [path] => format!("; add `use {path}`"),
+        _ => {
+            let modules: Vec<_> = paths
+                .iter()
+                .take(3)
+                .map(|p| {
+                    format!(
+                        "`{}`",
+                        p.rsplit_once('.').map_or(p.as_str(), |(module, _)| module)
+                    )
+                })
+                .collect();
+            format!(
+                "; `{name}` has several public std homes: {}; add a `use` from the intended module",
+                modules.join(", ")
+            )
+        }
+    }
+}
+
 /// Finds items by `DefId` across one module's own items and the
 /// interfaces of its closure.
 pub struct Lookup<'a> {

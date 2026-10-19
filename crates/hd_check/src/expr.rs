@@ -2327,7 +2327,11 @@ impl Ck<'_, '_> {
                 })
                 .flatten()
         }) else {
-            let msg = format!("no type named `{}`", segs.join("."));
+            let hint = match segs.as_slice() {
+                [name] => self.import_hint(name),
+                _ => String::new(),
+            };
+            let msg = format!("no type named `{}`{hint}", segs.join("."));
             self.err(Code::UnknownType, *name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };

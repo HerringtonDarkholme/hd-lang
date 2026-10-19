@@ -1,0 +1,5 @@
+tests:
+    it_prop("property"):
+        pass
+    itt("typo"):
+        pass

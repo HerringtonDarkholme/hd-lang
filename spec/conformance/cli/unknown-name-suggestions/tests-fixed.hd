@@ -1,0 +1,6 @@
+use std.testing.it_prop
+
+tests:
+    it_prop("property", cases=1, prop=fn!(value: i32): pass)
+    it("ordinary"):
+        pass
