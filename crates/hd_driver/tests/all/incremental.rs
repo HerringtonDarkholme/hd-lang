@@ -1149,35 +1149,42 @@ fn a_goal_reads_only_the_check_entries_it_would_write() {
             filter: None,
         },
     ];
-    for text in [SCRIPT, tested.as_str(), ""] {
-        let mut src = MemorySources::default();
-        src.insert("s.hd", text);
-        let report = |store: &MemoryStore, goal: &Goal| {
-            let host = Host {
-                render_tir: &[],
-                sources: &src,
-                store,
-                clock: &NoClock,
-                executor: Executor::Serial(SerialOrder::Priority),
-            };
-            build(&host, "shop", goal).render_located()
-        };
-        let cold: Vec<String> = goals
-            .iter()
-            .map(|g| report(&MemoryStore::default(), g))
-            .collect();
-        for first in &goals {
-            for (second, alone) in goals.iter().zip(&cold) {
-                let store = MemoryStore::default();
-                report(&store, first);
-                assert_eq!(
-                    &report(&store, second),
-                    alone,
-                    "{text:?}: {first:?}, then {second:?}"
-                );
-            }
+    // Each source has an independent matrix of fresh stores. Run the
+    // three matrices together; every cold build and goal pair is retained.
+    std::thread::scope(|scope| {
+        for text in [SCRIPT, tested.as_str(), ""] {
+            let goals = &goals;
+            scope.spawn(move || {
+                let mut src = MemorySources::default();
+                src.insert("s.hd", text);
+                let report = |store: &MemoryStore, goal: &Goal| {
+                    let host = Host {
+                        render_tir: &[],
+                        sources: &src,
+                        store,
+                        clock: &NoClock,
+                        executor: Executor::Serial(SerialOrder::Priority),
+                    };
+                    build(&host, "shop", goal).render_located()
+                };
+                let cold: Vec<String> = goals
+                    .iter()
+                    .map(|g| report(&MemoryStore::default(), g))
+                    .collect();
+                for first in goals {
+                    for (second, alone) in goals.iter().zip(&cold) {
+                        let store = MemoryStore::default();
+                        report(&store, first);
+                        assert_eq!(
+                            &report(&store, second),
+                            alone,
+                            "{text:?}: {first:?}, then {second:?}"
+                        );
+                    }
+                }
+            });
         }
-    }
+    });
 }
 
 /// A `tests:` block solves over its test role's impl universe, which

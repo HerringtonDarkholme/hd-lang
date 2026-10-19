@@ -19,6 +19,8 @@
 //! Both Wasmtime modes need `hd` built with `--features wasmtime`; without it
 //! they are refused.
 
+//! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
+
 use std::collections::BTreeSet;
 use std::io::{Read, Write as _};
 use std::path::{Path, PathBuf};
@@ -994,6 +996,23 @@ fn run_case(
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&cache);
     let _ = std::fs::remove_dir_all(&remotes);
+    // Only compiled, content-addressed objects are shared. Fixture files,
+    // fetched dependencies and execution state remain private to the case.
+    // Cache commands and raw engine comparisons retain fresh object stores.
+    #[cfg(unix)]
+    if observations.is_none()
+        && !steps
+            .iter()
+            .any(|step| step.words.first().is_some_and(|word| word == "cache"))
+    {
+        let objects = root.join("shared-objects");
+        let setup = std::fs::create_dir_all(&objects)
+            .and_then(|()| std::fs::create_dir_all(&cache))
+            .and_then(|()| std::os::unix::fs::symlink(&objects, cache.join("obj")));
+        if let Err(error) = setup {
+            return Verdict::Fail(format!("shared object store: {error}"));
+        }
+    }
     if let Err(e) = copy_case(&source, &dir) {
         return Verdict::Fail(format!("copy case: {e}"));
     }
@@ -1003,6 +1022,7 @@ fn run_case(
     }
     // `expect.txt` is not part of the case input.
     let _ = std::fs::remove_file(dir.join("expect.txt"));
+    let timings = std::env::var_os("HD_TEST_TIMINGS").is_some();
     let mut verdict = Verdict::Pass;
     for (index, step) in steps.iter().enumerate() {
         let label = format!("hd {}", step.words.join(" "));
@@ -1011,6 +1031,12 @@ fn run_case(
         let start = Instant::now();
         let ran = run_hd(&dir, &cache, &remotes, &words);
         stats.record_time(route, start.elapsed());
+        if timings {
+            eprintln!(
+                "cli-step\t{name}\t{index}\t{:.6}",
+                start.elapsed().as_secs_f64()
+            );
+        }
         let result = ran
             .map_err(|e| format!("spawn failed: {e}"))
             .and_then(|ran| {

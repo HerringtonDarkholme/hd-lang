@@ -40,6 +40,8 @@
 //! cases the list does not name yet, without failing on them. A linear
 //! run's digests and runtime statistics are noted under `linear:PATH`.
 
+//! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
+
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -2174,6 +2176,7 @@ fn workers() -> usize {
 /// `CARGO_TARGET_TMPDIR` and workers never share a file.
 fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
     let count = workers().min(cases.len().max(1));
+    let timings = std::env::var_os("HD_TEST_TIMINGS").is_some();
     let next = AtomicUsize::new(0);
     let slots: Vec<std::sync::Mutex<Option<Verdict>>> =
         cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
@@ -2190,6 +2193,7 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                     loop {
                         let serial = next.fetch_add(1, Ordering::Relaxed);
                         let Some(case) = cases.get(serial) else { break };
+                        let started = timings.then(Instant::now);
                         let verdict =
                             catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
                                 .unwrap_or_else(|panic| {
@@ -2198,6 +2202,13 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                                         .map_or("panic", |message| *message);
                                     Verdict::Crash(message.to_owned())
                                 });
+                        if let Some(started) = started {
+                            eprintln!(
+                                "conformance-case\t{}\t{:.6}",
+                                case.path,
+                                started.elapsed().as_secs_f64()
+                            );
+                        }
                         *slots[serial].lock().expect("results lock") = Some(verdict);
                     }
                 })

@@ -25,8 +25,10 @@ pub(crate) fn attached_above(src: &str, toks: &TokenBuf, start: u32, column: u16
         let lo = toks.com_start[comment] as usize;
         let hi = toks.com_end[comment] as usize;
         let gap = &src.as_bytes()[hi..next as usize];
-        let lines = gap.split(|byte| *byte == b'\n').count();
-        if lines != 2 || !gap.iter().all(u8::is_ascii_whitespace) {
+        // Reject an intervening declaration before counting newlines: the
+        // last doc comment may be arbitrarily far back in a large file.
+        if !gap.iter().all(u8::is_ascii_whitespace) || gap.split(|byte| *byte == b'\n').count() != 2
+        {
             break;
         }
         let line = toks.line_of(toks.com_start[comment]);
@@ -95,6 +97,30 @@ pub fn module_doc_text(src: &str, toks: &TokenBuf) -> String {
 mod tests {
     use super::{doc_text, module_doc_text};
     use crate::{Decl, parse};
+
+    #[test]
+    fn a_distant_doc_does_not_attach_across_many_declarations() {
+        use std::fmt::Write;
+        let mut src = String::from("## First declaration.\nfn first() -> i32: 1\n");
+        for index in 0..10_000 {
+            writeln!(src, "fn item_{index}() -> i32: 1").unwrap();
+        }
+        let parsed = parse(src.as_bytes());
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let declarations: Vec<_> = parsed
+            .tree
+            .root()
+            .children()
+            .filter_map(Decl::cast)
+            .collect();
+        assert_eq!(declarations.len(), 10_001);
+        for (index, declaration) in declarations.iter().enumerate() {
+            assert_eq!(
+                doc_text(&src, &parsed.tokens, declaration.node().first_token()),
+                if index == 0 { "First declaration." } else { "" }
+            );
+        }
+    }
 
     #[test]
     fn item_and_module_text() {
