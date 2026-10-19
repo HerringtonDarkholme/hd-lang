@@ -673,7 +673,7 @@ fn demo() -> void:
 ```
 
 1. r[trait.impl.receiver-bridge] A struct's `&mut self` method fills a trait method declared `mut self`. A data type's implementation keeps `mut self`, and any other mismatch is still an error. Error: `trait-method-signature`.
-2. r[trait.impl.receiver-bridge.direct-or-ref] Such a method serves calls on the struct itself, and calls through a trait value reference made from the struct, as [`trait.dyn.ref.bridge`](#r-trait.dyn.ref.bridge) states. Each other use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
+2. r[trait.impl.receiver-bridge.serves] Such a method serves calls on the struct itself, and calls through a trait value reference made from the struct, as [`trait.dyn.ref.bridge`](#r-trait.dyn.ref.bridge) states. It also serves calls through a requirement provider installed as a reference to the struct, by [`req.ref.share.bridge`](11-requirements-and-suspension.md#r-req.ref.share.bridge). Each other use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
 3. r[trait.impl.receiver-bridge.other-uses] Those other uses are listed in the table below.
 
 | Use of the struct `S` | Example |

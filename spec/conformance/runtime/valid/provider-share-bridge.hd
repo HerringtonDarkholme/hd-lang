@@ -1,0 +1,45 @@
+# test: a `&mut Shelf` provider of a trait whose methods take `self` and `mut self` is a trait value that changes `shelf`, through a bridged `&mut self` method and a suspending one, and a `&Label` serves a read-only trait
+# Spec 11 Providers Behind References: req.ref.share, req.ref.share.write-through, req.ref.share.bridge; Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.serves.
+# expect-stdout: 7 4
+# expect-stdout: 4
+# expect-stdout: shelf
+trait Inventory:
+    fn stock!(self, sku: string) -> i32
+    fn reserve!(mut self, sku: string, qty: i32) -> void
+
+trait Label:
+    fn label(self) -> string
+
+struct Shelf:
+    apples: i32
+
+impl Inventory for Shelf:
+    fn stock!(self, sku: string) -> i32:
+        self.apples
+    fn reserve!(&mut self, sku: string, qty: i32) -> void:
+        self.apples -= qty
+
+struct Tag:
+    text: string
+
+impl Label for Tag:
+    fn label(self) -> string:
+        self.text
+
+fn order!() -> i32 $ Inventory:
+    let inventory: mut dyn Inventory = $.use(Inventory)
+    inventory.reserve!("apple", 3)
+    $.use(Inventory).stock!("apple")
+
+fn label() -> string $ Label:
+    $.use(Label).label()
+
+pub fn main!() -> void $ Console:
+    let mut shelf = Shelf { apples: 10 }
+    $.with(Inventory=&mut shelf):
+        first := order!()
+        println("$first ${order!()}")
+    println("${shelf.apples}")
+    tag := Tag { text: "shelf" }
+    $.with(Label=&tag):
+        println(label())

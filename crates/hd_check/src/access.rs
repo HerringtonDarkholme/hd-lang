@@ -314,8 +314,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether a trait, or one of its supertraits, has a `mut self`
-    /// method: a mutable requirement trait (req.use, req.with).
+    /// Whether a trait, or one of its supertraits, has a `mut self` or
+    /// `&mut self` method: a mutable requirement trait
+    /// (`req.mut.trait-changing`).
     pub(crate) fn trait_is_mutable(&self, tr: hd_base::DefId, depth: u32) -> bool {
         let pool = self.pool();
         let Some(ItemData::Trait(t)) = self.cx.lookup.item(tr).map(|i| &i.data) else {
@@ -331,7 +332,11 @@ impl Ck<'_, '_> {
                 .and_then(|i| i.sig())
                 .and_then(|s| s.params.first())
                 .is_some_and(|(s, st)| {
-                    self.cx.names.text(*s) == "self" && matches!(pool.get(*st), TyData::Mut(_))
+                    self.cx.names.text(*s) == "self"
+                        && matches!(
+                            pool.get(*st),
+                            TyData::Mut(_) | TyData::Ref { mutable: true, .. }
+                        )
                 })
         }) || t.supers.iter().any(|s| match pool.get(*s) {
             TyData::TraitValue { def, .. } => self.trait_is_mutable(def, depth + 1),

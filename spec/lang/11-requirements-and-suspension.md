@@ -579,7 +579,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
 4. r[req.key.inspectable.error] Writing one as a key is an error reported on the key. That covers a requirement clause, a provider scope, and any other place a key is named. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.
-6. r[req.key.any-trait] A requirement key may name any trait. Its provider is a `dyn` value of that trait, so a member that is [unavailable](09-traits.md#dynamic-safety) on that value is unavailable through `$.use` too.
+6. r[req.key.any-trait-members] A requirement key may name any trait. A member that is [unavailable](09-traits.md#dynamic-safety) on the value `$.use` yields, a `dyn` value or a [trait value reference](09-traits.md#trait-value-references), is unavailable through `$.use` too.
 
 ```text
 use std.inspect.Inspectable
@@ -650,7 +650,7 @@ fn count(id: string) -> i32 $ Store:  # error: trait-not-dynamically-safe
 ```
 
 > **Why.** A key names the type of its provider value
-> ([`req.use.value.ordinary`](#r-req.use.value.ordinary)), and a trait value
+> ([`req.use.value.ordinary-type`](#r-req.use.value.ordinary-type)), and a trait value
 > type may bind associated types
 > ([Bound Associated Types](09-traits.md#bound-associated-types)). The key
 > takes the same form, so a provider's methods have concrete types.
@@ -682,8 +682,8 @@ trait Clock
 
 ### Provider Values
 
-1. r[req.use.value.ordinary] A provider value returned by `$.use(K)` is an ordinary value of type `dyn K`.
-2. r[req.use.value.access] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: `mut K` for a mutable requirement trait, readonly `K` otherwise.
+1. r[req.use.value.ordinary-type] A provider value returned by `$.use(K)` is an ordinary value of type `dyn K`, or a trait value reference to `dyn K` by [`req.ref.use`](#r-req.ref.use).
+2. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, readonly otherwise.
 3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
 5. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
@@ -721,7 +721,7 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 
 1. r[req.with.block] `$.with` binds providers for one lexical trailing block.
 2. r[req.with.evaluated] Each provider expression is evaluated before entering the block.
-3. r[req.with.type] Each provider expression must have a type implementing its named requirement trait.
+3. r[req.with.type-or-ref] Each provider expression must have a type implementing its named requirement trait, or be a reference to such a type, as [Providers Behind References](#providers-behind-references) states.
 4. r[req.with.type.binding] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states. A value converting to that trait value type must do the same ([`trait.dyn.binding.convert`](09-traits.md#r-trait.dyn.binding.convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
 5. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
 6. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
@@ -927,8 +927,9 @@ fn demo() -> void:
 
 ## Mutable Providers
 
-A requirement trait with a `mut self` method is always provided with mutable
-access, so a provider written in hd can change its own state:
+A requirement trait with a `mut self` or `&mut self` method is always
+provided with mutable access, so a provider written in hd can change its own
+state:
 
 ```text
 trait Counter:
@@ -956,7 +957,7 @@ fn demo() -> i32:
         tick()   # 2
 ```
 
-1. r[req.mut.trait] A **mutable requirement trait** is a trait that declares or inherits at least one `mut self` method.
+1. r[req.mut.trait-changing] A **mutable requirement trait** is a trait that declares or inherits at least one `mut self` or `&mut self` method.
 2. r[req.mut.trait-access] A provider's access follows from its trait alone: mutable for a mutable requirement trait, readonly for any other trait.
 3. r[req.mut.no-spelling] Requirement syntax never writes `mut`: a row key `mut K`, `$.use(mut K)`, and a binding `mut K=expression` are errors. Error: `syntax-error`.
 
@@ -972,10 +973,12 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 > provider shared by its whole call tree, so its trait already says whether
 > the provider can change.
 
-> **Note.** Adding a `mut self` method, even one with a default, to a
-> published requirement trait that had none is a breaking change. `$.use`
-> then yields `mut K`, and installing a readonly value becomes
-> `mutable-upgrade`.
+> **Note.** Adding a `mut self` or `&mut self` method, even one with a
+> default, to a published requirement trait that had none is a breaking
+> change. `$.use` then yields `mut K` or `&mut dyn K`, and installing a
+> readonly value becomes `mutable-upgrade`. Adding a first `&self` or
+> `&mut self` method changes the type of `$.use` too
+> ([`req.ref.use`](#r-req.ref.use)).
 
 > **Note.** Two tasks in one provider scope, such as the children of
 > `std.task.all!`, share one mutable provider. Each sees the other's changes
@@ -985,7 +988,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 ### Installing
 
-1. r[req.mut.install-mutable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must have a `mut` type. Its type must be `mut T` for a type `T` implementing `K`. A readonly expression is an error. Error: `mutable-upgrade`.
+1. r[req.mut.install-writable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must be writable. Its type must be `mut T` or `&mut T` for a type `T` implementing `K`, or be a value that [`req.ref.install`](#r-req.ref.install) copies into a new object. A readonly view or a `&T` reference is an error. Error: `mutable-upgrade`.
 2. r[req.mut.install-readonly-trait] For any other trait, the expression may have either access, and the provider is installed with readonly access.
 
 ```text
@@ -1001,8 +1004,8 @@ pub fn main() -> void:
 
 ### Retrieving
 
-1. r[req.mut.use-mutable] For a mutable requirement trait `K`, `$.use(K)` yields a value of type `mut K`, on which the `mut self` methods of `K` may be called.
-2. r[req.mut.use-readonly-trait] For any other trait, `$.use(K)` yields readonly `K`.
+1. r[req.mut.use-writable] For a mutable requirement trait `K`, `$.use(K)` yields `mut K`, or `&mut dyn K` by [`req.ref.use`](#r-req.ref.use). The methods of `K` that change their receiver may be called on it.
+2. r[req.mut.use-readonly] For any other trait, `$.use(K)` yields readonly `K`, or `&dyn K` by [`req.ref.use`](#r-req.ref.use).
 3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding exposes a readonly view.
 
 ```text
@@ -1012,7 +1015,9 @@ fn tick() -> void $ Counter:
 ```
 
 > **Note.** Code that keeps a mutable provider in a local writes
-> `let mut counter = $.use(Counter)`.
+> `let mut counter = $.use(Counter)`. A `&mut dyn K` provider
+> ([`req.ref.use`](#r-req.ref.use)) stays writable in a `:=` binding, as
+> every `&mut` reference does.
 
 ### Access In Rows
 
@@ -1053,6 +1058,106 @@ trait Store:
 fn fetch!() -> string $ Store:
     $.use(Store).get()   # a stored suspension keeps the Store access
 ```
+
+## Providers Behind References
+
+A provider may be a reference, so the state a provider changes is in a
+place the caller reads after the scope:
+
+```text
+trait Counter:
+    fn bump(&mut self) -> void
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(&self) -> i32:
+        self.n
+
+fn tick() -> i32 $ Counter:
+    counter := $.use(Counter)  # a `&mut dyn Counter`
+    counter.bump()
+    counter.total()
+
+fn demo() -> i32:
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
+        _ := tick()
+        _ := tick()
+    tally.n  # 2: the provider changed `tally`
+```
+
+### Keys Of Reference Receiver Traits
+
+1. r[req.ref.key] When a key's trait, or one of its supertraits, declares a `&self` or `&mut self` method, its provider is a [trait value reference](09-traits.md#trait-value-references).
+2. r[req.ref.use] `$.use(K)` of such a key yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` for any other trait.
+3. r[req.ref.install] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is copied into a new object.
+4. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
+
+```text
+trait Counter:
+    fn bump(&mut self) -> void
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn shared(tally: &Tally) -> void:
+    $.with(Counter=tally):  # error: mutable-upgrade
+        pass
+```
+
+> **Why.** A bare `dyn` value holds no reference to pass to a `&self` or
+> `&mut self` method, so the provider of such a trait is a reference
+> whatever expression installs it.
+
+### References To Other Providers
+
+1. r[req.ref.share] For a key whose trait has no `&self` or `&mut self` method, the expression of a binding may be a reference `&S` or `&mut S` when `S` implements `K`. Its provider is the trait value `dyn K` that refers to the place the reference refers to.
+2. r[req.ref.share.impl] A reference to a type that does not implement `K` explicitly is an error. Error: `type-mismatch`.
+3. r[req.ref.share.write-through] A method that changes its receiver, called on that provider through `$.use(K)`, changes that place.
+4. r[req.ref.share.bridge] A struct's `&mut self` method that fills a trait method declared `mut self`, by [`trait.impl.receiver-bridge`](09-traits.md#r-trait.impl.receiver-bridge), serves calls through such a provider.
+5. r[req.ref.share.bridge.default] Installing a reference to such a struct is an error when its implementation does not write a default method of the trait. Error: `unsatisfied-trait-bound`.
+6. r[req.ref.share.no-trait-value-ref] A trait value reference is no provider for such a key. Error: `type-mismatch`.
+
+```hd
+trait Inventory:
+    fn stock(self, sku: string) -> i32
+    fn reserve(mut self, sku: string, qty: i32) -> void
+
+struct Shelf:
+    apples: i32
+
+impl Inventory for Shelf:
+    fn stock(self, sku: string) -> i32:
+        self.apples
+    fn reserve(&mut self, sku: string, qty: i32) -> void:
+        self.apples -= qty
+
+fn order() -> void $ Inventory:
+    $.use(Inventory).reserve("apple", 3)  # a `mut Inventory` that changes `shelf`
+
+fn demo() -> i32:
+    let mut shelf = Shelf { apples: 10 }
+    $.with(Inventory=&mut shelf):
+        order()
+    shelf.apples  # 7
+```
+
+> **Why.** The trait's methods take `self` and `mut self`, so its provider
+> stays the trait value `dyn K`, and code that names that type keeps
+> checking. The trait value shares the place, as a trait value reference
+> made from the same reference would.
+
+See also: [Mutable Providers](#mutable-providers),
+[Receivers Of Struct Implementations](09-traits.md#receivers-of-struct-implementations).
 
 ## Suspending Functions
 

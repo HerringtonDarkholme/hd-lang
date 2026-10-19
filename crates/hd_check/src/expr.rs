@@ -4065,18 +4065,7 @@ impl Ck<'_, '_> {
                 return unsupported("a provider key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
-            // A mutable requirement trait needs a `mut` provider.
-            if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
-                let msg = format!(
-                    "`{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
-                    self.cx.names.display_name(def),
-                    self.show(t)
-                );
-                self.err(Code::MutableUpgrade, *vn, &msg);
-            }
-            // The provider becomes a trait value of its key
-            // (`req.with.type`), so codegen converts nothing later.
-            let r = self.coerce(r, t, key, *vn, "provider", ExpectPosition::General);
+            let r = self.install_provider(r, t, (key, def), *vn);
             pairs.push(Ref(key.0));
             pairs.push(r);
             self.check_key_collision(entry, &[key], &keys, &visible);
@@ -4235,12 +4224,16 @@ impl Ck<'_, '_> {
         };
         self.require_key(key, n);
         let at = self.b.refs_record(&[Ref(key.0)]);
-        // `mut K` for a mutable requirement trait, else `K`.
-        let pt = if self.trait_is_mutable(key_trait, 0) {
-            pool.intern_ty(&TyData::Mut(key))
-        } else {
-            key
-        };
+        let (pt, by_ref) = self.provider_ty(key, key_trait);
+        if by_ref {
+            // The provider holds the trait value reference itself
+            // (`Coercion::RefAsProvider`).
+            let p = self.b.emit(Tag::ProviderGet, at, NONE, key, n.index());
+            let r = self
+                .b
+                .coerce(Coercion::ProviderAsRef, NONE, p, pt, n.index());
+            return Ok((r, pt));
+        }
         Ok((self.b.emit(Tag::ProviderGet, at, NONE, pt, n.index()), pt))
     }
 }

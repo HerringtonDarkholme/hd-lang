@@ -257,7 +257,7 @@ The stdlib chapters' terms are in the
 | **mutable access** | What an expression has when its type is `mut U`, its type is a parameter bounded by `mut Trait` or `mut Any`, or it is `self` in a `mut self` method. See [Mutation Checks](lang/04-type-system.md#mutation-checks). |
 | **mutable edge** | A direct field declared `field: mut U`; a readonly container removes its `mut`. See [`types.path.field.mutable-edge`](lang/04-type-system.md#r-types.path.field.mutable-edge). |
 | **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](lang/08-data-and-enums.md#mutable-edges). |
-| **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](lang/11-requirements-and-suspension.md#r-req.mut.trait). |
+| **mutable requirement trait** | A trait that declares or inherits a `mut self` or `&mut self` method; its providers always have mutable access. See [`req.mut.trait-changing`](lang/11-requirements-and-suspension.md#r-req.mut.trait-changing). |
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](lang/04-type-system.md#r-types.view.non-reassignable). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |

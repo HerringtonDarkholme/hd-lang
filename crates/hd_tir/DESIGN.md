@@ -220,10 +220,16 @@ design:
 **Context values.** `$.Context[$ R]` is `TyData::Context(row)` with a
 concrete row. `$.with(...)` and `$.context(...)` check their entries
 alike, in source order. An entry `K=e` checks `e`, keeps the
-`mutable-upgrade` test of `req.mut.install-mutable`, and then coerces
+`mutable-upgrade` test of `req.mut.install-writable`, and then coerces
 `e` to the key's trait value type `K` (`ToTraitValue`, or `Supertrait`
 from a subtrait value, or nothing from a `K` value), so a value whose
-type lacks the impl is `type-mismatch`. An entry `ctx...` needs a value
+type lacks the impl is `type-mismatch`. A `&S` or `&mut S` value becomes
+`K` by `RefToTraitValue`, sharing the place (`req.ref.share`). When `K`'s
+trait has a `&self` or `&mut self` method (`req.ref.key`), `e` converts
+to `&dyn K` or `&mut dyn K` as any value does, and `RefAsProvider` keeps
+that reference as the provider; `$.use(K)` reads it back with
+`ProviderAsRef`, so every value in a pair or a provider slot still has
+the key's type `K`. An entry `ctx...` needs a value
 of a context type, else `type-mismatch`. Both forms record
 `(key, value)` pairs, where a spread's key word is the spread value's
 own context type. `ContextNew` has the type `$.Context[$ keys]` over
@@ -605,7 +611,9 @@ holds.
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
-| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get` | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
+| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get`, or as the provider of a key whose trait has no `&self` or `&mut self` method | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
+| `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider of a key whose trait has a `&self` or `&mut self` method | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm/DESIGN.md §15.2, "Providers of reference traits") |
+| `ProviderAsRef` | `K` → `&dyn K` or `&mut dyn K`, at `$.use(K)` of such a key | none | cast the payload back to the reference |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.

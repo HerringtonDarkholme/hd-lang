@@ -59,6 +59,8 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
         Coercion::SuspendFnToCtor,
         Coercion::Identity,
         Coercion::RefToTraitValue,
+        Coercion::RefAsProvider,
+        Coercion::ProviderAsRef,
     ];
     let kind = r
         .first()

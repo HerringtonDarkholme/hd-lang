@@ -252,7 +252,7 @@ pub fn main() -> void $ Console:
 
 /// The providers of a multi-key `$.use` keep their access: a mutable
 /// requirement trait's element is `mut K`, and it is the one provider a
-/// later `$.use` sees (`req.mut.use-mutable`).
+/// later `$.use` sees (`req.mut.use-writable`).
 #[test]
 fn a_multi_key_use_keeps_each_provider_access() {
     let main = "\

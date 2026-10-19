@@ -404,7 +404,7 @@ impl RefRead {
 
     /// Replaces the reference on top of the stack with the values its
     /// `get` closure returns.
-    fn emit(&self, a: &mut Asm) {
+    pub(crate) fn emit(&self, a: &mut Asm) {
         a.struct_get(&self.data, self.field);
         a.conv(&self.field_vt, &VT::r(self.base.clone()));
         let f = a.local(VT::r(self.base.clone()));

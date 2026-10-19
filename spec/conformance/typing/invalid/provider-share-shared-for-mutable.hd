@@ -1,0 +1,14 @@
+# Spec 11 Mutable Providers: req.mut.install-writable; Spec 11 Providers Behind References: req.ref.share. A `&Shelf` does not install a provider for a trait with a `mut self` method.
+trait Inventory:
+    fn reserve(mut self, qty: i32) -> void
+
+struct Shelf:
+    apples: i32
+
+impl Inventory for Shelf:
+    fn reserve(&mut self, qty: i32) -> void:
+        self.apples -= qty
+
+fn shared(shelf: &Shelf) -> void:
+    $.with(Inventory=shelf):  # diagnostic: mutable-upgrade
+        pass

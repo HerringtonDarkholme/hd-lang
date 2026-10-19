@@ -1,0 +1,7 @@
+# Spec 11 Providers Behind References: req.ref.install; Spec 09 Trait Value References: trait.dyn.ref.bare. A bare trait value holds no reference, so it is no provider for a trait with a `&self` method.
+trait Shown:
+    fn shown(&self) -> string
+
+fn demo(shown: dyn Shown) -> void:
+    $.with(Shown=shown):  # diagnostic: dyn-member-unavailable
+        pass

@@ -2003,7 +2003,7 @@ impl Cx<'_> {
             return self.method_target(trait_, method, base, targs, None, parent);
         }
         let found = self.env.impl_method(impl_, method);
-        // `trait.impl.receiver-bridge.direct-or-ref`: a struct's `&mut self`
+        // `trait.impl.receiver-bridge.serves`: a struct's `&mut self`
         // method that fills a trait method declared `mut self` takes a
         // reference, which only a direct call on the struct and a trait
         // value reference's slot (`ref_method_target`) pass; the checker

@@ -1,0 +1,52 @@
+# test: a `&mut Tally` provider of a trait with a `&mut self` method changes `tally`, and the caller reads the new state after the scope
+# Spec 11 Providers Behind References: req.ref.key, req.ref.use, req.ref.install; Spec 11 Mutable Providers: req.mut.trait-changing, req.mut.use-writable.
+# expect-stdout: 1 2
+# expect-stdout: 2
+# expect-stdout: 2
+# expect-stdout: 13
+# expect-stdout: 3
+trait Counter:
+    fn bump(&mut self) -> void
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(&self) -> i32:
+        self.n
+
+fn tick() -> i32 $ Counter:
+    let counter: &mut dyn Counter = $.use(Counter)
+    counter.bump()
+    counter.total()
+
+fn bump_by(k: i32) -> void $ Counter:
+    for _ in 0..k:
+        $.use(Counter).bump()
+
+fn demo() -> i32:
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
+        _ := tick()
+        _ := tick()
+    tally.n
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
+        first := tick()
+        println("$first ${tick()}")
+    println("${tally.n}")
+    println("${demo()}")
+    tally.n = 10
+    $.with(Counter=&mut tally):
+        bump_by(3)
+    println("${tally.n}")
+    let mut other = Tally { n: 0 }
+    r := &mut other
+    $.with(Counter=r):
+        bump_by(3)
+    println("${other.n}")

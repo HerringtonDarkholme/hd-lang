@@ -103,7 +103,7 @@ impl Ck<'_, '_> {
         (legacy && by_ref).then_some(m)
     }
 
-    /// `trait.impl.receiver-bridge.direct-or-ref`: an obligation `tref` that the
+    /// `trait.impl.receiver-bridge.serves`: an obligation `tref` that the
     /// evidence answers with an impl filling some method through the
     /// bridge is an error, since the trait's declaration would pass that
     /// method a copy. Reports at `at`; returns whether it did.

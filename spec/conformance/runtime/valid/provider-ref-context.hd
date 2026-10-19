@@ -1,0 +1,31 @@
+# test: a context value made from `&mut log` installs the reference, and a suspending call and a stored suspension both change `log`
+# Spec 11 Providers Behind References: req.ref.install; Spec 11 Reusable Contexts: req.context.create, req.context.spread.
+# expect-stdout: a b 2
+# expect-stdout: 3
+trait Log:
+    fn add!(&mut self, text: string) -> void
+    fn size(&self) -> i32
+
+struct Lines:
+    items: List[string]
+
+impl Log for Lines:
+    fn add!(&mut self, text: string) -> void:
+        self.items.push(text)
+    fn size(&self) -> i32:
+        i32(self.items.len())
+
+fn note!(text: string) -> string $ Log:
+    $.use(Log).add!(text)
+    text
+
+pub fn main!() -> void $ Console:
+    let mut lines = Lines { items: [] }
+    ctx := $.context(Log=&mut lines)
+    $.with(ctx...):
+        a := note!("a")
+        b := note!("b")
+        let later: mut Suspend[string] = note("c")
+        println("$a $b ${$.use(Log).size()}")
+        _ := later!()
+    println("${lines.items.len()}")

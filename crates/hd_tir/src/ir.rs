@@ -336,6 +336,15 @@ pub enum Coercion {
     /// the reference itself, and the dispatch table reads or passes it per
     /// method (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value references").
     RefToTraitValue,
+    /// A trait value reference `&dyn K` or `&mut dyn K` installed as the
+    /// provider of a key `K` whose trait has a `&self` or `&mut self`
+    /// method: the provider is the trait value `K` whose payload is the
+    /// reference itself (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
+    /// reference traits").
+    RefAsProvider,
+    /// The inverse of `RefAsProvider` at `$.use(K)`: the provider's payload
+    /// read back as the trait value reference.
+    ProviderAsRef,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.

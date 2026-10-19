@@ -311,7 +311,7 @@ fn top_level_function_values_are_callable() {
 }
 
 /// `$.with` covers its keys in its block, and each provider must
-/// implement its key (`req.with.type`): a value that does not convert to
+/// implement its key (`req.with.type-or-ref`): a value that does not convert to
 /// the key's trait value is `type-mismatch`, as the fixture
 /// `provider-value-type-mismatch` expects.
 #[test]

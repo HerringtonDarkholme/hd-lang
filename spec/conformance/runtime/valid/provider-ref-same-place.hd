@@ -1,0 +1,25 @@
+# test: every `$.use` of one reference provider refers to the place installed, so `is` holds between two of them and with a reference converted from the one installed
+# Spec 11 Providers Behind References: req.ref.same-place; Spec 09 Trait Value References: trait.dyn.ref.identity.
+# expect-stdout: true true
+# expect-stdout: false
+trait Counter:
+    fn bump(&mut self) -> void
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn same() -> bool $ Counter:
+    $.use(Counter) is $.use(Counter)
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { n: 0 }
+    let mut other = Tally { n: 0 }
+    let mine: &mut dyn Counter = &mut tally
+    let theirs: &mut dyn Counter = &mut other
+    $.with(Counter=&mut tally):
+        println("${same()} ${$.use(Counter) is mine}")
+        println("${$.use(Counter) is theirs}")

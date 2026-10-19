@@ -1,0 +1,10 @@
+# Spec 11 Providers Behind References: req.ref.share.impl. A reference to a type that does not implement the key's trait is no provider.
+trait Label:
+    fn label(self) -> string
+
+struct Shelf:
+    apples: i32
+
+fn demo(shelf: &Shelf) -> void:
+    $.with(Label=shelf):  # diagnostic: type-mismatch
+        pass

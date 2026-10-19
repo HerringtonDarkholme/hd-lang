@@ -121,6 +121,87 @@ impl Ck<'_, '_> {
         Some(self.coerce(made, rt, target, n, what, position))
     }
 
+    /// The provider of the key `key`, whose trait is `def`, from the value
+    /// `r` of type `t` (`req.with.type-or-ref`, "Reference Providers" in spec 11).
+    /// A key whose trait has a `&self` or `&mut self` method takes a trait
+    /// value reference, kept whole in the provider (`RefAsProvider`); any
+    /// other key takes a trait value, which a `&S` or `&mut S` provider
+    /// makes by sharing what it refers to (`RefToTraitValue`).
+    pub(crate) fn install_provider(
+        &mut self,
+        r: Ref,
+        t: Ty,
+        (key, def): (Ty, DefId),
+        n: NodeRef<'_>,
+    ) -> Ref {
+        let pool = self.pool();
+        let mutable = self.trait_is_mutable(def, 0);
+        if self.has_ref_receiver_member(def) {
+            let want = pool.intern_ty(&TyData::Ref {
+                inner: key,
+                mutable,
+            });
+            let r = self.coerce(r, t, want, n, "provider", ExpectPosition::General);
+            return self
+                .b
+                .coerce(Coercion::RefAsProvider, NONE, r, key, n.index());
+        }
+        if let Some((inner, writable)) = self.ref_of(t) {
+            let inner = self.strip_mut(self.infer.resolve(pool, inner));
+            if !matches!(
+                pool.get(inner),
+                TyData::TraitValue { .. } | TyData::Infer(_) | TyData::Poison | TyData::Never
+            ) {
+                if mutable && !writable {
+                    let msg = format!(
+                        "`{}` has methods that change their receiver, so its provider must be writable, but this is a read-only {}; pass `&mut` to a writable place",
+                        self.cx.names.display_name(def),
+                        self.show(t)
+                    );
+                    self.err(Code::MutableUpgrade, n, &msg);
+                    return r;
+                }
+                self.require_dyn_impl(inner, key, n);
+                return self
+                    .b
+                    .coerce(Coercion::RefToTraitValue, NONE, r, key, n.index());
+            }
+        }
+        // A mutable requirement trait needs a `mut` provider.
+        if mutable && self.is_composite(t) && !self.has_mut_access(t) {
+            let msg = format!(
+                "`{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
+                self.cx.names.display_name(def),
+                self.show(t)
+            );
+            self.err(Code::MutableUpgrade, n, &msg);
+        }
+        // The provider becomes a trait value of its key, so codegen
+        // converts nothing later.
+        self.coerce(r, t, key, n, "provider", ExpectPosition::General)
+    }
+
+    /// The type `$.use(K)` yields for the key `key` of trait `def`
+    /// (`req.use.value.type`): a trait value reference for a trait with
+    /// a `&self` or `&mut self` method, writable when the trait is a
+    /// mutable requirement trait; otherwise the trait value, `mut K` for a
+    /// mutable requirement trait (`req.mut.use-writable`).
+    pub(crate) fn provider_ty(&self, key: Ty, def: DefId) -> (Ty, bool) {
+        let pool = self.pool();
+        let mutable = self.trait_is_mutable(def, 0);
+        if self.has_ref_receiver_member(def) {
+            let t = pool.intern_ty(&TyData::Ref {
+                inner: key,
+                mutable,
+            });
+            (t, true)
+        } else if mutable {
+            (pool.intern_ty(&TyData::Mut(key)), false)
+        } else {
+            (key, false)
+        }
+    }
+
     /// `trait.dyn.ref.convert.impl`: the concrete type `s` implements the
     /// trait of `tv`. A struct's `&mut self` method that fills a `mut self`
     /// trait method serves the reference (`trait.dyn.ref.bridge`).

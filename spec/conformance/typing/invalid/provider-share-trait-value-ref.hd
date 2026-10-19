@@ -1,0 +1,7 @@
+# Spec 11 Providers Behind References: req.ref.share.no-trait-value-ref. A trait value reference is no provider for a key whose trait has no `&self` or `&mut self` method.
+trait Label:
+    fn label(self) -> string
+
+fn demo(label: &dyn Label) -> void:
+    $.with(Label=label):  # diagnostic: type-mismatch
+        pass

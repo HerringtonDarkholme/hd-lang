@@ -2774,7 +2774,7 @@ trait-value source (section 9.3) reads it through
 A `dyn` type must bind every associated type
 ([`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)).
 Requirement keys
-([`req.key.any-trait`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.any-trait))
+([`req.key.any-trait-members`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.any-trait-members))
 follow the same per-member rule.
 
 ### 9.2 Vtable Shapes

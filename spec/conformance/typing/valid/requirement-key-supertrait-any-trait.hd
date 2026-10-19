@@ -1,5 +1,5 @@
 # test: a requirement key whose supertrait has an associated function is valid; the provider's other methods work
-# Spec 11 Requirement Keys: req.key.any-trait; Spec 09 Dynamic Safety: trait.dyn.member.unavailable covers supertraits.
+# Spec 11 Requirement Keys: req.key.any-trait-members; Spec 09 Dynamic Safety: trait.dyn.member.unavailable covers supertraits.
 
 trait Factory:
     fn create() -> Self

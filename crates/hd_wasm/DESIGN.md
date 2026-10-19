@@ -395,6 +395,19 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     `self` method's adapter calls the source's `get` again. Correct first:
     on the linear-memory backend a trait value reference is the address
     and the vtable, two words, as Go's interface value is.
+- **Providers of reference traits.** A provider slot holds a trait value
+  of its key, `(eqref, (ref $VT))`, whatever the key
+  ([Providers Behind References](../../spec/lang/11-requirements-and-suspension.md#providers-behind-references)).
+  A `&S` or `&mut S` provider of a key whose trait has only `self` and
+  `mut self` methods is a `RefToTraitValue` box, as above, so its
+  methods reach the place. A key whose trait has a `&self` or `&mut self`
+  method takes the `Ref[dyn K]` itself (`req.ref.key`): `RefAsProvider`
+  stores it as the payload, next to the vtable its `get` returns, which
+  no call reads, so the slot keeps its layout; `$.use(K)` is
+  `ProviderAsRef`, a `ref.cast` of the payload back to the `Ref[dyn K]`
+  struct. So two `$.use(K)` of one provider are one reference, and `is`
+  compares its identity fields with any other's (`req.ref.same-place`).
+  The cost is one `get` call per installation.
 
 **Element references: a reference into the header, a pin count.**
 `&xs[i]` and `&mut xs[i]`

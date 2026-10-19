@@ -3713,6 +3713,38 @@ impl Em<'_> {
             self.vtable_value(&table, key, from, &fv)?;
             return self.store(i);
         }
+        // A trait value reference installed as a provider ("Providers of
+        // reference traits"): the payload is the reference itself, which
+        // `ProviderAsRef` reads back; the vtable is the one its `get`
+        // returns, there only to fill the provider's layout.
+        if kind == Coercion::RefAsProvider as u32 {
+            let from = self.ty_of(v);
+            let rd = self.ref_read(from)?;
+            let fv = self.vts(from)?;
+            let ([rv], [_, vt_want], [_, vt_have]) =
+                (fv.as_slice(), want.as_slice(), rd.results.as_slice())
+            else {
+                return unsupported("a provider reference of an unexpected layout");
+            };
+            let (rv, vt_want, vt_have) = (rv.clone(), vt_want.clone(), vt_have.clone());
+            self.comp(v, 0, &VT::Eq)?;
+            self.comp(v, 0, &rv)?;
+            rd.emit(&mut self.a);
+            let l = self.a.local(vt_have.clone());
+            self.a.set(l);
+            self.a.s().drop();
+            self.a.get(l);
+            self.a.conv(&vt_have, &vt_want);
+            return self.store(i);
+        }
+        if kind == Coercion::ProviderAsRef as u32 {
+            let [w] = want.as_slice() else {
+                return unsupported("a provider reference of several values");
+            };
+            // `comp` casts the `eqref` payload to the reference's struct.
+            self.comp(v, 0, &w.clone())?;
+            return self.store(i);
+        }
         // A suspending function value's code already returns its cold
         // `mut Suspend[T]` (`Lay::code_ty`), so its closure is the
         // lowered constructor's closure unchanged.

@@ -1,5 +1,5 @@
 # test: a struct fills a trait method declared with data's `mut self` by writing `&mut self`, and a call on the struct changes it in place; a data implementation keeps `mut self` and still works through a bound
-# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge, trait.impl.receiver-bridge.direct-or-ref. Spec 07 Reference Receivers: fn.method.auto-address.
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge, trait.impl.receiver-bridge.serves. Spec 07 Reference Receivers: fn.method.auto-address.
 # expect-stdout: 2 2
 # expect-stdout: 3
 struct Tally:

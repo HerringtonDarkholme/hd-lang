@@ -1,5 +1,5 @@
 //! A trait with an associated function (no `self`) as a requirement key
-//! and as a `dyn` type (spec 11 req.key.any-trait; spec 09
+//! and as a `dyn` type (spec 11 req.key.any-trait-members; spec 09
 //! trait.dyn.member.assoc-function). The associated function has no
 //! vtable slot, so a module that only uses the other members validates
 //! and runs; calling it through the provider or the `dyn` value is

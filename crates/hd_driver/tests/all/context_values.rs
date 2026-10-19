@@ -168,7 +168,7 @@ pub fn main() -> void $ Console:
 
 /// A mutable provider installed through a context keeps one value for the
 /// whole block, so each call sees the last one's change
-/// (`req.mut.install-mutable`, `req.mut.use-mutable`).
+/// (`req.mut.install-writable`, `req.mut.use-writable`).
 #[test]
 fn a_mutable_provider_through_a_context_keeps_its_state() {
     let main = "
@@ -337,7 +337,7 @@ fn make() -> $.Context[$ Tag + Log] $ Tag:
 }
 
 /// Only a context value spreads, and each binding still has to implement
-/// its key (`req.context.spread`, `req.with.type`).
+/// its key (`req.context.spread`, `req.with.type-or-ref`).
 #[test]
 fn spreads_take_only_contexts() {
     let spread = format!(
@@ -373,7 +373,7 @@ pub fn run(ctx: $.Context[$ Tag]) -> string:
 }
 
 /// A mutable requirement trait needs a `mut` value in `$.context` too
-/// (`req.mut.install-mutable`).
+/// (`req.mut.install-writable`).
 #[test]
 fn a_readonly_value_for_a_mutable_key_is_an_upgrade() {
     let main = "
