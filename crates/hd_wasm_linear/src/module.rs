@@ -1,22 +1,27 @@
 //! The module under construction: functions with symbolic call targets,
-//! the imports they name, globals, the function table and static data
-//! (`crates/hd_wasm/DESIGN.md` §23.2, §23.9). [`Module::finish`] numbers
-//! imports first, then instances in content order, then helpers in their
-//! order, and encodes the module.
+//! the imports they name, globals, the function table, static vtables
+//! and static data (`crates/hd_wasm/DESIGN.md` §23.2, §23.8, §23.9).
+//! [`Module::finish`] builds every helper a body names, numbers imports
+//! first, then instances in content order, then helpers in their order,
+//! and encodes the module.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use hd_base::{Hash128, StageResult};
+use hd_base::{Hash128, NotImplemented, Stage, StageResult};
 use wasm_encoder::{
-    CodeSection, ConstExpr, DataSection, EntityType, ExportKind, ExportSection, Function,
-    FunctionSection, GlobalSection, GlobalType, ImportSection, Instruction, MemorySection,
-    MemoryType, NameMap, NameSection, TypeSection, ValType,
+    CodeSection, ConstExpr, DataSection, ElementSection, Elements, EntityType, ExportKind,
+    ExportSection, Function, FunctionSection, GlobalSection, GlobalType, ImportSection,
+    Instruction, MemorySection, MemoryType, NameMap, NameSection, RefType, TableSection, TableType,
+    TypeSection, ValType,
 };
 
 use crate::rt::Helper;
 
-/// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2); memory 0 is the
-/// exchange buffer.
+/// The exchange buffer `hd.x`, the host contract's memory
+/// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
+pub const BUF: u32 = 0;
+
+/// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2).
 pub const HEAP: u32 = 1;
 
 /// The first address of static data: addresses below it are never used,
@@ -41,6 +46,18 @@ pub struct Import {
     pub results: Vec<Val>,
 }
 
+impl Import {
+    #[must_use]
+    pub fn new(module: &str, name: &str, params: &[Val], results: &[Val]) -> Self {
+        Import {
+            module: module.to_owned(),
+            name: name.to_owned(),
+            params: params.to_vec(),
+            results: results.to_vec(),
+        }
+    }
+}
+
 /// A Wasm value type of this backend: scalars only, since every reference
 /// is an `i32` address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -63,29 +80,43 @@ impl Val {
     }
 }
 
-/// A runtime global (`crates/hd_wasm/DESIGN.md` §23.9).
+/// A runtime global (`crates/hd_wasm/DESIGN.md` §23.9), or one Wasm
+/// value of a module storage binding.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Global {
     /// The forbidden-context counter (`req.drive.block-on.forbidden-contexts`).
     Forbid,
+    /// The first free heap address of the bump allocation that serves
+    /// until the std allocator (job 5) takes over.
+    HeapTop,
+    /// One value of a top-level binding: its item's path hash and the
+    /// value's index in its layout.
+    Storage(Hash128, u32, Val),
 }
 
 impl Global {
     const fn val(&self) -> Val {
         match self {
-            Global::Forbid => Val::I32,
+            Global::Forbid | Global::HeapTop => Val::I32,
+            Global::Storage(_, _, v) => *v,
         }
     }
 }
 
-/// One instruction of a body: a plain one, or one whose immediate is a
-/// symbol that [`Module::finish`] resolves.
+/// One instruction of a body: a plain one, or one whose immediate
+/// [`Module::finish`] resolves.
 #[derive(Clone, Debug)]
 pub enum Ins {
     Op(Instruction<'static>),
     Call(Sym),
     GlobalGet(Global),
     GlobalSet(Global),
+    /// `i32.const` of the function's slot in the function table.
+    TableSlot(Sym),
+    /// `call_indirect` through the function table, at this signature.
+    CallIndirect(Vec<Val>, Vec<Val>),
+    /// `i32.const` of a static vtable's address ([`Module::vtable`]).
+    VTable(usize),
 }
 
 /// One function body before numbering.
@@ -110,6 +141,12 @@ impl Func {
         }
     }
 
+    /// A fresh local of type `v`: its index.
+    pub fn local(&mut self, v: Val) -> u32 {
+        self.locals.push(v);
+        u32::try_from(self.params.len() + self.locals.len() - 1).expect("locals")
+    }
+
     pub fn op(&mut self, i: Instruction<'static>) {
         self.body.push(Ins::Op(i));
     }
@@ -118,22 +155,60 @@ impl Func {
         self.body.push(Ins::Call(s));
     }
 
+    pub fn helper(&mut self, h: Helper) {
+        self.call(Sym::Helper(h));
+    }
+
     pub fn i32(&mut self, v: i32) {
         self.op(Instruction::I32Const(v));
+    }
+
+    /// An address or a length: the bits of `v` as an `i32` immediate.
+    pub fn u32(&mut self, v: u32) {
+        self.op(Instruction::I32Const(v.cast_signed()));
+    }
+
+    pub fn get(&mut self, l: u32) {
+        self.op(Instruction::LocalGet(l));
+    }
+
+    pub fn set(&mut self, l: u32) {
+        self.op(Instruction::LocalSet(l));
+    }
+
+    pub fn global_get(&mut self, g: Global) {
+        self.body.push(Ins::GlobalGet(g));
+    }
+
+    pub fn global_set(&mut self, g: Global) {
+        self.body.push(Ins::GlobalSet(g));
+    }
+}
+
+/// A memory argument of `memory` with no offset, aligned to `align`
+/// bytes' log.
+#[must_use]
+pub const fn mem(memory: u32, offset: u64, align: u32) -> wasm_encoder::MemArg {
+    wasm_encoder::MemArg {
+        offset,
+        align,
+        memory_index: memory,
     }
 }
 
 /// The module under construction.
 #[derive(Default)]
 pub struct Module {
-    /// Defined functions by symbol; a helper is defined when first
-    /// requested, so `pending` holds the requested ones not yet built.
+    /// Defined functions by symbol. A helper is defined when
+    /// [`Module::finish`] finds a body naming it.
     funcs: BTreeMap<Sym, Func>,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<Sym>,
-    pending: BTreeSet<Helper>,
-    /// Static data from [`STATIC_BASE`].
+    /// Static data from [`STATIC_BASE`], deduplicated by content.
     data: Vec<u8>,
+    data_at: BTreeMap<Vec<u8>, u32>,
+    /// Static vtables: each one's slots, laid out after the data.
+    vtables: Vec<Vec<Sym>>,
     exports: Vec<(String, Sym)>,
 }
 
@@ -146,35 +221,83 @@ impl Module {
         self.funcs.insert(s, f);
     }
 
-    /// Asks for helper `h`, built by [`Module::finish`]'s fixed point.
-    pub fn want(&mut self, h: &Helper) {
-        if !self.funcs.contains_key(&Sym::Helper(h.clone())) {
-            self.pending.insert(h.clone());
-        }
-    }
-
     /// Exports function `s` as `name`.
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
-        if let Sym::Helper(h) = &s {
-            self.want(h);
-        }
         self.exports.push((name.into(), s));
     }
 
-    /// Builds the requested helpers to a fixed point, numbers every
-    /// function and encodes the module.
-    pub fn finish(mut self) -> StageResult<Vec<u8>> {
-        while let Some(h) = self.pending.pop_first() {
-            let f = crate::rt::helper(&h, &mut self);
-            self.funcs.insert(Sym::Helper(h), f);
+    /// The heap address of `bytes` in static data, placed on first use
+    /// and aligned to `align`.
+    pub fn static_bytes(&mut self, bytes: &[u8], align: u32) -> u32 {
+        if let Some(at) = self.data_at.get(bytes) {
+            return *at;
         }
-        // Every symbol a body calls: the imports among them come first.
+        let align = align.max(1) as usize;
+        while !self.data.len().is_multiple_of(align) {
+            self.data.push(0);
+        }
+        let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        self.data.extend_from_slice(bytes);
+        self.data_at.insert(bytes.to_vec(), at);
+        at
+    }
+
+    /// The number of a static vtable whose slots are `slots`' table
+    /// indices, one `i32` each; [`Ins::VTable`] names its address.
+    pub fn vtable(&mut self, slots: Vec<Sym>) -> usize {
+        if let Some(k) = self.vtables.iter().position(|v| *v == slots) {
+            return k;
+        }
+        self.vtables.push(slots);
+        self.vtables.len() - 1
+    }
+
+    /// The helpers that bodies and vtables name and nobody defined yet.
+    fn missing(&self) -> BTreeSet<Helper> {
+        let mut out = BTreeSet::new();
+        let mut note = |s: &Sym| {
+            if let Sym::Helper(h) = s
+                && !self.funcs.contains_key(s)
+            {
+                out.insert(h.clone());
+            }
+        };
+        for f in self.funcs.values() {
+            for i in &f.body {
+                if let Ins::Call(s) | Ins::TableSlot(s) = i {
+                    note(s);
+                }
+            }
+        }
+        for s in self.vtables.iter().flatten() {
+            note(s);
+        }
+        for (_, s) in &self.exports {
+            note(s);
+        }
+        out
+    }
+
+    /// Builds the named helpers to a fixed point, numbers every function
+    /// and encodes the module.
+    pub fn finish(mut self) -> StageResult<Vec<u8>> {
+        loop {
+            let missing = self.missing();
+            if missing.is_empty() {
+                break;
+            }
+            for h in missing {
+                let f = crate::rt::helper(&h, &mut self);
+                self.funcs.insert(Sym::Helper(h), f);
+            }
+        }
+        // Every import and global a body names; imports come first.
         let mut imports: BTreeSet<Import> = BTreeSet::new();
         let mut globals: BTreeSet<Global> = BTreeSet::new();
         for f in self.funcs.values() {
             for i in &f.body {
                 match i {
-                    Ins::Call(Sym::Import(im)) => {
+                    Ins::Call(Sym::Import(im)) | Ins::TableSlot(Sym::Import(im)) => {
                         imports.insert(im.clone());
                     }
                     Ins::GlobalGet(g) | Ins::GlobalSet(g) => {
@@ -201,6 +324,40 @@ impl Module {
             index.insert(s.clone(), next);
             next += 1;
         }
+        let undefined = |s: &Sym| {
+            NotImplemented::bug(
+                Stage::Link,
+                format!("the linear backend names an undefined function {s:?}"),
+            )
+        };
+        // The function table: every function a slot or a vtable names,
+        // in the order first named.
+        let mut slots: Vec<u32> = Vec::new();
+        let mut slot_of: BTreeMap<Sym, u32> = BTreeMap::new();
+        let mut slot = |s: &Sym, slots: &mut Vec<u32>| -> StageResult<u32> {
+            if let Some(k) = slot_of.get(s) {
+                return Ok(*k);
+            }
+            let f = *index.get(s).ok_or_else(|| undefined(s))?;
+            let k = u32::try_from(slots.len()).expect("table");
+            slots.push(f);
+            slot_of.insert(s.clone(), k);
+            Ok(k)
+        };
+        // Vtables follow the data, one `i32` slot index each.
+        while !self.data.len().is_multiple_of(4) {
+            self.data.push(0);
+        }
+        let mut vtable_at = Vec::new();
+        for v in &self.vtables {
+            vtable_at.push(STATIC_BASE + u32::try_from(self.data.len()).expect("static data"));
+            for s in v {
+                let k = slot(s, &mut slots)?;
+                self.data.extend_from_slice(&k.to_le_bytes());
+            }
+        }
+        let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        let heap_base = static_end.next_multiple_of(8);
         let gindex: BTreeMap<Global, u32> = globals
             .iter()
             .enumerate()
@@ -243,22 +400,44 @@ impl Module {
             for i in &f.body {
                 match i {
                     Ins::Op(op) => body.instruction(op),
-                    Ins::Call(c) => {
-                        let Some(at) = index.get(c) else {
-                            return Err(hd_base::NotImplemented::bug(
-                                hd_base::Stage::Link,
-                                format!("the linear backend calls an undefined function {c:?}"),
-                            ));
-                        };
-                        body.instruction(&Instruction::Call(*at))
-                    }
+                    Ins::Call(c) => body.instruction(&Instruction::Call(
+                        *index.get(c).ok_or_else(|| undefined(c))?,
+                    )),
                     Ins::GlobalGet(g) => body.instruction(&Instruction::GlobalGet(gindex[g])),
                     Ins::GlobalSet(g) => body.instruction(&Instruction::GlobalSet(gindex[g])),
+                    Ins::TableSlot(t) => {
+                        let k = slot(t, &mut slots)?;
+                        body.instruction(&Instruction::I32Const(k.cast_signed()))
+                    }
+                    Ins::CallIndirect(p, r) => body.instruction(&Instruction::CallIndirect {
+                        type_index: ty(p, r, &mut types),
+                        table_index: 0,
+                    }),
+                    Ins::VTable(k) => {
+                        body.instruction(&Instruction::I32Const(vtable_at[*k].cast_signed()))
+                    }
                 };
             }
             body.instruction(&Instruction::End);
             code.function(&body);
             names.append(index[s], &f.name);
+        }
+        let mut tables = TableSection::new();
+        let mut elements = ElementSection::new();
+        if !slots.is_empty() {
+            let n = u64::try_from(slots.len()).expect("table");
+            tables.table(TableType {
+                element_type: RefType::FUNCREF,
+                table64: false,
+                minimum: n,
+                maximum: Some(n),
+                shared: false,
+            });
+            elements.active(
+                None,
+                &ConstExpr::i32_const(0),
+                Elements::Functions(slots.as_slice().into()),
+            );
         }
         let mut memories = MemorySection::new();
         // Memory 0: the exchange buffer, grown by the host's results.
@@ -269,10 +448,9 @@ impl Module {
             shared: false,
             page_size_log2: None,
         });
-        // Memory 1: the heap, whose first page holds static data.
-        let heap_pages = (u64::from(STATIC_BASE) + self.data.len() as u64).div_ceil(1 << 16);
+        // Memory 1: the heap, whose first pages hold static data.
         memories.memory(MemoryType {
-            minimum: heap_pages.max(1),
+            minimum: u64::from(heap_base).div_ceil(1 << 16).max(1),
             maximum: None,
             memory64: false,
             shared: false,
@@ -281,11 +459,12 @@ impl Module {
         let mut global_sec = GlobalSection::new();
         for g in &globals {
             let v = g.val();
-            let init = match v {
-                Val::I32 => ConstExpr::i32_const(0),
-                Val::I64 => ConstExpr::i64_const(0),
-                Val::F32 => ConstExpr::f32_const(wasm_encoder::Ieee32::from(0.0)),
-                Val::F64 => ConstExpr::f64_const(wasm_encoder::Ieee64::from(0.0)),
+            let init = match (g, v) {
+                (Global::HeapTop, _) => ConstExpr::i32_const(heap_base.cast_signed()),
+                (_, Val::I32) => ConstExpr::i32_const(0),
+                (_, Val::I64) => ConstExpr::i64_const(0),
+                (_, Val::F32) => ConstExpr::f32_const(wasm_encoder::Ieee32::from(0.0)),
+                (_, Val::F64) => ConstExpr::f64_const(wasm_encoder::Ieee64::from(0.0)),
             };
             global_sec.global(
                 GlobalType {
@@ -298,9 +477,13 @@ impl Module {
         }
         let mut exports = ExportSection::new();
         for (name, s) in &self.exports {
-            exports.export(name, ExportKind::Func, index[s]);
+            exports.export(
+                name,
+                ExportKind::Func,
+                *index.get(s).ok_or_else(|| undefined(s))?,
+            );
         }
-        exports.export("hd.x", ExportKind::Memory, 0);
+        exports.export("hd.x", ExportKind::Memory, BUF);
         let mut data = DataSection::new();
         if !self.data.is_empty() {
             data.active(
@@ -315,11 +498,17 @@ impl Module {
             module.section(&import_sec);
         }
         module.section(&funcs);
+        if !slots.is_empty() {
+            module.section(&tables);
+        }
         module.section(&memories);
         if !globals.is_empty() {
             module.section(&global_sec);
         }
         module.section(&exports);
+        if !slots.is_empty() {
+            module.section(&elements);
+        }
         module.section(&code);
         if !self.data.is_empty() {
             module.section(&data);

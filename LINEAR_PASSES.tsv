@@ -1,13 +1,41 @@
 path	note
+runtime/panic/assert-failure-in-main.hd	#540: a std panic report
+runtime/panic/explicit-panic.hd	#540: an explicit panic
+runtime/panic/integer-add-overflow.hd	#540: checked integer arithmetic
+runtime/panic/integer-divide-by-zero.hd	#540: checked integer arithmetic
+runtime/panic/integer-negation-overflow.hd	#540: checked integer arithmetic
+runtime/panic/invalid-shift.hd	#540: checked integer arithmetic
+runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
+runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic
+runtime/panic/unbounded-recursion.hd	#540: direct calls; the host reports the stack overflow
+runtime/panic/usize-max-overflow-wasm32.hd	#540: checked integer arithmetic
+runtime/valid/binding-chain-with-suite.hd	#540: integers, strings and enums in locals
+runtime/valid/bom-inside-comment.hd	#540: integers, strings and enums in locals
+runtime/valid/boolean-literals-and-absence.hd	#540: integers, strings and enums in locals
 runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so no entry point runs
+runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
+runtime/valid/escape-sequences.hd	#540: integers, strings and enums in locals
 runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
 runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
 runtime/valid/index-then-call-element.hd	#539: main is private, so no entry point runs
+runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
+runtime/valid/literal-suffix-calls.hd	#540: integers, strings and enums in locals
+runtime/valid/multiline-string-literals.hd	#540: integers, strings and enums in locals
+runtime/valid/multiple-dedents-at-once.hd	#540: integers, strings and enums in locals
 runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
+runtime/valid/no-final-line-ending.hd	#540: integers, strings and enums in locals
 runtime/valid/ord-supertrait-dispatch.hd	#539: main is private, so no entry point runs
+runtime/valid/primitive-bool-eq-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/primitive-char-cmp-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/primitive-integer-cmp-method-direct.hd	#540: the primitives' built-in methods
+runtime/valid/println-console-stdout.hd	#540: println through the host Console
 runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
 runtime/valid/script-empty-run.hd	#539: an empty script runs
+runtime/valid/string-host-bytes.hd	#540: string literals through the host Console
+runtime/valid/tab-only-as-content.hd	#540: integers, strings and enums in locals
 runtime/valid/trait-default-method-instantiates-params.hd	#539: main is private, so no entry point runs
 runtime/valid/u8-checked-add.hd	#539: main is private, so no entry point runs
+runtime/valid/unicode-function-names.hd	#540: integers, strings and enums in locals

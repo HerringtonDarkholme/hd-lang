@@ -1449,7 +1449,7 @@ what the spec names as intrinsic or what only it can build.
 | the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear`, apart from `hd_wasm`, so it never edits the Wasm GC emission in `emit.rs`, `rt.rs` and `layout.rs` | 2, 3 and on |
 | `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
 | `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
-| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the wake table | 3 and on |
+| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, and until job 5 a bump allocation; the wake table later | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
 | the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
 | conformance on both backends | the driver tier runs each runtime case of the root `LINEAR_PASSES.tsv` (`path`, `note` citing an issue) once more on the linear backend, and each must pass; `HD_CONFORMANCE_BACKEND=linear` sweeps every runtime case and prints the passes not listed yet | 2 |
@@ -1678,3 +1678,38 @@ every copy shares it; growth that moves the buffer is job 9's to place.
 | 4 | `std.rt.memory`'s intrinsics, with spec rules and hd tests on the linear backend |
 | 5 | `std.rt.alloc`: size classes, pages, the page table, large runs, with hd tests |
 | 6 to 15 | values inline, strings, counts and release glue, lists, maps, closures and `dyn`, references, frames, the host codecs, each adding rows to `LINEAR_PASSES.tsv` |
+
+### 23.11 What Job 3 Lowers
+
+Job 3 runs hello and the integer programs. What it builds, and where it
+stops short of the layout above:
+
+- **Values in locals.** Each TIR instruction's value gets fresh Wasm
+  locals of its layout, a TIR local owns the locals of its own, and a
+  constant is an immediate. Wasm's structured control does the rest: a
+  `Match` is one block per arm around its decision tree, whose `ToArm`
+  branches out to its arm.
+- **Layouts so far.** Scalars, `string` as `(address, length)`, a trait
+  value as `(data, vtable)` and a suspension as its frame's address. An
+  enum or a `T?` is its tag, then every variant's payload values in
+  declaration order: no slot sharing yet, which job 6 adds with the
+  layouts in memory. Data, tuples, lists, maps and function values are
+  refused, naming their job.
+- **Integer code** is the Wasm GC lowering of §13.15 of
+  crates/hd_mono/DESIGN.md: the same checks, the same wrapping in a
+  release build, the same panic messages.
+- **Bump allocation.** A string that interpolation or integer text
+  builds is allocated in memory 1 by the helper `rt:alloc` from the
+  global `HeapTop`, 8-aligned after static data, and never freed. The
+  std allocator of job 5 replaces it.
+- **The host's providers.** The entry passes each row key's host
+  provider as data 0 and a static vtable of host stubs. A stub's cold
+  call is a 20-byte frame: its poll slot, its state, the host handle and
+  the text argument. `block_on` polls the frame through its slot and
+  waits in `hd:rt.block` while it is pending. While only one host call
+  is pending at a time, the completion the host reports is that call's;
+  the wake table comes with the frames of job 13. Only host methods that
+  take one string and answer tags (`Console.write_line!`) are built.
+- **Not yet.** No `hd.lines` or `hd.positions` section, so a panic
+  report names no frames; no `hd.wake` or `hd.cancel`; no test or
+  scenario entry.
