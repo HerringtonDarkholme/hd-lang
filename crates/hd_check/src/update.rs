@@ -59,6 +59,9 @@ impl Ck<'_, '_> {
             self.show(src)
         );
         self.err(Code::TypeMismatch, at, &msg);
+        // `hd fix --object-model` reads the source through its reference:
+        // `...*d` (`cli.fix.object-model.literals`).
+        self.migration_ref_fix(src, target, at);
         false
     }
 

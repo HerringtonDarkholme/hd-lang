@@ -41,7 +41,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
-| `hd fix` | [applies the package's safe fix-its](#fixing) |
+| `hd fix [--object-model]` | [applies the package's safe fix-its](#fixing), or [rewrites it to values and references](#object-model-rewrite) |
 | `hd cache gc` | [evicts compiled entries](#compiled-cache) down to the size cap |
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
@@ -1254,6 +1254,71 @@ hd fix    # applies each safe fix-it, rechecks, and lists the changes and what r
 
 See also: [Machine Output](#machine-output), whose `fixes` field holds
 the same edits.
+
+#### Object Model Rewrite
+
+`hd fix --object-model` moves a package from `data` types and `mut` views
+to [values and references](../lang/13-values-and-references.md). Each
+`data` type becomes a `struct` reached through references, and each list or
+map that is shared today becomes a reference to one, so the program keeps
+its meaning:
+
+```text
+# before
+data Account:
+    owner: string
+    log: mut List[string]
+
+impl Account:
+    fn note(mut self, s: string) -> void:
+        self.log.push(s)
+
+fn open(log: mut List[string]) -> mut Account:
+    Account { owner: "ada", log: log }
+
+# after
+struct Account:
+    owner: string
+    log: &mut List[string]
+
+impl Account:
+    fn note(&mut self, s: string) -> void:
+        self.log.push(s)
+
+fn open(log: &mut List[string]) -> &mut Account:
+    &mut Account { owner: "ada", log: log }
+```
+
+1. r[cli.fix.object-model.command] `hd fix --object-model` rewrites the package's source files by the rules below and applies no fix-it of [`cli.fix.command`](#r-cli.fix.command). It never edits `hd.toml`.
+2. r[cli.fix.object-model.check] It checks the whole package first, as [`hd check --all`](#r-cli.check.all) does. When that check has an error, it prints the diagnostics and the line `object-model result: FAILED. errors: N; warnings: M`, and writes no file.
+3. r[cli.fix.object-model.meaning] The rewritten program behaves as the original: the same output, exit status, and panics.
+4. r[cli.fix.object-model.data] A `data` declaration at the top level of a module becomes a `struct` declaration, its **former data type**.
+5. r[cli.fix.object-model.types] A written type that names a former data type `D` becomes `&D`, and `mut D` becomes `&mut D`, at any depth, as in `List[&D]` and `&D?`. In an implementation of `D` that names no trait, `Self` is `D`.
+6. r[cli.fix.object-model.types.trait] In an implementation of a trait the package does not declare, the method headers and associated types keep their types, since they must match the trait's.
+7. r[cli.fix.object-model.lists] A list or map type that is shared today becomes a reference. `mut List[T]` and `mut Map[K, V]` become `&mut List[T]` and `&mut Map[K, V]`, and a `data` field's `List[T]` or `Map[K, V]` becomes `&List[T]` or `&Map[K, V]`.
+8. r[cli.fix.object-model.lists.values] Every other `List[T]` and `Map[K, V]` is a [value](../lang/04-type-system.md#r-types.coll.value) today, and stays as written.
+9. r[cli.fix.object-model.literals] A data literal `D { ... }` of a former data type becomes `&mut D { ... }`, and a copy-update `D { ...d, x: v }` becomes `&mut D { ...*d, x: v }`.
+10. r[cli.fix.object-model.receivers] In an implementation of a former data type, `mut self` becomes `&mut self`. In one that names no trait, `self` becomes `&self`. `let mut` stays as written.
+11. r[cli.fix.object-model.local-list] `let xs: mut List[T] = e` becomes `let mut xs: List[T] = e` when `e` and each value later assigned to `xs` is a list literal, a map literal, or a comprehension. Any other such binding follows `cli.fix.object-model.lists`.
+12. r[cli.fix.object-model.coerce] Where the rules above make a value meet a reference to its type, the value gains `&` or `&mut`, as `&mut [...]` for a list literal passed as `mut`. Where a reference meets its value type, it gains `*`, unless a `mut` view is expected.
+13. r[cli.fix.object-model.coerce.cancel] A value that already is `&e` or `*e` loses that operator instead of gaining the other, so a new object never reads as `*&mut D { ... }`.
+14. r[cli.fix.object-model.coerce.closure] A closure literal whose parameter is `&T` where a `&mut T` is passed takes `&mut T`.
+15. r[cli.fix.object-model.equality] `a == b` and `a != b` on two values that the rewrite made references, such as two former data values, become `*a == *b` and `*a != *b`.
+16. r[cli.fix.object-model.units] The rewrite comes in **rewrite units**: one per former data type, and one per declaration whose shared lists it rewrites. A rewrite unit's edits are applied together or not at all.
+17. r[cli.fix.object-model.safe] A set of units is kept only when the rewritten package then checks with no error and no warning the original lacked. All units are tried together first. When that fails, units are set aside until the rest checks, and each set-aside unit is tried again on top of them.
+18. r[cli.fix.object-model.left] A unit that is not kept is left as written. A data type that embeds a part, or that another type embeds, is always left, and so is a `data` declaration in a body.
+19. r[cli.fix.object-model.report] `hd fix --object-model` prints each unit, in file and declaration order: `rewrote: FILE:LINE:COLUMN: UNIT` for one it kept, and `left: FILE:LINE:COLUMN: UNIT: REASON` for one it left. Then it prints `object-model result: ok. rewritten: N; left: M`.
+20. r[cli.fix.object-model.report.unit] UNIT is `data` and the type's name for a data type. For a declaration, it is the declaration's keyword and name, as `fn fill` or `struct Walk`.
+21. r[cli.fix.object-model.report.reason] REASON is `embedding` for a data type that embeds or is embedded, and `local` for one declared in a body. Otherwise it is the code of the first new diagnostic the unit's rewrite would bring.
+22. r[cli.fix.object-model.idempotent] Running `hd fix --object-model` again changes no file.
+23. r[cli.fix.object-model.std] It rewrites the package's own declarations only. A `data` type or a `mut` view that `std` declares stays as written.
+24. r[cli.fix.object-model.status] It exits with status 0 when it wrote every file it rewrote. When the package did not check, or a file could not be written, its result line says `FAILED` and it exits with status 101.
+
+> **Why.** Every value that is shared today stays shared, through a
+> reference, so the rewrite needs no judgment about aliasing. A construct
+> whose rewrite would not check is left for a person, with its place in the
+> report, rather than half migrated. Turning records into plain values is a
+> later, deliberate cleanup.
 
 ## Resource Limits
 

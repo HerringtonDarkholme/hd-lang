@@ -1946,6 +1946,9 @@ impl Ck<'_, '_> {
                 _ => String::new(),
             };
             self.err(code, n, &format!("{msg}{hint}"));
+            if code == Code::TypeMismatch {
+                self.migration_ref_fix(got, want, n);
+            }
             // `types.num.no-implicit.fix`: write the conversion around the
             // value, as `i64(small)`.
             if code == Code::TypeMismatch && self.num_widens(got, want) {

@@ -114,6 +114,7 @@ mod match_decision_tree_run;
 mod member_line_lists_run;
 mod method_bound_unmet;
 mod method_choice;
+mod migration_fix;
 mod misplaced_derivation;
 mod mixed_signedness;
 mod mixed_variant_patterns_run;

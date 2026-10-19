@@ -1,0 +1,18 @@
+# A second run changes nothing: the units left by the first are left again,
+# and the rewritten text stays as it is. `Item` embeds `Base`, so both are
+# left (cli.fix.object-model.idempotent, .left, .report.reason).
+run: hd run
+stdout: pen desk 3
+run: hd fix --object-model
+stderr: rewrote: src/main.hd:8:1: data Box
+stderr: left: src/main.hd:1:1: data Base: embedding
+stderr: left: src/main.hd:4:1: data Item: embedding
+stderr: object-model result: ok. rewritten: 1; left: 2
+same-text: src/main.hd want/main.hd
+run: hd fix --object-model
+stderr: left: src/main.hd:1:1: data Base: embedding
+stderr: left: src/main.hd:4:1: data Item: embedding
+stderr: object-model result: ok. rewritten: 0; left: 2
+same-text: src/main.hd want/main.hd
+run: hd run
+stdout: pen desk 3

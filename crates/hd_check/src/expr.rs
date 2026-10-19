@@ -796,6 +796,28 @@ impl Ck<'_, '_> {
         }
         self.diags
             .add_fix("compare the values with `*`", FixSafety::Suggestion, &edits);
+        // `hd fix --object-model` compares two former data values by value
+        // (`cli.fix.object-model.equality`); a new object it made, `&mut D
+        // { ... }`, loses its `&mut` instead.
+        let mut migration = Vec::new();
+        for (e, sp) in [(l, ls), (r, rs)] {
+            match e.children().next() {
+                Some(operand) if e.kind() == SyntaxKind::RefExpr => {
+                    let inner = self.cx.src.span(operand);
+                    migration.push((at(sp.lo, inner.lo), ""));
+                }
+                _ if wrap(e) => {
+                    migration.push((at(sp.lo, sp.lo), "*("));
+                    migration.push((at(sp.hi, sp.hi), ")"));
+                }
+                _ => migration.push((at(sp.lo, sp.lo), "*")),
+            }
+        }
+        self.diags.add_fix(
+            "compare the values with `*`",
+            FixSafety::Migration,
+            &migration,
+        );
     }
 
     /// Whether a node is an unsuffixed integer literal with the value

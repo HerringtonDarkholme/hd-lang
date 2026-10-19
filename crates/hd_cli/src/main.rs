@@ -17,6 +17,7 @@ mod fmt_cmd;
 mod help;
 mod new_cmd;
 mod node;
+mod object_model;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(feature = "wasmtime")]
@@ -55,7 +56,7 @@ const USAGE: &str = "usage:
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
-  hd fix [--jobs N]
+  hd fix [--object-model] [--jobs N]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
 
   FILE.hd, FILE.wasm, hd run and hd test accept --time-limit DURATION

@@ -1,0 +1,13 @@
+@derive(Eq)
+data Tag:
+    name: string
+
+impl Display for Tag:
+    fn to_string(self) -> string:
+        "#${self.name}"
+
+pub fn main() -> void $ Console:
+    a := Tag { name: "x" }
+    b := Tag { name: "x" }
+    c := a
+    println("${a == b} ${a != b} ${a is c} ${a is b} ${a == Tag { name: "y" }} $a")

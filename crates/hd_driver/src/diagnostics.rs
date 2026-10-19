@@ -23,12 +23,15 @@ pub struct Edit {
 
 /// One fix-it. `exact` is [`hd_diag::FixSafety::Exact`]: the compiler
 /// offers it as the whole fix, so `hd fix` tries it (`cli.fix.safe`); a
-/// suggestion is only shown. The JSON line leaves it out.
+/// suggestion is only shown. The JSON line leaves it out. `migration` is
+/// [`hd_diag::FixSafety::Migration`]: only [`from_output_migration`] keeps
+/// such a fix-it, for `hd fix --object-model`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fix {
     pub message: String,
     pub edits: Vec<Edit>,
     pub exact: bool,
+    pub migration: bool,
 }
 
 /// One diagnostic. A command-line error has no code; a diagnostic that no
@@ -166,8 +169,20 @@ pub fn for_input(diags: Vec<Diag>, file: &str) -> Vec<Diag> {
 
 /// The diagnostics of a compiler run, in content order. `as_written`
 /// replaces the file of a single-file program (`cli.json.diagnostic.file`).
+/// No migration edit is among their fix-its.
 #[must_use]
 pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
+    collect(out, as_written, false)
+}
+
+/// [`from_output`], with the migration edits among the fix-its, each
+/// marked [`Fix::migration`].
+#[must_use]
+pub fn from_output_migration(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
+    collect(out, as_written, true)
+}
+
+fn collect(out: &Output, as_written: Option<&str>, migration: bool) -> Vec<Diag> {
     let d = &out.diags;
     let file_of = |span: Span| {
         let file = out.locate(span).0;
@@ -193,6 +208,7 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
             let (start, end) = (at(span.lo), at(span.hi));
             let fixes = d.fixes[i];
             let fixes = (fixes.start as usize..(fixes.start + fixes.len) as usize)
+                .filter(|&f| migration || d.fix_safety[f] != hd_diag::FixSafety::Migration)
                 .map(|f| Fix {
                     message: out.user_text(d.get_text(d.fix_title[f])),
                     edits: d.edits[d.fix_edits[f].range()]
@@ -205,6 +221,7 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
                         })
                         .collect(),
                     exact: d.fix_safety[f] == hd_diag::FixSafety::Exact,
+                    migration: d.fix_safety[f] == hd_diag::FixSafety::Migration,
                 })
                 .collect();
             Diag {

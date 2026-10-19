@@ -1,0 +1,15 @@
+# `Point` is passed to `total`, whose type parameter needs `Shape`, which
+# `&Point` lacks: its rewrite would bring unsatisfied-trait-bound, so it
+# stays data. `Local` is declared in a body. Both are reported where they
+# are declared, and `Label` is rewritten alone (cli.fix.object-model.safe,
+# .left, .report, .report.reason).
+run: hd run
+stdout: area 13 7
+run: hd fix --object-model
+stderr: rewrote: src/main.hd:12:1: data Label
+stderr: left: src/main.hd:1:1: data Point: unsatisfied-trait-bound
+stderr: left: src/main.hd:19:5: data Local: local
+stderr: object-model result: ok. rewritten: 1; left: 2
+same-text: src/main.hd want/main.hd
+run: hd run
+stdout: area 13 7

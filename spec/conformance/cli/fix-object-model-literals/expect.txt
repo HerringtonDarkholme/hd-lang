@@ -1,0 +1,14 @@
+# Data literals become new objects, `&mut Point { ... }`, and the
+# copy-update reads its source through the reference, `...*p`. The list
+# literal passed to a `mut List` parameter becomes `&mut [1, 2]`, and the
+# closure over the list of `&mut Point` takes `&mut Point`
+# (cli.fix.object-model.literals, .coerce, .coerce.closure).
+run: hd run
+stdout: 1 5 2 3 1
+run: hd fix --object-model
+stderr: rewrote: src/main.hd:1:1: data Point
+stderr: rewrote: src/main.hd:8:1: fn fill
+stderr: object-model result: ok. rewritten: 2; left: 0
+same-text: src/main.hd want/main.hd
+run: hd run
+stdout: 1 5 2 3 1

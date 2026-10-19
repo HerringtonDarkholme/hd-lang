@@ -775,6 +775,7 @@ the next `run:`, are that step's assertions. A line before the first
 | `transcript: PATH` | The step's standard output is exactly the text of the file `PATH`, as [Session Cases](#session-cases) state. `PATH` is relative to the case directory and has no `..`. At most one. Excludes `stdout:` and `stdout-json:`. |
 | `file: PATH` | After the step, `PATH` exists, as a file or a directory. `PATH` is relative to the case directory and has no `..`. |
 | `no-file: PATH` | After the step, `PATH` does not exist. |
+| `same-text: PATH WANT` | After the step, the file `PATH` holds the same text as the file `WANT`, with each CRLF read as LF. Both paths are relative to the case directory and have no `..`. May repeat. |
 
 A step with none of `stdout:`, `stdout-json:`, and `transcript:` does not
 judge standard output, and one with neither `stderr:` nor `stderr-json:` does not judge

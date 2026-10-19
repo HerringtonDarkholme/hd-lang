@@ -1,0 +1,24 @@
+data Point:
+    x: i32
+    y: i32
+
+trait Shape:
+    fn area(self) -> i32
+
+impl Shape for Point:
+    fn area(self) -> i32:
+        self.x * self.y
+
+data Label:
+    text: string
+
+fn total[T < Shape](s: T) -> i32:
+    s.area() + 1
+
+pub fn main() -> void $ Console:
+    data Local:
+        n: i32
+    l := Local { n: 7 }
+    p := Point { x: 3, y: 4 }
+    t := Label { text: "area" }
+    println("${t.text} ${total(p)} ${l.n}")

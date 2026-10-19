@@ -33,7 +33,7 @@
 // Exit status: 0 when every selected case passes, 1 when any fails, 2 on a
 // usage or index error.
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cp, mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
@@ -75,6 +75,8 @@ interface CliStep {
   readonly exit: number;
   readonly files: readonly string[];
   readonly noFiles: readonly string[];
+  /** `same-text: PATH WANT` lines: the two files hold the same text. */
+  readonly sameText: readonly (readonly [string, string])[];
   readonly stderr?: string;
   readonly stderrJson?: readonly unknown[];
   readonly stdout?: string;
@@ -796,6 +798,7 @@ function parseCliExpect(text: string): CliStep[] | string {
     exit?: number;
     files: string[];
     noFiles: string[];
+    sameText: [string, string][];
     stderrJson?: unknown[];
     stderrLines?: string[];
     stdoutJson?: unknown[];
@@ -820,7 +823,7 @@ function parseCliExpect(text: string): CliStep[] | string {
     if (kind === "run") {
       if (!/^hd( \S+)*$/.test(value))
         return `${where}: 'run:' takes 'hd' and words with no quoting`;
-      drafts.push({ command: value, files: [], noFiles: [] });
+      drafts.push({ command: value, files: [], noFiles: [], sameText: [] });
       continue;
     }
     const step = drafts.at(-1);
@@ -856,6 +859,13 @@ function parseCliExpect(text: string): CliStep[] | string {
       if (value === "" || value.startsWith("/") || value.split("/").includes(".."))
         return `${where}: '${kind}:' takes a relative path with no '..'`;
       (kind === "file" ? step.files : step.noFiles).push(value);
+    } else if (kind === "same-text") {
+      const paths = value.split(" ");
+      const relative = (path: string) =>
+        path !== "" && !path.startsWith("/") && !path.split("/").includes("..");
+      if (paths.length !== 2 || !paths.every(relative))
+        return `${where}: 'same-text:' takes two relative paths with no '..'`;
+      step.sameText.push([paths[0]!, paths[1]!]);
     } else return `${where}: unknown line kind '${kind}'`;
   }
   if (drafts.length === 0) return "expect.txt has no 'run:' line";
@@ -864,6 +874,7 @@ function parseCliExpect(text: string): CliStep[] | string {
     exit: draft.exit ?? 0,
     files: draft.files,
     noFiles: draft.noFiles,
+    sameText: draft.sameText,
     stderr: draft.stderrLines?.map((line) => `${line}\n`).join(""),
     stderrJson: draft.stderrJson,
     stdout: draft.stdoutLines?.map((line) => `${line}\n`).join(""),
@@ -980,6 +991,16 @@ async function runCliCase(
         if (!existsSync(join(cwd, file))) return fail(`expected file ${file} does not exist`);
       for (const file of step.noFiles)
         if (existsSync(join(cwd, file))) return fail(`file ${file} exists, and should not`);
+      for (const [path, want] of step.sameText) {
+        // Line ends are LF on both sides: a Windows checkout has CRLF.
+        const read = (file: string) =>
+          existsSync(join(cwd, file))
+            ? readFileSync(join(cwd, file), "utf8").replaceAll("\r\n", "\n")
+            : undefined;
+        const [got, expected] = [read(path), read(want)];
+        if (got === undefined || expected === undefined || got !== expected)
+          return fail(`${path} does not hold the text of ${want}`);
+      }
     }
   } finally {
     await rm(work, { recursive: true, force: true });

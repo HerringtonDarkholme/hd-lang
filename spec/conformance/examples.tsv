@@ -987,3 +987,4 @@ std/regex.md	12	accept	runtime/valid/regex-replace.hd
 std/regex.md	13	accept	runtime/valid/regex-split.hd
 std/regex.md	14	type-fragment	-
 std/regex.md	15	accept	runtime/valid/regex-errors.hd
+cli/command-line.md	1	illustrative-pseudocode	-

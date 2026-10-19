@@ -640,6 +640,7 @@ fn unlisted_member(root: &Path) -> Result<Option<Diag>, String> {
                     message,
                     edits: vec![edit],
                     exact: false,
+                    migration: false,
                 });
             }
         }
@@ -1115,6 +1116,7 @@ fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
                 ),
             }],
             exact: true,
+            migration: false,
         });
         out.push((None, d));
     }

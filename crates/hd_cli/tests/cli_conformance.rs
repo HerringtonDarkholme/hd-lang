@@ -521,6 +521,8 @@ struct Step {
     /// `transcript: PATH`: standard output is the text of this file.
     transcript: Option<String>,
     files: Vec<(bool, String)>,
+    /// `same-text: PATH WANT`: the two files hold the same text.
+    same_text: Vec<(String, String)>,
 }
 
 /// Decodes the escapes of the README's "Standard Output": `\\`, `\t`,
@@ -601,6 +603,12 @@ fn parse_expect(text: &str) -> Result<Vec<Step>, String> {
             }
             "file" => step.files.push((true, value.to_owned())),
             "no-file" => step.files.push((false, value.to_owned())),
+            "same-text" => {
+                let Some((path, want)) = value.split_once(' ') else {
+                    return Err(format!("same-text takes PATH WANT: {line}"));
+                };
+                step.same_text.push((path.to_owned(), want.to_owned()));
+            }
             _ => return Err(format!("unknown expect.txt line: {line}")),
         }
     }
@@ -867,6 +875,20 @@ fn judge_step(dir: &Path, step: &Step, ran: &Ran) -> Result<(), String> {
                 } else {
                     "no-file present"
                 }
+            ));
+        }
+    }
+    for (path, want) in &step.same_text {
+        // Line ends are LF on both sides: a Windows checkout has CRLF.
+        let read = |p: &str| {
+            std::fs::read_to_string(dir.join(p))
+                .map(|t| t.replace("\r\n", "\n"))
+                .map_err(|e| format!("same-text {p}: {e}"))
+        };
+        let (got, expected) = (read(path)?, read(want)?);
+        if got != expected {
+            return Err(format!(
+                "same-text: {path} does not hold the text of {want}: got {got:?}"
             ));
         }
     }

@@ -82,9 +82,10 @@ struct Outcome {
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
-    if let Err(e) = jobs_flags(args) {
-        return fail(&e);
-    }
+    let object_model = match flags(args) {
+        Ok(o) => o,
+        Err(e) => return fail(&e),
+    };
     let cwd = match std::env::current_dir() {
         Ok(c) => c,
         Err(e) => return fail(&e.to_string()),
@@ -98,6 +99,9 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
+    if object_model {
+        return crate::object_model::command(&root);
+    }
     let sources = match disk::sources_of(&root) {
         Ok((s, _)) => s,
         Err(e) => return fail(&e),
@@ -166,9 +170,11 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
     }
 }
 
-/// `--jobs N` or `--jobs=N` (`cli.jobs`), the one option of `hd fix`; it
-/// sets the thread count.
-fn jobs_flags(args: &[OsString]) -> Result<(), String> {
+/// The options of `hd fix`: `--jobs N` or `--jobs=N` (`cli.jobs`), which
+/// sets the thread count, and `--object-model`
+/// (`cli.fix.object-model.command`), which it returns.
+fn flags(args: &[OsString]) -> Result<bool, String> {
+    let mut object_model = false;
     let mut i = 0;
     while i < args.len() {
         if let Some(jobs) = crate::jobs_flag(args, i) {
@@ -178,6 +184,11 @@ fn jobs_flags(args: &[OsString]) -> Result<(), String> {
             continue;
         }
         let text = args[i].to_string_lossy();
+        if text == "--object-model" {
+            object_model = true;
+            i += 1;
+            continue;
+        }
         return Err(if text.starts_with('-') {
             format!("`hd fix` has no option `{text}`")
         } else {
@@ -186,13 +197,13 @@ fn jobs_flags(args: &[OsString]) -> Result<(), String> {
             )
         });
     }
-    Ok(())
+    Ok(object_model)
 }
 
 /// Replaces the file at `path` with `text`, through a temporary file
 /// beside it, unless it no longer holds `before`: a file edited while
 /// `hd fix` ran is left as it is.
-fn write_file(path: &Path, before: &str, text: &str) -> Result<(), String> {
+pub(crate) fn write_file(path: &Path, before: &str, text: &str) -> Result<(), String> {
     let now = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     if now != before {
         return Err("the file changed while `hd fix` ran, so it is left as it is".to_owned());
@@ -375,6 +386,7 @@ mod tests {
                     text: text.to_owned(),
                 }],
                 exact: true,
+                migration: false,
             });
         }
         d

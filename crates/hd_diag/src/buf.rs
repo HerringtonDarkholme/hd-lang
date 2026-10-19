@@ -14,10 +14,13 @@ pub const INTERNAL_ERROR: &str = "internal-error: ";
 
 /// Exact is safe to apply, so `hd fix` tries it; `hd fix` keeps it only if
 /// the check after it adds no diagnostic (`crates/hd_cli/src/fix_cmd.rs`).
+/// A migration edit is a typed edit that only `hd fix --object-model`
+/// applies (`crates/hd_cli/src/object_model.rs`): no report shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FixSafety {
     Exact,
     Suggestion,
+    Migration,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

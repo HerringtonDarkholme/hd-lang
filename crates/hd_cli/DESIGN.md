@@ -200,6 +200,32 @@ Stage-A diagnostics are re-emitted from `iface` entries on a warm run, so
 those entries keep the fix-its too, anchored like their diagnostics:
 each edit is an anchor of its first token plus byte distances from it.
 
+**`hd fix --object-model`** (`object_model.rs`, `cli.fix.object-model.*`),
+the conservative migration to values and references
+(`docs/future-work/OBJECT_MODEL_TIER1.md` §15). It shares only the
+reading and writing of files with `hd fix`.
+
+1. Check the whole package, tests and tasks included
+   (`check_cmd::check_package_all`). An error stops it before any edit.
+2. Plan from the syntax, with names resolved in the module scopes a
+   `doc_scopes` build reports: the `data` keyword, each written type that
+   names a former data type, the shared list and map positions, the
+   receivers, the literals, and `let xs: mut List[T] = [...]`. The edits
+   come in units, one per data type and one per declaration whose shared
+   lists change. Every edit stays within its line.
+3. A trial applies a set of units, then the checker's migration edits
+   (`hd_diag::FixSafety::Migration`) in rounds: `&`, `&mut` or `*` where a
+   value meets a reference to its type (`Ck::migration_ref_fix`), `&mut`
+   on a closure's `&T` parameter, and `*a == *b` for `reference-equality`.
+   No report shows those edits (`diagnostics::from_output` drops them).
+   The trial passes when no error and no extra warning remains.
+4. All units first. On failure, the units with an edit on the line of a
+   new diagnostic are set aside, since edits add no line; with none, each
+   unit is tried in turn. The set-aside units are retried on top of those
+   kept until a retry keeps none, so a second run changes nothing.
+5. Write as `hd fix` does; report `rewrote:` and `left:` per unit and the
+   `object-model result:` line on standard error.
+
 ### 7.7 `hd doc`
 
 - **Whole package** (`doc_cmd.rs`): check the package as `hd check`

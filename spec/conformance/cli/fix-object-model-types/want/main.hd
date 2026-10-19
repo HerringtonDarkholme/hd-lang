@@ -1,0 +1,26 @@
+struct Node:
+    name: string
+    next: &Node?
+
+struct Team:
+    names: &List[string]
+    lead: &mut Node
+
+fn chain(n: &Node?) -> string:
+    match n:
+        .Some(node) => node.name + " " + chain(node.next)
+        .None => "."
+
+fn add(xs: &mut List[string], x: string) -> void:
+    xs.push(x)
+
+fn count(xs: List[string]) -> usize:
+    xs.len()
+
+pub fn main() -> void $ Console:
+    let mut roster: List[string] = ["ada"]
+    tail := &mut Node { name: "b", next: .None }
+    let team: &mut Team = &mut Team { names: &roster, lead: &mut Node { name: "a", next: tail } }
+    add(&mut roster, "grace")
+    team.lead.name = "z"
+    println("${count(*team.names)} ${chain(team.lead)}")

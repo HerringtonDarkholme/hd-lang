@@ -1281,6 +1281,146 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The migration edit of a mismatch between a value and a reference to
+    /// it, which only `hd fix --object-model` applies
+    /// (`cli.fix.object-model.coerce`): `&` or `&mut` before a value where a
+    /// reference is expected, and `*` before a reference where its value
+    /// is expected. A `mut` view expected is a legacy position that shares,
+    /// so a copy read with `*` gets no edit. A value that is itself `*r` or
+    /// `&e` loses that operator instead, and a shorthand field has no value
+    /// to mark.
+    pub(crate) fn migration_ref_fix(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
+        let pool = self.pool();
+        let value = match n.kind() {
+            SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument | SyntaxKind::Argument => {
+                n.children().last()
+            }
+            _ => Some(n),
+        };
+        let Some(value) = value else {
+            return;
+        };
+        let (got, want) = (
+            self.infer.resolve(pool, got),
+            self.infer.resolve(pool, want),
+        );
+        if value.kind() == SyntaxKind::ClosureExpr {
+            self.migration_closure_fix(got, want, value);
+            return;
+        }
+        let (mark, undo) = match (self.ref_of(got), self.ref_of(want)) {
+            (None, Some((inner, mutable))) => {
+                if !self.can_unify(self.strip_mut(got), inner) {
+                    return;
+                }
+                (if mutable { "&mut " } else { "&" }, SyntaxKind::DerefExpr)
+            }
+            (Some((inner, _)), None) => {
+                if matches!(pool.get(want), TyData::Mut(_)) || !self.can_unify(inner, want) {
+                    return;
+                }
+                ("*", SyntaxKind::RefExpr)
+            }
+            _ => return,
+        };
+        let span = self.cx.src.span(value);
+        let at = |lo: u32, hi: u32| hd_base::Span { lo, hi, ..span };
+        if value.kind() == undo {
+            let Some(operand) = value.children().next() else {
+                return;
+            };
+            let inner = self.cx.src.span(operand);
+            self.diags.add_fix(
+                "drop the reference operator",
+                FixSafety::Migration,
+                &[(at(span.lo, inner.lo), "")],
+            );
+            return;
+        }
+        let bare = matches!(
+            value.kind(),
+            SyntaxKind::NameExpr
+                | SyntaxKind::FieldExpr
+                | SyntaxKind::CallExpr
+                | SyntaxKind::ParenExpr
+                | SyntaxKind::IndexExpr
+                | SyntaxKind::TryExpr
+                | SyntaxKind::PathExpr
+                | SyntaxKind::TypeArgsExpr
+                | SyntaxKind::ListExpr
+                | SyntaxKind::MapExpr
+                | SyntaxKind::TupleExpr
+                | SyntaxKind::DataExpr
+                | SyntaxKind::ComprehensionExpr
+                | SyntaxKind::StringExpr
+                | SyntaxKind::LiteralExpr
+        );
+        let edits: Vec<(hd_base::Span, String)> = if bare {
+            vec![(at(span.lo, span.lo), mark.to_owned())]
+        } else {
+            vec![
+                (at(span.lo, span.lo), format!("{mark}(")),
+                (at(span.hi, span.hi), ")".to_owned()),
+            ]
+        };
+        let edits: Vec<(hd_base::Span, &str)> =
+            edits.iter().map(|(s, t)| (*s, t.as_str())).collect();
+        self.diags.add_fix(
+            &format!("write `{}`", mark.trim_end()),
+            FixSafety::Migration,
+            &edits,
+        );
+    }
+
+    /// The migration edit of a closure literal whose parameter reads a
+    /// `&T` where a `&mut T` is passed: the parameter takes `&mut T`, which
+    /// the body, written for `&T`, never writes through
+    /// (`cli.fix.object-model.coerce`).
+    fn migration_closure_fix(&mut self, got: Ty, want: Ty, closure: NodeRef<'_>) {
+        let pool = self.pool();
+        let (TyData::Fn { params: gp, .. }, TyData::Fn { params: wp, .. }) = (
+            pool.get(self.strip_mut(got)),
+            pool.get(self.strip_mut(want)),
+        ) else {
+            return;
+        };
+        let (gp, wp) = (pool.list_items(gp).to_vec(), pool.list_items(wp).to_vec());
+        let Some(list) = closure
+            .children()
+            .find(|c| c.kind() == SyntaxKind::ParameterList)
+        else {
+            return;
+        };
+        let params: Vec<NodeRef<'_>> = list.children().collect();
+        if gp.len() != wp.len() || params.len() != gp.len() {
+            return;
+        }
+        let mut edits = Vec::new();
+        for ((g, w), p) in gp.iter().zip(&wp).zip(&params) {
+            let (Some((gi, false)), Some((wi, true))) = (self.ref_of(*g), self.ref_of(*w)) else {
+                continue;
+            };
+            if !self.can_unify(gi, wi) {
+                continue;
+            }
+            let Some(ty) = p.children().find(|c| c.kind() == SyntaxKind::RefType) else {
+                continue;
+            };
+            let Some(amp) = ty
+                .direct_tokens()
+                .find(|&t| self.cx.src.parse.tokens.kind(t) == TokenKind::Amp)
+            else {
+                continue;
+            };
+            let at = self.cx.src.token_span(amp);
+            edits.push((hd_base::Span { lo: at.hi, ..at }, "mut "));
+        }
+        if !edits.is_empty() {
+            self.diags
+                .add_fix("take `&mut` parameters", FixSafety::Migration, &edits);
+        }
+    }
+
     /// Lowers every reference type the finished body records to `Ref[T]`,
     /// the data type that represents `&T` and `&mut T` on the backend
     /// (`Types::lower_refs`).

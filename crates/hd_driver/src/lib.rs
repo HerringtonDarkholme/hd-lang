@@ -6630,6 +6630,7 @@ impl Run<'_> {
                 dw.u8(match diags.fix_safety[f] {
                     hd_diag::FixSafety::Exact => 0,
                     hd_diag::FixSafety::Suggestion => 1,
+                    hd_diag::FixSafety::Migration => 2,
                 });
                 let edits = diags.fix_edits[f];
                 dw.u32(edits.len);
@@ -6935,6 +6936,7 @@ impl Run<'_> {
                 let title = r.str();
                 let safety = match r.u8() {
                     0 => hd_diag::FixSafety::Exact,
+                    2 => hd_diag::FixSafety::Migration,
                     _ => hd_diag::FixSafety::Suggestion,
                 };
                 let mut edits = Vec::new();

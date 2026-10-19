@@ -219,6 +219,7 @@ The stdlib chapters' terms are in the
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
 | **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
+| **former data type** | A `data` type that `hd fix --object-model` turned into a `struct`. See [`cli.fix.object-model.data`](cli/command-line.md#r-cli.fix.object-model.data). |
 | **generic call cycle** | A chain of calls that passes a type parameter on to the callee's type parameters until it reaches itself again. See [`types.generic.call-cycle`](lang/04-type-system.md#r-types.generic.call-cycle). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
@@ -282,6 +283,7 @@ The stdlib chapters' terms are in the
 | **refutable** | A pattern that may fail to match its initializer, such as `.Some(v)`; a `let` with one needs an `else` block. See [`flow.let.irrefutable`](lang/06-control-flow.md#r-flow.let.irrefutable). |
 | **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](lang/11-requirements-and-suspension.md#r-req.row.definition). |
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](lang/07-functions.md#r-fn.default.requirement-free). |
+| **rewrite unit** | The edits of `hd fix --object-model` that are kept or left together: those of one former data type, or the shared lists of one declaration. See [`cli.fix.object-model.units`](cli/command-line.md#r-cli.fix.object-model.units). |
 | **rest element** | A last tuple element `List[T]...`, which stands for any number of trailing `T` values. See [Rest Elements](lang/04-type-system.md#rest-elements). |
 | **rest member** | The one `List[T]` member that a rest tuple's `Structure` has for its rest element. See [`annot.tuple.rest`](lang/14-annotations.md#r-annot.tuple.rest). |
 | **root file** | `src/lib.hd`, `src/main.hd`, or an integration test program, whose relative lookup starts at its root and which has no `super`. See [`module.relative.root-file`](lang/10-modules.md#r-module.relative.root-file). |

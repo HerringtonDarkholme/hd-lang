@@ -1,0 +1,17 @@
+struct Point:
+    x: i32
+    y: i32
+
+fn moved(p: &Point, dx: i32) -> &Point:
+    &mut Point { ...*p, x: p.x + dx }
+
+fn fill(xs: &mut List[i32]) -> usize:
+    xs.push(3)
+    xs.len()
+
+pub fn main() -> void $ Console:
+    p := &mut Point { x: 1, y: 2 }
+    q := moved(p, 4)
+    points := [p, &mut Point { x: -1, y: 0 }]
+    right := points.filter(fn(each: &mut Point) -> bool: each.x > 0)
+    println("${p.x} ${q.x} ${q.y} ${fill(&mut [1, 2])} ${right.len()}")
