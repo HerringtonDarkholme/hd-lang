@@ -1,5 +1,5 @@
 # test: a reference to a tuple element is references-not-yet-checked
-# Spec 13 Not Yet Checked: ref.check.not-yet-forms.
+# Spec 13 Not Yet Checked: ref.check.not-yet-elements.
 fn element(pair: (i32, i32)) -> i32:
     left := &pair._0  # diagnostic: references-not-yet-checked
     0

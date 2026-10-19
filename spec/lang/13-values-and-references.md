@@ -280,18 +280,83 @@ fn invalid(r: &Point) -> void:
 > path cannot free what a reference reads; exclusivity would forbid only
 > aliasing that is safe.
 
+## Identity
+
+`r is s` is true when the references `r` and `s` refer to the same place.
+
+```hd
+@derive(Eq)
+struct Point:
+    x: i32
+    y: i32
+
+fn demo() -> bool:
+    let mut p = Point { x: 1, y: 2 }
+    let mut q = Point { x: 1, y: 2 }
+    r := &mut p
+    s := &p
+    t := &q
+    r is s && !(s is t) && *s == *t
+```
+
+1. r[ref.identity.same-place] `r is s` with two references is true when both refer to the same place, and false otherwise. Two places that hold equal values are different places.
+2. r[ref.identity.places] Two references refer to the same place when they start at the same root and read the same struct fields from it. A root is one execution of a local's declaration, one call's parameter, a top-level binding, a field of one data value, or one new object.
+3. r[ref.identity.copies] A copy of a reference, a `&mut T` converted to `&T`, and a reference passed to or returned from a function refer to the place the original refers to. So do `&*r` and `&mut *r`.
+4. r[ref.identity.mutability] `is` compares a `&T` with a `&mut T`, since both may refer to one place.
+5. r[ref.identity.incompatible] `is` between references to different types is an error. Error: `incompatible-identity-operands`.
+6. r[ref.identity.non-reference] `is` between a reference and a value without identity, such as a struct, is an error. Error: `identity-requires-references`.
+7. r[ref.identity.non-reference.identity] `is` between a reference and another value with identity, such as a data value, is an error too. Error: `incompatible-identity-operands`.
+8. r[ref.identity.values] A struct, tuple, or enum value has no identity, even when it holds references, so `is` on one is an error. Error: `identity-requires-references`.
+9. r[ref.identity.optional] An optional reference, `&T?`, holds one reference or none. The reference matched out of `.Some(r)` refers to the place `r` refers to.
+
+```text
+struct Point:
+    x: i32
+
+data User:
+    name: string
+
+fn invalid(a: &i32, b: &i64, p: &Point, v: Point, u: &User, w: User) -> void:
+    one := a is b  # error: incompatible-identity-operands
+    two := p is v  # error: identity-requires-references
+    three := u is w  # error: incompatible-identity-operands
+```
+
+> **Why.** A reference in hd is counted and never dangles, so code may
+> keep one in a field or a list. Code that keeps references needs to ask
+> whether two of them are the same object, as a graph walk or an
+> observer list does; `is` answers without reading the values.
+
+### Equality Of References
+
+`==` between two references is an error, because `is` and `*r == *s` say which comparison is meant.
+
+1. r[ref.identity.no-equality] `==` and `!=` with two reference operands are an error. Error: `reference-equality`.
+2. r[ref.identity.no-equality.fix] The diagnostic has two fix-its: one writes `r is s`, or `!(r is s)` for `!=`, and compares places; the other writes `*r == *s`, or `*r != *s`, and compares values.
+3. r[ref.identity.generic-eq] A reference type implements `Eq` when its value type does, and `Hash` when its value type does. They compare and hash the values the references refer to, as [Reference Equality](../std/cmp.md#reference-equality) states. So generic code and a derived `Eq` compare through references.
+
+```text
+fn same(a: &i32, b: &i32) -> bool:
+    a == b  # error: reference-equality
+```
+
+> **Why.** Go's `==` on pointers compares addresses, and Rust's compares
+> contents. An author coming from either language would guess wrong half
+> the time, so neither guess compiles.
+
+See also: [Derived Implementations](09-traits.md#derived-implementations),
+[Identity](05-expressions.md#identity).
+
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-forms] Three forms are errors until later jobs define them. They are a reference to a list element or a map value, as in `&xs[i]`, a reference to a tuple element, as in `&pair._0`, and `is` with a reference operand. Error: `references-not-yet-checked`.
+1. r[ref.check.not-yet-elements] Two forms are errors until later jobs define them. They are a reference to a list element or a map value, as in `&xs[i]`, and a reference to a tuple element, as in `&pair._0`. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
 
 ```text
-fn element(items: List[i32], pair: (i32, i32), a: &i32, b: &i32) -> bool:
+fn element(items: List[i32], pair: (i32, i32)) -> void:
     first := &items[0]  # error: references-not-yet-checked
     left := &pair._0  # error: references-not-yet-checked
-    a is b  # error: references-not-yet-checked
 ```
 
 > **Note.** An element reference pins its list, which needs rules of its
-> own, and identity on references is defined together with equality on
-> them.
+> own.

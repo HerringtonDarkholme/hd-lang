@@ -48,6 +48,14 @@ impl[T < Hash] Hash for T?:
                 state.write([1])
                 value.hash(state)
 
+impl[T < Hash] Hash for &T:
+    fn hash(self, state: mut dyn Hasher) -> void:
+        (*self).hash(state)
+
+impl[T < Hash] Hash for &mut T:
+    fn hash(self, state: mut dyn Hasher) -> void:
+        (*self).hash(state)
+
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
 impl[T < Hash, E < Hash] Hash for Result[T, E]:

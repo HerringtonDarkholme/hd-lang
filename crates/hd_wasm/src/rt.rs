@@ -278,6 +278,15 @@ pub fn hash_seed_global() -> GSym {
     GSym::Rt("hseed".into(), VT::I64)
 }
 
+/// The last serial number that reference identity drew (`ref_serial`,
+/// `crates/hd_wasm/DESIGN.md` §15.2 "References"): 0 until the first. A
+/// runtime global, so the inputs of a session share one sequence and a
+/// reference one input keeps never meets an equal serial in the next.
+#[must_use]
+pub fn ref_serial_global() -> GSym {
+    GSym::Rt("refserial".into(), VT::I64)
+}
+
 /// The host runtime's `hash_seed` import: 64 random bits, drawn once per
 /// run (`crates/hd_run_wasmtime/DESIGN.md` §17.2).
 #[must_use]

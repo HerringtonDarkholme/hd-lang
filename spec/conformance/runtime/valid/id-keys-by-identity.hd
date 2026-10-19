@@ -1,0 +1,28 @@
+# test: Id[T] compares and hashes a reference by its place, so a map keyed by Id keys by identity
+# Spec std/cmp Identity Keys: std-cmp.id.decl, std-cmp.id.eq, std-cmp.id.hash.
+# expect-stdout: true true false
+# expect-stdout: 2
+# expect-stdout: true false
+use std.cmp.Id
+
+struct Node:
+    label: string
+
+fn visit(seen: mut Map[Id[Node], bool], node: &Node) -> bool:
+    key := Id { target: node }
+    if seen.get(key).is_some():
+        return false
+    seen[key] = true
+    true
+
+pub fn main() -> void $ Console:
+    let mut a = Node { label: "a" }
+    let mut b = Node { label: "a" }
+    let seen: mut Map[Id[Node], bool] = {}
+    first := visit(seen, &a)
+    other := visit(seen, &b)
+    again := visit(seen, &mut a)
+    println("$first $other $again")
+    println(seen.len())
+    made := &Node { label: "a" }
+    println("${Id { target: &a } == Id { target: &mut a }} ${seen.get(Id { target: made }).is_some()}")

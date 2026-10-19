@@ -1286,6 +1286,71 @@ impl<'a> Types<'a> {
                 .collect::<Vec<_>>(),
         )
     }
+
+    /// The inverse of [`Self::lower_refs`] on a concrete type, for trait
+    /// selection after lowering: each `cell[T]` becomes `&T`. The impls
+    /// std writes for references name `&T` in their heads, so the backend's
+    /// selection matches a lowered self type in this form. `&mut T` lowers
+    /// to the same `cell[T]`, so the result is always `&T`, never `&mut T`.
+    #[must_use]
+    pub fn raise_refs(self, cell: DefId, t: Ty) -> Ty {
+        self.raise_refs_in(cell, t, &mut hd_base::HashMap::default())
+    }
+
+    /// [`Self::raise_refs`], each distinct type once: a type built by
+    /// doubling shares its parts, so a walk without the memo would be
+    /// exponential.
+    fn raise_refs_in(self, cell: DefId, t: Ty, memo: &mut hd_base::HashMap<Ty, Ty>) -> Ty {
+        if let Some(&r) = memo.get(&t) {
+            return r;
+        }
+        let l = |x: TyList, memo: &mut hd_base::HashMap<Ty, Ty>| {
+            let items: Vec<Ty> = self
+                .list_items(x)
+                .iter()
+                .map(|e| self.raise_refs_in(cell, *e, memo))
+                .collect();
+            self.list(&items)
+        };
+        let d = match self.get(t) {
+            TyData::Adt { def, args } if def == cell => match self.list_items(args) {
+                [inner] => TyData::Ref {
+                    inner: self.raise_refs_in(cell, *inner, memo),
+                    mutable: false,
+                },
+                _ => TyData::Adt { def, args },
+            },
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: l(args, memo),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: l(elems, memo),
+                rest: rest.map(|r| self.raise_refs_in(cell, r, memo)),
+            },
+            TyData::Option(i) => TyData::Option(self.raise_refs_in(cell, i, memo)),
+            TyData::Mut(i) => TyData::Mut(self.raise_refs_in(cell, i, memo)),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => TyData::TraitValue {
+                def,
+                args: l(args, memo),
+                bindings: bindings
+                    .into_iter()
+                    .map(|(d, b)| (d, self.raise_refs_in(cell, b, memo)))
+                    .collect(),
+            },
+            _ => {
+                memo.insert(t, t);
+                return t;
+            }
+        };
+        let r = self.intern_ty(&d);
+        memo.insert(t, r);
+        r
+    }
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
     pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {

@@ -547,8 +547,10 @@ pub enum Lowering {
 /// declarations' `@intrinsic` arguments; `panic_message`, `task_all` and
 /// `test_case` belong to the compiler-supplied `std.core.panic`,
 /// `std.task.all` and `std.testing.it`, `assert_equal` to
-/// `std.testing.assert_equal`, `entry_write` to `std.rt`, and
-/// `downcast_val`, `downcast`, `downcast_mut` and `type_id_of` to `std.inspect`.
+/// `std.testing.assert_equal`, `entry_write` to `std.rt`,
+/// `downcast_val`, `downcast`, `downcast_mut` and `type_id_of` to `std.inspect`,
+/// `ref_serial` to the compiler-supplied `std.core.ref_serial`, and
+/// `ref_identity` to `std.cmp.identity_of`, which the checker lowers.
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),
@@ -587,6 +589,8 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("repl_write", Lowering::Compiler),
     ("dbg_show", Lowering::Compiler),
     ("map_hash_seed", Lowering::Compiler),
+    ("ref_serial", Lowering::Compiler),
+    ("ref_identity", Lowering::Compiler),
     ("format_int", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),
     ("format_f32", Lowering::HostPrimitive("format_f32")),

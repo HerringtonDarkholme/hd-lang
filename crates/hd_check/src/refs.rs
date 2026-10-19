@@ -14,12 +14,19 @@
 //! struct field write. The checker lowers `&T` and `&mut T` to one type,
 //! `Ref[T]`, when it finishes a body (`Types::lower_refs`), so the
 //! backend sees an ordinary data type and `&mut T` to `&T` costs nothing.
+//!
+//! Identity (`ref.identity.*`): a `Ref` also holds the place's identity,
+//! which `r is s` compares field by field in the backend. A local some `&` in the file
+//! may name draws a serial number from the `ref_serial` intrinsic where it
+//! is declared, so two references to one execution of its declaration
+//! share it; a new object draws one per evaluation. A data field's place
+//! is named by its data object; a top-level binding's by its path.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Coercion, NONE, Ref, Tag, TirSink, local_flags};
-use hd_types::{ParamRef, RowId, Ty, TyData, TyList};
+use hd_tir::ir::{Callee, Coercion, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags};
+use hd_types::{ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind, OpenSub, unsupported};
 
@@ -433,7 +440,7 @@ impl Ck<'_, '_> {
                 })))
             }
             SyntaxKind::IndexExpr => {
-                // `ref.check.not-yet-forms`: element references pin their list,
+                // `ref.check.not-yet-elements`: element references pin their list,
                 // which comes with a later job.
                 self.err(
                     Code::ReferencesNotYetChecked,
@@ -492,7 +499,7 @@ impl Ck<'_, '_> {
                 let pool = self.pool();
                 if let TyData::Tuple { .. } = pool.get(self.strip_mut(self.infer.resolve(pool, t)))
                 {
-                    // `ref.check.not-yet-forms`
+                    // `ref.check.not-yet-elements`
                     self.err(
                         Code::ReferencesNotYetChecked,
                         e,
@@ -826,8 +833,243 @@ impl Ck<'_, '_> {
         let root = self.b.close_block(blk, None, Ty::VOID, syn);
         self.subs.pop();
         let set = self.b.close_sub(mark, root, set_ty, syn);
-        let rec = self.b.refs_record(&[get, set]);
+        let (base, serial, key) = self.place_identity(p, n);
+        let rec = self.b.refs_record(&[get, set, base, serial, key]);
         self.b.emit(Tag::NewData, NONE, rec, rt, syn)
+    }
+
+    /// The type of a reference's identity base, `dyn Any`.
+    fn any_ty(&self) -> Ty {
+        self.pool().intern_ty(&TyData::TraitValue {
+            def: self.cx.names.known.any,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        })
+    }
+
+    /// The identity of the place `p`, evaluated where the reference is
+    /// taken (`ref.identity.same-place`): the data object that holds it as
+    /// `dyn Any` (`RefRoot`'s one value when no data object does), the
+    /// serial number of its local or new object (0 for a top-level binding
+    /// or a data field), and the path of fields from there.
+    fn place_identity(&mut self, p: &Place, n: NodeRef<'_>) -> (Ref, Ref, Ref) {
+        let at = n.index();
+        let i64_ty = Ty::prim(Prim::I64);
+        let mut suffix = String::new();
+        for (idx, _) in &p.path {
+            suffix.push('.');
+            suffix.push_str(&idx.to_string());
+        }
+        match p.root {
+            Root::Local(l, d) => {
+                let base = self.root_base(n);
+                let serial = match self.ref_serials.get(&l).copied() {
+                    Some((sl, _)) => self.read_local(sl, d, n).0,
+                    None => self.new_ref_serial(at),
+                };
+                (base, serial, self.b.const_str(&suffix))
+            }
+            Root::Global(_, def, _) => {
+                let base = self.root_base(n);
+                let serial = self.b.const_value(i64_ty, 0);
+                let key = format!("g:{}{suffix}", self.cx.names.path(def));
+                (base, serial, self.b.const_str(&key))
+            }
+            Root::Deref(l, d, _) => {
+                let (r, _) = self.read_local(l, d, n);
+                let any = self.any_ty();
+                let base = self.b.emit(Tag::Field, r.0, 2, any, at);
+                let serial = self.b.emit(Tag::Field, r.0, 3, i64_ty, at);
+                let mut key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
+                if !suffix.is_empty() {
+                    let tail = self.b.const_str(&suffix);
+                    let rec = self.b.refs_record(&[key, tail]);
+                    key = self.b.emit(
+                        Tag::Intrinsic,
+                        IntrinsicOp::StrConcat as u32,
+                        rec,
+                        Ty::STRING,
+                        at,
+                    );
+                }
+                (base, serial, key)
+            }
+            Root::DataField(l, d, idx, _, dt) => {
+                let (o, _) = self.read_local(l, d, n);
+                let any = self.any_ty();
+                let o = self.retype(o, self.strip_mut(dt), at);
+                let base = self.coerce(
+                    o,
+                    self.strip_mut(dt),
+                    any,
+                    n,
+                    "reference",
+                    ExpectPosition::General,
+                );
+                let serial = self.b.const_value(i64_ty, 0);
+                (base, serial, self.b.const_str(&format!("f{idx}{suffix}")))
+            }
+        }
+    }
+
+    /// The identity of the reference `r` as a value of std's
+    /// `RefIdentity` (`ty`), whose fields are the reference's identity
+    /// fields in order: what std's `identity_of` returns.
+    pub(crate) fn ref_identity_value(&mut self, r: Ref, ty: Ty, n: NodeRef<'_>) -> Ref {
+        let at = n.index();
+        let any = self.any_ty();
+        let base = self.b.emit(Tag::Field, r.0, 2, any, at);
+        let serial = self.b.emit(Tag::Field, r.0, 3, Ty::prim(Prim::I64), at);
+        let key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
+        let rec = self.b.refs_record(&[base, serial, key]);
+        self.b.emit(Tag::NewData, NONE, rec, ty, at)
+    }
+
+    /// `RefRoot`'s one value as `dyn Any`: the identity base of a place no
+    /// data object holds.
+    fn root_base(&mut self, n: NodeRef<'_>) -> Ref {
+        let pool = self.pool();
+        let root_ty = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.known.ref_root,
+            args: TyList::EMPTY,
+        });
+        let rec = self.b.refs_record(&[]);
+        let v = self.b.emit(Tag::NewData, NONE, rec, root_ty, n.index());
+        let any = self.any_ty();
+        self.coerce(v, root_ty, any, n, "reference", ExpectPosition::General)
+    }
+
+    /// A fresh serial number (`ref_serial`).
+    fn new_ref_serial(&mut self, at: NodeIdx) -> Ref {
+        let c = Callee::Item {
+            def: self.cx.names.known.ref_serial,
+            targs: TyList::EMPTY,
+        };
+        self.b
+            .call(&c, &[], Providers::None, Ty::prim(Prim::I64), at)
+    }
+
+    /// The names some `&` or `&mut` in the module's file refers to through
+    /// a chain of fields (`&x`, `&mut x.pos.y`): a local of one of these
+    /// names draws a serial number where it is declared.
+    fn ref_names(&self) -> &hd_base::HashSet<Symbol> {
+        self.cx.ref_names.get_or_init(|| {
+            let tree = &self.cx.src.parse.tree;
+            let mut names = hd_base::HashSet::default();
+            for i in 0..tree.len() {
+                let node = tree.node(NodeIdx::from_raw(u32::try_from(i).expect("nodes")));
+                if node.kind() != SyntaxKind::RefExpr {
+                    continue;
+                }
+                let mut e = node.children().next();
+                while let Some(x) = e {
+                    match x.kind() {
+                        SyntaxKind::ParenExpr | SyntaxKind::FieldExpr => e = x.children().next(),
+                        SyntaxKind::NameExpr => {
+                            names.insert(self.sym_of(x));
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+            }
+            names
+        })
+    }
+
+    /// Names the local that will hold the serial number of the local `l`
+    /// when some `&` in the file names it: from here on, a reference to
+    /// `l` reads that local, which `l`'s declaration fills
+    /// ([`Self::draw_ref_serial`]). A pattern's binding is named before
+    /// the arm that uses it is checked, and stored after, in the decision
+    /// that runs first.
+    pub(crate) fn reserve_ref_serial(&mut self, l: LocalId, at: NodeIdx) {
+        if self.ref_serials.contains_key(&l) {
+            return;
+        }
+        let name = self.b.body_mut().local_name[l.idx()];
+        if !self.ref_names().contains(&name) {
+            return;
+        }
+        let sym = self.cx.names.syms.intern("$serial");
+        let sl = self
+            .b
+            .local(Ty::prim(Prim::I64), sym, local_flags::ASSIGNED, at);
+        self.ref_serials.insert(l, (sl, false));
+    }
+
+    /// Draws the serial number of the local `l` where it is declared: its
+    /// first store, or a parameter's entry (`ref.identity.places`), when
+    /// some `&` in the file names it. Each execution of the declaration
+    /// draws a new one, as each makes a new place.
+    pub(crate) fn draw_ref_serial(&mut self, l: LocalId, at: NodeIdx) {
+        self.reserve_ref_serial(l, at);
+        let Some(&(sl, false)) = self.ref_serials.get(&l) else {
+            return;
+        };
+        let v = self.new_ref_serial(at);
+        self.b.set(sl, v, at);
+        self.ref_serials.insert(l, (sl, true));
+    }
+
+    /// `r is s` where an operand is a reference (`ref.identity.*`): both
+    /// must be references to compatible types; the result compares their
+    /// identities.
+    pub(crate) fn ref_is(
+        &mut self,
+        (a, at): (Ref, Ty),
+        (c, ct): (Ref, Ty),
+        n: NodeRef<'_>,
+        rn: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let pool = self.pool();
+        let syn = n.index();
+        match (self.ref_of(at), self.ref_of(ct)) {
+            (Some((ai, _)), Some((ci, _))) => {
+                let (ai, ci) = (self.strip_mut(ai), self.strip_mut(ci));
+                let snap = self.infer.snapshot();
+                if self.infer.unify(pool, ai, ci).is_err() {
+                    self.infer.rollback(snap);
+                    let msg = format!(
+                        "`is` compares {} with {}, which refer to different types",
+                        self.show(at),
+                        self.show(ct)
+                    );
+                    self.err(Code::IncompatibleIdentityOperands, rn, &msg);
+                }
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                let (other, other_ty, ref_ty) = if self.ref_of(at).is_some() {
+                    (rn, ct, at)
+                } else {
+                    (n, at, ct)
+                };
+                if matches!(self.infer.resolve(pool, other_ty), Ty::POISON | Ty::NEVER) {
+                    return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
+                }
+                // `expr.is.value-operand`: a value has no identity at all.
+                if !self.has_identity(other_ty)? {
+                    let msg = format!(
+                        "{} has no identity to compare with `is`",
+                        self.show(other_ty)
+                    );
+                    self.err(Code::IdentityRequiresReferences, other, &msg);
+                    return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
+                }
+                let msg = format!(
+                    "`is` compares the reference {} with {}, which is not a reference; `is` on a reference needs a reference on both sides",
+                    self.show(ref_ty),
+                    self.show(other_ty)
+                );
+                self.err(Code::IncompatibleIdentityOperands, other, &msg);
+                return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
+            }
+            (None, None) => return unsupported("`is` without a reference operand"),
+        }
+        // The backend compares the identity fields of the two `Ref`s
+        // (`crates/hd_wasm/DESIGN.md` §15.2, "References"), so a generic
+        // `is` over `T < AnyRef` compares places too.
+        Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, syn))
     }
 
     /// `*e` as a value (`ref.deref.read`): the whole referenced value, a

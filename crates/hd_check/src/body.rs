@@ -41,6 +41,11 @@ pub struct BodyCx<'a> {
     /// The methods of the closure by name, built on first use and shared
     /// with the module's forked contexts ([`crate::fork`]).
     pub methods: std::cell::OnceCell<std::sync::Arc<crate::MethodIndex>>,
+    /// The names that some `&` or `&mut` in the module's file takes a
+    /// reference to, built on first use: a local of one of these names
+    /// draws a serial number when it is declared, for reference identity
+    /// (`crate::refs`).
+    pub ref_names: std::cell::OnceCell<HashSet<Symbol>>,
     /// The module's top-level bindings and its bodies' init facts.
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
     /// The module's private callables with omitted result types (M1).
@@ -245,6 +250,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`types.bind.let-mut-primitive-unused`).
     pub ref_taken: Vec<LocalId>,
     pub prim_let_mut: Vec<(LocalId, hd_base::NodeIdx, LetMutKind)>,
+    /// Per local whose name `BodyCx::ref_names` holds, the local holding
+    /// its serial number (`crate::refs`), and whether its declaration
+    /// has drawn it yet.
+    pub ref_serials: HashMap<LocalId, (LocalId, bool)>,
     /// The base of the field read being checked: a field read is no copy
     /// of its base (`ref.read.copy-out`).
     pub proj_base: Option<hd_base::NodeIdx>,
@@ -517,6 +526,7 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_params: Vec::new(),
         param_writes: Vec::new(),
         ref_taken: Vec::new(),
+        ref_serials: HashMap::default(),
         prim_let_mut: Vec::new(),
         proj_base: None,
         self_ty: None,
@@ -962,6 +972,7 @@ fn fn_body_steps(
         let ty = ck.norm_ty(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
+        ck.draw_ref_serial(l, node.index());
     }
     ck.mark_mut_params(node);
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
@@ -1453,6 +1464,7 @@ impl Ck<'_, '_> {
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
         self.user_locals.push(l);
+        self.reserve_ref_serial(l, at.index());
         l
     }
 
@@ -1502,6 +1514,7 @@ impl Ck<'_, '_> {
             v
         };
         self.b.set(l, v, syn);
+        self.draw_ref_serial(l, syn);
     }
 
     pub(crate) fn coerce(

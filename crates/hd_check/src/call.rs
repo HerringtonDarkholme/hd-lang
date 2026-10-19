@@ -1901,6 +1901,15 @@ impl Ck<'_, '_> {
                     };
                     return Ok(self.emit_call(&c, &refs, result, true, true, n));
                 }
+                // std's `identity_of(r)` (lib/std/cmp.hd): the identity
+                // fields of the reference (`crate::refs`), as the result.
+                if item
+                    .intrinsic
+                    .is_some_and(|k| self.cx.names.text(k) == "ref_identity")
+                    && let [r] = refs[..]
+                {
+                    return Ok((self.ref_identity_value(r, ret, n), ret));
+                }
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.
                 let def = if item

@@ -293,6 +293,8 @@ trait Hash:
 15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use. One case is `==` on two `Box[fn() -> void]` values. Error: `missing-derived-bound`.
 16. r[trait.derive.owner] A derived implementation is owned by the module that declares its target, whichever module declares the trait.
 17. r[trait.derive.beside-written] Deriving a trait for a type that also has a hand-written implementation of that trait is an error, reported on the `@derive` line. Error: `overlapping-impl`.
+18. r[trait.derive.reference-fields] A reference field, `&T` or `&mut T`, implements `Eq` and `Hash` when `T` does, by [Reference Equality](../std/cmp.md#reference-equality). So a derivation of either accepts it then, and a type that refers to itself through references may derive both.
+19. r[trait.derive.no-cycle-check] A derivation is allowed whether or not the values of its type can form a cycle through references. The compiler checks no cycle.
 
 ```text
 data Opaque: pass

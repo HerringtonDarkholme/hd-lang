@@ -148,6 +148,7 @@ mod range_patterns;
 mod raw_identifier_run;
 mod recursive_closure_run;
 mod recursive_layouts;
+mod reference_equality_fix;
 mod rejected_pattern_binds;
 mod related_traits;
 mod release_profile_run;

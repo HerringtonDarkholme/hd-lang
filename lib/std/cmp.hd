@@ -219,6 +219,19 @@ impl[T < Eq] Eq for T?:
                     .Some(_) => false
                     .None => true
 
+# A reference is equal to another when the values they refer to are, so a
+# derived `Eq` compares through a reference field
+# (r-std-cmp.ref.eq). `==` written between two references is
+# an error (lang/13 ref.identity.no-equality): a generic `==` and a derived
+# `Eq` reach this impl.
+impl[T < Eq] Eq for &T:
+    fn eq(self, other: &T) -> bool:
+        *self == *other
+
+impl[T < Eq] Eq for &mut T:
+    fn eq(self, other: &mut T) -> bool:
+        *self == *other
+
 # `.None` is less than every present value
 # (spec/lang/05-expressions.md#r-expr.ord.std.optional).
 impl[T < PartialOrd] PartialOrd for T?:
@@ -466,3 +479,190 @@ impl Eq for never:
     fn eq(self, other: never) -> bool:
         match self:
             _ => panic("never has no value")
+
+## A reference compared and hashed by the place it refers to, not by the value there, so a map keyed by `Id[T]` keys by identity.
+## See [std-cmp.id.decl](../../spec/std/cmp.md#r-std-cmp.id.decl).
+pub struct Id[T]:
+    ## The reference.
+    ## See [std-cmp.id.decl](../../spec/std/cmp.md#r-std-cmp.id.decl).
+    pub target: &T
+
+# Two ids are equal when their references refer to the same place
+# (r-std-cmp.id.eq), and hash alike then (r-std-cmp.id.hash).
+impl[T] Eq for Id[T]:
+    fn eq(self, other: Id[T]) -> bool:
+        self.target is other.target
+
+impl[T] Hash for Id[T]:
+    fn hash(self, state: mut dyn Hasher) -> void:
+        identity_of(self.target).hash(state)
+
+# The place a reference refers to, as `is` compares it: the data object
+# that holds the place (one shared value for any other place), the serial
+# number of its local or new object, and the path of fields from there
+# (crates/hd_wasm/DESIGN.md §15.2, "References").
+struct RefIdentity:
+    base: dyn Any
+    serial: i64
+    key: string
+
+impl Eq for RefIdentity:
+    fn eq(self, other: RefIdentity) -> bool:
+        self.base is other.base && self.serial == other.serial && self.key == other.key
+
+# The base has no hash, so places in one data object share the hash of
+# their field path.
+impl Hash for RefIdentity:
+    fn hash(self, state: mut dyn Hasher) -> void:
+        self.serial.hash(state)
+        self.key.hash(state)
+
+# The identity of `target`'s place; the checker reads it from the
+# reference (crates/hd_check/src/refs.rs).
+@intrinsic("ref_identity")
+fn identity_of[T](target: &T) -> RefIdentity:
+    panic("intrinsic")
+
+## The pairs of references a `deep_equal` call is comparing; a pair met again counts as equal, which ends a walk around a cycle.
+## See [std-cmp.deep-equal.visits](../../spec/std/cmp.md#r-std-cmp.deep-equal.visits).
+pub data DeepVisits:
+    pairs: mut Map[(RefIdentity, RefIdentity), bool]
+
+## Values that `deep_equal` compares member by member, through references, ending on cycles; `@derive(DeepEq)` writes it.
+## See [std-cmp.deep-equal.trait](../../spec/std/cmp.md#r-std-cmp.deep-equal.trait).
+pub trait DeepEq:
+    fn deep_eq(self, other: Self, visits: mut DeepVisits) -> bool
+
+## Whether `left` and `right` are equal member by member, through references; a pair of references met again while comparing counts as equal, so a comparison of cyclic structures ends.
+## See [std-cmp.deep-equal.decl](../../spec/std/cmp.md#r-std-cmp.deep-equal.decl).
+pub fn deep_equal[T < DeepEq](left: T, right: T) -> bool:
+    let visits: mut DeepVisits = DeepVisits { pairs: {} }
+    left.deep_eq(right, visits)
+
+# Values with no references compare by `Eq` (r-std-cmp.deep-equal.leaves).
+impl[N < Num] DeepEq for N:
+    fn deep_eq(self, other: N, visits: mut DeepVisits) -> bool:
+        self == other
+
+impl DeepEq for char:
+    fn deep_eq(self, other: char, visits: mut DeepVisits) -> bool:
+        self == other
+
+impl DeepEq for bool:
+    fn deep_eq(self, other: bool, visits: mut DeepVisits) -> bool:
+        self == other
+
+impl DeepEq for string:
+    fn deep_eq(self, other: string, visits: mut DeepVisits) -> bool:
+        self == other
+
+impl[T < DeepEq] DeepEq for T?:
+    fn deep_eq(self, other: T?, visits: mut DeepVisits) -> bool:
+        match self:
+            .Some(left) =>
+                match other:
+                    .Some(right) => left.deep_eq(right, visits)
+                    .None => false
+            .None =>
+                match other:
+                    .Some(_) => false
+                    .None => true
+
+impl[T < DeepEq, E < DeepEq] DeepEq for Result[T, E]:
+    fn deep_eq(self, other: Result[T, E], visits: mut DeepVisits) -> bool:
+        match self:
+            .Ok(left) =>
+                match other:
+                    .Ok(right) => left.deep_eq(right, visits)
+                    .Err(_) => false
+            .Err(left) =>
+                match other:
+                    .Ok(_) => false
+                    .Err(right) => left.deep_eq(right, visits)
+
+impl[T < DeepEq] DeepEq for List[T]:
+    fn deep_eq(self, other: List[T], visits: mut DeepVisits) -> bool:
+        if self.len() != other.len():
+            return false
+        let index: usize = 0
+        while index < self.len():
+            if !self[index].deep_eq(other[index], visits):
+                return false
+            index = index + 1
+        true
+
+# Keys match by `Eq`, as a map finds them; values compare deeply.
+impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
+    fn deep_eq(self, other: Map[K, V], visits: mut DeepVisits) -> bool:
+        if self.len() != other.len():
+            return false
+        for (key, value) in self:
+            match other.get(key):
+                .Some(found) =>
+                    if !value.deep_eq(found, visits):
+                        return false
+                .None => return false
+        true
+
+# Two references are deeply equal when they refer to one place, when the
+# pair is already being compared, or when the values they refer to are
+# (r-std-cmp.deep-equal.references).
+impl[T < DeepEq] DeepEq for &T:
+    fn deep_eq(self, other: &T, visits: mut DeepVisits) -> bool:
+        if self is other:
+            return true
+        pair := (identity_of(self), identity_of(other))
+        match visits.pairs.get(pair):
+            .Some(_) => return true
+            .None => pass
+        visits.pairs[pair] = true
+        (*self).deep_eq(*other, visits)
+
+impl[T < DeepEq] DeepEq for &mut T:
+    fn deep_eq(self, other: &mut T, visits: mut DeepVisits) -> bool:
+        if self is other:
+            return true
+        pair := (identity_of(self), identity_of(other))
+        match visits.pairs.get(pair):
+            .Some(_) => return true
+            .None => pass
+        visits.pairs[pair] = true
+        (*self).deep_eq(*other, visits)
+
+# Derived `DeepEq` (r-std-cmp.deep-equal.derive): the same variant, and
+# every member deeply equal, in declaration order.
+impl[T] DeepEq for T by Structure:
+    fn deep_eq(self, other: T, visits: mut DeepVisits) -> bool:
+        let w: mut DeepEqualWalker[T] = DeepEqualWalker::[T] { other: other, visits: visits }
+        match Structure::walk(self, w):
+            .Ok(_) => true
+            .Err(_) => false
+
+impl[T < Tuple] DeepEq for T by Structure:
+    fn deep_eq(self, other: T, visits: mut DeepVisits) -> bool:
+        let w: mut DeepEqualWalker[T] = DeepEqualWalker::[T] { other: other, visits: visits }
+        match Structure::walk(self, w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module. A walk's `.Err` only stops it.
+data DeepEqualWalker[S]:
+    pub other: S
+    pub visits: mut DeepVisits
+
+impl[S] Walker[S] for DeepEqualWalker[S]:
+    type Error = bool
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+        if v.holds(self.other):
+            return .Ok(())
+        .Err(false)
+
+    fn rest[T < DeepEq](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(h, items)
+
+    fn member[F < DeepEq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+        if value.deep_eq(h.get(self.other), self.visits):
+            return .Ok(())
+        .Err(false)

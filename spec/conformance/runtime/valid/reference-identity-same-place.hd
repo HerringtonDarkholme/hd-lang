@@ -1,0 +1,39 @@
+# test: `is` is true for two references to one place and false for two places that hold equal values
+# Spec 13 Identity: ref.identity.same-place, ref.identity.places, ref.identity.copies, ref.identity.mutability.
+# expect-stdout: true true true
+# expect-stdout: false false
+# expect-stdout: true true
+# expect-stdout: false true
+# expect-stdout: false
+# expect-stdout: true false
+struct Point:
+    x: i32
+    y: i32
+
+fn same(a: &Point, b: &mut Point) -> bool:
+    a is b
+
+fn keep(r: &mut Point) -> &mut Point:
+    r
+
+fn same_any[T < AnyRef](a: T, b: T) -> bool:
+    a is b
+
+pub fn main() -> void $ Console:
+    let mut p = Point { x: +1, y: +2 }
+    let mut q = Point { x: +1, y: +2 }
+    r := &mut p
+    s := &mut p
+    copy := r
+    println("${r is s} ${r is copy} ${same(&p, &mut p)}")
+    println("${&p is &q} ${same(&q, &mut p)}")
+    println("${keep(r) is s} ${&*r is &p}")
+    made := &Point { x: +1, y: +2 }
+    again := &Point { x: +1, y: +2 }
+    println("${made is again} ${made is made}")
+    let refs: mut List[&i32] = []
+    for i in [+1, +1]:
+        let mut v = i
+        refs.push(&mut v)
+    println(refs[0] is refs[1])
+    println("${same_any(&p, &p)} ${same_any(&p, &q)}")

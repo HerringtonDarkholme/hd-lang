@@ -60,7 +60,7 @@ such a field or element. The spec allows either form
 | integers, `bool`, `char`, floats | the scalar | packed: `i8` for `bool`, `u8`, `i8`; `i16` for 16-bit integers; else the scalar |
 | `data T` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
 | `struct T` | `(ref $T)`: the same struct as a data type's, which nothing writes after `struct.new` ("Struct values" below) | same |
-| `&T`, `&mut T` | `(ref $Ref_T)`: the data type `std.core.Ref[T]`, two closures that read and replace the place ("References" below) | same |
+| `&T`, `&mut T` | `(ref $Ref_T)`: the data type `std.core.Ref[T]`, two closures that read and replace the place, and the place's identity ("References" below) | same |
 | embedded part | a separate struct, referenced by an immutable field of the outer struct ([`data.part.unobservable`](../../spec/lang/08-data-and-enums.md#r-data.part.unobservable)) | same |
 | payloadless enum | `i32` tag | `i8` or `i16` when the variant count fits |
 | enum with payloads, within the bound | `multi`: `(i32 tag, shared payload slots...)` (§15.1) | the same fields; a structure of arrays in an array |
@@ -112,8 +112,9 @@ path, then a `LocalSet`, `GlobalSet` or `FieldSet` of the place's root.
 ([Values And References](../../spec/lang/13-values-and-references.md))
 are emulated, not laid out as addresses: a reference is an object of the
 compiler-supplied data type `std.core.Ref[T]` (`hd_resolve::seed`), whose
-two fields are closures, `get: fn() -> T` and `set: fn(T) -> void`, that
-read and replace the referenced place. The checker builds both when it
+first two fields are closures, `get: fn() -> T` and `set: fn(T) -> void`,
+that read and replace the referenced place, and whose last three are the
+place's identity, `base: dyn Any`, `serial: i64` and `key: string`. The checker builds both when it
 checks `&e` (`crates/hd_check/src/refs.rs`) and lowers every `&T` and
 `&mut T` in a finished body to `Ref[T]` (`hd_types::Types::lower_refs`,
 `hd_tir::ir::map_body_types`); the driver lowers the declarations the
@@ -135,6 +136,41 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   `&mut r.pos`, evaluates `r` once into a fresh local; its closures call
   `r`'s own. A data field, `&mut d.n`, uses `struct.get` and `FieldSet`
   on the data object, evaluated once.
+- **Identity.** `r is s` compares the three identity fields
+  ([Identity](../../spec/lang/13-values-and-references.md#identity)):
+  the emitter lowers `Is` on two `Ref` operands (`ref_identity_eq`) to
+  `ref.eq` on the bases' payloads, `i64.eq` on the serials and the string
+  helper on the keys. It decides by the operand's type after
+  substitution, so `is` in a generic body over `T < AnyRef` compares
+  places when `T` is a reference. The checker fills the fields where it
+  takes the reference (`refs.rs`, `place_identity`):
+
+  | Place | `base` | `serial` | `key` |
+  | --- | --- | --- | --- |
+  | a local or parameter | `RefRoot`'s one value | the local's serial | the struct field path, as `.1.0` |
+  | a new object | `RefRoot`'s one value | a fresh serial | `""` |
+  | a top-level binding | `RefRoot`'s one value | 0 | `g:` and its path, then the field path |
+  | a field of a data value | the data object | 0 | `f` and the field index, then the field path |
+  | a place reached through `r` | `r.base` | `r.serial` | `r.key` and the field path |
+
+  A serial comes from the `ref_serial` intrinsic, a runtime counter
+  global (`rt::ref_serial_global`), so serials are unique within a run.
+  A local draws its serial where it is declared: its first store, or a
+  parameter's entry to the body. So each execution of the declaration
+  is a new place, as each makes a new cell. Only a local whose name some
+  `&` in the file names draws one (`BodyCx::ref_names`, a scan of the
+  file's syntax for `&name` and `&name.field`); the rest pay nothing.
+  `RefRoot` is a private fieldless data type, so its one value is a
+  canonical constant ([`expr.is.canonical-data`](../../spec/lang/05-expressions.md#r-expr.is.canonical-data))
+  and no `base` but a data field's allocates.
+- **Why a serial and not the cell.** The cell that holds a referenced
+  local is the emitter's, made after checking; TIR has no name for it.
+  A serial needs no new layout, and it hashes, which a Wasm GC reference
+  cannot: `Id[T]` (lib/std/cmp.hd) hashes the serial and the key, so
+  references to locals and new objects spread over a map's buckets. Two
+  places in one data object differ only in their keys, so `Id` keys of
+  fields of many data objects collide on the field path; that is the one
+  case a hash of `base` would help.
 - **Reads and writes.** `*r` is `Field(r, get)` then `CallValue`, and
   `*r = v` calls `set`; a field read or method call through `r` reads
   through `get` first. A read-only reference's `set` is `unreachable`,
@@ -150,9 +186,19 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   closures (the read-only `set` is a constant); a local some reference
   refers to lives in a heap cell for the whole function. A read or write
   through a reference is an indirect call, and a write to a field path
-  rebuilds the path. Identity (`is`) cannot be answered, since two
-  references to one place are two objects. Correct first: the linear-memory
-  backend makes a reference an address (OBJECT_MODEL_TIER1.md job 11).
+  rebuilds the path. A reference to a field of another reference
+  concatenates its key, and `is` compares two strings. A local whose name
+  some `&` in the file names draws a serial when declared, an `i64`
+  global increment, even when no reference to that local is taken.
+  Correct first: the linear-memory backend makes a reference an address,
+  and `is` one compare (OBJECT_MODEL_TIER1.md job 11).
+- **Trait selection.** std writes `Eq`, `Hash` and `DeepEq` for `&T` and
+  `&mut T`; both heads lower to `Ref[T]`. The backend's selection
+  (`hd_mono` `select`) raises a lowered self type back to `&T`
+  (`hd_types::Types::raise_refs`) to match those heads, then unifies the
+  lowered head with the lowered self type for the impl's arguments. So
+  the `&T` impl serves `&mut T` too once lowered, and the two heads never
+  meet as one.
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are
@@ -344,6 +390,7 @@ the operands' layout:
 | Operand layout | Wasm |
 | --- | --- |
 | `ref` (data, lists, maps, an `AnyRef` type parameter's instance) | `ref.eq` |
+| `Ref[T]`, a reference ("References" above) | its identity fields compared |
 | trait value, `Any` | `ref.eq` on the payloads; unspecified when the payload is a boxed value |
 
 An enum, optional, `Result`, tuple, primitive, string or function operand

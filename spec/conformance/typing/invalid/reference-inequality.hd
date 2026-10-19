@@ -1,0 +1,4 @@
+# test: `!=` between two references is reference-equality, as `==` is
+# Spec 13 Identity: ref.identity.no-equality.
+fn differ(a: &mut i32, b: &i32) -> bool:
+    a != b  # diagnostic: reference-equality

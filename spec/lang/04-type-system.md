@@ -2237,6 +2237,7 @@ This section defines which types may be map keys, and how keys behave.
 7. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
 8. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
 9. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
+10. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `&T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
 
 ```text
 data UserId:
@@ -2291,6 +2292,7 @@ fn demo() -> List[string]:
 2. r[types.map.no-reindex] If another mutable alias changes a stored key's equality or hash after insertion, the map does not automatically reindex it.
 3. r[types.map.stale] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a stale entry.
 4. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
+5. r[types.map.reference-key] A key that holds a `&mut` reference, at any depth, changes when the value the reference refers to is written through any path. Its entry then becomes a stale entry.
 
 ```hd
 use std.hash.Hash

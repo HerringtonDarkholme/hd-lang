@@ -1598,6 +1598,7 @@ fn demo(a: bool, b: bool) -> bool:
 11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
 12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
 13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
+14. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
@@ -1674,6 +1675,7 @@ fn below(value: u32) -> bool:
 `is` compares identity without invoking user code.
 
 1. r[expr.is.no-user-code] `is` compares identity without invoking user code.
+2. r[expr.is.references] For two references, `is` compares the places they refer to, as [Identity](13-values-and-references.md#identity) defines.
 
 ```hd
 fn demo(a: List[i32], b: List[i32]) -> bool:

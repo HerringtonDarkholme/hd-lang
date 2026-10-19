@@ -64,6 +64,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
+    /// The data type `std.core.Ref[T]` that `&T` and `&mut T` lower to
+    /// (`hd_types::Types::lower_refs`); selection raises it back to `&T`
+    /// (`hd_types::Types::raise_refs`), the form std's impl heads name.
+    fn ref_cell(&self) -> DefId;
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and
@@ -1569,10 +1573,21 @@ impl Cx<'_> {
             };
             at
         } else {
+            // Impl heads name `&T`, which bodies and declarations reach
+            // here lowered to `Ref[T]`: select on the raised form. The
+            // arguments below unify the lowered head with `self_ty`.
+            let cell = env.ref_cell();
+            let types = self.pool.types();
             let tref = ConcreteTraitRef(TraitRef {
                 trait_,
-                self_ty,
-                args: trait_args,
+                self_ty: types.raise_refs(cell, self_ty),
+                args: types.list(
+                    &types
+                        .list_items(trait_args)
+                        .iter()
+                        .map(|a| types.raise_refs(cell, *a))
+                        .collect::<Vec<_>>(),
+                ),
             });
             let (universe, global) = env.solving();
             let mut cx = SolveCx {

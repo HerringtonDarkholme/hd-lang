@@ -5000,6 +5000,7 @@ impl Run<'_> {
             global: &self.memo,
             solver: &solver,
             methods: std::cell::OnceCell::new(),
+            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
                 self.declared_by(m),
@@ -6393,6 +6394,7 @@ impl Run<'_> {
             global: &self.memo,
             solver: &TableSolver,
             methods: std::cell::OnceCell::new(),
+            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -6459,6 +6461,7 @@ impl Run<'_> {
             global: &memo,
             solver: &TableSolver,
             methods: std::cell::OnceCell::new(),
+            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -9588,6 +9591,9 @@ impl ProgramEnv for Env<'_> {
             )),
             _ => None,
         }
+    }
+    fn ref_cell(&self) -> DefId {
+        self.run.known.ref_cell
     }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
         let Some(it) = self.p.items.get(&impl_) else {

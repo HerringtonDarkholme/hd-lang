@@ -1,0 +1,29 @@
+# test: a reference to a field is identical to another reference to the same field of the same value, however it was reached
+# Spec 13 Identity: ref.identity.places.
+# expect-stdout: true false
+# expect-stdout: true true
+# expect-stdout: true false
+# expect-stdout: true false
+struct Vec2:
+    x: i32
+    y: i32
+
+struct Body:
+    pos: Vec2
+    vel: Vec2
+
+data Counter:
+    hits: i32
+
+let mut origin = Vec2 { x: +0, y: +0 }
+
+pub fn main() -> void $ Console:
+    let mut b = Body { pos: Vec2 { x: +1, y: +2 }, vel: Vec2 { x: +1, y: +2 } }
+    println("${&b.pos.x is &b.pos.x} ${&b.pos.x is &b.vel.x}")
+    r := &mut b
+    inner := &mut r.pos
+    println("${&r.pos.y is &b.pos.y} ${&inner.y is &b.pos.y}")
+    let c: mut Counter = Counter { hits: +0 }
+    let d: mut Counter = Counter { hits: +0 }
+    println("${&mut c.hits is &c.hits} ${&c.hits is &d.hits}")
+    println("${&origin is &mut origin} ${&origin.x is &origin.y}")

@@ -1,0 +1,17 @@
+# test: a derived Eq on a structure that really contains a cycle runs around it until the stack is exhausted
+# Spec std/cmp Derived Equality: std-cmp.derive.eq.stack, with lang 09 trait.derive.no-cycle-check.
+@derive(Eq)
+struct Node:
+    value: i32
+    next: &mut Node?
+
+fn ring(a: i32, b: i32) -> &mut Node:
+    first := &mut Node { value: a, next: .None }
+    second := &mut Node { value: b, next: .Some(first) }
+    first.next = .Some(second)
+    first
+
+pub fn main() -> void:
+    x := ring(+1, +2)
+    y := ring(+1, +2)
+    _ := *x == *y  # panic: stack-exhausted

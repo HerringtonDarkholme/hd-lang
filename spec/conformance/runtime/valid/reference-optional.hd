@@ -1,0 +1,24 @@
+# test: an optional reference holds a reference or nothing, and the reference matched out of it refers to the same place
+# Spec 13 Identity: ref.identity.optional.
+# expect-stdout: 5 true
+# expect-stdout: none
+struct Point:
+    x: i32
+    y: i32
+
+fn first(items: List[&mut Point]) -> &mut Point?:
+    if items.is_empty():
+        return .None
+    .Some(items[0])
+
+pub fn main() -> void $ Console:
+    let mut p = Point { x: +1, y: +2 }
+    r := &mut p
+    match first([r]):
+        .Some(found) =>
+            found.x = 5
+            println("${p.x} ${found is r}")
+        .None => println("none")
+    match first([]):
+        .Some(_) => println("some")
+        .None => println("none")

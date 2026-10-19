@@ -1,0 +1,7 @@
+# test: `is` between a reference and a struct value is identity-requires-references
+# Spec 13 Identity: ref.identity.non-reference.
+struct Point:
+    x: i32
+
+fn same(a: &Point, p: Point) -> bool:
+    a is p  # diagnostic: identity-requires-references

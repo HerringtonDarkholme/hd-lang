@@ -1,0 +1,7 @@
+# test: `is` between a reference and a data value is incompatible-identity-operands
+# Spec 13 Identity: ref.identity.non-reference.identity.
+data User:
+    name: string
+
+fn same(a: &User, u: User) -> bool:
+    a is u  # diagnostic: incompatible-identity-operands

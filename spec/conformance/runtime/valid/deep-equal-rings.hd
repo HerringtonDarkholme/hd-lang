@@ -1,0 +1,23 @@
+# test: deep_equal ends on cyclic structures: two equal rings are equal, two different rings are not
+# Spec std/cmp Deep Equality: std-cmp.deep-equal.decl, std-cmp.deep-equal.references, std-cmp.deep-equal.derive, std-cmp.deep-equal.ends.
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: true
+use std.cmp.{DeepEq, deep_equal}
+
+@derive(DeepEq)
+struct Node:
+    value: i32
+    next: &mut Node?
+
+fn ring(a: i32, b: i32) -> &mut Node:
+    first := &mut Node { value: a, next: .None }
+    second := &mut Node { value: b, next: .Some(first) }
+    first.next = .Some(second)
+    first
+
+pub fn main() -> void $ Console:
+    println(deep_equal(ring(+1, +2), ring(+1, +2)))
+    println(deep_equal(ring(+1, +2), ring(+1, +3)))
+    x := ring(+4, +5)
+    println(deep_equal(x, x))

@@ -126,6 +126,7 @@ impl<'a> BodyFork<'a> {
             global: self.global,
             solver: self.solver,
             methods: OnceCell::from(self.methods.clone()),
+            ref_names: OnceCell::new(),
             init: RefCell::new(self.init.fork()),
             results: RefCell::new(self.results.fork()),
             dbg_refs: RefCell::default(),

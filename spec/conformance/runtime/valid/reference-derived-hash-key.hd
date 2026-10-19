@@ -1,0 +1,17 @@
+# test: a derived Hash hashes reference fields through the references, so a tree keys a map by its shape
+# Spec std/hash Derived Hashing: std-hash.derive.hash.references, with lang 09 trait.derive.reference-fields.
+# expect-stdout: three
+# expect-stdout: false
+# expect-stdout: 1
+@derive(Eq, Hash)
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+pub fn main() -> void $ Console:
+    let names: mut Map[Expr, string] = {}
+    names[Expr.Add(&Expr.Num(1), &Expr.Num(2))] = "three"
+    println(names[Expr.Add(&Expr.Num(1), &Expr.Num(2))])
+    println(names.get(Expr.Add(&Expr.Num(2), &Expr.Num(1))).is_some())
+    names[Expr.Add(&Expr.Num(1), &Expr.Num(2))] = "sum"
+    println(names.len())

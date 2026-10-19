@@ -6,7 +6,7 @@ use hd_base::HashMap;
 
 use hd_base::DefId;
 use hd_base::StageResult;
-use hd_diag::{Code, Severity};
+use hd_diag::{Code, FixSafety, Severity};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -720,9 +720,81 @@ impl Ck<'_, '_> {
         ) {
             self.warn_unsigned_zero(op, *l, at, *r, ct, n);
         }
+        // `ref.identity.no-equality`: `==` between two references is
+        // ambiguous, so it is an error with a fix-it for each meaning.
+        if eq_op && self.ref_of(at).is_some() && self.ref_of(ct).is_some() {
+            self.reference_equality(op == TokenKind::NotEq, op_tok, (*l, *r), n);
+            let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
+            return Ok((v, Ty::BOOL));
+        }
         let v = self.binary_values(op, (a, at), (c, ct), n, *r)?;
         let t = self.b.ty_of(v);
         Ok((v, t))
+    }
+
+    /// Reports `l == r` or `l != r` on two references
+    /// (`ref.identity.no-equality`), with the fix-its `l is r`, which
+    /// compares places, and `*l == *r`, which compares values.
+    fn reference_equality(
+        &mut self,
+        negated: bool,
+        op_tok: hd_base::TokenIdx,
+        (l, r): (NodeRef<'_>, NodeRef<'_>),
+        n: NodeRef<'_>,
+    ) {
+        let (op, cmp) = if negated {
+            ("!=", "`!(a is b)`")
+        } else {
+            ("==", "`a is b`")
+        };
+        let msg = format!(
+            "`{op}` between two references is ambiguous: write {cmp} to compare the places they refer to, or `*a {op} *b` to compare the values"
+        );
+        self.err(Code::ReferenceEquality, n, &msg);
+        let file = self.cx.src.file;
+        let at = |lo: u32, hi: u32| hd_base::Span { file, lo, hi };
+        let (ls, rs) = (self.cx.src.span(l), self.cx.src.span(r));
+        let os = self.cx.src.token_span(op_tok);
+        if negated {
+            self.diags.add_fix(
+                "compare the places with `is`",
+                FixSafety::Suggestion,
+                &[
+                    (at(ls.lo, ls.lo), "!("),
+                    (at(os.lo, os.hi), "is"),
+                    (at(rs.hi, rs.hi), ")"),
+                ],
+            );
+        } else {
+            self.diags.add_fix(
+                "compare the places with `is`",
+                FixSafety::Suggestion,
+                &[(at(os.lo, os.hi), "is")],
+            );
+        }
+        let wrap = |e: NodeRef<'_>| {
+            !matches!(
+                e.kind(),
+                SyntaxKind::NameExpr
+                    | SyntaxKind::FieldExpr
+                    | SyntaxKind::CallExpr
+                    | SyntaxKind::ParenExpr
+                    | SyntaxKind::IndexExpr
+                    | SyntaxKind::RefExpr
+                    | SyntaxKind::DerefExpr
+            )
+        };
+        let mut edits = Vec::new();
+        for (e, sp) in [(l, ls), (r, rs)] {
+            if wrap(e) {
+                edits.push((at(sp.lo, sp.lo), "*("));
+                edits.push((at(sp.hi, sp.hi), ")"));
+            } else {
+                edits.push((at(sp.lo, sp.lo), "*"));
+            }
+        }
+        self.diags
+            .add_fix("compare the values with `*`", FixSafety::Suggestion, &edits);
     }
 
     /// Whether a node is an unsuffixed integer literal with the value
@@ -847,17 +919,9 @@ impl Ck<'_, '_> {
             _ => None,
         };
         if op == TokenKind::KwIs {
-            // `ref.check.not-yet-forms`: identity of references comes with the
-            // identity job; the emulation could not answer it.
-            for (t, at) in [(at, n), (ct, rn)] {
-                if self.ref_of(t).is_some() {
-                    self.err(
-                        Code::ReferencesNotYetChecked,
-                        at,
-                        "`is` on a reference is not checked yet",
-                    );
-                    return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
-                }
+            // `ref.identity.same-place`: a reference compares its place.
+            if self.ref_of(at).is_some() || self.ref_of(ct).is_some() {
+                return self.ref_is((a, at), (c, ct), n, rn);
             }
             // `expr.is.value-operand`: both operands have identity. The
             // first that has none is the one error, so the second operand
@@ -1547,7 +1611,7 @@ impl Ck<'_, '_> {
     /// Whether a type's values have identity: the solver's `AnyRef` row
     /// holds or waits (`crates/hd_check/DESIGN.md` (trait solver) §3.9). A diverging operand has no
     /// value to compare and passes.
-    fn has_identity(&mut self, t: Ty) -> StageResult<bool> {
+    pub(crate) fn has_identity(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         if self.strip_mut(t) == Ty::NEVER {
@@ -3647,6 +3711,10 @@ impl Ck<'_, '_> {
         self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
+        // A parameter is declared on each call (`crate::refs`).
+        for &p in &params {
+            self.draw_ref_serial(p, n.index());
+        }
         let e = parts.body;
         let (tail, _) = if e.kind() == SyntaxKind::Block {
             self.block_value(e, Some(ret))?

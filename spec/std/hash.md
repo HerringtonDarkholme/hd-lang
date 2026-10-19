@@ -34,6 +34,7 @@ fn lookup_status(items: Map[Status, i32], status: Status) -> i32?:
 4. r[std-hash.derive.hash.enum] For an enum, it hashes the variant, then shared enum data in declaration order, then that variant's payload fields in declaration order.
 5. r[std-hash.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
 6. r[std-hash.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
+7. r[std-hash.derive.hash.references] A reference field hashes as the value it refers to, by [Reference Hashing](#reference-hashing).
 
 ## Tuple Hashing
 
@@ -95,6 +96,7 @@ fn digest() -> u64:
 | r[std-hash.bytes.list] `List[T]` | a list | its length as a `u64`, then each item's bytes in order |
 | r[std-hash.bytes.tuple] Tuple | a tuple | each element's bytes in order, with no length; a rest element writes as its `List` |
 | r[std-hash.bytes.optional] `T?` | `.None` or `.Some(value)` | the tag byte `0` for `.None`; the tag byte `1`, then the bytes of `value`, for `.Some` |
+| r[std-hash.bytes.reference] Reference | `&T` or `&mut T` | the bytes of the value it refers to |
 | r[std-hash.bytes.result] `Result[T, E]` | `.Ok(value)` or `.Err(error)` | the tag byte `0`, then the bytes of `value`, for `.Ok`; the tag byte `1`, then the bytes of `error`, for `.Err` |
 
 1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
@@ -168,3 +170,17 @@ fn bucket(key: string) -> u64:
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
 [Lookup And Order](../lang/04-type-system.md#lookup-and-order),
 [Cmp](cmp.md).
+
+## Reference Hashing
+
+`std.hash` implements `Hash` for references by the values they refer to:
+
+```text
+use std.hash.hash_of
+
+fn same_hash(a: &string, b: &string) -> bool:
+    hash_of(a) == hash_of(b)  # true when *a == *b
+```
+
+1. r[std-hash.reference.impl] `std.hash` implements `Hash` for `&T` and for `&mut T` when `T < Hash`. A reference writes the bytes of the value it refers to, so a reference and its value hash alike.
+2. r[std-hash.reference.derived] A derived `Hash` reaches this implementation for a reference field, as [`std-hash.derive.hash.references`](#r-std-hash.derive.hash.references) states.

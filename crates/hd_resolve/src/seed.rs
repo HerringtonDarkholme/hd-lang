@@ -134,8 +134,28 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             }
             // What `&T` and `&mut T` lower to on the Wasm GC backend
             // (`crates/hd_wasm/DESIGN.md` §15.2, "References"): a closure
-            // that reads the referenced place and one that replaces it.
+            // that reads the referenced place and one that replaces it,
+            // then the place's identity, which `is` compares: the data
+            // object that holds the place (`RefRoot`'s one value for every
+            // other place), the serial number of the local or new object
+            // (0 for a top-level binding or a data field), and the path of
+            // fields from there.
             // Not visible to programs; `hd_types::Types::lower_refs` names it.
+            let root = names.item(module, "RefRoot");
+            out.push(Item::new(
+                root,
+                sym(names, "RefRoot"),
+                false,
+                ItemData::Data(vec![]),
+            ));
+            let mut serial = Item::new(
+                names.item(module, "ref_serial"),
+                sym(names, "ref_serial"),
+                false,
+                ItemData::Fn(FnSig::simple(vec![], vec![], Ty::prim(Prim::I64))),
+            );
+            serial.intrinsic = Some(sym(names, "ref_serial"));
+            out.push(serial);
             let cell = names.item(module, "Ref");
             let t = param(names, cell, 0);
             let fn_ty = |params: &[Ty], result: Ty| {
@@ -154,6 +174,9 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Data(vec![
                     field(names, "get", fn_ty(&[], t)),
                     field(names, "set", fn_ty(&[t], Ty::VOID)),
+                    field(names, "base", any_tv),
+                    field(names, "serial", Ty::prim(Prim::I64)),
+                    field(names, "key", Ty::STRING),
                 ]),
             );
             it.generics = gens(names, &["T"]);

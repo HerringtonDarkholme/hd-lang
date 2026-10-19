@@ -1,0 +1,8 @@
+# test: `is` on an enum value, even one holding references, is identity-requires-references
+# Spec 13 Identity: ref.identity.values.
+enum Expr:
+    Num(n: i64)
+    Neg(inner: &Expr)
+
+fn same(a: Expr, b: Expr) -> bool:
+    a is b  # diagnostic: identity-requires-references

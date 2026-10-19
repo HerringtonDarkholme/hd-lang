@@ -649,7 +649,9 @@ lang/13-values-and-references.md	3	mixed	typing/invalid/reference-mut-from-plain
 lang/13-values-and-references.md	4	mixed	typing/invalid/reference-shared-to-mut-argument.hd|typing/invalid/reference-shared-to-mut-result.hd
 lang/13-values-and-references.md	5	mixed	typing/invalid/reference-copy-out-mut.hd
 lang/13-values-and-references.md	6	mixed	typing/invalid/reference-deref-write-shared.hd|typing/invalid/reference-write-through-shared-field.hd
-lang/13-values-and-references.md	7	mixed	typing/invalid/reference-element-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd|typing/invalid/reference-identity-not-checked.hd
+lang/13-values-and-references.md	7	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd|typing/invalid/reference-identity-data-operand.hd
+lang/13-values-and-references.md	8	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd
+lang/13-values-and-references.md	9	mixed	typing/invalid/reference-element-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd
@@ -799,6 +801,9 @@ std/cmp.md	4	accept	runtime/valid/cmp-min-max.hd
 std/cmp.md	5	accept	runtime/valid/cmp-clamp.hd
 std/cmp.md	6	accept	runtime/valid/cmp-reverse.hd
 std/cmp.md	7	accept	runtime/valid/cmp-ordering-eq.hd
+std/cmp.md	8	accept	runtime/valid/reference-eq-generic.hd
+std/cmp.md	9	accept	runtime/valid/id-keys-by-identity.hd
+std/cmp.md	10	accept	runtime/valid/deep-equal-rings.hd
 std/hash.md	1	accept	typing/valid/derived-hash.hd
 std/hash.md	2	accept	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	accept	runtime/valid/list-map-key.hd
@@ -806,6 +811,7 @@ std/hash.md	4	mixed	typing/invalid/list-float-map-key.hd
 std/hash.md	5	accept	runtime/valid/hash-bytes-result.hd
 std/hash.md	6	accept	runtime/valid/hash-of-reference-values.hd
 std/hash.md	7	accept	runtime/valid/default-hasher.hd
+std/hash.md	8	accept	runtime/valid/reference-eq-generic.hd
 std/collections.md	1	accept	runtime/valid/list-chunks.hd
 std/collections.md	2	accept	runtime/valid/list-view-run.hd
 std/collections.md	3	mixed	typing/invalid/list-view-assignment.hd

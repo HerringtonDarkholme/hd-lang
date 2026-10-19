@@ -1,0 +1,25 @@
+# test: a derived Eq compares reference fields through the references, so two trees built alike are equal
+# Spec std/cmp Derived Equality: std-cmp.derive.eq.references, with lang 09 trait.derive.reference-fields.
+# expect-stdout: true false
+# expect-stdout: true false
+@derive(Eq)
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+@derive(Eq)
+struct Gauge:
+    level: &mut i32
+
+pub fn main() -> void $ Console:
+    a := Expr.Add(&Expr.Num(1), &Expr.Add(&Expr.Num(2), &Expr.Num(3)))
+    b := Expr.Add(&Expr.Num(1), &Expr.Add(&Expr.Num(2), &Expr.Num(3)))
+    c := Expr.Add(&Expr.Num(1), &Expr.Num(5))
+    println("${a == b} ${a == c}")
+    let mut x = +1
+    let mut y = +1
+    g := Gauge { level: &mut x }
+    h := Gauge { level: &mut y }
+    first := g == h
+    y = 2
+    println("$first ${g == h}")

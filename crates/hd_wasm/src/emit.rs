@@ -882,6 +882,12 @@ impl Em<'_> {
                 self.store(i)?;
             }
             Tag::Is => {
+                // `ref.identity.same-place`: two references compare the
+                // places they refer to, not the `Ref` objects.
+                if matches!(self.lay.pool.get(self.lay.strip(self.ty_of(a))), TyData::Adt { def, .. } if def == self.env().ref_cell())
+                {
+                    return self.ref_identity_eq(i, a, bw);
+                }
                 // `expr.is.*`: the underlying references, never the
                 // trait-value pair; component 0 of every operand layout
                 // is the reference (the payload of a trait value).
@@ -3099,6 +3105,20 @@ impl Em<'_> {
                 self.a.get(seed);
                 self.store(i)
             }
+            // The next serial number of a local or new object that a
+            // reference refers to (`crates/hd_wasm/DESIGN.md` §15.2,
+            // "References"): a runtime global counter, so serials are
+            // unique within a run. The first is 1; 0 marks a top-level
+            // binding or a data field, whose identity needs no serial.
+            "ref_serial" => {
+                let g = crate::rt::ref_serial_global();
+                self.a.global_get(g.clone());
+                self.a.i64(1);
+                self.a.s().i64_add();
+                self.a.global_set(g.clone());
+                self.a.global_get(g);
+                self.store(i)
+            }
             // The bit casts between a float and the integer of its width:
             // one reinterpret instruction, which keeps every bit, a NaN's
             // sign and payload included.
@@ -5013,6 +5033,47 @@ impl<'a> Em<'a> {
     /// A fieldless data value is canonical for its data type
     /// (`expr.is.canonical-data`): one constant global per type, read here
     /// without allocating (`expr.is.canonical.same`).
+    /// `a is b` on two references (`crates/hd_wasm/DESIGN.md` §15.2,
+    /// "References"): their identity fields are equal, the bases by
+    /// `ref.eq` on the payloads, the serials by `i64.eq`, and the keys as
+    /// strings.
+    fn ref_identity_eq(&mut self, i: u32, a: u32, b: u32) -> StageResult<()> {
+        let t = self.ty_of(a);
+        let Shape::Data { ty: st, fields } = self.lay.shape(t)? else {
+            return unsupported("a reference without a struct layout");
+        };
+        let (Some(base), Some(serial), Some(key)) = (fields.get(2), fields.get(3), fields.get(4))
+        else {
+            return unsupported("a reference without its identity fields");
+        };
+        let (base, serial, key) = (base.0, serial.0, key.0);
+        let ra = self.a.local(VT::r(st.clone()));
+        let rb = self.a.local(VT::r(st.clone()));
+        self.comp(a, 0, &VT::r(st.clone()))?;
+        self.a.set(ra);
+        self.comp(b, 0, &VT::r(st.clone()))?;
+        self.a.set(rb);
+        for r in [ra, rb] {
+            self.a.get(r);
+            self.a.struct_get(&st, base);
+        }
+        self.a.s().ref_eq();
+        for r in [ra, rb] {
+            self.a.get(r);
+            self.a.struct_get(&st, serial);
+        }
+        self.a.s().i64_eq().i32_and();
+        for r in [ra, rb] {
+            self.a.get(r);
+            self.a.struct_get(&st, key);
+            self.a.get(r);
+            self.a.struct_get(&st, key + 1);
+        }
+        self.a.call(Sym::Helper(Helper::StrEq));
+        self.a.s().i32_and();
+        self.store_from(i, &[VT::I32])
+    }
+
     fn canonical_data(&mut self, i: u32, ty: Ty, st: WTy) -> StageResult<()> {
         let h = self.type_hash("canonical-data", ty);
         self.a.global_get(GSym::Canon(h, VT::r(st)));
