@@ -280,6 +280,15 @@ pub(crate) struct Ck<'a, 'c> {
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
+    /// Set while a conversion to a trait value reference checks its impl:
+    /// a struct's `&mut self` method may fill a `mut self` trait method
+    /// there, since the trait value passes the reference
+    /// (`trait.dyn.ref.bridge`).
+    pub bridge_ok: bool,
+    /// The receiver of the method call being checked is a trait value read
+    /// through `&dyn` (`false`) or `&mut dyn` (`true`), written at the node
+    /// (`trait.dyn.ref.member`).
+    pub dyn_recv: Option<(bool, hd_base::NodeIdx)>,
     /// Inside an explicit type-argument list of an expression, where a
     /// named type may omit arguments the expression infers
     /// (`h.fact::[MaxLen]()`); a written type elsewhere infers nothing.
@@ -544,6 +553,8 @@ pub(crate) fn new_ck<'a, 'c>(
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
+        bridge_ok: false,
+        dyn_recv: None,
         in_explicit_targs: false,
         default_owner: None,
         local_defaults: None,
@@ -1568,6 +1579,12 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
+        // A conversion to a trait value reference (`trait.dyn.ref.convert`).
+        if let Some(to) = self.dyn_ref_of(w)
+            && let Some(out) = self.convert_to_dyn_ref(r, g, to, n, what, position)
+        {
+            return out;
+        }
         // A least-common-type site's variable is not a declared type: the
         // value joins the others instead (types.lct).
         if self.joins.is_site(target) {
@@ -1595,6 +1612,12 @@ impl Ck<'_, '_> {
             && !open
             && self.injects_into(gs, ws)
         {
+            // A trait value reference converts before the wrap
+            // (`trait.dyn.ref.convert`).
+            if self.dyn_ref_of(inner).is_some() {
+                let r = self.coerce(r, got, inner, n, what, position);
+                return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
+            }
             if !self.check_upgrade(got, inner, n, what) {
                 self.expect(got, inner, n, what, position);
             }
@@ -2046,7 +2069,7 @@ impl Ck<'_, '_> {
     /// `want` only when its implementation binds each associated type to
     /// the bound type (trait.dyn.binding.convert): otherwise the vtable's
     /// slots would read another type than the value's methods return.
-    fn check_value_bindings(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
+    pub(crate) fn check_value_bindings(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
         let pool = self.pool();
         let TyData::TraitValue { bindings, .. } = pool.get(want) else {
             return;

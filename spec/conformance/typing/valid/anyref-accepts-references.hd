@@ -1,0 +1,29 @@
+# test: `T < AnyRef` accepts `&T`, `&mut T` and trait value references; `T < AnyVal` accepts a struct
+# Spec 04 AnyVal And AnyRef: types.sealed.anyref-kinds, types.sealed.anyval-kinds. Spec 13 Reference Types: ref.type.any-ref, ref.type.dyn.
+trait Shape:
+    fn area(&self) -> f64
+
+struct Point:
+    x: f64
+
+impl Shape for Point:
+    fn area(&self) -> f64:
+        self.x
+
+fn keep[T < AnyRef](value: T) -> T:
+    value
+
+fn copy[T < AnyVal](value: T) -> T:
+    value
+
+fn same[T < AnyRef](a: T, b: T) -> bool:
+    a is b
+
+fn check() -> bool:
+    let mut p = Point { x: 1.0 }
+    _ := keep(&p)
+    _ := keep(&mut p)
+    let shape: &dyn Shape = &p
+    _ := keep(shape)
+    _ := copy(p)
+    same(shape, keep(shape))

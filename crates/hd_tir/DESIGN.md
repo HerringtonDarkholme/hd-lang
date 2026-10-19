@@ -605,6 +605,7 @@ holds.
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
+| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get` | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.

@@ -38,6 +38,7 @@ fn each(f: fn(&Point) -> &mut Point, pending: &Point?) -> void: pass
 7. r[ref.type.distinct] `&T` and `&mut T` are distinct types. Each is invariant in `T`: `&A` is `&B` only when `A` is `B`.
 8. r[ref.type.view] A `mut` view written on the operand is no part of a reference type, so `&(mut Draft)` is `&Draft`. Whether a read through the reference may write is decided by the reference's own `mut` alone.
 9. r[ref.type.any-ref] A reference type implements `AnyRef`.
+10. r[ref.type.dyn] `&dyn Tr` and `&mut dyn Tr` are trait value references, whose conversions and members [Trait Value References](09-traits.md#trait-value-references) states.
 
 ```text
 fn bad_and(p: &&Point) -> void: pass  # error: syntax-error
@@ -189,7 +190,7 @@ A `&mut T` converts to `&T` where a `&T` is expected.
 
 1. r[ref.convert.weaken] A `&mut T` converts implicitly to `&T`, and to `&T?` where an optional is expected. The conversion makes no new reference: both refer to the same place.
 2. r[ref.convert.no-upgrade] A `&T` never converts to `&mut T`. Using one where a `&mut T` is expected is an error. Error: `mutable-upgrade`.
-3. r[ref.convert.no-other] A reference converts to no other type, and no other type converts to a reference.
+3. r[ref.convert.no-other-but-dyn] A reference converts to no other type, and no other type converts to a reference, except by the conversions to a trait value reference of [Trait Value References](09-traits.md#trait-value-references).
 
 ```text
 fn edit(r: &mut i32) -> void:

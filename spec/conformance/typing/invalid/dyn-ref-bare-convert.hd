@@ -1,0 +1,7 @@
+# Spec 09 Trait Value References: trait.dyn.ref.bare. A bare trait value whose trait declares a `&mut self` method does not convert to a trait value reference.
+trait Counter:
+    fn bump(&mut self) -> void
+
+fn demo(counter: dyn Counter) -> void:
+    let r: &dyn Counter = counter  # diagnostic: dyn-member-unavailable
+    _ := r

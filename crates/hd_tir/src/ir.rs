@@ -306,6 +306,10 @@ pub enum Coercion {
     /// A least-common-type site's reserved slot whose value already has
     /// the site's type (`crates/hd_check/DESIGN.md` §4.3 step 6).
     Identity,
+    /// `&S` or `&mut S` to a trait value `Tr` where `S: Tr`: the payload is
+    /// the reference itself, and the dispatch table reads or passes it per
+    /// method (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value references").
+    RefToTraitValue,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.

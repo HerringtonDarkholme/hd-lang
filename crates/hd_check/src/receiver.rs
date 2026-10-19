@@ -103,7 +103,7 @@ impl Ck<'_, '_> {
         (legacy && by_ref).then_some(m)
     }
 
-    /// `trait.impl.receiver-bridge.direct`: an obligation `tref` that the
+    /// `trait.impl.receiver-bridge.direct-or-ref`: an obligation `tref` that the
     /// evidence answers with an impl filling some method through the
     /// bridge is an error, since the trait's declaration would pass that
     /// method a copy. Reports at `at`; returns whether it did.
@@ -116,6 +116,9 @@ impl Ck<'_, '_> {
         let hd_types::solver::Evidence::Impl { row, .. } = ev else {
             return false;
         };
+        if self.bridge_ok {
+            return false;
+        }
         let Some(imp) = self
             .cx
             .impl_table(row.module)
@@ -137,7 +140,7 @@ impl Ck<'_, '_> {
         true
     }
 
-    /// `trait.impl.receiver-bridge.uses`: a call on a struct of a default
+    /// `trait.impl.receiver-bridge.other-uses`: a call on a struct of a default
     /// method of a trait whose impl, one of `impls`, fills some method
     /// through the bridge. The default body would pass that method a copy.
     /// Reports at `n`; returns whether it did.
@@ -243,8 +246,9 @@ impl Ck<'_, '_> {
         }
         match self.resolve_method(t, name)? {
             Some(Hit::Inherent { method, .. }) => self.ref_receiver_of(method, None),
-            // A trait value provides no reference receiver yet
-            // (`trait.dyn.member.ref-receiver`); the call reports it.
+            // A trait value passes its payload to a reference receiver
+            // itself (`trait.dyn.ref.member`), or a bare one has none
+            // (`trait.dyn.member.ref-receiver-bare`); the call decides.
             Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => Ok(None),
             Some(Hit::Trait { method, choice, .. }) => self.ref_receiver_of(method, Some(choice)),
             Some(Hit::Choice { method, cands, .. }) => self.ref_receiver_cands(method, &cands),

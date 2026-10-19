@@ -1,4 +1,4 @@
-# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.uses. A trait-qualified call passes the receiver as the trait declares it.
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.other-uses. A trait-qualified call passes the receiver as the trait declares it.
 trait Counter:
     fn bump(mut self) -> void
 

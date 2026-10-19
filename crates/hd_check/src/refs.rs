@@ -302,7 +302,13 @@ impl Ck<'_, '_> {
         let Some(e) = n.children().next() else {
             return unsupported("a reference expression without an operand");
         };
-        let want_inner = want.and_then(|w| self.ref_of(w)).map(|(i, _)| i);
+        // A trait value reference converts the whole reference
+        // (`trait.dyn.ref.convert`), so its trait value type is no expected
+        // type for the operand.
+        let want_inner = want
+            .filter(|w| self.dyn_ref_of(*w).is_none())
+            .and_then(|w| self.ref_of(w))
+            .map(|(i, _)| i);
         let Some(op) = self.operand(e, want_inner)? else {
             return Ok(self.ref_poison(n));
         };
@@ -343,6 +349,12 @@ impl Ck<'_, '_> {
             }
         };
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
+        if let TyData::TraitValue { def, .. } = pool.get(inner)
+            && self.has_ref_receiver_member(def)
+        {
+            self.bare_dyn_ref_error(def, n);
+            return Ok(self.ref_poison(n));
+        }
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, inner, mutable, rt, n);
         Ok((r, rt))
@@ -850,7 +862,7 @@ impl Ck<'_, '_> {
     }
 
     /// The type of a reference's identity base, `dyn Any`.
-    fn any_ty(&self) -> Ty {
+    pub(crate) fn any_ty(&self) -> Ty {
         self.pool().intern_ty(&TyData::TraitValue {
             def: self.cx.names.known.any,
             args: TyList::EMPTY,
@@ -1124,6 +1136,17 @@ impl Ck<'_, '_> {
                 self.show(t)
             );
             self.err(Code::ReadonlyRoot, lhs, &msg);
+            return Ok(());
+        }
+        // `trait.dyn.ref.no-store`: what a trait value reference refers to
+        // has a type it does not know, so no whole value replaces it.
+        if self.dyn_ref_of(t).is_some() {
+            self.expr(rhs, None)?;
+            let msg = format!(
+                "this replaces the whole value behind a trait value reference {}, whose type the reference does not know; change it through a `&mut self` method instead",
+                self.show(t)
+            );
+            self.err(Code::TypeMismatch, lhs, &msg);
             return Ok(());
         }
         // A value with views is stored with mutable access, which a read

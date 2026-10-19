@@ -1,4 +1,4 @@
-# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.uses. A default body calls the method through the trait's `mut self`, so a struct whose implementation does not write it cannot call it.
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.other-uses. A default body calls the method through the trait's `mut self`, so a struct whose implementation does not write it cannot call it.
 trait Counter:
     fn bump(mut self) -> void
 

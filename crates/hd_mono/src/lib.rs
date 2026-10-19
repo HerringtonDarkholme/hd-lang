@@ -280,7 +280,33 @@ pub const INFO: u32 = u32::MAX;
 pub struct VTable {
     pub trait_: DefId,
     pub slots: Vec<CallTarget>,
+    /// Per slot, how its adapter hands the payload to the target.
+    pub recv: Vec<SlotRecv>,
     pub parents: Vec<VTable>,
+}
+
+impl VTable {
+    /// Whether some slot of the tree reads through a reference payload.
+    #[must_use]
+    pub fn has_read(&self) -> bool {
+        self.recv.contains(&SlotRecv::ReadThrough) || self.parents.iter().any(VTable::has_read)
+    }
+}
+
+/// How a vtable slot's adapter passes the trait value's payload to the
+/// slot's target (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
+/// references").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlotRecv {
+    /// The payload itself: the concrete value, or, for a payload that is a
+    /// reference, the reference a `&self` or `&mut self` target takes.
+    Payload,
+    /// The payload is a reference (`std.core.Ref[T]`) and the target takes
+    /// the value: the adapter reads the value through the reference first.
+    ReadThrough,
+    /// A `&self` or `&mut self` method on a payload that is no reference:
+    /// the checker never lets a call reach it, and the slot traps.
+    Unavailable,
 }
 
 /// The `std.json` and `std.serde` items a host boundary codec calls: JSON
@@ -1935,11 +1961,12 @@ impl Cx<'_> {
             return self.method_target(trait_, method, base, targs, None, parent);
         }
         let found = self.env.impl_method(impl_, method);
-        // `trait.impl.receiver-bridge.direct`: a struct's `&mut self`
+        // `trait.impl.receiver-bridge.direct-or-ref`: a struct's `&mut self`
         // method that fills a trait method declared `mut self` takes a
-        // reference, which only a direct call on the struct passes; the
-        // checker rejects the other uses, and this keeps a missed one from
-        // reaching the emitter.
+        // reference, which only a direct call on the struct and a trait
+        // value reference's slot (`ref_method_target`) pass; the checker
+        // rejects the other uses, and this keeps a missed one from reaching
+        // the emitter.
         if choice.is_none()
             && let Some(m) = found
             && self.bridged(impl_, m, method)
@@ -1989,21 +2016,70 @@ impl Cx<'_> {
         trait_: DefId,
         trait_args: TyList,
         from: Ty,
+        through: bool,
         parent: InstId,
         reps: &mut StableHasher,
     ) -> StageResult<VTable> {
         let (pool, env) = (self.pool, self.env);
         let targs = pool.list_items(trait_args);
+        let cell = env.ref_cell();
+        let is_ref = |t: Ty| matches!(pool.get(t), TyData::Adt { def, .. } if def == cell);
+        let takes_ref = |d: DefId| {
+            env.params(d)
+                .and_then(|ps| ps.first().copied())
+                .is_some_and(is_ref)
+        };
+        // A payload that is a reference to `S` dispatches to `S`'s own
+        // implementation (`RefToTraitValue`), except for a sealed trait,
+        // which the compiler answers at the reference type itself.
+        let inner = match pool.get(from) {
+            TyData::Adt { def, args } if through && def == cell => {
+                pool.list_items(args).first().copied()
+            }
+            _ => None,
+        }
+        .filter(|_| !env.decls().sealed().supplies(trait_));
+        if inner.is_some() {
+            reps.u8(1);
+        }
         let mut slots = Vec::new();
+        let mut recv = Vec::new();
         for m in env.trait_methods(trait_) {
-            // A generic method's slot holds its erased body (§13.5.1).
-            let t = if erased::own_count(env, m) > 0 {
-                self.erased_target(trait_, m, from, targs, parent)?
-            } else {
-                self.method_target(trait_, m, from, targs, None, parent)?
+            let (t, r) = match inner {
+                Some(s) => {
+                    // A generic method's slot holds its erased body (§13.5.1).
+                    let t = if erased::own_count(env, m) > 0 {
+                        self.erased_target(trait_, m, s, targs, parent)?
+                    } else {
+                        self.ref_method_target(trait_, m, s, targs, parent)?
+                    };
+                    let r = if takes_ref(t.item) {
+                        SlotRecv::Payload
+                    } else {
+                        SlotRecv::ReadThrough
+                    };
+                    (t, r)
+                }
+                // `trait.dyn.member.ref-receiver-bare`: a trait value whose
+                // payload is no reference has no reference to pass.
+                None if takes_ref(m) => {
+                    (self.builtin_target(m, from, targs), SlotRecv::Unavailable)
+                }
+                None if erased::own_count(env, m) > 0 => (
+                    self.erased_target(trait_, m, from, targs, parent)?,
+                    SlotRecv::Payload,
+                ),
+                None => (
+                    self.method_target(trait_, m, from, targs, None, parent)?,
+                    SlotRecv::Payload,
+                ),
             };
             reps.hash(t.key);
+            if r != SlotRecv::Payload {
+                reps.u8(r as u8);
+            }
             slots.push(t);
+            recv.push(r);
         }
         let mut full = vec![from];
         full.extend(targs.iter().copied());
@@ -2015,13 +2091,43 @@ impl Cx<'_> {
             else {
                 return err("a supertrait that is not a trait");
             };
-            parents.push(self.vtable(def, args, from, parent, reps)?);
+            parents.push(self.vtable(def, args, from, through, parent, reps)?);
         }
         Ok(VTable {
             trait_,
             slots,
+            recv,
             parents,
         })
+    }
+
+    /// The target of the trait method `method` at the concrete type `s`
+    /// for a trait value whose payload is a reference to `s`: as
+    /// [`Self::method_target`], except that a struct's `&mut self` method
+    /// that fills a `mut self` trait method (the receiver bridge) is
+    /// allowed, since the payload is the reference that method takes
+    /// (`trait.dyn.ref.bridge`).
+    fn ref_method_target(
+        &mut self,
+        trait_: DefId,
+        method: DefId,
+        s: Ty,
+        targs: &[Ty],
+        parent: InstId,
+    ) -> StageResult<CallTarget> {
+        let n_trait = self.env.trait_arity(trait_);
+        let trait_args = self.pool.list(&targs[..n_trait.min(targs.len())]);
+        let method_args = &targs[n_trait.min(targs.len())..];
+        if let Picked::Impl(impl_, impl_args) = self.select(trait_, s, trait_args, None)?
+            && let Some(m) = self.env.impl_method(impl_, method)
+            && self.bridged(impl_, m, method)
+            && self.env.body(m).is_some()
+        {
+            let mut all = impl_args;
+            all.extend_from_slice(method_args);
+            return self.target(m, self.pool.list(&all), parent);
+        }
+        self.method_target(trait_, method, s, targs, None, parent)
     }
 
     /// The parameters of `def` a known value is worth specializing on, by
@@ -2626,7 +2732,8 @@ impl Cx<'_> {
                 }
                 Tag::Coerce => {
                     let rec = body.record(b);
-                    if rec.first().copied() != Some(Coercion::ToTraitValue as u32) {
+                    let through = rec.first().copied() == Some(Coercion::RefToTraitValue as u32);
+                    if !through && rec.first().copied() != Some(Coercion::ToTraitValue as u32) {
                         continue;
                     }
                     let from = s(value_ty(body, a));
@@ -2662,7 +2769,7 @@ impl Cx<'_> {
                         } else {
                             (trait_, trait_args)
                         };
-                    let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
+                    let vt = self.vtable(trait_, trait_args, from, through, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
                 // A map's key operations (`crates/hd_mono/DESIGN.md` §13.12): a literal

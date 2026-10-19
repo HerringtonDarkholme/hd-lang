@@ -23,7 +23,7 @@ versioned subsets.
 | [Modules](lang/10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](lang/11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](lang/12-variadic-generics.md) | none: hd has no packs; where arity-generic code lives instead |
-| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, `&e`, `&mut e`, `*e`, places, writes through a reference, read-only references, identity (`is`) of references |
+| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, trait value references `&dyn Tr`, `&e`, `&mut e`, `*e`, places, writes through a reference, read-only references, identity (`is`) of references |
 | [Annotations](lang/14-annotations.md) | decorators, function facts, member metadata, typed derivation, error derivation |
 
 These chapters are the language tier. The stdlib tier, std APIs that
@@ -315,6 +315,7 @@ The stdlib chapters' terms are in the
 | **test registration call** | A direct call of `it`, `it_each`, `it_prop`, or `it_prop_with`; only such a call may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](lang/03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](lang/03-names-and-scopes.md#r-names.member.trait-methods). |
+| **trait value reference** | A trait value that is a reference, written `&dyn Tr` or `&mut dyn Tr`. See [Trait Value References](lang/09-traits.md#trait-value-references). |
 | **tree hash** | The `h1:` hash of a dependency version's files, which `hd.sum` records. See [`cli.sum.hash`](cli/command-line.md#r-cli.sum.hash). |
 | **tree line** | An `hd.sum` line that records the tree hash of a selected version. See [`cli.sum.line`](cli/command-line.md#r-cli.sum.line). |
 | **type forms** | The kinds of type that hd-lang has, such as primitive types, tuples, optional types, and function types. See [Type Forms](lang/04-type-system.md#type-forms). |

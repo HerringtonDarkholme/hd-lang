@@ -1,0 +1,14 @@
+# Spec 09 Trait Value References: trait.dyn.ref.view. A readonly data value does not convert to `&mut dyn`.
+trait Counter:
+    fn bump(mut self) -> void
+
+data Box:
+    n: i32
+
+impl Counter for Box:
+    fn bump(mut self) -> void:
+        self.n += 1
+
+fn demo(item: Box) -> void:
+    let counter: &mut dyn Counter = item  # diagnostic: mutable-upgrade
+    counter.bump()

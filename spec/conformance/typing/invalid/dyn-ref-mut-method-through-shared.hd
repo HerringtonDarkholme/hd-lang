@@ -1,0 +1,8 @@
+# Spec 09 Trait Value References: trait.dyn.ref.member.mut. A `&mut self` method called through a read-only `&dyn` reference; the fix-it declares the parameter `&mut dyn`.
+trait Counter:
+    fn bump(&mut self) -> void
+    fn total(&self) -> i32
+
+fn poke(counter: &dyn Counter) -> i32:
+    counter.bump()  # diagnostic: mutable-receiver-required
+    counter.total()

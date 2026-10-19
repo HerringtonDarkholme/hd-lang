@@ -1,0 +1,10 @@
+# Spec 09 Trait Value References: trait.dyn.ref.convert.impl. A struct without an implementation of the trait does not convert to its trait value reference.
+trait Shape:
+    fn area(&self) -> f64
+
+struct Square:
+    side: f64
+
+fn demo(square: &Square) -> void:
+    let shape: &dyn Shape = square  # diagnostic: type-mismatch
+    _ := shape

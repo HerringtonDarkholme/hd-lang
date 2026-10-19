@@ -512,7 +512,7 @@ data PostId:
 ### Tuple Types
 
 A tuple is an immutable value without identity, so it implements `AnyVal`,
-as [`types.sealed.anyval-values`](#r-types.sealed.anyval-values) states. No
+as [`types.sealed.anyval-kinds`](#r-types.sealed.anyval-kinds) states. No
 element of it is a place, as
 [`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
 states.
@@ -974,6 +974,7 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
 9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut dyn Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut dyn Display = mutable_user`.
+10. r[types.assign.trait-value.ref] `T` is a trait value reference, `&dyn Trait` or `&mut dyn Trait`, and `S` converts to it by [Trait Value References](09-traits.md#trait-value-references).
 
 ```text
 data User:
@@ -2100,6 +2101,7 @@ fn demo(user: User) -> dyn Any:
 6. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
 8. r[types.trait.value.mut] `mut dyn Trait` is the mutable view of a trait value, as `mut T` is of any type.
+9. r[types.trait.value.ref] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A struct value converted to one is copied into a new object, and a converted `&S` or `&mut S` is shared, as [Trait Value References](09-traits.md#trait-value-references) states.
 
 ```hd
 trait Greet:
@@ -2208,8 +2210,8 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 | Trait | Types | Identity |
 | --- | --- | --- |
-| r[types.sealed.anyval-values] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), and function types | These values have no identity. |
-| r[types.sealed.anyref-values] `AnyRef` | data types, `List`, `Map`, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+| r[types.sealed.anyval-kinds] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, and function types | These values have no identity. |
+| r[types.sealed.anyref-kinds] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: data types, `List`, `Map`, bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
@@ -2463,8 +2465,8 @@ Runtime values fall into three categories:
 | Category | Types | Identity |
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
-| Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), function values | none |
-| Reference values | data values, lists, maps, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for a fieldless data value |
+| Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), struct values, function values | none |
+| Reference values | references, trait value references included, data values, lists, maps, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; allocation identity, or one canonical identity for a fieldless data value |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
 trait. The scalar values and identity-free composites are exactly the

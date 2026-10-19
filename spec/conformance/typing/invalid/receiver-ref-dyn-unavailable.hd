@@ -1,4 +1,4 @@
-# Spec 09 Dynamic Safety: trait.dyn.member.ref-receiver, trait.dyn.member.unavailable.error. A trait value is not a reference yet, so a `&self` method is unavailable on it.
+# Spec 09 Dynamic Safety: trait.dyn.member.ref-receiver-bare, trait.dyn.member.unavailable.error. A bare trait value holds no reference, so a `&self` method is unavailable on it.
 trait Shape:
     fn area(&self) -> f64
     fn name(self) -> string

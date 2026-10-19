@@ -9523,16 +9523,6 @@ impl Env<'_> {
             .is_some_and(|(name, _)| self.run.syms.resolve(*name) == "self")
     }
 
-    /// Whether a method's receiver is `&self` or `&mut self`.
-    fn takes_ref(&self, item: &Item) -> bool {
-        let pool = self.run.pool.types();
-        item.sig()
-            .and_then(|s| s.params.first())
-            .is_some_and(|(name, t)| {
-                self.run.syms.resolve(*name) == "self" && matches!(pool.get(*t), TyData::Ref { .. })
-            })
-    }
-
     /// Whether a method's signature names `Self` outside its receiver; such
     /// a method is unavailable on a trait value (trait.dyn.member.self).
     fn names_self(&self, item: &Item, trait_: DefId) -> bool {
@@ -9759,18 +9749,17 @@ impl ProgramEnv for Env<'_> {
             // A method the compiler lowers at each call (`Inspectable`'s
             // `downcast`) has no slot, nor has an associated function: it
             // has no receiver to dispatch on, so it is unavailable on a
-            // trait value (trait.dyn.member.assoc-function), nor has a
-            // `&self` or `&mut self` method (trait.dyn.member.ref-receiver).
+            // trait value (trait.dyn.member.assoc-function). A `&self` or
+            // `&mut self` method has one: a trait value reference passes
+            // its payload, and on a bare trait value the slot traps
+            // (`hd_mono::SlotRecv`).
             Some(ItemData::Trait(t)) => t
                 .methods
                 .iter()
                 .map(|m| m.1)
                 .filter(|m| {
                     self.p.items.get(m).is_none_or(|i| {
-                        i.intrinsic.is_none()
-                            && self.takes_self(i)
-                            && !self.names_self(i, trait_)
-                            && !self.takes_ref(i)
+                        i.intrinsic.is_none() && self.takes_self(i) && !self.names_self(i, trait_)
                     })
                 })
                 .collect(),

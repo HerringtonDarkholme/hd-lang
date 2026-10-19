@@ -673,20 +673,21 @@ fn demo() -> void:
 ```
 
 1. r[trait.impl.receiver-bridge] A struct's `&mut self` method fills a trait method declared `mut self`. A data type's implementation keeps `mut self`, and any other mismatch is still an error. Error: `trait-method-signature`.
-2. r[trait.impl.receiver-bridge.direct] Such a method serves calls on the struct itself. Each use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
-3. r[trait.impl.receiver-bridge.uses] Those uses are listed in the table below.
+2. r[trait.impl.receiver-bridge.direct-or-ref] Such a method serves calls on the struct itself, and calls through a trait value reference made from the struct, as [`trait.dyn.ref.bridge`](#r-trait.dyn.ref.bridge) states. Each other use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
+3. r[trait.impl.receiver-bridge.other-uses] Those other uses are listed in the table below.
 
 | Use of the struct `S` | Example |
 | --- | --- |
 | the type argument of a bound on the trait | `twice(tally)` for `fn twice[C < Counter](c: mut C)` |
-| a value of the trait | `let erased: mut dyn Counter = tally` |
+| a bare trait value | `let erased: mut dyn Counter = tally` |
 | a trait-qualified call | `Counter::bump(tally)` |
 | a method reference | `tally::bump`, `Tally::bump` |
 | a default method its implementation does not write | `tally.bump_twice()` |
 
 > **Why.** The trait's declaration passes `self` by value, and a struct value
 > passed that way is a copy, so the method would change a copy nobody sees.
-> The uses become valid when the trait itself takes `&mut self`.
+> A trait value reference passes the reference itself instead. The other
+> uses become valid when the trait itself takes `&mut self`.
 
 #### Method Generic Parameters
 
@@ -1723,7 +1724,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 | --- | --- | --- |
 | r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
-| r[trait.dyn.member.ref-receiver] Reference receivers | a method declared `&self` or `&mut self`, since a trait value is not a reference yet | unavailable |
+| r[trait.dyn.member.ref-receiver-bare] Reference receivers | a method declared `&self` or `&mut self`, on a bare `dyn` value, which holds no reference to pass | unavailable on a bare `dyn` value; available through a trait value reference, by [`trait.dyn.ref.member`](#r-trait.dyn.ref.member) |
 | r[trait.dyn.safe.assoc-type] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `dyn Supplier[Item = i32]` does |
 | r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | available |
@@ -1921,6 +1922,73 @@ fn demo(user: User) -> dyn Greet:
 
 See also: [Runtime Type Identity](#runtime-type-identity).
 
+### Trait Value References
+
+A **trait value reference**, written `&dyn Tr` or `&mut dyn Tr`, is a trait
+value that is a reference: it refers to one object whose type implements
+`Tr`. A bare `dyn Tr` remains a trait value type, as the sections above
+define.
+
+```hd
+trait Counter:
+    fn bump(&mut self) -> void
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(&self) -> i32:
+        self.n
+
+fn demo() -> i32:
+    let mut tally = Tally { n: 0 }
+    let shared: &mut dyn Counter = &mut tally
+    shared.bump()                    # changes `tally`
+    let copied: &dyn Counter = tally  # a new object that holds a copy
+    tally.bump()
+    copied.total()                   # 1: the copy did not change
+```
+
+1. r[trait.dyn.ref.form] `&dyn Tr` and `&mut dyn Tr` are trait value references. They are reference types, as [Reference Types](13-values-and-references.md#reference-types) defines.
+2. r[trait.dyn.ref.share] `&S` converts implicitly to `&dyn Tr`, and `&mut S` to `&mut dyn Tr`, when `S` implements `Tr`. The result refers to the place the source refers to.
+3. r[trait.dyn.ref.copy] A value of a type `S` that is no reference converts implicitly to `&dyn Tr` or `&mut dyn Tr` when `S` implements `Tr`. The result refers to a new object that holds a copy of the value, as `&e` does on a value.
+4. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
+5. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
+6. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
+7. r[trait.dyn.ref.view] Converting a readonly view, such as a readonly data value, to `&mut dyn Tr` is an error. Error: `mutable-upgrade`.
+8. r[trait.dyn.ref.widen] A child trait value reference converts implicitly to a supertrait value reference of the same mutability, which refers to the same object.
+9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
+10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `mutable-receiver-required`.
+11. r[trait.dyn.ref.member.other] Every other member is available or unavailable as on a bare `dyn Tr` value, by [Dynamic Safety](#dynamic-safety).
+12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
+13. r[trait.dyn.ref.bridge] A struct's `&mut self` method that fills a trait method declared `mut self`, by [`trait.impl.receiver-bridge`](#r-trait.impl.receiver-bridge), serves calls through a trait value reference made from the struct.
+14. r[trait.dyn.ref.bridge.default] Converting such a struct to a trait value reference is an error when its implementation does not write a default method of the trait. Error: `unsatisfied-trait-bound`.
+15. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of a value refer to two new objects.
+16. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
+17. r[trait.dyn.ref.bare] `&e` with a bare `dyn Tr` operand, and converting a bare `dyn Tr` value to a trait value reference, are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
+18. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
+
+```text
+trait Counter:
+    fn bump(&mut self) -> void
+
+fn poke(counter: &dyn Counter) -> void:
+    counter.bump()  # error: mutable-receiver-required
+
+fn upgrade(counter: &dyn Counter) -> &mut dyn Counter:
+    counter  # error: mutable-upgrade
+```
+
+> **Why.** A trait value refers to its object as Go's interface value does:
+> a value stored in it is copied, and a pointer stored in it is shared.
+> Writing `&mut` says that methods called through it may change the object.
+
+See also: [Values And References](13-values-and-references.md),
+[Reference Receivers](07-functions.md#reference-receivers).
+
 ## `Any`
 
 `Any` is the universal empty trait.
@@ -1945,8 +2013,8 @@ compiler and the standard library supply.
 | Rule | Trait | Implemented for |
 | --- | --- | --- |
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
-| r[trait.sealed.anyval-values] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
-| r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyval-kinds] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyref-kinds] AnyRef | `AnyRef` | the reference types, trait value references included, and the types whose values are shared objects ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |

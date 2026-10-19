@@ -1,0 +1,10 @@
+# test: a struct is a value, so it does not implement AnyRef
+# Spec 04 AnyVal And AnyRef: types.sealed.anyref-kinds, types.sealed.bounds.
+struct Point:
+    x: i32
+
+fn keep[T < AnyRef](value: T) -> T:
+    value
+
+fn check() -> void:
+    _ := keep(Point { x: 1 })  # diagnostic: unsatisfied-trait-bound

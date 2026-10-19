@@ -1,0 +1,33 @@
+# test: a `&mut dyn Counter` made from `&mut c` changes `c` through `&mut self` methods, and a write to `c` is seen through it
+# Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.write-through, trait.dyn.ref.member.
+# expect-stdout: 2 2
+# expect-stdout: 10 10
+# expect-stdout: 13
+trait Counter:
+    fn bump(&mut self) -> void
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+    fn total(&self) -> i32:
+        self.n
+
+fn bump_three(counter: &mut dyn Counter) -> void:
+    counter.bump()
+    counter.bump()
+    counter.bump()
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { n: 0 }
+    let counter: &mut dyn Counter = &mut tally
+    counter.bump()
+    counter.bump()
+    println("${tally.n} ${counter.total()}")
+    tally.n = 10
+    println("${counter.total()} ${tally.n}")
+    bump_three(&mut tally)
+    println("${tally.n}")

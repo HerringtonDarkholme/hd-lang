@@ -803,7 +803,11 @@ in a fixed order, and at most one applies:
 8. `S` to a trait value `Tr` when `S: Tr` holds: `ToTraitValue`, or
    `ToAny` for `Any`; `mut S` to `mut Tr` likewise
    ([`types.assign.trait-value.mut`](../../spec/lang/04-type-system.md#r-types.assign.trait-value.mut)).
-9. A child trait value to a supertrait value: `Supertrait`.
+9. A child trait value to a supertrait value: `Supertrait`. `&S`, or a
+   value of `S`, to a trait value reference `&dyn Tr` when `S: Tr` holds:
+   a new `Ref[dyn Tr]` whose `get` applies `RefToTraitValue` to the
+   source reference (`dynref.rs`,
+   [`types.assign.trait-value.ref`](../../spec/lang/04-type-system.md#r-types.assign.trait-value.ref)).
 10. A suspending function type to its constructor form: `SuspendFnToCtor`
     ([`req.suspend.type.conversion`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.type.conversion)).
 11. Otherwise an error: `mutable-upgrade` or
@@ -833,6 +837,7 @@ Collection never re-derives one.
 | `Supertrait` | child trait value → parent trait value | load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none, or a thin adapter |
 | `Identity` | `T` → `T` | none: a least-common-type slot whose value needed no conversion (section 4.3) |
+| `RefToTraitValue` | `&S` → `Tr`, inside the `get` of a trait value reference (`dynref.rs`) | box the reference itself; the vtable reads through it or passes it per slot |
 
 Variance markers are declared, not inferred (`hd_resolve/src/variance.rs`).
 
@@ -2037,7 +2042,7 @@ not special cases scattered through matching.
 | Trait | Holds for | Subgoals | Evidence |
 | --- | --- | --- | --- |
 | `Any` | every value type, `never`, optionals | none | `Builtin(Any)` |
-| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), function types; a newtype over one of them ([`types.sealed.anyval-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-values)) | the newtype's base | `Builtin(AnyVal)` |
+| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), function types; a newtype over one of them ([`types.sealed.anyval-kinds`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-kinds)) | the newtype's base | `Builtin(AnyVal)` |
 | `AnyRef` | data, `List`, `Map`, trait values, `Any`, suspensions, handles; a newtype over one | the newtype's base | `Builtin(AnyRef)` |
 | `Inspectable` | [inspectable types](../../spec/lang/09-traits.md#inspectable-types): primitives, `string`, module-level declarations with inspectable arguments, `List`, `Map`, tuples, `Inspectable` trait values; trait values and `Any` as arguments only | one per type argument, one level deeper | `Builtin(Inspectable)` |
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |

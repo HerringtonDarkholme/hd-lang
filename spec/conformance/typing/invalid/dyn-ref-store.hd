@@ -1,0 +1,6 @@
+# Spec 09 Trait Value References: trait.dyn.ref.no-store. A whole value written through a trait value reference.
+trait Counter:
+    fn bump(&mut self) -> void
+
+fn replace(counter: &mut dyn Counter, other: dyn Counter) -> void:
+    *counter = other  # diagnostic: type-mismatch

@@ -1,4 +1,4 @@
-# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.direct, trait.impl.receiver-bridge.uses. A bound on the trait reaches the method through the trait's `mut self`.
+# Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.direct-or-ref, trait.impl.receiver-bridge.other-uses. A bound on the trait reaches the method through the trait's `mut self`.
 trait Counter:
     fn bump(mut self) -> void
     fn total(self) -> i32

@@ -12,9 +12,9 @@ use hd_base::{
 };
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
-    CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, class_ref, declared_row_keys,
-    erased_args, has_row_params, key_order, row_args_open, row_is_open, row_param_keys, subst,
-    thunk_capture_locals, thunk_operands, witness_args, witness_family,
+    CallTarget, INFO, ProgramEnv, SlotRecv, Target, TargetKind, VTable, class_ref,
+    declared_row_keys, erased_args, has_row_params, key_order, row_args_open, row_is_open,
+    row_param_keys, subst, thunk_capture_locals, thunk_operands, witness_args, witness_family,
 };
 use hd_tir::ir::{
     Body, BodyKind, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -29,7 +29,7 @@ use crate::layout::{
     task_base, witness_ty,
 };
 use crate::lowering::{ClosureCode, Lowering};
-use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
+use crate::rt::{Helper, KeyOps, OptForm, RefRead, block_import, unerase};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3632,7 +3632,9 @@ impl Em<'_> {
         {
             return self.widen(i, v, ty);
         }
-        if kind == Coercion::ToTraitValue as u32 {
+        // A reference payload boxes as any value does; only the vtable's
+        // adapters differ (`hd_mono::SlotRecv`).
+        if kind == Coercion::ToTraitValue as u32 || kind == Coercion::RefToTraitValue as u32 {
             let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
                 return unsupported("a trait-value coercion that collection did not record");
             };
@@ -3642,7 +3644,7 @@ impl Em<'_> {
             let from = self.ty_of(v);
             let fv = self.vts(from)?;
             self.erase(v, &fv)?;
-            self.vtable_value(&table, key, &fv)?;
+            self.vtable_value(&table, key, from, &fv)?;
             return self.store(i);
         }
         // A suspending function value's code already returns its cold
@@ -5424,17 +5426,22 @@ impl<'a> Em<'a> {
     /// no allocation (`GSym::Vtable`). The tree is written into its own
     /// constant expression; a tree that repeats a subtable repeats its
     /// `struct.new`, which runs once, when the module is instantiated.
-    fn vtable_value(&mut self, table: &VTable, key: Ty, fv: &[VT]) -> StageResult<()> {
+    fn vtable_value(&mut self, table: &VTable, key: Ty, from: Ty, fv: &[VT]) -> StageResult<()> {
         let mut uses: HashMap<Ty, u32> = HashMap::default();
         self.count_tables(table, key, &mut uses)?;
         // Collection records a repeated subtable's slots at its first
         // occurrence only, so each later occurrence is that one again.
         let table = self.first_tables(table, key, &mut HashMap::default());
         let outer = std::mem::replace(&mut self.a, Asm::new(vec![]));
+        let read = if table.has_read() {
+            Some(self.ref_read(from)?)
+        } else {
+            None
+        };
         let pushed = self.push_table(
             &table,
             key,
-            fv,
+            (fv, read.as_ref()),
             &HashMap::default(),
             &mut HashMap::default(),
         );
@@ -5463,6 +5470,7 @@ impl<'a> Em<'a> {
         let whole = VTable {
             trait_: table.trait_,
             slots: table.slots.clone(),
+            recv: table.recv.clone(),
             parents,
         };
         firsts.insert(key, whole.clone());
@@ -5487,11 +5495,49 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
+    /// How an adapter reads the value a reference payload of type `from`
+    /// (a lowered `&T`, `std.core.Ref[T]`) refers to: a call of its `get`
+    /// closure ("Trait value references").
+    fn ref_read(&self, from: Ty) -> StageResult<RefRead> {
+        let Shape::Data { ty: data, fields } = self.lay.shape(from)? else {
+            return unsupported("a reference payload without a struct layout");
+        };
+        let (pool, env) = (self.pool(), self.env());
+        let TyData::Adt { def, args } = pool.get(from) else {
+            return unsupported("a reference payload that is no reference");
+        };
+        let Some(get_ty) = env.data_fields(def).and_then(|f| f.first().copied()) else {
+            return unsupported("a reference type without its `get` field");
+        };
+        let get_ty = subst(pool, env, def, args, get_ty);
+        let Shape::Fn { base, code } = self.lay.shape(get_ty)? else {
+            return unsupported("a reference's `get` that is no closure");
+        };
+        let WTy::Func(_, results) = &code else {
+            return unsupported("a closure code type");
+        };
+        let Some((start, vs)) = fields.first() else {
+            return unsupported("a reference without fields");
+        };
+        let [field_vt] = vs.as_slice() else {
+            return unsupported("a reference's `get` field of several values");
+        };
+        Ok(RefRead {
+            data,
+            field: *start,
+            field_vt: field_vt.clone(),
+            results: results.clone(),
+            cast: self.lay.closure_code() == ClosureCode::Abstract,
+            base,
+            code,
+        })
+    }
+
     fn push_table(
         &mut self,
         table: &VTable,
         key: Ty,
-        fv: &[VT],
+        (fv, read): (&[VT], Option<&RefRead>),
         uses: &HashMap<Ty, u32>,
         built: &mut HashMap<Ty, u32>,
     ) -> StageResult<()> {
@@ -5502,8 +5548,15 @@ impl<'a> Em<'a> {
         }
         let vt = self.lay.vtable(key)?;
         let methods = self.env().trait_methods(trait_);
-        for (m, t) in methods.iter().zip(&table.slots) {
+        for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             let sig = self.lay.slot_sig(key, *m)?;
+            if *recv == SlotRecv::Unavailable {
+                self.a.ref_func(Sym::Helper(Helper::Unlowered {
+                    sig,
+                    what: "a `&self` or `&mut self` method through a trait value that holds no reference".into(),
+                }));
+                continue;
+            }
             // A method the compiler supplies for every type: the vtable's
             // `runtime_type` answers the recorded type, the concrete type
             // the vtable is built at (trait.inspect.dynamic). Any other
@@ -5561,6 +5614,15 @@ impl<'a> Em<'a> {
                 provs.push(pairs);
                 pairs += 1;
             }
+            let read = match (recv, read) {
+                (SlotRecv::ReadThrough, Some(rd)) => Some(Box::new(rd.clone())),
+                (SlotRecv::ReadThrough, None) => {
+                    return unsupported(
+                        "a vtable slot that reads through a payload of no reference",
+                    );
+                }
+                _ => None,
+            };
             self.a.ref_func(Sym::Helper(Helper::Adapter {
                 sig,
                 self_vts: fv.to_vec(),
@@ -5569,11 +5631,12 @@ impl<'a> Em<'a> {
                 results,
                 keys: pairs,
                 provs,
+                read,
             }));
         }
         let supers = self.lay.dyn_supers(key);
         for (p, s) in table.parents.iter().zip(supers) {
-            self.push_table(p, s, fv, uses, built)?;
+            self.push_table(p, s, (fv, read), uses, built)?;
         }
         self.a.struct_new(&vt);
         if uses.get(&key).is_some_and(|n| *n > 1) {

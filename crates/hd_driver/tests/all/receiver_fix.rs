@@ -1,7 +1,9 @@
 //! A `&mut self` call on a binding that is not writable, and a field write
 //! through `self` in a struct's `self` method, carry a fix-it that makes the
 //! binding writable (spec/lang/07-functions.md fn.method.auto-address.fix,
-//! fn.method.self-struct-write). Each fix-it checks clean.
+//! fn.method.self-struct-write). So does a `&mut self` call through a
+//! read-only trait value reference (spec/lang/09-traits.md
+//! trait.dyn.ref.member.mut). Each fix-it checks clean.
 
 use hd_diag::{Code, DiagBuf};
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -97,6 +99,34 @@ fn each_fix_makes_the_receiver_writable_and_checks_clean() {
         let src = format!("{POINT}{body}\npub fn main() -> void:\n    ()\n");
         let d = diags(&src);
         assert!(d.code.contains(&code), "{body}: {:?}", d.code);
+        let out = apply_fix(&src, &d);
+        assert!(out.contains(want), "{body}: {out}");
+        assert_eq!(codes(&out), Vec::<Code>::new(), "{body}: {out}");
+    }
+}
+
+const COUNTER: &str = "trait Counter:\n    fn bump(&mut self) -> void\n\nstruct Tally:\n    n: i32\n\nimpl Counter for Tally:\n    fn bump(&mut self) -> void:\n        self.n += 1\n\n";
+
+#[test]
+fn a_mut_method_through_a_shared_trait_value_reference_fixes_its_type() {
+    let cases = [
+        (
+            "fn poke(counter: &dyn Counter) -> void:\n    counter.bump()\n",
+            "fn poke(counter: &mut dyn Counter)",
+        ),
+        (
+            "fn demo() -> void:\n    let mut tally = Tally { n: 0 }\n    let counter: &dyn Counter = &mut tally\n    counter.bump()\n",
+            "let counter: &mut dyn Counter = &mut tally",
+        ),
+    ];
+    for (body, want) in cases {
+        let src = format!("{COUNTER}{body}\npub fn main() -> void:\n    ()\n");
+        let d = diags(&src);
+        assert!(
+            d.code.contains(&Code::MutableReceiverRequired),
+            "{body}: {:?}",
+            d.code
+        );
         let out = apply_fix(&src, &d);
         assert!(out.contains(want), "{body}: {out}");
         assert_eq!(codes(&out), Vec::<Code>::new(), "{body}: {out}");

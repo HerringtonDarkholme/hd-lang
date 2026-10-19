@@ -224,9 +224,52 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   receiver addressed) may reach it. The checker rejects every other use, and
   `hd_mono`'s `method_target` stops a call through a bound that selects
   such a method (`bridged`) with an unsupported-stage error rather than
-  emit a mismatched call. Trait values have no slot for a `&self` or
-  `&mut self` method (the driver's `trait_methods`), until trait values
-  become references.
+  emit a mismatched call. A trait value reference's vtable may reach it
+  ("Trait value references" below), since it passes the reference.
+- **Trait value references.** `&dyn Tr` and `&mut dyn Tr`
+  ([Trait Value References](../../spec/lang/09-traits.md#trait-value-references))
+  lower as every reference does, to `Ref[dyn Tr]`, so generic code over
+  `&T` and std's `&T` impls (`Display`, `Eq`, ...) see an ordinary
+  reference. What differs is how the checker builds one
+  (`crates/hd_check/src/dynref.rs`): converting `&S` (or a value of `S`,
+  first made a new object as `&e` makes one) builds a new `Ref[dyn Tr]`
+  whose `get` closure converts the captured source reference to the trait
+  value with `Coerce` of kind `RefToTraitValue`, whose `set` is
+  `unreachable` (a whole value is never stored through one,
+  `trait.dyn.ref.no-store`), and whose identity fields are copied from the
+  source reference, so `is` compares the source places. Widening to a
+  supertrait value reference wraps the same way with `Supertrait`
+  applied to what the source refers to.
+  - **The payload is the reference.** A `RefToTraitValue` boxes the
+    `Ref[S]` itself as the trait value's payload; collection (`hd_mono`
+    `vtable` with `through`) builds the vtable at `S`'s implementation and
+    records per slot how its adapter passes the payload
+    (`hd_mono::SlotRecv`): a method that takes `&self` or `&mut self`, or a
+    struct's bridged `&mut self` method, gets the `Ref[S]` unchanged
+    (`Payload`), so its writes reach the caller's place; a method that
+    takes the value gets what `get` returns (`ReadThrough`): the adapter
+    (`Helper::Adapter` with a `RefRead`) calls the `get` closure, as
+    `CallValue` does, casting the code on the `Wasmtime` profile. A sealed
+    trait's slots (`Any`, `Inspectable`) stay at the reference type itself,
+    so `runtime_type` reports `&S` and a downcast to `&S` recovers the
+    payload.
+  - **Bare trait values.** Every vtable now has a slot for a `&self` or
+    `&mut self` method (the driver's `trait_methods`). On a bare `dyn Tr`
+    built from a value the slot is `Unavailable`, a trap the checker never
+    lets a call reach (`trait.dyn.member.ref-receiver-bare`); `&e` on a bare
+    trait value of such a trait is an error for the same reason
+    (`trait.dyn.ref.bare`). Generic code can still form `&T` with `T` a
+    bare trait value and return it as `&dyn Tr`; a `&self` call through
+    that value reaches the trap. Likewise a generic `*r = v` through
+    `&mut T`, given a converted trait value reference with `T` its bare
+    trait value type, reaches the `unreachable` `set`. Both paths end when
+    bare `dyn` goes.
+  - **Cost.** A conversion allocates the `Ref[dyn Tr]` object and its
+    `get` closure (the `set` is a constant), on top of the source
+    reference; a call through one calls `get`, then the slot, and a
+    `self` method's adapter calls the source's `get` again. Correct first:
+    on the linear-memory backend a trait value reference is the address
+    and the vtable, two words, as Go's interface value is.
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are
@@ -394,7 +437,7 @@ So the layouts follow these rules:
 **One predicate for identity-free enums.** Layout, `is` lowering
 and the checker's value-type test read one predicate, `identity_free(E)`.
 Since the S1c spec pass it holds for every enum
-([`types.sealed.anyval-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-values)).
+([`types.sealed.anyval-kinds`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-kinds)).
 An identity-free enum
 uses a value layout: a nullable reference when it has one reference
 payload and one payloadless variant (`T?`), else `(i32 tag, payload

@@ -13,7 +13,7 @@ use crate::asm::Asm;
 use crate::boundary::BTy;
 use crate::layout::{
     ABANDONED, ACTIVE, CANCELLED, DONE, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE,
-    UNWINDING, cancel_fn, storage, task_base,
+    UNWINDING, cancel_fn, ctx_keys, ctx_provs, storage, task_base,
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
@@ -363,6 +363,64 @@ pub enum KeyOps {
     },
 }
 
+/// How a vtable adapter reads the value a reference payload refers to
+/// (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value references"): the
+/// `std.core.Ref[T]` struct `data`, its `get` closure's field and value
+/// type, and that closure's base and code types, which a call casts to
+/// when `cast` (an abstract code reference); the call returns `results`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RefRead {
+    pub data: WTy,
+    pub field: u32,
+    pub field_vt: VT,
+    pub base: WTy,
+    pub code: WTy,
+    pub cast: bool,
+    pub results: Vec<VT>,
+}
+
+impl RefRead {
+    fn encode(&self, w: &mut Writer) {
+        enc_wty(&self.data, w);
+        w.u32(self.field);
+        encode_vts(std::slice::from_ref(&self.field_vt), w);
+        enc_wty(&self.base, w);
+        enc_wty(&self.code, w);
+        w.u8(u8::from(self.cast));
+        encode_vts(&self.results, w);
+    }
+
+    fn decode(r: &mut Reader<'_>) -> Option<Self> {
+        Some(RefRead {
+            data: dec_wty(r)?,
+            field: r.u32(),
+            field_vt: decode_vts(r)?.into_iter().next()?,
+            base: dec_wty(r)?,
+            code: dec_wty(r)?,
+            cast: r.u8() != 0,
+            results: decode_vts(r)?,
+        })
+    }
+
+    /// Replaces the reference on top of the stack with the values its
+    /// `get` closure returns.
+    fn emit(&self, a: &mut Asm) {
+        a.struct_get(&self.data, self.field);
+        a.conv(&self.field_vt, &VT::r(self.base.clone()));
+        let f = a.local(VT::r(self.base.clone()));
+        a.set(f);
+        a.get(f);
+        a.ref_null(&ctx_keys());
+        a.ref_null(&ctx_provs());
+        a.get(f);
+        a.struct_get(&self.base, 0);
+        if self.cast {
+            a.ref_cast(&self.code, false);
+        }
+        a.call_ref(&self.code);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
     /// The getter of the module's pooled string literals, by number
@@ -592,6 +650,9 @@ pub enum Helper {
         results: Vec<VT>,
         keys: u32,
         provs: Vec<u32>,
+        /// For a payload that is a reference whose value the target takes
+        /// (`hd_mono::SlotRecv::ReadThrough`): how to read it.
+        read: Option<Box<RefRead>>,
     },
     /// `hd.init`: every reachable group's init, in order. A flagged init
     /// belongs to a non-entry module and runs as a forbidden context
@@ -966,8 +1027,12 @@ impl Helper {
                 results,
                 keys,
                 provs,
+                read,
             } => {
-                w.u8(9);
+                w.u8(if read.is_some() { 57 } else { 9 });
+                if let Some(rd) = read {
+                    rd.encode(w);
+                }
                 enc_wty(sig, w);
                 encode_vts(self_vts, w);
                 target.encode(w);
@@ -1039,7 +1104,8 @@ impl Helper {
     }
 
     pub(crate) fn decode(r: &mut Reader<'_>) -> Option<Helper> {
-        Some(match r.u8() {
+        let tag = r.u8();
+        Some(match tag {
             0 => Helper::Lit,
             1 => Helper::IntToStr {
                 wide: r.u8() == 1,
@@ -1196,15 +1262,23 @@ impl Helper {
             37 => Helper::EntryCancel,
             56 => Helper::EntryAbandon,
             38 => Helper::EntryCall { func: r.hash() },
-            9 => Helper::Adapter {
-                sig: dec_wty(r)?,
-                self_vts: decode_vts(r)?,
-                target: Box::new(Sym::decode(r)?),
-                params: decode_vts(r)?,
-                results: decode_vts(r)?,
-                keys: r.u32(),
-                provs: (0..r.count()).map(|_| r.u32()).collect(),
-            },
+            9 | 57 => {
+                let read = if tag == 57 {
+                    Some(Box::new(RefRead::decode(r)?))
+                } else {
+                    None
+                };
+                Helper::Adapter {
+                    sig: dec_wty(r)?,
+                    self_vts: decode_vts(r)?,
+                    target: Box::new(Sym::decode(r)?),
+                    params: decode_vts(r)?,
+                    results: decode_vts(r)?,
+                    keys: r.u32(),
+                    provs: (0..r.count()).map(|_| r.u32()).collect(),
+                    read,
+                }
+            }
             10 => {
                 let main = r.hash();
                 let n = r.count();
@@ -2048,6 +2122,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             results,
             keys,
             provs,
+            read,
         } => {
             let WTy::Func(sp, sr) = sig else {
                 return unsupported("an adapter without a signature");
@@ -2055,7 +2130,21 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             let at = sp.len() - 2 * *keys as usize;
             let mut a = Asm::new(sp.clone());
             unerase(&mut a, 0, self_vts);
-            for (k, (j, p)) in (self_vts.len()..).zip(sp[..at].iter().enumerate().skip(1)) {
+            let mut self_n = self_vts.len();
+            if let Some(rd) = read {
+                rd.emit(&mut a);
+                // The read values become the target's receiver.
+                let tmp: Vec<u32> = rd.results.iter().map(|v| a.local(v.clone())).collect();
+                for l in tmp.iter().rev() {
+                    a.set(*l);
+                }
+                for (l, (have, want)) in tmp.iter().zip(rd.results.iter().zip(params.iter())) {
+                    a.get(*l);
+                    a.conv(have, want);
+                }
+                self_n = rd.results.len();
+            }
+            for (k, (j, p)) in (self_n..).zip(sp[..at].iter().enumerate().skip(1)) {
                 a.get(u32::try_from(j).expect("j"));
                 if let Some(want) = params.get(k) {
                     a.conv(p, want);

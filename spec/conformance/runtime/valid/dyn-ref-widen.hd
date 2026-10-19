@@ -1,0 +1,37 @@
+# test: a child trait value reference widens to a supertrait value reference to the same object, and converts into an optional
+# Spec 09 Trait Value References: trait.dyn.ref.widen, trait.dyn.ref.weaken.
+# expect-stdout: sq 4.0
+# expect-stdout: sq true
+# expect-stdout: 9.0
+trait Named:
+    fn name(&self) -> string
+
+trait Shape < Named:
+    fn area(&self) -> f64
+
+struct Square:
+    side: f64
+
+impl Named for Square:
+    fn name(&self) -> string:
+        "sq"
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+fn label(named: &dyn Named) -> string:
+    named.name()
+
+pub fn main() -> void $ Console:
+    let mut sq = Square { side: 2.0 }
+    let shape: &mut dyn Shape = &mut sq
+    println("${label(shape)} ${shape.area()}")
+    let named: &dyn Named = shape
+    let again: &dyn Named = &sq
+    println("${named.name()} ${named is again}")
+    let maybe: &dyn Shape? = &sq
+    sq.side = 3.0
+    match maybe:
+        .Some(s) => println("${s.area()}")
+        .None => println("none")

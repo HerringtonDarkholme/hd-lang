@@ -1166,9 +1166,9 @@ fn version!() -> string $ Process:
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref-values] `AnyRef` is implemented by data values, lists, maps, dynamic trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
+2. r[module.prelude.anyref-kinds] `AnyRef` is implemented by the reference types, trait value references included, and by data values, lists, maps, bare trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
 3. r[module.prelude.anyref-excludes] `AnyRef` is not implemented by primitives, tuples, enums (optionals included), or functions.
-4. r[module.prelude.anyval-values] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), function types, and newtypes whose base type implements `AnyVal`.
+4. r[module.prelude.anyval-kinds] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, function types, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
 6. r[module.prelude.any-sealed] User code cannot implement either.
 

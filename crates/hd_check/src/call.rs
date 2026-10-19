@@ -2615,6 +2615,7 @@ impl Ck<'_, '_> {
             self.method_targs = method_targs;
             return self.method_on(passed.0, passed.1, &name, args, (n, bang), want);
         }
+        let via_dyn = self.dyn_ref_of(rt).map(|(_, m)| (m, base.index()));
         let (recv, rt) = match self.ref_of(rt) {
             Some((_, m)) => {
                 let (v, t) = self.emit_deref(recv, rt, base.index());
@@ -2626,6 +2627,9 @@ impl Ck<'_, '_> {
             None => (recv, rt),
         };
         self.method_targs = method_targs;
+        // Through a trait value reference, `&self` and `&mut self` methods
+        // are available (`trait.dyn.ref.member`).
+        self.dyn_recv = via_dyn;
         self.method_on(recv, rt, &name, args, (n, bang), want)
     }
 
@@ -3379,6 +3383,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
+        let dyn_recv = self.dyn_recv.take();
         let rt = self.norm_ty(rt);
         // A receiver whose type an earlier error left unknown adds nothing.
         if matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
@@ -3629,22 +3634,41 @@ impl Ck<'_, '_> {
                     );
                     self.err(Code::GenericMemberCall, n, &msg);
                 }
+                // A trait value read through `&dyn` or `&mut dyn`
+                // (`trait.dyn.ref.member`).
+                let via_dyn = dyn_recv.filter(|_| choice.0 == ChoiceKind::TraitValue);
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
-                    if !addressed {
+                    let by_ref = matches!(pool.get(st), TyData::Ref { .. });
+                    if let Some((mutable, at)) = via_dyn {
+                        let changes = match pool.get(st) {
+                            TyData::Ref { mutable, .. } => mutable,
+                            TyData::Mut(_) => true,
+                            _ => false,
+                        };
+                        if changes && !mutable {
+                            for e in &args.positional {
+                                self.expr(*e, Some(Ty::POISON))?;
+                            }
+                            self.dyn_ref_mut_receiver(name, at, n);
+                            return Ok((Ref(NONE), Ty::NEVER));
+                        }
+                    }
+                    // A trait value reference passes its payload as the
+                    // reference receiver.
+                    let passes_payload = by_ref && via_dyn.is_some();
+                    if !(addressed || passes_payload) {
                         self.check_receiver(st, rt, n);
                     }
-                    if choice.0 == ChoiceKind::TraitValue
-                        && matches!(pool.get(st), TyData::Ref { .. })
-                    {
-                        // `trait.dyn.member.ref-receiver`: trait values
-                        // are not references yet.
+                    if choice.0 == ChoiceKind::TraitValue && by_ref && via_dyn.is_none() {
+                        // `trait.dyn.member.ref-receiver-bare`: a bare trait
+                        // value holds no reference to pass.
                         for e in &args.positional {
                             self.expr(*e, Some(Ty::POISON))?;
                         }
                         let msg = format!(
-                            "`{name}` takes a reference receiver (`&self` or `&mut self`), which is unavailable on a trait value"
+                            "`{name}` takes a reference receiver (`&self` or `&mut self`), which is unavailable on a bare trait value; call it through a `&dyn` or `&mut dyn` reference"
                         );
                         self.err(Code::DynMemberUnavailable, n, &msg);
                         return Ok((Ref(NONE), Ty::NEVER));
@@ -3675,8 +3699,12 @@ impl Ck<'_, '_> {
                     self.err(Code::DynMemberUnavailable, n, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
+                // A trait value passes its payload to a reference receiver
+                // itself (`hd_mono::SlotRecv`).
                 let recv = match self.ref_receiver_of(method, Some(choice))? {
-                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    Some(m) if !addressed && choice.0 != ChoiceKind::TraitValue => {
+                        self.fit_receiver(recv, rt, m, name, n)
+                    }
                     _ => recv,
                 };
                 self.trait_method_call(

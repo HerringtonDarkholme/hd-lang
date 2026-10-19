@@ -1,0 +1,19 @@
+# Spec 09 Trait Value References: trait.dyn.ref.bridge.default. The trait's default method would pass the bridged `&mut self` method a copy.
+trait Counter:
+    fn bump(mut self) -> void
+
+    fn bump_twice(mut self) -> void:
+        self.bump()
+        self.bump()
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+fn demo() -> void:
+    let mut tally = Tally { n: 0 }
+    let counter: &mut dyn Counter = &mut tally  # diagnostic: unsatisfied-trait-bound
+    counter.bump_twice()

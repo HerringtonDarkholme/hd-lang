@@ -1,0 +1,7 @@
+# Spec 09 Trait Value References: trait.dyn.ref.member.mut. A `mut self` method called through a read-only `&dyn` reference.
+trait Counter:
+    fn bump(mut self) -> void
+
+fn poke(counter: &dyn Counter) -> void:
+    let shared: &dyn Counter = counter
+    shared.bump()  # diagnostic: mutable-receiver-required

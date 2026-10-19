@@ -1,0 +1,61 @@
+# test: through `&dyn` the `self` and `&self` methods are callable, through `&mut dyn` also `&mut self` and `mut self`; struct and data implementations, a default method, and a `&mut dyn` weakened to `&dyn`
+# Spec 09 Trait Value References: trait.dyn.ref.member, trait.dyn.ref.weaken, trait.dyn.ref.copy.
+# expect-stdout: square 4.0
+# expect-stdout: square 9.0 3.0
+# expect-stdout: circle 12.0
+# expect-stdout: circle 27.0
+# expect-stdout: 48.0 16.0
+trait Shape:
+    fn name(self) -> string
+    fn area(&self) -> f64
+    fn grow(&mut self) -> void
+    fn rescale(mut self, by: f64) -> void
+
+    fn grown_area(&mut self) -> f64:
+        self.grow()
+        self.area()
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn name(self) -> string:
+        "square"
+    fn area(&self) -> f64:
+        self.side * self.side
+    fn grow(&mut self) -> void:
+        self.side += 1.0
+    fn rescale(&mut self, by: f64) -> void:
+        self.side *= by
+    fn grown_area(&mut self) -> f64:
+        self.grow()
+        self.area()
+
+data Circle:
+    r: f64
+
+impl Shape for Circle:
+    fn name(self) -> string:
+        "circle"
+    fn area(&self) -> f64:
+        3.0 * self.r * self.r
+    fn grow(&mut self) -> void:
+        self.r += 1.0
+    fn rescale(mut self, by: f64) -> void:
+        self.r *= by
+
+fn describe(shape: &dyn Shape) -> string:
+    "${shape.name()} ${shape.area()}"
+
+pub fn main() -> void $ Console:
+    let mut sq = Square { side: 2.0 }
+    let s: &mut dyn Shape = &mut sq
+    println(describe(s))
+    s.grow()
+    println("${describe(s)} ${sq.side}")
+    let c: &mut dyn Shape = Circle { r: 1.0 }
+    c.grow()
+    println(describe(c))
+    c.rescale(1.5)
+    println(describe(c))
+    println("${c.grown_area()} ${s.grown_area()}")

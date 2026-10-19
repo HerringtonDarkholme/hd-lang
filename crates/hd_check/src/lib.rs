@@ -17,6 +17,7 @@ pub use dbg::DbgRef;
 pub mod delegate;
 pub mod derive;
 mod dupfacts;
+mod dynref;
 pub mod error;
 mod expr;
 mod facts;
