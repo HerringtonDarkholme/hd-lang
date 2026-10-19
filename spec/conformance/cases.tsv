@@ -3592,3 +3592,4 @@ typing/invalid/collection-identity.hd	type	reject:identity-requires-references	l
 runtime/valid/std-list-extend-own-copy.hd	runtime	accept	std/collections.md#r-std-collections.value.own-copy
 typing/valid/collection-value-tagged.hd	type	accept	lang/04-type-system.md#r-types.coll.let-mut
 runtime/valid/for-snapshot-doubled.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
+runtime/valid/dyn-suspending-generic-method.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.suspending

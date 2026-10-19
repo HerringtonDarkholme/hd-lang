@@ -7266,9 +7266,6 @@ fn emit_suspending(
             }
             None
         };
-        if let Some(family) = erased {
-            em.read_ops(witness, family)?;
-        }
         // Prologue: a frame resumes from its state with its locals.
         em.a.raw_get(0);
         em.a.ref_cast(&ft, true);
@@ -7281,6 +7278,11 @@ fn emit_suspending(
         em.a.struct_get(&ft, F_STATE);
         em.a.set(pc);
         em.a.end();
+        // An erased body reads its thunks after the frame restored the
+        // witness parameter, so a resumed frame has them too.
+        if let Some(family) = erased {
+            em.read_ops(witness, family)?;
+        }
         em.ctrl.push(Ctl::Plain);
         em.block_into(root, None)?;
         let tail = b.data[root as usize][1];

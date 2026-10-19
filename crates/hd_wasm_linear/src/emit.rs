@@ -618,6 +618,15 @@ impl Em<'_, '_, '_> {
                         self.f.helper(Helper::StrEq);
                         self.store(i)?;
                     }
+                    // A copy of a value that holds no list or map is the
+                    // value itself (`hd_mono::holds_coll`); the counted
+                    // copy of a collection comes with the list and map jobs.
+                    Some(hd_tir::ir::IntrinsicOp::ValueCopy)
+                        if !hd_mono::holds_coll(self.pool(), self.env(), self.ty(i)) =>
+                    {
+                        self.push(args[0])?;
+                        self.store(i)?;
+                    }
                     _ => return unsupported("list, map and string kernels (jobs 7, 9 and 10)"),
                 }
             }

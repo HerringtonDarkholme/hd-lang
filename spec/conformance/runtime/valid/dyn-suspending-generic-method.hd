@@ -1,0 +1,22 @@
+# test: a suspending generic method called through a trait value returns its argument, a list as an independent copy
+# expect-stdout: 3
+# expect-stdout: 2 3
+# Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.suspending; Spec 04 Collection Values: types.coll.value.
+trait Fetch:
+    fn get![T](self, x: T) -> T
+
+data Slow:
+    n: i32
+
+impl Fetch for Slow:
+    fn get![T](self, x: T) -> T:
+        y := x
+        y
+
+pub fn main!() -> void $ Console:
+    let v: dyn Fetch = Slow { n: 1 }
+    println(v.get!(+3))
+    let mut xs = [+1, 2]
+    let mut ys = v.get!(xs)
+    ys.push(3)
+    println("${xs.len()} ${ys.len()}")
