@@ -1,6 +1,6 @@
 use std.cmp.Ordering
 
-pub data Score:
+pub struct Score:
     pub points: i32
     pub bonus: i32
 

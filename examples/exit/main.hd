@@ -1,24 +1,24 @@
 trait Shape:
-    fn area(self) -> i32
-    fn name(self) -> string
+    fn area(&self) -> i32
+    fn name(&self) -> string
 
-data Rect:
+struct Rect:
     w: i32
     h: i32
 
-data Circle:
+struct Circle:
     r: i32
 
 impl Shape for Rect:
-    fn area(self) -> i32:
+    fn area(&self) -> i32:
         self.w * self.h
-    fn name(self) -> string:
+    fn name(&self) -> string:
         "rect"
 
 impl Shape for Circle:
-    fn area(self) -> i32:
+    fn area(&self) -> i32:
         3 * self.r * self.r
-    fn name(self) -> string:
+    fn name(&self) -> string:
         "circle"
 
 enum Token:
@@ -71,7 +71,7 @@ pub fn main() -> void $ Console:
     toks := [Token.Num(7), Token.Plus, Token.Word("hi")]
     for t in toks:
         println(describe(t))
-    let ages: mut Map[string, i32] = {"ann": 31, "bob": 27}
+    let mut ages: Map[string, i32] = {"ann": 31, "bob": 27}
     ages["cy"] = 40
     ann := ages["ann"]
     cy := ages["cy"]

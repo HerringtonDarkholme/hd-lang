@@ -9,7 +9,7 @@ LOG := """2026-10-03 10:00:01 INFO server started on port 8080
 2026-10-03 10:01:30 ERROR disk full path /var
 2026-10-03 10:02:00 INFO server stopped"""
 
-data WordCount:
+struct WordCount:
     word: string
     count: i32
 
@@ -20,13 +20,13 @@ fn words_of(line: string) -> List[string]:
     line.split(" ").filter(fn(w: string) -> bool: w.len() > 0).map(fn(w: string) -> string: w.lower())
 
 fn word_counts(lines: List[string]) -> List[WordCount]:
-    let counts: mut Map[string, i32] = {}
+    let mut counts: Map[string, i32] = {}
     for line in lines:
         for word in words_of(line):
             counts[word] = match counts.get(word):
                 .Some(n) => n + 1
                 .None => 1
-    let entries: mut List[WordCount] = []
+    let mut entries: List[WordCount] = []
     for (word, count) in counts.iter():
         entries.push(WordCount { word: word, count: count })
     entries

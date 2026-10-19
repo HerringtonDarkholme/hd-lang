@@ -16,15 +16,15 @@ impl Display for PlanError:
             .UnknownTask(name, needed_by) => "task $needed_by needs unknown task $name"
             .Cycle(path) => "dependency cycle: ${path.join(" -> ")}"
 
-data Graph:
+struct Graph:
     deps: Map[string, List[string]]
 
 # Visit state: 0 = new, 1 = on the current path, 2 = done.
-data Walk:
-    state: mut Map[string, i32]
-    order: mut List[string]
+struct Walk:
+    state: Map[string, i32]
+    order: List[string]
 
-fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_by: string) -> Result[void, PlanError]:
+fn visit(graph: Graph, walk: &mut Walk, path: List[string], name: string, needed_by: string) -> Result[void, PlanError]:
     deps := match graph.deps.get(name):
         .Some(d) => d
         .None => return .Err(PlanError.UnknownTask(name, needed_by))
@@ -39,7 +39,7 @@ fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_
         for (i, step) in path.iter().enumerate():
             if step == name:
                 start = i
-        let cycle: mut List[string] = []
+        let mut cycle: List[string] = []
         for (i, step) in path.iter().enumerate():
             if i >= start:
                 cycle.push(step)
@@ -55,18 +55,16 @@ fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_
 
 # Tasks in an order where every task follows its dependencies.
 fn plan(graph: Graph) -> Result[List[string], PlanError]:
-    let state: mut Map[string, i32] = {}
-    let order: mut List[string] = []
-    let mut walk = Walk { state: state, order: order }
+    let mut walk = Walk { state: {}, order: [] }
     names := graph.deps.iter().map(fn(entry: (string, List[string])) -> string: entry._0).collect()
     for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
-        visit(graph, walk, [], name, "(root)")?
+        visit(graph, &mut walk, [], name, "(root)")?
     .Ok(walk.order)
 
 # Splits an ordered plan into waves: a task goes in the first wave after all of
 # its dependencies, so tasks in one wave are independent.
 fn waves(graph: Graph, order: List[string]) -> List[List[string]]:
-    let level: mut Map[string, i32] = {}
+    let mut level: Map[string, i32] = {}
     let deepest = +0
     for name in order:
         let at = +0
@@ -77,13 +75,13 @@ fn waves(graph: Graph, order: List[string]) -> List[List[string]]:
     [for at in 0..=deepest => order.filter(fn(name: string) -> bool: level[name] == at)]
 
 trait Runner:
-    fn run!(mut self, name: string) -> void
+    fn run!(&mut self, name: string) -> void
 
-data LogRunner:
-    log: mut List[string]
+struct LogRunner:
+    log: List[string]
 
 impl Runner for LogRunner:
-    fn run!(mut self, name: string) -> void:
+    fn run!(&mut self, name: string) -> void:
         self.log.push("ran $name")
 
 fn run_one!(name: string) -> string $ Runner:
@@ -106,7 +104,7 @@ fn run_wave!(names: List[string]) -> List[string] $ Runner:
 
 fn execute!(graph: Graph) -> Result[List[string], PlanError] $ Runner:
     order := plan(graph)?
-    let finished: mut List[string] = []
+    let mut finished: List[string] = []
     for wave in waves(graph, order):
         defer:
             finished.push("wave of ${wave.len()}")
@@ -134,7 +132,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     match plan(cyclic):
         .Ok(_) => console.write_line!("unexpected")?
         .Err(e) => console.write_line!("error: $e")?
-    $.with(Runner=LogRunner { log: [] }):
+    $.with(Runner=&mut LogRunner { log: [] }):
         match execute!(graph):
             .Ok(done) => console.write_line!("waves: ${done.join(", ")}")?
             .Err(e) => console.write_line!("error: $e")?
@@ -164,10 +162,10 @@ tests:
                 assert_equal(waves(graph, order), [["core"], ["lib", "assets", "docs"], ["app"]], reason="waves")
             .Err(_) => assert(false, reason="no cycle")
     it("runs tasks through the provider"):
-        $.with(Runner=LogRunner { log: [] }):
+        $.with(Runner=&mut LogRunner { log: [] }):
             result := execute!(build_graph())
             assert_equal(result, .Ok(["wave of 1", "wave of 3", "wave of 1"]), reason="deferred notes")
     it("runs a wave larger than one all! batch"):
-        $.with(Runner=LogRunner { log: [] }):
+        $.with(Runner=&mut LogRunner { log: [] }):
             names := ["a", "b", "c", "d", "e", "f", "g"]
             assert_equal(run_wave!(names), names, reason="all seven ran, in order")

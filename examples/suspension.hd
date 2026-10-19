@@ -1,6 +1,6 @@
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 
@@ -9,7 +9,7 @@ fn add_two!(value: i32) -> i32 $ Clock:
     value + 2
 
 fn compute!() -> i32:
-    $.with(Clock=FixedClock {}):
+    $.with(Clock=&FixedClock {}):
         add_two!(40)
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:

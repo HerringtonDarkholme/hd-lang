@@ -13,7 +13,7 @@ enum Token:
     LParen
     RParen
 
-data Spanned:
+struct Spanned:
     token: Token
     pos: usize
 
@@ -47,8 +47,8 @@ enum CalcError:
     DivByZero(pos: usize)
 
 fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
-    let out: mut List[Spanned] = []
-    let chars: mut List[char] = []
+    let mut out: List[Spanned] = []
+    let mut chars: List[char] = []
     for c in src.chars():
         chars.push(c)
     let i: usize = 0
@@ -78,21 +78,21 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
             i = i + 1
     .Ok(out)
 
-data Parser:
+struct Parser:
     toks: List[Spanned]
     at: usize
 
 impl Parser:
-    fn peek(self) -> Spanned?:
+    fn peek(&self) -> Spanned?:
         if self.at < self.toks.len():
             self.toks[self.at]
         else:
             .None
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.at = self.at + 1
 
-    fn expr(mut self) -> Result[&Expr, CalcError]:
+    fn expr(&mut self) -> Result[&Expr, CalcError]:
         let left = self.term()?
         while true:
             match self.peek():
@@ -107,7 +107,7 @@ impl Parser:
                 .None => break
         .Ok(left)
 
-    fn term(mut self) -> Result[&Expr, CalcError]:
+    fn term(&mut self) -> Result[&Expr, CalcError]:
         let left = self.unary()?
         while true:
             match self.peek():
@@ -122,7 +122,7 @@ impl Parser:
                 .None => break
         .Ok(left)
 
-    fn unary(mut self) -> Result[&Expr, CalcError]:
+    fn unary(&mut self) -> Result[&Expr, CalcError]:
         match self.peek():
             .Some(s) =>
                 match s.token:
@@ -133,7 +133,7 @@ impl Parser:
                     _ => self.atom()
             .None => .Err(CalcError.UnexpectedEnd)
 
-    fn atom(mut self) -> Result[&Expr, CalcError]:
+    fn atom(&mut self) -> Result[&Expr, CalcError]:
         match self.peek():
             .None => .Err(CalcError.UnexpectedEnd)
             .Some(s) =>

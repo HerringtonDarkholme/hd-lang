@@ -2,7 +2,7 @@
 # standard error and exits with status 1 (module.entry.err-stream).
 use std.error.Error
 
-pub data Oops:
+pub struct Oops:
     what: string
 
 impl Display for Oops:

@@ -1,12 +1,12 @@
-pub data Point:
+pub struct Point:
     pub x: i32
     pub y: i32
 
 pub trait Shape:
-    fn area(self) -> i32
+    fn area(&self) -> i32
 
 impl Shape for Point:
-    fn area(self) -> i32:
+    fn area(&self) -> i32:
         self.x * self.y
 
 pub fn make(x: i32, y: i32) -> Point:

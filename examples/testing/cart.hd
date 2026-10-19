@@ -21,7 +21,7 @@ fn cheapest(prices: List[i32]) -> i32:
             best = p
     best
 
-data QuantityError:
+struct QuantityError:
     text: string
 
 impl Display for QuantityError:
