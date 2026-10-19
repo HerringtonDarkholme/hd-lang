@@ -1,0 +1,6 @@
+# test: a primitive name cannot declare a user numeric suffix
+use std.ops.num_suffix
+
+@num_suffix  # diagnostic: prelude-name-shadow
+fn u32(value: usize) -> usize:
+    value

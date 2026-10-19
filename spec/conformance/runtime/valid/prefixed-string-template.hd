@@ -1,5 +1,5 @@
 # test: a prefixed string keeps its text raw, may interpolate, and calls the prefix function of the same bare name
-# Spec 01 Prefixed Strings: lex.prefix.form, lex.prefix.name, lex.prefix.raw-text, lex.prefix.backslash, lex.prefix.lines, lex.prefix.interpolation, lex.suffix.bare, lex.prefix.bare-only, lex.literal-fn.meaning.
+# Spec 01 Prefixed Strings: lex.prefix.form, lex.prefix.name, lex.prefix.raw-text, lex.prefix.backslash, lex.prefix.lines, lex.prefix.interpolation, lex.suffix.bare, lex.prefix.bare-only, lex.literal-fn.user-meaning.
 # expect-stdout: \\d+\\s
 # expect-stdout: say \\"hi\\"
 # expect-stdout: first\\n

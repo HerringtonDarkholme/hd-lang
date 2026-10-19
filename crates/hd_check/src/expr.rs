@@ -342,11 +342,17 @@ impl Ck<'_, '_> {
     fn literal(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let first = self.cx.src.first(n);
         let mut strip = false;
+        let mut primitive = None;
         if self.cx.src.tkind(first) == Some(TokenKind::Number) {
             let text = self.cx.src.text(first).to_owned();
             let suffix = crate::literals::split_suffix(&text).1;
             if !suffix.is_empty() {
-                if self.lit_arg == Some(n.index()) {
+                if let Some(p) = crate::literals::primitive_suffix(suffix)
+                    && (p.is_integer() || p.is_float())
+                {
+                    primitive = Some(Ty::prim(p));
+                    strip = true;
+                } else if self.lit_arg == Some(n.index()) {
                     self.lit_arg = None;
                     strip = true;
                 } else {
@@ -359,7 +365,11 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        let (r, t) = self.literal_tok(first, strip)?;
+        let (r, mut t) = self.literal_tok(first, strip)?;
+        if let Some(fixed) = primitive {
+            self.expect(t, fixed, n, "literal", ExpectPosition::General);
+            t = fixed;
+        }
         if self.b.const_of(r).is_some() {
             self.lit_nodes.push((r, n.index(), false));
         }

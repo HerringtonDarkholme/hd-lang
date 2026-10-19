@@ -1,5 +1,5 @@
 # test: a decimal or float literal followed directly by a name calls the suffix function of that name, and an exponent wins over a suffix starting with e
-# Spec 01 Literal Suffixes: lex.suffix.form, lex.suffix.name, lex.suffix.decimal, lex.suffix.exponent, lex.literal-fn.meaning, lex.suffix.bare.
+# Spec 01 Literal Suffixes: lex.suffix.form, lex.suffix.name, lex.suffix.decimal, lex.suffix.exponent, lex.literal-fn.user-meaning, lex.suffix.bare.
 # expect-stdout: 5000
 # expect-stdout: 1500
 # expect-stdout: true

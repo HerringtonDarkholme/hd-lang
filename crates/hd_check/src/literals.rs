@@ -10,7 +10,7 @@ use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
 use hd_resolve::{BindingKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
-use hd_types::{Ty, TyData, VarKind};
+use hd_types::{Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::call::Args;
@@ -63,6 +63,11 @@ pub(crate) fn split_suffix(text: &str) -> (&str, &str) {
         }
     }
     text.split_at(i)
+}
+
+/// Primitive names are reserved for type suffixes, never user suffix functions.
+pub(crate) fn primitive_suffix(name: &str) -> Option<Prim> {
+    Prim::ALL.into_iter().find(|p| p.name() == name)
 }
 
 /// A piece of a prefixed string's raw text: text kept exactly as written

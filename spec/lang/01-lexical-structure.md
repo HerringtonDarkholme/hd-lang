@@ -712,7 +712,21 @@ literal_suffix = XID_START, { identifier_continue } ;
 3. r[lex.suffix.decimal] Only a decimal integer or floating-point literal takes a suffix, as in `5s`, `1.5kb`, and `5_000ms`. A letter after a radix literal follows the integer rules, so `0xffB` is `0xffb` and `0x1fs` is an error. Error: `syntax-error`.
 4. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign, and otherwise a suffix. So `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
 5. r[lex.literal-fn.reserved-glued] A reserved word written directly after a numeric literal or directly before a string literal is an error. That is the position where a suffix or prefix would go, as in `5else` and `return"done"`. Error: `syntax-error`.
-6. r[lex.literal-fn.meaning] A literal suffix or string prefix is resolved as a name, and the literal is a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+6. r[lex.literal-fn.user-meaning] A non-primitive literal suffix or string prefix resolves as a name and calls its literal function, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+7. r[lex.suffix.primitive] A numeric primitive suffix fixes the literal's type, as [Suffixed Literals](04-type-system.md#suffixed-literals) specifies.
+8. r[lex.suffix.primitive.names] The following primitive names are numeric type suffixes.
+
+| Literal kind | Suffixes | Examples |
+| --- | --- | --- |
+| Decimal integer | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize` | `1u32`, `255u8`, `1_000usize` |
+| Floating-point | `f32`, `f64` | `1.5f32`, `2e3f64` |
+
+9. r[lex.suffix.primitive.no-user] A primitive type name must not declare a user literal suffix function. Error: `prelude-name-shadow`.
+
+Primitive suffixes use the same decimal-only spelling and digit separator
+rules as user suffixes. In particular, `1_000usize` is valid and `1_usize`
+has a misplaced separator. A primitive name is never resolved as a user
+suffix, even when another binding has that name.
 
 ```text
 wait := 5_ms   # error: invalid-token

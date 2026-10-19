@@ -1305,6 +1305,14 @@ typing/invalid/snapshot-non-literal-expect.hd	type	reject:non-literal-test-argum
 typing/valid/derive-debug.hd	type	accept	lang/09-traits.md#r-trait.debug.derive
 typing/valid/debug-standard-types.hd	type	accept	lang/09-traits.md#r-trait.debug.std-impls
 typing/invalid/assert-equal-without-debug.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.testing.assert-equal-debug
+parse/valid/primitive-numeric-suffixes.hd	parse	accept	lang/01-lexical-structure.md#r-lex.suffix.primitive.names
+runtime/valid/primitive-numeric-suffixes.hd	runtime	accept	lang/04-type-system.md#r-types.literal.primitive.fixed
+typing/invalid/primitive-suffix-integer-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.primitive.integer-range
+typing/invalid/primitive-suffix-float-range.hd	type	reject:float-literal-range	lang/04-type-system.md#r-types.literal.primitive.float-range
+typing/invalid/primitive-suffix-context.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.primitive.fixed
+typing/invalid/primitive-suffix-user-declaration.hd	type	reject:prelude-name-shadow	lang/01-lexical-structure.md#r-lex.suffix.primitive.no-user
+typing/invalid/primitive-suffix-kind.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.primitive.kind
+typing/invalid/primitive-suffix-negative-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.primitive.integer-range
 parse/valid/suffixed-literals.hd	parse	accept	lang/01-lexical-structure.md#literal-suffixes
 parse/invalid/suffix-after-separator.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#r-lex.sep.misplaced
 parse/invalid/radix-literal-suffix-without-separator.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.suffix.decimal
@@ -1314,7 +1322,7 @@ parse/invalid/reserved-word-prefix.hd	parse	reject:syntax-error	lang/01-lexical-
 parse/invalid/string-literal-suffix.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#literal-suffixes
 parse/invalid/suffixed-literal-pattern.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.no-literal-call
 typing/valid/literal-suffix-duration.hd	type	accept	std/time.md#r-std-time.suffix.std.fn
-typing/valid/literal-suffix-result-type.hd	type	accept	lang/04-type-system.md#r-types.literal.call-result
+typing/valid/literal-suffix-result-type.hd	type	accept	lang/04-type-system.md#r-types.literal.user-call-result
 typing/valid/literal-suffix-user.hd	type	accept	lang/05-expressions.md#r-expr.literal-fn.marker
 typing/valid/literal-suffix-local-shadow.hd	type	accept	lang/03-names-and-scopes.md#r-names.literal-fn.no-local
 typing/valid/literal-suffix-compile-time.hd	type	accept	lang/05-expressions.md#r-expr.literal-fn.ordinary-call

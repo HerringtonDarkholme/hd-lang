@@ -1,0 +1,24 @@
+# test: primitive numeric suffixes fix types without a contextual type and coexist with user suffixes
+# expect-stdout: 1 255 1000 1.5 -3
+# expect-stdout: -128 -32768 -2147483648 -9223372036854775808
+# expect-stdout: 255 65535 4294967295 18446744073709551615
+# expect-stdout: 2.5 2000.0 12
+use std.ops.num_suffix
+
+@num_suffix
+fn dozen(count: usize) -> usize:
+    count * 12
+
+fn widths(a: u32, b: u8, c: usize, d: f32, e: i64) -> void $ Console:
+    println("$a $b $c $d $e")
+
+pub fn main() -> void $ Console:
+    a := 1u32
+    b := 255u8
+    c := 1_000usize
+    d := 1.5f32
+    e := -3i64
+    widths(a, b, c, d, e)
+    println("${-128i8} ${-32768i16} ${-2147483648i32} ${-9223372036854775808i64}")
+    println("${255u8} ${65535u16} ${4294967295u32} ${18446744073709551615u64}")
+    println("${2.5f64} ${2e3f32} ${1dozen}")

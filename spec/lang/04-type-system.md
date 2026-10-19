@@ -412,7 +412,8 @@ default makes always true.
 
 ### Suffixed Literals
 
-A suffixed literal has the type that its suffix function returns:
+A primitive suffix fixes a numeric literal's type. A user suffix has the
+type that its suffix function returns:
 
 ```text
 use std.ops.num_suffix
@@ -428,8 +429,13 @@ fn delay() -> Millis:
     250ms  # ms(250): Millis
 ```
 
-1. r[types.literal.call-result] A suffixed literal or prefixed string has the result type of its literal function.
+1. r[types.literal.user-call-result] A user-suffixed literal or prefixed string has the result type of its literal function.
 2. r[types.literal.suffixed.in] The numeric literal is checked with the suffix function's parameter type as its expected type, by the rules above. So a suffix whose parameter is `i8` range-checks `300b`.
+3. r[types.literal.primitive.fixed] A primitive-suffixed literal has the suffix's primitive type, independent of its expected type or literal class.
+4. r[types.literal.primitive.kind] An integer literal requires an integer primitive suffix, and a floating-point literal requires a floating-point primitive suffix. Error: `type-mismatch`.
+5. r[types.literal.primitive.integer-range] A primitive-suffixed integer literal must fit its suffixed type's range. Error: `integer-literal-range`.
+6. r[types.literal.primitive.float-range] A primitive-suffixed floating-point literal must be finite under its suffixed type's rounding rules. Error: `float-literal-range`.
+7. r[types.literal.primitive.negation] Unary `-` directly on a primitive-suffixed signed integer literal checks the negated value, so `-128i8` is valid.
 
 ```text
 use std.ops.num_suffix

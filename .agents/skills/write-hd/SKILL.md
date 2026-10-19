@@ -77,6 +77,9 @@ needs `$ FsRead` and returns `Result[string, FsError]`.
 - Top-level bindings are private. There is no `pub let` and no
   `pub NAME :=`; export a function instead.
 - An integer literal with no context is `usize`. Write `+0` for an `i32`.
+  A primitive suffix fixes the type: `1u32`, `255u8`, `1_000usize`,
+  `-3i64`, or `1.5f32`. Integer and floating-point suffixes keep their
+  literal kind; range checks use the suffixed type.
   `len()` returns `usize` too, and `usize` does not mix with `i32`: cast
   with `i32(n)` or `usize(n)`. Casts are calls; nothing is implicit.
 - A list, map or struct you change in place is `let mut`:

@@ -1,0 +1,7 @@
+# test: primitive suffixes and digit separators remain a single numeric token
+a := 1u32
+b := 255u8
+c := 1_000usize
+d := 1.5f32
+e := -3i64
+f := 2e3f64
