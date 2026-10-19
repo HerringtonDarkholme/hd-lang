@@ -297,7 +297,8 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 /// A run with a cleanup bound (`Limits::cleanup_ms`) hears Ctrl-C
 /// (`cli.cancel.ctrl-c`): on wasmtime the handler asks the run to cancel
 /// its entry; on Node the program's own process hears the same Ctrl-C from
-/// the terminal, so `hd` only keeps itself alive until that process ends.
+/// the terminal, so `hd` passes each interrupt on to it
+/// (`cli.cancel.forward`) and keeps itself alive until it ends.
 pub(crate) fn run(
     kind: EngineKind,
     level: OptLevel,
@@ -307,7 +308,7 @@ pub(crate) fn run(
     match kind {
         EngineKind::Node => {
             if host.limits.cleanup_ms.is_some() {
-                on_ctrl_c(|| {});
+                on_ctrl_c(crate::node::forward_interrupt);
             }
             let store = crate::disk_store();
             let node = crate::node::NodeEngine::default();
@@ -319,9 +320,26 @@ pub(crate) fn run(
     }
 }
 
-/// Calls `handler` on each Ctrl-C from now on, in place of ending `hd`.
-/// One that cannot be installed leaves Ctrl-C's default action, and says
-/// so.
+/// Calls `handler` on each interrupt from now on, in place of ending `hd`:
+/// a Ctrl-C, and on Unix a SIGTERM too (`cli.cancel.signals`). One that
+/// cannot be installed leaves the default action, and says so.
+#[cfg(unix)]
+pub(crate) fn on_ctrl_c(mut handler: impl FnMut() + Send + 'static) {
+    use signal_hook::consts::{SIGINT, SIGTERM};
+    let installed = signal_hook::iterator::Signals::new([SIGINT, SIGTERM])
+        .and_then(|mut signals| {
+            std::thread::Builder::new()
+                .name("interrupt".into())
+                .spawn(move || signals.forever().for_each(|_| handler()))
+        })
+        .map(drop);
+    if let Err(e) = installed {
+        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
+    }
+}
+
+/// As on Unix, for the console's Ctrl-C and Ctrl-Break.
+#[cfg(not(unix))]
 pub(crate) fn on_ctrl_c(handler: impl FnMut() + Send + 'static) {
     if let Err(e) = ctrlc::set_handler(handler) {
         eprintln!("warning: Ctrl-C cannot cancel the program: {e}");

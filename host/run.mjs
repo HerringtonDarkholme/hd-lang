@@ -28,9 +28,16 @@
 // goes on through the entry's cleanup until it ends, the next Ctrl-C, or
 // the bound, which abandon it (core.mjs `entryCancel`). A Ctrl-C while
 // Wasm runs stops the program at once (cli.cancel.computing). On this
-// thread that is SIGINT's default action, since the listener is on only
-// while the host waits, and `hd` reports the signal as `stopped`; a
-// supervising thread stops its worker and reports it itself.
+// thread that is the interrupt signal's default action, since the listener
+// is on only while the host waits, and `hd` reports the signal as
+// `stopped`; a supervising thread stops its worker and reports it itself.
+//
+// The interrupt is SIGINT, unless the configuration's `interruptSignal`
+// names another signal. `hd` names one on Unix (cli.cancel.forward): it
+// hears the interrupt itself, from a terminal or from a signal sent to it
+// alone, and passes it on as that signal, once. A terminal's Ctrl-C also
+// reaches this process, so a process told of such a signal ignores SIGINT
+// (the listener below), else the one interrupt would arrive twice.
 import { readFileSync, writeFileSync, writeSync } from "node:fs";
 import {
   isMainThread,
@@ -45,6 +52,9 @@ import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
 const GRACE_MS = 50;
+
+// The signal that is a Ctrl-C to this process (see the header).
+const interruptOf = (config) => config.interruptSignal ?? "SIGINT";
 
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();
@@ -179,6 +189,7 @@ function supervise(module, config, args, limit) {
     // The Ctrl-C requests passed on, and whether the worker's host waits
     // (`sharedCancel`).
     const cell = config.cleanupMs == null ? null : new Int32Array(new SharedArrayBuffer(8));
+    const signal = interruptOf(config);
     const input = inputLines();
     const worker = new Worker(new URL(import.meta.url), {
       workerData: { module, config, args, deadline, port: port2, flag, cell },
@@ -212,7 +223,7 @@ function supervise(module, config, args, limit) {
       if (ended) return;
       ended = true;
       clearTimeout(timer);
-      if (cell) process.off("SIGINT", interrupt);
+      if (cell) process.off(signal, interrupt);
       port.close();
       input.close();
       exitPast([worker], s, config.statusFile);
@@ -234,7 +245,7 @@ function supervise(module, config, args, limit) {
       writeSync(2, "stopped\n");
       end(CANCEL_STATUS);
     };
-    if (cell) process.on("SIGINT", interrupt);
+    if (cell) process.on(signal, interrupt);
     // What the worker sent before the deadline is written first; a worker
     // that ended the run itself is not stopped.
     const timer = setTimeout(() => {
@@ -251,7 +262,7 @@ function supervise(module, config, args, limit) {
       if (ended) return;
       ended = true;
       clearTimeout(timer);
-      if (cell) process.off("SIGINT", interrupt);
+      if (cell) process.off(signal, interrupt);
       port.close();
       input.close();
       fail(e);
@@ -270,12 +281,16 @@ if (isMainThread) {
   const args = process.argv.slice(spec.endsWith(".json") ? 4 : 3);
   const limit = config.timeLimitMs ?? null;
   // A Ctrl-C is heard only while the host waits (`entryCancel`'s `onWait`).
+  const signal = interruptOf(config);
+  // `hd` passes the interrupt on as another signal: ignore the terminal's
+  // own SIGINT for good, so it is not heard twice.
+  if (config.cleanupMs != null && signal !== "SIGINT") process.on("SIGINT", () => {});
   const cancel =
     config.cleanupMs == null
       ? null
       : entryCancel(config.cleanupMs, (waiting) => {
-          if (waiting) process.on("SIGINT", cancel.request);
-          else process.off("SIGINT", cancel.request);
+          if (waiting) process.on(signal, cancel.request);
+          else process.off(signal, cancel.request);
         });
   process.exitCode =
     limit === null

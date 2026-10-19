@@ -1147,11 +1147,19 @@ hd run --cleanup-limit 0s       # Ctrl-C: cleanup is abandoned at once
 7. r[cli.cancel.computing] A Ctrl-C while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
 8. r[cli.cancel.end] A cancelled entry, by [`req.entry.cancelled`](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled), writes `cancelled` to standard error when its cleanup ran to its end, and `cancelled, cleanup abandoned` when it was abandoned.
 9. r[cli.cancel.status] A run that is cancelled or stopped exits with status 130, its [cancellation status](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled.status), on every platform.
+10. r[cli.cancel.signals] On Unix, a SIGINT or a SIGTERM that is sent to `hd` alone is a Ctrl-C in every rule above, on every engine.
+11. r[cli.cancel.forward] On the Node engine, `hd` passes each Ctrl-C it hears on to the process that runs the program. That process hears each one once, from a terminal or from a signal sent to `hd` alone.
+12. r[cli.cancel.windows] On Windows, `hd` passes nothing on, since the console delivers a Ctrl-C to every process attached to it, the Node process included. A Ctrl-Break is not a Ctrl-C there on the Node engine, and the in-process engine takes it as one.
 
 ```sh
 hd run; echo $?   # Ctrl-C while main waits, and its dispose closes in time
 # stderr: cancelled
 # 130
+```
+
+```sh
+kill -INT $(pgrep hd)    # a supervisor's signal to hd alone: the same cancel
+kill -TERM $(pgrep hd)   # SIGTERM too: cleanup runs, exit status 130
 ```
 
 > **Why.** 130 is 128 plus SIGINT's number 2, the status a POSIX shell
@@ -1160,6 +1168,12 @@ hd run; echo $?   # Ctrl-C while main waits, and its dispose closes in time
 > keeps them portable. Ten seconds is what `docker stop` waits by
 > default before it kills: long enough for a network close, and short
 > enough that a person does not reach for a second Ctrl-C.
+>
+> `docker stop` and a service manager send SIGTERM to one process and
+> expect it to clean up before the kill that follows. A terminal's Ctrl-C
+> reaches the whole process group, so the Node process would hear it
+> twice if `hd` passed it on as the same signal. It ignores SIGINT and
+> hears the interrupt from `hd` as another signal.
 
 > **Note.** A stop ends the program with no cleanup, as a time limit
 > does. Text the program wrote and the host still held may be lost.

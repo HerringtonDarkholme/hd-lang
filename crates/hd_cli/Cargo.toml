@@ -36,6 +36,13 @@ hd_syntax = { path = "../hd_syntax" }
 ctrlc = "=3.5.2"
 rustyline = { version = "=18.0.1", default-features = false, optional = true }
 
+# Unix: an interrupt that `hd` hears (SIGINT or SIGTERM) is passed on to the
+# Node engine's child as SIGUSR2 (`cli.cancel.forward`). Both crates have
+# safe APIs for it; `hd_cli` stays free of `unsafe`.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "=0.31.3", default-features = false, features = ["signal"] }
+signal-hook = "=0.3.18"
+
 [lints]
 workspace = true
 

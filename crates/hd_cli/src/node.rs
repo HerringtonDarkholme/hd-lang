@@ -168,7 +168,13 @@ impl NodeInstance {
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
             .args(&self.args)
-            .status();
+            .spawn()
+            .and_then(|mut child| {
+                RUN_CHILD.store(child.id(), Ordering::Relaxed);
+                let status = child.wait();
+                RUN_CHILD.store(0, Ordering::Relaxed);
+                status
+            });
         if let Ok(text) = std::fs::read_to_string(&frames)
             && let Some((raw, _)) = json_frames(&text)
             && let Ok(mut trace) = self.trace.lock()
@@ -195,13 +201,38 @@ impl NodeInstance {
     }
 }
 
-/// Whether a Ctrl-C ended a process: SIGINT on Unix, and on Windows the
-/// status `STATUS_CONTROL_C_EXIT` of a console process that has no handler.
+/// The process id of the Node child that runs the program, while it runs,
+/// else 0.
+static RUN_CHILD: AtomicU32 = AtomicU32::new(0);
+
+/// The signal that is a Ctrl-C to the Node child on Unix
+/// (`cli.cancel.forward`). It is not SIGINT: a terminal's Ctrl-C reaches
+/// the child by its process group as well as `hd`, so the child ignores
+/// SIGINT and hears the interrupt once, from `hd`.
+#[cfg(unix)]
+const FORWARD: nix::sys::signal::Signal = nix::sys::signal::Signal::SIGUSR2;
+
+/// Passes an interrupt that `hd` heard on to the Node child, if one runs
+/// (`cli.cancel.forward`). Windows has nothing to pass: the console
+/// delivers a Ctrl-C to the child itself (`cli.cancel.windows`).
+pub(crate) fn forward_interrupt() {
+    #[cfg(unix)]
+    if let Ok(pid) = i32::try_from(RUN_CHILD.load(Ordering::Relaxed))
+        && pid != 0
+    {
+        // The child may have just ended; a signal then has no one to reach.
+        let _ = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), FORWARD);
+    }
+}
+
+/// Whether a Ctrl-C ended a process: the forwarded signal on Unix (the
+/// child ignores SIGINT), and on Windows the status
+/// `STATUS_CONTROL_C_EXIT` of a console process that has no handler.
 fn interrupted(status: std::process::ExitStatus) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt as _;
-        status.signal() == Some(2)
+        status.signal() == Some(FORWARD as i32)
     }
     #[cfg(windows)]
     {
@@ -437,6 +468,8 @@ fn run_config(
     let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
     if let Some(ms) = cleanup_ms {
         let _ = write!(limit, ",\"cleanupMs\":{ms}");
+        #[cfg(unix)]
+        let _ = write!(limit, ",\"interruptSignal\":\"{}\"", FORWARD.as_str());
     }
     let files = files.map_or(String::new(), |(frames, status)| {
         format!(
