@@ -5947,7 +5947,10 @@ impl Run<'_> {
                 let lines = block
                     .map(|b| hd_check::derive::member_lines(&cx.src, b))
                     .unwrap_or_default();
-                opt.lines = !lines.is_empty();
+                // REPL inputs keep the facts visible when their derivation
+                // was built. A later input's traitless block must not reuse
+                // an earlier derivation's declaration Structure owner.
+                opt.lines = !lines.is_empty() || self.repl_number(m).is_some();
                 let facts = if heads.iter().any(|h| h.def == opt.data) {
                     derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived)
                 } else {

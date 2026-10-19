@@ -429,6 +429,49 @@ fn later_inputs_edit_an_earlier_type_s_facts() {
     assert_eq!(t.out, "\"key/1;sum_total/3;\" : string\n");
 }
 
+/// A late block with no trait changes the facts of later derivations
+/// (`annot.no-trait.then-blocks`), while an already built derivation keeps
+/// the facts it saw (REPL Decisions, "Late blocks with no trait").
+#[test]
+fn annot_no_trait_then_blocks_preserves_earlier_derivations() {
+    let lib = format!(
+        "{COLUMNS_LIB}{}",
+        r#"
+trait Columns2:
+    fn columns2(self) -> string
+
+impl[T] Columns2 for T by Structure:
+    fn columns2(self) -> string:
+        let mut w = Header { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+"#
+    );
+    let dir = package("repl-late-member-facts", &[("src/lib.hd", &lib)]);
+    let script = Script::of(&[
+        "use std.structure.Structure",
+        "data Row:",
+        "    id: i32",
+        "    total: i32",
+        "",
+        "impl Columns for Row by Structure",
+        "Row { id: +1, total: +2 }.columns()",
+        "impl Row by Structure:",
+        "    total += [column(\"sum_total\")]",
+        "",
+        "impl Columns2 for Row by Structure",
+        "Row { id: +1, total: +2 }.columns2()",
+        "Row { id: +1, total: +2 }.columns()",
+    ]);
+    let t = session_in(&dir, script, |_| {});
+    assert_eq!(
+        t.out,
+        "\"id/0;total/0;\" : string\n\
+         \"id/0;sum_total/1;\" : string\n\
+         \"id/0;total/0;\" : string\n"
+    );
+}
+
 /// `cli.repl.rebuild`: after `:reload` builds every input again from its
 /// text, the block with no trait and the derivation block's member lines
 /// still edit the earlier input's type, and a derivation written after the
