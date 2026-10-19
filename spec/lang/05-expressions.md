@@ -601,6 +601,7 @@ fn numbers(count: i32) -> List[i32]:
 2. r[expr.map.duplicate.last] If two evaluated entries have equal keys, the later value replaces the earlier value.
 3. r[expr.map.iteration.order] Map iteration follows the map's [deterministic order](04-type-system.md#r-types.map.order.deterministic) and is not part of map equality.
 4. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
+5. r[expr.collection.empty.map-constructor-fix] An unambiguous, empty type-qualified `Map.new()` call gets an exact `{}` fix when an expected map type determines both argument types.
 
 ```hd
 fn demo() -> Map[string, i32]:

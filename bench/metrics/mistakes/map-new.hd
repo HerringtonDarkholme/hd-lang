@@ -1,7 +1,7 @@
 # mistake: `Map.new()` to make an empty map
 # log: 2026-10-02 #200 scratch test
-# expect: type-used-as-value
+# expect: unknown-method
 # fixed:     {}
 
 fn empty() -> Map[i64, string]:
-    Map.new()  # diagnostic: type-used-as-value
+    Map.new()  # diagnostic: unknown-method

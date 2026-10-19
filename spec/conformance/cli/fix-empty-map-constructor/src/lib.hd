@@ -1,0 +1,17 @@
+# café: UTF-8 before the whole-call edit
+pub fn empty() -> Map[i64, string]:
+    Map.new()
+
+type Lookup = Map[string, i32]
+pub fn alias() -> Lookup:
+    Lookup::new()
+
+pub fn annotated() -> usize:
+    let values: Map[string, string] = Map.new()
+    values.len()
+
+fn size(values: Map[string, i32]) -> usize:
+    values.len()
+
+pub fn argument() -> usize:
+    size(Map::new())

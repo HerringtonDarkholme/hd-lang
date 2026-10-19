@@ -1,0 +1,8 @@
+struct Factory: pass
+impl Factory:
+    pub fn new() -> Factory:
+        Factory {}
+fn custom() -> Factory:
+    Factory::new()
+fn empty() -> Map[string, i32]:
+    {}

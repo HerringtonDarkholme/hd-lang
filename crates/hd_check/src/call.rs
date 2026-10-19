@@ -2881,7 +2881,9 @@ impl Ck<'_, '_> {
                 }
                 _ => {
                     let msg = format!("no method `{name}` on {}", self.show(t));
-                    self.no_method(t, name, n, &msg);
+                    if self.no_method(t, name, n, &msg) && name == "new" && !bang {
+                        self.empty_map_fix(t, args, n, want);
+                    }
                     return Ok((Ref(NONE), Ty::POISON));
                 }
             }
@@ -3126,6 +3128,48 @@ impl Ck<'_, '_> {
                 false
             }
         }
+    }
+
+    /// `expr.collection.empty.map-constructor-fix`: only a type-qualified
+    /// failed constructor with a known expected map type can become `{}`.
+    fn empty_map_fix(&mut self, ty: Ty, args: &Args<'_>, n: NodeRef<'_>, want: Option<Ty>) {
+        let pool = self.pool();
+        if n.kind() != SyntaxKind::CallExpr
+            || !args.positional.is_empty()
+            || args.spread.is_some()
+            || !args.after_spread.is_empty()
+            || !args.named.is_empty()
+            || args.trailing.is_some()
+            || !self.method_targs.is_empty()
+            || !self
+                .available_traits(self.cx.names.syms.intern("new"))
+                .is_empty()
+            || !matches!(pool.get(self.strip_mut(ty)), TyData::Adt { def, .. }
+                if def == self.cx.names.known.map)
+        {
+            return;
+        }
+        let Some(want) = self.literal_want(want) else {
+            return;
+        };
+        let want = self.infer.resolve(pool, want);
+        if !matches!(pool.get(want), TyData::Adt { def, .. } if def == self.cx.names.known.map)
+            || pool.has_infer(want)
+            || pool.has_poison(want)
+            || !self.can_unify(ty, want)
+        {
+            return;
+        }
+        let span = self.cx.src.span(n);
+        // A whole-call edit must not discard a comment within the call.
+        if self.cx.src.text[span.lo as usize..span.hi as usize].contains('#') {
+            return;
+        }
+        self.diags.add_fix(
+            "use `{}` for an empty map",
+            hd_diag::FixSafety::Exact,
+            &[(span, "{}")],
+        );
     }
 
     fn append_fix(&mut self, receiver: (Ref, Ty), args: &Args<'_>, n: NodeRef<'_>) {

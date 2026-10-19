@@ -1,0 +1,28 @@
+fn no_expected() -> void:
+    _value := Map.new()
+
+fn with_argument() -> Map[string, string]:
+    Map.new("unused")
+
+fn named_argument() -> Map[string, string]:
+    Map.new(capacity=1)
+
+fn spread_argument(values: List[i32]) -> Map[string, string]:
+    Map.new(values...)
+
+fn wrong_expected() -> List[string]:
+    Map.new()
+
+fn comments() -> Map[string, string]:
+    Map.new(
+        # preserve this explanation
+    )
+
+fn instance(value: Map[string, string]) -> Map[string, string]:
+    value.new()
+
+fn mismatched_types() -> Map[i64, string]:
+    Map::[u32, string]::new()
+
+fn method_arguments() -> Map[string, string]:
+    Map.new::[i32]()

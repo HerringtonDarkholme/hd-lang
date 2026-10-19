@@ -225,6 +225,7 @@ fix-parser-byte-edits	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix
 fix-parser-migrations	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-parser-punctuation	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-elif-continuations	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-empty-map-constructor	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-known-name-errors	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-legacy-syntax	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-reassigned-bindings	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
