@@ -10,7 +10,11 @@ description = "The one driver: the task graph of one compile run over the caller
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]
-default = ["threads"]
+# Links programs with the linear-memory backend (`Backend::Linear`). The
+# browser build leaves it out: the playground links with the Wasm GC
+# backend only, and the web compiler's size gate measures that.
+linear = ["dep:hd_wasm_linear"]
+default = ["threads", "linear"]
 # Runs the tests that compare against the wasmtime engine. A dev-dependency
 # cannot be optional, so the test-only `hd_run_wasmtime` is an optional
 # dependency; the library itself never uses it.
@@ -34,7 +38,7 @@ hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
 hd_wasm = { path = "../hd_wasm" }
-hd_wasm_linear = { path = "../hd_wasm_linear" }
+hd_wasm_linear = { path = "../hd_wasm_linear", optional = true }
 
 [build-dependencies]
 hd_syntax = { path = "../hd_syntax" }

@@ -64,7 +64,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pushes value `k` of a source.
-    fn src(&mut self, s: &Src, k: usize) -> StageResult<()> {
+    pub(super) fn src(&mut self, s: &Src, k: usize) -> StageResult<()> {
         match s {
             Src::Ref(r) => self.comp(*r, k),
             Src::Locals(ls) => {
@@ -88,7 +88,7 @@ impl Em<'_, '_, '_> {
 
     /// Stores into leaf `l` at `address + base` the value that `value`
     /// pushes.
-    fn store_leaf(
+    pub(super) fn store_leaf(
         &mut self,
         address: &dyn Fn(&mut Self) -> StageResult<()>,
         base: u32,
@@ -176,8 +176,15 @@ impl Em<'_, '_, '_> {
         }
         match self.kind(t) {
             Kind::Value => {
-                for r in fields {
-                    self.push(r)?;
+                let tys = self.struct_fields(t);
+                let mut srcs = Vec::new();
+                for (r, ft) in fields.iter().zip(&tys) {
+                    srcs.push(self.slot_src(*r, *ft, false)?);
+                }
+                for (s, ft) in srcs.iter().zip(&tys) {
+                    for k in 0..self.vals(*ft)?.len() {
+                        self.src(s, k)?;
+                    }
                 }
             }
             Kind::Data(tys) => {
@@ -187,9 +194,13 @@ impl Em<'_, '_, '_> {
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
+                    let mut srcs = Vec::new();
+                    for (r, ft) in fields.iter().zip(&tys) {
+                        srcs.push(self.slot_src(*r, *ft, true)?);
+                    }
                     let at = self.object(&m, walk.as_ref());
-                    for (r, p) in fields.iter().zip(&parts) {
-                        self.store_part(at, &m, *p, &Src::Ref(*r))?;
+                    for (s, p) in srcs.iter().zip(&parts) {
+                        self.store_part(at, &m, *p, s)?;
                     }
                     self.retain_fields(at, &m, walk.as_ref());
                     self.f.get(at);
@@ -240,9 +251,21 @@ impl Em<'_, '_, '_> {
         match self.kind(t) {
             Kind::Value => {
                 let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
+                let tys = self.struct_fields(t);
+                let mut srcs = Vec::new();
+                for (f, ft) in tys.iter().enumerate() {
+                    srcs.push(match replaced(f) {
+                        Some(v) => Some(self.slot_src(v, *ft, false)?),
+                        None => None,
+                    });
+                }
                 for (f, p) in parts.iter().enumerate() {
-                    match replaced(f) {
-                        Some(v) => self.push(v)?,
+                    match &srcs[f] {
+                        Some(s) => {
+                            for k in 0..p.count {
+                                self.src(s, k)?;
+                            }
+                        }
                         None => {
                             for k in p.first..p.first + p.count {
                                 self.comp(a, k)?;
@@ -258,10 +281,17 @@ impl Em<'_, '_, '_> {
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
+                    let mut srcs = Vec::new();
+                    for (f, ft) in tys.iter().enumerate() {
+                        srcs.push(match replaced(f) {
+                            Some(v) => Some(self.slot_src(v, *ft, true)?),
+                            None => None,
+                        });
+                    }
                     let at = self.object(&m, walk.as_ref());
                     for (f, p) in parts.iter().enumerate() {
-                        match replaced(f) {
-                            Some(v) => self.store_part(at, &m, *p, &Src::Ref(v))?,
+                        match &srcs[f] {
+                            Some(s) => self.store_part(at, &m, *p, s)?,
                             None => {
                                 for l in m.leaves[p.first..p.first + p.count].iter().copied() {
                                     self.store_leaf(
@@ -335,13 +365,17 @@ impl Em<'_, '_, '_> {
         let Some(p) = parts.get(idx as usize).copied() else {
             return unsupported("a field index outside the data type");
         };
+        let ft = tys[idx as usize];
+        let s = self.slot_src(v, ft, true)?;
         let at = self.f.local(Val::I32);
         self.comp(a, 0)?;
         self.f.set(at);
         // The field takes a count of the new value and drops the old one's.
-        let ft = tys[idx as usize];
         if self.counted(ft).is_some() {
-            self.retain_ref(v)?;
+            match &s {
+                Src::Ref(r) => self.retain_ref(*r)?,
+                Src::Locals(ls) => self.retain_locals(ls, ft)?,
+            }
             let old: Vec<u32> = m.leaves[p.first..p.first + p.count]
                 .iter()
                 .map(|l| self.f.local(l.val))
@@ -353,7 +387,20 @@ impl Em<'_, '_, '_> {
             }
             self.release_locals(&old, ft)?;
         }
-        self.store_part(at, &m, p, &Src::Ref(v))
+        self.store_part(at, &m, p, &s)
+    }
+
+    /// The field types of struct type `t`, substituted.
+    pub(super) fn struct_fields(&self, t: Ty) -> Vec<Ty> {
+        let (pool, env) = (self.pool(), self.env());
+        let TyData::Adt { def, args } = pool.get(crate::layout::strip(pool, env, t)) else {
+            return Vec::new();
+        };
+        env.data_fields(def)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|f| hd_mono::subst(pool, env, def, args, f))
+            .collect()
     }
 
     /// `TupleGet`: element `idx`'s values.

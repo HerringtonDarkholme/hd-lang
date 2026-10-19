@@ -10,8 +10,9 @@
 //! `k`th slot, so a variant fills only the slots it needs and loads and
 //! stores need no branch on the tag. A data value, a self-recursive enum
 //! and a suspension are one address; a string is its address and byte
-//! length; a trait value its data address and its vtable's address.
-//! Lists, maps, function values and references come with later jobs.
+//! length; a trait value its data address and its vtable's address; a
+//! list the address of its header (§23.7). Maps, function values and
+//! references come with later jobs.
 
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, strip_newtype};
@@ -153,6 +154,51 @@ pub fn strip(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Ty {
     }
 }
 
+/// A tuple type's members in order: its elements, then its rest list
+/// when it has one, laid out as one more member.
+pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
+    match pool.get(t) {
+        TyData::Tuple { elems, rest } => {
+            pool.list_items(elems).iter().copied().chain(rest).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The values of a `t` value that are collections a copy of it copies
+/// (`hd_mono::holds_coll`): a list's own, and each such value of a struct
+/// field, at any depth of structs. A legacy `mut` view shares its list
+/// and holds none.
+pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
+    if !hd_mono::holds_coll(pool, env, t) {
+        return Vec::new();
+    }
+    let s = strip_newtype(pool, env, t);
+    let TyData::Adt { def, args } = pool.get(s) else {
+        return Vec::new();
+    };
+    if env.std_kind(def) != StdKind::Other {
+        return vec![0];
+    }
+    let fields: Vec<Ty> = env
+        .data_fields(def)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| subst(pool, env, def, args, f))
+        .collect();
+    let Ok((_, parts)) = payload_mem(pool, env, &fields) else {
+        return Vec::new();
+    };
+    fields
+        .iter()
+        .zip(&parts)
+        .flat_map(|(f, p)| {
+            let at = u32::try_from(p.first).expect("values");
+            coll_leaves(pool, env, *f).into_iter().map(move |k| at + k)
+        })
+        .collect()
+}
+
 /// The Wasm values of a concrete type.
 pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<Val>> {
     Ok(mem(pool, env, t)?.vals())
@@ -174,19 +220,11 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
             Prim::String => record(&[Mem::address(), Mem::address()]).0,
         },
         TyData::Never => Mem::EMPTY,
-        TyData::Tuple { elems, rest: None } => {
-            let parts = pool
-                .list_items(elems)
-                .iter()
-                .map(|e| mem(pool, env, *e))
-                .collect::<StageResult<Vec<_>>>()?;
-            record(&parts).0
-        }
-        TyData::Tuple { .. } => return unsupported("tuples with a rest list (job 9)"),
+        TyData::Tuple { .. } => payload_mem(pool, env, &tuple_members(pool, t))?.0,
         TyData::Option(inner) => enum_mem(pool, env, &[vec![], vec![inner]])?.0,
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
-            StdKind::List => return unsupported("lists (job 9)"),
+            StdKind::List => Mem::address(),
             StdKind::Map => return unsupported("maps (job 10)"),
             StdKind::Other if def == env.ref_cell() => return unsupported("references (job 12)"),
             StdKind::Other => match kind(pool, env, t) {
@@ -237,6 +275,22 @@ impl Walk {
         }
     }
 
+    /// The walk without the values `skip`, which a copy replaces rather
+    /// than counts; `None` when nothing is left.
+    #[must_use]
+    pub fn without(&self, skip: &[u32]) -> Option<Walk> {
+        match self {
+            Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
+            Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
+            Walk::Switch(k, arms) => Some(Walk::Switch(
+                *k,
+                arms.iter()
+                    .map(|a| a.as_ref().and_then(|w| w.without(skip)))
+                    .collect(),
+            )),
+        }
+    }
+
     fn seq(mut ws: Vec<Walk>) -> Option<Walk> {
         match ws.len() {
             0 => None,
@@ -254,7 +308,8 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     let t = strip(pool, env, t);
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
-        TyData::Tuple { elems, rest: None } => fields_walk(pool, env, pool.list_items(elems)),
+        TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
+        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::List => Some(Walk::Ref(0)),
         TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
         TyData::Adt { def, args }
             if env.std_kind(def) == StdKind::Other && def != env.ref_cell() =>
@@ -350,7 +405,7 @@ fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
 pub fn struct_mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<(Mem, Vec<Part>)> {
     let t = strip(pool, env, t);
     let fields = match pool.get(t) {
-        TyData::Tuple { elems, rest: None } => pool.list_items(elems).to_vec(),
+        TyData::Tuple { .. } => tuple_members(pool, t),
         TyData::Adt { def, args } if env.enum_variants(def, args).is_none() => env
             .data_fields(def)
             .unwrap_or_default()

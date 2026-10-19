@@ -2,12 +2,14 @@ path	note
 runtime/panic/assert-failure-in-main.hd	#540: a std panic report
 runtime/panic/char-to-digit-radix-high.hd	#552: strings
 runtime/panic/char-to-digit-radix-low.hd	#552: strings
+runtime/panic/cli-duplicate-option.hd	#554: lists
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
 runtime/panic/duration-add-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-sub-underflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-suffix-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/explicit-panic.hd	#540: an explicit panic
+runtime/panic/generic-i32-overflow.hd	#554: lists
 runtime/panic/i32-add-overflow-in-function.hd	#541: test programs, and roots that never suspend
 runtime/panic/i32-min-divided-by-minus-one.hd	#541: test programs, and roots that never suspend
 runtime/panic/integer-add-overflow.hd	#540: checked integer arithmetic
@@ -15,6 +17,17 @@ runtime/panic/integer-divide-by-zero.hd	#540: checked integer arithmetic
 runtime/panic/integer-negation-overflow.hd	#540: checked integer arithmetic
 runtime/panic/intrinsic-method-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/invalid-shift.hd	#540: checked integer arithmetic
+runtime/panic/list-chunks-zero.hd	#554: lists
+runtime/panic/list-index-out-of-bounds.hd	#554: lists
+runtime/panic/list-index-u64-beyond-u32.hd	#554: lists
+runtime/panic/list-index-underflow.hd	#554: lists
+runtime/panic/list-set-out-of-bounds.hd	#554: lists
+runtime/panic/list-set-u64-beyond-u32.hd	#554: lists
+runtime/panic/list-slice-out-of-range.hd	#554: lists
+runtime/panic/list-slice-reversed.hd	#554: lists
+runtime/panic/list-sum-overflow.hd	#554: lists
+runtime/panic/list-windows-size.hd	#554: lists
+runtime/panic/literal-var-fallback-overflow.hd	#554: lists
 runtime/panic/num-abs-min-i16.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-abs-min-i32.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-abs-min-i64.hd	#541: test programs, and roots that never suspend
@@ -27,6 +40,8 @@ runtime/panic/num-pow-overflow-u64.hd	#541: test programs, and roots that never 
 runtime/panic/num-pow-overflow-u8.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-radix-parse-radix-high.hd	#552: strings
 runtime/panic/num-radix-parse-radix-low.hd	#552: strings
+runtime/panic/num-radix-to-radix-high.hd	#554: lists
+runtime/panic/num-radix-to-radix-low.hd	#554: lists
 runtime/panic/num-to-fixed-digits-range.hd	#552: strings
 runtime/panic/num-u64-from-overflow-i64.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-u64-from-overflow.hd	#541: test programs, and roots that never suspend
@@ -48,9 +63,11 @@ runtime/panic/string-slice-range-reversed.hd	#552: strings
 runtime/panic/string-slice-reversed.hd	#552: strings
 runtime/panic/u8-add-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/unbounded-recursion.hd	#540: direct calls; the host reports the stack overflow
+runtime/panic/usize-len-underflow.hd	#554: lists
 runtime/panic/usize-max-overflow-wasm32.hd	#540: checked integer arithmetic
 runtime/panic/usize-width-u32.hd	#541: test programs, and roots that never suspend
 runtime/valid/assert.hd	#541: test programs, and roots that never suspend
+runtime/valid/assignment-and-break-forms.hd	#554: lists
 runtime/valid/binding-chain-with-suite.hd	#540: integers, strings and enums in locals
 runtime/valid/bom-inside-comment.hd	#540: integers, strings and enums in locals
 runtime/valid/boolean-literals-and-absence.hd	#540: integers, strings and enums in locals
@@ -59,28 +76,38 @@ runtime/valid/char-ascii-classes.hd	#552: strings
 runtime/valid/char-unicode-digits.hd	#552: strings
 runtime/valid/char-unicode-letters.hd	#552: strings
 runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so no entry point runs
+runtime/valid/comments-hide-code-from-the-parser.hd	#554: lists
+runtime/valid/comparisons-beside-brackets.hd	#554: lists
 runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
+runtime/valid/data-and-enum-declaration-forms.hd	#554: lists
 runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
 runtime/valid/doc-test-console-row.hd	#541: test programs, and roots that never suspend
 runtime/valid/duration-order.hd	#551: structs, tuples, enums and data values
+runtime/valid/escape-error-value-copy.hd	#554: lists
 runtime/valid/escape-sequences.hd	#540: integers, strings and enums in locals
 runtime/valid/f64-nan-ordering.hd	#541: test programs, and roots that never suspend
 runtime/valid/f64-ordering-operators.hd	#541: test programs, and roots that never suspend
 runtime/valid/fieldless-data-canonical.hd	#551: structs, tuples, enums and data values
 runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
+runtime/valid/for-loop-snapshot-push.hd	#554: lists
 runtime/valid/generic-data-let-pattern.hd	#552: strings
 runtime/valid/generic-data-match-pattern.hd	#552: strings
 runtime/valid/generic-data-pattern-in-generic-function.hd	#552: strings
+runtime/valid/generic-data-pattern-nested-generic.hd	#554: lists
 runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
 runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
 runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
 runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
 runtime/valid/identity-ignores-permissions.hd	#551: structs, tuples, enums and data values
+runtime/valid/indentation-levels.hd	#554: lists
 runtime/valid/index-then-call-element.hd	#539: main is private, so no entry point runs
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
+runtime/valid/leading-pipe-lines-join-the-chain.hd	#554: lists
 runtime/valid/let-after-same-line-if-keeps-else.hd	#551: structs, tuples, enums and data values
+runtime/valid/let-patterns-and-let-else.hd	#554: lists
 runtime/valid/literal-suffix-calls.hd	#540: integers, strings and enums in locals
+runtime/valid/literal-var-flow.hd	#554: lists
 runtime/valid/module-qualified-type.hd	#551: structs, tuples, enums and data values
 runtime/valid/module-qualified-variant.hd	#551: structs, tuples, enums and data values
 runtime/valid/multiline-string-literals.hd	#540: integers, strings and enums in locals
@@ -90,12 +117,19 @@ runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
 runtime/valid/no-final-line-ending.hd	#540: integers, strings and enums in locals
 runtime/valid/num-is-finite.hd	#541: test programs, and roots that never suspend
 runtime/valid/num-is-nan.hd	#541: test programs, and roots that never suspend
+runtime/valid/num-parse-f64-round-trip.hd	#554: lists
+runtime/valid/num-parse-f64-specials.hd	#554: lists
 runtime/valid/numeric-display-notation.hd	#552: strings
 runtime/valid/numeric-display-special-values.hd	#552: strings
+runtime/valid/operators-without-spaces.hd	#554: lists
 runtime/valid/option-nest-none-is-outer.hd	#541: test programs, and roots that never suspend
 runtime/valid/ord-supertrait-dispatch.hd	#539: main is private, so no entry point runs
+runtime/valid/pattern-forms.hd	#554: lists
 runtime/valid/payloads-and-fields-keep-every-width.hd	#551: structs, tuples, enums and data values
 runtime/valid/pipe-placeholder-steps.hd	#552: strings
+runtime/valid/prefixed-string-template.hd	#554: lists
+runtime/valid/prelude-eq-method-direct.hd	#554: lists
+runtime/valid/prelude-partial-cmp-method-direct.hd	#554: lists
 runtime/valid/primitive-bool-eq-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-char-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-in methods
@@ -104,17 +138,28 @@ runtime/valid/primitive-string-cmp-method-direct.hd	#552: strings
 runtime/valid/println-console-stdout.hd	#540: println through the host Console
 runtime/valid/println-under-main-driver.hd	#541: test programs, and roots that never suspend
 runtime/valid/raw-identifiers-as-names.hd	#551: structs, tuples, enums and data values
+runtime/valid/recursive-list-tree.hd	#554: lists
 runtime/valid/reference-enum-replace-build.hd	#545: main is private, so no entry point runs
 runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
+runtime/valid/reverse-value-copy.hd	#554: lists
 runtime/valid/same-line-suite-body-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/script-empty-run.hd	#539: an empty script runs
+runtime/valid/script-top-level-runs.hd	#554: lists
+runtime/valid/shared-enum-data-computed-once.hd	#554: lists
+runtime/valid/spread-forms-and-positions.hd	#554: lists
+runtime/valid/string-and-char-literal-contents.hd	#554: lists
 runtime/valid/string-encodings-distinct.hd	#541: test programs, and roots that never suspend
+runtime/valid/string-from-bytes-checks-utf8.hd	#554: lists
 runtime/valid/string-host-bytes.hd	#540: string literals through the host Console
+runtime/valid/strings-and-comments-hide-keywords-and-operators.hd	#554: lists
 runtime/valid/struct-copy-update.hd	#551: structs, tuples, enums and data values
 runtime/valid/tab-only-as-content.hd	#540: integers, strings and enums in locals
 runtime/valid/test-body-return.hd	#541: test programs, and roots that never suspend
+runtime/valid/test-expect-panic.hd	#554: lists
+runtime/valid/top-level-pattern-binding.hd	#554: lists
 runtime/valid/trait-and-impl-declaration-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/trait-default-method-instantiates-params.hd	#539: main is private, so no entry point runs
+runtime/valid/tuple-rest-spread-list.hd	#554: lists
 runtime/valid/u8-checked-add.hd	#539: main is private, so no entry point runs
 runtime/valid/unicode-function-names.hd	#540: integers, strings and enums in locals
 runtime/valid/generic-sharing-distinct-value-layouts.hd	#568: generic keys follow the backend layout

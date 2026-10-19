@@ -1663,6 +1663,7 @@ what the spec names as intrinsic or what only it can build.
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
+| lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -1710,7 +1711,7 @@ inline in memory where Wasm GC stored a reference.
 | `string` | `(address, length)`: two `i32` | 8 bytes |
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5) | 4 bytes |
 | `data T` (today's language) | the address of a counted object holding the fields | 4 bytes |
-| `List[T]`, `Map[K, V]` | the address of a counted buffer (§23.7) | 4 bytes |
+| `List[T]`, `Map[K, V]` | the address of a counted header over a counted buffer (§23.7) | 4 bytes |
 | closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
 | `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
@@ -1822,27 +1823,38 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
   is one static value**: its address is one fixed static location and its
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
-- **A collection buffer** is a counted object whose payload starts with
-  its own header: the pin count (the second count of OBJECT_MODEL_TIER1.md
-  §6.3), the capacity, then the length for a list; then its elements
-  inline at their alignment. The object's count is the owner count, for
-  copy-on-write: a write first checks it is 1 and copies the buffer
-  otherwise (REFCOUNT_RUNTIME.md §9.1). A pinned buffer is copied when its
-  list is copied, so it is never shared, and is freed when owners and pins
-  are both zero.
+- **A list** is the address of a counted header, which holds its buffer's
+  address and its pin count (the second count of OBJECT_MODEL_TIER1.md
+  §6.3). The buffer is a counted object holding the capacity, the length
+  and then the elements inline at their layout's size. The buffer's count
+  is its owner count, for copy-on-write: a change first checks it is 1
+  and copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1). A map will
+  be the same kind of header over its table (job 10).
+
+| Header payload offset | Size | Field |
+| --- | --- | --- |
+| 0 | 4 | the buffer's address |
+| 4 | 4 | pins |
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
-| 0 | 4 | pins |
-| 4 | 4 | capacity, in elements |
-| 8 | 4 | length (a list), or the entry count (a map) |
-| 12 | 4 | reserved: 8-aligns the elements |
-| 16 | capacity times the element size | the elements, inline |
+| 0 | 4 | capacity, in elements |
+| 4 | 4 | length |
+| 8 | capacity times the element size | the elements, inline |
 
-A list is a value with copy-on-write (OBJECT_MODEL_TIER1.md §6.2, job 8),
-but the linear backend does not lower lists yet: a list value will be the
-buffer's address, and a copy increments the owners count of the buffer
-header above; growth that moves the buffer is job 9's to place.
+Why a header, and not the buffer's address as the value: the TIR changes
+a list through its value, not through the place that holds it (`push`,
+an element store and `ListIndexMut` take the list as an operand), and
+the checker lets places share one list value where nothing can change it
+in place (`ValueCopy`, §15.2, "Collection values"). So the change must
+reach every holder of that value, as the Wasm GC backend's header does,
+while the buffer underneath may move when it grows or is copied. The
+pins live in the header for the same reason: an element reference
+reaches its slot through the list it pins, and a copy of a pinned list
+is a new header with no pins over the shared buffer, which the next
+change through either header copies first. A TIR that wrote changes back
+to their place would let the value be the buffer's address and save one
+object per list.
 
 ### 23.8 Closures, `dyn` And Vtables
 
@@ -2076,8 +2088,8 @@ Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
 - **Leaks.** Until counting (job 8) no buffer is freed: every built
   string lives until the program exits, as every data object does.
 - **Not yet.** `char` text builds a `List[u8]` (std's `scalar_text`), and
-  `StringBuilder` is a reference to lists, so both wait for lists (job 9)
-  and references (job 12). So does every `assert_equal`, whose report is
+  `StringBuilder` is a reference to lists, so both wait for lists (job 9,
+  §23.17) and references (job 12). So does every `assert_equal`, whose report is
   `debug`'s, over a `&mut DebugWriter` of lists and `dyn Any`: most string
   fixtures check with it, so the job's fixture prints instead.
 
@@ -2141,3 +2153,64 @@ before fast; elision is jobs 17 and 18. The counting is in
 - **Not yet.** Release is recursive, so a very long chain can exhaust the
   stack until iterative release (job 19). Lists, maps, closures and
   references count when they land (jobs 9 to 12).
+
+### 23.17 What Job 9 Adds
+
+Job 9 lowers lists (§23.7), in `emit/list.rs` with their glue in
+`rt.rs`. Each change keeps the Wasm GC backend's semantics (§15.2,
+"Collection values" and "Element references"), with the buffer's count
+in place of the `cow` mark.
+
+- **Literals.** A literal sizes its buffer exactly for its items and its
+  spreads (`expr.list.spread.insert`), stores each item, copies each
+  spread's elements with one `memory.copy`, then makes a header over it
+  (`rt:list_header`). Every empty literal shares one static empty
+  buffer, whose count word is 2, so a change always copies it first. A
+  tuple's rest list is its last member.
+- **Copies.** `ValueCopy` and `SnapBegin` make a new header over the same
+  buffer, which counts one more owner (`rt:list_copy`); a struct's copy
+  copies each list among its fields at any depth (`layout::coll_leaves`,
+  after `hd_mono::holds_coll`). An operand stored into an element, a
+  field, a payload or a tuple is copied the same way, unless its own
+  instruction made it, as the Wasm GC backend decides. Such a copy's own
+  count belongs to a temporary that the function's exit releases.
+- **Changes.** `push`, an element store, `ListIndexMut` and `ListPin`
+  first make the buffer the list's own (`rt:list_unique`). A shared
+  buffer is copied: its elements take their own counts, the lists among
+  them become copies in turn, so a nested write never reaches another
+  list, and the old buffer loses one owner. A `push` into a full buffer
+  of the list's own moves it to one of twice the length plus 4, and frees
+  the old block without releasing its elements, which moved. A store
+  counts the new element before it releases the old one.
+- **Release.** A header's release glue releases its buffer; a buffer's
+  (`rt:drop_elems`) releases each element's counted references up to the
+  length. A list of strings or of structs holding lists frees everything
+  at its last release.
+- **Loops.** `SnapEnd` gives the snapshot's buffer back at once, so after
+  the loop the list's next change copies only when something else still
+  shares the buffer.
+- **Pins.** `ListPin` and `ListUnpin` count the header's pins, and a
+  `push` into a pinned list panics `collection-pinned`. Element
+  references are closures over the header and the index, so no fixture
+  reaches them before closures (job 11) and references (job 12); a
+  pinned buffer may be copied under its references, which reach their
+  slot through the header.
+- **Indexing.** An index is checked against the length before it is
+  narrowed: a 64-bit index past 4 GiB is `index-out-of-bounds`, never
+  wrapped.
+- **Strings over lists.** `string_from_bytes` and `concat_all` copy a
+  list's bytes, or its strings' bytes, into one new string buffer.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/list_tests.hd`
+  builds lists of strings and lists of structs holding lists, and copies
+  and changes a list, each in a loop, and checks that the heap does not
+  grow after a warm-up.
+- **Size.** hello holds no list: 10,607 bytes in the dev profile, as
+  after job 8. A program that uses lists links the list glue, one
+  function per element layout for its buffer, release, copy and change.
+  The web compiler leaves this backend out (hd_driver's default feature
+  `linear`), since the playground links with the Wasm GC backend only.
+- **Not yet.** List iterators (`iter()`) hold a closure, and std's
+  shrinking primitive `list_truncate`, so `pop`, `insert`, `remove_at`
+  and `clear`, takes `&mut List[T]`: they wait for closures (job 11) and
+  references (job 12), as do `assert_equal` and `debug`, which write
+  through `&mut DebugWriter`.

@@ -1,0 +1,101 @@
+# The hd tests of lists on the linear backend (crates/hd_wasm/DESIGN.md
+# §23.17): a list's buffer grows, copies only when shared, and frees its
+# elements at its last release, so building lists in a loop runs in
+# bounded memory. Only std may read the heap's size, so the conformance
+# runner adds this file to std as `std.rt.list_tests`.
+use std.rt.memory.pages
+
+struct Row:
+    name: string
+    cells: List[i32]
+
+fn label(n: i32) -> string:
+    "n$n"
+
+fn names(n: i32) -> List[string]:
+    let mut out: List[string] = []
+    let i = +0
+    while i < n:
+        out.push(label(i))
+        i = i + 1
+    out
+
+fn rows(n: i32) -> List[Row]:
+    let mut out: List[Row] = []
+    let i = +0
+    while i < n:
+        out.push(Row { name: label(i), cells: [i, i + 1] })
+        i = i + 1
+    out
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a growing list keeps every element in order"):
+        let mut xs: List[i32] = []
+        let i = +0
+        while i < 100000:
+            xs.push(i * 2)
+            i = i + 1
+        assert(xs.len() == 100000, "every push landed")
+        assert(xs[0] == 0 && xs[50000] == 100000 && xs[99999] == 199998, "in order")
+
+    it("lists of strings built in a loop run in bounded memory"):
+        let total: usize = 0
+        let round = +0
+        let start: usize = 0
+        while round < 330:
+            if round == 30:
+                start = pages()
+            let built = names(1000)
+            total = total + built[999].len()
+            round = round + 1
+        assert(total == 1320, "each list was whole while held")
+        assert(pages() == start, "each list's buffers and strings are reused")
+
+    it("lists of structs holding lists free every inner list"):
+        let cells = +0
+        let round = +0
+        let start: usize = 0
+        while round < 330:
+            if round == 30:
+                start = pages()
+            let built = rows(500)
+            cells = cells + built[499].cells[1]
+            round = round + 1
+        assert(cells == 165000, "each row kept its cells")
+        assert(pages() == start, "the rows' lists and names are reused")
+
+    it("a copy shares its buffer until either side changes"):
+        let mut xs: List[string] = ["a", "b" + "c"]
+        let mut ys = xs
+        ys.push("d")
+        xs[0] = "z"
+        assert(xs.len() == 2 && ys.len() == 3, "the push changed ys only")
+        assert(ys[0] == "a" && xs[0] == "z", "the store changed xs only")
+        let mut grid: List[List[i32]] = [[+1], [2]]
+        let mut other = grid
+        other[0].push(5)
+        assert(grid[0].len() == 1 && other[0].len() == 2, "the inner lists are apart")
+
+    it("copies made and changed in a loop run in bounded memory"):
+        let base = names(100)
+        let round = +0
+        let start: usize = 0
+        while round < 20000:
+            if round == 30:
+                start = pages()
+            let mut copy = base
+            copy.push("x")
+            assert(copy.len() == 101, "the copy grew")
+            round = round + 1
+        assert(base.len() == 100, "the source is unchanged")
+        assert(pages() == start, "each copy's buffer is reused")
+
+    it("a for loop iterates the list as it was"):
+        let mut xs: List[i32] = [+1, 2, 3]
+        let seen = +0
+        for x in xs:
+            xs.push(x)
+            seen = seen + 1
+        assert(seen == 3 && xs.len() == 6, "the pushes were not visited")

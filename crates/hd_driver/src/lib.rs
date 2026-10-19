@@ -7510,8 +7510,13 @@ impl Run<'_> {
         let mut order: Vec<(DefId, &str)> = Vec::new();
         // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
-        let runtime_inits: Vec<DefId> = if self.backend == Backend::Linear {
-            match self.root_init_order(hd_wasm_linear::RUNTIME_MODULE, &init_of, &has_init) {
+        #[cfg(feature = "linear")]
+        let linear_runtime =
+            (self.backend == Backend::Linear).then_some(hd_wasm_linear::RUNTIME_MODULE);
+        #[cfg(not(feature = "linear"))]
+        let linear_runtime: Option<&str> = None;
+        let runtime_inits: Vec<DefId> = if let Some(runtime) = linear_runtime {
+            match self.root_init_order(runtime, &init_of, &has_init) {
                 Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
                 Err(e) => {
                     self.stage::<()>(Stage::Collect, Err(e));
@@ -7626,6 +7631,7 @@ impl Run<'_> {
         // The linear backend's code calls std's allocator and counts by
         // key (crates/hd_wasm/DESIGN.md §23.16), whatever the program
         // uses; its link drops the ones nothing calls.
+        #[cfg(feature = "linear")]
         if self.backend == Backend::Linear {
             for name in hd_wasm_linear::RUNTIME_FNS {
                 let r = (
@@ -8501,7 +8507,16 @@ impl Run<'_> {
             return;
         };
         if self.backend == Backend::Linear {
+            #[cfg(feature = "linear")]
             self.link_linear(c, p);
+            #[cfg(not(feature = "linear"))]
+            self.stage::<()>(
+                Stage::Link,
+                Err(NotImplemented::new(
+                    Stage::Link,
+                    "the linear backend, which this build leaves out",
+                )),
+            );
             return;
         }
         self.put_pack_hint(c);
@@ -8654,6 +8669,7 @@ impl Run<'_> {
 
     /// `link` for the linear backend ([`Backend::Linear`]): one module
     /// from collection's output and every instance's TIR body.
+    #[cfg(feature = "linear")]
     fn link_linear(&self, c: &CollectOut, p: &ProgramTables) {
         let folders = self.program_folders();
         let arity = p.arity();
@@ -9819,11 +9835,18 @@ impl ProgramEnv for Env<'_> {
     fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
         match self.run.backend {
             Backend::WasmGc => None,
+            #[cfg(feature = "linear")]
             Backend::Linear => Some(hd_wasm_linear::shared_reference_layout(
                 &self.run.pool,
                 self,
                 ty,
             )),
+            // Without the backend, a linear build stops at link.
+            #[cfg(not(feature = "linear"))]
+            Backend::Linear => {
+                let _ = ty;
+                None
+            }
         }
     }
     fn body(&self, def: DefId) -> Option<&Body> {

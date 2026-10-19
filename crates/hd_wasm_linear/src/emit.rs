@@ -12,7 +12,7 @@
 
 use hd_base::{DefId, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
-use hd_tir::ir::{Body, Callee, Coercion, NONE, PrimOp, Ref, Tag, local_flags};
+use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags};
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction, Instruction as I};
 
@@ -22,6 +22,7 @@ use crate::rt::Helper;
 use crate::{Input, unsupported};
 
 mod count;
+mod list;
 mod text;
 mod value;
 
@@ -61,6 +62,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         loops: 0,
         counting: false,
         ret: Vec::new(),
+        temps: Vec::new(),
     };
     let mut params = Vec::new();
     for l in param_locals(b) {
@@ -178,6 +180,9 @@ struct Em<'i, 'a, 'm> {
     counting: bool,
     /// The locals of the function's results, at its exit.
     ret: Vec<u32>,
+    /// The locals of the collection copies that operands were stored as
+    /// (`list.rs`, `copy_src`), each owning one count until the exit.
+    temps: Vec<u32>,
 }
 
 impl Em<'_, '_, '_> {
@@ -662,14 +667,32 @@ impl Em<'_, '_, '_> {
             }
             Tag::Unwrap => self.payload(i, a, 1, 0)?,
             Tag::NewVariant => {
-                let payload: Vec<value::Src> =
-                    self.rec(bw).into_iter().map(value::Src::Ref).collect();
+                let tys = crate::layout::variants(self.pool(), self.env(), self.ty(i))
+                    .and_then(|vs| vs.get(a as usize).cloned())
+                    .unwrap_or_default();
+                let mut payload = Vec::new();
+                for (r, pt) in self.rec(bw).into_iter().zip(tys) {
+                    payload.push(self.slot_src(r, pt, false)?);
+                }
                 self.new_variant(i, a, &payload)?;
             }
             Tag::Intrinsic => {
                 let op = hd_tir::ir::IntrinsicOp::from_u32(a);
                 let args = self.rec(bw);
                 match op {
+                    Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
+                    Some(IntrinsicOp::ListIndex) => self.list_index(i, &args, false)?,
+                    Some(IntrinsicOp::ListIndexMut) => self.list_index(i, &args, true)?,
+                    Some(IntrinsicOp::ListSet) => self.list_set(&args)?,
+                    Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
+                    Some(IntrinsicOp::ValueCopy) => self.value_copy(i, args[0])?,
+                    Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
+                    Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
+                    Some(IntrinsicOp::ListPin) => self.list_pin(i, &args)?,
+                    Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
+                    Some(IntrinsicOp::ListIter) => {
+                        return unsupported("list iterators, which hold a closure (job 11)");
+                    }
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
@@ -678,16 +701,7 @@ impl Em<'_, '_, '_> {
                         self.f.helper(Helper::StrEq);
                         self.store(i)?;
                     }
-                    // A copy of a value that holds no list or map is the
-                    // value itself (`hd_mono::holds_coll`); the counted
-                    // copy of a collection comes with the list and map jobs.
-                    Some(hd_tir::ir::IntrinsicOp::ValueCopy)
-                        if !hd_mono::holds_coll(self.pool(), self.env(), self.ty(i)) =>
-                    {
-                        self.push(args[0])?;
-                        self.store(i)?;
-                    }
-                    _ => return unsupported("list and map kernels (jobs 9 and 10)"),
+                    _ => return unsupported("map kernels (job 10)"),
                 }
             }
             Tag::Hook => {}
@@ -699,17 +713,30 @@ impl Em<'_, '_, '_> {
                 self.field_set(a, r[0], r[1])?;
             }
             Tag::NewTuple => {
+                // The rest list, if any, is the last member.
+                let mut members = self.rec(bw);
                 if a != NONE {
-                    return unsupported("a tuple with a rest list (job 9)");
+                    members.push(a);
                 }
-                for r in self.rec(bw) {
-                    self.push(r)?;
+                let tys = crate::layout::tuple_members(
+                    self.pool(),
+                    crate::layout::strip(self.pool(), self.env(), self.ty(i)),
+                );
+                let mut srcs = Vec::new();
+                for (r, mt) in members.into_iter().zip(&tys) {
+                    srcs.push(self.slot_src(r, *mt, false)?);
+                }
+                for (s, mt) in srcs.iter().zip(tys) {
+                    for k in 0..self.vals(mt)?.len() {
+                        self.src(s, k)?;
+                    }
                 }
                 self.store(i)?;
             }
             Tag::TupleGet => self.tuple_get(i, a, bw)?,
             Tag::Is => self.is(i, a, bw)?,
-            Tag::NewList | Tag::ForList => return unsupported("lists (job 9)"),
+            Tag::NewList => self.new_list(i, a, bw)?,
+            Tag::ForList => return unsupported("a `for` over a list that lowering kept"),
             Tag::NewMap | Tag::ForMap => return unsupported("maps (job 10)"),
             Tag::Closure | Tag::ItemRef | Tag::CallValue | Tag::CallDyn => {
                 return unsupported("function and `dyn` values (job 11)");
@@ -928,6 +955,16 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
+            // The string kernels over lists (§23.17).
+            "string_from_bytes" | "concat_all" => {
+                self.comp(args[0], 0)?;
+                self.f.helper(if key == "concat_all" {
+                    Helper::ConcatAll
+                } else {
+                    Helper::StrFromBytes
+                });
+                self.store_owned(i)
+            }
             // The bit casts keep every bit, a NaN's sign and payload too.
             "f64_to_bits" | "f64_from_bits" | "f32_to_bits" | "f32_from_bits" => {
                 self.comp(args[0], 0)?;

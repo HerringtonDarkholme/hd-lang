@@ -146,6 +146,10 @@ impl Em<'_, '_, '_> {
             let t = self.sub(self.b.local_ty[l]);
             self.release_locals(&ls, t)?;
         }
+        for tmp in self.temps.clone() {
+            self.f.get(tmp);
+            self.f.helper(Helper::ReleaseRef);
+        }
         Ok(())
     }
 }

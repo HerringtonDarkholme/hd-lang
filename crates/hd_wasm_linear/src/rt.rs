@@ -69,6 +69,32 @@ pub enum Helper {
     /// `(payload)`: one more count on each counted reference in a new
     /// object's payload, which its construction copied in.
     RetainFields { leaves: Vec<Leaf>, walk: Walk },
+    /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
+    /// count it takes over, with no pins.
+    ListHeader,
+    /// `(capacity) -> buffer`: a new, empty list buffer with room for
+    /// `capacity` elements laid out as `elem`.
+    ListBuf { elem: Elem },
+    /// `(payload)`: the release glue of a list buffer: one count less on
+    /// each counted reference of each element.
+    DropElems { elem: Elem },
+    /// `(list) -> list`: a copy of a list (`types.coll.value`): a new
+    /// header over the same buffer, which counts one more owner.
+    ListCopy,
+    /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
+    /// keeps them too, take their own counts; each collection among an
+    /// element's values becomes its copy ([`Helper::ListCopy`]).
+    CopyElems { elem: Elem },
+    /// `(list)`: makes the list's buffer its own before a change: a
+    /// buffer it shares is copied, and with `push` a full one is moved to
+    /// a larger one.
+    ListUnique { elem: Elem, push: bool },
+    /// `(list: List[u8]) -> string`: a new string of the list's bytes,
+    /// which std has checked are UTF-8.
+    StrFromBytes,
+    /// `(list: List[string]) -> string`: every part's bytes in order,
+    /// copied once into one new string.
+    ConcatAll,
     /// `(value: i64) -> string`: an integer's decimal text, read as
     /// signed when `signed`.
     FmtInt { signed: bool },
@@ -100,6 +126,44 @@ pub enum Helper {
     /// done. While a program runs one host call at a time, the completion
     /// `hd:rt.block` reports is this call's.
     HostPoll { module: String, method: String },
+}
+
+/// A list's element as the list glue sees it: its stride, its values in
+/// memory, which of them are counted, and which are collections that a
+/// copy of the element copies (`layout::coll_leaves`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Elem {
+    pub size: u32,
+    pub leaves: Vec<Leaf>,
+    pub walk: Option<Walk>,
+    pub colls: Vec<u32>,
+}
+
+impl Elem {
+    /// Whether an element copied out of a shared buffer needs more than
+    /// its bytes: counts, or copies of its collections.
+    #[must_use]
+    pub fn counts(&self) -> bool {
+        self.walk.is_some() || !self.colls.is_empty()
+    }
+}
+
+/// A list header's payload (§23.7): the buffer's address, then the pin
+/// count of the element references into the list.
+pub const LIST_PINS: u64 = 4;
+
+/// A list buffer's payload: the capacity in elements, the length, then
+/// the elements inline from [`LIST_ELEMS`].
+pub const LIST_LEN: u64 = 4;
+pub const LIST_ELEMS: u32 = 8;
+
+/// The address of the one static empty list buffer, shared by every empty
+/// list literal. Its count word is 2, so a change always copies it first,
+/// and as static data it is never counted.
+pub fn empty_buffer(m: &mut Module) -> u32 {
+    let mut bytes = [0u8; 16];
+    bytes[0] = 2;
+    m.static_bytes(&bytes, 8) + HEADER
 }
 
 /// How a host primitive's argument crosses: a string, or a scalar as
@@ -418,6 +482,25 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainFields { leaves, walk } => {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
+        Helper::ListHeader => list_header(),
+        Helper::ListBuf { elem } => list_buf(elem),
+        Helper::DropElems { elem } => drop_elems(elem),
+        Helper::ListCopy => {
+            let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+            let b = f.local(Val::I32);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.set(b);
+            f.get(b);
+            retain_call(m)(&mut f);
+            f.get(b);
+            f.helper(Helper::ListHeader);
+            f
+        }
+        Helper::CopyElems { elem } => copy_elems(elem, m),
+        Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
+        Helper::StrFromBytes => str_from_bytes(),
+        Helper::ConcatAll => concat_all(),
         Helper::StrCmp => str_cmp(),
         Helper::HostPrim { name, args, result } => host_prim(name, args, *result),
         Helper::FmtInt { signed } => fmt_int(*signed),
@@ -997,5 +1080,341 @@ fn release_ref(m: &Module) -> Func {
     f.get(block);
     f.call(Sym::Inst(r.free));
     f.op(Instruction::End);
+    f
+}
+
+/// The leaf of a list header's buffer address, which its release glue
+/// releases.
+const LIST_BUF_LEAF: Leaf = Leaf {
+    offset: 0,
+    val: Val::I32,
+    bytes: 4,
+    signed: false,
+};
+
+/// [`Helper::ListHeader`].
+fn list_header() -> Func {
+    let mut f = Func::new("rt:list_header", vec![Val::I32], vec![Val::I32]);
+    let h = f.local(Val::I32);
+    f.i32(8);
+    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+        leaves: vec![LIST_BUF_LEAF],
+        walk: Walk::Ref(0),
+    })));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::New);
+    f.set(h);
+    f.get(h);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(h);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_PINS, 2)));
+    f.get(h);
+    f
+}
+
+/// [`Helper::ListBuf`]: a capacity whose bytes pass 4 GiB is
+/// `heap-exhausted`.
+fn list_buf(elem: &Elem) -> Func {
+    let mut f = Func::new("rt:list_buf", vec![Val::I32], vec![Val::I32]);
+    let b = f.local(Val::I32);
+    if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
+        f.get(0);
+        f.u32(most);
+        f.op(Instruction::I32GtU);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Panic(
+            "heap-exhausted: a list does not fit the heap".into(),
+        ));
+        f.op(Instruction::End);
+    }
+    f.get(0);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    if elem.walk.is_some() {
+        f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropElems {
+            elem: elem.clone(),
+        })));
+        f.i32(1);
+        f.op(Instruction::I32Add);
+    } else {
+        f.i32(0);
+    }
+    f.helper(Helper::New);
+    f.set(b);
+    f.get(b);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(b);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(b);
+    f
+}
+
+/// Emits a loop over the `n` elements of `size` bytes from the address in
+/// local `at`, which it advances: `body` runs with `at` at each element.
+fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func)) {
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(n);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    body(f);
+    f.get(at);
+    f.u32(size);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.get(n);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(n);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
+/// [`Helper::DropElems`].
+fn drop_elems(elem: &Elem) -> Func {
+    let mut f = Func::new("rt:drop_elems", vec![Val::I32], vec![]);
+    let (at, n) = (f.local(Val::I32), f.local(Val::I32));
+    let Some(walk) = &elem.walk else {
+        return f;
+    };
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(0);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    let ls = load_elem_locals(&mut f, &elem.leaves);
+    each_elem(&mut f, at, n, elem.size, &|f| {
+        fill_elem(f, at, &elem.leaves, &ls);
+        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
+            f.helper(Helper::ReleaseRef);
+        });
+    });
+    f
+}
+
+/// Fresh locals for an element's leaves.
+fn load_elem_locals(f: &mut Func, leaves: &[Leaf]) -> Vec<u32> {
+    leaves.iter().map(|l| f.local(l.val)).collect()
+}
+
+/// Loads each leaf of the element at local `at` into its local of `ls`.
+fn fill_elem(f: &mut Func, at: u32, leaves: &[Leaf], ls: &[u32]) {
+    for (l, x) in leaves.iter().zip(ls) {
+        f.get(at);
+        f.op(l.load(0));
+        f.set(*x);
+    }
+}
+
+/// [`Helper::CopyElems`].
+fn copy_elems(elem: &Elem, m: &Module) -> Func {
+    let mut f = Func::new("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
+    let ls = load_elem_locals(&mut f, &elem.leaves);
+    let walk = elem.walk.as_ref().and_then(|w| w.without(&elem.colls));
+    let retain = retain_call(m);
+    each_elem(&mut f, 0, 1, elem.size, &|f| {
+        fill_elem(f, 0, &elem.leaves, &ls);
+        if let Some(w) = &walk {
+            walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+        }
+        for c in &elem.colls {
+            let l = elem.leaves[*c as usize];
+            f.get(0);
+            f.get(ls[*c as usize]);
+            f.helper(Helper::ListCopy);
+            f.op(Instruction::I32Store(mem(HEAP, u64::from(l.offset), 2)));
+        }
+    });
+    f
+}
+
+/// [`Helper::ListUnique`]: a shared buffer is copied at its length, or
+/// at twice it plus 4 for a `push`; its elements take their own counts and
+/// the old buffer one owner less. A full buffer of the list's own moves
+/// to the larger one, and its old block is freed with no release, since
+/// its elements moved.
+fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
+    let mut f = Func::new("rt:list_unique", vec![Val::I32], vec![]);
+    let (b, n, shared, nb) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(b);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Ne);
+    f.set(shared);
+    f.get(shared);
+    if push {
+        f.get(n);
+        f.get(b);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::I32Or);
+    }
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(n);
+    if push {
+        f.i32(2);
+        f.op(Instruction::I32Mul);
+        f.i32(4);
+        f.op(Instruction::I32Add);
+    }
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.set(nb);
+    f.get(nb);
+    f.get(n);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(nb);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(shared);
+    f.op(Instruction::If(BlockType::Empty));
+    if elem.counts() {
+        f.get(nb);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.get(n);
+        f.helper(Helper::CopyElems { elem: elem.clone() });
+    }
+    f.get(b);
+    f.helper(Helper::ReleaseRef);
+    f.op(Instruction::Else);
+    if let Some(r) = m.runtime {
+        f.get(b);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.call(Sym::Inst(r.free));
+    }
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(nb);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.op(Instruction::End);
+    f
+}
+
+/// [`Helper::StrFromBytes`]: no bytes is the static empty string.
+fn str_from_bytes() -> Func {
+    let mut f = Func::new("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
+    let (b, n, s) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.u32(EMPTY);
+    f.set(s);
+    f.get(n);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(n);
+    f.helper(Helper::Str);
+    f.set(s);
+    f.get(s);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.op(Instruction::End);
+    f.get(s);
+    f.get(n);
+    f
+}
+
+/// [`Helper::ConcatAll`]: one pass sums the lengths, a second copies;
+/// no bytes is the static empty string.
+fn concat_all() -> Func {
+    let mut f = Func::new("rt:concat_all", vec![Val::I32], vec![Val::I32; 2]);
+    let (at, n, total, s, to) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    let start = |f: &mut Func| {
+        f.get(0);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.set(at);
+        f.get(at);
+        f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+        f.set(n);
+        f.get(at);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.set(at);
+    };
+    start(&mut f);
+    each_elem(&mut f, at, n, 8, &|f| {
+        f.get(total);
+        f.get(at);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.op(Instruction::I32Add);
+        f.set(total);
+    });
+    f.u32(EMPTY);
+    f.set(s);
+    f.get(total);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(total);
+    f.helper(Helper::Str);
+    f.set(s);
+    f.get(s);
+    f.set(to);
+    start(&mut f);
+    each_elem(&mut f, at, n, 8, &|f| {
+        f.get(to);
+        f.get(at);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.get(at);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.op(Instruction::MemoryCopy {
+            src_mem: HEAP,
+            dst_mem: HEAP,
+        });
+        f.get(to);
+        f.get(at);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.op(Instruction::I32Add);
+        f.set(to);
+    });
+    f.op(Instruction::End);
+    f.get(s);
+    f.get(total);
     f
 }
