@@ -341,15 +341,15 @@ pub trait Arbitrary:
 # itself, because they name `std.structure` (checker/typed-derivation.ts).
 impl[T] Arbitrary for T by Structure:
     fn arbitrary(c: mut Choices) -> T:
-        let s: mut ArbitrarySource[T] = ArbitrarySource::[T] { c: c, at: 0 }
-        match T::build(s):
+        let mut s = ArbitrarySource::[T] { c: c, at: 0 }
+        match T::build(&mut s):
             .Ok(value) => value
             # No variant is finite (r-std-testing.arbitrary.derive.no-finite.message).
             .Err(_) => panic("${T::name()} has no finite value")
 
 # The fields are public because the prototype checks the instantiated
 # `Source` implementation in the target's module.
-data ArbitrarySource[S]:
+struct ArbitrarySource[S]:
     pub c: mut Choices
     pub at: usize
 
@@ -365,7 +365,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # (r-std-testing.arbitrary.derive.simplest). With no such variant the
     # type has no finite value (r-std-testing.arbitrary.derive.no-finite,
     # .no-finite.data).
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], NoFiniteValue]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], NoFiniteValue]:
         let simplest = -1
         for v in choices:
             if simplest < 0:
@@ -383,7 +383,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
         .Ok(ordered[self.c.int(0..=ordered.len() - 1)])
 
     # The members in declaration order, each once.
-    fn next(mut self, members: Members[S]) -> Result[Key[S], NoFiniteValue]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], NoFiniteValue]:
         if self.at >= members.infos.len():
             return .Ok(members.end())
         info := members.infos[self.at]
@@ -394,12 +394,12 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # (r-std-testing.arbitrary.derive.member-bound). A tuned member draws
     # with the generator of its typed `With[F]` fact, read through the
     # handle (r-std-testing.arbitrary.with.typed-read).
-    fn member[F < Arbitrary](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
+    fn member[F < Arbitrary](&mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
         match h.fact::[With[F]]():
             .None => .Ok(F::arbitrary(self.c))
             .Some(tuned) => .Ok((tuned.gen)(self.c))
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, NoFiniteValue]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, NoFiniteValue]:
         panic("an arbitrary source names every member")
 
 # `std` implements `Arbitrary` for the primitives, `string`, `List`, `Map`,

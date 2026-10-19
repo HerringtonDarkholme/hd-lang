@@ -89,17 +89,17 @@ use std.structure.{Structure, Field, Variant, Walker}
 trait Trace:
     fn trace(self) -> string
 
-data Tracer:
+struct Tracer:
     pub out: string
 
 impl[S] Walker[S] for Tracer:
     type Error = string
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, string]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, string]:
         self.out = self.out + v.info.name + \":\"
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, string]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, string]:
         if h.info.name == \"stop\":
             return .Err(\"stop@${h.info.position}\")
         self.out = self.out + h.info.name + \",\"
@@ -107,8 +107,8 @@ impl[S] Walker[S] for Tracer:
 
 impl[T] Trace for T by Structure:
     fn trace(self) -> string:
-        let w: mut Tracer = Tracer { out: \"\" }
-        match Structure::walk(self, w):
+        let mut w = Tracer { out: \"\" }
+        match Structure::walk(self, &mut w):
             .Ok(_) => w.out + \"ok\"
             .Err(e) => w.out + e
 
@@ -146,24 +146,24 @@ use std.structure.{Structure, Field, Variant, Describer}
 trait Fields:
     fn fields() -> string
 
-data Names:
+struct Names:
     pub out: string
 
 impl[S] Describer[S] for Names:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \"<\" + v.info.name + \">\"
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name
         .Ok(())
 
 impl[T] Fields for T by Structure:
     fn fields() -> string:
-        let d: mut Names = Names { out: \"\" }
-        _ := T::describe(d)
+        let mut d = Names { out: \"\" }
+        _ := T::describe(&mut d)
         d.out
 
 @derive(Fields)
@@ -202,29 +202,29 @@ use std.structure.{Structure, Field, Variant, Members, Key, Source}
 trait Make:
     fn make(log: mut List[string]) -> Result[Self, string]
 
-data Partial[S]:
+struct Partial[S]:
     pub log: mut List[string]
     pub named: bool
 
 impl[S] Source[S] for Partial[S]:
     type Error = string
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[0])
 
     # Names the member at position 1 once, then ends.
-    fn next(mut self, members: Members[S]) -> Result[Key[S], string]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
         if self.named:
             return .Ok(members.end())
         self.named = true
         self.log.push(\"next\")
         .Ok(members.at(1))
 
-    fn member[F < Default](mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+    fn member[F < Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         self.log.push(\"member ${h.info.name}\")
         .Ok(F::default())
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, string]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
         self.log.push(\"missing ${h.info.name}\")
         match h.default():
             .Some(value) => .Ok(value)
@@ -232,8 +232,8 @@ impl[S] Source[S] for Partial[S]:
 
 impl[T] Make for T by Structure:
     fn make(log: mut List[string]) -> Result[T, string]:
-        let s: mut Partial[T] = Partial::[T] { log: log, named: false }
-        T::build(s)
+        let mut s = Partial::[T] { log: log, named: false }
+        T::build(&mut s)
 
 @derive(Make)
 data Conf:
@@ -338,30 +338,30 @@ trait Probe:
 trait Plain:
     fn plain(self) -> string
 
-data Prober:
+struct Prober:
     pub out: string
 
 impl[S] Walker[S] for Prober:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \" \" + v.info.name + show(v.info.facts)
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name + show(h.info.facts)
         .Ok(())
 
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
-        let w: mut Prober = Prober { out: show(T::facts()) }
-        _ := Structure::walk(self, w)
+        let mut w = Prober { out: show(T::facts()) }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 impl[T] Plain for T by Structure:
     fn plain(self) -> string:
-        let w: mut Prober = Prober { out: show(T::facts()) }
-        _ := Structure::walk(self, w)
+        let mut w = Prober { out: show(T::facts()) }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 @derive(Plain)
@@ -419,30 +419,30 @@ use std.structure.{Structure, Field, Variant, Walker}
 trait Shape:
     fn shape(self) -> string
 
-data Lister:
+struct Lister:
     pub out: string
 
 impl[S] Walker[S] for Lister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \"<\" + v.info.name + \" facts=${v.info.facts.items.len()} shared=${v.info.shared.len()}>\"
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name + \"=$value\"
         .Ok(())
 
 impl[T] Shape for T by Structure:
     fn shape(self) -> string:
-        let w: mut Lister = Lister { out: T::name() + \" ${T::facts().items.len()}\" }
-        _ := Structure::walk(self, w)
+        let mut w = Lister { out: T::name() + \" ${T::facts().items.len()}\" }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 impl[T < Tuple] Shape for T by Structure:
     fn shape(self) -> string:
-        let w: mut Lister = Lister { out: \"'\" + T::name() + \"' ${T::facts().items.len()}\" }
-        _ := Structure::walk(self, w)
+        let mut w = Lister { out: \"'\" + T::name() + \"' ${T::facts().items.len()}\" }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 @derive(Shape)
@@ -469,29 +469,29 @@ trait Left:
 trait Right:
     fn right(self) -> string
 
-data Lister:
+struct Lister:
     pub out: string
 
 impl[S] Walker[S] for Lister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + \"=$value;\"
         .Ok(())
 
 impl[T] Left for T by Structure:
     fn left(self) -> string:
-        let w: mut Lister = Lister { out: \"L \" }
-        _ := Structure::walk(self, w)
+        let mut w = Lister { out: \"L \" }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 impl[T] Right for T by Structure:
     fn right(self) -> string:
-        let w: mut Lister = Lister { out: \"R \" }
-        _ := Structure::walk(self, w)
+        let mut w = Lister { out: \"R \" }
+        _ := Structure::walk(self, &mut w)
         w.out
 
 ";
@@ -518,8 +518,10 @@ fn two_derivations_of_one_target_share_their_bodies() {
     let (out2, n2) = two("share-both", shared, both);
     assert_eq!(out1, "L x=1;y=2;\n");
     assert_eq!(out2, "L x=1;y=2;\nR x=1;y=2;\n");
-    // The second derivation adds its own `right` instance and nothing else.
-    assert_eq!(n2, n1 + 1, "shared walk and handles");
+    // The second derivation adds its own `right` instance and the `get`
+    // and `set` closures of its `&mut w` (crates/hd_check/src/refs.rs),
+    // and nothing else.
+    assert_eq!(n2, n1 + 3, "shared walk and handles");
     // A block with a member line gets its own `Structure`: its own `walk`
     // and handles, so more instances.
     let own = "@derive(Left)\ndata Point:\n    x: i32\n    y: i32\n\nimpl Right for Point by Structure:\n    x += [\"k\"]\n";
@@ -590,29 +592,29 @@ pub fn main() -> void $ Console:
 const KEEPERS: &str = "\
 use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
-data Keeper:
+struct Keeper:
     pub variants: mut List[VariantInfo]
     pub members: mut List[Member]
 
 impl[S] Walker[S] for Keeper:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.variants.push(v.info)
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.members.push(h.info)
         .Ok(())
 
 impl[S] Describer[S] for Keeper:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.variants.push(v.info)
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.members.push(h.info)
         .Ok(())
 
@@ -621,8 +623,8 @@ trait Seen:
 
 impl[T] Seen for T by Structure:
     fn seen(self) -> Keeper:
-        let k: mut Keeper = Keeper { variants: [], members: [] }
-        _ := Structure::walk(self, k)
+        let mut k = Keeper { variants: [], members: [] }
+        _ := Structure::walk(self, &mut k)
         k
 
 trait Listed:
@@ -630,8 +632,8 @@ trait Listed:
 
 impl[T] Listed for T by Structure:
     fn listed() -> Keeper:
-        let k: mut Keeper = Keeper { variants: [], members: [] }
-        _ := T::describe(k)
+        let mut k = Keeper { variants: [], members: [] }
+        _ := T::describe(&mut k)
         k
 ";
 

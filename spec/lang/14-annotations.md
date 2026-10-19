@@ -693,9 +693,9 @@ supplies every body written `pass`:
 pub trait Structure:
     fn facts() -> Facts
     fn name() -> string
-    fn walk[W < Walker[Self]](self, w: mut W) -> Result[void, W::Error]
-    fn describe[D < Describer[Self]](d: mut D) -> Result[void, D::Error]
-    fn build[S < Source[Self]](s: mut S) -> Result[mut Self, S::Error]
+    fn walk[W < Walker[Self]](self, w: &mut W) -> Result[void, W::Error]
+    fn describe[D < Describer[Self]](d: &mut D) -> Result[void, D::Error]
+    fn build[S < Source[Self]](s: &mut S) -> Result[mut Self, S::Error]
 
 pub data Member:
     pub name: string
@@ -749,21 +749,21 @@ pub data Key[S]:
 
 pub trait Walker[S]:
     type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
-    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]: pass
+    fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]: pass
 
 pub trait Describer[S]:
     type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
+    fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 pub trait Source[S]:
     type Error
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn next(mut self, members: Members[S]) -> Result[Key[S], Self::Error]
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
 1. r[annot.structure.module] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`.
@@ -813,14 +813,15 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 4. r[annot.structure.named-positions] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only in the `use` declaration that imports it and after `by` in a derivation block's header.
 5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
 6. r[annot.structure.receivers] `walk` takes the value as a readonly `self`. `facts`, `describe`, and `build` are receiverless.
-7. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
-8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
-9. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
-10. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
-11. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
-12. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
-13. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
-14. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
+7. r[annot.structure.protocol-ref] `walk`, `describe`, and `build` take the walker, describer, or source as a `&mut` reference, and every method of `Walker`, `Describer`, and `Source` takes `&mut self`. So a struct walker changes in place, and its caller reads the walker's fields after the traversal.
+8. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
+9. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
+10. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
+11. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
+12. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
+13. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
+14. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
+15. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
 
 ```text
 use std.structure.Structure
@@ -866,7 +867,7 @@ use std.structure.Structure
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 ```
 
@@ -931,7 +932,7 @@ use std.structure.Structure
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 ```
 
@@ -1320,15 +1321,15 @@ fn show(p: Point) -> string:
 ```hd
 use std.structure.{Describer, Field, Structure, Variant}
 
-data NameList:
-    pub names: mut List[string]
+struct NameList:
+    pub names: List[string]
 
 impl[T] Describer[T] for NameList:
     type Error = never
-    fn variant(mut self, v: Variant[T]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[T]) -> Result[void, never]:
         self.names.push(v.info.name)
         .Ok(())
-    fn member[F](mut self, h: Field[T, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[T, F]) -> Result[void, never]:
         self.names.push(h.info.name)
         .Ok(())
 
@@ -1338,7 +1339,7 @@ trait Fields:
 impl[T] Fields for T by Structure:
     fn fields() -> List[string]:
         let mut out = NameList { names: [] }
-        _ := T::describe(out)
+        _ := T::describe(&mut out)
         out.names
 
 @derive(Fields)
@@ -1387,15 +1388,15 @@ fn demo() -> Config:
 ```hd
 use std.structure.{Describer, Field, Structure, Variant}
 
-data Info:
-    pub lines: mut List[string]
+struct Info:
+    pub lines: List[string]
 
 impl[T] Describer[T] for Info:
     type Error = never
-    fn variant(mut self, v: Variant[T]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[T]) -> Result[void, never]:
         self.lines.push("variant ${v.info.index}: ${v.info.name}")
         .Ok(())
-    fn member[F](mut self, h: Field[T, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[T, F]) -> Result[void, never]:
         self.lines.push("member ${h.info.position}: ${h.info.name}")
         .Ok(())
 
@@ -1405,7 +1406,7 @@ trait Report:
 impl[T] Report for T by Structure:
     fn report() -> List[string]:
         let mut out = Info { lines: [] }
-        _ := T::describe(out)
+        _ := T::describe(&mut out)
         out.lines
 
 @derive(Report)
@@ -1554,13 +1555,13 @@ data Stats:
     hits: mut Counter
     label: string
 
-data CopySource[S]:
+struct CopySource[S]:
     old: mut S
 
 impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
     type Error = never
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         .Ok(h.get(self.old))
 ```
 
@@ -1592,12 +1593,12 @@ A walker, describer, or source is an ordinary type that implements
 impl[S] Walker[S] for Encoder:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
         .Ok(())
 
-    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
         .Ok(())
 ```
@@ -1620,16 +1621,16 @@ impl[S] Walker[S] for Encoder:
 data Label:
     text: string
 
-fn forward[S, W < Walker[S]](w: mut W, h: Field[S, i64], value: i64) -> void:
+fn forward[S, W < Walker[S]](w: &mut W, h: Field[S, i64], value: i64) -> void:
     _ := w.member(h, value)  # error: generic-member-call
 
-fn fill[S, F, R < Source[S]](r: mut R, h: Field[S, F]) -> Result[F, R::Error]:
+fn fill[S, F, R < Source[S]](r: &mut R, h: Field[S, F]) -> Result[F, R::Error]:
     r.missing(h)  # valid: `missing` may be called through a generic source
 
 impl[S] Source[S] for Strict:  # variant, next, and member elided
     type Error = never
 
-    fn missing[F < Display](mut self, h: Field[S, F]) -> Result[F, never]:  # error: trait-method-signature
+    fn missing[F < Display](&mut self, h: Field[S, F]) -> Result[F, never]:  # error: trait-method-signature
         panic("missing ${h.info.name}")
 ```
 

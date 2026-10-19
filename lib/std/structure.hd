@@ -206,27 +206,30 @@ impl[HdS] Members[HdS]:
 
 # Generated `walk` calls `rest` for a rest member; the default calls
 # `member` with the list (annot.walk.rest, annot.walk.rest.default).
+# `walk`, `describe` and `build` take the walker, describer or source as
+# `&mut`, and each protocol method takes `&mut self`
+# (annot.structure.protocol-ref), so a struct walker changes in place.
 ## The protocol that walks a value variant and member by member.
 ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
 pub trait Walker[S]:
     type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
-    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
         self.member(h, items)
 
 ## The protocol that describes a type variant and member by member, without a value.
 ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
 pub trait Describer[S]:
     type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
+    fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 ## The protocol that builds a value: it chooses a variant and supplies each member.
 ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
 pub trait Source[S]:
     type Error
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn next(mut self, members: Members[S]) -> Result[Key[S], Self::Error]
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]

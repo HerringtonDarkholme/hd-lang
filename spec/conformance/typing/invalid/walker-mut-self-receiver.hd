@@ -1,0 +1,15 @@
+# test: a walker method must take &mut self, as Walker declares; the former mut self receiver is a signature mismatch
+# Spec 14 The Structure Trait: annot.structure.protocol-ref.
+use std.structure.{Field, Variant, Walker}
+
+struct Tally:
+    n: i32
+
+impl[S] Walker[S] for Tally:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:  # diagnostic: trait-method-signature
+        .Ok(())

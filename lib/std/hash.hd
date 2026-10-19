@@ -224,28 +224,28 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        let w: mut HashWalker[T] = HashWalker::[T] { state: state }
-        _ := Structure::walk(self, w)
+        let mut w = HashWalker::[T] { state: state }
+        _ := Structure::walk(self, &mut w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
-data HashWalker[S]:
+struct HashWalker[S]:
     pub state: &mut dyn Hasher
 
 impl[S] Walker[S] for HashWalker[S]:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             u32(v.info.index).hash(self.state)
         .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Hash` here, as `member` needs `F < Hash`.
-    fn rest[T < Hash](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T < Hash](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Hash](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         value.hash(self.state)
         .Ok(())
 
@@ -254,8 +254,8 @@ impl[S] Walker[S] for HashWalker[S]:
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
 impl[T < Tuple] Hash for T by Structure:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        let w: mut HashWalker[T] = HashWalker::[T] { state: state }
-        _ := Structure::walk(self, w)
+        let mut w = HashWalker::[T] { state: state }
+        _ := Structure::walk(self, &mut w)
 
 # The keyed hasher the built-in `Map` buckets its keys by
 # (r-std-hash.map.bucket-hash): HalfSipHash-1-3, the 32-bit-lane SipHash,

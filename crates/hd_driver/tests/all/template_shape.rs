@@ -68,16 +68,16 @@ const COUNTER: &str = "use std.structure.{Structure, Field, Variant, Describer}
 trait Named:
     fn title() -> string
 
-data MemberCount:
+struct MemberCount:
     count: i32
 
 impl[S] Describer[S] for MemberCount:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.count = self.count + 1
         .Ok(())
 ";
@@ -85,7 +85,7 @@ impl[S] Describer[S] for MemberCount:
 #[test]
 fn a_template_that_describes_stays_clean() {
     let src = format!(
-        "{COUNTER}\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        Structure::name()\n"
+        "{COUNTER}\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(&mut d)\n        Structure::name()\n"
     );
     assert_eq!(check(&src), []);
 }
@@ -93,7 +93,7 @@ fn a_template_that_describes_stays_clean() {
 #[test]
 fn a_template_naming_a_top_level_binding_is_reported_once() {
     let src = format!(
-        "{COUNTER}\nprefix := \"The \"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        prefix + Structure::name()\n"
+        "{COUNTER}\nprefix := \"The \"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(&mut d)\n        prefix + Structure::name()\n"
     );
     assert_eq!(check(&src), [Code::TemplateNamesBinding]);
 }
@@ -101,7 +101,7 @@ fn a_template_naming_a_top_level_binding_is_reported_once() {
 #[test]
 fn a_binding_read_by_an_ordinary_function_stays_clean() {
     let src = format!(
-        "{COUNTER}\nprefix := \"The \"\n\nfn label() -> string:\n    prefix + \"x\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        Structure::name()\n"
+        "{COUNTER}\nprefix := \"The \"\n\nfn label() -> string:\n    prefix + \"x\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(&mut d)\n        Structure::name()\n"
     );
     assert_eq!(check(&src), []);
 }
@@ -109,7 +109,7 @@ fn a_binding_read_by_an_ordinary_function_stays_clean() {
 const HELPER_TEMPLATE: &str = "impl[T] Named for T by Structure:
     fn title() -> string:
         let mut d = MemberCount { count: 0 }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         titled(Structure::name(), d.count)
 ";
 
@@ -124,7 +124,7 @@ fn a_template_helper_without_a_result_type_is_reported_once() {
 #[test]
 fn two_calls_of_one_template_helper_report_it_once() {
     let src = format!(
-        "{COUNTER}\nfn titled(name: string, count: i32):\n    \"The ${{name}}/${{count}}\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        titled(Structure::name(), d.count) + titled(\"x\", 1)\n"
+        "{COUNTER}\nfn titled(name: string, count: i32):\n    \"The ${{name}}/${{count}}\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(&mut d)\n        titled(Structure::name(), d.count) + titled(\"x\", 1)\n"
     );
     assert_eq!(check(&src), [Code::MissingResultType]);
 }

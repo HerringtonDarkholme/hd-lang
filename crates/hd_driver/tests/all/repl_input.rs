@@ -969,8 +969,8 @@ fn a_later_input_waits_for_the_modules_an_earlier_input_uses() {
 /// later input uses what they derive.
 #[test]
 fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
-    let lib = "use std.structure.{Structure, Field, Variant, Describer}\n\ntrait Named:\n    fn title() -> string\n\ndata MemberCount:\n    count: i32\n\nimpl[S] Describer[S] for MemberCount:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\ndata Tag:\n    pub x: i32\n";
-    let template = "use std.structure.Structure\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount { count: 0 }\n        _ := T::describe(d)\n        \"${Structure::name()}/${d.count}\"\n";
+    let lib = "use std.structure.{Structure, Field, Variant, Describer}\n\ntrait Named:\n    fn title() -> string\n\nstruct MemberCount:\n    count: i32\n\nimpl[S] Describer[S] for MemberCount:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\ndata Tag:\n    pub x: i32\n";
+    let template = "use std.structure.Structure\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount { count: 0 }\n        _ := T::describe(&mut d)\n        \"${Structure::name()}/${d.count}\"\n";
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
@@ -1002,7 +1002,7 @@ fn an_input_does_not_derive_for_another_module_s_type() {
     let mut repl = repl(&store);
     repl.src.insert("src/util.hd", util);
     repl.dep = Some(&money);
-    let first = "use std.structure.{Structure, Field, Variant, Describer}\nuse self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n\ntrait Enc:\n    fn enc() -> string\n\ndata Count:\n    count: i32\n\nimpl[S] Describer[S] for Count:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nimpl[T] Enc for T by Structure:\n    fn enc() -> string:\n        let mut d = Count { count: 0 }\n        _ := T::describe(d)\n        \"${d.count}\"\n";
+    let first = "use std.structure.{Structure, Field, Variant, Describer}\nuse self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n\ntrait Enc:\n    fn enc() -> string\n\nstruct Count:\n    count: i32\n\nimpl[S] Describer[S] for Count:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nimpl[T] Enc for T by Structure:\n    fn enc() -> string:\n        let mut d = Count { count: 0 }\n        _ := T::describe(&mut d)\n        \"${d.count}\"\n";
     repl.input(1, first);
     for (n, text, code) in [
         // The trait and the target both belong to other modules.
@@ -1052,16 +1052,16 @@ fn column(name: string) -> Column:
 trait Columns:
     fn columns(self) -> string
 
-data Header:
+struct Header:
     out: string
 
 impl[S] Walker[S] for Header:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         name := match h.info.facts.find::[Column]():
             .Some(c) => c.name
             .None => h.info.name
@@ -1071,7 +1071,7 @@ impl[S] Walker[S] for Header:
 impl[T] Columns for T by Structure:
     fn columns(self) -> string:
         let mut w = Header { out: \"\" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 data Tag:

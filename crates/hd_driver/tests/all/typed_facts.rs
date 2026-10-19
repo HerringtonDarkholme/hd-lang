@@ -418,23 +418,23 @@ fn label_of[S, F](h: Field[S, F]) -> string:
         .Some(found) => found.label
         .None => \"-\"
 
-data Collect:
+struct Collect:
     out: string
 
 impl[S] Describer[S] for Collect:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.out = self.out + h.info.name + \":\" + label_of(h) + \";\"
         .Ok(())
 
 impl[T] Labels for T by Structure:
     fn labels() -> string:
         let mut c = Collect { out: \"\" }
-        _ := T::describe(c)
+        _ := T::describe(&mut c)
         c.out
 ";
 

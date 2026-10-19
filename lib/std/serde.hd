@@ -92,28 +92,28 @@ pub trait Deserializer:
 # (r-std-serde.derive.serialize.order).
 impl[T] Serialize for T by Structure:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
-        let walker: mut SerializeWalker[T, W] = SerializeWalker::[T, W] { out: out, facts: T::facts() }
-        Structure::walk(self, walker)?
+        let mut walker = SerializeWalker::[T, W] { out: out, facts: T::facts() }
+        Structure::walk(self, &mut walker)?
         out.end_variant()
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
-data SerializeWalker[S, W < mut Serializer]:
+struct SerializeWalker[S, W < mut Serializer]:
     pub out: mut W
     pub facts: Facts
 
 impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     type Error = W::Error
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, W::Error]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
         self.out.begin_variant(self.facts, v.info)
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
-    fn rest[T < Serialize](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, W::Error]:
+    fn rest[T < Serialize](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, W::Error]:
         self.member(h, items)
 
-    fn member[F < Serialize](mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         self.out.member(h.info)?
         value.serialize(self.out)
 
@@ -123,14 +123,14 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 # `end_variant` (r-std-serde.derive.deserialize.order).
 impl[T] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: mut R) -> Result[T, R::Error]:
-        let source: mut DeserializeSource[T, R] = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
-        built := T::build(source)?
+        let mut source = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
+        built := T::build(&mut source)?
         input.end_variant()?
         .Ok(built)
 
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
-data DeserializeSource[S, R < mut Deserializer]:
+struct DeserializeSource[S, R < mut Deserializer]:
     pub input: mut R
     pub facts: Facts
     pub at: usize
@@ -138,7 +138,7 @@ data DeserializeSource[S, R < mut Deserializer]:
 impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     type Error = R::Error
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
         let infos: mut List[VariantInfo] = []
         for choice in choices:
             infos.push(choice.info)
@@ -146,7 +146,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         .Ok(choices[index])
 
     # Every member, in declaration order.
-    fn next(mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], R::Error]:
         if self.at >= members.infos.len():
             return .Ok(members.end())
         info := members.infos[self.at]
@@ -155,7 +155,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
 
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.default).
-    fn member[F < Deserialize](mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+    fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         self.input.member(h.info)?
         if h.has_default() && self.input.is_absent():
             match h.default():
@@ -163,7 +163,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
                 .None => pass
         F::deserialize(self.input)
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, R::Error]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
         panic("std.serde: the source names every member")
 
 # ---------------------------------------------------------------------------
@@ -397,39 +397,39 @@ impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
 # length before the one walk over the values.
 impl[T < Tuple] Serialize for T by Structure:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
-        let count: mut MemberCount = MemberCount { total: 0 }
-        _ := T::describe(count)
+        let mut count = MemberCount { total: 0 }
+        _ := T::describe(&mut count)
         out.begin_list(count.total)?
-        let walker: mut TupleWriter[T, W] = TupleWriter::[T, W] { out: out }
-        Structure::walk(self, walker)?
+        let mut walker = TupleWriter::[T, W] { out: out }
+        Structure::walk(self, &mut walker)?
         out.end_list()
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
-data MemberCount:
+struct MemberCount:
     pub total: usize
 
 impl[S] Describer[S] for MemberCount:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
         .Ok(())
 
-data TupleWriter[S, W < mut Serializer]:
+struct TupleWriter[S, W < mut Serializer]:
     pub out: mut W
 
 impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
     type Error = W::Error
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, W::Error]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
         .Ok(())
 
     # A rest element is one `List[T]` member (annot.walk.rest.default).
-    fn member[F < Serialize](mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         value.serialize(self.out)
 
 # Tuple `Deserialize` (r-std-serde.std.tuple): a list with one item per
@@ -438,33 +438,33 @@ impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
 impl[T < Tuple] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: mut R) -> Result[T, R::Error]:
         input.begin_list()?
-        let source: mut TupleReader[T, R] = TupleReader::[T, R] { input: input, at: 0 }
-        built := T::build(source)?
+        let mut source = TupleReader::[T, R] { input: input, at: 0 }
+        built := T::build(&mut source)?
         if input.next_item()?:
             return .Err(input.invalid("end of the tuple"))
         .Ok(built)
 
-data TupleReader[S, R < mut Deserializer]:
+struct TupleReader[S, R < mut Deserializer]:
     pub input: mut R
     pub at: usize
 
 impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:
     type Error = R::Error
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
         .Ok(choices[0])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], R::Error]:
         if self.at >= members.infos.len():
             return .Ok(members.end())
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    fn member[F < Deserialize](mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+    fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         if !self.input.next_item()?:
             return .Err(self.input.invalid("tuple element"))
         F::deserialize(self.input)
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, R::Error]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
         panic("std.serde: the source names every member")

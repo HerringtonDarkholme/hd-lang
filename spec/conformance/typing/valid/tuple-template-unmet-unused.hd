@@ -14,23 +14,23 @@ impl Encode for string:
     fn encode(self) -> string:
         "'$self'"
 
-data Encoder:
+struct Encoder:
     out: string
 
 impl[S] Walker[S] for Encoder:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + value.encode() + ";"
         .Ok(())
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 data Opaque:

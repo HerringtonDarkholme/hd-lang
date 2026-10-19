@@ -1,16 +1,16 @@
 # test: a member omitted with = pass is not described
 # Spec 14 Omitted Members: annot.omit.skip; walk is in member-line-omit.hd, and build in omitted-member-default.hd.
 use std.structure.{Structure, Field, Variant, Describer}
-data Counter:
+struct Counter:
     total: i32
 
 impl[S] Describer[S] for Counter:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
         .Ok(())
 
@@ -20,7 +20,7 @@ trait Count:
 impl[T] Count for T by Structure:
     fn count() -> i32:
         let mut d = Counter { total: 0 }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         d.total
 
 data Session:

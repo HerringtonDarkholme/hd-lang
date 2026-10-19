@@ -89,23 +89,23 @@ fn no_prefix() -> string:
 trait Label:
     fn label(self) -> string
 
-data Sink:
+struct Sink:
     n: i32
 
 impl[S] Walker[S] for Sink:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.n = self.n + 1
         .Ok(())
 
 impl[T] Label for T by Structure:
     fn label(self) -> string:
         let mut w = Sink { n: 0 }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         match T::facts().find::[Style]():
             .Some(found) => found.prefix
             .None => \"none\"
@@ -377,16 +377,16 @@ fn style(prefix: string) -> Style:
 fn no_prefix() -> string:
     panic(\"no prefix configured\")
 
-data Names:
+struct Names:
     out: string
 
 impl[S] Walker[S] for Names:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         match h.info.facts.find::[Style]():
             .Some(found) => self.out = self.out + found.prefix
             .None => self.out = self.out + \"-\"
@@ -398,7 +398,7 @@ trait Label:
 impl[T] Label for T by Structure:
     fn label(self) -> string:
         let mut w = Names { out: \"\" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 @derive(Label)

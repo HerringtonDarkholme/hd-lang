@@ -1936,7 +1936,7 @@ prefix := "The "
 impl[T] Named for T by Structure:
     fn title() -> string:
         let mut d = MemberCount { count: 0 }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         prefix + Structure::name()  # error: template-names-binding
 ```
 

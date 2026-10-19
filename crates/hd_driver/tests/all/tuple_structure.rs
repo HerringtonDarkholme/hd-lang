@@ -145,16 +145,16 @@ use std.structure.{Structure, Field, Variant, Source, Members, Key}
 trait Fill:
     fn fill() -> Self
 
-data Filler[S]:
+struct Filler[S]:
     pub at: usize
 
 impl[S] Source[S] for Filler[S]:
     type Error = never
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
         .Ok(choices[0])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], never]:
         n := members.infos.len()
         if self.at >= n:
             return .Ok(members.end())
@@ -162,10 +162,10 @@ impl[S] Source[S] for Filler[S]:
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    fn member[F < Fill](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+    fn member[F < Fill](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         .Ok(F::fill())
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         panic(\"the filler names every member\")
 
 impl Fill for i32:
@@ -176,8 +176,8 @@ impl Fill for string:
 
 impl[T < Tuple] Fill for T by Structure:
     fn fill() -> T:
-        let s: mut Filler[T] = Filler::[T] { at: 0 }
-        match T::build(s):
+        let mut s = Filler::[T] { at: 0 }
+        match T::build(&mut s):
             .Ok(value) => value
             .Err(_) => panic(\"a filler never fails\")
 
@@ -238,17 +238,17 @@ trait Shape:
     fn shape(self) -> string
     fn members() -> string
 
-data Lister:
+struct Lister:
     pub out: string
 
 impl[S] Walker[S] for Lister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \"[\" + v.info.name + \"#\" + \"${v.info.index}\" + \" data=\" + \"${v.info.of_data}\" + \"]\"
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name + \"@\" + \"${h.info.position}\" + \"=\" + \"$value\"
         if h.info.positional:
             self.out = self.out + \"p\"
@@ -259,23 +259,23 @@ impl[S] Walker[S] for Lister:
 impl[S] Describer[S] for Lister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \"<\" + v.info.name + \">\"
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name
         .Ok(())
 
 impl[T < Tuple] Shape for T by Structure:
     fn shape(self) -> string:
-        let w: mut Lister = Lister { out: \"name=\" + T::name() + \" \" }
-        _ := Structure::walk(self, w)
+        let mut w = Lister { out: \"name=\" + T::name() + \" \" }
+        _ := Structure::walk(self, &mut w)
         w.out
 
     fn members() -> string:
-        let d: mut Lister = Lister { out: \"\" }
-        _ := T::describe(d)
+        let mut d = Lister { out: \"\" }
+        _ := T::describe(&mut d)
         d.out
 
 fn members_of[T < Shape]() -> string:

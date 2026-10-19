@@ -169,16 +169,16 @@ data Column:
 trait Columns:
     fn columns(self) -> string
 
-data Header:
+struct Header:
     out: string
 
 impl[S] Walker[S] for Header:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         name := match h.info.facts.find::[Column]():
             .Some(c) => c.name
             .None => h.info.name
@@ -188,7 +188,7 @@ impl[S] Walker[S] for Header:
 impl[T] Columns for T by Structure:
     fn columns(self) -> string:
         let mut w = Header { out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 `;
   for (const source of [

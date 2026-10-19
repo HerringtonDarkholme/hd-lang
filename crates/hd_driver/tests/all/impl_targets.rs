@@ -139,7 +139,7 @@ fn a_constructor_target_over_a_parameter_is_valid() {
 #[test]
 fn a_derivation_template_is_no_bare_parameter_target() {
     accepts_main(
-        "use std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\ndata Sink:\n    n: i32\n\nimpl[S] Walker[S] for Sink:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.n = self.n + 1\n        .Ok(())\n\nimpl[T] Encode for T by Structure:\n    fn encode(self) -> string:\n        let mut w = Sink { n: 0 }\n        _ := Structure::walk(self, w)\n        \"\"\n",
+        "use std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\nstruct Sink:\n    n: i32\n\nimpl[S] Walker[S] for Sink:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.n = self.n + 1\n        .Ok(())\n\nimpl[T] Encode for T by Structure:\n    fn encode(self) -> string:\n        let mut w = Sink { n: 0 }\n        _ := Structure::walk(self, &mut w)\n        \"\"\n",
     );
 }
 
@@ -449,7 +449,7 @@ fn a_misplaced_block_does_not_count_as_the_first() {
     );
 }
 
-const TUPLE_TEMPLATE: &str = "use std.function.Tuple\nuse std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\ndata Encoder:\n    out: string\n\nimpl[S] Walker[S] for Encoder:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.out = self.out + value.encode() + \";\"\n        .Ok(())\n\nimpl[T < Tuple] Encode for T by Structure:\n    fn encode(self) -> string:\n        let mut w = Encoder { out: \"\" }\n        _ := Structure::walk(self, w)\n        w.out\n\n";
+const TUPLE_TEMPLATE: &str = "use std.function.Tuple\nuse std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\nstruct Encoder:\n    out: string\n\nimpl[S] Walker[S] for Encoder:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.out = self.out + value.encode() + \";\"\n        .Ok(())\n\nimpl[T < Tuple] Encode for T by Structure:\n    fn encode(self) -> string:\n        let mut w = Encoder { out: \"\" }\n        _ := Structure::walk(self, &mut w)\n        w.out\n\n";
 
 #[test]
 fn a_hand_written_tuple_impl_overlaps_the_tuple_template() {

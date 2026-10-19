@@ -8,23 +8,23 @@ impl Pairing for string:
     fn pair(self) -> (string, i32):
         (self, 0)
 
-data Count:
+struct Count:
     total: i32
 
 impl[S] Describer[S] for Count:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
         .Ok(())
 
 impl[T] Pairing for T by Structure:
     fn pair(self) -> (T, i32):
-        let d: mut Count = Count { total: 0 }
-        _ := T::describe(d)
+        let mut d = Count { total: 0 }
+        _ := T::describe(&mut d)
         (self, d.total)
 
 @derive(Pairing)  # diagnostic: newtype-derivation-self

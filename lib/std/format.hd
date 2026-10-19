@@ -795,25 +795,25 @@ fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
 # before any field is written.
 impl[T] Debug for T by Structure:
     fn debug(self, out: &mut DebugWriter) -> void:
-        let shape: mut DebugShape[T] = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
-        _ := Structure::walk(self, shape)
+        let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
+        _ := Structure::walk(self, &mut shape)
         if shape.of_data:
-            let named: mut DebugNamed[T] = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
-            _ := Structure::walk(self, named)
+            let mut named = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
+            _ := Structure::walk(self, &mut named)
             named.fields.finish()
             return
         qualified := T::name() + "." + shape.name
         if shape.members == 0:
             out.write(qualified)
             return
-        let fields: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
-        _ := Structure::walk(self, fields)
+        let mut fields = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
+        _ := Structure::walk(self, &mut fields)
         fields.tuple.finish()
 
 # The value's variant name, and how many of its members are positional.
 # The fields are public because the prototype checks the instantiated
 # walker in the program that uses it.
-data DebugShape[S]:
+struct DebugShape[S]:
     pub name: string
     pub of_data: bool
     pub members: usize
@@ -822,37 +822,37 @@ data DebugShape[S]:
 impl[S] Walker[S] for DebugShape[S]:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.name = v.info.name
         self.of_data = v.info.of_data
         .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default).
-    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.members = self.members + 1
         if h.info.positional:
             self.positional = self.positional + 1
         .Ok(())
 
 # Writes each member as a named field.
-data DebugNamed[S]:
+struct DebugNamed[S]:
     pub fields: &mut DebugStruct
 
 impl[S] Walker[S] for DebugNamed[S]:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Debug` here, as `member` needs `F < Debug`.
-    fn rest[T < Debug](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T < Debug](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         _ := self.fields.field(h.info.name, value)
         .Ok(())
 
@@ -862,31 +862,31 @@ impl[S] Walker[S] for DebugNamed[S]:
 # (spec/lang/09-traits.md#r-trait.debug.tuples.rest).
 impl[T < Tuple] Debug for T by Structure:
     fn debug(self, out: &mut DebugWriter) -> void:
-        let w: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple("") }
-        _ := Structure::walk(self, w)
+        let mut w = DebugFields::[T] { tuple: out.debug_tuple("") }
+        _ := Structure::walk(self, &mut w)
         w.tuple.finish()
 
 # Writes each member of a variant or tuple: a positional one as an argument,
 # a named one as `name=value`.
 # The field is public because the prototype checks the instantiated walker
 # in the program that uses it.
-data DebugFields[S]:
+struct DebugFields[S]:
     pub tuple: &mut DebugTuple
 
 impl[S] Walker[S] for DebugFields[S]:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         if h.info.positional:
             _ := self.tuple.field(value)
         else:
             _ := self.tuple.named_field(h.info.name, value)
         .Ok(())
 
-    fn rest[I < Debug](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+    fn rest[I < Debug](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             _ := self.tuple.field(item)
         .Ok(())
@@ -898,8 +898,8 @@ impl[S] Walker[S] for DebugFields[S]:
 # inline (r-expr.interp.std.tuple.rest-inline).
 impl[T < Tuple] Display for T by Structure:
     fn to_string(self) -> string:
-        let w: mut TupleText[T] = TupleText::[T] { parts: [] }
-        _ := Structure::walk(self, w)
+        let mut w = TupleText::[T] { parts: [] }
+        _ := Structure::walk(self, &mut w)
         text := w.parts.join(", ")
         if w.parts.len() == 1:
             return "(${text},)"
@@ -908,20 +908,20 @@ impl[T < Tuple] Display for T by Structure:
 # Each element's text, joined once at the end, since a rest element can
 # hold any number of items. The field is public because the prototype
 # checks the instantiated walker in the program that uses it.
-data TupleText[S]:
-    pub parts: mut List[string]
+struct TupleText[S]:
+    pub parts: List[string]
 
 impl[S] Walker[S] for TupleText[S]:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.parts.push("$value")
         .Ok(())
 
-    fn rest[I < Display](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+    fn rest[I < Display](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             self.parts.push("$item")
         .Ok(())

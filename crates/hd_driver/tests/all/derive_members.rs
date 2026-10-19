@@ -58,30 +58,30 @@ impl Show for i64:
     fn show(self) -> string:
         \"$self\"
 
-data Shower:
+struct Shower:
     out: string
 
 impl[S] Walker[S] for Shower:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + value.show() + \";\"
         .Ok(())
 
-fn shower() -> mut Shower:
+fn shower() -> Shower:
     Shower {{ out: \"\" }}
 
-fn wrapped(start: string) -> mut Shower:
+fn wrapped(start: string) -> Shower:
     s := shower()
     Shower {{ out: start + s.out }}
 
 impl[T] Show for T by Structure:
     fn show(self) -> string:
-        let w: mut Shower = {walker}
-        _ := Structure::walk(self, w)
+        let mut w = {walker}
+        _ := Structure::walk(self, &mut w)
         w.out
 "
     )
@@ -177,7 +177,7 @@ fn walker_built_by_a_helper() {
     // The template names no walker type: checking infers it from the
     // helper's result.
     for walker in ["shower()", "wrapped(\"<\")"] {
-        let src = show_lib(walker).replace("let w: mut Shower = ", "let mut w = ")
+        let src = show_lib(walker)
             + "
 @derive(Show)
 data Label:
@@ -205,7 +205,7 @@ data Count:
 
 #[test]
 fn enum_payload_members_and_omitted_block_members() {
-    let src = show_lib("shower()").replace("let w: mut Shower = ", "let mut w = ")
+    let src = show_lib("shower()")
         + "
 @derive(Show)
 enum Reply:
@@ -253,20 +253,18 @@ data Box[T]:
 #[test]
 fn template_edit_in_another_module_rechecks_the_opt_in() {
     let lib = |walker: &str| {
-        show_lib(walker)
-            .replace("trait Show:", "pub trait Show:")
-            .replace("let w: mut Shower = ", "let mut w = ")
+        show_lib(walker).replace("trait Show:", "pub trait Show:")
             + "
-data Quiet:
+struct Quiet:
     out: string
 
 impl[S] Walker[S] for Quiet:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         .Ok(())
 "
     };

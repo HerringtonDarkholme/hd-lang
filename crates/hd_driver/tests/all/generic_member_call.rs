@@ -26,16 +26,16 @@ fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
 
-const WALKER: &str = "use std.structure.{Field, Variant, Walker}\n\ndata Prober:\n    out: string\n\nimpl[S] Walker[S] for Prober:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        .Ok(())\n\n";
+const WALKER: &str = "use std.structure.{Field, Variant, Walker}\n\nstruct Prober:\n    out: string\n\nimpl[S] Walker[S] for Prober:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        .Ok(())\n\n";
 
 #[test]
 fn member_through_a_generic_walker_errors() {
     let out = analyze(&format!(
-        "{WALKER}fn forward[S](w: mut Prober, h: Field[S, i64], value: i64) -> void:\n    _ := w.member(h, value)\n"
+        "{WALKER}fn forward[S](w: &mut Prober, h: Field[S, i64], value: i64) -> void:\n    _ := w.member(h, value)\n"
     ));
     assert!(codes(&out).is_empty(), "sanity: {}", out.render());
     let out = analyze(
-        "use std.structure.{Field, Walker}\n\nfn forward[S, W < Walker[S]](w: mut W, h: Field[S, i64], value: i64) -> void:\n    _ := w.member(h, value)\n",
+        "use std.structure.{Field, Walker}\n\nfn forward[S, W < Walker[S]](w: &mut W, h: Field[S, i64], value: i64) -> void:\n    _ := w.member(h, value)\n",
     );
     assert_eq!(codes(&out), vec![Code::GenericMemberCall]);
 }

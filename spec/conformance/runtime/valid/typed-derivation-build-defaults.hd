@@ -8,29 +8,29 @@ use std.structure.{Structure, Field, Variant, Members, Key, Source}
 trait Defaults:
     fn defaults() -> Self
 
-data DefaultSource: pass
+struct DefaultSource: pass
 
 impl[S] Source[S] for DefaultSource:
     type Error = string
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[choices.len() - 1])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], string]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
         .Ok(members.end())
 
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         .Err("no input")
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, string]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
         match h.default():
             .Some(value) => .Ok(value)
             .None => .Err("missing " + h.info.name)
 
 impl[T] Defaults for T by Structure:
     fn defaults() -> T:
-        let source: mut DefaultSource = DefaultSource {}
-        match T::build(source):
+        let mut source = DefaultSource {}
+        match T::build(&mut source):
             .Ok(value) => value
             .Err(message) => panic(message)
 

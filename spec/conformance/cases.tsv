@@ -1788,6 +1788,7 @@ runtime/valid/structure-self-ref.hd	runtime	accept	lang/14-annotations.md#r-anno
 typing/invalid/derived-arbitrary-function-member.hd	type	reject:member-not-derivable	std/testing.md#r-std-testing.arbitrary.derive.not-derivable
 typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type	reject:member-not-derivable	std/testing.md#r-std-testing.arbitrary.derive.member-bound
 runtime/valid/structure-name.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.name
+runtime/valid/structure-protocol-ref.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.protocol-ref
 runtime/valid/structure-self-ref-enum.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.needs.enum
 runtime/valid/structure-self-ref-type-arguments.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.enclosing.arguments
 typing/valid/expression-type-arguments.hd	type	accept	lang/02-grammar.md#r-grammar.expr.type-arguments.marker
@@ -1925,6 +1926,7 @@ typing/valid/structure-module-names.hd	type	accept	lang/14-annotations.md#r-anno
 runtime/valid/structure-describe-private-members.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.private
 typing/valid/structure-calls-are-pure.hd	type	accept	lang/14-annotations.md#r-annot.structure.pure
 typing/invalid/describer-method-with-requirement.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.structure.pure.impl
+typing/invalid/walker-mut-self-receiver.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.structure.protocol-ref
 runtime/valid/structure-name-alias.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.name.alias
 runtime/valid/template-beside-hand-written-impl.hd	runtime	accept	lang/14-annotations.md#r-annot.template.not-impl
 typing/invalid/template-outside-trait-module.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.template.module

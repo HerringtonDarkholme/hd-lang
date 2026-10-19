@@ -2,32 +2,32 @@
 # Spec 14 Omitted Members: annot.omit.default, annot.omit.skip.
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 
-data Recorder:
+struct Recorder:
     offered: string
 
 impl[S] Source[S] for Recorder:
     type Error = string
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[0])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], string]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
         .Ok(members.end())
 
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         .Err("no input")
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, string]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
         self.offered = self.offered + h.info.name + ";"
         match h.default():
             .Some(value) => .Ok(value)
             .None => .Err("missing " + h.info.name)
 
 trait Load:
-    fn load(source: mut Recorder) -> Self
+    fn load(source: &mut Recorder) -> Self
 
 impl[T] Load for T by Structure:
-    fn load(source: mut Recorder) -> T:
+    fn load(source: &mut Recorder) -> T:
         match T::build(source):
             .Ok(value) => value
             .Err(message) => panic(message)
@@ -44,5 +44,5 @@ tests:
 
     it("the omitted member takes its default without the source"):
         let mut source = Recorder { offered: "" }
-        assert_equal(Config::load(source).retries, 3, reason="the declared default")
+        assert_equal(Config::load(&mut source).retries, 3, reason="the declared default")
         assert_equal(source.offered, "label;", reason="retries was never offered")

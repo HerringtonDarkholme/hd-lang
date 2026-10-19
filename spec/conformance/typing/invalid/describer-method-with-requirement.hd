@@ -5,15 +5,15 @@ use std.structure.{Field, Variant, Describer}
 trait Log:
     fn line(self, text: string) -> void
 
-data Count:
+struct Count:
     n: i32
 
 impl[S] Describer[S] for Count:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never] $ Log:  # diagnostic: trait-method-signature
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never] $ Log:  # diagnostic: trait-method-signature
         self.n = self.n + 1
         .Ok(())

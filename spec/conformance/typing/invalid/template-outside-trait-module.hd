@@ -2,21 +2,21 @@
 # Spec 14 Templates: annot.template.module.
 use std.structure.{Structure, Field, Variant, Describer}
 
-data Count:
+struct Count:
     n: i32
 
 impl[S] Describer[S] for Count:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.n = self.n + 1
         .Ok(())
 
 impl[T] Debug for T by Structure:  # diagnostic: misplaced-derivation
     fn debug(self) -> string:
         let mut d = Count { n: 0 }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         "${d.n}"

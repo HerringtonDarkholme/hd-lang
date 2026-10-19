@@ -110,43 +110,43 @@ trait Listing:
     fn listing(self) -> string
     fn shape() -> string
 
-data Lister:
+struct Lister:
     pub out: string
 
 impl[S] Walker[S] for Lister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + v.info.name + \"#\" + \"${v.info.index}\" + \"(\"
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + \"=\" + \"$value\" + \";\"
         .Ok(())
 
-data Shaper:
+struct Shaper:
     pub out: string
 
 impl[S] Describer[S] for Shaper:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + \"|\" + v.info.name
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name
         .Ok(())
 
 impl[T] Listing for T by Structure:
     fn listing(self) -> string:
         let mut w = Lister { out: T::name() + \":\" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out + \")\"
 
     fn shape() -> string:
         let mut d = Shaper { out: Structure::name() }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         d.out
 ";
 
@@ -214,34 +214,34 @@ impl FromNum for string:
 
 # Chooses the last variant, names every member in order, and reads the
 # next number for each.
-data Counter:
+struct Counter:
     next: i64
     at: usize
 
 impl[S] Source[S] for Counter:
     type Error = string
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[choices.len() - 1])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], string]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
         if self.at >= members.infos.len():
             return .Ok(members.end())
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    fn member[F < FromNum](mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+    fn member[F < FromNum](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         self.next = self.next + 1
         .Ok(F::from_num(self.next))
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, string]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
         .Err(\"missing \" + h.info.name)
 
 impl[T] Fill for T by Structure:
     fn fill(seed: i64) -> T:
-        let source: mut Counter = Counter { next: seed, at: 0 }
-        match T::build(source):
+        let mut source = Counter { next: seed, at: 0 }
+        match T::build(&mut source):
             .Ok(value) => value
             .Err(message) => panic(message)
 
@@ -289,23 +289,23 @@ pub trait Show:
 fn sep() -> string:
     \"{sep}\"
 
-pub data Shower:
+pub struct Shower:
     pub out: string
 
 impl[S] Walker[S] for Shower:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + sep() + \"$value \"
         .Ok(())
 
 impl[T] Show for T by Structure:
     fn show(self) -> string:
         let mut w = Shower {{ out: \"{prefix}\" }}
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 "
         )

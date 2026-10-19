@@ -26,23 +26,23 @@ fn note[S, F < Display](h: Field[S, F]) -> string:
         .Some(found) => "/${found.value}"
         .None => ""
 
-data Summarizer:
+struct Summarizer:
     out: string
 
 impl[S] Walker[S] for Summarizer:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + "=" + "$value" + note(h) + ";"
         .Ok(())
 
 impl[T] Summary for T by Structure:
     fn summary(self) -> string:
         let mut w = Summarizer { out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 @derive(Summary)

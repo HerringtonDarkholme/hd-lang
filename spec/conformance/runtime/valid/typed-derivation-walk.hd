@@ -38,46 +38,46 @@ fn key_for(style: Style, m: Member) -> string:
         .Some(r) => r.name
         .None => style.prefix + m.name
 
-data Encoder:
+struct Encoder:
     style: Style
     out: string
 
 impl[S] Walker[S] for Encoder:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
         .Ok(())
 
-    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
         .Ok(())
 
-data KeyLister:
+struct KeyLister:
     style: Style
-    keys: mut List[string]
+    keys: List[string]
 
 impl[S] Describer[S] for KeyLister:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.keys.push(key_for(self.style, h.info))
         .Ok(())
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 impl[T] Keys for T by Structure:
     fn keys() -> List[string]:
         let mut d = KeyLister { style: style_of(T::facts()), keys: [] }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         d.keys
 
 @derive(Encode, Keys)

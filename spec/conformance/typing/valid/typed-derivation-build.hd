@@ -5,31 +5,31 @@ use std.structure.{Structure, Field, Variant, Members, Key, Source}
 trait Duplicate:
     fn duplicate_mut(mut self) -> mut Self
 
-data CopySource[S < mut Any]:
+struct CopySource[S < mut Any]:
     old: mut S
 
 impl[S < mut Any] Source[S] for CopySource[S]:
     type Error = never
 
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
         for v in choices:
             if v.holds(self.old):
                 return .Ok(v)
         panic("no variant holds the value")
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], never]:
         .Ok(members.end())
 
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         .Ok(h.get(self.old))
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         .Ok(h.get(self.old))
 
 impl[T < mut Any] Duplicate for T by Structure:
     fn duplicate_mut(mut self) -> mut Self:
-        let s: mut CopySource[T] = CopySource { old: self }
-        match T::build(s):
+        let mut s = CopySource { old: self }
+        match T::build(&mut s):
             .Ok(value) => value
             .Err(_) => panic("a copy source never fails")
 

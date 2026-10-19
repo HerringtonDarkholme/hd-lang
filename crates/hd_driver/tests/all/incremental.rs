@@ -545,36 +545,36 @@ impl Show for i64:
     fn show(self) -> string:
         \"$self\"
 
-data Strict:
+struct Strict:
     out: string
 
 impl[S] Walker[S] for Strict:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + value.show() + \";\"
         .Ok(())
 
-data Lax:
+struct Lax:
     out: string
 
 impl[S] Walker[S] for Lax:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + \";\"
         .Ok(())
 
 impl[T < Tuple] Show for T by Structure:
     fn show(self) -> string:
         let mut w = {walker} {{ out: \"\" }}
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 "
     )
@@ -684,16 +684,16 @@ use std.structure.{Structure, Field, Variant, Describer}
 pub trait Named:
     fn title() -> string
 
-data MemberCount:
+struct MemberCount:
     count: i32
 
 impl[S] Describer[S] for MemberCount:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.count = self.count + 1
         .Ok(())
 
@@ -706,7 +706,7 @@ pub fn shout(s: string) -> string:
 impl[T] Named for T by Structure:
     fn title() -> string:
         let mut d = MemberCount { count: 0 }
-        _ := T::describe(d)
+        _ := T::describe(&mut d)
         titled(Structure::name(), d.count)
 ";
 

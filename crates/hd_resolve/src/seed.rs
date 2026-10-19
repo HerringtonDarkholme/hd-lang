@@ -356,7 +356,16 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 if by_value {
                     params.push((sym(names, "self"), self_ty));
                 }
-                params.push((sym(names, "p"), pool.intern_ty(&TyData::Mut(p))));
+                // The walker, describer or source sits behind `&mut`
+                // (annot.structure.protocol-ref): its methods take
+                // `&mut self`.
+                params.push((
+                    sym(names, "p"),
+                    pool.intern_ty(&TyData::Ref {
+                        inner: p,
+                        mutable: true,
+                    }),
+                ));
                 let ok = if ret_self {
                     pool.intern_ty(&TyData::Mut(self_ty))
                 } else {

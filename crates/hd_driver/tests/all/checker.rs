@@ -1380,13 +1380,13 @@ fn omitted_derivation_members_need_defaults() {
     const HEAD: &str = "use std.structure.{Structure, Field, Variant, Walker}\n\n\
         trait Show:\n    fn show(self) -> string\n\n\
         impl Show for i64:\n    fn show(self) -> string:\n        \"$self\"\n\n\
-        data Shower:\n    out: string\n\n\
+        struct Shower:\n    out: string\n\n\
         impl[S] Walker[S] for Shower:\n    type Error = never\n\n\
-        \x20   fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n\
-        \x20   fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n\
+        \x20   fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n\
+        \x20   fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:\n\
         \x20       self.out = self.out + value.show() + \";\"\n        .Ok(())\n\n\
         impl[T] Show for T by Structure:\n    fn show(self) -> string:\n\
-        \x20       let w: mut Shower = Shower { out: \"\" }\n        _ := Structure::walk(self, w)\n        w.out\n\n\
+        \x20       let mut w = Shower { out: \"\" }\n        _ := Structure::walk(self, &mut w)\n        w.out\n\n\
         data Token:\n    value: string\n\n\
         data Audit:\n    at: i64\n\n";
     let legal = "data Account:\n    id: i64\n    token: Token = Token { value: \"\" }\n\n\

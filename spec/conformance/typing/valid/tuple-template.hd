@@ -23,24 +23,24 @@ fn style_of(facts: Facts) -> Style:
         .Some(found) => found
         .None => Style {}
 
-data Encoder:
+struct Encoder:
     style: Style
     out: string
 
 impl[S] Walker[S] for Encoder:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + self.style.prefix + h.info.name + "=" + value.encode() + ";"
         .Ok(())
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 fn pair(id: i64, name: string) -> string:

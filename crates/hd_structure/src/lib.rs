@@ -932,7 +932,12 @@ impl<'a, 'n> Gen<'a, 'n> {
                 .cx
                 .unsupported(format!("the protocol method `{method}`"));
         };
-        let wt = strip_mut(names, w.1);
+        // `w` is a `&mut W` (annot.structure.protocol-ref); each protocol
+        // method takes `&mut self`, so the call passes the reference on.
+        let wt = match pool.get(w.1) {
+            TyData::Ref { inner, .. } => inner,
+            _ => strip_mut(names, w.1),
+        };
         let s = self.target;
         let ret = pool.subst(sig.ret, &|p: ParamRef| {
             if p.owner == trait_ {

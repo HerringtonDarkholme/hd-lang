@@ -13,16 +13,16 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-data Prober:
+struct Prober:
     out: string
 
 impl[S] Walker[S] for Prober:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         tagged := match h.info.facts.find::[Tag]():
             .Some(found) => found.text
             .None => "-"
@@ -38,7 +38,7 @@ trait Probe:
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: "" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 
 data Point:

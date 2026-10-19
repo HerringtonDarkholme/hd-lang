@@ -104,16 +104,16 @@ fn made() -> List[dyn Any]:
 trait Probe:
     fn probe(self) -> string
 
-data Prober:
+struct Prober:
     out: string
 
 impl[S] Walker[S] for Prober:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         t := match h.info.facts.find::[Tag]():
             .Some(found) => found.text
             .None => \"-\"
@@ -126,7 +126,7 @@ impl[S] Walker[S] for Prober:
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: \"\" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         w.out
 ";
 
@@ -258,7 +258,7 @@ fn self_line_takes_a_list_expression() {
 impl[T] Label for T by Structure:
     fn label(self) -> string:
         let mut w = Prober { out: \"\" }
-        _ := Structure::walk(self, w)
+        _ := Structure::walk(self, &mut w)
         match T::facts().find::[Note]():
             .Some(found) => found.text
             .None => \"none\"

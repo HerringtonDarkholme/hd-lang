@@ -914,8 +914,8 @@ impl[T] Default for T?:
 # (r-std-ops.default.std.rest-any).
 impl[T < Tuple] Default for T by Structure:
     fn default() -> T:
-        let s: mut DefaultSource[T] = DefaultSource::[T] { at: 0 }
-        match T::build(s):
+        let mut s = DefaultSource::[T] { at: 0 }
+        match T::build(&mut s):
             .Ok(value) => value
             .Err(_) => panic("a tuple's default never fails")
 
@@ -927,8 +927,8 @@ impl[T < Tuple] Default for T by Structure:
 # marks exactly one variant (r-std-ops.default.derive.one-variant).
 impl[T] Default for T by Structure:
     fn default() -> T:
-        let s: mut DefaultSource[T] = DefaultSource::[T] { at: 0 }
-        match T::build(s):
+        let mut s = DefaultSource::[T] { at: 0 }
+        match T::build(&mut s):
             .Ok(value) => value
             .Err(_) => panic("a derived default never fails")
 
@@ -955,7 +955,7 @@ impl Debug for DefaultVariant:
 # type's default when it declares none. The field is
 # public because the prototype checks the instantiated source in the
 # program that uses it.
-data DefaultSource[S]:
+struct DefaultSource[S]:
     pub at: usize
 
 impl[S] Source[S] for DefaultSource[S]:
@@ -963,24 +963,24 @@ impl[S] Source[S] for DefaultSource[S]:
 
     # A tuple or a data type offers one choice. An enum's choice is the
     # variant whose facts hold a `DefaultVariant`.
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
         for choice in choices:
             match choice.info.facts.find::[DefaultVariant]():
                 .Some(_) => return .Ok(choice)
                 .None => pass
         .Ok(choices[0])
 
-    fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], never]:
         if self.at >= members.infos.len():
             return .Ok(members.end())
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    fn member[F < Default](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+    fn member[F < Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         match h.default():
             .Some(value) => .Ok(value)
             .None => .Ok(F::default())
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         panic("the default source names every member")

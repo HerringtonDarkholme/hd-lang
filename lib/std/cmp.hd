@@ -302,30 +302,30 @@ impl[T < Ord] Ord for T?:
 # the same member of `other`. The walk stops at the first difference.
 impl[T] Eq for T by Structure:
     fn eq(self, other: T) -> bool:
-        let w: mut EqualWalker[T] = EqualWalker::[T] { other: other }
-        match Structure::walk(self, w):
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module. A walk's `.Err` only stops it.
-data EqualWalker[S]:
+struct EqualWalker[S]:
     pub other: S
 
 impl[S] Walker[S] for EqualWalker[S]:
     type Error = bool
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
             return .Ok(())
         .Err(false)
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Eq` here, as `member` needs `F < Eq`.
-    fn rest[T < Eq](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T < Eq](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
         self.member(h, items)
 
-    fn member[F < Eq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F < Eq](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         if value == h.get(self.other):
             return .Ok(())
         .Err(false)
@@ -336,40 +336,40 @@ impl[S] Walker[S] for EqualWalker[S]:
 # reads the variant index of `other`.
 impl[T] PartialOrd for T by Structure:
     fn partial_cmp(self, other: T) -> Ordering?:
-        let probe: mut VariantIndex[T] = VariantIndex::[T] { index: 0 }
-        _ := Structure::walk(other, probe)
-        let w: mut PartialOrderWalker[T] = PartialOrderWalker::[T] { other: other, other_index: probe.index, result: .Some(.Equal) }
-        _ := Structure::walk(self, w)
+        let mut probe = VariantIndex::[T] { index: 0 }
+        _ := Structure::walk(other, &mut probe)
+        let mut w = PartialOrderWalker::[T] { other: other, other_index: probe.index, result: .Some(.Equal) }
+        _ := Structure::walk(self, &mut w)
         w.result
 
 impl[T] Ord for T by Structure:
     fn cmp(self, other: T) -> Ordering:
-        let probe: mut VariantIndex[T] = VariantIndex::[T] { index: 0 }
-        _ := Structure::walk(other, probe)
-        let w: mut OrderWalker[T] = OrderWalker::[T] { other: other, other_index: probe.index, result: .Equal }
-        _ := Structure::walk(self, w)
+        let mut probe = VariantIndex::[T] { index: 0 }
+        _ := Structure::walk(other, &mut probe)
+        let mut w = OrderWalker::[T] { other: other, other_index: probe.index, result: .Equal }
+        _ := Structure::walk(self, &mut w)
         w.result
 
 # Reads a value's variant index, then stops.
-data VariantIndex[S]:
+struct VariantIndex[S]:
     pub index: i32
 
 impl[S] Walker[S] for VariantIndex[S]:
     type Error = bool
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
         self.index = v.info.index
         .Err(true)
 
     # A rest member is one `List[T]` member (annot.walk.rest.default).
-    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
         self.member(h, items)
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         .Ok(())
 
 # Holds the order once it is decided, and stops the walk.
-data PartialOrderWalker[S]:
+struct PartialOrderWalker[S]:
     pub other: S
     pub other_index: i32
     pub result: Ordering?
@@ -377,7 +377,7 @@ data PartialOrderWalker[S]:
 impl[S] Walker[S] for PartialOrderWalker[S]:
     type Error = bool
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
             return .Ok(())
         if v.info.index < self.other_index:
@@ -390,10 +390,10 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
     # (r-std-cmp.derive.ord.partial).
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < PartialOrd` here, as `member` needs `F < PartialOrd`.
-    fn rest[T < PartialOrd](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T < PartialOrd](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
         self.member(h, items)
 
-    fn member[F < PartialOrd](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F < PartialOrd](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         let order = value.partial_cmp(h.get(self.other))
         match order:
             .Some(decided) =>
@@ -404,7 +404,7 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
         self.result = order
         .Err(true)
 
-data OrderWalker[S]:
+struct OrderWalker[S]:
     pub other: S
     pub other_index: i32
     pub result: Ordering
@@ -412,7 +412,7 @@ data OrderWalker[S]:
 impl[S] Walker[S] for OrderWalker[S]:
     type Error = bool
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
             return .Ok(())
         if v.info.index < self.other_index:
@@ -423,10 +423,10 @@ impl[S] Walker[S] for OrderWalker[S]:
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Ord` here, as `member` needs `F < Ord`.
-    fn rest[T < Ord](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T < Ord](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
         self.member(h, items)
 
-    fn member[F < Ord](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F < Ord](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         let order = value.cmp(h.get(self.other))
         match order:
             .Equal => return .Ok(())
@@ -440,21 +440,21 @@ impl[S] Walker[S] for OrderWalker[S]:
 # list (r-std-cmp.tuple.rest).
 impl[T < Tuple] Eq for T by Structure:
     fn eq(self, other: T) -> bool:
-        let w: mut EqualWalker[T] = EqualWalker::[T] { other: other }
-        match Structure::walk(self, w):
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 impl[T < Tuple] PartialOrd for T by Structure:
     fn partial_cmp(self, other: T) -> Ordering?:
-        let w: mut PartialOrderWalker[T] = PartialOrderWalker::[T] { other: other, other_index: 0, result: .Some(.Equal) }
-        _ := Structure::walk(self, w)
+        let mut w = PartialOrderWalker::[T] { other: other, other_index: 0, result: .Some(.Equal) }
+        _ := Structure::walk(self, &mut w)
         w.result
 
 impl[T < Tuple] Ord for T by Structure:
     fn cmp(self, other: T) -> Ordering:
-        let w: mut OrderWalker[T] = OrderWalker::[T] { other: other, other_index: 0, result: .Equal }
-        _ := Structure::walk(self, w)
+        let mut w = OrderWalker::[T] { other: other, other_index: 0, result: .Equal }
+        _ := Structure::walk(self, &mut w)
         w.result
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
@@ -633,36 +633,36 @@ impl[T < DeepEq] DeepEq for &mut T:
 # every member deeply equal, in declaration order.
 impl[T] DeepEq for T by Structure:
     fn deep_eq(self, other: T, visits: &mut DeepVisits) -> bool:
-        let w: mut DeepEqualWalker[T] = DeepEqualWalker::[T] { other: other, visits: visits }
-        match Structure::walk(self, w):
+        let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
+        match Structure::walk(self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 impl[T < Tuple] DeepEq for T by Structure:
     fn deep_eq(self, other: T, visits: &mut DeepVisits) -> bool:
-        let w: mut DeepEqualWalker[T] = DeepEqualWalker::[T] { other: other, visits: visits }
-        match Structure::walk(self, w):
+        let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
+        match Structure::walk(self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module. A walk's `.Err` only stops it.
-data DeepEqualWalker[S]:
+struct DeepEqualWalker[S]:
     pub other: S
     pub visits: &mut DeepVisits
 
 impl[S] Walker[S] for DeepEqualWalker[S]:
     type Error = bool
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
             return .Ok(())
         .Err(false)
 
-    fn rest[T < DeepEq](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T < DeepEq](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
         self.member(h, items)
 
-    fn member[F < DeepEq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F < DeepEq](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         if value.deep_eq(h.get(self.other), self.visits):
             return .Ok(())
         .Err(false)

@@ -1,0 +1,118 @@
+# test: walk, describe and build take a struct walker, describer and source as &mut; the caller reads its fields after the traversal, and one reference serves two walks
+# Spec 14 The Structure Trait: annot.structure.protocol-ref.
+# expect-stdout: 2 x=1;y=2;
+# expect-stdout: 4
+# expect-stdout: 2 x,y
+# expect-stdout: 7 8
+use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
+
+trait Summary:
+    fn summary(self) -> string
+
+trait Twice:
+    fn twice(self) -> i32
+
+trait Names:
+    fn names() -> string
+
+trait Seed:
+    fn seed(n: i32) -> Self
+
+impl Seed for i32:
+    fn seed(n: i32) -> i32: n
+
+trait Make:
+    fn make(start: i32) -> Self
+
+struct Tally:
+    n: i32
+    text: string
+
+impl[S] Walker[S] for Tally:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.n = self.n + 1
+        self.text = self.text + h.info.name + "=$value;"
+        .Ok(())
+
+struct NameList:
+    names: List[string]
+
+impl[S] Describer[S] for NameList:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.names.push(h.info.name)
+        .Ok(())
+
+struct Counter:
+    next: i32
+    at: usize
+
+impl[S] Source[S] for Counter:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], never]:
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Seed](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        value := F::seed(self.next)
+        self.next = self.next + 1
+        .Ok(value)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the counter names every member")
+
+impl[T] Summary for T by Structure:
+    fn summary(self) -> string:
+        let mut w = Tally { n: 0, text: "" }
+        _ := Structure::walk(self, &mut w)
+        "${w.n} ${w.text}"
+
+# Both walks change the one object the reference names.
+impl[T] Twice for T by Structure:
+    fn twice(self) -> i32:
+        shared := &mut Tally { n: 0, text: "" }
+        _ := Structure::walk(self, shared)
+        _ := Structure::walk(self, shared)
+        shared.n
+
+impl[T] Names for T by Structure:
+    fn names() -> string:
+        let mut d = NameList { names: [] }
+        _ := T::describe(&mut d)
+        "${d.names.len()} ${d.names.join(",")}"
+
+impl[T] Make for T by Structure:
+    fn make(start: i32) -> T:
+        let mut s = Counter { next: start, at: 0 }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("the counter never fails")
+
+@derive(Summary, Twice, Names, Make)
+struct Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1, y: 2 }
+    println(p.summary())
+    println("${p.twice()}")
+    println(Point::names())
+    made := Point::make(7)
+    println("${made.x} ${made.y}")
