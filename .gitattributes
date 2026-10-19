@@ -10,3 +10,4 @@ spec/conformance/cli/fix-existing-mut-receiver/** text eol=lf
 spec/conformance/cli/fix-parser-byte-edits/** text eol=lf
 spec/conformance/cli/fix-parser-migrations/** text eol=lf
 spec/conformance/cli/fix-parser-punctuation/** text eol=lf
+spec/conformance/cli/fix-elif-continuations/** text eol=lf

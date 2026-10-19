@@ -1,0 +1,11 @@
+# Cold and warm parser diagnostics carry the same UTF-8 edits.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"syntax-error","file":"src/lib.hd","line":5,"fixes":[{"message":"replace `elif` with `else if`","edits":[{"file":"src/lib.hd","start":111,"end":115,"text":"else if"}]}]},{"kind":"diagnostic","code":"syntax-error","file":"src/lib.hd","line":12,"fixes":[{"message":"replace `elif` with `else if`","edits":[{"file":"src/lib.hd","start":225,"end":229,"text":"else if"}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"syntax-error","file":"src/lib.hd","line":5,"fixes":[{"message":"replace `elif` with `else if`","edits":[{"file":"src/lib.hd","start":111,"end":115,"text":"else if"}]}]},{"kind":"diagnostic","code":"syntax-error","file":"src/lib.hd","line":12,"fixes":[{"message":"replace `elif` with `else if`","edits":[{"file":"src/lib.hd","start":225,"end":229,"text":"else if"}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd fix
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

@@ -276,6 +276,71 @@ impl Parser<'_> {
         false
     }
 
+    /// Recover only the invalid `elif condition:` continuation of an if.
+    /// Calls and bindings named `elif` remain ordinary expressions.
+    fn at_elif(&mut self) -> bool {
+        let at = self.pos();
+        if self.toks.kind.get(at) != Some(&TokenKind::Ident)
+            || self.nth_text(0) != "elif"
+            || !matches!(
+                self.toks.kind.get(at + 1),
+                Some(
+                    TokenKind::Ident
+                        | TokenKind::RawIdent
+                        | TokenKind::Number
+                        | TokenKind::KwTrue
+                        | TokenKind::KwFalse
+                )
+            )
+            || self.nth_line_first(1)
+        {
+            return false;
+        }
+        let line = self.toks.line_of(self.toks.start[at]);
+        let end = self
+            .toks
+            .line_start
+            .get(line + 1)
+            .copied()
+            .unwrap_or(u32::MAX);
+        let mut depth = 0_u32;
+        let mut colon = false;
+        for index in at + 1..self.toks.len() {
+            if self.toks.start[index] >= end {
+                break;
+            }
+            match self.toks.kind[index] {
+                TokenKind::Colon if depth == 0 => {
+                    colon = true;
+                    break;
+                }
+                kind if kind.opens() => depth += 1,
+                kind if kind.closes() => {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+        if !colon {
+            return false;
+        }
+        if self.at_word("elif") {
+            return true;
+        }
+        if self.suite_closed
+            && self.suite_inline
+            && self.at_layout(Layout::Newline)
+            && self.cur.pending() == [Layout::Newline]
+        {
+            self.cur.bump();
+            return true;
+        }
+        false
+    }
+
     /// `flow.if.else-if`: the chain is one `IfExpr` whose branches are
     /// siblings, so a branch adds no nesting level
     /// (`grammar.limit.nesting`) and the parser loops rather than recurses.
@@ -285,10 +350,26 @@ impl Parser<'_> {
         self.expr(ctx.header());
         if self.expect(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
-            while self.at_else() {
+            loop {
+                let elif = self.at_elif();
+                if !elif && !self.at_else() {
+                    break;
+                }
                 let clause = self.start();
-                self.bump(); // else
-                if !self.eat(TokenKind::KwIf) {
+                if elif {
+                    let error = self.errors.len();
+                    let (lo, hi) = self.token_span(self.pos());
+                    self.error(Code::SyntaxError, "write 'else if' instead of 'elif'");
+                    self.fix_error(
+                        error,
+                        "replace `elif` with `else if`",
+                        &[(lo, hi, "else if")],
+                    );
+                    self.bump();
+                } else {
+                    self.bump(); // else
+                }
+                if !elif && !self.eat(TokenKind::KwIf) {
                     if self.expect(TokenKind::Colon, "':'") {
                         self.suite(false, Ctx::Inline);
                     }
