@@ -1899,6 +1899,19 @@ impl Ck<'_, '_> {
             };
             if code == Code::TypeMismatch {
                 msg.push_str(&self.cold_call_hint(want, n));
+            } else if code == Code::MixedSignedness {
+                let span = self.cx.src.span(n);
+                let value = &self.cx.src.text[span.lo as usize..span.hi as usize];
+                let hint = if got == Ty::prim(hd_types::Prim::Usize)
+                    || want == Ty::prim(hd_types::Prim::Usize)
+                {
+                    format!(
+                        "; use `0` for a `usize` counter, or write `{want_s}({value})` for this operand"
+                    )
+                } else {
+                    format!("; convert this operand explicitly with `{want_s}({value})`")
+                };
+                msg.push_str(&hint);
             }
             self.err(code, n, &msg);
             // `types.num.no-implicit.fix`: write the conversion around the

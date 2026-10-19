@@ -1,0 +1,3 @@
+fn run() -> void:
+    xs := [1]
+    xs.push(2)

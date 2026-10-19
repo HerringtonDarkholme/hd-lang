@@ -1,0 +1,3 @@
+fn run(xs: List[usize]) -> void:
+    count := 0
+    _total := count + xs.len()

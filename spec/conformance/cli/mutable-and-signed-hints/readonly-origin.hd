@@ -1,0 +1,12 @@
+data Matrix[T]:
+    value: T
+
+impl[T] Matrix[T]:
+    fn filled(value: T) -> mut Matrix[T]:
+        Matrix { value: value }
+    fn set(mut self, index: usize, value: T) -> void:
+        self.value = value
+
+fn run(original: Matrix[i32]) -> void:
+    let matrix = original
+    matrix.set(0, +1)

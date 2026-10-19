@@ -7,7 +7,7 @@
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{Ref, Tag};
+use hd_tir::ir::{Coercion, Ref, Tag};
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
 use crate::body::Ck;
@@ -218,10 +218,44 @@ impl Ck<'_, '_> {
         if self.has_mut_access(rt) {
             return;
         }
-        let msg = format!(
-            "this method takes `mut self`, but the receiver is a readonly {}",
-            self.show(rt)
-        );
+        let binding = recv.as_inst().and_then(|i| {
+            let body = self.b.body_mut();
+            if body.tags[i.0 as usize] != Tag::LocalGet {
+                return None;
+            }
+            let local = body.data[i.0 as usize][0];
+            if body.local_flags[local as usize] & hd_tir::ir::local_flags::PARAM != 0 {
+                return None;
+            }
+            let value = body.tags.iter().zip(&body.data).find_map(|(tag, data)| {
+                (*tag == Tag::LocalSet && data[0] == local).then_some(Ref(data[1]))
+            })?;
+            let weakened = value.as_inst()?.0 as usize;
+            if body.tags[weakened] != Tag::Coerce
+                || body.record(body.data[weakened][1]).first() != Some(&(Coercion::Weaken as u32))
+            {
+                return None;
+            }
+            let value = Ref(body.data[weakened][0]);
+            Some((body.local_name[local as usize], value))
+        });
+        let shown = self.show(rt);
+        let hint = match binding {
+            Some((name, value))
+                if matches!(
+                    pool.get(self.infer.resolve(pool, self.b.ty_of(value))),
+                    TyData::Mut(_)
+                ) =>
+            {
+                let name = self.cx.names.text(name);
+                format!(
+                    "; bind with `let {name}: mut {shown} = ...` or `let mut {name} = ...` to keep the initializer's mutable access"
+                )
+            }
+            _ => String::new(),
+        };
+        let msg =
+            format!("this method takes `mut self`, but the receiver is a readonly {shown}{hint}");
         self.err(Code::MutableReceiverRequired, at, &msg);
     }
 
