@@ -295,11 +295,18 @@ the iterator adapters, `collect`, and `FromIterator`.
 3. r[flow.for.map.value] Destructuring each entry preserves `V`, including `mut U` when `V = mut U`, even through a readonly map.
 4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission, and mutating a readonly element is an error. Error: `readonly-root`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
+6. r[flow.for.collection.reference] Outside [Element Reference Loops](#element-reference-loops), a `for` over a reference to a `List` or `Map` iterates the referenced value.
 
 ```hd
 fn total(items: List[i32]) -> i32:
     let sum = +0
     for item in items:
+        sum = sum + item
+    sum
+
+fn map_total(items: &Map[string, i32]) -> i32:
+    let sum = +0
+    for (_, item) in items:
         sum = sum + item
     sum
 ```

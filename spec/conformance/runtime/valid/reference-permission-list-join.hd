@@ -1,0 +1,42 @@
+# test: writable and readonly references have the readonly least common type
+# Spec 04 Least Common Type: types.lct.conversions; Spec 13 References: ref.convert.weaken.
+struct Point:
+    x: i32
+
+fn total(points: List[&Point]) -> i32:
+    let result = +0
+    for p in points:
+        result += p.x
+    result
+
+tests:
+    use std.testing.assert_equal
+
+    it("writable and readonly references join in either order"):
+        let mut a = Point { x: 1 }
+        b := Point { x: 2 }
+        p := &mut a
+        q := &b
+        points := [p, q]
+        reversed := [q, p]
+        assert_equal(total(points), 3, reason="the join weakens to a readonly reference")
+        assert_equal(total(reversed), 3, reason="the join does not depend on order")
+        p.x = 5
+        assert_equal(a.x, 5, reason="joining does not weaken the original writable reference")
+
+    it("reference weakening also joins with optional injection"):
+        let mut a = Point { x: 1 }
+        b := Point { x: 2 }
+        p := &mut a
+        q := &b
+        let maybe: (&Point)? = .Some(q)
+        points := [p, maybe]
+        reversed := [maybe, p]
+        first := match points[0]:
+            .Some(r) => r.x
+            .None => panic("expected the first reference")
+        last := match reversed[1]:
+            .Some(r) => r.x
+            .None => panic("expected the last reference")
+        assert_equal(first, 1, reason="a writable reference injects into the readonly optional")
+        assert_equal(last, 1, reason="optional injection does not depend on source order")

@@ -332,8 +332,7 @@ impl Ck<'_, '_> {
             && !(open(gs) && self.infer.kind_of(pool, gs) == Some(VarKind::General))
         {
             let snap = self.infer.snapshot();
-            if self.infer.unify(pool, inner, got).is_ok() && self.lct_converts(got, inner, true, 0)
-            {
+            if self.unify_join(inner, got) && self.lct_converts(got, inner, true, 0) {
                 return true;
             }
             self.infer.rollback(snap);
@@ -347,7 +346,7 @@ impl Ck<'_, '_> {
             && self.option_layers(cur) < self.option_layers(gs)
         {
             let snap = self.infer.snapshot();
-            if self.infer.unify(pool, inner, cur).is_ok() {
+            if self.unify_join(inner, cur) {
                 let full = self.infer.resolve(pool, gs);
                 let earlier = self.joined_types(var);
                 if !pool.has_infer(full) && earlier.iter().all(|v| self.lct_reaches(*v, full)) {
@@ -360,7 +359,7 @@ impl Ck<'_, '_> {
             return false;
         }
         let snap = self.infer.snapshot();
-        if self.infer.unify(pool, var, got).is_err() {
+        if !self.unify_join(var, got) {
             self.infer.rollback(snap);
             self.no_common_type(var, got, false, n, what);
             return false;
@@ -389,6 +388,20 @@ impl Ck<'_, '_> {
     }
 
     /// The types of the values joined so far at `var`'s site, resolved.
+    /// Reference permissions meet by weakening; ordinary unification
+    /// keeps them distinct. Only the invariant inner type unifies here.
+    fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
+        let pool = self.pool();
+        let (a, b) = match (
+            pool.get(self.infer.shallow(pool, a)),
+            pool.get(self.infer.shallow(pool, b)),
+        ) {
+            (TyData::Ref { inner: x, .. }, TyData::Ref { inner: y, .. }) => (x, y),
+            _ => (a, b),
+        };
+        self.infer.unify(pool, a, b).is_ok()
+    }
+
     fn joined_types(&self, var: Ty) -> Vec<Ty> {
         let pool = self.pool();
         self.joins
@@ -472,6 +485,24 @@ impl Ck<'_, '_> {
         }
         let d = depth + 1;
         match (pool.get(a), pool.get(b)) {
+            // Reference permissions weaken at the site, while the
+            // referred-to type stays invariant (`ref.convert.weaken`).
+            (
+                TyData::Ref {
+                    inner: x,
+                    mutable: xm,
+                },
+                TyData::Ref {
+                    inner: y,
+                    mutable: ym,
+                },
+            ) if self.perm_canon(x) == self.perm_canon(y) => Some(pool.intern_ty(&TyData::Ref {
+                inner: x,
+                mutable: match dir {
+                    Dir::Least => xm && ym,
+                    Dir::Greatest => xm || ym,
+                },
+            })),
             // `types.variance.mut-invariant`: two mutable views meet only
             // when they are one type.
             (TyData::Mut(_), TyData::Mut(_)) => None,
@@ -600,6 +631,16 @@ impl Ck<'_, '_> {
         }
         let d = depth + 1;
         match (pool.get(s), pool.get(t)) {
+            (
+                TyData::Ref {
+                    inner: x,
+                    mutable: xm,
+                },
+                TyData::Ref {
+                    inner: y,
+                    mutable: ym,
+                },
+            ) => self.perm_canon(x) == self.perm_canon(y) && (xm || !ym),
             (TyData::Mut(x), _) => self.perm_canon(x) == t,
             (_, TyData::Mut(_)) => false,
             (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {

@@ -1624,6 +1624,11 @@ impl Ck<'_, '_> {
         if g == Ty::NEVER || g == w {
             return r;
         }
+        // A least-common-type site's variable is not a declared type: the
+        // value joins the others instead (types.lct).
+        if self.joins.is_site(target) {
+            return self.join_value(r, got, target, n, what);
+        }
         // `&mut T` converts to `&T` (`ref.convert.weaken`), also into an
         // optional; `&T` never converts to `&mut T` (`ref.convert.no-upgrade`).
         let shared_target = |t: Ty| match pool.get(t) {
@@ -1660,11 +1665,6 @@ impl Ck<'_, '_> {
             && let Some(out) = self.convert_to_dyn_ref(r, g, to, n, what, position)
         {
             return out;
-        }
-        // A least-common-type site's variable is not a declared type: the
-        // value joins the others instead (types.lct).
-        if self.joins.is_site(target) {
-            return self.join_value(r, got, target, n, what);
         }
         // A collection value from a writable place, or a new one, goes to a
         // legacy `mut List[T]` or `mut Map[K, V]` position by sharing

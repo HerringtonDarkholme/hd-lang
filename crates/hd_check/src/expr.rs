@@ -2906,6 +2906,16 @@ impl Ck<'_, '_> {
             return Ok(done);
         }
         let (sr, st) = self.expr(src, None)?;
+        // A named reference to a collection is a value source; the
+        // syntactic `&xs` element-reference loop was handled above.
+        let (sr, st) = if self
+            .ref_of(st)
+            .is_some_and(|(inner, _)| self.is_coll_ty(inner))
+        {
+            self.emit_deref(sr, st, src.index())
+        } else {
+            (sr, st)
+        };
         let iterator = self.cx.names.known.iterator;
         let st_r = self.infer.resolve(pool, st);
         let st_i = match pool.get(st_r) {

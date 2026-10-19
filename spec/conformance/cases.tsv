@@ -3657,3 +3657,5 @@ typing/invalid/provider-share-no-impl.hd	type	reject:type-mismatch	lang/11-requi
 typing/invalid/provider-share-bridge-default.hd	type	reject:unsatisfied-trait-bound	lang/11-requirements-and-suspension.md#r-req.ref.share.bridge.default
 typing/invalid/provider-share-trait-value-ref.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.ref.share.no-trait-value-ref
 typing/invalid/provider-ref-bare-dyn.hd	type	reject:dyn-member-unavailable	lang/11-requirements-and-suspension.md#r-req.ref.install
+runtime/valid/reference-permission-list-join.hd	runtime	accept	lang/04-type-system.md#r-types.lct.conversions
+runtime/valid/for-map-through-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.collection.reference

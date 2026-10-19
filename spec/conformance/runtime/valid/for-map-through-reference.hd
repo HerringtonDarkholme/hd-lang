@@ -1,0 +1,21 @@
+# test: a loop over a map reference reads the referenced collection
+# Spec 06 For: flow.for.collection.reference.
+fn readonly_sum(m: &Map[string, i32]) -> i32:
+    let total = +0
+    for (_, value) in m:
+        total += value
+    total
+
+fn writable_sum(m: &mut Map[string, i32]) -> i32:
+    let total = +0
+    for (_, value) in m:
+        total += value
+    total
+
+tests:
+    use std.testing.assert_equal
+
+    it("a loop reads through both kinds of map reference"):
+        let mut stock: Map[string, i32] = {"a": 1, "b": 2, "c": 3}
+        assert_equal(readonly_sum(&stock), 6, reason="a readonly reference reads the map")
+        assert_equal(writable_sum(&mut stock), 6, reason="a writable reference reads the map")
