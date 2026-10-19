@@ -2,13 +2,14 @@
 // Node.
 //
 // Three operations on text of words `word-I ` (I = 0, 1, ...):
-// - build: a StringBuilder (Node: an array and join) of N words;
+// - build: a StringBuilder (Node: an array and join) of 100,000 words, N times;
 // - split: `split(" ")` of a text of 100,000 words, N times;
 // - regex: `find_all` of `[a-z]+-[0-9]+` over that text, N times.
 // Each hd program is built at two sizes, N = small and N = large; the time
 // per unit is the median of (large run i - small run i) / (large - small),
-// after a warm-up. The bytes per unit are the printed text length (per
-// word, for build). Node does the same in its own process.
+// after a warm-up. The bytes per unit are the printed text length.
+// Node does the same in its own process. Each build
+// produces the same text; only the number of repetitions changes.
 // Target (Pillar 3): within 2x of Node, so hd MB/s / Node MB/s ≥ 0.5.
 // n/a: never; a program that fails to build or run fails its line.
 
@@ -58,10 +59,28 @@ const OPERATIONS: readonly Operation[] = [
   {
     name: "build",
     label: "string build, hd / Node MB/s",
-    sizes: { small: 1_000, large: 201_000 },
-    source: (size) => program([...builder(String(size)), '    println("bytes=${text.len()}")']),
-    bytesPerUnit: (large, sizes, small) =>
-      (printed(large, "bytes") - printed(small, "bytes")) / (sizes.large - sizes.small),
+    sizes: { small: 1, large: 11 },
+    source: (size) =>
+      program([
+        "    let total: usize = 0",
+        "    let bytes: usize = 0",
+        `    let repeat: i64 = ${size}`,
+        "    for k in 0..repeat:",
+        ...builder(String(WORDS)).map((line) => `    ${line}`),
+        "        bytes = text.len()",
+        "        total = total + bytes",
+        '    println("bytes=${bytes} total=${total}")',
+      ]),
+    bytesPerUnit: (large, sizes, small) => {
+      const bytes = printed(large, "bytes");
+      if (
+        printed(small, "bytes") !== bytes ||
+        printed(small, "total") !== bytes * sizes.small ||
+        printed(large, "total") !== bytes * sizes.large
+      )
+        throw new Error("string builds did not repeat the same-sized text");
+      return bytes;
+    },
   },
   {
     name: "split",
@@ -143,8 +162,10 @@ export const textThroughput: Metric = {
         );
         if (measured.msPerUnit <= 0) throw new Error("no work measured beyond start-up");
         const bytes = operation.bytesPerUnit(measured.large, operation.sizes, measured.small);
+        if (bytes !== Number(node.bytes))
+          throw new Error(`hd built ${bytes} bytes per text; Node built ${node.bytes}`);
         const hd = mbPerSecond(bytes, measured.msPerUnit);
-        // Node times one whole text per run: WORDS words for build too.
+        // Both sides time one whole, fixed-size text per unit.
         const nodeRate = mbPerSecond(Number(node.bytes), nodeMedian(node, operation.name));
         results.push(
           judge(
@@ -154,7 +175,7 @@ export const textThroughput: Metric = {
             LIMIT,
             "x",
             "at-least",
-            `hd ${formatValue(hd, "MB/s")}, Node ${formatValue(nodeRate, "MB/s")}; ${howNote(measured.program)}`,
+            `hd ${formatValue(hd, "MB/s")}, Node ${formatValue(nodeRate, "MB/s")}; ${WORDS} words, ${bytes} bytes per text${operation.name === "build" ? "; hd StringBuilder, Node Array.join" : ""}; ${howNote(measured.program)}`,
           ),
         );
       } catch (error) {
