@@ -2722,13 +2722,48 @@ impl Run<'_> {
                     lo,
                     hi,
                 };
-                lock(&self.diags).push(
+                let safety = if self
+                    .table
+                    .modules
+                    .iter()
+                    .enumerate()
+                    .any(|(other, candidate)| {
+                        candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
+                    }) {
+                    hd_diag::FixSafety::Suggestion
+                } else {
+                    hd_diag::FixSafety::Exact
+                };
+                let header = self.texts[m].get(lo as usize..hi as usize).unwrap_or("");
+                let lexed = hd_syntax::lex(header.as_bytes());
+                let keyword = lexed
+                    .tokens
+                    .kind
+                    .iter()
+                    .position(|kind| *kind == hd_syntax::TokenKind::KwFn);
+                let mut diags = lock(&self.diags);
+                diags.push(
                     Code::PrivateMain,
                     Severity::Warning,
                     span,
                     "main is not pub, so it is not the entry point",
                     None,
                 );
+                if let Some(keyword) = keyword {
+                    let at = lo + lexed.tokens.start[keyword];
+                    diags.add_fix(
+                        "make `main` public",
+                        safety,
+                        &[(
+                            Span {
+                                file: span.file,
+                                lo: at,
+                                hi: at,
+                            },
+                            "pub ",
+                        )],
+                    );
+                }
             }
         }
         for c in &graph.cycles {

@@ -227,3 +227,7 @@ fix-elif-continuations	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fi
 fix-known-name-errors	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-legacy-syntax	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-reassigned-bindings	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-private-main	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-private-main-bang	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-private-main-clash	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
+fix-private-main-unsafe	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status

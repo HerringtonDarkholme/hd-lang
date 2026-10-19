@@ -1,0 +1,4 @@
+﻿# café
+## Entry documentation.
+fn  main ( ) -> void $ Console:
+    println("hello")

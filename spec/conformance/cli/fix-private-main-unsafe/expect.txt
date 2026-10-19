@@ -1,0 +1,9 @@
+# Cold and warm checks preserve exact UTF-8 insertion offsets.
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"private-main","file":"src/main.hd","line":2,"fixes":[{"message":"make `main` public","edits":[{"file":"src/main.hd","start":8,"end":8,"text":"pub "}]}]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"private-main","file":"src/main.hd","line":2,"fixes":[{"message":"make `main` public","edits":[{"file":"src/main.hd","start":8,"end":8,"text":"pub "}]}]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd fix
+same-text: src/main.hd want/main.hd
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"private-main","file":"src/main.hd","line":2,"fixes":[{"message":"make `main` public","edits":[{"file":"src/main.hd","start":8,"end":8,"text":"pub "}]}]},{"kind":"summary","errors":0,"warnings":1,"status":0}]

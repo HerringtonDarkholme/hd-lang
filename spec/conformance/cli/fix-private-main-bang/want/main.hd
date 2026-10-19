@@ -1,0 +1,4 @@
+# café
+## Suspending entry.
+pub fn main!() -> void $ Console:
+    println("async")

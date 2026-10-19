@@ -1995,6 +1995,8 @@ pub fn main() -> void:
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
 7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning. Its message is "main is not pub, so it is not the entry point". Warning: `private-main`.
 8. r[module.entry.parameters] A public top-level `main` or `main!` in an entry module that declares parameters or generic parameters is an error. Error: `entry-point-parameters`.
+9. r[module.entry.private-main.fix] The `private-main` warning must offer a fix-it inserting `pub ` before the function keyword.
+10. r[module.entry.private-main.fix.conflict] When adding `pub` could clash with another public `main`, the fix-it must remain a suggestion.
 
 ```text
 fn main() -> void:  # warning: private-main

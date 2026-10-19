@@ -1,0 +1,6 @@
+[package]
+name = "privateentry"
+
+[[executable]]
+name = "app"
+module = "main"
