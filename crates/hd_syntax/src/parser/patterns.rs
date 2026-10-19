@@ -157,12 +157,33 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump();
         let mut qualified = false;
-        while self.at(TokenKind::Dot)
-            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
-        {
-            self.bump();
-            self.bump();
-            qualified = true;
+        loop {
+            if let Some(end) = self.variant_type_arguments_end() {
+                let error = self.errors.len();
+                let (lo, _) = self.token_span(self.pos());
+                let (_, hi) = self.token_span(end);
+                self.error(
+                    Code::SyntaxError,
+                    "a variant pattern takes its type arguments from the matched value",
+                );
+                let reported = self.errors.len() == error + 1;
+                self.ty_arguments(false);
+                if reported && self.pos() == end + 1 {
+                    self.fix_error(
+                        error,
+                        "remove type arguments from the variant pattern",
+                        &[(lo, hi, "")],
+                    );
+                }
+            } else if self.at(TokenKind::Dot)
+                && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+            {
+                self.bump();
+                self.bump();
+                qualified = true;
+            } else {
+                break;
+            }
         }
         if self.at(TokenKind::LBrace) && !self.nth_line_first(0) {
             self.data_pattern_fields(let_pattern);
@@ -180,6 +201,34 @@ impl Parser<'_> {
             return self.complete(marker, SyntaxKind::SpreadPattern);
         }
         self.complete(marker, SyntaxKind::BindingPattern)
+    }
+
+    /// A type-path argument list followed by a qualified variant name.
+    /// Numeric indices and calls inside brackets are not type annotations.
+    fn variant_type_arguments_end(&mut self) -> Option<usize> {
+        if !self.at(TokenKind::LBracket) {
+            return None;
+        }
+        let mut depth = 0_u32;
+        for index in self.pos()..self.toks.len() {
+            match self.toks.kind[index] {
+                TokenKind::LBracket => depth += 1,
+                TokenKind::RBracket => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return (self.toks.kind.get(index + 1) == Some(&TokenKind::Dot)
+                            && matches!(
+                                self.toks.kind.get(index + 2),
+                                Some(TokenKind::Ident | TokenKind::RawIdent)
+                            ))
+                        .then_some(index);
+                    }
+                }
+                TokenKind::Ident | TokenKind::RawIdent | TokenKind::Dot | TokenKind::Comma => {}
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// `( positional, ..., name = pattern, ... )`.

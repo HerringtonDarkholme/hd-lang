@@ -846,6 +846,51 @@ impl Parser<'_> {
         while let Some(kind) = self.current() {
             let same_line = !self.nth_line_first(0);
             match kind {
+                TokenKind::Ident
+                    if same_line
+                        && self.at_word("as")
+                        && lhs.kind() == SyntaxKind::NameExpr
+                        && first > 0
+                        && self.toks.kind[first - 1] == TokenKind::LParen
+                        && !self.nth_line_first(1)
+                        && self.nth(2) == Some(TokenKind::RParen)
+                        && matches!(
+                            self.nth_text(1),
+                            "i8" | "u8"
+                                | "i16"
+                                | "u16"
+                                | "i32"
+                                | "u32"
+                                | "i64"
+                                | "u64"
+                                | "usize"
+                                | "f32"
+                                | "f64"
+                        ) =>
+                {
+                    let target = self.nth_text(1);
+                    let end = self.toks.end[self.pos() - 1];
+                    let (_, type_end) = self.token_span(self.pos() + 1);
+                    let value = &self.src[start..end as usize];
+                    let error = self.errors.len();
+                    self.error(
+                        Code::SyntaxError,
+                        &format!("write '{target}({value})' for the numeric conversion"),
+                    );
+                    self.fix_error(
+                        error,
+                        "write the numeric conversion as a call",
+                        &[
+                            (
+                                self.toks.start[first],
+                                self.toks.start[first],
+                                &format!("{target}("),
+                            ),
+                            (end, type_end, ")"),
+                        ],
+                    );
+                    break;
+                }
                 TokenKind::Dot => {
                     match self.nth(1) {
                         Some(TokenKind::Ident | TokenKind::RawIdent) => {

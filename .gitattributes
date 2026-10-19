@@ -13,3 +13,4 @@ spec/conformance/cli/fix-parser-punctuation/** text eol=lf
 spec/conformance/cli/fix-elif-continuations/** text eol=lf
 spec/conformance/cli/fix-known-name-errors/** text eol=lf
 spec/conformance/cli/unknown-name-suggestions/methods.hd text eol=lf
+spec/conformance/cli/fix-legacy-syntax/** text eol=lf

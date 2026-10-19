@@ -63,6 +63,50 @@ impl Parser<'_> {
     }
 
     pub(crate) fn simple_statement(&mut self, ctx: Ctx) {
+        if self.at_word("const")
+            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+            && self.nth(2) == Some(TokenKind::Colon)
+        {
+            let at = self.pos();
+            let line = self.toks.line_of(self.toks.start[at]);
+            let end = self
+                .toks
+                .line_start
+                .get(line + 1)
+                .copied()
+                .unwrap_or(u32::MAX);
+            let mut depth = 0_u32;
+            let initialized = (at + 3..self.toks.len())
+                .take_while(|&i| self.toks.start[i] < end)
+                .any(|i| {
+                    let kind = self.toks.kind[i];
+                    let initializer = kind == TokenKind::Eq
+                        && depth == 0
+                        && self
+                            .toks
+                            .start
+                            .get(i + 1)
+                            .is_some_and(|&offset| self.toks.line_of(offset) == line);
+                    if kind.opens() {
+                        depth += 1;
+                    }
+                    if kind.closes() {
+                        depth = depth.saturating_sub(1);
+                    }
+                    initializer
+                });
+            if initialized {
+                let error = self.errors.len();
+                let (lo, hi) = self.token_span(at);
+                self.error(
+                    Code::SyntaxError,
+                    "a typed binding begins with 'let', not 'const'",
+                );
+                self.fix_error(error, "replace `const` with `let`", &[(lo, hi, "let")]);
+                self.let_statement(ctx);
+                return;
+            }
+        }
         if self.at_word("use") && self.use_root_follows() {
             self.error_at(
                 Code::SyntaxError,
