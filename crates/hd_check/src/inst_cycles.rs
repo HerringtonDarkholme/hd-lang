@@ -17,10 +17,10 @@
 //! and adds no edge: such a cycle stays the instantiation depth limit's
 //! (`types.generic.instantiation-depth.error`). A parameter inside a
 //! projection (`T.Item`) adds no edge either, since the projection's
-//! size depends on the implementation. The graph covers one module's
-//! bodies; a cycle through several files of a folder is left to the limit.
+//! size depends on the implementation. Each module contributes a compact
+//! summary; the driver checks the joined graph of its folder's modules.
 
-use hd_base::{DefId, HashMap, HashSet, NodeIdx};
+use hd_base::{DefId, Hash128, HashMap, HashSet, NodeIdx, Span};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::ItemData;
 use hd_tir::Body;
@@ -31,34 +31,41 @@ use crate::body::BodyCx;
 
 /// A node: a type parameter as one function's body sees it. A parameter
 /// of an implementation is a node per method, since each method is its
-/// own instantiation.
-type Node = (DefId, ParamRef);
+/// own instantiation. The fields are the function path hash, parameter
+/// owner path hash, and parameter index, stable across cache reads.
+pub type Node = (Hash128, Hash128, u16);
 
-/// One edge `from -> to`, made by the argument `arg` of a call at `at`
-/// in the body of `caller` to `callee`.
-struct Edge {
-    from: Node,
-    to: Node,
-    grows: bool,
-    caller: DefId,
-    callee: DefId,
-    arg: Ty,
-    at: NodeIdx,
+/// A fixed-callee call edge, independent of process-local type/definition IDs.
+/// Only growing edges carry a diagnostic prefix and caller display name.
+#[derive(Clone)]
+pub struct Edge {
+    pub from: Node,
+    pub to: Node,
+    pub grows: bool,
+    pub caller: String,
+    pub callee: String,
+    pub message: String,
+    pub span: Span,
 }
 
-/// Reports each call that passes a growing type argument around a generic
-/// call cycle of `bodies`, once per call. Error: `instantiation-too-deep`.
-pub fn growing_cycles(cx: &BodyCx<'_>, bodies: &[Body], diags: &mut DiagBuf) {
+/// Collects a module's fixed-callee edges while its checked TIR is available.
+pub fn call_edges(cx: &BodyCx<'_>, bodies: &[Body]) -> Vec<Edge> {
     let pool = cx.names.pool.types();
     let mut edges = Vec::new();
     for b in bodies {
-        call_edges(cx, pool, b, &mut edges);
+        body_edges(cx, pool, b, &mut edges);
     }
+    edges
+}
+
+/// Reports growing cycles in joined module summaries, once per call span.
+/// Error: `instantiation-too-deep`.
+pub fn growing_cycles(edges: &[&Edge], diags: &mut DiagBuf) {
     if !edges.iter().any(|e| e.grows) {
         return;
     }
     let mut ids: HashMap<Node, usize> = HashMap::default();
-    for e in &edges {
+    for e in edges {
         for p in [e.from, e.to] {
             let n = ids.len();
             ids.entry(p).or_insert(n);
@@ -68,38 +75,35 @@ pub fn growing_cycles(cx: &BodyCx<'_>, bodies: &[Body], diags: &mut DiagBuf) {
     for (k, e) in edges.iter().enumerate() {
         succ[ids[&e.from]].push(k);
     }
-    let comp = components(&succ, &edges, &ids);
+    let comp = components(&succ, edges, &ids);
     // A call the row solve already stopped at (a private row's key that
     // grows the same way) keeps that one report.
     let reported: Vec<hd_base::Span> = (0..diags.len())
         .filter(|&i| diags.code[i] == Code::InstantiationTooDeep)
         .map(|i| diags.primary[i])
         .collect();
-    let mut seen: HashSet<NodeIdx> = HashSet::default();
+    let mut seen = HashSet::default();
     let mut found: Vec<(hd_base::Span, &Edge)> = Vec::new();
-    for e in &edges {
-        if e.grows && comp[ids[&e.from]] == comp[ids[&e.to]] && seen.insert(e.at) {
-            let span = cx.src.span(cx.src.parse.tree.node(e.at));
+    for e in edges {
+        if e.grows
+            && comp[ids[&e.from]] == comp[ids[&e.to]]
+            && seen.insert((e.span.file, e.span.lo, e.span.hi))
+        {
+            let span = e.span;
             if !reported.contains(&span) {
                 found.push((span, e));
             }
         }
     }
-    found.sort_by_key(|(span, _)| span.lo);
+    found.sort_by_key(|(span, _)| (span.file.raw(), span.lo, span.hi));
     for (span, e) in found {
-        let mut cycle = vec![
-            cx.names.display_name(e.caller),
-            cx.names.display_name(e.callee),
-        ];
-        for k in path(&succ, &edges, &ids, e.to, e.from) {
-            cycle.push(cx.names.display_name(edges[k].callee));
+        let mut cycle = vec![e.caller.as_str(), e.callee.as_str()];
+        for k in path(&succ, edges, &ids, e.to, e.from) {
+            cycle.push(edges[k].callee.as_str());
         }
-        let show = |t: Ty| hd_resolve::show_ty_in(&cx.names, pool, t);
         let msg = format!(
-            "this call passes `{}` for `{}`, a larger type that holds `{}`, around the generic call cycle `{}`: its instantiations grow without end",
-            show(strip_mut(pool, e.arg)),
-            show(pool_param(cx, e.to.1)),
-            show(pool_param(cx, e.from.1)),
+            "{} `{}`: its instantiations grow without end",
+            e.message,
             cycle.join(" -> "),
         );
         diags.error(Code::InstantiationTooDeep, span, &msg);
@@ -118,7 +122,7 @@ fn strip_mut(pool: Types<'_>, t: Ty) -> Ty {
 }
 
 /// The edges of each call in `b` whose callee is fixed.
-fn call_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
+fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
     for (i, tag) in b.tags.iter().enumerate() {
         let local = *tag == Tag::Closure && b.is_instantiation(i);
         if !local && !matches!(tag, Tag::Call | Tag::Await) {
@@ -182,14 +186,27 @@ fn call_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
             params.dedup();
             for p in params {
                 let grows = !matches!(pool.get(whole), TyData::Param(q) if q == p);
+                let node = |owner, p: ParamRef| {
+                    (
+                        cx.names.path_hash(owner),
+                        cx.names.path_hash(p.owner),
+                        p.index,
+                    )
+                };
+                let show = |t| hd_resolve::show_ty_in(&cx.names, pool, t);
                 out.push(Edge {
-                    from: (b.item, p),
-                    to: (callee, to),
+                    from: node(b.item, p),
+                    to: node(callee, to),
                     grows,
-                    caller: b.item,
-                    callee,
-                    arg,
-                    at,
+                    caller: if grows { cx.names.display_name(b.item).to_owned() } else { String::new() },
+                    callee: cx.names.display_name(callee).to_owned(),
+                    message: if grows {
+                        format!(
+                            "this call passes `{}` for `{}`, a larger type that holds `{}`, around the generic call cycle",
+                            show(whole), show(pool_param(cx, to)), show(pool_param(cx, p)),
+                        )
+                    } else { String::new() },
+                    span: cx.src.span(cx.src.parse.tree.node(at)),
                 });
             }
         }
@@ -381,7 +398,7 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
 
 /// Each node's strongly connected component (Tarjan's algorithm, without
 /// recursion).
-fn components(succ: &[Vec<usize>], edges: &[Edge], ids: &HashMap<Node, usize>) -> Vec<usize> {
+fn components(succ: &[Vec<usize>], edges: &[&Edge], ids: &HashMap<Node, usize>) -> Vec<usize> {
     const UNSEEN: usize = usize::MAX;
     let n = succ.len();
     let mut index = vec![UNSEEN; n];
@@ -441,7 +458,7 @@ fn components(succ: &[Vec<usize>], edges: &[Edge], ids: &HashMap<Node, usize>) -
 /// the same node.
 fn path(
     succ: &[Vec<usize>],
-    edges: &[Edge],
+    edges: &[&Edge],
     ids: &HashMap<Node, usize>,
     from: Node,
     to: Node,

@@ -668,6 +668,7 @@ type BodyOut = (
     hd_check::init::InitSummary,
     Vec<hd_check::DbgRef>,
     Vec<InputBinding>,
+    Vec<hd_check::inst_cycles::Edge>,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -690,6 +691,7 @@ struct CheckOut {
     entry: Arc<[u8]>,
     content: Hash128,
     has_errors: bool,
+    generic_edges: Vec<hd_check::inst_cycles::Edge>,
 }
 
 /// The program as `Collect` decoded it.
@@ -4756,14 +4758,18 @@ impl Run<'_> {
             role.push_str("+fuel=");
             role.push_str(&fuel.to_string());
         }
-        Some(check_key(
+        // This check-entry layout adds fixed-callee generic call summaries.
+        // Old entries must miss rather than silently contribute no edges.
+        let mut key = hd_base::StableHasher::new("check-generic-edges-v1");
+        key.hash(check_key(
             self.toolchain,
             package,
             &module.path,
             &role,
             self.skim_of(m).file.token_hash,
             &closure,
-        ))
+        ));
+        Some(key.finish())
     }
 
     /// The template text hashes of the template modules a module's
@@ -5369,9 +5375,16 @@ impl Run<'_> {
                 }
             }
         }
-        // A generic call cycle of the module's own bodies whose type
-        // arguments grow (spec 04 `types.generic.polymorphic-recursion`).
-        hd_check::inst_cycles::growing_cycles(&cx, &bodies, &mut diags);
+        // Keep only the call graph summary for the folder join. Warm checks
+        // read it from the check entry without decoding any cached TIR.
+        let mut generic_edges = hd_check::inst_cycles::call_edges(&cx, &bodies);
+        if self.table.modules[m].package != 0 {
+            // Preserve the existing local check for dependencies. Their TIR
+            // and summaries are not inputs to the user's folder graph.
+            let edges: Vec<_> = generic_edges.iter().collect();
+            hd_check::inst_cycles::growing_cycles(&edges, &mut diags);
+            generic_edges.clear();
+        }
         // The method bodies of the implementations `@error` generates
         // (spec 14 `annot.error.generates`, `crates/hd_mono/DESIGN.md` §13.14).
         for h in heads.iter().filter(|h| {
@@ -5664,6 +5677,7 @@ impl Run<'_> {
             summary,
             dbg,
             bindings,
+            generic_edges,
         )));
     }
 
@@ -6681,11 +6695,12 @@ impl Run<'_> {
     /// meta (the module's content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads; the `dbg`
-    /// references; and each body's frame name (`positions`).
+    /// references; each body's frame name (`positions`); and the fixed-callee
+    /// generic call edges the folder join reads without decoding TIR.
     fn module_finish(&self, m: usize) {
         let (
             Some(Some(prep)),
-            Some(Some((bodies, bdiags, derived, inferred, summary, dbg, bindings))),
+            Some(Some((bodies, bdiags, derived, inferred, summary, dbg, bindings, generic_edges))),
         ) = (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -6850,6 +6865,7 @@ impl Run<'_> {
             };
             Some(positions::self_type_name(&names, &item.generics, *self_ty))
         });
+        let generic_edges = encode_generic_edges(generic_edges, &lines);
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
             &meta.bytes,
@@ -6859,6 +6875,7 @@ impl Run<'_> {
             &summary,
             &gw.bytes,
             &fw.bytes,
+            &generic_edges,
         ];
         // A REPL input's interface: its top-level bindings, which later
         // inputs read and assign (`cli.repl.declarations.bindings`). A
@@ -7060,20 +7077,45 @@ impl Run<'_> {
             }
         }
         let _ = self.dbg_refs[m].set(dbg);
-        if let Some(b) = sections.get(8) {
+        if let Some(b) = sections.get(9) {
             let bindings = decode_bindings(b, &self.names()).unwrap_or_default();
             let _ = self.input_bindings[m].set(bindings);
         }
+        let Some(generic_edges) = sections
+            .get(8)
+            .and_then(|b| decode_generic_edges(b, &lines, FileId::from_raw(u32_of(m))))
+        else {
+            let _ = self.check[m].set(None);
+            return;
+        };
         let content = Reader::new(meta).hash();
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
             has_errors,
+            generic_edges,
         }));
     }
 
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
+        // Recompute the folder graph from current module summaries, including
+        // cache hits. Its verdict is never cached under one module's key.
+        let mut folder_edges: BTreeMap<usize, Vec<&hd_check::inst_cycles::Edge>> = BTreeMap::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package == 0
+                && self.builds_module(m)
+                && let Some(Some(check)) = self.check[m].get()
+            {
+                folder_edges
+                    .entry(module.folder.idx())
+                    .or_default()
+                    .extend(&check.generic_edges);
+            }
+        }
+        for edges in folder_edges.values() {
+            hd_check::inst_cycles::growing_cycles(edges, &mut lock(&self.diags));
+        }
         // `InitOrder(F)` reads the init summaries of the folder's modules,
         // so it runs once they are checked.
         let kept = self.kept.get();
@@ -8832,6 +8874,55 @@ impl Lines<'_> {
         let next = self.starts.get(line + 1).copied().unwrap_or(self.len);
         start.saturating_add(off).min(next)
     }
+}
+
+/// Stable call-edge identities and anchored source positions, without TIR.
+fn encode_generic_edges(edges: &[hd_check::inst_cycles::Edge], lines: &Lines<'_>) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(edges);
+    for edge in edges {
+        for (function, owner, index) in [edge.from, edge.to] {
+            w.hash(function);
+            w.hash(owner);
+            w.u32(u32::from(index));
+        }
+        w.u8(u8::from(edge.grows));
+        w.str(&edge.caller);
+        w.str(&edge.callee);
+        w.str(&edge.message);
+        lines.write(&mut w, edge.span.lo);
+        lines.write(&mut w, edge.span.hi);
+    }
+    w.bytes
+}
+
+fn decode_generic_edges(
+    bytes: &[u8],
+    lines: &Lines<'_>,
+    file: FileId,
+) -> Option<Vec<hd_check::inst_cycles::Edge>> {
+    let mut r = Reader::new(bytes);
+    let mut edges = Vec::new();
+    for _ in 0..r.count() {
+        let from = (r.hash(), r.hash(), u16::try_from(r.u32()).ok()?);
+        let to = (r.hash(), r.hash(), u16::try_from(r.u32()).ok()?);
+        let grows = r.u8() != 0;
+        let caller_name = r.str().to_owned();
+        let target_name = r.str().to_owned();
+        let message = r.str().to_owned();
+        let lo = lines.read(&mut r);
+        let hi = lines.read(&mut r);
+        edges.push(hd_check::inst_cycles::Edge {
+            from,
+            to,
+            grows,
+            caller: caller_name,
+            callee: target_name,
+            message,
+            span: Span { file, lo, hi },
+        });
+    }
+    r.ok().then_some(edges)
 }
 
 /// A module's init summary in its `check` entry: the statement count

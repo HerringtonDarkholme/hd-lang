@@ -224,10 +224,8 @@ fn a_warm_rebuild_of_shared_types_emits_nothing() {
 }
 
 /// Each round wraps `T` in one more legacy `mut List`, through a generic
-/// call cycle that spans two files, which checking one module at a time
-/// does not see: the concrete types grow through reference layouts that
-/// classify alike, so no depth limit trips on its own, and collection
-/// stops the cycle (`types.generic.polymorphic-recursion`). A list value
+/// call cycle that spans two files: the folder's joined summaries stop
+/// it before collection (`types.generic.polymorphic-recursion`). A list value
 /// type argument stays exact (`hd_mono::holds_coll`), so the legacy view
 /// keeps the argument erased.
 const ERASED_A: &str = "\
@@ -275,7 +273,130 @@ fn polymorphic_recursion_through_erasure_stops() {
     );
     assert!(program.wasm.is_none());
     let text = program.render();
-    assert!(text.contains("grow through reference layouts"), "{text}");
+    assert!(text.contains("generic call cycle"), "{text}");
+}
+
+fn check_folder_cycle(store: &MemoryStore, a: &str, b: &str, order: SerialOrder) -> Output {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", ERASED_MAIN);
+    src.insert("a.hd", a);
+    src.insert("b.hd", b);
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(order),
+    };
+    build(&host, "app", &Goal::Analyze)
+}
+
+fn growing_folder_call(out: &Output, file: &str, text: &str, call: &str) {
+    assert_eq!(codes(out), ["instantiation-too-deep"], "{}", out.render());
+    let at = text.find(call).expect("the growing call");
+    let rendered = out.render();
+    assert!(rendered.contains(&format!("{file}:{at}..")), "{rendered}");
+    assert!(rendered.contains("generic call cycle"), "{rendered}");
+    assert_eq!(out.counters.bodies_decoded, 0);
+    assert!(out.counters.tir_decoded.is_empty());
+}
+
+#[test]
+fn a_check_reports_a_growing_call_cycle_across_files() {
+    let out = check_folder_cycle(
+        &MemoryStore::default(),
+        ERASED_A,
+        ERASED_B,
+        SerialOrder::Priority,
+    );
+    growing_folder_call(&out, "a.hd", ERASED_A, "eat([xs]");
+    // Equal node indices and byte offsets in different files are two calls.
+    let a = "use pkg.b.{feed}\n\npub fn bite[T](x: T) -> void:\n    feed([x])\n";
+    let b = "use pkg.a.{bite}\n\npub fn feed[T](x: T) -> void:\n    bite([x])\n";
+    assert_eq!(a.find("feed([x])"), b.find("bite([x])"));
+    let mut src = MemorySources::default();
+    src.insert("a.hd", a);
+    src.insert("b.hd", b);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let two = build(&host, "app", &Goal::Analyze);
+    assert_eq!(
+        codes(&two),
+        ["instantiation-too-deep", "instantiation-too-deep"],
+        "{}",
+        two.render()
+    );
+    for file in ["a.hd", "b.hd"] {
+        assert!(
+            two.render().contains(&format!("{file}:")),
+            "{}",
+            two.render()
+        );
+    }
+}
+
+#[test]
+fn a_check_accepts_a_same_shape_call_cycle_across_files() {
+    let a = ERASED_A.replace("eat([xs]", "eat(xs");
+    let store = MemoryStore::default();
+    let cold = check_folder_cycle(&store, &a, ERASED_B, SerialOrder::Priority);
+    assert!(cold.diags.is_empty(), "{}", cold.render());
+    let warm = check_folder_cycle(&store, &a, ERASED_B, SerialOrder::Shuffled(41));
+    assert!(warm.diags.is_empty(), "{}", warm.render());
+    assert!(warm.counters.modules_checked.is_empty());
+    assert!(warm.counters.tir_decoded.is_empty());
+    assert_eq!(warm.counters.bodies_decoded, 0);
+}
+
+#[test]
+fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
+    let plain_a = ERASED_A.replace("eat([xs]", "eat(xs");
+    let growing_b = ERASED_B.replace("bite(xs", "bite([xs]");
+    let store = MemoryStore::default();
+    let base = check_folder_cycle(&store, &plain_a, ERASED_B, SerialOrder::Priority);
+    assert!(base.diags.is_empty(), "{}", base.render());
+    for (a, b, module, file, call) in [
+        (ERASED_A, ERASED_B, "app.a", "a.hd", "eat([xs]"),
+        (
+            plain_a.as_str(),
+            growing_b.as_str(),
+            "app.b",
+            "b.hd",
+            "bite([xs]",
+        ),
+    ] {
+        let bad = check_folder_cycle(&store, a, b, SerialOrder::Shuffled(29));
+        growing_folder_call(&bad, file, if file == "a.hd" { a } else { b }, call);
+        assert_eq!(bad.counters.modules_checked, [module]);
+        let warm = check_folder_cycle(&store, a, b, SerialOrder::Shuffled(7));
+        growing_folder_call(&warm, file, if file == "a.hd" { a } else { b }, call);
+        assert!(warm.counters.modules_checked.is_empty());
+        // Comments move the diagnostic while the summary and bodies stay hot.
+        let shifted_a = format!("# shifted\n\n{a}");
+        let shifted_b = format!("# shifted\n\n{b}");
+        let shifted = check_folder_cycle(&store, &shifted_a, &shifted_b, SerialOrder::Shuffled(53));
+        growing_folder_call(
+            &shifted,
+            file,
+            if file == "a.hd" {
+                &shifted_a
+            } else {
+                &shifted_b
+            },
+            call,
+        );
+        assert!(shifted.counters.modules_checked.is_empty());
+        let fixed = check_folder_cycle(&store, &plain_a, ERASED_B, SerialOrder::Shuffled(17));
+        assert!(fixed.diags.is_empty(), "{}", fixed.render());
+        assert!(fixed.counters.modules_checked.is_empty());
+        assert!(fixed.counters.tir_decoded.is_empty());
+    }
 }
 
 /// Recursion that passes its erased parameter through unchanged shares
