@@ -521,8 +521,8 @@ pub(crate) struct PendingGoal {
 /// What a waiting goal decides once its types are known.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Waiting {
-    /// A bound: only whether it holds, checked at the end of the body.
-    Bound,
+    /// A bound: whether it holds, retaining its diagnostic when deferred.
+    Bound { code: Code },
     /// The impl of a call of the trait method `method`: what it learns
     /// fixes the trait's arguments, and the call's choice is settled from
     /// it.
@@ -2299,7 +2299,7 @@ impl Ck<'_, '_> {
                 self.pending.push(PendingGoal {
                     tref,
                     at: at.index(),
-                    kind: Waiting::Bound,
+                    kind: Waiting::Bound { code },
                 });
                 Ok(None)
             }
@@ -2712,7 +2712,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let root = self.infer.shallow(pool, t);
         let fixes = |me: &Self, g: &PendingGoal| match g.kind {
-            Waiting::Bound => false,
+            Waiting::Bound { .. } => false,
             Waiting::Call { .. } => pool
                 .list_items(g.tref.args)
                 .iter()
@@ -2747,7 +2747,7 @@ impl Ck<'_, '_> {
         let mut out = Vec::new();
         for g in self.pending.get(waiting..).unwrap_or_default() {
             match g.kind {
-                Waiting::Bound => {}
+                Waiting::Bound { .. } => {}
                 Waiting::Call { .. } => out.extend(
                     pool.list_items(g.tref.args)
                         .iter()
@@ -2767,14 +2767,16 @@ impl Ck<'_, '_> {
         if !self
             .pending
             .get(waiting..)
-            .is_some_and(|p| p.iter().any(|g| g.kind != Waiting::Bound))
+            .is_some_and(|p| p.iter().any(|g| !matches!(g.kind, Waiting::Bound { .. })))
         {
             return Ok(());
         }
         let here = self.at;
         let goals = self.pending.split_off(waiting);
         for g in goals {
-            if g.kind == Waiting::Bound || !self.settle_goal(g, Defaults::None, true)? {
+            if matches!(g.kind, Waiting::Bound { .. })
+                || !self.settle_goal(g, Defaults::None, true)?
+            {
                 self.pending.push(g);
             }
         }
@@ -2805,7 +2807,7 @@ impl Ck<'_, '_> {
             }
             // A bound's unknown arguments are poison; a call's arguments
             // stay open for what the goal learns.
-            let args = if g.kind == Waiting::Bound {
+            let args = if matches!(g.kind, Waiting::Bound { .. }) {
                 self.zonk_list(g.tref.args)
             } else {
                 if defaults == Defaults::All {
@@ -2838,7 +2840,7 @@ impl Ck<'_, '_> {
         self.move_to(self.cx.src.span(node).lo);
         match self.solve(tref)? {
             Answer::Holds { learned, .. } => {
-                if g.kind == Waiting::Bound {
+                if matches!(g.kind, Waiting::Bound { .. }) {
                     return Ok(true);
                 }
                 for (v, t) in learned {
@@ -2883,7 +2885,11 @@ impl Ck<'_, '_> {
                         self.show(tref.self_ty),
                         self.cx.names.display_name(tref.trait_)
                     );
-                    self.err(Code::UnsatisfiedTraitBound, node, &msg);
+                    let code = match g.kind {
+                        Waiting::Bound { code } => code,
+                        _ => Code::UnsatisfiedTraitBound,
+                    };
+                    self.err(code, node, &msg);
                 }
                 Ok(true)
             }

@@ -573,7 +573,9 @@ impl Ck<'_, '_> {
                             args,
                         },
                         at: n.index(),
-                        kind: Waiting::Bound,
+                        kind: Waiting::Bound {
+                            code: Code::UnsatisfiedTraitBound,
+                        },
                     });
                 }
             }

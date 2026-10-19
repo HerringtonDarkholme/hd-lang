@@ -1857,7 +1857,9 @@ impl Ck<'_, '_> {
                                 self.pending.push(crate::body::PendingGoal {
                                     tref,
                                     at: n.index(),
-                                    kind: crate::body::Waiting::Bound,
+                                    kind: crate::body::Waiting::Bound {
+                                        code: Code::UnsatisfiedTraitBound,
+                                    },
                                 });
                             } else {
                                 self.require_ref(tref, n)?;
@@ -3926,7 +3928,12 @@ impl Ck<'_, '_> {
             self_ty: t,
             args: pool.list(&targs),
         };
-        let ev = self.require_ref(tref, n)?;
+        let code = if trait_ == self.cx.names.known.index && n.kind() == SyntaxKind::IndexExpr {
+            Code::TypeMismatch
+        } else {
+            Code::UnsatisfiedTraitBound
+        };
+        let ev = self.require_ref_noting(tref, n, code)?;
         let choice = self.choice_of(ev.as_ref());
         targs = targs
             .into_iter()
