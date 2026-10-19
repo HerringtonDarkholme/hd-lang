@@ -1,0 +1,279 @@
+# std.rt.alloc: the heap allocator of the linear-memory runtime
+# (crates/hd_wasm/DESIGN.md §23.5 and §23.6), hd over std.rt.memory.
+# A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only).
+#
+# Blocks of up to 2 KiB come from 20 size classes, each served by pages of
+# 64 KiB that hold that class alone. A block over 2 KiB is a run of whole
+# pages. The page table, one 4-byte entry per heap page, says what each
+# page is, so a free needs only the address, and an interior address finds
+# the start of its block:
+#
+#   top 2 bits   low 30 bits           page
+#   00           0                     free, or not yet the allocator's
+#   01           the class, 1 to 20;   a small page of that class;
+#                0 for a static page   0: static data, the table, or a
+#                                      page another part of the program grew
+#   10           the run's page count  the first page of a large run
+#   11           the run's first page  a later page of a large run
+#
+# The table's first 128 bytes hold each class's list of pages with room,
+# and entry `p` is at table + 128 + 4 * p. A small page starts with a
+# 16-byte header: its free list (u32), the next and previous pages of its
+# class's list (u32 each), its live count (u16) and its bump offset in
+# units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
+# holds the next free slot's address in its first 4 bytes.
+use std.rt.memory.{copy, grow, load_u16, load_u32, store_u16, store_u32}
+
+PAGE := 65536
+LISTS := 128
+SMALL := 0x40000000
+RUN := 0x80000000
+REST := 0xc0000000
+LOW := 0x3fffffff
+
+# The page table's address, 0 until the first allocation.
+let table: usize = 0
+# How many pages the table has entries for.
+let capacity: usize = 0
+# The pages below this one have their entries set; the rest are not yet
+# the heap's.
+let known: usize = 0
+# No page below this one is free.
+let hint: usize = 0
+
+## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
+pub fn alloc(size: usize) -> usize:
+    if table == 0:
+        start()
+    if size > 2048:
+        count := (size + PAGE - 1) / PAGE
+        first := take(count)
+        set(first, u32(RUN + count))
+        let j: usize = 1
+        while j < count:
+            set(first + j, u32(REST + first))
+            j = j + 1
+        return first * PAGE
+    class := class_of(size)
+    let page = head(class)
+    if page == 0:
+        page = take(1) * PAGE
+        set(page / PAGE, u32(SMALL + class))
+        store_u32(page, 0)
+        store_u32(page + 4, 0)
+        store_u32(page + 8, 0)
+        store_u16(page + 12, 0)
+        store_u16(page + 14, 1)
+        set_head(class, page)
+    free := usize(load_u32(page))
+    let slot = free
+    if free != 0:
+        store_u32(page, load_u32(free))
+    else:
+        bump := usize(load_u16(page + 14)) * 16
+        slot = page + bump
+        store_u16(page + 14, u16((bump + class_bytes(class)) / 16))
+    store_u16(page + 12, load_u16(page + 12) + 1)
+    if full(page, class):
+        # A page that fills is its list's head, the page it took from.
+        next := usize(load_u32(page + 4))
+        set_head(class, next)
+        if next != 0:
+            store_u32(next + 8, 0)
+        store_u32(page + 4, 0)
+    slot
+
+## Frees the block at `address`, which `alloc` gave and which is not yet freed.
+pub fn free(address: usize) -> void:
+    page_number := address / PAGE
+    entry := usize(get(page_number))
+    kind := entry / SMALL
+    if kind == 2:
+        count := entry & LOW
+        let j: usize = 0
+        while j < count:
+            set(page_number + j, 0)
+            j = j + 1
+        lower_hint(page_number)
+    else if kind == 1 && entry != SMALL:
+        class := entry & LOW
+        page := page_number * PAGE
+        was_full := full(page, class)
+        store_u32(address, load_u32(page))
+        store_u32(page, u32(address))
+        live := load_u16(page + 12) - 1
+        store_u16(page + 12, live)
+        # An empty page returns to the pool unless it heads its class's
+        # list, so a class that frees its last block and allocates again
+        # keeps its page.
+        if live == 0 && head(class) != page:
+            if !was_full:
+                unlink(page, class)
+            set(page_number, 0)
+            lower_hint(page_number)
+        else if was_full:
+            next := head(class)
+            store_u32(page + 4, u32(next))
+            store_u32(page + 8, 0)
+            if next != 0:
+                store_u32(next + 8, u32(page))
+            set_head(class, page)
+
+## The address of the block that holds `address`, a block's own address or one inside it; 0 for an address in static data or in no block.
+pub fn block_of(address: usize) -> usize:
+    page_number := address / PAGE
+    if table == 0 || page_number >= known:
+        return 0
+    entry := usize(get(page_number))
+    kind := entry / SMALL
+    page := page_number * PAGE
+    if kind == 2:
+        page
+    else if kind == 3:
+        (entry & LOW) * PAGE
+    else if kind == 1 && entry != SMALL && address >= page + 16:
+        bytes := class_bytes(entry & LOW)
+        page + 16 + (address - page - 16) / bytes * bytes
+    else:
+        0
+
+## The bytes of the block that `alloc(size)` gives: its size class, or whole pages over 2 KiB.
+pub fn block_size(size: usize) -> usize:
+    if size > 2048: (size + PAGE - 1) / PAGE * PAGE else: class_bytes(class_of(size))
+
+# The size class of a small block of `size` bytes, 1 to 20.
+fn class_of(size: usize) -> usize:
+    if size <= 16:
+        return 1
+    if size <= 128:
+        return (size + 15) / 16
+    let class: usize = 9
+    while class_bytes(class) < size:
+        class = class + 1
+    class
+
+# The bytes of each block of size class `class`: 16 to 128 in steps of 16,
+# then about 25% apart up to 2 KiB, each a multiple of 16.
+fn class_bytes(class: usize) -> usize:
+    match class:
+        9 => 160
+        10 => 208
+        11 => 256
+        12 => 320
+        13 => 400
+        14 => 512
+        15 => 640
+        16 => 800
+        17 => 1024
+        18 => 1280
+        19 => 1600
+        20 => 2048
+        _ => class * 16
+
+# Whether the small page at `page` has no room left for a block of `class`.
+fn full(page: usize, class: usize) -> bool:
+    load_u32(page) == 0 && usize(load_u16(page + 14)) * 16 + class_bytes(class) > PAGE
+
+# Takes the small page at `page` out of its class's list.
+fn unlink(page: usize, class: usize) -> void:
+    next := usize(load_u32(page + 4))
+    previous := usize(load_u32(page + 8))
+    if previous != 0:
+        store_u32(previous + 4, u32(next))
+    else:
+        set_head(class, next)
+    if next != 0:
+        store_u32(next + 8, u32(previous))
+
+fn head(class: usize) -> usize:
+    usize(load_u32(table + 4 * class))
+
+fn set_head(class: usize, page: usize) -> void:
+    store_u32(table + 4 * class, u32(page))
+
+fn get(page_number: usize) -> u32:
+    load_u32(table + LISTS + 4 * page_number)
+
+fn set(page_number: usize, entry: u32) -> void:
+    store_u32(table + LISTS + 4 * page_number, entry)
+
+fn lower_hint(page_number: usize) -> void:
+    if page_number < hint:
+        hint = page_number
+
+# The first allocation's set-up: a page for the table, whose entries mark
+# every page the heap had before as static.
+fn start() -> void:
+    at := grown(1)
+    table = at * PAGE
+    capacity = (PAGE - LISTS) / 4
+    claim(at, 1, u32(SMALL))
+    hint = known
+
+# The first of `count` free pages next to each other, first fit; the heap
+# grows when none fit. The caller sets their entries.
+fn take(count: usize) -> usize:
+    let first = hint
+    let run: usize = 0
+    let page_number = hint
+    while page_number < known && run < count:
+        if get(page_number) == 0:
+            run = run + 1
+        else:
+            first = page_number + 1
+            run = 0
+        page_number = page_number + 1
+    if run < count:
+        return extend(count)
+    if first == hint:
+        hint = first + count
+    first
+
+# Grows the heap by `count` free pages for the allocator and gives the
+# first.
+fn extend(count: usize) -> usize:
+    first := grown(count)
+    if first + count > capacity:
+        move_table(first + count)
+    claim(first, count, 0)
+    first
+
+# Moves the table to new pages with room for twice `need` entries, and
+# frees its old page.
+fn move_table(need: usize) -> void:
+    count := (LISTS + 8 * need + PAGE - 1) / PAGE
+    first := grown(count)
+    copy(first * PAGE, table, LISTS + 4 * known)
+    old := table / PAGE
+    old_count := (LISTS + 4 * capacity + PAGE - 1) / PAGE
+    table = first * PAGE
+    capacity = (count * PAGE - LISTS) / 4
+    claim(first, count, u32(SMALL))
+    claim(old, old_count, 0)
+    lower_hint(old)
+
+# Sets the entries of the `count` pages from `first` to `entry`, and those
+# from the last known page up to `first`, which another part of the program
+# grew, to static.
+fn claim(first: usize, count: usize, entry: u32) -> void:
+    let page_number = known
+    while page_number < first:
+        set(page_number, u32(SMALL))
+        page_number = page_number + 1
+    let j: usize = 0
+    while j < count:
+        set(first + j, entry)
+        j = j + 1
+    if first + count > known:
+        known = first + count
+
+# Grows the heap by `count` pages and gives the first.
+fn grown(count: usize) -> usize:
+    match grow(count):
+        .Some(first) => first
+        .None => panic_with("heap-exhausted", "the heap cannot grow by ${count} pages")
+
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")

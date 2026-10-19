@@ -1,0 +1,117 @@
+# The hd tests of std.rt.alloc (crates/hd_wasm/DESIGN.md §23.6). Only std
+# may use a runtime module, so the conformance runner adds this file to std
+# as `std.rt.alloc_tests` and runs its cases on the linear backend
+# (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
+# in an instance of its own, so each starts with a fresh heap.
+use std.rt.alloc.{alloc, block_of, block_size, free}
+use std.rt.memory.{grow, load_u32, store_u32, store_u8}
+
+PAGE := 65536
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a block's size is its class, or whole pages over 2 KiB"):
+        assert(block_size(0) == 16, "the smallest class")
+        assert(block_size(16) == 16, "16 bytes fit class 1")
+        assert(block_size(17) == 32, "17 bytes take class 2")
+        assert(block_size(128) == 128, "the last class in steps of 16")
+        assert(block_size(129) == 160, "then about 25% apart")
+        assert(block_size(1601) == 2048, "the largest class")
+        assert(block_size(2049) == PAGE, "a large block is a page")
+        assert(block_size(PAGE + 1) == 2 * PAGE, "or a run of pages")
+
+    it("blocks of one class come from one page, in order"):
+        a := alloc(1)
+        b := alloc(16)
+        assert(a % 16 == 0, "a block is 16-aligned")
+        assert(a % PAGE == 16, "a fresh page's first slot follows its header")
+        assert(b == a + 16, "the next slot of the class")
+        c := alloc(17)
+        assert(c / PAGE != a / PAGE, "another class has a page of its own")
+        assert(alloc(32) == c + 32, "its next slot is 32 bytes on")
+
+    it("a freed block is the next one its class gives"):
+        a := alloc(24)
+        b := alloc(24)
+        free(a)
+        assert(alloc(24) == a, "the freed slot comes back first")
+        free(b)
+        free(a)
+        assert(alloc(24) == a, "the last freed slot comes back first")
+        assert(alloc(24) == b, "then the one freed before it")
+
+    it("an address inside a block finds the block"):
+        a := alloc(100)
+        b := alloc(100)
+        assert(block_of(a) == a, "a block's own address")
+        assert(block_of(a + 99) == a, "its last byte")
+        assert(block_of(b + 5) == b, "inside the next block")
+        run := alloc(70000)
+        assert(block_of(run + PAGE + 10) == run, "a later page of a large run")
+        assert(block_of(run + 69999) == run, "the run's last byte")
+        assert(block_of(16) == 0, "static data is in no block")
+        assert(block_of(a / PAGE * PAGE) == 0, "a page header is in no block")
+
+    it("a large run spans whole pages"):
+        run := alloc(100000)
+        assert(run % PAGE == 0, "a run starts on a page")
+        store_u8(run + 2 * PAGE - 1, 7)
+        small := alloc(8)
+        assert(small < run || small >= run + 2 * PAGE, "no block lies in the run")
+
+    it("an empty page returns to the pool unless it heads its class"):
+        # A page holds 31 blocks of 2 KiB, so the 32nd starts a second.
+        first := alloc(2048)
+        let n: usize = 1
+        while n < 31:
+            _ := alloc(2048)
+            n = n + 1
+        second := alloc(2048)
+        assert(second / PAGE != first / PAGE, "the 32nd block is on a new page")
+        free(first)
+        free(second)
+        assert(alloc(PAGE) == second / PAGE * PAGE, "a run reuses the empty page")
+        a := alloc(40)
+        free(a)
+        assert(alloc(40) == a, "the only page of a class stays with it")
+
+    it("freed runs next to each other make one run"):
+        first := alloc(PAGE)
+        second := alloc(PAGE)
+        assert(second == first + PAGE, "two runs side by side")
+        free(first)
+        free(second)
+        assert(alloc(2 * PAGE) == first, "the freed pages hold a run of two")
+
+    it("blocks over many pages all come back"):
+        # Each block holds the address of the one before, so the chain
+        # needs no list.
+        first := alloc(16)
+        store_u32(first, 0)
+        let last = first
+        let count: usize = 1
+        while count < 10000:
+            block := alloc(16)
+            store_u32(block, u32(last))
+            last = block
+            count = count + 1
+        assert(last / PAGE != first / PAGE, "the blocks fill more than one page")
+        let seen: usize = 0
+        while last != 0:
+            assert(block_of(last) == last, "each block finds itself")
+            before := usize(load_u32(last))
+            free(last)
+            last = before
+            seen = seen + 1
+        assert(seen == 10000, "every block is in the chain")
+
+    it("pages another part of the program grew stay out of the allocator"):
+        _ := alloc(16)
+        grown := match grow(1):
+            .Some(page) => page * PAGE
+            .None => 0
+        assert(grown != 0, "the heap grows")
+        assert(block_of(grown) == 0, "the grown page is in no block")
+        run := alloc(PAGE)
+        assert(run != grown, "the allocator does not hand it out")

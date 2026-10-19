@@ -1878,8 +1878,10 @@ fn linear_case(case: &Case, fixture: Fixture, store: &MemoryStore, serial: usize
 /// The std package's own hd tests of its runtime modules: only std may use
 /// a runtime module (`module.rt.std-only`), so no fixture can. Each file
 /// under `tests/std_rt/` joins std's sources at the path given here.
-const STD_RT_TESTS: &[(&str, &str)] =
-    &[("rt/memory_tests.hd", include_str!("std_rt/memory_tests.hd"))];
+const STD_RT_TESTS: &[(&str, &str)] = &[
+    ("rt/memory_tests.hd", include_str!("std_rt/memory_tests.hd")),
+    ("rt/alloc_tests.hd", include_str!("std_rt/alloc_tests.hd")),
+];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
 /// on the engines of the mode, as a `tests` case of the suite would.

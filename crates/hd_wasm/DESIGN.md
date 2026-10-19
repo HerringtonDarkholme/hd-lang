@@ -1507,7 +1507,7 @@ what the spec names as intrinsic or what only it can build.
 | the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear`, apart from `hd_wasm`, so it never edits the Wasm GC emission in `emit.rs`, `rt.rs` and `layout.rs` | 2, 3 and on |
 | `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
 | `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
-| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, and until job 5 a bump allocation; the wake table later | 3 and on |
+| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, and until jobs 7 and 8 a bump allocation; the wake table later | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
 | the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
 | conformance on both backends | the driver tier runs each runtime case of the root `LINEAR_PASSES.tsv` (`path`, `note` citing an issue) once more on the linear backend, and each must pass; `HD_CONFORMANCE_BACKEND=linear` sweeps every runtime case and prints the passes not listed yet | 2 |
@@ -1624,9 +1624,11 @@ the page table:
    reference never points into a free page.
 
 The page table is one 4-byte entry per heap page, an array in memory 1
-whose base and length are allocator globals. It starts at one page (16,384
-entries, 1 GiB of heap) and moves to a larger run when the heap outgrows
-it, so its cost follows the heap: 256 KiB for a full 4 GiB memory.
+whose base and length are allocator globals, after 128 bytes that hold
+each class's list of pages with room. It starts at one page (16,352
+entries, almost 1 GiB of heap) and moves to a larger run when the heap
+outgrows it, so its cost follows the heap: 256 KiB for a full 4 GiB
+memory.
 
 | Entry, top 2 bits | Low 30 bits | Page |
 | --- | --- | --- |
@@ -1646,10 +1648,12 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
   of 16, so every payload at slot + 8 is 8-aligned. No object stores its
   size: its descriptor knows the class.
 - **Pages of one class.** A small page starts with a 16-byte page header
-  (the free-list head, the bump offset, the live count, the class), then
-  its slots. A fresh page is bump-allocated; freed slots go on the page's
-  free list, popped and pushed in constant time; a page whose live count
-  falls to zero returns to the page pool.
+  (the free-list head, the next and previous pages of its class's list,
+  the live count and the bump offset), then its slots; its class is in
+  its page-table entry. A fresh page is bump-allocated; freed slots go on
+  the page's free list, popped and pushed in constant time; a page whose
+  live count falls to zero returns to the page pool, unless it heads its
+  class's list.
 - **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
   run points at its first (§23.5).
@@ -1759,8 +1763,9 @@ stops short of the layout above:
   release build, the same panic messages.
 - **Bump allocation.** A string that interpolation or integer text
   builds is allocated in memory 1 by the helper `rt:alloc` from the
-  global `HeapTop`, 8-aligned after static data, and never freed. The
-  std allocator of job 5 replaces it.
+  global `HeapTop`, 8-aligned after static data, and never freed.
+  Emitted code moves to the std allocator of job 5 when its blocks are
+  counted and freed (jobs 7 and 8).
 - **The host's providers.** The entry passes each row key's host
   provider as data 0 and a static vtable of host stubs. A stub's cold
   call is a 20-byte frame: its poll slot, its state, the host handle and
@@ -1812,3 +1817,38 @@ that run their hd tests.
   std's sources and runs its cases on the linear backend, on the engines
   of its mode (`STD_RT_TESTS`). The wasmtime test pool allows two
   memories per module for it.
+
+### 23.13 What Job 5 Adds
+
+- **`std.rt.alloc`.** `lib/std/rt/alloc.hd` is the allocator of §23.5 and
+  §23.6 in hd over `std.rt.memory`: `alloc(size)`, `free(address)`,
+  `block_of(address)`, the page-table lookup of an interior address, and
+  `block_size(size)`. Its state is four module bindings: the table's
+  address and capacity, how many pages the table knows, and the lowest
+  page that may be free. The first `alloc` grows a page for the table and
+  marks every page before it static.
+- **Pages it does not own.** The heap can grow under it, through `grow`
+  or the bump allocation of §23.11, so each time it grows it marks the
+  pages grown since as static, and it never hands them out.
+- **Runs.** A run is taken first fit from the lowest page that may be
+  free, by scanning the table for free entries; a freed run's entries
+  become free, so neighbors coalesce with no merge step. The scan costs
+  time proportional to the pages before the first fit; a free-run index is
+  a later speed-up.
+- **Division.** `block_of` divides by the class size; the reciprocal
+  table of §23.5 is a later speed-up.
+- **Not wired in yet.** Emitted code still allocates through `rt:alloc`,
+  which never frees, until blocks are counted (jobs 7 and 8). So no
+  program links `std.rt.alloc` today, and hello is unchanged.
+- **Tests and throughput.** `crates/hd_driver/tests/std_rt/alloc_tests.hd`
+  drives allocation, free, reuse, interior lookup, large runs and their
+  coalescing, and pages another part of the program grew, on both
+  engines. A loop of 2 million `alloc(32)` and `free` pairs, and 2,000
+  chains of 1,000 blocks of 8 classes freed in reverse, cost about 30 ns
+  per pair on Node and 30 to 40 ns on wasmtime, in the dev and the
+  optimized pipelines alike, with the checked arithmetic of a test
+  build. The study's Rust `sc` spends about 7 ns per binary-trees node,
+  allocation, initialization, traversal and free together
+  (REFCOUNT_RUNTIME.md §3.2), so hd's allocator is about 4 times slower
+  for now. The table move past 16,352 pages, almost 1 GiB of heap, has no
+  test: it needs a heap that large.

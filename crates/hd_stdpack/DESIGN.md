@@ -130,7 +130,7 @@ needs no self-derivation.
 | Folder | Modules | Outgoing folder edges |
 | --- | --- | --- |
 | `std` (`lib/std`) | 34: virtual `core`, plus the root files other than `prelude.hd` and `testing.hd` | none |
-| `std.rt` (`lib/std/rt`) | `std.rt` from the virtual `rt.hd`, plus `std.rt.memory` | `std` |
+| `std.rt` (`lib/std/rt`) | `std.rt` from the virtual `rt.hd`, plus `std.rt.memory` and `std.rt.alloc` | `std` |
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std` |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`; `std.testing`, through the test-only re-export of `it` |
 
