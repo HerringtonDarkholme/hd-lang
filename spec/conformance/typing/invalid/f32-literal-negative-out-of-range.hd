@@ -1,0 +1,3 @@
+# test: a negative f32 literal cannot round to infinity
+# Spec 04 Floating-Point Literals: types.literal.float-finite.
+let negative: f32 = -3.4028235677973367e38  # diagnostic: float-literal-range

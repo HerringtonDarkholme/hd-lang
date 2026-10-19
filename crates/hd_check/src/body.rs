@@ -1191,7 +1191,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `integer-literal-range`: an integer constant must fit its type.
+    /// Literal constants fit their final type; an expected `f32` rounds
+    /// directly from its decimal source (`types.literal.float-expected`).
     fn check_literal_ranges(&mut self) {
         use hd_types::Prim;
         let pool = self.pool();
@@ -1215,7 +1216,17 @@ impl Ck<'_, '_> {
                         .clamp(lo, source.len());
                     float_text_f32(source.get(lo..hi).unwrap_or("")).map_or_else(
                         || f64::from_bits(bits).abs() <= f64::from(f32::MAX),
-                        f32::is_finite,
+                        |value| {
+                            // Keep the TIR's f64-bit convention, widening
+                            // the already rounded f32 exactly. Emission's
+                            // demotion then introduces no second rounding.
+                            // The bits retain the effective sign through
+                            // nested negations and negative zero.
+                            let value = f64::from(value).copysign(f64::from_bits(bits));
+                            self.b.body_mut().consts[(r.0 & !Ref::CONST_BIT) as usize].1 =
+                                value.to_bits();
+                            value.is_finite()
+                        },
                     )
                 } else {
                     f64::from_bits(bits).is_finite()

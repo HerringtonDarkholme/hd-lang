@@ -1,0 +1,41 @@
+# test: expected f32 literals round directly, including midpoint and subnormal cases
+# Spec 04 Floating-Point Literals: types.literal.float-expected.
+
+fn single(value: f32) -> f32: value
+
+fn returned() -> f32: 1.0000000596046448
+
+tests:
+    use std.testing.assert_equal
+
+    it("direct f32 rounding keeps the decimal above the midpoint"):
+        let positive: f32 = 1.0000000596046448
+        let negative: f32 = -1.0000000596046448
+        let twice_negated: f32 = -(-1.0000000596046448)
+        let underscored: f32 = 1.000_000_059_604_644_8
+        let exponent: f32 = 1.0000000596046448e0
+        next := f32(1.0000001192092896)
+        assert_equal(positive, next, reason="one rounding goes above the midpoint")
+        assert_equal(negative, -next, reason="the negative decimal rounds symmetrically")
+        assert_equal(twice_negated, next, reason="two negations preserve the positive sign")
+        assert_equal(underscored, next, reason="separators do not change rounding")
+        assert_equal(exponent, next, reason="exponent spelling does not change rounding")
+        assert_equal(single(1.0000000596046448), next, reason="parameter context determines the width")
+        assert_equal(returned(), next, reason="return context determines the width")
+        let below: f32 = 1.0000000596046447
+        assert_equal(below, f32(1.0), reason="the decimal below the midpoint rounds down")
+
+    it("subnormal literals also round directly"):
+        let tiny: f32 = 7.006492321624086e-46
+        let negative: f32 = -7.006492321624086e-46
+        minimum := f32(1.401298464324817e-45)
+        assert_equal(tiny, minimum, reason="the decimal above the subnormal midpoint is nonzero")
+        assert_equal(negative, -minimum, reason="negative subnormal rounding keeps the sign")
+
+    it("f64 conversion and signed zero keep their existing behavior"):
+        let wide: f64 = 1.0000000596046448
+        assert_equal(f32(wide), f32(1.0), reason="an explicit f64 to f32 conversion still rounds its f64 value")
+        let negative_zero: f32 = -0.0
+        assert_equal(1.0 / negative_zero < 0.0, true, reason="normalization preserves negative zero")
+        let maximum: f32 = 3.4028235677973363e38
+        assert_equal(maximum, f32(3.4028234663852886e38), reason="a finite f32 rounding near overflow remains accepted")
