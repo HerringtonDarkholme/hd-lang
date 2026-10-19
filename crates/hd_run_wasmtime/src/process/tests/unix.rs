@@ -165,18 +165,26 @@ fn abort_after_the_child_exits_kills_a_descendant_holding_the_pipes() {
 
 #[test]
 fn no_shebang_executable_uses_rust_standard_spawning_behavior() {
-    use std::io::Write;
-    use std::os::unix::fs::PermissionsExt;
     let path = pid_path("no-shebang").with_extension("sh");
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
+    // Other tests fork concurrently. A writer opened in this process can
+    // be inherited by their children before exec closes it, making either
+    // spawn below fail with ETXTBSY. Only this helper child opens the
+    // writer, and it exits before either spawn, so neither can race it.
+    let created = std::process::Command::new("/bin/sh")
+        .args([
+            "-c",
+            "umask 077; set -C; printf '%s\\n' \"$2\" > \"$1\" && chmod 700 \"$1\"",
+            "hd-no-shebang-fixture",
+        ])
+        .arg(&path)
+        .arg("printf '%s' \"$1\"; exit 6")
+        .output()
         .unwrap();
-    file.write_all(b"printf '%s' \"$1\"; exit 6\n").unwrap();
-    file.set_permissions(std::fs::Permissions::from_mode(0o700))
-        .unwrap();
-    drop(file);
+    assert!(
+        created.status.success(),
+        "cannot create fixture: {}",
+        String::from_utf8_lossy(&created.stderr)
+    );
     let expected = std::process::Command::new(&path).arg("argument").output();
     let result = run(request(path.to_str().unwrap(), &["argument".into()], &[]));
     std::fs::remove_file(&path).unwrap();
