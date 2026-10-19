@@ -1,0 +1,86 @@
+# test: a captured := binding or value parameter is copied into the closure
+# Spec 07 Copied And Shared Captures: fn.capture.copy, fn.capture.copy.value, fn.capture.copy.shadow.
+# expect: test
+struct Point:
+    x: i32
+    y: i32
+
+struct Bag:
+    items: List[i32]
+
+fn reader_of(point: Point) -> fn() -> i32:
+    fn() -> i32: point.x
+
+fn doubler_of(count: i32) -> fn() -> i32:
+    fn() -> i32: count * 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("a closure over a := struct is unaffected by a copy changing"):
+        origin := Point { x: 1, y: 2 }
+        read := fn() -> i32: origin.x
+        let mut moved = origin
+        moved.x = 50
+        assert_equal(read(), 1, reason="the closure holds its own copy")
+        assert_equal(moved.x, 50, reason="the copy changed")
+
+    it("a closure over a := value is unaffected by shadowing in an inner scope"):
+        width := +1
+        read := fn() -> i32: width
+        if true:
+            width := +2
+            assert_equal(width, 2, reason="the inner binding")
+        assert_equal(read(), 1, reason="the closure keeps the outer binding")
+
+    it("a closure over a := value is unaffected by a variable that shadows it"):
+        width := +1
+        read := fn() -> i32: width
+        if true:
+            let width = +3
+            width = width + 1
+            assert_equal(width, 4, reason="the inner variable")
+        assert_equal(read(), 1, reason="the closure keeps the outer binding")
+
+    it("a value parameter is copied when the caller later changes its own value"):
+        let mut point = Point { x: 1, y: 2 }
+        read := reader_of(point)
+        point.x = 50
+        assert_equal(read(), 1, reason="the closure holds the argument as passed")
+        assert_equal(point.x, 50, reason="the caller's value changed")
+
+    it("a value parameter that is a list element is copied"):
+        let points: mut List[Point] = [Point { x: 1, y: 1 }]
+        read := reader_of(points[0])
+        points[0].x = 77
+        assert_equal(read(), 1, reason="the closure holds the element as passed")
+
+    it("a primitive value parameter is copied"):
+        let count = +4
+        twice := doubler_of(count)
+        count = 10
+        assert_equal(twice(), 8, reason="the closure holds the argument as passed")
+
+    it("a pattern binding of a := match is copied"):
+        let held: Point? = .Some(Point { x: 1, y: 2 })
+        match held:
+            .Some(point) =>
+                read := fn() -> i32: point.x
+                held = .None
+                assert_equal(read(), 1, reason="the closure holds the payload it matched")
+            .None => pass
+
+    it("a closure over a := list is unaffected by pushes to the list it was copied from"):
+        let items: mut List[i32] = [1]
+        kept := items
+        count := fn() -> usize: kept.len()
+        items.push(2)
+        assert_equal(count(), 1, reason="the closure holds its own list")
+        assert_equal(items.len(), 2, reason="the original grew")
+
+    it("a closure over a := struct holding a list is unaffected by pushes to the original"):
+        let mut bag = Bag { items: [1] }
+        kept := bag
+        count := fn() -> usize: kept.items.len()
+        bag.items.push(2)
+        assert_equal(count(), 1, reason="the closure holds its own list")

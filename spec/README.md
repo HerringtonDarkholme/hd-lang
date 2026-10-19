@@ -188,6 +188,7 @@ The stdlib chapters' terms are in the
 | **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **callable value** | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **capability grant** | What a program's host capability traits may touch at run time: for each trait, no limit, a total deny, or a list of scope entries. See [Capability Grants](cli/command-line.md#capability-grants). |
+| **cell** | The storage that a closure and its scope share for a captured variable. See [`fn.capture.cell`](lang/07-functions.md#r-fn.capture.cell). |
 | **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](lang/10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](lang/05-expressions.md#compound-assignment). |
 | **conflict** | Two or more members with one name at the smallest depth where that name occurs, including one member reached through two paths. See [`names.conflict.definition`](lang/03-names-and-scopes.md#r-names.conflict.definition). |

@@ -1,0 +1,111 @@
+# test: a captured let variable is shared with its scope, field writes and collection changes included
+# Spec 07 Copied And Shared Captures: fn.capture.cell, fn.capture.cell.writes, fn.capture.cell.closures.
+# expect: test
+struct Point:
+    x: i32
+    y: i32
+
+struct Bag:
+    items: List[i32]
+    count: i32
+
+fn counter_of(mut point: Point) -> fn() -> i32:
+    fn() -> i32:
+        point.x = point.x + 1
+        point.x
+
+tests:
+    use std.testing.assert_equal
+
+    it("a closure writes a field of a captured struct and the scope sees it"):
+        let mut point = Point { x: 1, y: 2 }
+        shift := fn() -> void: point.x = point.x + 10
+        shift()
+        assert_equal(point.x, 11, reason="the scope sees the closure's field write")
+
+    it("the scope writes a field of a captured struct and the closure sees it"):
+        let mut point = Point { x: 1, y: 2 }
+        read := fn() -> i32: point.y
+        point.y = 20
+        assert_equal(read(), 20, reason="the closure sees the scope's field write")
+        point.y = 30
+        assert_equal(read(), 30, reason="and the next one")
+
+    it("an assignment of the whole struct is seen from both sides"):
+        let mut point = Point { x: 1, y: 2 }
+        reset := fn() -> void: point = Point { x: 5, y: 5 }
+        reset()
+        assert_equal(point.x, 5, reason="the scope sees the closure's assignment")
+        point = Point { x: 8, y: 8 }
+        read := fn() -> i32: point.x
+        assert_equal(read(), 8, reason="the closure sees the scope's assignment")
+
+    it("a struct read out of a captured variable is a copy"):
+        let mut point = Point { x: 1, y: 2 }
+        snapshot := fn() -> Point: point
+        before := snapshot()
+        point.x = 9
+        assert_equal(before.x, 1, reason="the copy does not change")
+        assert_equal(snapshot().x, 9, reason="a new read sees the change")
+
+    it("a closure pushes to a captured list and the scope sees it"):
+        let items: mut List[i32] = []
+        add := fn(value: i32) -> void: items.push(value)
+        add(1)
+        add(2)
+        assert_equal(items.len(), 2, reason="the scope sees both pushes")
+        assert_equal(items[1], 2, reason="in order")
+
+    it("the scope pushes to a captured list and the closure sees it"):
+        let items: mut List[i32] = [1]
+        count := fn() -> usize: items.len()
+        items.push(2)
+        items.push(3)
+        assert_equal(count(), 3, reason="the closure sees the scope's pushes")
+
+    it("a closure inserts into a captured map and the scope sees it"):
+        let ages: mut Map[string, i32] = {}
+        record := fn(name: string, age: i32) -> void: ages[name] = age
+        record("ada", 36)
+        assert_equal(ages.get("ada").unwrap_or(0), 36, reason="the scope sees the insert")
+        ages["grace"] = 85
+        known := fn() -> usize: ages.len()
+        assert_equal(known(), 2, reason="the closure sees the scope's insert")
+
+    it("a closure changes a list inside a captured struct"):
+        let mut bag = Bag { items: [], count: 0 }
+        add := fn(value: i32) -> void:
+            bag.items.push(value)
+            bag.count = bag.count + 1
+        add(4)
+        add(5)
+        bag.items.push(6)
+        size := fn() -> usize: bag.items.len()
+        assert_equal(bag.count, 2, reason="the scope sees the field write")
+        assert_equal(size(), 3, reason="both pushes are in the one list")
+
+    it("two closures over one variable share its cell"):
+        let total = +0
+        add := fn(amount: i32) -> void: total = total + amount
+        read := fn() -> i32: total
+        add(5)
+        add(1)
+        assert_equal(read(), 6, reason="the reader sees the writer")
+        total = 100
+        assert_equal(read(), 100, reason="and the scope")
+
+    it("a mut parameter is a variable the closure shares with the function body"):
+        first := counter_of(Point { x: 0, y: 0 })
+        assert_equal(first() + first(), 3, reason="the closure keeps its state between calls")
+        second := counter_of(Point { x: 10, y: 0 })
+        assert_equal(second(), 11, reason="each call of the function makes new cells")
+        assert_equal(first(), 3, reason="and the first closure is unaffected")
+
+    it("a closure over a mut parameter and the function body share the cell"):
+        shared := fn(mut point: Point) -> i32:
+            bump := fn() -> void: point.x = point.x + 1
+            bump()
+            point.x = point.x * 10
+            bump()
+            point.x
+        assert_equal(shared(Point { x: 1, y: 0 }), 21, reason="writes from both sides")

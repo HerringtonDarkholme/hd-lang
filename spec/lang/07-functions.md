@@ -753,6 +753,41 @@ fn make_reader() -> fn() -> i32 $ Clock:
 
 See also: [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers).
 
+#### Copied And Shared Captures
+
+A closure copies the immutable bindings it captures and shares the variables it captures:
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn demo() -> i32:
+    fixed := Point { x: 1, y: 2 }
+    let mut moving = Point { x: 1, y: 2 }
+    read_fixed := fn() -> i32: fixed.x
+    shift := fn() -> void: moving.x = moving.x + 10
+    shift()
+    read_fixed() + moving.x
+```
+
+1. r[fn.capture.copy] A captured immutable binding is copied into the closure when the closure is created. The immutable bindings are `:=` and `using` bindings and the parameters that are not `mut`.
+2. r[fn.capture.copy.value] The copy is the one `copy := binding` makes: a struct or a collection becomes the closure's own value, and a reference stays a reference to the same place.
+3. r[fn.capture.copy.shadow] A binding in an inner scope that reuses the captured name is a new binding. The closure keeps the one it captured.
+4. r[fn.capture.cell] A captured variable is shared with its scope through a **cell**. The variables are `let` and `let mut` bindings, `mut` parameters, and the bindings of a `for`, `match`, or `let` pattern.
+5. r[fn.capture.cell.writes] Each side sees the other's writes: assignments, in-place field writes, and collection changes such as `p.x = 1` and `xs.push(1)`.
+6. r[fn.capture.cell.fresh] Each run of a variable's declaration makes a new cell. A closure shares the cell that existed when the closure was created.
+7. r[fn.capture.cell.closures] Closures that capture one variable share its cell with each other.
+8. r[fn.capture.copies] Copying a closure value copies no cell: the copies share every cell the closure captured.
+9. r[fn.capture.call.any] A closure may be called any number of times, through any copy of it.
+10. r[fn.capture.reference] Capturing a reference copies the reference, as [`ref.capture.copy`](13-values-and-references.md#r-ref.capture.copy) states.
+
+> **Why.** An immutable binding never changes, so copying it and sharing it
+> look the same. A variable changes, so the closure and its scope must refer
+> to one place, as Go, Swift, and Kotlin closures do.
+
+See also: [Loops](06-control-flow.md#for-loops).
+
 #### Plain Closures
 
 Every closure is a plain `fn` closure, and it may mutate through its
@@ -804,8 +839,7 @@ let next: fn() -> i32 = fn() -> i32:
 ```
 
 1. r[fn.capture.no-mut-form] There is no mutable closure type or literal. A closure that mutates captured state has an ordinary `fn(...) -> T` type.
-2. r[fn.capture.storage.shared] Captured `let` storage is shared with its defining scope and other closures that capture the same binding.
-3. r[fn.capture.storage.lifetime] If a closure outlives the original stack activation, the runtime preserves its captured storage through garbage collection.
+2. r[fn.capture.storage.lifetime] If a closure outlives the original stack activation, the runtime preserves its captured storage through garbage collection.
 
 > **Why.** hd has no unique borrows, so a mutation capability on function
 > types would protect nothing. Swift, Kotlin, and Go closures also mutate

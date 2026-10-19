@@ -3628,3 +3628,12 @@ typing/invalid/reference-to-list-readonly-store.hd	type	reject:readonly-root	lan
 typing/invalid/for-element-references-map.hd	type	reject:map-value-not-addressable	lang/06-control-flow.md#r-flow.for.ref.map
 typing/invalid/nominal-name-clash.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.nominal.distinct
 typing/invalid/index-bound-remains-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
+runtime/valid/capture-loop-fresh-binding.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.binding.fresh
+runtime/valid/capture-immutable-copied.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy
+runtime/valid/capture-variable-cell.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell
+runtime/valid/capture-closure-copies-share-cells.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copies
+runtime/valid/capture-reference-write-through.hd	runtime	accept	lang/13-values-and-references.md#r-ref.capture.write-through
+runtime/valid/capture-closure-called-through-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.function
+runtime/valid/capture-value-parameter-collection.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.value
+typing/invalid/capture-assign-short-binding.hd	type	reject:non-reassignable-binding	lang/07-functions.md#r-fn.capture.copy
+typing/invalid/capture-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/07-functions.md#r-fn.capture.copy

@@ -1,0 +1,81 @@
+# test: capturing a reference copies the reference, so writes reach the same place
+# Spec 13 Captured References: ref.capture.copy, ref.capture.write-through, ref.capture.variable.
+# expect: test
+struct Point:
+    x: i32
+    y: i32
+
+fn bump(point: &mut Point) -> fn() -> void:
+    fn() -> void: point.x = point.x + 1
+
+fn watch(point: &Point) -> fn() -> i32:
+    fn() -> i32: point.x
+
+tests:
+    use std.testing.assert_equal
+
+    it("a closure writes through a captured &mut reference"):
+        let mut point = Point { x: 1, y: 2 }
+        edit := &mut point
+        shift := fn() -> void: edit.x = edit.x + 1
+        shift()
+        shift()
+        assert_equal(point.x, 3, reason="the place changed")
+        edit.x = 10
+        assert_equal(point.x, 10, reason="and a write through the original reference too")
+
+    it("a closure returned from a function writes through its reference parameter"):
+        let mut point = Point { x: 0, y: 0 }
+        step := bump(&mut point)
+        step()
+        step()
+        assert_equal(point.x, 2, reason="the caller's place changed")
+        point.x = 40
+        step()
+        assert_equal(point.x, 41, reason="the closure writes the place, not a copy")
+
+    it("a captured & reference sees later writes to its place"):
+        let mut point = Point { x: 1, y: 2 }
+        read := watch(&point)
+        point.x = 5
+        assert_equal(read(), 5, reason="the reference refers to the place")
+
+    it("the copy of a captured reference refers to the same place"):
+        let mut point = Point { x: 1, y: 2 }
+        edit := &mut point
+        copy := edit
+        write := fn() -> void: edit.y = 9
+        write()
+        assert_equal(copy.y, 9, reason="the other copy sees it")
+        assert_equal(point.y, 9, reason="and so does the place")
+
+    it("a captured reference to a field writes the field"):
+        let mut point = Point { x: 1, y: 2 }
+        slot := &mut point.y
+        set := fn(value: i32) -> void: *slot = value
+        set(30)
+        assert_equal(point.y, 30, reason="the field changed")
+        assert_equal(point.x, 1, reason="and nothing else")
+
+    it("a captured reference to a list element writes the slot"):
+        let points: mut List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
+        let steps: mut List[fn() -> void] = []
+        for point in &mut points:
+            steps.push(fn() -> void: point.x = point.x + 10)
+        steps[0]()
+        steps[1]()
+        steps[1]()
+        assert_equal(points[0].x + points[1].x, 33, reason="each closure writes its own slot")
+
+    it("a captured let variable that holds a reference is shared like any variable"):
+        let mut left = Point { x: 1, y: 0 }
+        let mut right = Point { x: 2, y: 0 }
+        let target = &mut left
+        read := fn() -> i32: target.x
+        assert_equal(read(), 1, reason="the first target")
+        target = &mut right
+        assert_equal(read(), 2, reason="the closure sees the new reference")
+        write := fn() -> void: target.x = 20
+        write()
+        assert_equal(right.x, 20, reason="the new target changed")
+        assert_equal(left.x, 1, reason="the old one did not")

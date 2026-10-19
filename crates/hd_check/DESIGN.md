@@ -1188,7 +1188,7 @@ they give:
 - capture modes for TIR's closures: `Copy` when no side writes the local
   after the capture, `Move` when only the closure uses it afterward,
   `Shared` when both may
-  ([`fn.capture.storage.shared`](../../spec/lang/07-functions.md#r-fn.capture.storage.shared)).
+  ([`fn.capture.cell`](../../spec/lang/07-functions.md#r-fn.capture.cell)).
   The mode depends on statements after the closure, so the checker
   passes the final modes to `TirBuilder::finish`.
 

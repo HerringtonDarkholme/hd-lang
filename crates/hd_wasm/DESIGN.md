@@ -166,6 +166,30 @@ length change ([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterat
 The reference-counting backend (OBJECT_MODEL_TIER1.md job 11,
 REFCOUNT_RUNTIME.md) replaces the mark with the count and closes these.
 
+**Closure captures: copies and cells.** A closure's environment is a
+struct subtype with one field per captured local
+([`fn.capture.copy`](../../spec/lang/07-functions.md#r-fn.capture.copy),
+[`fn.capture.cell`](../../spec/lang/07-functions.md#r-fn.capture.cell)).
+The checker marks a local `Shared` when some side assigns or changes it
+after the declaration (`CAPTURED_ASSIGNED` or `MUTATED`), and `Copy`
+otherwise. A `Copy` capture stores the value in the environment. A
+`Shared` one lives in a cell, a struct holding the local's components,
+and the environment holds the cell.
+
+- **Fresh per declaration.** The cell is made by the local's declaring
+  `LocalSet`, which `cell_locals` picks as the lowest-numbered `LocalSet`
+  of the local outside every closure that captures it. Any other store
+  writes the existing cell. A `LocalSet` inside a capturing closure is an
+  assignment through the capture, never the declaration: a `for` or
+  `match` pattern's bindings are set after the loop body is built, so a
+  closure in the body that assigns the variable has the lowest index, and
+  taking it as the declaration made one cell for the whole loop (and, in
+  the closure's own function, a private cell that no caller saw). With the
+  declaration found, each iteration makes a new cell
+  (`flow.for.binding.fresh`).
+- **Copies of a closure** are copies of the environment reference, so
+  they share every cell (`fn.capture.copies`).
+
 **References: a pair of closures.** `&T` and `&mut T`
 ([Values And References](../../spec/lang/13-values-and-references.md))
 are emulated, not laid out as addresses: a reference is an object of the

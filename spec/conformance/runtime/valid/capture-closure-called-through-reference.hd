@@ -1,0 +1,52 @@
+# test: a closure reached through a & reference can be called and changes what it captured
+# Spec 13 Reading Through A Reference: ref.read.function. Spec 07: fn.capture.copies.
+# expect: test
+struct Handler:
+    step: fn() -> i32
+
+struct Panel:
+    handler: Handler
+    label: string
+
+fn counter() -> fn() -> i32:
+    let count = +0
+    fn() -> i32:
+        count = count + 1
+        count
+
+fn fire(handler: &Handler) -> i32:
+    (handler.step)()
+
+fn fire_nested(panel: &Panel) -> i32:
+    (panel.handler.step)()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a closure field read through & is called and changes its capture"):
+        handler := Handler { step: counter() }
+        assert_equal(fire(&handler), 1, reason="first call through &")
+        assert_equal(fire(&handler), 2, reason="the capture changed")
+        assert_equal((handler.step)(), 3, reason="a direct call continues the count")
+
+    it("a closure two fields deep through & is called"):
+        panel := Panel { handler: Handler { step: counter() }, label: "ok" }
+        assert_equal(fire_nested(&panel), 1, reason="first")
+        assert_equal(fire_nested(&panel), 2, reason="second")
+
+    it("a closure that captures a variable of the caller changes it through &"):
+        let hits = +0
+        handler := Handler { step: fn() -> i32:
+            hits = hits + 1
+            hits
+        }
+        r := &handler
+        assert_equal(fire(r), 1, reason="first")
+        assert_equal(fire(r), 2, reason="second")
+        assert_equal(hits, 2, reason="the caller's variable changed")
+
+    it("a copy of the struct holds a copy of the closure that shares the cell"):
+        handler := Handler { step: counter() }
+        copy := handler
+        assert_equal(fire(&handler), 1, reason="through the original")
+        assert_equal(fire(&copy), 2, reason="through the copy")

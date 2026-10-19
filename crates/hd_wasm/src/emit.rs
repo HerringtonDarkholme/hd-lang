@@ -135,10 +135,14 @@ struct Em<'a> {
 }
 
 /// The locals a closure captures by shared cell, each with its first
-/// `LocalSet` (the declaration, which makes a fresh cell). A parameter
-/// moves into its cell on entry, so no store of it makes a fresh one: a
-/// closure that writes a `mut` parameter, such as the `set` closure of
-/// `&mut p` (`crates/hd_check/src/refs.rs`), writes that cell.
+/// `LocalSet` in the body that declares it (the declaration, which makes a
+/// fresh cell). A `LocalSet` inside a closure that captures the local is
+/// an assignment through the capture, never the declaration, however early
+/// the closure's instructions come: a `for` pattern's bindings are set
+/// after the loop body is built, so its closures' stores precede them. A
+/// parameter moves into its cell on entry, so no store of it makes a fresh
+/// one: a closure that writes a `mut` parameter, such as the `set` closure
+/// of `&mut p` (`crates/hd_check/src/refs.rs`), writes that cell.
 fn cell_locals(b: &Body) -> HashMap<u32, u32> {
     let mut cells = HashMap::default();
     for (c, l) in b.cap_local.iter().enumerate() {
@@ -146,7 +150,21 @@ fn cell_locals(b: &Body) -> HashMap<u32, u32> {
             cells.insert(l.raw(), u32::MAX);
         }
     }
+    if cells.is_empty() {
+        return cells;
+    }
+    let subs = b.inst_subs();
+    let mut through_capture = hd_base::HashSet::default();
     for i in 0..b.len() {
+        if b.tags[i] == Tag::Closure {
+            let rec = b.record(b.data[i][1]);
+            let (start, len) = (rec[0] as usize, rec[1] as usize);
+            for l in &b.cap_local[start..start + len] {
+                through_capture.insert((b.data[i][0], l.raw()));
+            }
+        }
+    }
+    for (i, &sub) in subs.iter().enumerate() {
         if b.tags[i] == Tag::LocalSet
             && b.local_flags
                 .get(b.data[i][0] as usize)
@@ -154,6 +172,7 @@ fn cell_locals(b: &Body) -> HashMap<u32, u32> {
                 .unwrap_or(0)
                 & hd_tir::ir::local_flags::PARAM
                 == 0
+            && !through_capture.contains(&(sub, b.data[i][0]))
             && let Some(first) = cells.get_mut(&b.data[i][0])
             && *first == u32::MAX
         {

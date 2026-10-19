@@ -448,6 +448,36 @@ fn invalid() -> i32:
 See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
 [Collection Values](04-type-system.md#collection-values).
 
+## Captured References
+
+A closure that captures a reference copies the reference, so the closure and its scope refer to the same place:
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn bump(p: &mut Point) -> fn() -> void:
+    fn() -> void: p.x = p.x + 1
+
+fn demo() -> i32:
+    let mut origin = Point { x: 0, y: 0 }
+    step := bump(&mut origin)
+    step()
+    step()
+    origin.x
+```
+
+1. r[ref.capture.copy] Capturing a reference copies the reference. The copy and the original refer to the same place, as any two copies of a reference do ([`ref.place.alias`](#r-ref.place.alias)).
+2. r[ref.capture.write-through] A write through a captured `&mut T` changes the place it refers to, and every other path to that place sees the write.
+3. r[ref.capture.variable] A captured `let` variable that holds a reference is shared like any variable. Assigning it another reference changes the place that the closure and its scope both use.
+
+> **Why.** A reference already names a place, so copying it shares that
+> place.
+
+See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-captures),
+[`ref.read.function`](#r-ref.read.function).
+
 ## Not Yet Checked
 
 1. r[ref.check.not-yet-non-list-elements] Two forms are errors until later jobs define them. They are a reference to a tuple element, as in `&pair._0`, and a reference to an index result that is no list element, such as a slice `&xs[1..3]` or a user `Index` call. Error: `references-not-yet-checked`.

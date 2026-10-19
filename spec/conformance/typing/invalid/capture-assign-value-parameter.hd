@@ -1,0 +1,6 @@
+# test: a closure cannot assign a captured value parameter, which is only copied
+# Spec 07 Copied And Shared Captures: fn.capture.copy.
+fn demo(total: i32) -> void:
+    add := fn(amount: i32) -> void:
+        total = total + amount  # diagnostic: non-reassignable-parameter-binding
+    add(1)

@@ -1,0 +1,92 @@
+# test: every iteration of a loop makes new bindings, so closures made in a loop each see their own
+# Spec 06 For Loops: flow.for.binding.fresh. Spec 07 Copied And Shared Captures: fn.capture.cell.fresh.
+# Spec 03 Loops: names.loop.per-iteration.
+# expect: test
+struct Point:
+    x: i32
+    y: i32
+
+enum Shape:
+    Circle(radius: i32)
+    Empty
+
+tests:
+    use std.testing.assert_equal
+
+    it("closures made in a for loop each read their own value"):
+        let readers: mut List[fn() -> i32] = []
+        for index in [+1, 2, 3]:
+            readers.push(fn() -> i32: index * 10)
+        assert_equal(readers[0](), 10, reason="first iteration")
+        assert_equal(readers[1](), 20, reason="second iteration")
+        assert_equal(readers[2](), 30, reason="third iteration")
+
+    it("a closure that assigns its loop variable changes that iteration only"):
+        let steps: mut List[fn() -> i32] = []
+        for index in [+1, 2]:
+            step := fn() -> i32:
+                index = index + 10
+                index
+            steps.push(step)
+        assert_equal(steps[0](), 11, reason="first iteration starts from 1")
+        assert_equal(steps[0](), 21, reason="the first closure keeps its own variable")
+        assert_equal(steps[1](), 12, reason="second iteration starts from 2")
+
+    it("a counting loop makes a new variable per round"):
+        let steps: mut List[fn() -> i32] = []
+        for index in +1..3:
+            step := fn() -> i32:
+                index = index + 10
+                index
+            steps.push(step)
+        assert_equal(steps[0](), 11, reason="first round")
+        assert_equal(steps[0](), 21, reason="first round again")
+        assert_equal(steps[1](), 12, reason="second round")
+
+    it("a tuple pattern binds every name anew"):
+        let steps: mut List[fn() -> i32] = []
+        for (base, extra) in [(+1, +5), (2, 6)]:
+            step := fn() -> i32:
+                base = base + extra
+                base
+            steps.push(step)
+        assert_equal(steps[0](), 6, reason="first iteration")
+        assert_equal(steps[0](), 11, reason="first iteration again")
+        assert_equal(steps[1](), 8, reason="second iteration")
+
+    it("a loop over structs captures a copy of each element"):
+        let points: mut List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
+        let readers: mut List[fn() -> i32] = []
+        for point in points:
+            readers.push(fn() -> i32: point.x)
+        points[0].x = 100
+        assert_equal(readers[0]() + readers[1](), 3, reason="each closure holds its own copy")
+
+    it("a let in a loop body is new each iteration"):
+        let steps: mut List[fn() -> i32] = []
+        let round = +0
+        while round < 3:
+            let total = round * 100
+            step := fn() -> i32:
+                total = total + 1
+                total
+            steps.push(step)
+            round = round + 1
+        assert_equal(steps[2](), 201, reason="third body")
+        assert_equal(steps[2](), 202, reason="third body again")
+        assert_equal(steps[0](), 1, reason="first body")
+
+    it("a match binding in a loop is new each iteration"):
+        let steps: mut List[fn() -> i32] = []
+        for shape in [Shape.Circle(1), Shape.Circle(2), Shape.Empty]:
+            match shape:
+                .Circle(radius) =>
+                    step := fn() -> i32:
+                        radius = radius + 100
+                        radius
+                    steps.push(step)
+                .Empty => pass
+        assert_equal(steps.len(), 2, reason="two circles")
+        assert_equal(steps[0](), 101, reason="first circle")
+        assert_equal(steps[1](), 102, reason="second circle")
+        assert_equal(steps[0](), 201, reason="first circle again")

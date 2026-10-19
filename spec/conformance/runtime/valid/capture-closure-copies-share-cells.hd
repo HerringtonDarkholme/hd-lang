@@ -1,0 +1,82 @@
+# test: copies of a closure share its cells, whenever the copy was made
+# Spec 07 Copied And Shared Captures: fn.capture.copies, fn.capture.call.any, fn.capture.cell.fresh.
+# expect: test
+struct Handler:
+    step: fn() -> i32
+
+fn counter() -> fn() -> i32:
+    let count = +0
+    fn() -> i32:
+        count = count + 1
+        count
+
+tests:
+    use std.testing.assert_equal
+
+    it("two copies of one closure share its cell"):
+        first := counter()
+        second := first
+        assert_equal(first(), 1, reason="first call")
+        assert_equal(second(), 2, reason="the copy continues the count")
+        assert_equal(first(), 3, reason="and so does the original")
+
+    it("each call of the function that makes a closure makes new cells"):
+        first := counter()
+        second := counter()
+        assert_equal(first() + first(), 3, reason="first closure counts 1, 2")
+        assert_equal(second(), 1, reason="second closure counts from 1")
+
+    it("a copy made before the cell changes sees the change"):
+        let value = +0
+        read := fn() -> i32: value
+        before := read
+        value = 5
+        after := read
+        value = 7
+        assert_equal(before() + after(), 14, reason="both copies read the current value")
+
+    it("a copy stored in a struct shares the cell"):
+        step := counter()
+        handler := Handler { step: step }
+        again := handler
+        assert_equal((handler.step)(), 1, reason="call through the struct")
+        assert_equal((again.step)(), 2, reason="call through the copied struct")
+        assert_equal(step(), 3, reason="call through the original")
+
+    it("a copy stored in a list shares the cell"):
+        step := counter()
+        let steps: mut List[fn() -> i32] = [step, step]
+        assert_equal(steps[0](), 1, reason="first element")
+        assert_equal(steps[1](), 2, reason="second element")
+        assert_equal(step(), 3, reason="the original")
+
+    it("a closure may be called any number of times"):
+        step := counter()
+        let sum = +0
+        for _ in 0..5:
+            sum = sum + step()
+        assert_equal(sum, 15, reason="1 + 2 + 3 + 4 + 5")
+
+    it("a closure made inside a closure shares the outer cell"):
+        let count = +0
+        make := fn() -> fn() -> void:
+            fn() -> void: count = count + 1
+        first := make()
+        second := make()
+        first()
+        second()
+        first()
+        assert_equal(count, 3, reason="every inner closure writes the one cell")
+
+    it("a closure's own variable is new for each call of the closure"):
+        let calls = +0
+        make := fn() -> fn() -> i32:
+            let own = +0
+            calls = calls + 1
+            fn() -> i32:
+                own = own + 1
+                own
+        first := make()
+        second := make()
+        assert_equal(first() + first() + second(), 4, reason="two closures, two cells")
+        assert_equal(calls, 2, reason="the outer variable is shared")

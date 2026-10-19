@@ -143,6 +143,7 @@ for value in values:
 3. r[flow.for.binding] The binding pattern receives each yielded value before the body executes.
 4. r[flow.for.pattern] The pattern of a `for` loop or a comprehension `for` clause matches each yielded value of type `T`. It matches as a `let` pattern matches an initializer of type `T`, under [Let Patterns](#let-patterns).
 5. r[flow.for.pattern.irrefutable] The pattern must be irrefutable for `T`. A refutable pattern is an error, and a loop's `else` does not handle it. Error: `refutable-let-pattern`.
+6. r[flow.for.binding.fresh] Each iteration makes a new binding of every name in the pattern. A closure made in the body captures that iteration's binding, and the closure's writes to that name reach that iteration only.
 
 ```text
 data Point:
