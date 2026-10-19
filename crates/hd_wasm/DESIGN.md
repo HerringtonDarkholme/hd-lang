@@ -171,6 +171,9 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   places in one data object differ only in their keys, so `Id` keys of
   fields of many data objects collide on the field path; that is the one
   case a hash of `base` would help.
+- **`dbg`.** The structural printer `dbg_show` (`hd_structure::dbg`)
+  prints a `Ref[T]` as the value its `get` closure returns, so no field
+  of the emulation shows ([`module.dbg.value.reference`](../../spec/lang/10-modules.md#r-module.dbg.value.reference)).
 - **Reads and writes.** `*r` is `Field(r, get)` then `CallValue`, and
   `*r = v` calls `set`; a field read or method call through `r` reads
   through `get` first. A read-only reference's `set` is `unreachable`,
@@ -192,8 +195,8 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   global increment, even when no reference to that local is taken.
   Correct first: the linear-memory backend makes a reference an address,
   and `is` one compare (OBJECT_MODEL_TIER1.md job 11).
-- **Trait selection.** std writes `Eq`, `Hash` and `DeepEq` for `&T` and
-  `&mut T`; both heads lower to `Ref[T]`. The backend's selection
+- **Trait selection.** std writes `Eq`, `Hash`, `DeepEq`, `Debug` and
+  `Display` for `&T` and `&mut T`; both heads lower to `Ref[T]`. The backend's selection
   (`hd_mono` `select`) raises a lowered self type back to `&T`
   (`hd_types::Types::raise_refs`) to match those heads, then unifies the
   lowered head with the lowered self type for the impl's arguments. So

@@ -136,3 +136,27 @@ fn shown(timeout: Duration) -> string:
 > A std type without it could not be compared in a test, and
 > [`trait.own.rule`](../lang/09-traits.md#r-trait.own.rule) keeps a caller
 > from adding the implementation.
+
+## References
+
+A reference writes and displays as the value it refers to, as Rust's
+`&T` does:
+
+```text
+@derive(Debug)
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+fn shown(e: Expr, name: &string) -> string:
+    "${debug(e)} for $name"  # Expr.Add(left=Expr.Num(n=1), right=Expr.Num(n=2)) for tea
+```
+
+1. r[std-format.debug.reference] `std.format` implements `Debug` for `&T` and for `&mut T` when `T < Debug`. A reference writes exactly what the value it refers to writes, with no trace of the reference or its identity.
+2. r[std-format.display.reference] `std.format` implements `Display` for `&T` and for `&mut T` when `T < Display`. A reference's text is the text of the value it refers to, so `"$r"` interpolates `*r`.
+3. r[std-format.debug.reference-derived] So a derived `Debug` writes a reference field as the value it refers to, and a tree linked by references prints whole.
+4. r[std-format.debug.reference-cycle] A derived `Debug` keeps no record of the values it has written. On a structure whose references really form a cycle, it runs until the stack is exhausted, as a derived `Eq` does.
+
+> **Why.** Every tree type should print, and its links are part of its
+> shape, not part of its value. `is` and `Id[T]` keep identity for code
+> that needs it.

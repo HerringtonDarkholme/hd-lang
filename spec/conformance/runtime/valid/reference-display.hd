@@ -1,0 +1,13 @@
+# test: a reference displays as the value it refers to, in interpolation and through to_string
+# Spec std/format References: std-format.display.reference, with lang 05 expr.interp.reference.
+# expect-stdout: a cup of tea
+# expect-stdout: 3 tea
+fn shown(name: &string, count: &mut i32) -> string:
+    "${count.to_string()} $name"
+
+pub fn main() -> void $ Console:
+    drink := "tea"
+    r := &drink
+    println("a cup of $r")
+    let mut n = +3
+    println(shown(r, &mut n))

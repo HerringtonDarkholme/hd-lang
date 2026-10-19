@@ -361,6 +361,16 @@ impl Display for string:
     fn to_string(self) -> string:
         self
 
+# A reference displays as the value it refers to
+# (r-std-format.display.reference), as Rust's `&T` does.
+impl[T < Display] Display for &T:
+    fn to_string(self) -> string:
+        (*self).to_string()
+
+impl[T < Display] Display for &mut T:
+    fn to_string(self) -> string:
+        (*self).to_string()
+
 impl Display for bool:
     fn to_string(self) -> string:
         if self: "true" else: "false"
@@ -559,6 +569,19 @@ impl[T < Debug] Debug for List[T]:
         for item in self:
             _ := list.entry(item)
         list.finish()
+
+# A reference writes the value it refers to, with no trace of the
+# reference (r-std-format.debug.reference), so a derived `Debug` prints a
+# tree through its `&` links. A cycle runs until the stack is exhausted.
+impl[T < Debug] Debug for &T:
+    fn debug(self, out: mut DebugWriter) -> void:
+        value := *self
+        value.debug(out)
+
+impl[T < Debug] Debug for &mut T:
+    fn debug(self, out: mut DebugWriter) -> void:
+        value := *self
+        value.debug(out)
 
 impl[T < Debug] Debug for T?:
     fn debug(self, out: mut DebugWriter) -> void:

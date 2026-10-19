@@ -3502,6 +3502,10 @@ runtime/valid/reference-eq-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.ref.eq
 runtime/valid/deep-equal-rings.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.references
 runtime/valid/deep-equal-values.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.containers
 runtime/valid/id-keys-by-identity.hd	runtime	accept	std/cmp.md#r-std-cmp.id.eq
+runtime/valid/reference-derived-debug.hd	runtime	accept	std/format.md#r-std-format.debug.reference-derived
+runtime/valid/reference-display.hd	runtime	accept	std/format.md#r-std-format.display.reference
+runtime/panic/reference-derived-debug-cycle.hd	runtime	panic:stack-exhausted	std/format.md#r-std-format.debug.reference-cycle
+typing/invalid/reference-derive-ord.hd	type	reject:derive-field-missing-trait	lang/09-traits.md#r-trait.derive.reference-debug
 typing/valid/let-mut-primitive-reference.hd	type	accept	lang/04-type-system.md#r-types.bind.let-mut-primitive-local
 typing/invalid/let-mut-primitive-top-level.hd	type	reject:mut-on-primitive	lang/04-type-system.md#r-types.bind.let-mut-primitive-top
 runtime/valid/struct-mut-self-copy.hd	runtime	accept	lang/07-functions.md#r-fn.param.mut.copy

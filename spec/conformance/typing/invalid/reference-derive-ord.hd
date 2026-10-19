@@ -1,0 +1,5 @@
+# test: references have no PartialOrd or Ord, so deriving them over a reference field is derive-field-missing-trait
+# Spec 09 Derived Implementations: trait.derive.reference-debug.
+@derive(Eq, PartialOrd, Ord)
+struct Rank:
+    level: &i32  # diagnostic: derive-field-missing-trait

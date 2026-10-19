@@ -295,6 +295,7 @@ trait Hash:
 17. r[trait.derive.beside-written] Deriving a trait for a type that also has a hand-written implementation of that trait is an error, reported on the `@derive` line. Error: `overlapping-impl`.
 18. r[trait.derive.reference-fields] A reference field, `&T` or `&mut T`, implements `Eq` and `Hash` when `T` does, by [Reference Equality](../std/cmp.md#reference-equality). So a derivation of either accepts it then, and a type that refers to itself through references may derive both.
 19. r[trait.derive.no-cycle-check] A derivation is allowed whether or not the values of its type can form a cycle through references. The compiler checks no cycle.
+20. r[trait.derive.reference-debug] A reference field implements `Debug` when the type it refers to does, by [References](../std/format.md#references). So `@derive(Debug)` accepts it then, as `@derive(Eq)` does. `PartialOrd` and `Ord` have no implementation for references, so a derivation of either rejects a reference field. Error: `derive-field-missing-trait`.
 
 ```text
 data Opaque: pass

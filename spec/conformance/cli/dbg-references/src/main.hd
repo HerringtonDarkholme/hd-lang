@@ -1,0 +1,17 @@
+struct Parcel:
+    label: string
+    weight: i32
+
+@derive(Debug)
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+pub fn main() -> void $ Console:
+    let mut parcel = Parcel { label: "mug", weight: 3 }
+    dbg(&parcel)
+    dbg(&mut parcel.weight)
+    dbg(&Expr.Num(7))
+    println("done")
+
+# Spec 10 Debug Values: module.dbg.value.reference, module.dbg.value.debug; std/format References: std-format.debug.reference.

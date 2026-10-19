@@ -1,0 +1,8 @@
+# A reference prints as the value it refers to: through the value's own
+# structure when it has no Debug, through its Debug when it has one, with no
+# trace of the reference.
+run: hd run
+stdout: done
+stderr: src/main.hd:12:5: &parcel = Parcel { label: "mug", weight: 3 }
+stderr: src/main.hd:13:5: &mut parcel.weight = 3
+stderr: src/main.hd:14:5: &Expr.Num(7) = Expr.Num(n=7)

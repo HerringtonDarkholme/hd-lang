@@ -1,0 +1,22 @@
+# test: a derived Debug writes a reference field as the value it refers to, so a tree linked by references prints whole
+# Spec std/format References: std-format.debug.reference, std-format.debug.reference-derived, with lang 09 trait.derive.reference-debug.
+# expect-stdout: Expr.Add(left=Expr.Num(n=1), right=Expr.Num(n=2))
+# expect-stdout: true
+# expect-stdout: Gauge { level: 5, name: "tea" }
+@derive(Eq, Hash, Debug)
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+@derive(Debug)
+struct Gauge:
+    level: &mut i32
+    name: &string
+
+pub fn main() -> void $ Console:
+    a := Expr.Add(&Expr.Num(1), &Expr.Num(2))
+    println(debug(a))
+    println(debug(&a) == debug(a))
+    let mut x = +5
+    tea := "tea"
+    println(debug(Gauge { level: &mut x, name: &tea }))

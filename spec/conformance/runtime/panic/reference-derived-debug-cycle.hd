@@ -1,0 +1,12 @@
+# test: a derived Debug on a structure that really contains a cycle runs around it until the stack is exhausted
+# Spec std/format References: std-format.debug.reference-cycle.
+@derive(Debug)
+struct Node:
+    value: i32
+    next: &mut Node?
+
+pub fn main() -> void:
+    first := &mut Node { value: +1, next: .None }
+    second := &mut Node { value: +2, next: .Some(first) }
+    first.next = .Some(second)
+    _ := debug(*first)  # panic: stack-exhausted

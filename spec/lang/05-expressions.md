@@ -246,6 +246,7 @@ trait Display:
 12. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
 13. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
 14. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
+15. r[expr.interp.reference] A reference interpolates as the value it refers to, since `std` implements `Display` for `&T` when `T` has it ([References](../std/format.md#references)).
 
 > **Note.** The empty tuple writes `()`. A `void` value is that tuple, so
 > `"${log()}"` writes `()` too.

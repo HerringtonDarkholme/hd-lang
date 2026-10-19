@@ -180,6 +180,17 @@ impl Gen<'_, '_> {
         self.b.emit(Tag::ItemRef, a, bw, ft, SYN)
     }
 
+    /// Writes the value the reference `r` refers to, of type `inner`: a
+    /// read through its `get` closure (`crates/hd_wasm/DESIGN.md` §15.2,
+    /// "References"), printed by its own `dbg_show`.
+    fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) {
+        let get_ty = self.fn_ty(&[], inner);
+        let get = self.b.emit(Tag::Field, r.0, 0, get_ty, SYN);
+        let rec = self.b.refs_record(&[]);
+        let value = self.b.emit(Tag::CallValue, get.0, rec, inner, SYN);
+        self.part(out, inner, value);
+    }
+
     /// Writes `v`, a part of type `ty`, through its own `dbg_show`.
     fn part(&mut self, out: (LocalId, Ty), ty: Ty, v: Ref) {
         let ty = strip_mut(self.names, ty);
@@ -296,6 +307,15 @@ impl Gen<'_, '_> {
                     g.b.emit(Tag::TupleGet, v.0, u32::try_from(k).unwrap_or(0), t, SYN)
                 };
                 self.opened(out, None, &items, &read, close)?;
+            }
+            // A reference prints the value it refers to
+            // (`module.dbg.value.reference`): its `get` closure's result,
+            // never the `Ref` object of the emulation.
+            TyData::Ref { inner, .. } => self.referent(out, inner, v),
+            TyData::Adt { def, args }
+                if def == names.known.ref_cell && pool.list_items(args).len() == 1 =>
+            {
+                self.referent(out, pool.list_items(args)[0], v);
             }
             TyData::Adt { def, args } => {
                 let args: Vec<Ty> = pool
