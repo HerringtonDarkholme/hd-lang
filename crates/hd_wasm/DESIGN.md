@@ -1335,3 +1335,266 @@ loop:
 
 Implementation differs: `block_on` is a seeded `std.task` item that the
 emitter lowers by name (`Em`, `"block_on"`), not std hd; not judged.
+
+# New Compiler Design: Linear-Memory Layout
+
+Status: design record for the linear-memory backend, which is being
+built behind `--backend linear`; may lag the code. The code and the spec
+win. The Wasm GC backend (§14, §15) stays the default until the linear
+backend passes conformance, then it is deleted (owner decision).
+
+Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md). The
+design it records is the owner-approved runtime study
+([REFCOUNT_RUNTIME.md](../../docs/future-work/REFCOUNT_RUNTIME.md) §2,
+§5, §6 and §10) and the object model it runs
+([OBJECT_MODEL_TIER1.md](../../docs/future-work/OBJECT_MODEL_TIER1.md)
+§3, §4, §6 and §9; tier 2's borrow flag in
+[OBJECT_MODEL_TIER2.md](../../docs/future-work/OBJECT_MODEL_TIER2.md)
+§6.4).
+
+## 23. Linear-Memory Layout
+
+Objects live in Wasm linear memory and are freed by reference counting,
+with a cycle collector for the types that can form a cycle. Every
+aggregate is a value stored inline; sharing comes only from references,
+which are plain addresses. The runtime (allocator, release, collector) is
+ordinary hd in std over a few memory intrinsics; the backend emits only
+what the spec names as intrinsic or what only it can build.
+
+### 23.1 Where The Pieces Live
+
+| Piece | Where | Job (REFCOUNT_RUNTIME.md §10.2) |
+| --- | --- | --- |
+| this record | `crates/hd_wasm/DESIGN.md` §23 | 1 |
+| the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear`, apart from `hd_wasm`, so it never edits the Wasm GC emission in `emit.rs`, `rt.rs` and `layout.rs` | 2, 3 and on |
+| `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
+| `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
+| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the wake table | 3 and on |
+| `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
+| the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
+| conformance on both backends | `HD_CONFORMANCE_BACKEND=linear` runs every runtime case on the linear backend, judged by the root `KNOWN_FAILURES_LINEAR.tsv` (the columns of `KNOWN_FAILURES.tsv`, each row citing an issue) | 2 |
+| memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
+| the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
+| counts, release glue, the collector | hd in further `std.rt` modules, called by emitted code | 8, 19, 21 |
+
+`std.rt` modules are privileged: only std modules may import them, so the
+runtime can change its representation without breaking a program.
+
+### 23.2 Memories And The Address Space
+
+| Memory | Holds | Exported as |
+| --- | --- | --- |
+| 0 | the exchange buffer, exactly as on Wasm GC (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
+| 1 | the heap: static data, the page table, every counted object | not exported until the host codecs move (jobs 14, 15) |
+
+- **Why two memories.** The exchange buffer grows from address 0 as the
+  host's results need, so it cannot share a memory with a heap that must
+  never move. A second memory (Wasm multi-memory, on by default in V8
+  and wasmtime) keeps the host contract unchanged, so both hosts run both
+  backends' modules until jobs 14 and 15 rewrite the codecs. A string
+  crosses with one `memory.copy` from memory 1 to memory 0.
+- **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
+  null: `.None` of `Option[&T]`. The first 16 bytes are never used.
+- **Static data** starts at address 16 in page 0: string literals, the
+  one empty string, immortal constants, vtables and type descriptors,
+  all placed by link in one active data segment. Its pages are marked
+  static in the page table, so a count update through an address in them
+  does nothing.
+- **Pages** are Wasm's 64 KiB pages. The heap grows with `memory.grow`
+  on memory 1 and never shrinks: a program's footprint is its high-water
+  mark (REFCOUNT_RUNTIME.md §6).
+
+### 23.3 Values
+
+A layout is a list of Wasm values in locals, parameters and results, and
+a size, an alignment and field offsets in memory. One representation per
+type in every position, as on Wasm GC (§15.1), except that a value is
+inline in memory where Wasm GC stored a reference.
+
+| hd value | In locals and results | In memory |
+| --- | --- | --- |
+| integers, `bool`, `char`, floats | the scalar | packed: 1 byte for `bool`, `i8`, `u8`; 2 for 16-bit integers; 4 or 8 otherwise, aligned to its size |
+| struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, each at its alignment; the struct aligned to its widest field |
+| enum | an `i32` tag, then the payload slots: variants' fields of one Wasm value type share a slot (§15.1's slot sharing, with no bound) | the tag (1, 2 or 4 bytes by variant count), then the largest variant's fields at their offsets; variants overlap |
+| self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
+| `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
+| `T?` of another `T` | as an enum with one payload | as an enum |
+| `string` | `(address, length)`: two `i32` | 8 bytes |
+| `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5) | 4 bytes |
+| `data T` (today's language) | the address of a counted object holding the fields | 4 bytes |
+| `List[T]`, `Map[K, V]` | the address of a counted buffer (§23.7) | 4 bytes |
+| closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
+| `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
+| suspension | the address of a counted frame owned by its task | 4 bytes |
+| `void`, `()`, `never` | none | 0 bytes |
+
+- **Today's language first.** Until the tier 1 jobs change the language,
+  a `data` value keeps its identity as a counted object, and a struct
+  value, which Wasm GC rebuilt on every field write (§15.2, "Struct
+  values"), is inline at last, so a field write is one store.
+- **No bound.** Wasm GC boxed a value layout over 4 values (§15.1); in
+  linear memory a wide value costs only its moves, as in Go and C#. A
+  large struct passed by value is the price OBJECT_MODEL_TIER1.md §3
+  accepts.
+- **Type-only.** Every rule reads the type's definition and the
+  definitions its fields name, never a use, so a laid-out instance is
+  valid in every program that reaches it.
+
+### 23.4 Counted Objects
+
+Every counted object is one allocator slot (§23.6), and its header is at
+the slot's start:
+
+| Offset | Size | Field |
+| --- | --- | --- |
+| 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
+| 4 | 4 | the descriptor word: bits 0 to 23 the type descriptor's number, bits 24 to 31 tier 2's borrow flag (a writer bit and a 7-bit reader count, OBJECT_MODEL_TIER2.md §6.4; zero in tier 1) |
+| 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
+| after the payload, 4-aligned | 4 | the collector word, for a cycle-capable type only: the candidate flag, the color and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2) |
+
+- A reference to a whole object is the payload's address, slot + 8, so
+  its fields read at constant offsets with no lookup; the header is at
+  `address - 8`.
+- **The type descriptor** is a static record that the descriptor number
+  indexes: the release function's and the trace function's function-table
+  indices (0 for none), the payload size and the slot's size class, and
+  flags (cycle-capable, buffer). It is what lets the last reference be an
+  interior one: when `&mut packet.status` dies last, the page table finds
+  the slot and the descriptor says to release a whole `Packet`
+  (REFCOUNT_RUNTIME.md §2).
+- **Immortal objects.** A literal or constant object starts at count
+  2^31, and lives in a static page anyway; a program never releases more
+  references than it made, so it never reaches zero.
+- **Release glue** is one function per type layout, shared by types with
+  the same layout, iterative for a recursive type (REFCOUNT_RUNTIME.md
+  §4.5); trace glue exists only for cycle-capable types.
+
+### 23.5 Interior Addresses And The Page Table
+
+A reference is one `i32` address, which may point at a field or an
+element (the thin form of REFCOUNT_RUNTIME.md §5). Reading through it
+needs only the address; a count update finds the object's slot through
+the page table:
+
+1. `page = address >> 16`, `entry = page_table[page]`.
+2. A small page: `slot = page_start + 16 + ((address - page_start - 16) /
+   size) * size`, the division by the class size done as a multiply by
+   its reciprocal from a static table.
+3. A large run: the entry names the run's first page, whose start is the
+   slot.
+4. A static or free page: no count; static pages are immortal, and a live
+   reference never points into a free page.
+
+The page table is one 4-byte entry per heap page, an array in memory 1
+whose base and length are allocator globals. It starts at one page (16,384
+entries, 1 GiB of heap) and moves to a larger run when the heap outgrows
+it, so its cost follows the heap: 256 KiB for a full 4 GiB memory.
+
+| Entry, top 2 bits | Low 30 bits | Page |
+| --- | --- | --- |
+| `00` | 0 | free: in the page pool, or never allocated |
+| `01` | the size class, 1 to 20; 0 for a static page | a small page of one class, or static data |
+| `10` | the run's page count | the first page of a large run |
+| `11` | the run's first page | a later page of a large run |
+
+### 23.6 The Allocator's Geometry
+
+The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
+`sc` grown into a real allocator:
+
+- **Size classes**, 20 of them, sizes in bytes including the header: 16
+  to 128 in steps of 16, then 160, 208, 256, 320, 400, 512, 640, 800,
+  1024, 1280, 1600 and 2048, about 25% apart. Every size is a multiple
+  of 16, so every payload at slot + 8 is 8-aligned. No object stores its
+  size: its descriptor knows the class.
+- **Pages of one class.** A small page starts with a 16-byte page header
+  (the free-list head, the bump offset, the live count, the class), then
+  its slots. A fresh page is bump-allocated; freed slots go on the page's
+  free list, popped and pushed in constant time; a page whose live count
+  falls to zero returns to the page pool.
+- **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
+  the pool's runs, coalesced with free neighbors on free; every page of a
+  run points at its first (§23.5).
+- **No zeroing.** Every object is initialized by its constructor before
+  anything reads it, and only the collector scans, and only initialized
+  objects.
+- **Reachable code only.** A program that never allocates links none of
+  the allocator, so hello pays nothing for it (REFCOUNT_RUNTIME.md §10.1).
+
+### 23.7 Strings And Collection Buffers
+
+- **Strings** are views `(address, length)` of valid UTF-8 inside a
+  counted byte buffer, or inside static data for a literal. A slice is a
+  new view with no allocation; it counts the buffer through the page
+  table only when stored (REFCOUNT_RUNTIME.md §5). **Every empty string
+  is one static value**: its address is one fixed static location and its
+  length 0, never counted, so a view one past a buffer's end can never
+  reach the next object's count. Slicing to length zero yields it.
+- **A collection buffer** is a counted object whose payload starts with
+  its own header: the pin count (the second count of OBJECT_MODEL_TIER1.md
+  §6.3), the capacity, then the length for a list; then its elements
+  inline at their alignment. The object's count is the owner count, for
+  copy-on-write: a write first checks it is 1 and copies the buffer
+  otherwise (REFCOUNT_RUNTIME.md §9.1). A pinned buffer is copied when its
+  list is copied, so it is never shared, and is freed when owners and pins
+  are both zero.
+
+| Buffer payload offset | Size | Field |
+| --- | --- | --- |
+| 0 | 4 | pins |
+| 4 | 4 | capacity, in elements |
+| 8 | 4 | length (a list), or the entry count (a map) |
+| 12 | 4 | reserved: 8-aligns the elements |
+| 16 | capacity times the element size | the elements, inline |
+
+Today a list is a shared object (OBJECT_MODEL_TIER1.md §6.2), so until
+the tier 1 jobs make it a value, a list value is the buffer's address and
+every copy shares it; growth that moves the buffer is job 9's to place.
+
+### 23.8 Closures, `dyn` And Vtables
+
+- **The function table.** Every function called indirectly (a vtable
+  slot, a closure's code, release and trace glue) has an entry in one
+  Wasm table, filled by an active element segment; a call is
+  `call_indirect` through the entry's index.
+- **A closure** is `(code, environment)`. The environment is a counted
+  object holding the captures inline, absent (0) when nothing is captured;
+  each closure literal's environment layout has its own descriptor, whose
+  release and trace know the captures (OBJECT_MODEL_TIER1.md §9.3).
+- **A `dyn Trait` value** is `(data, vtable)`. A vtable is a static
+  record: its first two words are the concrete type's release and trace
+  table indices, so dropping a `dyn` releases its data with no knowledge
+  of the type, then the method slots in the trait's declared order, then
+  each direct supertrait's vtable address. `Any`'s vtable also holds the
+  type's identity (the first 64 bits of `H(canon(T))`, §15.2's `TypeId`).
+- **Providers** are trait values, passed as `(data, vtable)` pairs in key
+  order as on Wasm GC (crates/hd_mono/DESIGN.md §13.18).
+
+### 23.9 Globals, The Entry Wrapper And The Host
+
+- **Module storage** (top-level bindings) is one Wasm global per Wasm
+  value of the binding's layout, set by its group's init function, as on
+  Wasm GC (§15.4).
+- **Runtime state** (the panic flag, the woken flag, the
+  forbidden-context counter) are `i32` globals; the wake table and the
+  candidate buffer are counted buffers in memory 1.
+- **Exports and imports** are Wasm GC's: `hd.init`, `hd.poll`, `hd.wake`,
+  `hd.x` (memory 0), `hd.cancel` for a scenario, and the `hd:rt`,
+  `hd:prim` and capability imports of crates/hd_run_wasmtime/DESIGN.md
+  §17.2, with the same signatures. A host therefore cannot tell the
+  backends apart.
+- **Panics** call a stub that writes the report through `hd:rt` and
+  traps (§15.5); a message literal is copied straight from static data to
+  the exchange buffer.
+- **Sections.** `hd.lines`, `hd.positions` and `name` as on Wasm GC
+  (§15.5, §15.9), so panic frames print the same way.
+
+### 23.10 What The Jobs Build On This
+
+| Job | Adds |
+| --- | --- |
+| 2 | the switch, an empty module that runs, the linear conformance mode and its known-failures list |
+| 3 | both memories, the static data segment, globals, the entry wrapper, integer code and panics: hello and integer programs run |
+| 4 | `std.rt.memory`'s intrinsics, with spec rules and hd tests on the linear backend |
+| 5 | `std.rt.alloc`: size classes, pages, the page table, large runs, with hd tests |
+| 6 to 15 | values inline, strings, counts and release glue, lists, maps, closures and `dyn`, references, frames, the host codecs, each removing rows from `KNOWN_FAILURES_LINEAR.tsv` |
