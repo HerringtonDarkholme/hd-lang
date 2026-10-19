@@ -298,6 +298,7 @@ impl Program {
             session: None,
             inputs_from: None,
             body_fuel: None,
+            backend: hd_driver::Backend::WasmGc,
         }
     }
 }

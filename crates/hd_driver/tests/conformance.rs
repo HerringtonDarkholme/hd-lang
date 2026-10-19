@@ -30,6 +30,13 @@
 //! emitted code byte-identical; it needs the full runtime suite.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without applying the rule.
+//!
+//! Every runtime case also runs once more through the linear-memory
+//! backend (`hd_driver::Backend::Linear`, `crates/hd_wasm/DESIGN.md`
+//! §23), on the same engines, judged by its own root
+//! `KNOWN_FAILURES_LINEAR.tsv` under the same rule; its digests and
+//! runtime statistics are noted under the path `linear:PATH`. Parse and
+//! type cases build no module, so they run once.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,7 +53,7 @@ use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
-    Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
+    Backend, Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
     PipelineReport, ScenarioHold, build_packages,
 };
 use hd_project::MemorySources;
@@ -93,6 +100,8 @@ struct Fixture {
     /// The dependencies of a package-role fixture: each package under
     /// `packages/`, by name (README "Package Roles").
     deps: Vec<(String, MemorySources)>,
+    /// The backend its builds link with.
+    backend: Backend,
 }
 
 fn root() -> PathBuf {
@@ -228,6 +237,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         text,
         tree,
         deps,
+        backend: Backend::WasmGc,
     })
 }
 
@@ -241,7 +251,17 @@ fn first_unsupported(report: &PipelineReport, back_half: bool) -> Option<String>
         .into_iter()
         .take_while(|stage| back_half || *stage != Stage::Collect)
         .find_map(|stage| {
-            (report.tally(stage).not_implemented > 0).then(|| stage.name().to_owned())
+            let tally = report.tally(stage);
+            // The linear backend's reason names what it does not lower
+            // yet, which buckets its known failures.
+            let linear = tally
+                .first_reason
+                .as_deref()
+                .and_then(|r| r.strip_suffix(" in the linear backend"));
+            (tally.not_implemented > 0).then(|| match linear {
+                Some(what) => format!("{}: {what}", stage.name()),
+                None => stage.name().to_owned(),
+            })
         })
 }
 
@@ -363,6 +383,7 @@ fn build_for(
         profile: profile(fixture),
         target,
         level: level(),
+        backend: fixture.backend,
         ..Packages::default()
     };
     build_packages(&host, "fixture", &packages, goal)
@@ -1726,8 +1747,42 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
     match case.phase {
         Phase::Parse => parse_case(case, &fixture.text),
         Phase::Type => type_case(case, &fixture, store),
-        Phase::Runtime => runtime_case(case, &fixture, store, serial),
+        Phase::Runtime => {
+            let verdict = runtime_case(case, &fixture, store, serial);
+            linear_case(case, fixture, store, serial);
+            verdict
+        }
     }
+}
+
+/// Each runtime case's verdict through the linear backend, by path.
+static LINEAR_VERDICTS: Mutex<BTreeMap<String, Verdict>> = Mutex::new(BTreeMap::new());
+
+/// Runs a runtime case once more, built by the linear backend, and notes
+/// its verdict in [`LINEAR_VERDICTS`]; a crash there is the linear run's
+/// own. Its runs are noted under `linear:PATH`.
+fn linear_case(case: &Case, fixture: Fixture, store: &MemoryStore, serial: usize) {
+    let noted = Case {
+        path: format!("linear:{}", case.path),
+        ..case.clone()
+    };
+    let fixture = Fixture {
+        backend: Backend::Linear,
+        ..fixture
+    };
+    let verdict = catch_unwind(AssertUnwindSafe(|| {
+        runtime_case(&noted, &fixture, store, serial)
+    }))
+    .unwrap_or_else(|panic| {
+        let message = panic
+            .downcast_ref::<&str>()
+            .map_or("panic", |message| *message);
+        Verdict::Crash(message.to_owned())
+    });
+    LINEAR_VERDICTS
+        .lock()
+        .expect("linear verdicts lock")
+        .insert(case.path.clone(), verdict);
 }
 
 /// A single-file fixture with source `text`, for the runner's own tests.
@@ -1740,6 +1795,7 @@ fn unit_fixture(text: &str) -> Fixture {
         text: text.to_owned(),
         tree: false,
         deps: Vec::new(),
+        backend: Backend::WasmGc,
     }
 }
 
@@ -1998,6 +2054,15 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
             detail(case, store)
         );
     }
+    // The linear backend's runs, one line per case that does not pass.
+    let linear = LINEAR_VERDICTS.lock().expect("linear verdicts lock");
+    for case in cases {
+        match linear.get(&case.path) {
+            None | Some(Verdict::Pass) => {}
+            Some(verdict) => println!("linear\t{verdict:?}\t{}", case.path),
+        }
+    }
+    drop(linear);
     let mut sorted: Vec<_> = buckets.into_iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     for (bucket, count) in sorted {
@@ -2144,11 +2209,58 @@ fn specification_conformance_passes_except_known_failures() {
     std::io::stdout()
         .write_all(summary.as_bytes())
         .expect("print the summary");
+    let linear = judge_linear(&cases, engine);
     assert!(
         errors.is_empty(),
         "conformance cases break the KNOWN_FAILURES.tsv rule:\n{}",
         errors.join("\n")
     );
+    assert!(
+        linear.is_empty(),
+        "linear-backend runs break the KNOWN_FAILURES_LINEAR.tsv rule:\n{}",
+        linear.join("\n")
+    );
+}
+
+/// Applies the rule to the linear backend's run of every runtime case
+/// ([`LINEAR_VERDICTS`]) by `KNOWN_FAILURES_LINEAR.tsv`, prints its
+/// summary and returns its errors, a crash among them.
+fn judge_linear(cases: &[Case], engine: &str) -> Vec<String> {
+    let verdicts = LINEAR_VERDICTS.lock().expect("linear verdicts lock");
+    let mut crashes = Vec::new();
+    let outcomes: Vec<Outcome<'_>> = cases
+        .iter()
+        .filter(|case| case.phase == Phase::Runtime)
+        .map(|case| Outcome {
+            path: &case.path,
+            bucket: match verdicts.get(&case.path) {
+                Some(Verdict::Pass) => None,
+                Some(Verdict::Fail(code)) => Some(format!("fail:{code}")),
+                Some(Verdict::Unsupported(stage)) => Some(format!("unsupported:{stage}")),
+                Some(Verdict::Crash(message)) => {
+                    crashes.push(format!("{}: linear-backend crash: {message}", case.path));
+                    Some(format!("crash:{message}"))
+                }
+                // A case whose fixture does not load has no linear run.
+                None => Some("unsupported:Discover".to_owned()),
+            },
+        })
+        .collect();
+    let known = known_failures::load_file(&root(), known_failures::LINEAR);
+    let (summary, mut errors) = known_failures::judge_file(
+        known_failures::LINEAR,
+        "driver (linear backend)",
+        engine,
+        Some(pipeline_name()),
+        &known,
+        |_| true,
+        &outcomes,
+    );
+    std::io::stdout()
+        .write_all(summary.as_bytes())
+        .expect("print the summary");
+    errors.extend(crashes);
+    errors
 }
 
 /// Every `typing/invalid` fixture, checked: none reaches an internal error

@@ -29,6 +29,7 @@ in each crate's `Cargo.toml`.
 | `hd_mono` | Reachable-instance collection and monomorphization | [Monomorphization and merging](hd_mono/DESIGN.md#13-monomorphization-and-merging) |
 | `hd_opt` | Pass manager and pipelines keyed by (engine target, level) | [Optimization pipelines](hd_opt/DESIGN.md) |
 | `hd_wasm` | Wasm GC emission, linking, and each target's lowering profile | [Emitting from TIR](hd_mono/DESIGN.md#12-emitting-from-tir), [Wasm layout](hd_wasm/DESIGN.md) |
+| `hd_wasm_linear` | The linear-memory backend (`--backend linear`): reference-counted values in linear memory, one module per program | [Linear-memory layout](hd_wasm/DESIGN.md#23-linear-memory-layout) |
 | `hd_cache` | Cache keys, entry framing, memory and disk stores | [Cache](hd_cache/DESIGN.md#5-cache) |
 | `hd_deps` | Remote dependencies: version selection, `git` fetching, tree hashes, `hd.sum` | [Dependencies](../spec/cli/command-line.md#dependencies) |
 | `hd_run` | Engine-neutral program loading and run outcomes | [Runtime](hd_run_wasmtime/DESIGN.md#16-runtime), [execution engines](../docs/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
@@ -142,6 +143,10 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
   `engine`, `reason`), and a listed case that passes fails too. Both
   tiers (`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`)
   print their counts.
+  The driver tier also runs every runtime case through the linear backend
+  and judges that run by
+  [`KNOWN_FAILURES_LINEAR.tsv`](../KNOWN_FAILURES_LINEAR.tsv) in the same
+  form; its summary line is `driver (linear backend) conformance on ...`.
 
 From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace

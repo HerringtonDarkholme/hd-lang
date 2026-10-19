@@ -483,6 +483,8 @@ pub struct Output {
     /// The optimization level whose pipeline built this output
     /// ([`Packages::level`]).
     pub level: OptLevel,
+    /// The backend that built this output ([`Packages::backend`]).
+    pub backend: Backend,
     /// The run's toolchain key (`crates/hd_cache/DESIGN.md` §5.3): the compiler build and the
     /// std sources it built with.
     pub toolchain: Hash128,
@@ -1178,6 +1180,8 @@ struct Run<'a> {
     lowering: hd_wasm::Lowering,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// The code generator ([`Packages::backend`]).
+    backend: Backend,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -1281,6 +1285,18 @@ pub struct Dependency<'a> {
     pub fetched: bool,
 }
 
+/// The code generator a `Goal::Program` links with (`cli.backend.select`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Backend {
+    /// The Wasm GC backend (`hd_wasm`), the default.
+    #[default]
+    WasmGc,
+    /// The linear-memory backend (`hd_wasm_linear`,
+    /// `crates/hd_wasm/DESIGN.md` §23), which links the whole program at
+    /// once from collection's output and caches no code per instance.
+    Linear,
+}
+
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
@@ -1348,6 +1364,9 @@ pub struct Packages<'a> {
     /// check keys and of their folders' header-check keys. `None` keeps
     /// the default; every other package always does.
     pub body_fuel: Option<u64>,
+    /// The code generator ([`Backend`]). Its name is part of the link's
+    /// key, so the two backends' modules never share a cache entry.
+    pub backend: Backend,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1666,6 +1685,7 @@ pub fn build_packages(
             }
         },
         body_fuel: packages.body_fuel,
+        backend: packages.backend,
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -1873,6 +1893,7 @@ pub fn build_packages(
         session_added,
         target: packages.target,
         level: packages.level,
+        backend: packages.backend,
         toolchain: run.toolchain,
         pipeline: run.pipeline,
     }
@@ -7296,6 +7317,10 @@ impl Run<'_> {
             Goal::Scenario { .. } => format!("scenario:{entry_key}"),
             _ => entry_key.clone(),
         };
+        let keyed_entry = match self.backend {
+            Backend::WasmGc => keyed_entry,
+            Backend::Linear => format!("linear:{keyed_entry}"),
+        };
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,
@@ -7616,6 +7641,11 @@ impl Run<'_> {
         // Read only when a group misses its exact pack.
         let recent = OnceLock::new();
         let mut written = Vec::new();
+        // The linear backend emits no per-instance code: link builds the
+        // whole module.
+        if self.backend == Backend::Linear {
+            by_folder.clear();
+        }
         for (folder, slots) in by_folder {
             // A held call's stub is per build, never cached: it always
             // emits, and no other build may read it.
@@ -8307,6 +8337,10 @@ impl Run<'_> {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
+        if self.backend == Backend::Linear {
+            self.link_linear(c, p);
+            return;
+        }
         self.put_pack_hint(c);
         let mut codes = Vec::new();
         let mut fnames = Vec::new();
@@ -8448,6 +8482,93 @@ impl Run<'_> {
             }
             None => self.put(EntryKind::Link, c.prog_key, &[&wasm]),
         }
+        let _ = self.wasm.set(wasm);
+    }
+
+    /// `link` for the linear backend ([`Backend::Linear`]): one module
+    /// from collection's output and every instance's TIR body.
+    fn link_linear(&self, c: &CollectOut, p: &ProgramTables) {
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
+        };
+        let names = self.names();
+        let path = |d: DefId| names.path(d);
+        let body = |id: hd_base::InstId| {
+            let item = c.collected.table.item[id.idx()];
+            let args = c.collected.table.args[id.idx()];
+            c.collected
+                .instance_bodies
+                .get(&id)
+                .map(AsRef::as_ref)
+                .or_else(|| c.collected.supplied_body(&self.pool, item, args))
+                .or_else(|| self.body_of(p, item).map(|b| &b.0))
+        };
+        let inits = &c.collected.inits;
+        let entry = match &c.roots {
+            _ if self.session.is_some() => hd_wasm_linear::Entry::Unsupported("REPL sessions"),
+            Roots::Main {
+                def,
+                key,
+                entry_inits,
+                report,
+            } => hd_wasm_linear::Entry::Main {
+                main: *def,
+                key: *key,
+                inits: inits
+                    .iter()
+                    .map(|k| (*k, !entry_inits.contains(k)))
+                    .collect(),
+                report: *report,
+            },
+            // The split of `hd_wasm::script_entry`; this build runs every
+            // init, so the first own body is among them.
+            Roots::Script {
+                def,
+                key,
+                own,
+                report,
+            } => match inits.iter().position(|k| k == key) {
+                Some(at) if report.is_none() || at + 1 == inits.len() => {
+                    hd_wasm_linear::Entry::Script {
+                        init: *def,
+                        key: *key,
+                        before: inits[..at].iter().map(|k| (*k, true)).collect(),
+                        after: inits[at + 1..]
+                            .iter()
+                            .map(|k| (*k, !own.contains(k)))
+                            .collect(),
+                        report: *report,
+                    }
+                }
+                Some(_) => {
+                    hd_wasm_linear::Entry::Unsupported("a script using `?` with later inits")
+                }
+                None => hd_wasm_linear::Entry::Unsupported("a script whose init is not run"),
+            },
+            Roots::Inputs(_) => hd_wasm_linear::Entry::Unsupported("REPL inputs"),
+            Roots::Tests { .. } => hd_wasm_linear::Entry::Unsupported("test programs"),
+            Roots::Scenario { .. } => hd_wasm_linear::Entry::Unsupported("runtime scenarios"),
+        };
+        let input = hd_wasm_linear::Input {
+            pool: &self.pool,
+            env: &env,
+            path: &path,
+            collected: &c.collected,
+            order: &c.order,
+            body: &body,
+            entry,
+            release: self.build_profile == BuildProfile::Release,
+        };
+        let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {
+            return;
+        };
+        self.put(EntryKind::Link, c.prog_key, &[&wasm]);
         let _ = self.wasm.set(wasm);
     }
 }

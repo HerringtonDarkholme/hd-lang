@@ -32,7 +32,9 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{BuildProfile, Clock, EngineTarget, Executor, Goal, Host, OptLevel, Output};
+use hd_driver::{
+    Backend, BuildProfile, Clock, EngineTarget, Executor, Goal, Host, OptLevel, Output,
+};
 use hd_run::{HostSetup, Outcome};
 
 use crate::report::Reporter;
@@ -426,6 +428,7 @@ pub(crate) fn build_goal_with(
     let pipeline = Pipeline {
         target: packages.target,
         level: packages.level,
+        backend: packages.backend,
     };
     build_goal_in(program, goal, (profile, pipeline), doc_scopes, rep)
 }
@@ -440,22 +443,59 @@ pub(crate) const fn level_of(release: bool) -> OptLevel {
 }
 
 /// The pipeline a build runs (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the engine target it is
-/// tuned for and the optimization level.
+/// tuned for and the optimization level, and the backend that generates
+/// its code (`cli.backend.select`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Pipeline {
     pub(crate) target: EngineTarget,
     pub(crate) level: OptLevel,
+    pub(crate) backend: Backend,
 }
 
 impl Pipeline {
     /// The pipeline of a build that `engine` runs: tuned for its target,
-    /// and optimized with `--release` (`cli.profile.pipeline.one`).
+    /// and optimized with `--release` (`cli.profile.pipeline.one`), with
+    /// the default backend.
     pub(crate) const fn of(engine: engine::EngineKind, release: bool) -> Self {
         Self {
             target: engine.target(),
             level: level_of(release),
+            backend: Backend::WasmGc,
         }
     }
+
+    /// This pipeline with `backend`, when a `--backend` flag gave one.
+    pub(crate) const fn with(self, backend: Option<Backend>) -> Self {
+        match backend {
+            Some(backend) => Self { backend, ..self },
+            None => self,
+        }
+    }
+}
+
+/// `--backend NAME` or `--backend=NAME` at `args[i]` (`cli.backend.flag`):
+/// the backend and the words used. NAME is `wasm-gc`, the default, or
+/// `linear` (`cli.backend.unknown`).
+pub(crate) fn backend_flag(
+    args: &[OsString],
+    i: usize,
+) -> Option<Result<(Backend, usize), String>> {
+    let text = args.get(i)?.to_string_lossy();
+    let (name, used) = if text == "--backend" {
+        match args.get(i + 1) {
+            Some(v) => (v.to_string_lossy().into_owned(), 2),
+            None => return Some(Err("`--backend` needs NAME".to_owned())),
+        }
+    } else {
+        (text.strip_prefix("--backend=")?.to_owned(), 1)
+    };
+    Some(match name.as_str() {
+        "wasm-gc" => Ok((Backend::WasmGc, used)),
+        "linear" => Ok((Backend::Linear, used)),
+        _ => Err(format!(
+            "unknown backend `{name}`; the backends are wasm-gc and linear"
+        )),
+    })
 }
 
 #[cfg(test)]
@@ -472,6 +512,7 @@ pub(crate) fn note_built(out: &Output) {
         built.push(Pipeline {
             target: out.target,
             level: out.level,
+            backend: out.backend,
         });
     });
 }
@@ -514,6 +555,7 @@ pub(crate) fn build_goal_in(
         build_profile: profile,
         target: pipeline.target,
         level: pipeline.level,
+        backend: pipeline.backend,
         doc_scopes,
         ..program.packages()
     };
@@ -658,6 +700,8 @@ struct FileWords {
     engine: engine::EngineKind,
     release: bool,
     limits: engine::ProgramLimits,
+    /// `--backend NAME`; `hd FILE.wasm` refuses it (`cli.backend.prebuilt`).
+    backend: Option<Backend>,
 }
 
 fn file_words(args: &[OsString]) -> Result<FileWords, String> {
@@ -669,6 +713,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         engine: engine::EngineKind::default(),
         release: false,
         limits: engine::ProgramLimits::default(),
+        backend: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -714,6 +759,12 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
+        if let Some(b) = backend_flag(args, i) {
+            let (backend, used) = b?;
+            w.backend = Some(backend);
+            i += used;
+            continue;
+        }
         // `cli.profile.release.file`: the release profile, and wasmtime's
         // optimized pipeline (`cli.profile.pipeline.release`).
         if args[i] == "--release" {
@@ -751,7 +802,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine, w.release).with(w.backend);
     match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(built) => execute(
             &built,
@@ -815,6 +866,9 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
     let Some(file) = &w.file else {
         return usage();
     };
+    if w.backend.is_some() {
+        return rep.fail("`hd FILE.wasm` takes no `--backend`: the module is already built");
+    }
     let shown = file.display();
     let wasm = match std::fs::read(file) {
         Ok(b) => b,
@@ -870,6 +924,8 @@ struct Words {
     /// runs on, and the one whose target `hd run` and `hd build` tune for.
     engine: engine::EngineKind,
     limits: engine::ProgramLimits,
+    /// `--backend NAME` (`cli.backend.flag`).
+    backend: Option<Backend>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -882,6 +938,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         packages: Vec::new(),
         engine: engine::EngineKind::default(),
         limits: engine::ProgramLimits::default(),
+        backend: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -912,6 +969,12 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if let Some(jobs) = jobs_flag(args, i) {
             let (n, used) = jobs?;
             set_jobs(n);
+            i += used;
+            continue;
+        }
+        if let Some(b) = backend_flag(args, i) {
+            let (backend, used) = b?;
+            w.backend = Some(backend);
             i += used;
             continue;
         }
@@ -1068,7 +1131,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     program.only_program(&chosen.file);
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine, w.release).with(w.backend);
     let built = match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(built) => built,
         Err(code) => return code,
@@ -1200,7 +1263,7 @@ fn build_command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stdout(w.json);
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine, w.release).with(w.backend);
     let built = match w.positional.as_slice() {
         [] if !w.packages.is_empty() => {
             match std::env::current_dir()

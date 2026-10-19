@@ -34,6 +34,7 @@ hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
 hd_wasm = { path = "../hd_wasm" }
+hd_wasm_linear = { path = "../hd_wasm_linear" }
 
 [build-dependencies]
 hd_syntax = { path = "../hd_syntax" }

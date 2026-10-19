@@ -1397,7 +1397,7 @@ what the spec names as intrinsic or what only it can build.
 | `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the wake table | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
 | the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
-| conformance on both backends | `HD_CONFORMANCE_BACKEND=linear` runs every runtime case on the linear backend, judged by the root `KNOWN_FAILURES_LINEAR.tsv` (the columns of `KNOWN_FAILURES.tsv`, each row citing an issue) | 2 |
+| conformance on both backends | the driver tier runs every runtime case once more on the linear backend, judged by the root `KNOWN_FAILURES_LINEAR.tsv` (the columns of `KNOWN_FAILURES.tsv`, each row citing an issue) | 2 |
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts, release glue, the collector | hd in further `std.rt` modules, called by emitted code | 8, 19, 21 |

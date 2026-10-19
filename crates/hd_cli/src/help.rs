@@ -38,6 +38,10 @@ const ENGINE: (&str, &str) = (
     "--engine NAME",
     "run on the engine NAME; the default is HD_ENGINE, else the implementation's own",
 );
+const BACKEND: (&str, &str) = (
+    "--backend NAME",
+    "build with the backend NAME: wasm-gc (the default) or linear",
+);
 const FORMAT: (&str, &str) = (
     "--format FORMAT",
     "print diagnostics as text (the default) or as JSON lines",
@@ -52,7 +56,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--backend NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
@@ -60,6 +64,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            BACKEND,
             CAP,
             TIME_LIMIT,
             CLEANUP_LIMIT,
@@ -88,18 +93,18 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "build",
         summary: "build the package's executables, or the module of one FILE in the package",
-        usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",
+        usage: "hd build [--release] [--engine NAME] [--backend NAME] [-p NAME] [FILE]",
         about: &[
             "Build each executable NAME of the package to build/debug/NAME.wasm, or to",
             "build/release/ with --release; with FILE, its module to build/debug/files/STEM.wasm.",
             "A package with no executable is checked, and no .wasm file is written.",
         ],
-        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS],
+        flags: &[RELEASE, ENGINE, BACKEND, PACKAGE, FORMAT, JOBS],
     },
     Command {
         name: "run",
         summary: "run the package's executable, or the executable or task named NAME",
-        usage: "hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
+        usage: "hd run [--release] [--engine NAME] [--backend NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
         about: &[
             "Run the package's executable, or the executable or task named NAME.",
             "",
@@ -110,6 +115,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            BACKEND,
             PACKAGE,
             CAP,
             TIME_LIMIT,

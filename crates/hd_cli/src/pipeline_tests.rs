@@ -24,7 +24,11 @@ fn args(words: &[&str]) -> Vec<OsString> {
 }
 
 fn pipeline(target: EngineTarget, level: OptLevel) -> Pipeline {
-    Pipeline { target, level }
+    Pipeline {
+        target,
+        level,
+        backend: hd_driver::Backend::WasmGc,
+    }
 }
 
 /// A package `shop` with `files`, below the scratch directory `name`.
@@ -160,4 +164,57 @@ fn a_test_run_and_its_executables_build_for_its_engine() {
         words.push(file.clone().into());
         crate::test_cmd::command(&words);
     });
+}
+
+/// Runs `command` with `--backend linear`, `--backend=wasm-gc` and no
+/// flag, and checks that each built once, with that backend.
+fn check_backend(command: &dyn Fn(&[&str])) {
+    for (flags, backend) in [
+        (&["--backend", "linear"][..], hd_driver::Backend::Linear),
+        (&["--backend=wasm-gc"][..], hd_driver::Backend::WasmGc),
+        (&[][..], hd_driver::Backend::WasmGc),
+    ] {
+        take_built();
+        command(flags);
+        let built: Vec<_> = take_built().iter().map(|p| p.backend).collect();
+        assert_eq!(built, [backend], "{flags:?}");
+    }
+}
+
+/// `--backend NAME` on `hd FILE`, `hd run` and `hd build`
+/// (`cli.backend.flag`, `cli.backend.select`): each builds with the backend
+/// the flag names, and without the flag with the default one.
+#[test]
+fn hd_file_run_and_build_take_the_backend_flag() {
+    let dir = package("pipeline-backend", &[("src/main.hd", BROKEN)]);
+    let file = path(&dir, "src/main.hd");
+    check_backend(&|flags| {
+        let mut words = args(flags);
+        words.push(file.clone().into());
+        crate::run_file_command(&words);
+    });
+    check_backend(&|flags| {
+        crate::run_in(&dir, &args(flags));
+    });
+    check_backend(&|flags| {
+        let mut words = args(flags);
+        words.push(file.clone().into());
+        crate::build_command(&words);
+    });
+}
+
+/// A backend NAME that is not offered, or a missing one, is a usage error
+/// (`cli.backend.unknown`) that builds nothing.
+#[test]
+fn an_unknown_backend_is_refused() {
+    for words in [&["--backend", "gc"][..], &["--backend"][..]] {
+        let Err(error) = crate::words("build", &args(words)) else {
+            panic!("{words:?} was accepted");
+        };
+        assert!(error.contains("backend"), "{error}");
+    }
+    let dir = package("pipeline-backend-unknown", &[("src/main.hd", BROKEN)]);
+    take_built();
+    crate::run_in(&dir, &args(&["--backend", "gc"]));
+    assert!(take_built().is_empty());
 }
