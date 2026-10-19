@@ -15,10 +15,10 @@ enum Node:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
-    Group(body: Node, index: usize)
+    Group(body: &Node, index: usize)
     Concat(items: List[Node])
     Alternate(branches: List[Node])
-    Repeat(body: Node, min: usize, max: usize?, greedy: bool)
+    Repeat(body: &Node, min: usize, max: usize?, greedy: bool)
 
 enum ClassItem:
     Range(low: char, high: char)
@@ -47,7 +47,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
         .End => program.push(Inst.End)
         .Group(body, index) =>
             program.push(Inst.Save(2 * index))
-            compile(body, program)
+            compile(*body, program)
             program.push(Inst.Save(2 * index + 1))
         .Concat(items) =>
             for item in items:
@@ -75,25 +75,25 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                     if min == 0:
                         loop_start := program.len()
                         program.push(Inst.Split(0, 0))
-                        compile(body, program)
+                        compile(*body, program)
                         program.push(Inst.Jump(loop_start))
                         program[loop_start] = choice(loop_start + 1, program.len(), greedy)
                     else:
                         while copies < min - 1:
-                            compile(body, program)
+                            compile(*body, program)
                             copies = copies + 1
                         last := program.len()
-                        compile(body, program)
+                        compile(*body, program)
                         program.push(choice(last, program.len() + 1, greedy))
                 .Some(high) =>
                     while copies < min:
-                        compile(body, program)
+                        compile(*body, program)
                         copies = copies + 1
                     let splits: mut List[usize] = []
                     while copies < high:
                         splits.push(program.len())
                         program.push(Inst.Split(0, 0))
-                        compile(body, program)
+                        compile(*body, program)
                         copies = copies + 1
                     for split in splits:
                         program[split] = choice(split + 1, program.len(), greedy)
@@ -347,18 +347,18 @@ fn gen_repeat(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     # A literal run is wrapped so the quantifier repeats all of it.
     text := "(?:" + atom.text + ")"
     if kind == 6:
-        return Built { node: Node.Repeat(atom.node, 0, .None, greedy), text: text + "*" + lazy }
+        return Built { node: Node.Repeat(&atom.node, 0, .None, greedy), text: text + "*" + lazy }
     if kind == 7:
-        return Built { node: Node.Repeat(atom.node, 1, .None, greedy), text: text + "+" + lazy }
+        return Built { node: Node.Repeat(&atom.node, 1, .None, greedy), text: text + "+" + lazy }
     if kind == 8:
-        return Built { node: Node.Repeat(atom.node, 0, .Some(1), greedy), text: text + "?" + lazy }
+        return Built { node: Node.Repeat(&atom.node, 0, .Some(1), greedy), text: text + "?" + lazy }
     low := c.int(0..=3)
     if kind == 9:
-        return Built { node: Node.Repeat(atom.node, low, .Some(low), greedy), text: text + "{$low}" + lazy }
+        return Built { node: Node.Repeat(&atom.node, low, .Some(low), greedy), text: text + "{$low}" + lazy }
     if kind == 10:
-        return Built { node: Node.Repeat(atom.node, low, .None, greedy), text: text + "{$low,}" + lazy }
+        return Built { node: Node.Repeat(&atom.node, low, .None, greedy), text: text + "{$low,}" + lazy }
     high := low + c.int(0..=2)
-    Built { node: Node.Repeat(atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
+    Built { node: Node.Repeat(&atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
 
 fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
     kind := c.int(0..=(if depth >= 2: 8 else: 11))
@@ -396,7 +396,7 @@ fn gen_atom(c: mut Choices, depth: usize, names: mut List[string]) -> Built:
         names.push(name)
         open = "(?P<$name>"
     inner := gen_alternation(c, depth + 1, names)
-    Built { node: Node.Group(inner.node, index), text: open + inner.text + ")" }
+    Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
 
 fn gen_perl(c: mut Choices) -> (ClassItem, string):
     match c.int(0..=3):
@@ -633,10 +633,10 @@ fn alt(branches: List[Node]) -> Node:
     Node.Alternate(branches)
 
 fn group(body: Node) -> Node:
-    Node.Group(body, 1)
+    Node.Group(&body, 1)
 
 fn rep(body: Node, min: usize, max: usize?) -> Node:
-    Node.Repeat(body, min, max, true)
+    Node.Repeat(&body, min, max, true)
 
 fn range(low: char, high: char) -> Node:
     Node.Class([ClassItem.Range(low, high)], false)

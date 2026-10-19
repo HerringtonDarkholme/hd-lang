@@ -38,7 +38,7 @@ data Tag:
 @derive(Shape)
 enum Nest[T]:
     Leaf(value: T)
-    Deep(next: Nest[List[T]])
+    Deep(next: &Nest[List[T]])
 
 tests:
     use std.testing.assert_equal

@@ -84,7 +84,7 @@ fn a_panic_lists_its_frames_panic_site_first() {
         "\
 PANIC src/lib.hd:20: sums prices
     panic: assertion-failed: total is 10
-    <std>/testing.hd:615 std.testing.assert
+    <std>/testing.hd:625 std.testing.assert
     src/lib.hd:7 shop.total
     src/lib.hd:21 test \"sums prices\"
     repro: hd test src/lib.hd --filter \"sums prices\"

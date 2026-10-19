@@ -248,6 +248,48 @@ fn invalid(t: &Team) -> Team:
 > **Why.** Without the copy-out rule, `*t` would be an ordinary `Team`
 > whose `lead` is writable again, and read-only would not be transitive.
 
+## Matching Through A Reference
+
+A pattern that tests a value reads through a reference, as a field access does, so a recursive enum is matched through its `&` links.
+
+```hd
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+fn eval(e: &Expr) -> i64:
+    match e:
+        .Num(n) => n
+        .Add(.Num(a), r) => a + eval(r)
+        .Add(l, r) => eval(l) + eval(r)
+```
+
+1. r[ref.match.read] A variant, tuple, data, literal, or range pattern matched against a value of type `&T` or `&mut T` matches the value the reference refers to.
+2. r[ref.match.nested] The rule applies at every depth: a nested pattern reads through a payload field, a tuple element, or a data field of reference type.
+3. r[ref.match.binding] A binding or `_` matched against a reference takes the reference itself, so `whole => whole is e` is `true`.
+4. r[ref.match.copy] A payload or field that a pattern binds below such a read is a copy of it, read at the time of the match. A payload is not a place.
+5. r[ref.match.weaken] Below a read through `&T`, each binding has its type weakened as [`ref.read.weaken`](#r-ref.read.weaken) states.
+
+```text
+enum Holder:
+    Empty
+    Cell(value: &mut i64)
+
+fn reset(h: &Holder) -> void:
+    match h:
+        .Cell(value) =>
+            *value = 0  # error: readonly-root
+        .Empty => pass
+```
+
+> **Why.** Payloads are not places, so a match never lends part of an
+> enum. A binding is a copy, and a later write to the matched place does
+> not change it; an enum's layout can then change between variants under
+> no reference.
+
+See also: [Payload Bindings](06-control-flow.md#payload-bindings),
+[Exhaustiveness](06-control-flow.md#exhaustiveness).
+
 ## Writing Through A Reference
 
 `*r = v` replaces the value `r` refers to, and a field assignment through a `&mut` reference writes the referenced value's field.

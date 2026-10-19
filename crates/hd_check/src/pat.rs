@@ -99,6 +99,19 @@ fn bind(row: &Row<'_>, sets: &mut Vec<(LocalId, Ref, NodeIdx)>, at: NodeIdx, v: 
     }
 }
 
+/// Whether a pattern tests its value, so a reference is read through to
+/// test the value it refers to (`ref.match.read`): every pattern but a
+/// name, `_`, `()` and a spread.
+fn tests_value(p: NodeRef<'_>) -> bool {
+    match p.kind() {
+        SyntaxKind::WildcardPattern | SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern => {
+            false
+        }
+        SyntaxKind::TuplePattern => p.children().next().is_some(),
+        _ => true,
+    }
+}
+
 /// Whether a sub-pattern tests or binds its value: all but `_` and `()`.
 fn reads(p: NodeRef<'_>) -> bool {
     match p.kind() {
@@ -166,6 +179,17 @@ impl Ck<'_, '_> {
         binds: &mut Vec<(NodeIdx, LocalId)>,
     ) -> StageResult<()> {
         let pool = self.pool();
+        // `ref.match.read`: a pattern that tests its value reads through a
+        // reference; a name or `_` takes the reference itself.
+        if tests_value(p)
+            && let Some((referent, mutable)) = self.ref_of(t)
+        {
+            let outer = self.pattern_shared;
+            self.pattern_shared |= !mutable;
+            let r = self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
+            self.pattern_shared = outer;
+            return r;
+        }
         let tr = self.infer.resolve(pool, t);
         let inner = match pool.get(tr) {
             TyData::Mut(i) => i,
@@ -186,7 +210,10 @@ impl Ck<'_, '_> {
                 let name = self.cx.names.syms.intern(self.cx.src.text(nt));
                 // `flow.match.bare-variant`: a bare name of a variant of
                 // the subject's enum is not a catch-all binding.
-                if self.variant_fields(t, self.cx.src.text(nt)).is_some() {
+                if self
+                    .variant_fields(self.strip(t), self.cx.src.text(nt))
+                    .is_some()
+                {
                     let msg = format!("write `.{}` or a qualified name", self.cx.src.text(nt));
                     self.err(Code::BareVariantPattern, p, &msg);
                     self.pattern_rejected = true;
@@ -557,6 +584,12 @@ impl Ck<'_, '_> {
             // `name @ pattern`-like forms.
             return unsupported("a binding with a sub-pattern");
         }
+        // `ref.match.weaken`: a copy read through `&T` holds no `&mut`.
+        let t = if self.pattern_shared {
+            self.weaken(t)
+        } else {
+            t
+        };
         let t = match self.let_view {
             Some(annotated)
                 if p.direct_tokens()
@@ -1136,6 +1169,20 @@ impl Ck<'_, '_> {
         let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
             return self.leaf(rows, occs, m, lits);
         };
+        // `ref.match.read`: every name bound to this column was set by
+        // `settle`, so the test reads the value the reference refers to.
+        if self.ref_of(occs[j].1).is_some() {
+            let at = match first.cells[j] {
+                Cell::Pat(p) => p.index(),
+                Cell::Some(_) | Cell::Wild => NodeIdx::NONE,
+            };
+            let (mut v, mut t) = occs[j];
+            while self.ref_of(t).is_some() {
+                (v, t) = self.emit_deref(v, t, at);
+            }
+            let occs = splice(occs, j, [(v, t)]);
+            return self.tree(rows, &occs, m, lits);
+        }
         match first.cells[j] {
             Cell::Pat(p) => match p.kind() {
                 SyntaxKind::TuplePattern => {
@@ -1172,7 +1219,7 @@ impl Ck<'_, '_> {
                 // An unknown variant was reported when the pattern was
                 // declared.
                 SyntaxKind::VariantPattern => self
-                    .variant_fields(t, &self.variant_pattern_name(p))
+                    .variant_fields(self.strip(t), &self.variant_pattern_name(p))
                     .is_none(),
                 _ => false,
             };
@@ -1700,6 +1747,7 @@ impl Ck<'_, '_> {
                 )
             }
             SyntaxKind::VariantPattern => {
+                let t = self.strip(t);
                 let name = self.variant_pattern_name(p);
                 let fields = self
                     .variant_fields(t, &name)
@@ -1798,11 +1846,14 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `t` with its views and references taken off: the type whose values
+    /// the exhaustiveness and reachability checks split, which a test
+    /// reads through any reference (`ref.match.read`).
     fn strip(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
-            TyData::Mut(i) => self.infer.resolve(pool, i),
+            TyData::Mut(i) | TyData::Ref { inner: i, .. } => self.strip(i),
             _ => t,
         }
     }

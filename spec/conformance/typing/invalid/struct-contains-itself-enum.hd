@@ -1,7 +1,7 @@
 # Spec 08 Struct Declarations: data.struct.no-recursion, data.struct.contains, through an enum payload.
 enum Link:
     End
-    More(tree: Tree)
+    More(forest: Forest)
 
-struct Tree:
+struct Forest:
     link: Link  # diagnostic: recursive-value-type

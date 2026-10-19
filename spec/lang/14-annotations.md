@@ -1467,31 +1467,33 @@ alone, by the rules below.
 2. r[annot.self-ref.enclosing.arguments] In these rules, the enclosing type is its declaration applied to any type arguments. Inside `enum Nest[T]`, `Nest[List[T]]` is the enclosing type.
 3. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
 4. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
-5. r[annot.self-ref.needs.self] A type needs the enclosing type when it is the enclosing type.
-6. r[annot.self-ref.needs.compound] A tuple or data type needs it when one of its element or member types needs it, with the data type's type arguments substituted.
-7. r[annot.self-ref.needs.result] `Result[T, E]` needs it when `T` does.
-8. r[annot.self-ref.needs.enum] Any other enum type needs it when each of its variants has a member whose type needs it, with the enum's type arguments substituted.
-9. r[annot.self-ref.needs.stop] A `List`, `Map`, or optional type never needs the enclosing type, whatever its type arguments.
-10. r[annot.self-ref.needs.only] No other type needs the enclosing type.
-11. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
-12. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
-13. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
-14. r[annot.self-ref.variant.omitted] A variant's `self_ref` also counts every member that the derivation omits with `= pass`, so it reflects the declaration rather than one derivation's view.
+5. r[annot.self-ref.refers.reference] A reference type, `&T` or `&mut T`, refers to the enclosing type when `T` does.
+6. r[annot.self-ref.needs.self] A type needs the enclosing type when it is the enclosing type.
+7. r[annot.self-ref.needs.compound] A tuple or data type needs it when one of its element or member types needs it, with the data type's type arguments substituted.
+8. r[annot.self-ref.needs.result] `Result[T, E]` needs it when `T` does.
+9. r[annot.self-ref.needs.reference] A reference type, `&T` or `&mut T`, needs it when `T` does, since a reference always refers to a value.
+10. r[annot.self-ref.needs.enum] Any other enum type needs it when each of its variants has a member whose type needs it, with the enum's type arguments substituted.
+11. r[annot.self-ref.needs.stop] A `List`, `Map`, or optional type never needs the enclosing type, whatever its type arguments.
+12. r[annot.self-ref.needs.only] No other type needs the enclosing type.
+13. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
+14. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
+15. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
+16. r[annot.self-ref.variant.omitted] A variant's `self_ref` also counts every member that the derivation omits with `= pass`, so it reflects the declaration rather than one derivation's view.
 
 ```text
 enum Expr:
     Num(value: i32)
-    Add(left: Expr, right: Expr)
+    Add(left: &Expr, right: &Expr)
     Block(items: List[Expr])
     Wrap(inner: Inner)
     Pick(choice: Choice)
 
 enum Inner:
-    Only(expr: Expr)
+    Only(expr: &Expr)
 
 enum Choice:
     Skip
-    Take(expr: Expr)
+    Take(expr: &Expr)
 
 data Node:
     label: string

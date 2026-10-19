@@ -1,0 +1,7 @@
+# Spec 08 Generic And Recursive Enums: data.enum.no-recursion.group, a struct and an enum that contain each other are one error.
+enum Branch:
+    Leaf
+    Fork(forest: Forest)  # diagnostic: recursive-value-type
+
+struct Forest:
+    branch: Branch

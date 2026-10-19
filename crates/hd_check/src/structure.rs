@@ -816,7 +816,9 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         }
         seen.push(t);
         match pool.get(t) {
-            TyData::Mut(x) => self.needs(x, seen),
+            // `annot.self-ref.needs.reference`: a reference always refers to
+            // a value, so it needs what its referent needs.
+            TyData::Mut(x) | TyData::Ref { inner: x, .. } => self.needs(x, seen),
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().any(|e| self.needs(*e, seen))
                     || rest.is_some_and(|r| self.needs(r, seen))

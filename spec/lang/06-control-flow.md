@@ -513,6 +513,7 @@ fn grade(score: i32) -> string:
 | r[flow.match.cover.data] Data | A data pattern covers its nominal data type when every listed field pattern is irrefutable, while unlisted fields are unconstrained. |
 | r[flow.match.cover.integer] Integer | An integer type is covered when its literal and [range patterns](#range-patterns) together hold every value of the type, or by a catch-all pattern. |
 | r[flow.match.cover.other-values] Other values | Floating-point, `char`, `string`, and other value spaces require an irrefutable catch-all after any literal cases. |
+| r[flow.match.cover.reference] Reference | A subject of type `&T` or `&mut T` is covered as a subject of type `T`, since its patterns [read through it](13-values-and-references.md#matching-through-a-reference). |
 
 1. r[flow.match.guard.coverage] A guarded arm contributes no coverage to exhaustiveness, even when its pattern would be irrefutable without the guard.
 2. r[flow.match.guard.later-arm] A later unguarded arm must cover its values.

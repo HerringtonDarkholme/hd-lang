@@ -1,0 +1,21 @@
+# test: a linked list through Option[&Cell] is built with &Cell literals and walked by matching each optional reference
+# Spec 08 Struct Declarations: data.struct.contains.reference; Generic And Recursive Enums: data.enum.recursive. Spec 13 Identity: ref.identity.optional.
+# Spec 13 Matching Through A Reference: ref.match.binding.
+# expect-stdout: 6 3
+struct Cell:
+    value: i64
+    next: &Cell?
+
+fn sum(list: &Cell?) -> i64:
+    match list:
+        .Some(cell) => cell.value + sum(cell.next)
+        .None => 0
+
+fn length(list: &Cell?) -> i64:
+    match list:
+        .Some(cell) => 1 + length(cell.next)
+        .None => 0
+
+pub fn main() -> void $ Console:
+    let list: &Cell? = &Cell { value: 1, next: &Cell { value: 2, next: &Cell { value: 3, next: .None } } }
+    println("${sum(list)} ${length(list)}")

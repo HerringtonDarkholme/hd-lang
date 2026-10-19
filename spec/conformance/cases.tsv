@@ -3562,3 +3562,14 @@ typing/invalid/dyn-ref-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-trai
 typing/invalid/dyn-ref-member-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.ref.member.other
 typing/invalid/anyref-rejects-struct.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.sealed.anyref-kinds
 typing/valid/anyref-accepts-references.hd	type	accept	lang/04-type-system.md#r-types.sealed.anyref-kinds
+typing/invalid/enum-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/enum-contains-itself-optional.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/enum-contains-itself-tuple.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/enum-struct-contain-each-other.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion.group
+runtime/valid/recursive-enum-through-reference.hd	runtime	accept	lang/08-data-and-enums.md#r-data.enum.recursive
+runtime/valid/recursive-list-tree.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.contains.ends
+runtime/valid/recursive-optional-reference-list.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.contains.reference
+runtime/valid/match-reference-payload-copy.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.copy
+typing/invalid/match-reference-weakened-payload.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.match.weaken
+typing/invalid/match-reference-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.reference
+runtime/valid/serde-reference-round-trip.hd	runtime	accept	std/serde.md#r-std-serde.std.reference

@@ -1,0 +1,32 @@
+# test: a struct and an enum that refer to themselves through a List are accepted and walk recursively
+# Spec 08 Struct Declarations: data.struct.contains.ends; Generic And Recursive Enums: data.enum.recursive.
+# expect-stdout: 10
+# expect-stdout: 6
+struct Node:
+    value: i64
+    children: List[Node]
+
+enum Tree:
+    Leaf(value: i64)
+    Branch(children: List[Tree])
+
+fn total(node: Node) -> i64:
+    let sum = node.value
+    for child in node.children:
+        sum = sum + total(child)
+    sum
+
+fn leaves(tree: Tree) -> i64:
+    match tree:
+        .Leaf(value) => value
+        .Branch(children) =>
+            let sum: i64 = 0
+            for child in children:
+                sum = sum + leaves(child)
+            sum
+
+pub fn main() -> void $ Console:
+    root := Node { value: 1, children: [Node { value: 2, children: [] }, Node { value: 3, children: [Node { value: 4, children: [] }] }] }
+    println("${total(root)}")
+    tree := Tree.Branch([Tree.Leaf(1), Tree.Branch([Tree.Leaf(2), Tree.Leaf(3)])])
+    println("${leaves(tree)}")

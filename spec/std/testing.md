@@ -73,16 +73,17 @@ trait Arbitrary:
 9. r[std-testing.choices.float-range.end] A `float` range whose `inclusive` is `false` never returns its `end`, and one whose `inclusive` is `true` may. A range whose `start` is not below its `end` returns `start` and records no draw.
 10. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
 11. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-12. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-13. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-14. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-15. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-16. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-17. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-18. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-19. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-20. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-21. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+12. r[std-testing.arbitrary.reference] `std` also implements `Arbitrary` for `&T` and `&mut T` when `T` implements it. Each draws a `T` and refers to a new object that holds it.
+13. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
+14. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
+15. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+16. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+17. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+18. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+19. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+20. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+21. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+22. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -154,12 +155,12 @@ use std.testing.Choices
 
 enum Tree:
     Leaf
-    Node(left: Tree, right: Tree)
+    Node(left: &Tree, right: &Tree)
 
 fn tree(c: mut Choices) -> Tree:
     match c.int(0..=2):
         0 => .Leaf
-        _ => .Node(tree(c), tree(c))
+        _ => .Node(&tree(c), &tree(c))
 ```
 
 Once the limit is spent, `c.int(0..=2)` returns `0`, so `tree` returns
@@ -258,7 +259,7 @@ data Item:
 
 @derive(Arbitrary, Debug)
 enum Expr:
-    Add(left: Expr, right: Expr)
+    Add(left: &Expr, right: &Expr)
     Num(value: i32)
 
 tests:
@@ -318,7 +319,7 @@ enum Tree:
 
 @derive(Arbitrary, Debug)
 enum Loop:
-    More(next: Loop)
+    More(next: &Loop)
 
 @derive(Arbitrary, Debug)
 data Ring:

@@ -392,6 +392,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
+    /// Declaring a pattern's names below a test that read through a `&T`:
+    /// each name binds a weakened copy (`ref.match.weaken`).
+    pub pattern_shared: bool,
     /// The locals the source binds by name, for `unused-local-binding`.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
@@ -592,6 +595,7 @@ pub(crate) fn new_ck<'a, 'c>(
         written_row: None,
         let_view: None,
         pattern_rejected: false,
+        pattern_shared: false,
         user_locals: Vec::new(),
         norm_depth: 0,
         pre_args: Vec::new(),

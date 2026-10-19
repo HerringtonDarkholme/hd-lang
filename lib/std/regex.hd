@@ -257,10 +257,10 @@ enum Node:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
-    Group(body: Node, index: usize)
+    Group(body: &Node, index: usize)
     Concat(items: List[Node])
     Alternate(branches: List[Node])
-    Repeat(body: Node, min: usize, max: usize?, greedy: bool)
+    Repeat(body: &Node, min: usize, max: usize?, greedy: bool)
 
 # One member of a bracketed class, or a whole `\d`, `\w`, or `\s` class.
 enum ClassItem:
@@ -402,7 +402,7 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
     if source.has(next, '?'):
         greedy = false
         next = next + 1
-    .Ok(Step { node: Node.Repeat(atom.node, min, max, greedy), next: next })
+    .Ok(Step { node: Node.Repeat(&atom.node, min, max, greedy), next: next })
 
 fn parse_atom(source: Pattern, at: usize, names: mut List[string]) -> Result[Step, RegexError]:
     c := source.chars[at]
@@ -463,7 +463,7 @@ fn parse_group(source: Pattern, open: usize, names: mut List[string]) -> Result[
     if !source.has(inner.next, ')'):
         return .Err(RegexError.MissingParen(source.offset(open)))
     if capturing:
-        return .Ok(Step { node: Node.Group(inner.node, index), next: inner.next + 1 })
+        return .Ok(Step { node: Node.Group(&inner.node, index), next: inner.next + 1 })
     .Ok(Step { node: inner.node, next: inner.next + 1 })
 
 # Whether characters `start` to `end` form a group name: an ASCII letter or
@@ -577,7 +577,7 @@ enum Inst:
 fn program_size(node: Node) -> usize:
     match node:
         .Empty => 0
-        .Group(body, _) => program_size(body)
+        .Group(body, _) => program_size(*body)
         .Concat(items) =>
             let total: usize = 0
             for item in items:
@@ -589,7 +589,7 @@ fn program_size(node: Node) -> usize:
                 total = capped(total + program_size(branch) + 2)
             total - 2
         .Repeat(body, min, max, _) =>
-            size := program_size(body)
+            size := program_size(*body)
             match max:
                 .None =>
                     if min == 0:
@@ -618,7 +618,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
         .End => program.push(Inst.End)
         .Group(body, index) =>
             program.push(Inst.Save(2 * index))
-            compile(body, program)
+            compile(*body, program)
             program.push(Inst.Save(2 * index + 1))
         .Concat(items) =>
             for item in items:
@@ -648,27 +648,27 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                         # loop: split body, out; body; jump loop
                         loop_start := program.len()
                         program.push(Inst.Split(0, 0))
-                        compile(body, program)
+                        compile(*body, program)
                         program.push(Inst.Jump(loop_start))
                         program[loop_start] = choice(loop_start + 1, program.len(), greedy)
                     else:
                         while copies < min - 1:
-                            compile(body, program)
+                            compile(*body, program)
                             copies = copies + 1
                         # last: body; split last, out
                         last := program.len()
-                        compile(body, program)
+                        compile(*body, program)
                         program.push(choice(last, program.len() + 1, greedy))
                 .Some(high) =>
                     while copies < min:
-                        compile(body, program)
+                        compile(*body, program)
                         copies = copies + 1
                     # each optional copy: split body, out
                     let splits: mut List[usize] = []
                     while copies < high:
                         splits.push(program.len())
                         program.push(Inst.Split(0, 0))
-                        compile(body, program)
+                        compile(*body, program)
                         copies = copies + 1
                     for split in splits:
                         program[split] = choice(split + 1, program.len(), greedy)
@@ -801,10 +801,10 @@ fn summarize(node: Node) -> Summary:
             add_bytes(firsts, 192, 255)
             open_summary(1, 4, firsts)
         .Class(items, negated) => class_summary(class_ranges(items), negated)
-        .Group(body, _) => summarize(body)
+        .Group(body, _) => summarize(*body)
         .Concat(items) => concat_summary(items)
         .Alternate(branches) => alternate_summary(branches)
-        .Repeat(body, min, max, _) => repeat_summary(summarize(body), min, max)
+        .Repeat(body, min, max, _) => repeat_summary(summarize(*body), min, max)
 
 fn exact_summary(text: string, firsts: List[u64]) -> Summary:
     size := i64(bytes_len(text))

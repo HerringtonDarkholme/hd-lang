@@ -1,0 +1,10 @@
+# Spec 13 Matching Through A Reference: ref.match.weaken, a payload `&mut` matched through `&Holder` binds as `&`.
+enum Holder:
+    Empty
+    Cell(value: &mut i64)
+
+fn reset(h: &Holder) -> void:
+    match h:
+        .Cell(value) =>
+            *value = 0  # diagnostic: readonly-root
+        .Empty => pass

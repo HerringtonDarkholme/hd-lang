@@ -3982,7 +3982,7 @@ impl Run<'_> {
     fn emit_findings(&self, findings: &[hd_check::header::Finding]) {
         let mut d = lock(&self.diags);
         for f in findings {
-            d.error(f.code, self.item_span(f.item, f.slot), &f.message);
+            emit_finding(&mut d, f, |slot| self.item_span(f.item, slot));
         }
     }
 
@@ -5710,15 +5710,16 @@ impl Run<'_> {
             return;
         };
         for f in findings {
-            let span = hd_resolve::anchor::span_in_module(
-                &cx.names,
-                &cx.src,
-                heads,
-                cx.lookup.own,
-                (f.item, f.slot),
-            )
-            .unwrap_or_else(|| self.item_span(f.item, f.slot));
-            diags.error(f.code, span, &f.message);
+            emit_finding(diags, &f, |slot| {
+                hd_resolve::anchor::span_in_module(
+                    &cx.names,
+                    &cx.src,
+                    heads,
+                    cx.lookup.own,
+                    (f.item, slot),
+                )
+                .unwrap_or_else(|| self.item_span(f.item, slot))
+            });
         }
     }
 
@@ -9220,6 +9221,29 @@ fn encode_mentioned(mentions: &[(String, Hash128)]) -> Vec<u8> {
     w.bytes
 }
 
+/// Reports a stage-B finding at the span `span_of` gives its slot, with
+/// its fix-it: `&` written before the type at each of its `ref_fix` slots
+/// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
+fn emit_finding(d: &mut DiagBuf, f: &hd_check::header::Finding, span_of: impl Fn(u32) -> Span) {
+    d.error(f.code, span_of(f.slot), &f.message);
+    if f.ref_fix.is_empty() {
+        return;
+    }
+    let edits: Vec<(Span, &str)> = f
+        .ref_fix
+        .iter()
+        .map(|&slot| {
+            let at = span_of(slot);
+            (Span { hi: at.lo, ..at }, "&")
+        })
+        .collect();
+    d.add_fix(
+        "hold it through a reference",
+        hd_diag::FixSafety::Suggestion,
+        &edits,
+    );
+}
+
 fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);
@@ -9229,6 +9253,10 @@ fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) ->
         w.u32(f.slot);
         w.str(f.code.as_str());
         w.str(&f.message);
+        w.len_of(&f.ref_fix);
+        for &slot in &f.ref_fix {
+            w.u32(slot);
+        }
     }
     w.bytes
 }
@@ -9241,11 +9269,13 @@ fn decode_header_findings(b: &[u8], items: &Items) -> Option<Vec<hd_check::heade
         let slot = r.u32();
         let code = Code::from_name(r.str())?;
         let message = r.str().to_owned();
+        let ref_fix = (0..r.count()).map(|_| r.u32()).collect();
         out.push(hd_check::header::Finding {
             item: *items.defs().get(at)?,
             slot,
             code,
             message,
+            ref_fix,
         });
     }
     r.ok().then_some(out)

@@ -178,6 +178,14 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   `*r = v` calls `set`; a field read or method call through `r` reads
   through `get` first. A read-only reference's `set` is `unreachable`,
   since the type system never calls it.
+- **Matching through a reference.** A pattern that tests a value of type
+  `&T` ([Matching Through A Reference](../../spec/lang/13-values-and-references.md#matching-through-a-reference))
+  is lowered in the checker's decision tree (`crates/hd_check/src/pat.rs`
+  `tree`): before the first test of that column it emits the same
+  `Field(r, get)` and `CallValue`, once per path, and the tag switch,
+  payload reads and literal compares then work on the value as for any
+  subject. A name bound to the column keeps the reference itself. So the
+  backend sees ordinary TIR and is unchanged.
 - **Why not a cell per reference.** A reference to a field of a struct
   value has nothing to point at: struct values are immutable objects
   shared by every place that copied them. A pair of closures handles a
@@ -368,7 +376,11 @@ one load and compare.
 self-recursive when its declaration reaches itself through value
 positions: enum payloads, tuple elements, `T?`, and another enum's
 argument when that enum holds the parameter in a value position. Data,
-collections, functions and trait values are references and end a path.
+collections, functions, trait values and references (`Ref[T]`) end a
+path. The checker rejects an enum that contains itself by value
+([`data.enum.no-recursion`](../../spec/lang/08-data-and-enums.md#r-data.enum.no-recursion)),
+so a recursive enum writes `&` and a checked program reaches the boxing
+below only through an unresolved projection; it stays for that case.
 A cycle of declarations decides, found once per program
 (`hd_mono::layout::recursive_enums`), so a payload naming its own enum at
 growing arguments (`E[T?]` in `E[T]`) is boxed like a plain one and every

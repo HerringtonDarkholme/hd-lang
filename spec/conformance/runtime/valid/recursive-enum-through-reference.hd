@@ -1,0 +1,38 @@
+# test: an expression tree through &Expr is built and evaluated recursively; match reads through each reference, nested patterns too
+# Spec 08 Generic And Recursive Enums: data.enum.recursive, data.enum.no-boxing.
+# Spec 13 Matching Through A Reference: ref.match.read, ref.match.nested, ref.match.binding.
+# expect-stdout: 7
+# expect-stdout: 1 2
+# expect-stdout: true
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+    Mul(left: &Expr, right: &Expr)
+    Neg(inner: &Expr)
+
+fn eval(e: &Expr) -> i64:
+    match e:
+        .Num(n) => n
+        .Add(l, r) => eval(l) + eval(r)
+        .Mul(l, r) => eval(l) * eval(r)
+        .Neg(.Neg(inner)) => eval(inner)
+        .Neg(inner) => -eval(inner)
+
+fn leading(e: &Expr) -> i64:
+    match e:
+        .Add(.Num(n), _) => n
+        .Add(.Mul(.Num(n), _), _) => n
+        _ => 0
+
+fn whole_is_subject(e: &Expr) -> bool:
+    match e:
+        .Num(_) => false
+        whole => whole is e
+
+pub fn main() -> void $ Console:
+    product := Expr.Mul(&Expr.Num(2), &Expr.Neg(&Expr.Neg(&Expr.Num(3))))
+    e := Expr.Add(&Expr.Num(1), &product)
+    println("${eval(&e)}")
+    nested := Expr.Add(&product, &Expr.Num(0))
+    println("${leading(&e)} ${leading(&nested)}")
+    println("${whole_is_subject(&e)}")

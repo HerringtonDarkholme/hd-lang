@@ -398,17 +398,47 @@ impl Ck<'_, '_> {
     }
 }
 
-/// Whether a value of type `t` holds a value of the struct `target`
-/// inline: through struct fields, enum payloads, tuple elements,
-/// optionals and newtypes, but not through a data type, a collection, a
-/// trait value or a function (`data.struct.no-recursion`). `seen` holds
-/// the types already searched.
-pub(crate) fn holds_struct(
+/// Whether a value of type `t` holds a value of the struct or enum
+/// `target` inline: through struct fields, enum payloads, tuple elements,
+/// optionals and newtypes, but not through a reference, a data type, a
+/// collection, a trait value or a function (`data.struct.contains`,
+/// `data.struct.no-recursion`, `data.enum.no-recursion`). `seen` holds the
+/// types already searched.
+pub(crate) fn holds_value(
     pool: hd_types::Types<'_>,
     lookup: &hd_resolve::Lookup<'_>,
     t: Ty,
     target: DefId,
     seen: &mut Vec<Ty>,
+) -> bool {
+    walk_values(pool, lookup, t, seen, &mut |d| d == target)
+}
+
+/// The declarations whose values a value of type `t` holds inline, as
+/// [`holds_value`] searches them, each once, in the order first reached.
+pub(crate) fn held_values(
+    pool: hd_types::Types<'_>,
+    lookup: &hd_resolve::Lookup<'_>,
+    t: Ty,
+    seen: &mut Vec<Ty>,
+    out: &mut Vec<DefId>,
+) {
+    walk_values(pool, lookup, t, seen, &mut |d| {
+        if !out.contains(&d) {
+            out.push(d);
+        }
+        false
+    });
+}
+
+/// Visits each declaration whose value `t` holds inline, stopping at the
+/// first for which `found` is true; whether one was.
+fn walk_values(
+    pool: hd_types::Types<'_>,
+    lookup: &hd_resolve::Lookup<'_>,
+    t: Ty,
+    seen: &mut Vec<Ty>,
+    found: &mut dyn FnMut(DefId) -> bool,
 ) -> bool {
     if seen.contains(&t) || seen.len() > 256 {
         return false;
@@ -444,13 +474,17 @@ pub(crate) fn holds_struct(
     };
     let mut inner = Vec::new();
     match pool.get(t) {
-        TyData::Adt { def, .. } if def == target => return true,
-        TyData::Adt { def, args } => field_tys(def, args, &mut inner),
+        TyData::Adt { def, args } => {
+            if found(def) {
+                return true;
+            }
+            field_tys(def, args, &mut inner);
+        }
         TyData::Option(i) | TyData::Mut(i) => inner.push(i),
         TyData::Tuple { elems, .. } => inner.extend(pool.list_items(elems).iter().copied()),
         _ => {}
     }
     inner
         .into_iter()
-        .any(|i| holds_struct(pool, lookup, i, target, seen))
+        .any(|i| walk_values(pool, lookup, i, seen, found))
 }

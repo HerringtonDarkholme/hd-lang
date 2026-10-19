@@ -6,11 +6,11 @@ use std.testing.{Arbitrary, it_prop}
 
 @derive(Arbitrary, Debug)
 enum Loop:
-    More(next: Loop)
+    More(next: &Loop)
 
 @derive(Arbitrary, Debug)
 enum Step:
-    Next(result: Result[Step, string])
+    Next(result: Result[&Step, string])
 
 tests:
     it_prop("a directly recursive enum panics", expect_panic="explicit-panic", prop=fn!(value: Loop):

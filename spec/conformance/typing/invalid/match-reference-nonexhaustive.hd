@@ -1,0 +1,9 @@
+# Spec 06 Exhaustiveness: flow.match.cover.reference, a match through `&Expr` needs every variant of `Expr`.
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+fn eval(e: &Expr) -> i64:
+    match e:  # diagnostic: nonexhaustive-match
+        .Num(n) => n
+        .Add(.Num(a), right) => a + eval(right)

@@ -49,6 +49,11 @@ pub struct Finding {
     pub slot: u32,
     pub code: Code,
     pub message: String,
+    /// The slots of the item's type positions a fix-it writes `&` before:
+    /// `recursive-value-type` on each field that holds its own type
+    /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
+    /// Empty for every other finding.
+    pub ref_fix: Vec<u32>,
 }
 
 /// Stage B over a folder's interface items that `HeaderCheck(F)` covers
@@ -350,6 +355,7 @@ impl<'a> ItemCheck<'_, 'a> {
             slot,
             code,
             message,
+            ref_fix: Vec::new(),
         });
     }
 
@@ -1029,36 +1035,94 @@ impl<'a> ItemCheck<'_, 'a> {
             if self.cx.lookup.item(def).is_some_and(|i| i.is_struct))
     }
 
-    /// The struct rule of a declaration: a struct that holds itself
-    /// through its value fields (`data.struct.no-recursion`).
+    /// The value rule of a declaration: a struct or enum that holds itself
+    /// through its value fields or payloads (`data.struct.no-recursion`,
+    /// `data.enum.no-recursion`), reported once, at the first such field,
+    /// with a fix-it that writes `&` before every one
+    /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
-        match &it.data {
-            ItemData::Data(fs) if it.is_struct => {
-                for (i, f) in fs.iter().enumerate() {
-                    let mut seen = Vec::new();
-                    if crate::value::holds_struct(
-                        self.pool(),
-                        self.cx.lookup,
-                        f.ty,
-                        it.def,
-                        &mut seen,
-                    ) {
-                        let message = format!(
-                            "the struct `{}` holds itself through the field `{}`; a value cannot contain itself, so hold it through a collection or a data type",
-                            self.cx.names.display_name(it.def),
-                            self.cx.names.text(f.name)
-                        );
-                        self.report(
-                            u32::try_from(i + 1).unwrap_or(0),
-                            Code::RecursiveValueType,
-                            message,
-                        );
-                        break;
-                    }
-                }
-            }
-            _ => {}
+        let (fields, kind, part): (Vec<&hd_resolve::Field>, &str, &str) = match &it.data {
+            ItemData::Data(fs) if it.is_struct => (fs.iter().collect(), "struct", "field"),
+            ItemData::Enum { shared, variants } => (
+                shared
+                    .iter()
+                    .chain(variants.iter().flat_map(|v| &v.fields))
+                    .collect(),
+                "enum",
+                "payload field",
+            ),
+            _ => return,
+        };
+        let holding: Vec<usize> = fields
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| {
+                crate::value::holds_value(
+                    self.pool(),
+                    self.cx.lookup,
+                    f.ty,
+                    it.def,
+                    &mut Vec::new(),
+                )
+            })
+            .map(|(i, _)| i)
+            .collect();
+        let Some(&first) = holding.first() else {
+            return;
+        };
+        if self.cycle_reported_elsewhere(it.def, &fields) {
+            return;
         }
+        let message = format!(
+            "the {kind} `{}` holds itself through the {part} `{}`; a value cannot contain itself, so hold it through a reference (`&`), an optional reference, or a collection",
+            self.cx.names.display_name(it.def),
+            self.cx.names.text(fields[first].name)
+        );
+        let slot = |i: usize| u32::try_from(i + 1).unwrap_or(0);
+        self.out.push(Finding {
+            item: self.item,
+            slot: slot(first),
+            code: Code::RecursiveValueType,
+            message,
+            ref_fix: holding.into_iter().map(slot).collect(),
+        });
+    }
+
+    /// Whether a group of declarations that hold one another by value,
+    /// `def` among them, is reported at another of them: the one whose
+    /// module path, then name, sorts first
+    /// (`data.enum.no-recursion.group`). Each other member `Y` holds `def`,
+    /// and `def` holds `Y`, through the declarations as written.
+    fn cycle_reported_elsewhere(&self, def: DefId, fields: &[&hd_resolve::Field]) -> bool {
+        let pool = self.pool();
+        let lookup = self.cx.lookup;
+        let key = |d: DefId| {
+            (
+                self.cx.names.module_of(d),
+                self.cx.names.display_name(d).to_owned(),
+            )
+        };
+        let mut held = Vec::new();
+        let mut seen = Vec::new();
+        for f in fields {
+            crate::value::held_values(pool, lookup, f.ty, &mut seen, &mut held);
+        }
+        let mine = key(def);
+        held.into_iter().filter(|&y| y != def).any(|y| {
+            let own: Vec<Ty> = match lookup.item(y).map(|i| (&i.data, i.is_struct)) {
+                Some((ItemData::Data(fs), true)) => fs.iter().map(|f| f.ty).collect(),
+                Some((ItemData::Enum { shared, variants }, _)) => shared
+                    .iter()
+                    .chain(variants.iter().flat_map(|v| &v.fields))
+                    .map(|f| f.ty)
+                    .collect(),
+                _ => return false,
+            };
+            key(y) < mine
+                && own
+                    .into_iter()
+                    .any(|t| crate::value::holds_value(pool, lookup, t, def, &mut Vec::new()))
+        })
     }
 
     /// A delegation target: the embedded field `by` implements the trait.

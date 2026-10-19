@@ -39,7 +39,7 @@ impl[T] Shape for T by Structure:
 @derive(Shape)
 enum Expr:
     Num(value: i32)
-    Add(left: Expr, right: Expr)
+    Add(left: &Expr, right: &Expr)
     Block(items: List[Expr])
     Empty
 

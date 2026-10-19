@@ -1,0 +1,24 @@
+# test: a reference member writes the value it refers to and reads into a new object, so a tree through &Node? round trips as JSON
+# Spec std/serde Standard Implementations: std-serde.std.reference. Spec std/json Encode And Decode: std-json.encode.
+# expect-stdout: {"value":1,"next":{"value":2,"next":null}}
+# expect-stdout: 2
+use std.json.{encode, decode}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+struct Cell:
+    value: i64
+    next: &Cell?
+
+fn last(cell: &Cell) -> i64:
+    match cell.next:
+        .Some(next) => last(next)
+        .None => cell.value
+
+pub fn main() -> void $ Console:
+    list := Cell { value: 1, next: &Cell { value: 2, next: .None } }
+    text := encode(list)
+    println(text)
+    match decode::[Cell](text):
+        .Ok(back) => println(last(&back).to_string())
+        .Err(error) => println("decode failed: $error")

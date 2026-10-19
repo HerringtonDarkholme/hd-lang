@@ -149,6 +149,7 @@ mod raw_identifier_run;
 mod receiver_fix;
 mod recursive_closure_run;
 mod recursive_layouts;
+mod recursive_value_fix;
 mod reference_equality_fix;
 mod rejected_pattern_binds;
 mod related_traits;

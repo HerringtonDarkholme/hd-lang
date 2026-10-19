@@ -320,6 +320,26 @@ impl[T < Deserialize] Deserialize for T?:
             return .Ok(.None)
         .Ok(.Some(T::deserialize(input)?))
 
+# A reference writes the value it refers to, and reads into a new object
+# (r-std-serde.std.reference).
+impl[T < Serialize] Serialize for &T:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        value := *self
+        value.serialize(out)
+
+impl[T < Serialize] Serialize for &mut T:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        value := *self
+        value.serialize(out)
+
+impl[T < Deserialize] Deserialize for &T:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[&T, R::Error]:
+        .Ok(&T::deserialize(input)?)
+
+impl[T < Deserialize] Deserialize for &mut T:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[&mut T, R::Error]:
+        .Ok(&mut T::deserialize(input)?)
+
 impl[T < Serialize] Serialize for List[T]:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?

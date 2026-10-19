@@ -1,5 +1,5 @@
-//! Recursive type layouts (#120; `crates/hd_wasm/DESIGN.md` §15.2, §15.3): a
-//! self-recursive enum is boxed (flat or subtypes), and data types and
+//! Recursive type layouts (#120; `crates/hd_wasm/DESIGN.md` §15.2, §15.3): an
+//! enum recurs through `&` (`data.enum.recursive`), and data types and
 //! trait values that name themselves lay out as Wasm GC recursion groups.
 //! Programs build through the driver and run on V8 (`host/run.mjs`), as the
 //! conformance runner does, so each module also validates there.
@@ -71,22 +71,22 @@ fn a_generic_binary_tree_inserts_walks_and_derives() {
 @derive(Eq, Debug)
 enum Tree[T]:
     Leaf
-    Node(left: Tree[T], value: T, right: Tree[T])
+    Node(left: &Tree[T], value: T, right: &Tree[T])
 
 fn insert[T < Ord](tree: Tree[T], x: T) -> Tree[T]:
     match tree:
-        .Leaf => Tree.Node(left=Tree.Leaf, value=x, right=Tree.Leaf)
+        .Leaf => Tree.Node(left=&Tree.Leaf, value=x, right=&Tree.Leaf)
         .Node(left, value, right) =>
-            if x < value: Tree.Node(left=insert(left, x), value=value, right=right)
-            else: Tree.Node(left=left, value=value, right=insert(right, x))
+            if x < value: Tree.Node(left=&insert(*left, x), value=value, right=right)
+            else: Tree.Node(left=left, value=value, right=&insert(*right, x))
 
 fn walk[T](tree: Tree[T], out: mut List[T]) -> void:
     match tree:
         .Leaf => pass
         .Node(left, value, right) =>
-            walk(left, out)
+            walk(*left, out)
             out.push(value)
-            walk(right, out)
+            walk(*right, out)
 
 fn build(xs: List[i32]) -> Tree[i32]:
     let t: Tree[i32] = Tree.Leaf
@@ -230,13 +230,13 @@ fn mutually_recursive_expressions_and_statements() {
 enum Expr:
     Lit(value: i64)
     Var(name: string)
-    Add(left: Expr, right: Expr)
-    Block(body: Stmt, result: Expr)
+    Add(left: &Expr, right: &Expr)
+    Block(body: &Stmt, result: &Expr)
 
 @derive(Eq, Debug)
 enum Stmt:
     Let(name: string, value: Expr)
-    Seq(first: Stmt, second: Stmt)
+    Seq(first: &Stmt, second: &Stmt)
 
 fn lookup(env: List[(string, i64)], name: string) -> i64:
     let found: i64 = 0
@@ -249,10 +249,10 @@ fn eval(e: Expr, env: mut List[(string, i64)]) -> i64:
     match e:
         .Lit(value) => value
         .Var(name) => lookup(env, name)
-        .Add(left, right) => eval(left, env) + eval(right, env)
+        .Add(left, right) => eval(*left, env) + eval(*right, env)
         .Block(body, result) =>
-            run(body, env)
-            eval(result, env)
+            run(*body, env)
+            eval(*result, env)
 
 fn run(s: Stmt, env: mut List[(string, i64)]) -> void:
     match s:
@@ -260,19 +260,19 @@ fn run(s: Stmt, env: mut List[(string, i64)]) -> void:
             v := eval(value, env)
             env.push((name, v))
         .Seq(first, second) =>
-            run(first, env)
-            run(second, env)
+            run(*first, env)
+            run(*second, env)
 
 pub fn main() -> void $ Console:
     program := Expr.Block(
-        body=Stmt.Seq(first=Stmt.Let(name=\"x\", value=Expr.Lit(40)), second=Stmt.Let(name=\"y\", value=Expr.Lit(2))),
-        result=Expr.Add(left=Expr.Var(\"x\"), right=Expr.Var(\"y\")),
+        body=&Stmt.Seq(first=&Stmt.Let(name=\"x\", value=Expr.Lit(40)), second=&Stmt.Let(name=\"y\", value=Expr.Lit(2))),
+        result=&Expr.Add(left=&Expr.Var(\"x\"), right=&Expr.Var(\"y\")),
     )
     let env: mut List[(string, i64)] = []
     println(eval(program, env))
-    println(Expr.Add(left=Expr.Lit(1), right=Expr.Var(\"z\")) == Expr.Add(left=Expr.Lit(1), right=Expr.Var(\"z\")))
+    println(Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")) == Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")))
     println(Stmt.Let(name=\"a\", value=Expr.Lit(1)) == Stmt.Let(name=\"a\", value=Expr.Lit(2)))
-    println(debug(Expr.Block(body=Stmt.Let(name=\"a\", value=Expr.Lit(1)), result=Expr.Var(\"a\"))))
+    println(debug(Expr.Block(body=&Stmt.Let(name=\"a\", value=Expr.Lit(1)), result=&Expr.Var(\"a\"))))
 ";
     assert_eq!(
         output_of("expr", main),
@@ -342,12 +342,11 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn an_enum_payload_at_growing_arguments_is_boxed() {
-    // `E[T]` holds `E[T?]`: no instance's value layout is finite unless
-    // the enum is boxed, which a cycle of declarations decides.
+fn an_enum_reference_at_growing_arguments() {
+    // `E[T]` holds `&E[T?]`: the reference ends every value layout.
     let main = "\
 enum Grow[T]:
-    More(inner: Grow[T?])
+    More(inner: &Grow[T?])
     Done(value: T)
 
 fn depth[T](g: Grow[T]) -> i32:
@@ -356,7 +355,7 @@ fn depth[T](g: Grow[T]) -> i32:
         .Done(_value) => 0
 
 pub fn main() -> void $ Console:
-    let g: Grow[i32] = Grow.More(Grow.Done(.Some(+3)))
+    let g: Grow[i32] = Grow.More(&Grow.Done(.Some(+3)))
     println(depth(g))
     let d: Grow[i32] = Grow.Done(+3)
     println(depth(d))

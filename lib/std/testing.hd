@@ -510,6 +510,16 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
     fn arbitrary(c: mut Choices) -> Result[T, E]:
         if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))
 
+# A reference refers to a new object holding a drawn value
+# (r-std-testing.arbitrary.reference).
+impl[T < Arbitrary] Arbitrary for &T:
+    fn arbitrary(c: mut Choices) -> &T:
+        &T::arbitrary(c)
+
+impl[T < Arbitrary] Arbitrary for &mut T:
+    fn arbitrary(c: mut Choices) -> &mut T:
+        &mut T::arbitrary(c)
+
 impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
     fn arbitrary(c: mut Choices) -> (A, B):
         (A::arbitrary(c), B::arbitrary(c))

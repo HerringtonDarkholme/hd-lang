@@ -2,7 +2,7 @@
 
 enum Plain:
     Lit(i64)
-    Add(Plain, Plain)
+    Add(&Plain, &Plain)
 
 enum Triple:
     Items(Plain, Plain, Plain)
@@ -10,7 +10,7 @@ enum Triple:
 fn value(item: Plain) -> i64:
     match item:
         Plain.Lit(number) => number
-        Plain.Add(left, right) => value(left) + value(right)
+        Plain.Add(left, right) => value(*left) + value(*right)
 
 fn nested_first(item: Triple) -> i64:
     match item:

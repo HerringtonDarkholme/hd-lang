@@ -183,6 +183,8 @@ fn demo() -> f64:
 7. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
 8. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
 9. r[data.struct.contains.ends] A data type, a collection, a trait value, or a function value holds a reference, so containment ends there.
+10. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
+11. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
 
 ```text
 struct Vec2:
@@ -205,8 +207,8 @@ impl Vec2:
 ```
 
 > **Why.** A struct holds its fields inline, so one that contained itself
-> would have no finite size. Recursion goes through a data type or a
-> collection, which holds a reference, as `next: List[Chain]` does.
+> would have no finite size. Recursion goes through a reference or a
+> collection, as `next: &Chain?` and `next: List[Chain]` do.
 
 > **Note.** A struct is not a data type, so a data declaration cannot embed
 > one, as [`data.embed.data-only`](#r-data.embed.data-only) states.
@@ -920,11 +922,35 @@ enum Maybe[T]:
 
 enum Tree[T]:
     Leaf(value: T)
-    Branch(left: Tree[T], right: Tree[T])
+    Branch(left: &Tree[T], right: &Tree[T])
 ```
 
-1. r[data.enum.generic] Enums may be generic and recursive.
+1. r[data.enum.generic.params] An enum may declare generic parameters.
 2. r[data.enum.generic.instance] Every variant constructs the enclosing enum instantiated with the declaration's type arguments.
+3. r[data.enum.recursive] An enum may refer to itself through a reference, an optional reference, or a collection, as `Branch(left: &Tree[T], right: &Tree[T])` does.
+4. r[data.enum.no-recursion] An enum that contains itself by value, as [`data.struct.contains`](#r-data.struct.contains) defines containment, is an error. Error: `recursive-value-type`.
+5. r[data.enum.no-recursion.fix] The error has a fix-it that writes `&` before the type of each payload field or shared field that contains the enum.
+6. r[data.enum.no-recursion.group] Structs and enums that contain one another, each through the next, are one `recursive-value-type` error, reported at one of them.
+7. r[data.enum.no-boxing] No value is boxed implicitly: each `&` in a recursive enum is written, and `&` on a new value allocates its object.
+
+```text
+enum Tree:
+    Leaf(value: i64)
+    Node(left: Tree, right: Tree)  # error: recursive-value-type
+
+enum Chain:
+    Link(next: Chain?)  # error: recursive-value-type
+
+enum Branch:
+    Fork(forest: Forest)  # error: recursive-value-type
+
+struct Forest:
+    branch: Branch
+```
+
+> **Why.** An enum holds its payloads inline, as a struct holds its fields,
+> so one that contained itself would have no finite size. Writing the `&`
+> keeps every allocation visible, as Go's pointers and Rust's `Box` do.
 
 > **Why.** hd has no generalized algebraic data types. A typed request and
 > its response pair through a trait with an associated type, and a typed

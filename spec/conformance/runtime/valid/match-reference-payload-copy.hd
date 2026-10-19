@@ -1,0 +1,32 @@
+# test: matching through a reference binds a copy of the payload, which keeps its value after the place is replaced
+# Spec 13 Matching Through A Reference: ref.match.read, ref.match.copy.
+# expect-stdout: 1 2
+# expect-stdout: -1
+struct Counter:
+    count: i32
+
+enum Slot:
+    Empty
+    Full(counter: Counter)
+
+struct Holder:
+    slot: Slot
+
+fn bump(h: &mut Holder) -> i32:
+    match &h.slot:
+        .Full(c) =>
+            h.slot = Slot.Full(Counter { count: c.count + 1 })
+            c.count
+        .Empty => -1
+
+fn count(slot: &Slot) -> i32:
+    match slot:
+        .Full(c) => c.count
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    let mut h = Holder { slot: Slot.Full(Counter { count: 1 }) }
+    old := bump(&mut h)
+    println("$old ${count(&h.slot)}")
+    let mut empty = Holder { slot: Slot.Empty }
+    println("${bump(&mut empty)}")
